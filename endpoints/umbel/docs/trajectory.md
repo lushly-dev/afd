@@ -81,6 +81,12 @@ seam for it without implementing a draft.
 | W15 | Claude Code channels and 2026-07-28 | Channel servers must negotiate 2025-11-25 or earlier; channels are a research preview | Unknown | Keep the SDK's 2025-11-25 compatibility for push paths |
 | W16 | Skills over MCP client support | Extension beta; partial support in ChatGPT only, none in Claude, Claude Code, Cursor or VS Code | Unknown | Resources and harness exports stay required delivery paths |
 
+## Refreshes
+
+| Date | For | Rows | What changed |
+| --- | --- | --- | --- |
+| 2026-10-31 | [Phase 0 specification](phases/0-host-skeleton/spec.md#trajectory-refresh) | W1, W2, W5, W6, W12, W15 and the `rmcp` library row | Nothing that changes the design. W1: roadmap unchanged since 2026-08-22, next revision 2027-03-30. W2: SEP-3415 still open, review required, last updated 2026-10-31. W5: SEP-1932 and SEP-1933 still open; the Agent Identity working group is still forming. W6: still a roadmap item with no SEP. W12: no release or tag yet. W15: channels still a research preview, and Claude Code still does not register a channel server that negotiates 2026-07-28. `rmcp` 3.8.0 was published on 2026-10-26 and is what the `afd` crate's 3.7 requirement resolves |
+
 ## Deliberately not chased
 
 The result contract's wire shape or any progressive-discovery API before

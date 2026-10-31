@@ -259,7 +259,8 @@ sequenceDiagram
   with digest, size and cache hints.
 - **CLI.** The same registry as commands and subcommands, JSON out, the AFD
   CLI's exit codes, the workspace doctor, reindex, backup and restore, plugin
-  new and plugin check. Harness adapters are thin scripts over the CLI.
+  new and plugin check. Harness adapters are thin scripts over the CLI; they
+  run while a server serves the same workspace ([D29](decisions.md)).
 - **Plugin manifest.** At least identity, version, protocol version,
   contributions (commands, connectors, backends, packs, skills, AFD contexts),
   required grants with declared effects, and a configuration schema. It
@@ -360,7 +361,7 @@ sequenceDiagram
 | Commands, results, approvals, journal, MCP server | the `afd` crate with its `server` feature on rmcp | One contract across four languages; stateless MCP implemented | `server` needs Rust 1.88; the crate requires rmcp 3.7, which admits the current 3.8.0, and commits no lock. A phase that needs something new in 3.8 raises the floor |
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
 | Lexical index | tantivy 0.27 | Fielded BM25 with boolean, phrase, field, boost and range syntax, embedded | Rust 1.88 |
-| Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 0 |
+| Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 2 ([D28](decisions.md)); phase 0 stores only files. It must let several host processes open one workspace (for example SQLite in WAL mode, or LMDB), as phase 0's files do ([D29](decisions.md)); no single-writer daemon |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
 | Plugin sandbox | wasmtime 50.0.1 or later with the component model and WASI 0.3; wit-bindgen 0.63 | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.97; wit-bindgen moves with wasmtime |
@@ -462,9 +463,12 @@ material, from loosest to strongest:
 - **Scale profiles.** team, org, enterprise and beyond switch lanes and
   backends; nothing else changes.
 - **Versioning.** The plugin protocol version, the WIT world, the pack schema,
-  the store traits and the provenance envelope are versioned under
+  the store traits, the workspace configuration, the principal projection, the
+  provenance envelope and the event shape are versioned under
   `endpoints/umbel/`, independently of the binary and of AFD's contract
-  version; the host refuses what it cannot serve and names the upgrade.
+  version; the host refuses what it cannot serve and names the upgrade. The
+  shapes are closed JSON Schemas in `endpoints/umbel/schemas/`, with reserved
+  fields named in advance ([D36](decisions.md)).
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
@@ -472,10 +476,12 @@ material, from loosest to strongest:
   first manifest lands, its units join the release inventory
   (`scripts/release/inventory.json`) and every unit starts quarantined under
   the [platform migration](../../../docs/features/active/platform-monorepo/)
-  rules. `architecture.json` needs no change: its `families` list names
+  rules. Its `families` list in `architecture.json` does not change: it names
   foundation families only, and the boundary check classifies any manifest
   under `endpoints/umbel/`, `Cargo.toml` included, as an endpoint unit of the
-  `umbel` family by its path, as it does for Botcore and Health. Generic server features land in the `afd` crate first; section 9
+  `umbel` family by its path. Each manifest still gets an explicit unit there
+  with its `publicSurfaces`, as Botcore's and Health's do, so the coverage map
+  names its surfaces ([D35](decisions.md)). Generic server features land in the `afd` crate first; section 9
   lists them. Authoring skills are declared in `skills/exports.json` and
   follow the repository's projection pipeline.
 - **Decisions.** Architecture decisions are dated entries in the
@@ -515,6 +521,9 @@ flowchart LR
 | 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
+Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
+(proposed 2026-10-31, revised after review the same day).
+
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
 exercises every host service; phases 3 and 4 complete the first-party set.
@@ -533,8 +542,11 @@ criterion.
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
 | A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532 |
 | The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); spec in #538; TypeScript #556, Python #555 and Rust #560 done; C++ waits on parity D2 and does not block Umbel |
+| A process-shared mode for the Rust `FileJournalSink`, so several host processes append to one journal under one lock ([D29](decisions.md)) | Phase 0 | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request); not started |
+| Interface selection on the Rust `DirectClient`, as TypeScript and Python have ([D34](decisions.md)) | Phase 0 | Step 0 of the phase 0 plan; not started |
 | MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first; shared with Loam, which also needs `ui://` resources for MCP Apps views, so one proposal covers both |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
+| The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 2 | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
 | The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
@@ -567,7 +579,11 @@ document needs as an amendment.
 | Connector | A plugin's binding to an external system or source |
 | Backend | A swappable implementation behind a store trait |
 | Adapter | An infrastructure binding, such as auth or a harness adapter |
-| Workspace | The deployer-owned directory for one deployment: configuration, spaces, plugin list, profile |
+| Workspace | The deployer-owned directory for one deployment: configuration, spaces, plugin list, profile. Always Umbel's; the Rust one is the "Cargo workspace" |
+| State directory | The workspace's `state/` directory, which only the host writes: the journal, event streams, cursors, keys and the workspace lock |
+| Workspace lock | The file lock every host process of a workspace holds across one append to the journal and its event; any number of processes share a workspace ([D29](decisions.md)) |
+| Built-in command | A command the host registers itself, such as `workspace-doctor` or `event-list` |
+| Cursor | An opaque, versioned position in one space's event stream; each principal stores its own |
 | Space | An isolated knowledge base inside a deployment; nothing crosses spaces by default |
 | Collection | A content root inside a space; collections in one space share its index and graph |
 | Pack | Content a plugin ships by default and an instance overrides |
