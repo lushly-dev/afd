@@ -225,7 +225,12 @@ assert_eq!(request.steps[1].alias, None);
 - **Crashes.** A panic in a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR` with
   the message `An internal error occurred`, as TypeScript does for a thrown exception outside
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show
-  it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts.
+  it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts (and
+  so does `wasm32-unknown-unknown`, which cannot unwind). A batch item that panics fails alone, a
+  pipeline step that panics fails the pipeline, and the journal records the failure with
+  `with_record_failures(true)`. The `server` feature guards each request as well: a panic in its
+  own code (a `with_group_by` closure, say) answers a generic `INTERNAL_ERROR` instead of leaving
+  the client waiting.
 - **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
   `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
   and interface, a context hash (never other context values), the result and the tape of clock and

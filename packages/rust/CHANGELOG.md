@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Add approval-aware in-process `DirectClient.call` and an async trusted hook (#460). Tokens stay in a private per-call exchange; caller evidence is stripped, errors or panics decline, and a single deadline covers the decision and retry. Raw `CommandRegistry::execute` remains a trusted host API.
 
+### Fixed
+
+- **`server` feature (#531):** a panic in the server's own request handling no longer leaves the MCP request unanswered. `rmcp` runs each request on its own task, so a panic that escaped `CommandRegistry::execute` (a `with_group_by` closure, for example) ended the task and the client waited forever, on stdio and Streamable HTTP. `tools/call` now answers a failed `CommandResult` with `INTERNAL_ERROR`, a suggestion and `retryable: true`, with `structuredContent`; `tools/list` answers a `-32603` error; neither carries the panic message. The context hook's panic uses the same failure. A panicking command handler was already a redacted `COMMAND_EXECUTION_ERROR` through `CommandRegistry::execute` (the code TypeScript and the shared catalog use for a handler that throws, so not `INTERNAL_ERROR`); tests now pin that on a command's own tool, grouped tools, `afd-call`, `afd-batch` (continue, `stopOnError`, `maxFailures`, parallel) and `afd-pipe`, on stdio and Streamable HTTP, and in the journal. Only unwinding panics are caught: `panic = "abort"` builds, and `wasm32-unknown-unknown`, still abort (now in the rustdoc).
+
 ### Changed
 
 - **Breaking (`server` feature):** the default tool strategy is now `Grouped`, as in TypeScript (parity D5: agents see the same tool list whatever language serves it). `tools/list` lists `afd-batch`, `afd-pipe`, `afd-call` and `afd-detail`, then one tool per group; call `with_tool_strategy(ToolStrategy::Individual)` for one tool per command, which now also lists `afd-batch`, `afd-pipe` and `afd-call` first. Calls by command name keep working in every strategy.
