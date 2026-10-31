@@ -378,9 +378,16 @@ This client does not add a pipeline client, remote transport, or CLI.
   `initialize`. Only MCP-exposed commands are listed or callable; unknown and unexposed tools return a
   `COMMAND_NOT_FOUND` result. `HttpOptions` sets the accepted `Host` names and browser `Origin`s (any
   other `Origin` is refused) and the body cap. `with_tool_strategy` selects TypeScript's grouped
-  (default), individual or lazy tool list; every strategy serves the meta-tools `afd-call`,
+  (default), individual, lazy or hybrid tool list; every strategy serves the meta-tools `afd-call`,
   `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` through the same exposure, context,
-  confirmation and middleware path as a command's own tool. `with_contexts` scopes commands by
+  confirmation and middleware path as a command's own tool. `ToolStrategy::Hybrid` with
+  `with_first_class_tools(["todo-list", ...])` lists the five meta-tools, the context tools when
+  contexts are configured, then at most 8 command tools, in one fixed list that never varies by
+  context (`ttlMs` keeps its 300,000 default; a first-class call outside the active context answers
+  `COMMAND_NOT_IN_CONTEXT`); the set is checked when the server starts (`McpServer::validate`,
+  which `serve_stdio` and `try_streamable_http_service` run, and `streamable_http_service` panics
+  on). `afd-help` reports `toolStrategy`, and on a hybrid server `firstClassTools` and each
+  command's `firstClass`. `with_contexts` scopes commands by
   context: `_meta["dev.afd/context"]` per MCP 2026-07-28 request, one stack per 2025 stdio
   connection. Every tool result on every route carries the whole result as `structuredContent`
   too, and under the individual strategy a command with `returns` advertises a top-level

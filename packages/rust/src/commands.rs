@@ -396,6 +396,15 @@ pub fn is_exposed_to(command: &CommandDefinition, interface: CommandInterface) -
 // COMMAND CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// How an MCP server lists its tools, for `afd-help` (`spec/tool-strategies.md`, H8). Only the
+/// MCP server sets it, so `afd-help` run in process reports none of it.
+#[derive(Clone, Debug)]
+pub(crate) struct ToolSurface {
+    pub(crate) strategy: &'static str,
+    /// The first-class tool names in list order, on a hybrid server.
+    pub(crate) first_class_tools: Option<Arc<Vec<String>>>,
+}
+
 /// Context provided to command handlers.
 ///
 /// Build it with [`CommandContext::new`] and the `with_*` methods.
@@ -459,6 +468,8 @@ pub struct CommandContext {
     /// A remote MCP caller: an unexposed command looks unknown, and recovery points to
     /// `afd-discover` (`spec/error-codes.md`, D4). Only the MCP server sets it.
     pub(crate) remote: bool,
+    /// How the MCP server lists its tools: read by `afd-help`. Only the MCP server sets it.
+    pub(crate) tool_surface: Option<ToolSurface>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -475,6 +486,7 @@ impl fmt::Debug for CommandContext {
             .field("extra", &self.extra)
             .field("journal_state", &self.journal_state)
             .field("context_scope", &self.context_scope)
+            .field("tool_surface", &self.tool_surface)
             .finish()
     }
 }

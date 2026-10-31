@@ -11,6 +11,10 @@
 //!   `afd-call`.
 //! - [`ToolStrategy::Lazy`]: only the meta-tools (`afd-discover`, `afd-detail`, `afd-batch`,
 //!   `afd-pipe`, `afd-call`); agents discover commands and run them through `afd-call`.
+//! - [`ToolStrategy::Hybrid`]: the lazy list, then the context tools when contexts are
+//!   configured, then up to [`MAX_FIRST_CLASS_TOOLS`] command tools named with
+//!   [`McpServer::with_first_class_tools`](super::McpServer::with_first_class_tools)
+//!   (`spec/tool-strategies.md`, H1 to H8). The list never varies by context.
 //!
 //! Every strategy routes every meta-tool and every command by its own name, so a call never
 //! depends on which tools were listed.
@@ -20,7 +24,7 @@ use std::sync::Arc;
 use serde_json::{json, Map, Value};
 
 use crate::approval::approval_mode;
-use crate::CommandDefinition;
+use crate::{CommandDefinition, CommandRegistry};
 
 use super::confirmations;
 use super::meta_tools;
@@ -30,6 +34,10 @@ use super::meta_tools;
 /// Larger groups advertise only the generic `params` object; their schemas stay in
 /// `_meta.actions` and `afd-detail`.
 pub const GROUPED_PARAMS_SCHEMA_BUDGET: usize = 8_192;
+
+/// The most first-class tools a [`ToolStrategy::Hybrid`] server lists
+/// (`spec/tool-strategies.md`, H5).
+pub const MAX_FIRST_CLASS_TOOLS: usize = 8;
 
 /// How `tools/list` presents commands (see the [module documentation](self)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -43,6 +51,89 @@ pub enum ToolStrategy {
     Grouped,
     /// Only the meta-tools.
     Lazy,
+    /// The meta-tools, the context tools when contexts are configured, and a few first-class
+    /// command tools named with [`McpServer::with_first_class_tools`](super::McpServer::with_first_class_tools).
+    /// The list is the same in every context.
+    Hybrid,
+}
+
+impl ToolStrategy {
+    /// The strategy's name, as `afd-help` reports it as `toolStrategy`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Individual => "individual",
+            Self::Grouped => "grouped",
+            Self::Lazy => "lazy",
+            Self::Hybrid => "hybrid",
+        }
+    }
+}
+
+/// Check the first-class set against the strategy and the registry
+/// (`spec/tool-strategies.md`, H1, H2 and H5). Every message names the offending entry or
+/// option.
+pub(crate) fn validate_first_class(
+    strategy: ToolStrategy,
+    first_class: Option<&[String]>,
+    registry: &CommandRegistry,
+) -> Result<(), String> {
+    let Some(first_class) = first_class else {
+        if strategy == ToolStrategy::Hybrid {
+            return Err("[AFD] ToolStrategy::Hybrid needs with_first_class_tools: the names of the commands to list as their own tools.".to_owned());
+        }
+        return Ok(());
+    };
+    if strategy != ToolStrategy::Hybrid {
+        return Err(format!(
+            "[AFD] with_first_class_tools is only valid with ToolStrategy::Hybrid (got {}). Set the strategy to Hybrid, or remove with_first_class_tools.",
+            strategy.as_str()
+        ));
+    }
+    if first_class.is_empty() {
+        return Err("[AFD] with_first_class_tools is empty. A hybrid server with no first-class tools is the lazy strategy: use ToolStrategy::Lazy, or name the commands to list.".to_owned());
+    }
+    let mut seen: Vec<&str> = Vec::new();
+    for (index, entry) in first_class.iter().enumerate() {
+        if index >= MAX_FIRST_CLASS_TOOLS {
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' is beyond the cap of {MAX_FIRST_CLASS_TOOLS} first-class tools. Remove it, or use the individual or grouped strategy to list more tools."
+            ));
+        }
+        if entry.is_empty() {
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' is not a command name."
+            ));
+        }
+        if crate::AFD_META_TOOL_NAMES.contains(&entry.as_str())
+            || crate::AFD_CONTEXT_COMMAND_NAMES.contains(&entry.as_str())
+        {
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' is already listed by the hybrid strategy (meta-tools and context tools always are). Remove it."
+            ));
+        }
+        if seen.contains(&entry.as_str()) {
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' appears more than once. Each tool is listed once."
+            ));
+        }
+        seen.push(entry);
+        let Some(command) = registry.get(entry) else {
+            let hint = if crate::AFD_BOOTSTRAP_COMMAND_NAMES.contains(&entry.as_str()) {
+                " Call register_bootstrap_commands to register it."
+            } else {
+                ""
+            };
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' is not a registered command.{hint} Register it, or remove it."
+            ));
+        };
+        if !command.expose.mcp {
+            return Err(format!(
+                "[AFD] first-class tool '{entry}' is not exposed over MCP (expose.mcp is not true), so it cannot be listed. Expose it, or remove it."
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Derives a grouped tool's name from a command; `None` or an empty name is `general`.

@@ -10,7 +10,9 @@
 //! commands are indistinguishable from missing ones (`spec/error-codes.md`, D4).
 //!
 //! [`McpServer::with_tool_strategy`] chooses how `tools/list` presents the commands: grouped
-//! (the default, as in TypeScript), individual or lazy (see [`strategy`]). Every strategy serves
+//! (the default, as in TypeScript), individual, lazy or hybrid (see [`strategy`]); a hybrid server
+//! also needs [`McpServer::with_first_class_tools`] and checks it when it starts serving
+//! ([`McpServer::validate`]). Every strategy serves
 //! the meta-tools `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` (see
 //! [`meta_tools`]), and routes each through the same exposure, context and confirmation checks
 //! and the same [`CommandRegistry::execute`] as a command's own tool, so the
@@ -22,6 +24,11 @@
 //! anything); a 2025 stdio connection keeps one context stack; a 2025 request over the
 //! stateless Streamable HTTP endpoint has no session, so it has no active context and the
 //! context tools return `SESSION_REQUIRED`.
+//!
+//! `afd-help` reports `toolStrategy` (and, on a hybrid server, `firstClassTools` and each
+//! command's `firstClass`) when it runs behind this server. `tools/list` and `server/discover`
+//! carry the same `ttlMs` and `cacheScope`, and `tools.listChanged` is `false`: no strategy sends
+//! `notifications/tools/list_changed`.
 //!
 //! Every tool result on every route carries the whole result (a `CommandResult`, or the batch or
 //! pipeline result) as `structuredContent` next to the JSON text. Under the individual strategy a
@@ -52,8 +59,8 @@
 use std::sync::Arc;
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, ListToolsResult, PaginatedRequestParams,
-    ServerCapabilities, ServerConfig, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, DiscoverResult, ListToolsResult,
+    PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -62,6 +69,7 @@ use rmcp::transport::streamable_http_server::{
 use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
+use crate::commands::ToolSurface;
 use crate::contexts::{ContextConfig, ContextScope, ContextStack, AFD_CONTEXT_META_KEY};
 use crate::{
     with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandDefinition,
@@ -85,7 +93,7 @@ use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
-pub use strategy::{GroupBy, ToolStrategy};
+pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
 #[derive(Debug, Clone)]
@@ -120,6 +128,7 @@ struct Inner {
     tools: Option<Vec<Value>>,
     tools_list_ttl_ms: Option<u64>,
     strategy: ToolStrategy,
+    first_class_tools: Option<Arc<Vec<String>>>,
     group_by: Option<GroupBy>,
     contexts: Option<Arc<Vec<ContextConfig>>>,
     context_defaults: ContextDefaults,
@@ -159,6 +168,7 @@ impl McpServer {
                 tools: None,
                 tools_list_ttl_ms: None,
                 strategy: ToolStrategy::default(),
+                first_class_tools: None,
                 group_by: None,
                 contexts: None,
                 context_defaults: ContextDefaults::new().with_actor(ActorKind::Agent),
@@ -183,6 +193,7 @@ impl McpServer {
             tools: shared.tools.clone(),
             tools_list_ttl_ms: shared.tools_list_ttl_ms,
             strategy: shared.strategy,
+            first_class_tools: shared.first_class_tools.clone(),
             group_by: shared.group_by.clone(),
             contexts: shared.contexts.clone(),
             context_defaults: shared.context_defaults.clone(),
@@ -211,17 +222,60 @@ impl McpServer {
         self.with(|inner| inner.tools = Some(tools))
     }
 
-    /// `ttlMs` freshness hint of `tools/list` results (0 when the command set can change).
-    /// Default: [`DEFAULT_TOOLS_LIST_TTL_MS`], or 0 with contexts, because `tools/list` then
-    /// varies by `_meta["dev.afd/context"]`, which clients leave out of their cache key.
+    /// `ttlMs` freshness hint of `tools/list` and `server/discover` results (0 when the command
+    /// set can change). Default: [`DEFAULT_TOOLS_LIST_TTL_MS`], or 0 with contexts, because
+    /// `tools/list` then varies by `_meta["dev.afd/context"]`, which clients leave out of their
+    /// cache key. A [`ToolStrategy::Hybrid`] list does not vary by context, so it keeps the
+    /// default.
     pub fn with_tools_list_ttl_ms(self, ttl_ms: u64) -> Self {
         self.with(|inner| inner.tools_list_ttl_ms = Some(ttl_ms))
     }
 
     /// How `tools/list` presents the commands. Default: [`ToolStrategy::Grouped`], as in
     /// TypeScript. Every strategy routes every meta-tool and every command by its own name.
+    ///
+    /// [`ToolStrategy::Hybrid`] needs [`Self::with_first_class_tools`], and nothing else does.
     pub fn with_tool_strategy(self, strategy: ToolStrategy) -> Self {
         self.with(|inner| inner.strategy = strategy)
+    }
+
+    /// The commands a [`ToolStrategy::Hybrid`] server lists as their own tools, in list order
+    /// (`spec/tool-strategies.md`, H1): at most [`MAX_FIRST_CLASS_TOOLS`], each registered and
+    /// exposed to MCP, none a meta-tool or context tool, none repeated. Every other command is
+    /// reached through `afd-discover`, `afd-detail`, `afd-call`, `afd-batch` and `afd-pipe`.
+    ///
+    /// The commands and contexts may be registered after this call, so the set is checked when
+    /// the server starts serving (see [`Self::validate`]), not here.
+    pub fn with_first_class_tools<I, S>(self, names: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let names = Arc::new(names.into_iter().map(Into::into).collect::<Vec<String>>());
+        self.with(|inner| inner.first_class_tools = Some(names))
+    }
+
+    /// Check the tool strategy's options against the registry (`spec/tool-strategies.md`, H2).
+    ///
+    /// [`Self::serve_stdio`] and [`Self::try_streamable_http_service`] call it before serving,
+    /// and a request over any other transport fails with `-32603` carrying its message until it
+    /// passes, so a misconfigured server never answers from a bad list. Call it yourself to
+    /// fail at startup.
+    ///
+    /// # Errors
+    /// The message names the offending option or entry: a first-class set without the hybrid
+    /// strategy, a hybrid server without one or with an empty one, and an entry that is not a
+    /// registered command, is not exposed to MCP, is a meta-tool or context tool, repeats, or is
+    /// beyond [`MAX_FIRST_CLASS_TOOLS`] (the first one beyond it).
+    pub fn validate(&self) -> Result<(), String> {
+        strategy::validate_first_class(
+            self.inner.strategy,
+            self.inner
+                .first_class_tools
+                .as_ref()
+                .map(|names| names.as_slice()),
+            &self.inner.registry,
+        )
     }
 
     /// Name the grouped tool of each command (default: its `category`, else the first segment
@@ -294,8 +348,8 @@ impl McpServer {
 
     /// Advertise a top-level `outputSchema` on tools whose command declares `returns` (the
     /// `CommandResult` envelope with `data` typed by `returns`). Default: `true`. Only the
-    /// individual strategy lists command tools; grouped and lazy tools carry no `outputSchema`,
-    /// as in TypeScript. MCP clients
+    /// individual strategy and the hybrid strategy's first-class tools are command tools;
+    /// grouped and lazy tools carry no `outputSchema`, as in TypeScript. MCP clients
     /// validate each result's `structuredContent` against it, so a handler whose `data` does not
     /// match its `returns` fails on the client; pass `false` to leave `outputSchema` out, also
     /// from tools given to [`Self::with_tools`]. `structuredContent` is sent either way.
@@ -351,6 +405,35 @@ impl McpServer {
         tool
     }
 
+    /// A command's tool as the individual strategy lists it: the `confirm` acknowledgement and
+    /// the `outputSchema` included.
+    fn individual_tool(&self, name: &str) -> Option<Value> {
+        self.command_tool(name)
+            .map(|tool| self.with_confirm_argument(tool))
+            .map(|tool| self.with_output_schema(tool))
+    }
+
+    /// How this server lists its tools, for `afd-help`.
+    pub(crate) fn tool_surface(&self) -> ToolSurface {
+        ToolSurface {
+            strategy: self.inner.strategy.as_str(),
+            first_class_tools: (self.inner.strategy == ToolStrategy::Hybrid)
+                .then(|| self.inner.first_class_tools.clone())
+                .flatten(),
+        }
+    }
+
+    /// The `ttlMs` of `tools/list` and `server/discover` results.
+    fn tools_list_ttl_ms(&self) -> u64 {
+        self.inner.tools_list_ttl_ms.unwrap_or(
+            if self.inner.contexts.is_some() && self.inner.strategy != ToolStrategy::Hybrid {
+                0
+            } else {
+                DEFAULT_TOOLS_LIST_TTL_MS
+            },
+        )
+    }
+
     /// MCP-exposed commands, in registration order.
     fn exposed_commands(&self) -> Vec<Arc<CommandDefinition>> {
         self.inner
@@ -379,6 +462,9 @@ impl McpServer {
     /// The listed tools while `active` is the active context.
     fn tools_in(&self, active: Option<&str>) -> Vec<Value> {
         let mut tools = Vec::new();
+        if self.inner.strategy == ToolStrategy::Hybrid {
+            return self.hybrid_tools();
+        }
         if self.inner.strategy == ToolStrategy::Lazy {
             tools.push(meta_tools::discover_tool());
             tools.push(meta_tools::detail_tool());
@@ -435,6 +521,44 @@ impl McpServer {
             &listed,
             self.inner.group_by.as_ref(),
         ));
+        tools
+    }
+
+    /// The hybrid list (`spec/tool-strategies.md`, H3): the meta-tools, the context tools when
+    /// contexts are configured, then the first-class tools in configured order. It does not
+    /// depend on the active context.
+    fn hybrid_tools(&self) -> Vec<Value> {
+        let mut tools = vec![
+            meta_tools::discover_tool(),
+            meta_tools::detail_tool(),
+            meta_tools::call_tool(),
+            meta_tools::batch_tool(),
+            meta_tools::pipe_tool(),
+        ];
+        let context_tools: &[&str] = if self.inner.contexts.is_some() {
+            crate::AFD_CONTEXT_COMMAND_NAMES
+        } else {
+            &[]
+        };
+        let first_class = self
+            .inner
+            .first_class_tools
+            .as_deref()
+            .map_or(&[][..], |names| names.as_slice());
+        let names = context_tools
+            .iter()
+            .copied()
+            .chain(first_class.iter().map(String::as_str));
+        for name in names {
+            let exposed = self
+                .inner
+                .registry
+                .get(name)
+                .is_some_and(|command| command.expose.mcp);
+            if let Some(tool) = exposed.then(|| self.individual_tool(name)).flatten() {
+                tools.push(tool);
+            }
+        }
         tools
     }
 
@@ -496,6 +620,7 @@ impl McpServer {
                 ToolStrategy::Lazy => "Call afd-discover to find commands, afd-detail for a command schema, and afd-call to run one.",
                 ToolStrategy::Grouped => "Each tool groups related commands: pass { action, params }. afd-detail returns a command schema; afd-call runs any command by name.",
                 ToolStrategy::Individual => "Each command is its own tool; afd-call also runs any command by name.",
+                ToolStrategy::Hybrid => "The command tools listed are the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to run one.",
             }
             .to_owned(),
         );
@@ -541,10 +666,27 @@ impl McpServer {
 
     /// The Streamable HTTP endpoint as a `tower` service, for mounting in an HTTP server
     /// (for example `axum::Router::nest_service("/mcp", ...)`).
+    ///
+    /// # Panics
+    /// When [`Self::validate`] fails. Use [`Self::try_streamable_http_service`] to handle that.
     pub fn streamable_http_service(
         &self,
         options: HttpOptions,
     ) -> StreamableHttpService<McpServer, LocalSessionManager> {
+        self.try_streamable_http_service(options)
+            .unwrap_or_else(|message| panic!("{message}"))
+    }
+
+    /// [`Self::streamable_http_service`], refusing to start when the tool strategy's options are
+    /// invalid.
+    ///
+    /// # Errors
+    /// [`Self::validate`]'s message.
+    pub fn try_streamable_http_service(
+        &self,
+        options: HttpOptions,
+    ) -> Result<StreamableHttpService<McpServer, LocalSessionManager>, String> {
+        self.validate()?;
         let mut config = StreamableHttpServerConfig::default()
             .with_legacy_session_mode(false)
             .with_json_response(true)
@@ -556,18 +698,20 @@ impl McpServer {
         // to hold a context stack.
         let mut server = self.clone().with(|inner| inner.legacy_back_channel = false);
         server.session = None;
-        StreamableHttpService::new(
+        Ok(StreamableHttpService::new(
             move || Ok(server.clone()),
             Arc::new(LocalSessionManager::default()),
             config,
-        )
+        ))
     }
 
     /// Serve MCP over the process's stdin and stdout until the client disconnects.
     ///
     /// # Errors
-    /// Returns the SDK error message when the connection cannot be established.
+    /// Returns [`Self::validate`]'s message when the tool strategy's options are invalid, or the
+    /// SDK error message when the connection cannot be established.
     pub async fn serve_stdio(self) -> Result<(), String> {
+        self.validate()?;
         // One connection, one context stack.
         let server = Self {
             session: Some(ContextStack::new()),
@@ -607,7 +751,14 @@ fn internal(error: impl std::fmt::Display) -> ErrorData {
 
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerConfig {
-        let mut info = ServerConfig::new(ServerCapabilities::builder().enable_tools().build());
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        // No strategy sends `notifications/tools/list_changed`.
+        capabilities.tools = Some({
+            let mut tools = ToolsCapability::default();
+            tools.list_changed = Some(false);
+            tools
+        });
+        let mut info = ServerConfig::new(capabilities);
         info.server_info.name = self.inner.name.clone();
         info.server_info.version = self.inner.version.clone();
         info.instructions = Some(
@@ -625,20 +776,14 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         panic_guard::guard_request(async {
+            self.validate().map_err(internal)?;
             let active = self
                 .request_scope(&context)?
                 .and_then(|scope| scope.active());
             let tools: Vec<Tool> =
                 serde_json::from_value(Value::Array(self.tools_in(active.as_deref())))
                     .map_err(internal)?;
-            let ttl_ms = self
-                .inner
-                .tools_list_ttl_ms
-                .unwrap_or(if self.inner.contexts.is_some() {
-                    0
-                } else {
-                    DEFAULT_TOOLS_LIST_TTL_MS
-                });
+            let ttl_ms = self.tools_list_ttl_ms();
             serde_json::from_value(json!({
                 "resultType": "complete",
                 "tools": tools,
@@ -650,11 +795,27 @@ impl ServerHandler for McpServer {
         .await
     }
 
+    async fn discover(
+        &self,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<DiscoverResult, ErrorData> {
+        self.validate().map_err(internal)?;
+        Ok(DiscoverResult::from_server_info(
+            self.supported_protocol_versions().into_owned(),
+            self.get_info(),
+        )
+        .with_ttl_ms(self.tools_list_ttl_ms())
+        .with_cache_scope(CacheScope::Public))
+    }
+
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        if let Err(message) = self.validate() {
+            return Err(internal(message));
+        }
         panic_guard::guard_call(router::route(self, &request, &context)).await
     }
 }
