@@ -3,7 +3,9 @@
 > Proposal: Provider-agnostic authentication layer enabling zero-friction migration
 
 ---
-status: active
+status: complete
+shipped: "@lushly-dev/afd-auth, #125 (2026-02-22); follow-ups #131"
+verified: 2026-10-31
 created: 2026-01-11
 updated: 2026-01-31
 origin: Discussion on stack choices (Convex + BetterAuth vs Stytch/Supabase)

@@ -25,8 +25,8 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (`tools.py`, `factory.py`, `tool_router.py`, `types.py`), `packages/rust/src/server.rs` and
   `packages/examples/todo/backends/cpp/src/mcp_stdio.cpp`, and from `spec/command-metadata.md`,
   `spec/error-codes.md` and `spec/protocol-conformance.md`.
-- **Done:** nothing merged.
-- **In progress:** the proposal and this file, in [#522](https://github.com/lushly-dev/afd/pull/522), open for the owner's review.
+- **Done:** the proposal and this file, merged in [#522](https://github.com/lushly-dev/afd/pull/522) as `9a35907f` on 2026-10-31. No implementation step has merged.
+- **In progress:** nothing. Decision 6's alignment, [#533](https://github.com/lushly-dev/afd/issues/533), is open (checked 2026-10-31).
 - **Not done:** every row of the proposal's implementation plan
   (spec, TypeScript, Python, Rust, C++, parity and skills).
 

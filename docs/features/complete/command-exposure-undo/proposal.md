@@ -1,5 +1,7 @@
 ---
-status: approved
+status: complete
+shipped: "39ccc6c0 (2026-01-24): undoable and expose in afd-core; Python afd.core.commands"
+verified: 2026-10-31
 author: System
 created: 2026-01-24
 updated: 2026-01-24

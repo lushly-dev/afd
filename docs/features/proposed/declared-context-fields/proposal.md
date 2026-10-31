@@ -12,7 +12,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [`spec/journal.md`](../../../../spec/journal.md), [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) per-request `_meta` |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (journal only) |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), open PR #523 (Rust per-request context hook), #431 (no caller-declared actor) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), PR #523 (Rust per-request context hook, merged 2026-10-31), #431 (no caller-declared actor) |
 
 ## Why
 
@@ -38,7 +38,7 @@ binds (Umbel decision D26).
   `createContext(req)` sees the HTTP request and its headers, not the
   JSON-RPC `_meta`, and stdio has no request object at all.
 - **Python.** The server reads the same two keys and drops the rest.
-- **Rust.** Open PR #523 adds `McpServer::with_context_hook`. A host's hook
+- **Rust.** PR #523 (merged 2026-10-31) adds `McpServer::with_context_hook`. A host's hook
   can read `_meta` and set fields imperatively, but nothing declares or
   validates them, and the journal does not keep them.
 - **C++.** No MCP server. `CommandContext::extra` holds host values.

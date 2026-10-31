@@ -3,7 +3,9 @@
 > Proposal: Surface validation rule that scores how hard a command's input schema is for an agent to use correctly
 
 ---
-status: captured
+status: complete
+shipped: "#128 (2026-02-22): schema-complexity surface rule in @lushly-dev/afd-testing"
+verified: 2026-10-31
 created: 2026-02-22
 updated: 2026-02-22
 origin: Playground testing — agent hit runtime crash on discriminated union schemas, realized surface validation checks what commands *look like* but not whether an agent can *use them correctly*

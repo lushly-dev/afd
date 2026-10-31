@@ -13,6 +13,8 @@
 > **Disposition (2026-10-25, audit #349): partially shipped, stays proposed.**
 > Shipped: core types and registry (`rust-parity`, #181), WASM feature, `afd` 0.1.0 on crates.io (#379), and an optional `server` Cargo feature with stdio and Streamable HTTP on `rmcp` (#394).
 > Remaining scope: `cargo-dist` distribution; the `#[afd_command]` proc macro and `hello_mcp`/`todo_app` examples sketched in [01-afd-rust.md](./01-afd-rust.md); and verified interop with Claude Desktop and Cursor. Moving this folder to `complete/` waits on those or on an explicit decision to drop them. Update the "Success Criteria" below when that happens.
+>
+> **Update (2026-10-31):** the `server` feature gained `structuredContent`, `outputSchema` and a per-request context hook (#523) and tool strategies, meta-tools and contexts (#526), under [parity-closure](../../active/parity-closure/parity-closure.plan.md) D1. The remaining scope above is unchanged: no `cargo-dist` config, `#[afd_command]` macro or `hello_mcp`/`todo_app` examples exist in `packages/rust`.
 
 > **Goal**: Add Rust as a third language implementation to AFD, enabling native binary and WASM distribution targets alongside the existing TypeScript and Python implementations.
 

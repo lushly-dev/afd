@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Active: accepted 2026-09-27, with every recommendation (D1–D8) |
+| Status | Active: accepted 2026-09-27, with every recommendation (D1–D8). Current state: [STATUS.md](./STATUS.md) (2026-10-31) |
 | Author | jasfalk |
 | Updated | 2026-10-10 |
 | Tracks | [`docs/language-parity.md`](../../../language-parity.md) |
@@ -17,7 +17,7 @@
 
 ## Stabilization candidate, 2026-10-10
 
-Source changes based on `ddb1663` remain **unmerged and unpublished**. This checkpoint records implementation progress; the exit criteria and contract 1.0 declaration remain open.
+**Correction, 2026-10-31:** the candidate below merged in #367 on 2026-10-11 (its issues closed the same day), and Python 0.9.0 and npm 2.1.0 were published after it (see the [versioning plan](../versioning/versioning.plan.md)). The table keeps its 2026-10-10 wording; the exit criteria and contract 1.0 declaration remain open.
 
 | Item | Candidate evidence | Remaining limit |
 |---|---|---|

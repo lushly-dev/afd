@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Active: accepted 2026-10-25 with every recommendation (C1–C6). Phase 1 merged in #410. Phase 2 merged in #435. Phase 3 (Python and Rust servers) implemented on `claude/mcp-confirmations-phase3`. Ranked 1 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Resolves decision D10 of that plan. |
+| Status | Active: accepted 2026-10-25 with every recommendation (C1–C6). Phase 1 merged in #410. Phase 2 merged in #435. Phase 3 (Python and Rust servers) merged in #442. Open: C++ (#467), Python client (#468); Phase 4 undecided. Current state: [STATUS.md](./STATUS.md). Ranked 1 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Resolves decision D10 of that plan. |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MRTR](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr), [elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `packages/cli`, `python/`, `packages/rust`, the C++ todo backend |

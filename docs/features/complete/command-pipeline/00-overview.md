@@ -1,5 +1,7 @@
 # Command Pipeline Specification
 
+> **Status**: Complete. Shipped in #38 (pipeline types) and #159 (`executePipeline`); exposed as `client.pipe()` and the `afd-pipe` meta-tool. Status verified 2026-10-31.
+
 > Chain commands where the output of one becomes the input of the next.
 
 ## Summary

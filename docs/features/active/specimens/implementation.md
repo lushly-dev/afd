@@ -5,7 +5,7 @@
 | State | Active native implementation; complete workstream 0 acceptance remains open |
 | Last reconciled | 2026-10-31, main `cdfbbfb7` including [#517](https://github.com/lushly-dev/afd/pull/517) and T01 ([#521](https://github.com/lushly-dev/afd/pull/521)); T02 on branch `lush/specimens-t02-cpu` |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
-| Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
+| Acceptance contract | [Proposal](./specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
 
 This plan describes the next implementation work. The status ledger owns current progress; the dated validation documents retain the actual observations and their limits. Native feasibility is implemented. Consumer migration, Storybook retirement and package publication remain open gates.

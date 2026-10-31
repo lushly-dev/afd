@@ -1,5 +1,7 @@
 # Versioning and Release Plan
 
+**Update, 2026-10-31:** npm is now at 2.2.1 (published 2026-10-29) and Rust `afd` at 0.2.1 (#456, tag `rust-v0.2.1`); Python 0.10.0 and C++ 0.2.0 are unchanged. Current state and the remaining exit items are in [STATUS.md](./STATUS.md).
+
 **Current delivery, 2026-10-27:** all four distribution tracks have published releases: the nine npm packages are at 2.2.0, Python `afd` is at 0.10.0, Rust `afd` is at 0.2.0 on crates.io, and C++ `afd-cpp` is released as `cpp-v0.2.0`. Fresh consumers were verified for each track. All three registries now publish through trusted publishing: npm 2.2.0 and Python 0.10.0 carry provenance, and Rust 0.2.0 is the first version uploaded by the crates.io trusted publisher (0.1.0 was the manual bootstrap). See the [npm/Python receipt](../../../operations/stabilization-release.md) and [Rust/C++ receipt](../../../operations/native-first-releases.md). The dated notes and September snapshot below preserve their state at the time; use those receipts for current release outcomes.
 
 **Execution update, 2026-10-11:** Python 0.9.0 is published and its downloaded

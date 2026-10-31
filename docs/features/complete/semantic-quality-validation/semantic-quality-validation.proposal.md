@@ -1,5 +1,7 @@
 # Feature Proposal: Semantic Quality Validation
 
+> **Status**: Complete. Shipped in #127 (`validateCommandSurface()`, `afd validate --surface`). Status verified 2026-10-31.
+
 > **Spec:** [semantic-quality-validation.spec.md](./semantic-quality-validation.spec.md)
 
 ## 1. Summary

@@ -1,6 +1,6 @@
 # Handoff Pattern: Commands That Bootstrap Specialized Protocols
 
-> **Status**: Active Spec  
+> **Status**: Complete. Shipped in #24 (core `HandoffResult`), #25 (client handlers), #26 (server `handoff` definitions); chat example in `packages/examples/chat`. Status verified 2026-10-31.  
 > **GitHub Issue**: [#18](https://github.com/lushly-dev/afd/issues/18)
 
 ## Vision

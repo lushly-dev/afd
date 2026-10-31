@@ -42,7 +42,7 @@ The language decision remains open pending whole-process CPU/memory evidence. On
 
 The primary acceptance question is how much host CPU and memory equivalent verified work consumes, and how much capacity remains for other agent sessions. The original driver records only the Node coordinator's CPU/RSS and host context. The added [whole-process recorder](resource-validation.md) measures the process family, waited-child CPU, sampled footprint/RSS, idle phases and cleanup. The original Node-only fields remain diagnostic and do not establish total resource savings.
 
-The [proposal's host resource acceptance contract](../../proposed/specimens/specimens.proposal.md#host-resource-acceptance) requires complete process-family accounting, sampled peak and sustained memory, retained idle resources, aggregate CPU core-seconds, cleanup readback, and host pressure/headroom. The recorder's attribution gaps remain explicit. Resource budgets must be recorded before increasing concurrency. An incumbent comparison must preserve equivalent checks and execution conditions; full-suite comparison waits for retained-CSF parity.
+The [proposal's host resource acceptance contract](./specimens.proposal.md#host-resource-acceptance) requires complete process-family accounting, sampled peak and sustained memory, retained idle resources, aggregate CPU core-seconds, cleanup readback, and host pressure/headroom. The recorder's attribution gaps remain explicit. Resource budgets must be recorded before increasing concurrency. An incumbent comparison must preserve equivalent checks and execution conditions; full-suite comparison waits for retained-CSF parity.
 
 ## Evidence and next acceptance work
 

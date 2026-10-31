@@ -1,5 +1,7 @@
 # Semantic Quality Validation Specification
 
+> **Status**: Complete. Shipped in #127 (`packages/testing/src/surface/`). Status verified 2026-10-31.
+
 > An analysis pass over the assembled command set that detects duplicate descriptions, ambiguous naming, overlapping schemas, and prompt injection risks — the "Honesty Check" applied to the command registry itself.
 
 ## Summary

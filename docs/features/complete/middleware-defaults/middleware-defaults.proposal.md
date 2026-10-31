@@ -1,5 +1,7 @@
 # Feature Proposal: Middleware Defaults
 
+> **Status**: Complete. Shipped as `defaultMiddleware()` in `@lushly-dev/afd-server` (#126); Python `default_middleware()`. Status verified 2026-10-31.
+
 ## 1. Summary
 Provide a `defaultMiddleware()` bundle that covers common observability needs (timing, logging, trace IDs) out of the box.
 

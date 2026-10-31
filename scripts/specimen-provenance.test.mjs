@@ -39,7 +39,6 @@ test('every imported Specimen file is present, recorded and unchanged since revi
 		'integrations/specimen-afd',
 		'endpoints/specimen-cli',
 		'docs/features/active/specimens',
-		'docs/features/proposed/specimens',
 		'docs/features/active/platform-monorepo/specimen-transition.md',
 		'tests/consumers/specimen',
 	];

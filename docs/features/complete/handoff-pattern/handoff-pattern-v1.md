@@ -1,6 +1,6 @@
 # Handoff Pattern: Commands That Bootstrap Specialized Protocols
 
-*Status: Concept — to be explored further*
+*Status: Superseded by the [full spec](./00-overview.md), which shipped (#24, #25, #26). Status verified 2026-10-31.*
 
 ---
 
