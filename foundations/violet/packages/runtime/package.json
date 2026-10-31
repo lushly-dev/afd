@@ -15,7 +15,13 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"keywords": ["design-tokens", "theming", "css-variables", "runtime", "violet"],
+	"keywords": [
+		"design-tokens",
+		"theming",
+		"css-variables",
+		"runtime",
+		"violet"
+	],
 	"engines": {
 		"node": ">=24"
 	},
@@ -46,5 +52,9 @@
 		"typescript": "^5.9.3",
 		"vitest": "^3.2.7"
 	},
-	"files": ["dist", "README.md", "LICENSE"]
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	]
 }
