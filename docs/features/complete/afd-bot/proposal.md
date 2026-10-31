@@ -2,7 +2,7 @@
 
 > Alfred handles the deterministic work so agents can focus on reasoning.
 
-> **Status (verified 2026-10-31):** Partly complete. Shipped: `afd-lint`, `afd-parity`, `afd-quality` (`alfred/src/alfred/commands/`). Not built: `afd-validate-schemas`, `afd-release-check` and most Tier 2 commands. No active plan tracks the remainder; reopen as a new proposal if needed.
+> **Status (verified 2026-10-31):** Partly complete. Shipped: `afd-lint`, `afd-parity`, `afd-quality` (`alfred/src/alfred/commands/`). Not built: `afd-validate-schemas`, `afd-release-check` and most Tier 2 commands. No active plan tracks the remainder; decision tracked in #553.
 
 ## Summary
 

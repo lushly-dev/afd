@@ -2,7 +2,7 @@
 
 > Proposal: Dynamic tool scoping for complex applications with 100s-1000s of commands
 
-> **Status (verified 2026-10-31):** Partly complete. Shipped in #168: Phase 1, most of Phase 2 (`afd-context-*`, flat context stack) and the `missing-context` surface rule. Not built: Phase 3 `afd-context-suggest`, hierarchical context resolution, UI-signal default context. No active plan tracks the remainder; reopen as a new proposal if needed.
+> **Status (verified 2026-10-31):** Partly complete. Shipped in #168: Phase 1, most of Phase 2 (`afd-context-*`, flat context stack) and the `missing-context` surface rule. Not built: Phase 3 `afd-context-suggest`, hierarchical context resolution, UI-signal default context. No active plan tracks the remainder; decision tracked in #554.
 
 ---
 status: partly-complete
