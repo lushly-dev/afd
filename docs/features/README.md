@@ -54,6 +54,8 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 |---------|-------------|
 | [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in `endpoints/umbel/` |
 | [Loam](../../endpoints/loam/README.md) | AFD Loam, an application shell for AFD apps: a TypeScript kernel for the browser, Tauri desktop and hosted server, a FAST-AF chrome on a Violet design foundation and a TanStack AI copilot; shell-level projects, documents, multiplayer, identity, agent members, settings, experiments, overlays, a provider-agnostic copilot and an in-shell app builder that apps subscribe to; drafted 2026-10-30, awaiting review, documented in `endpoints/loam/` |
+| [Browser-Safe Direct Registry](./proposed/browser-direct-registry/proposal.md) | A `/direct` entry point that runs the validating registry, journal, approvals (on WebCrypto) and AFD contexts in a browser or webview |
+| [Declared Context Fields](./proposed/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, with the journal recording the ones declared safe so dependent calls replay |
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
