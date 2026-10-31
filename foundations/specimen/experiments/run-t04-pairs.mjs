@@ -135,6 +135,17 @@ function runJob(command, commandArgs, options) {
 		});
 	});
 }
+function captureBrowsers(directory) {
+	if (!existsSync(directory)) return [];
+	return [
+		...new Set(
+			readdirSync(directory)
+				.filter((file) => file.endsWith('.json'))
+				.map((file) => readJson(join(directory, file))?.manifest?.browser?.version)
+				.filter(Boolean)
+		),
+	];
+}
 const pause = (ms) => new Promise((resolvePause) => setTimeout(resolvePause, ms));
 
 const readJson = (file) => {
@@ -216,16 +227,8 @@ for (const [index, job] of plan.entries()) {
 			coldMs: receipt?.coldMilliseconds?.median ?? null,
 			warmMs: receipt?.warmMilliseconds?.median ?? null,
 			storiesPerRun: receipt?.storiesPerRun ?? null,
-			browserVersions: [
-				...new Set(
-					readdirSync(join(directory, job.consumer, 'probe', job.consumer), { withFileTypes: true })
-						.filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
-						.map(
-							(entry) => readJson(join(entry.parentPath, entry.name))?.manifest?.browser?.version
-						)
-						.filter(Boolean)
-				),
-			],
+			// Candidate captures record the browser they ran on; the incumbent runs its own build.
+			browserVersions: captureBrowsers(join(directory, job.consumer, 'probe', job.consumer)),
 			fonts: {
 				stylesheets: fontsAfter.stylesheets - fontsBefore.stylesheets,
 				files: fontsAfter.fonts - fontsBefore.fonts,
