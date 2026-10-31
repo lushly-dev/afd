@@ -27,17 +27,17 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519) | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main` |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D36; open decisions O1 and O3 to O5; O2 closed as D27 on 2026-10-31 | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 proposed with the phase 0 specification, in review | Same as above; 2026-10-31: D27's links and the O2 references re-checked |
+| [Decision log](decisions.md) | D1 to D36; open decisions O1 and O3 to O5; O2 closed as D27 on 2026-10-31 | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 proposed with the phase 0 specification in [#564](https://github.com/lushly-dev/afd/pull/564), in review; D21, D28, D29, D31, D32, D33, D34, D35 and D36 amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked |
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0 | #493; corrections in #516; the refresh with the phase 0 specification, in review | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
-| [Phase 0 specification](phases/0-host-skeleton/spec.md) | Proposed 2026-10-31; awaiting the owner's approval (D24) | In review, pull request below | 2026-10-31 against `main` at `472b5f68`: links and anchors resolve |
+| [Phase 0 specification](phases/0-host-skeleton/spec.md) | Proposed 2026-10-31 and revised the same day after an independent review ("approve after must-fixes"); awaiting the owner's approval (D24) | In review, [#564](https://github.com/lushly-dev/afd/pull/564) | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
 
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
-| AFD prerequisites | Done for phase 0 | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
-| 0. Host skeleton | Specification in review | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), proposed 2026-10-31 | The owner approves the specification (D24); then implementation step 1 |
+| AFD prerequisites | Done for phase 0 except step 0 of the phase 0 plan (added 2026-10-31) | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) merged | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request) after the owner approves the specification; later phases' rows of the prerequisites table, each before the phase that needs it |
+| 0. Host skeleton | Specification in review, revised | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), proposed and revised 2026-10-31, [#564](https://github.com/lushly-dev/afd/pull/564) | The owner approves the specification (D24); then step 0, the AFD pull request, then step 1 |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
@@ -51,8 +51,10 @@ should never have to scan the codebase to learn what is current.
 
 ### AFD prerequisites
 
-- **State:** done for phase 0; the rows for phases 1 to 5 remain. Last
-  verified 2026-10-31 against `main` at `57c731d2`.
+- **State:** done for phase 0, except the two additions the revised phase 0
+  specification puts in its step 0 (added 2026-10-31); the rows for phases 1
+  to 5 remain. Last verified 2026-10-31 against `main` at `57c731d2`; the
+  step 0 rows on 2026-10-31 at `472b5f68`.
 - **Done:** Rust `structuredContent` and top-level `outputSchema` (the Rust
   part of #465, which stays open for Python and C++) and the per-request
   context hook (`McpServer::with_context_hook`), both merged in
@@ -81,6 +83,11 @@ should never have to scan the codebase to learn what is current.
   landed first. C++ (step 4) waits on its MCP target (parity D2, #341) and
   does not block Umbel. The [hybrid status](../../../docs/features/active/hybrid-tool-strategy/STATUS.md)
   tracks it.
+- **Not done:** step 0 of the
+  [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request),
+  a process-shared mode for the Rust `FileJournalSink` (D29) and
+  `DirectClient::with_interface` (D34); not started, waiting on the owner's
+  approval of the specification.
 - **Not done:** the later rows of the
   [prerequisites table](architecture.md#afd-prerequisites): resources,
   prompts and Skills over MCP (phases 1 and 2, shared with Loam), output
@@ -94,18 +101,25 @@ should never have to scan the codebase to learn what is current.
 
 ### Phase 0. Host skeleton
 
-- **State:** specification in review. Last verified 2026-10-31 against
-  `main` at `472b5f68`.
+- **State:** specification in review, revised. Last verified 2026-10-31
+  against `main` at `472b5f68`.
 - **Done:** nothing merged. The [specification](phases/0-host-skeleton/spec.md)
-  is written and proposes decisions D28 to D36 with the architecture
-  amendments they need (embedded storage moved to phase 2, versioned shapes
-  under `endpoints/umbel/schemas/`, four glossary terms, the Rust telemetry
-  middleware as a phase 2 prerequisite).
-- **Not done:** the owner's approval; all six implementation steps in the
-  specification's plan (scaffold, workspace, registry and CLI, journal and
-  events, MCP surfaces, exit); the exit criterion.
-- **Follow-ups:** the six in the specification's follow-ups table, mirrored
-  below.
+  is written in [#564](https://github.com/lushly-dev/afd/pull/564) and
+  proposes decisions D28 to D36 with the architecture amendments they need
+  (embedded storage moved to phase 2, versioned shapes under
+  `endpoints/umbel/schemas/`, four glossary terms). Revised 2026-10-31 after
+  an independent review returned "approve after must-fixes", with the
+  coordinator's decisions recorded as amendments: several host processes per
+  workspace under one append lock (D29), a bearer token on loopback HTTP
+  (D32), no interim telemetry (D33 dropped), `DirectClient` interface
+  selection in AFD instead of a host check (D34), and multi-process support
+  as a phase 2 store criterion (D28).
+- **Not done:** the owner's approval; all seven implementation steps in the
+  specification's plan (step 0, the AFD pull request; scaffold, workspace,
+  registry and CLI, journal and events, MCP surfaces, exit); the exit
+  criterion.
+- **Follow-ups:** the open rows of the specification's follow-ups table,
+  mirrored below.
 
 Phases 1 to 7 have no detail yet; add a heading in this shape when one
 starts.
@@ -117,7 +131,7 @@ starts.
 | 2026-10-30 | Design session | Land the phase 0 prerequisites in `packages/rust`; the lazy strategy, meta-tools and contexts are already parity item D1 and #465 is open | Done 2026-10-31: see the AFD prerequisites detail above |
 | 2026-10-30 | Design session | Decide the execution model, open decision O2 | Done 2026-10-31: the owner chose the hybrid strategy, recorded as [D27](decisions.md) in [#522](https://github.com/lushly-dev/afd/pull/522), open until merged |
 | 2026-10-30 | Design session | Decide the first external integration, open decision O1; it sets the connector contract | Open, owner's decision |
-| 2026-10-30 | Design session | When crates land, add the units under `endpoints/umbel/` to the release inventory (`scripts/release/inventory.json`, D21); units start quarantined. Corrected 2026-10-31: `architecture.json` needs no change, since the boundary check classifies endpoint manifests by path | Open; specified 2026-10-31 as step 1 of the [phase 0 plan](phases/0-host-skeleton/spec.md#11-implementation-plan) (one unit, `umbel`, private, no route) |
+| 2026-10-30 | Design session | When crates land, add the units under `endpoints/umbel/` to the release inventory (`scripts/release/inventory.json`, D21); units start quarantined. Corrected 2026-10-31: `architecture.json` needs no change, since the boundary check classifies endpoint manifests by path | Open; specified 2026-10-31 as step 1 of the [phase 0 plan](phases/0-host-skeleton/spec.md#11-implementation-plan) (one unit, `umbel`, private, no route). Corrected again 2026-10-31 in the phase 0 review: `architecture.json` gains an explicit unit with `publicSurfaces`, as Botcore and Health have (D21, D35) |
 | 2026-10-30 | Design session | Harness channels must negotiate MCP 2025-11-25 or earlier; keep the SDK's compatibility on push paths and re-check watchlist row W15 | Open |
 | 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W2 and W3 ahead of 2027-03-30 | Open, recurring; refreshed 2026-10-31 for phase 0 |
 | 2026-10-30 | End-to-end review | Write `docs/features` proposals, spec first, for the hybrid tool strategy, for resources, prompts and Skills over MCP in AFD servers reconciled with the Skill Knowledge Layer (shared with Loam, which also needs `ui://` resources), and for per-tool output budgets | Open. Hybrid tool strategy: [proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) written and approved 2026-10-31; the other two not started |
@@ -125,12 +139,14 @@ starts.
 | 2026-10-30 | End-to-end review | Over MCP, the Rust approval middleware includes approval tokens by default; Umbel must turn that off on the MCP path. Re-checked 2026-10-31: [#518](https://github.com/lushly-dev/afd/pull/518) closed #460 with the private in-process exchange, and the default on the MCP path is unchanged | Open |
 | 2026-10-31 | Owner review | Confirmation `requestState` is bound to the command and input, not the actor; with the context hook admitting several actors, one could replay another's confirmation | Issue [#532](https://github.com/lushly-dev/afd/issues/532); needed before phase 5 |
 | 2026-10-31 | Owner review | A panicking command handler hangs the Rust MCP request | Done: fixed in [#539](https://github.com/lushly-dev/afd/pull/539) |
-| 2026-10-31 | Phase 0 specification | AFD: let `DirectClient` take the CLI interface, so the Umbel CLI stops checking `expose.cli` itself (D34) | Open |
-| 2026-10-31 | Phase 0 specification | AFD: the Rust telemetry middleware, which replaces Umbel's interim one (D33); in the prerequisites table for phase 2 | Open |
-| 2026-10-31 | Phase 0 specification | A journal sink failure never changes a command's result; decide whether audited mutations need a fail-closed mode before phase 2 writes records | Open, phase 2 specification |
-| 2026-10-31 | Phase 0 specification | Several stdio harnesses on one workspace contend for the writer lock (D29); consider `umbel serve --stdio --proxy <url>` | Open, phase 1 or 7 specification |
-| 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix | Open, phase 7 |
-| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI | Open, phase 1 |
+| 2026-10-31 | Phase 0 specification | AFD: let `DirectClient` take the CLI interface, so the Umbel CLI stops checking `expose.cli` itself (D34) | Superseded 2026-10-31: now step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request) |
+| 2026-10-31 | Phase 0 specification | AFD: the Rust telemetry middleware, which replaces Umbel's interim one (D33); in the prerequisites table for phase 2 | Superseded 2026-10-31: D33 dropped, no interim middleware; the prerequisite row stays for phase 2 |
+| 2026-10-31 | Phase 0 specification | A journal sink failure never changes a command's result, so a lock timeout or a full disk loses a journal entry and its event while the command succeeds; decide whether audited mutations need a fail-closed mode before phase 2 writes records | Open, phase 2 specification |
+| 2026-10-31 | Phase 0 specification | Several stdio harnesses on one workspace contend for the writer lock (D29); consider `umbel serve --stdio --proxy <url>` | Superseded 2026-10-31: D29 amended, any number of processes share a workspace |
+| 2026-10-31 | Phase 0 review | The phase 2 embedded store must support several processes on one workspace (for example SQLite in WAL mode, or LMDB), so D29's model survives; no single-writer daemon (D28) | Open, phase 2 specification |
+| 2026-10-31 | Phase 0 review | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line without replacing them | Open, AFD, if wanted |
+| 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix (key permissions, file locks, signals) | Open, phase 7 |
+| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open, phase 1 |
 
 ## Session log
 
@@ -146,4 +162,5 @@ starts.
 | 2026-10-31 | Owner review of the blockers | [#526](https://github.com/lushly-dev/afd/pull/526) rebased onto #523, integrated (structured results and the context hook on every route) and merged as `03815e26`. Of the phase 0 prerequisites, only the hybrid strategy and [#531](https://github.com/lushly-dev/afd/issues/531) remain. [#534](https://github.com/lushly-dev/afd/pull/534) |
 | 2026-10-31 | Phase 0 blockers | [#531](https://github.com/lushly-dev/afd/issues/531) fixed in [#539](https://github.com/lushly-dev/afd/pull/539); the hybrid spec merged in [#538](https://github.com/lushly-dev/afd/pull/538). Only the hybrid implementation remains among the AFD prerequisites. [#540](https://github.com/lushly-dev/afd/pull/540) |
 | 2026-10-31 | Phase 0 blockers | The hybrid strategy merged in TypeScript, Python and Rust ([#556](https://github.com/lushly-dev/afd/pull/556), [#555](https://github.com/lushly-dev/afd/pull/555), [#560](https://github.com/lushly-dev/afd/pull/560)). Every AFD prerequisite for phase 0 is done; phase 0 now waits only on its specification and the owner's approval (D24). [#562](https://github.com/lushly-dev/afd/pull/562) |
-| 2026-10-31 | Phase 0 specification | Wrote the [phase 0 specification](phases/0-host-skeleton/spec.md) at the D24 path: one `umbel` package (library and binary) on the `afd` crate's `server` feature, MSRV 1.97, `umbel.yml`, a quarantined inventory unit with no route; the workspace layout, `umbel.toml` version 1 with spaces and the default space, the writer lock and the doctor; six built-in commands with `workspace-show` and `event-list` first-class under the hybrid strategy; the CLI envelope and exit codes; the context hook and principal version 0; the journal projection, event and cursor version 0, provenance envelope version 0; the tests for the exit criterion and a six-step plan. Decisions D28 to D36, architecture amendments and the trajectory refresh in the same pull request; O3 left open. Spec in review, not approved |
+| 2026-10-31 | Phase 0 specification | Wrote the [phase 0 specification](phases/0-host-skeleton/spec.md) at the D24 path: one `umbel` package (library and binary) on the `afd` crate's `server` feature, MSRV 1.97, `umbel.yml`, a quarantined inventory unit with no route; the workspace layout, `umbel.toml` version 1 with spaces and the default space, the writer lock (since superseded, see the next row) and the doctor; six built-in commands with `workspace-show` and `event-list` first-class under the hybrid strategy; the CLI envelope and exit codes; the context hook and principal version 0; the journal projection, event and cursor version 0, provenance envelope version 0; the tests for the exit criterion and a six-step plan. Decisions D28 to D36, architecture amendments and the trajectory refresh in the same pull request; O3 left open. Spec in review, not approved |
+| 2026-10-31 | Phase 0 specification review | Revised the specification in [#564](https://github.com/lushly-dev/afd/pull/564) after the independent review ("approve after must-fixes"), every finding checked against the code: any number of host processes per workspace under one append lock held across the journal and event appends, with tail-read sequence numbers, a pending-projection marker and catch-up before the next append, race-safe shared keys (D29 amended); a bearer token on loopback HTTP, path and host validation (D32 amended); no interim telemetry (D33 dropped); `DirectClient::with_interface` in AFD (D34 amended); the store criterion (D28 amended). New step 0, an AFD pull request for the shared `FileJournalSink` mode and the `DirectClient` interface; Umbel's own test drivers; trusted host-owned keys, `Host::context`, `Workspace::resolve_space`; cursor consumers and `v0:<space>:0`; doctor `skip`; CLI confirmations, reserved verbs and sanitized text; an explicit `architecture.json` unit and a repository-contract test; cursor schemas and example files. Spec in review, not approved |
