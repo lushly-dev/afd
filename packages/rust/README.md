@@ -187,9 +187,9 @@ assert_eq!(request.steps[1].alias, None);
   'todo-list'.` It never lists every command. When the `CommandContext` names an `interface`, only
   commands exposed to that interface are matched, so an unexposed name is never suggested. The
   suggestion ends with `Use afd-help to list all commands.` when `afd-help` is registered and
-  callable (TypeScript points to `afd-discover`, which Rust does not have). Otherwise it ends with
-  `Check the command name against the available commands.` The registry does not track an active
-  context, so, unlike TypeScript, matches are not filtered by `contexts`. As in TypeScript, the
+  callable, or `Use afd-discover to list all commands.` for calls from the MCP server, which serves
+  `afd-discover`. Otherwise it ends with `Check the command name against the available commands.`
+  Matches leave out commands outside the active context. As in TypeScript, the
   name in the message is cut to 128 UTF-16 code units, and `find_similar_tools` and
   `calculate_similarity` count UTF-16 code units, so they suggest the same names (an emoji counts
   as two units).
@@ -205,6 +205,12 @@ assert_eq!(request.steps[1].alias, None);
 - **Exposure.** When the `CommandContext` names an `interface`, a command not exposed to it returns
   `COMMAND_NOT_EXPOSED`. Each `expose` flag has its own default, as in TypeScript: `palette` and
   `agent` are on, `mcp` and `cli` are off. Leave `interface` unset for trusted in-process calls.
+- **Contexts.** With an active context (`CommandContext::with_active_context(name)` for one call,
+  or `with_context_stack(stack)` for a session's `ContextStack`), a command whose `contexts` do not
+  include it returns `COMMAND_NOT_IN_CONTEXT` before its input is validated; batch items and
+  pipeline steps are checked the same way. `register_context_commands(&registry, contexts)` adds
+  `afd-context-list`, `afd-context-enter` and `afd-context-exit`, which change a session stack,
+  report `persisted: false` for a one-call context, and return `SESSION_REQUIRED` without either.
 - **Timeout.** `CommandContext::with_timeout(ms)` returns `TIMEOUT` when the command runs longer
   (`native` feature).
 - **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
@@ -366,8 +372,12 @@ This client does not add a pipeline client, remote transport, or CLI.
   `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers) and 2025 clients that open with
   `initialize`. Only MCP-exposed commands are listed or callable; unknown and unexposed tools return a
   `COMMAND_NOT_FOUND` result. `HttpOptions` sets the accepted `Host` names and browser `Origin`s (any
-  other `Origin` is refused) and the body cap. It covers the individual tool strategy; grouped and
-  lazy strategies, meta-tools and contexts are planned. **The `server` feature needs Rust 1.88**
+  other `Origin` is refused) and the body cap. `with_tool_strategy` selects TypeScript's grouped
+  (default), individual or lazy tool list; every strategy serves the meta-tools `afd-call`,
+  `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` through the same exposure, context,
+  confirmation and middleware path as a command's own tool. `with_contexts` scopes commands by
+  context: `_meta["dev.afd/context"]` per MCP 2026-07-28 request, one stack per 2025 stdio
+  connection. **The `server` feature needs Rust 1.88**
   (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
 
 Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any

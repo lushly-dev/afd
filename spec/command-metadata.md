@@ -330,7 +330,7 @@ follows `destructive`, `false` when it is unset.
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
-| Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual tools, the only strategy the `server` feature serves | Planned (todo backend) |
+| Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
 | `structuredContent` | Yes | Planned | Planned | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Planned | Planned |
 

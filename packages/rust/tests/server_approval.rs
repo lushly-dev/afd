@@ -5,7 +5,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use afd::server::{HttpOptions, McpServer};
+use afd::server::{HttpOptions, McpServer, ToolStrategy};
 use afd::{
     create_approval_middleware, success, ApprovalMiddlewareOptions, ApprovalPolicy, CommandContext,
     CommandDefinition, CommandHandler, CommandParameter, CommandRegistry, CommandResult,
@@ -49,6 +49,10 @@ fn server() -> (McpServer, Arc<AtomicUsize>) {
 }
 
 async fn call(server: &McpServer, arguments: Value, meta: Value) -> Value {
+    call_tool(server, "todo-delete", arguments, meta).await
+}
+
+async fn call_tool(server: &McpServer, name: &str, arguments: Value, meta: Value) -> Value {
     let mut meta = meta;
     meta["io.modelcontextprotocol/protocolVersion"] = json!("2026-07-28");
     meta["io.modelcontextprotocol/clientCapabilities"] = json!({});
@@ -56,7 +60,7 @@ async fn call(server: &McpServer, arguments: Value, meta: Value) -> Value {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
-        "params": { "name": "todo-delete", "arguments": arguments, "_meta": meta },
+        "params": { "name": name, "arguments": arguments, "_meta": meta },
     });
     let service = server.streamable_http_service(HttpOptions::default());
     let request = http::Request::post("/mcp")
@@ -65,7 +69,7 @@ async fn call(server: &McpServer, arguments: Value, meta: Value) -> Value {
         .header("accept", "application/json, text/event-stream")
         .header("mcp-protocol-version", "2026-07-28")
         .header("mcp-method", "tools/call")
-        .header("mcp-name", "todo-delete")
+        .header("mcp-name", name)
         .body(Full::new(bytes::Bytes::from(body.to_string())))
         .unwrap();
     let response = service.oneshot(request).await.unwrap();
@@ -83,8 +87,19 @@ async fn call(server: &McpServer, arguments: Value, meta: Value) -> Value {
 #[tokio::test]
 async fn lists_the_policy_in_tool_meta() {
     let (server, _) = server();
-    let tools = server.tools();
-    assert_eq!(tools[0]["_meta"], json!({ "approval": "required" }));
+    let tools = server
+        .clone()
+        .with_tool_strategy(ToolStrategy::Individual)
+        .tools();
+    let delete = tools
+        .iter()
+        .find(|tool| tool["name"] == "todo-delete")
+        .unwrap();
+    assert_eq!(delete["_meta"], json!({ "approval": "required" }));
+    // Grouped: on the action entry.
+    let grouped = server.tools();
+    let todo = grouped.iter().find(|tool| tool["name"] == "todo").unwrap();
+    assert_eq!(todo["_meta"]["actions"][0]["approval"], "required");
 }
 
 #[tokio::test]
@@ -111,5 +126,46 @@ async fn never_takes_approval_from_tool_arguments_or_request_meta() {
             "{arguments}"
         );
     }
+    assert_eq!(runs.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn meta_tools_go_through_the_approval_middleware() {
+    let (server, runs) = server();
+    let called = call_tool(
+        &server,
+        "afd-call",
+        json!({ "command": "todo-delete", "input": { "id": 1 } }),
+        json!({}),
+    )
+    .await;
+    assert_eq!(called["error"]["code"], "APPROVAL_REQUIRED");
+    let grouped = call_tool(
+        &server,
+        "todo",
+        json!({ "action": "delete", "params": { "id": 1 } }),
+        json!({}),
+    )
+    .await;
+    assert_eq!(grouped["error"]["code"], "APPROVAL_REQUIRED");
+    let batch = call_tool(
+        &server,
+        "afd-batch",
+        json!({ "commands": [{ "command": "todo-delete", "input": { "id": 1 } }] }),
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        batch["results"][0]["result"]["error"]["code"],
+        "APPROVAL_REQUIRED"
+    );
+    let pipe = call_tool(
+        &server,
+        "afd-pipe",
+        json!({ "steps": [{ "command": "todo-delete", "input": { "id": 1 } }] }),
+        json!({}),
+    )
+    .await;
+    assert_eq!(pipe["steps"][0]["error"]["code"], "APPROVAL_REQUIRED");
     assert_eq!(runs.load(Ordering::SeqCst), 0);
 }

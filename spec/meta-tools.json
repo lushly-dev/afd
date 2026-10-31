@@ -1,0 +1,226 @@
+[
+	{
+		"name": "afd-call",
+		"description": "Invoke any command by name with runtime input validation. Works in all server strategies.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Command name to invoke"
+				},
+				"input": {
+					"type": "object",
+					"description": "Command input (validated against the command's own schema at runtime)"
+				},
+				"confirm": {
+					"description": "Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)",
+					"type": "boolean"
+				}
+			},
+			"required": ["command"]
+		}
+	},
+	{
+		"name": "afd-batch",
+		"description": "Execute multiple commands in a single batch request with partial success semantics",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"commands": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"description": "Optional client-provided ID for correlating results",
+								"type": "string"
+							},
+							"command": {
+								"type": "string",
+								"description": "The command name to execute"
+							},
+							"input": {
+								"type": "object",
+								"description": "Input parameters for the command"
+							}
+						},
+						"required": ["command"]
+					},
+					"description": "Array of commands to execute"
+				},
+				"options": {
+					"description": "Batch execution options",
+					"type": "object",
+					"properties": {
+						"stopOnError": {
+							"description": "Stop execution on first error",
+							"type": "boolean"
+						},
+						"timeout": {
+							"description": "Timeout in milliseconds for entire batch",
+							"type": "number",
+							"minimum": 0
+						},
+						"parallelism": {
+							"description": "Maximum commands to run concurrently (default 1)",
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 9007199254740991
+						}
+					}
+				},
+				"confirm": {
+					"description": "Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			},
+			"required": ["commands"]
+		}
+	},
+	{
+		"name": "afd-pipe",
+		"description": "Execute a pipeline of chained commands where the output of one becomes the input of the next",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"input": {
+					"description": "Optional pipeline input (any JSON value), available to steps as $input and $input.<path>"
+				},
+				"steps": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"command": {
+								"type": "string",
+								"description": "Command name to execute"
+							},
+							"input": {
+								"description": "Input parameters. A string value that is exactly $prev, $first, $steps[n], $steps.alias or $input, optionally followed by .path (e.g. $prev.items[0].id), is replaced by that data; unresolved references are omitted. Other strings are literals; start one with $$ to send a literal $ (e.g. $$prev).",
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"as": {
+								"description": "Optional alias for referencing this step's output",
+								"type": "string"
+							},
+							"when": {
+								"description": "Optional condition for running this step (e.g., { $exists: '$prev.id' })",
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": ["command"]
+					},
+					"description": "Ordered list of pipeline steps to execute"
+				},
+				"options": {
+					"description": "Pipeline execution options",
+					"type": "object",
+					"properties": {
+						"continueOnFailure": {
+							"description": "Continue on failure or stop immediately",
+							"type": "boolean"
+						},
+						"timeoutMs": {
+							"description": "Timeout for entire pipeline in milliseconds",
+							"type": "number",
+							"minimum": 0
+						}
+					}
+				},
+				"confirm": {
+					"description": "Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			},
+			"required": ["steps"]
+		}
+	},
+	{
+		"name": "afd-discover",
+		"description": "List available commands with optional filtering by category, tag, or search text. Returns compact summaries.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"category": {
+					"description": "Filter commands by category",
+					"type": "string"
+				},
+				"tag": {
+					"description": "Filter by tag(s). String for single, array for multiple.",
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					]
+				},
+				"tagMode": {
+					"description": "Tag matching mode (default: any)",
+					"type": "string",
+					"enum": ["all", "any"]
+				},
+				"search": {
+					"description": "Text search across names and descriptions",
+					"type": "string"
+				},
+				"includeMutation": {
+					"description": "Include mutation classification",
+					"type": "boolean"
+				},
+				"limit": {
+					"description": "Max results (1-200, default 50)",
+					"type": "number"
+				},
+				"offset": {
+					"description": "Results to skip for pagination",
+					"type": "number"
+				}
+			}
+		}
+	},
+	{
+		"name": "afd-detail",
+		"description": "Get the full input schema and metadata for one or more commands by name.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					],
+					"description": "Command name or names (exact match, kebab-case). String or array of strings (max 10)."
+				}
+			},
+			"required": ["command"]
+		}
+	}
+]

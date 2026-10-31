@@ -451,7 +451,8 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - input validation in the engine's shape (`packages/server/src/execution.ts`, `validation.ts`): `VALIDATION_ERROR` has the message `Input validation failed` and the issues in `suggestion`, formatted as `formatEnhancedValidationError` does. `details` holds `errors` (`path` joined with dots or `(root)`, `message`, a Zod `code`, and `expected` for `invalid_type`), `expectedFields`, and `unexpectedFields`/`missingFields` when they are not empty;
   - undeclared keys dropped before middleware and the handler, including in nested objects whose schema lists `properties` and has no `additionalProperties`;
   - the middleware chain;
-  - `requires` and `contexts` metadata;
+  - `requires` metadata;
+  - active-context scoping at execution time (`crate::contexts`): `CommandContext::with_active_context` or `with_context_stack`, enforced by `execute` (also for batch items and pipeline steps) with `COMMAND_NOT_IN_CONTEXT` before validation; `register_context_commands` adds `afd-context-list`, `-enter` and `-exit`;
   - bootstrap commands (`register_bootstrap_commands`);
   - batch execution (`CommandRegistry::execute_batch`) and pipelines per `spec/pipeline-variables.md`;
   - crash handling: a handler panic in `execute`, a batch or a pipeline becomes the redacted `COMMAND_EXECUTION_ERROR` (`execution_failure`);
@@ -461,10 +462,8 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - handoff and telemetry types.
 - **MCP server (`server` feature):** see [MCP Server](#mcp-server-server-feature).
 - **Not in the crate yet:**
-  - grouped and lazy tool strategies, meta-tools and contexts in the MCP server;
   - a stream executor;
   - built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry);
-  - active-context scoping (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`);
   - result metadata stamping and `onCommand` hooks;
   - a registry dev mode: panic details are always redacted;
 - **Validation in the unmerged stabilization candidate:**
@@ -500,7 +499,10 @@ let app = axum::Router::new().route_service("/mcp", server.streamable_http_servi
 - Every tool call runs with actor `agent` (reported as `metadata.actorKind`); `with_actor`, `with_clock` and `with_random` override the actor, clock and random source on its context.
 - `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
 - `with_confirmations(ConfirmationMode::Enforce)` gates commands with `confirm_prompt`: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call carries `confirm: true`. `RequireHuman` accepts the elicitation only; `with_confirmations_key` shares the `requestState` key across instances.
-- Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
+- `with_tool_strategy(ToolStrategy::Grouped | Individual | Lazy)`; grouped is the default, as in TypeScript (`with_group_by` names the groups). Every strategy lists `afd-batch`, `afd-pipe` and `afd-call` (grouped adds `afd-detail`, lazy lists only `afd-discover`, `afd-detail` and those three) and routes every meta-tool and every command by name. Meta-tool definitions equal TypeScript's (`spec/meta-tools.json`).
+- Every route (command tool, grouped tool, `afd-call`, `afd-batch`, `afd-pipe`) ends in `CommandRegistry::execute` with the same remote context: unexposed commands are `COMMAND_NOT_FOUND` (suggestion points to `afd-discover`), confirmations are checked for every command of a batch or pipeline before any runs (`confirm: [names]` acknowledges them), and the registry's middleware (approval included) wraps each execution.
+- `with_contexts(vec![ContextConfig::new("planning")])` registers the context tools. MCP 2026-07-28 requests select a context with `_meta["dev.afd/context"]` (never stored; unknown names are `-32602`); a 2025 stdio connection keeps one stack; stateless 2025 HTTP has no session (`SESSION_REQUIRED`). `tools/list` defaults to `ttlMs: 0` with contexts.
+- Not yet: a hybrid strategy, `structuredContent` on meta-tool results (#465), full `_meta` on individual tools (only `approval`), and reserved-name checks for meta-tool names.
 
 ## Metadata Types
 

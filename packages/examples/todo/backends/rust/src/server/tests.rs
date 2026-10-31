@@ -212,18 +212,29 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
         .expect("tools array");
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
 
-    assert_eq!(tools.len(), 11);
-    assert!(!names.contains(&"admin-reset"));
+    // The default grouped strategy, as the TypeScript backend lists: the meta-tools, then one
+    // `todo` tool whose actions are the exposed commands.
+    assert_eq!(
+        names,
+        ["afd-batch", "afd-pipe", "afd-call", "afd-detail", "todo"]
+    );
+    let actions = tools[4]["_meta"]["actions"].as_array().expect("actions");
+    let commands: Vec<&str> = actions
+        .iter()
+        .filter_map(|action| action["command"].as_str())
+        .collect();
+    assert_eq!(commands.len(), 11);
+    assert!(!commands.contains(&"admin-reset"));
     for batch in [
         "todo-create-batch",
         "todo-delete-batch",
         "todo-toggle-batch",
     ] {
-        assert!(names.contains(&batch), "{batch} is listed");
+        assert!(commands.contains(&batch), "{batch} is listed");
     }
-    let create = tools
+    let create = actions
         .iter()
-        .find(|t| t["name"] == "todo-create")
+        .find(|action| action["command"] == "todo-create")
         .expect("todo-create is listed");
     assert_eq!(
         create["inputSchema"]["properties"]["title"]["maxLength"],

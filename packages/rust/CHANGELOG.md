@@ -8,7 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Tool strategies and meta-tools (`server` feature, parity D1):** `McpServer::with_tool_strategy(ToolStrategy::Grouped | Individual | Lazy)` and `with_group_by`, with TypeScript's tool lists: grouped tools take `{ action, params }` and carry `_meta.actions` (command name, input schema and metadata per action; small groups inline the schemas as `params.anyOf`). Every strategy lists and routes `afd-call`, `afd-batch` and `afd-pipe`, and routes `afd-discover` and `afd-detail` (listed by lazy, and `afd-detail` by grouped), with definitions equal to TypeScript's (`spec/meta-tools.json`; `afd::server::meta_tools`). Every route runs through `CommandRegistry::execute` with the same remote context, so unexposed commands are `COMMAND_NOT_FOUND` in batch items and pipeline steps too, the confirmation gate checks every command of a batch or pipeline before any runs (`confirm: [names]` acknowledges them; one elicitation covers them all), and middleware such as approval wraps each execution. Default instructions describe the strategy, bootstrap and contexts.
+- **Contexts:** the new `contexts` module. `CommandRegistry::execute` enforces the active context (`CommandContext::with_active_context`, `with_context_stack` and `active_context`; `ContextStack`, depth 16 by default) with `COMMAND_NOT_IN_CONTEXT` after the exposure check, for single calls, batch items and pipeline steps, and leaves commands outside it out of `COMMAND_NOT_FOUND` suggestions and the bootstrap commands. `register_context_commands`/`get_context_commands` add `afd-context-list`, `afd-context-enter` and `afd-context-exit` (`ContextConfig`). `McpServer::with_contexts` registers them and scopes `tools/list` and every tool call: `_meta["dev.afd/context"]` on MCP 2026-07-28 requests (never stored; an unknown name is `-32602`), one stack per 2025 stdio connection, and no session on stateless 2025 HTTP (`SESSION_REQUIRED`). `tools/list` defaults to `ttlMs: 0` with contexts.
+
 - Add approval-aware in-process `DirectClient.call` and an async trusted hook (#460). Tokens stay in a private per-call exchange; caller evidence is stripped, errors or panics decline, and a single deadline covers the decision and retry. Raw `CommandRegistry::execute` remains a trusted host API.
+
+### Changed
+
+- **Breaking (`server` feature):** the default tool strategy is now `Grouped`, as in TypeScript (parity D5: agents see the same tool list whatever language serves it). `tools/list` lists `afd-batch`, `afd-pipe`, `afd-call` and `afd-detail`, then one tool per group; call `with_tool_strategy(ToolStrategy::Individual)` for one tool per command, which now also lists `afd-batch`, `afd-pipe` and `afd-call` first. Calls by command name keep working in every strategy.
+- **`server` feature:** a call to an unknown or unexposed tool now returns TypeScript's `COMMAND_NOT_FOUND` (`Command '<name>' not found`, with close matches and `Use afd-discover to list all commands.`) instead of `Unknown tool: <name>` / `Call tools/list to see the available tools`.
+- `CommandDefinition::contexts` is enforced (see Added); it was metadata only. A caller that sets no active context sees no change.
 
 ## [0.2.1] - 2026-10-27
 

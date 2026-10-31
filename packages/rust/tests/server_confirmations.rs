@@ -5,7 +5,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use afd::server::{ConfirmationMode, HttpOptions, McpServer};
+use afd::server::{ConfirmationMode, HttpOptions, McpServer, ToolStrategy};
 use afd::{
     success, CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
     CommandResult, JsonSchemaType,
@@ -112,7 +112,10 @@ fn body(response: &Value) -> Value {
 #[tokio::test]
 async fn gated_tools_advertise_confirm_under_enforce_only() {
     let (enforce, _) = server(ConfirmationMode::Enforce);
-    let tools = enforce.tools();
+    let tools = enforce
+        .clone()
+        .with_tool_strategy(ToolStrategy::Individual)
+        .tools();
     let clear = tools
         .iter()
         .find(|tool| tool["name"] == "todo-clear")
@@ -124,7 +127,7 @@ async fn gated_tools_advertise_confirm_under_enforce_only() {
         .unwrap();
     assert!(list["inputSchema"]["properties"]["confirm"].is_null());
     let (human, _) = server(ConfirmationMode::RequireHuman);
-    let tools = human.tools();
+    let tools = human.with_tool_strategy(ToolStrategy::Individual).tools();
     let clear = tools
         .iter()
         .find(|tool| tool["name"] == "todo-clear")
