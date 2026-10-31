@@ -192,10 +192,12 @@ impl Call<'_> {
     }
 
     /// The context every execution of this call starts from: the hook's context with the
-    /// request's context scope, which only the server sets.
+    /// request's context scope and the tool surface `afd-help` reports, which only the server
+    /// sets.
     fn execution_context(&self) -> CommandContext {
         let mut context = self.base.clone();
         context.context_scope = self.scope.clone();
+        context.tool_surface = Some(self.server.tool_surface());
         context
     }
 

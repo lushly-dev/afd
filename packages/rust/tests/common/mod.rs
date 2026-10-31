@@ -44,9 +44,25 @@ pub async fn modern_post(
     params: Value,
     extra_headers: &[(&str, &str)],
 ) -> Value {
+    modern_post_with_meta(server, method, params, json!({}), extra_headers).await
+}
+
+/// [`modern_post`] with `meta` keys added to (or replacing those of) the request's `_meta`.
+pub async fn modern_post_with_meta(
+    server: &McpServer,
+    method: &str,
+    params: Value,
+    meta: Value,
+    extra_headers: &[(&str, &str)],
+) -> Value {
     let name = params["name"].as_str().map(str::to_owned);
     let mut params = params;
     params["_meta"] = serde_json::from_str(META).unwrap();
+    if let Value::Object(extra) = meta {
+        for (key, value) in extra {
+            params["_meta"][key] = value;
+        }
+    }
     let body = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut headers = vec![
         ("mcp-protocol-version", "2026-07-28"),
@@ -79,19 +95,27 @@ pub struct Stdio {
 }
 
 impl Stdio {
-    pub async fn connect(server: McpServer) -> Self {
+    /// A connection that has not opened: for 2026-07-28 requests, which carry their own `_meta`.
+    pub fn connect_modern(server: McpServer) -> Self {
         use rmcp::ServiceExt;
         let (client_writer, server_reader) = tokio::io::duplex(1 << 20);
         let (server_writer, client_reader) = tokio::io::duplex(1 << 20);
         tokio::spawn(async move {
-            let running = server.serve((server_reader, server_writer)).await.unwrap();
+            let Ok(running) = server.serve((server_reader, server_writer)).await else {
+                return;
+            };
             let _ = running.waiting().await;
         });
-        let mut client = Self {
+        Self {
             writer: client_writer,
             reader: BufReader::new(client_reader),
             next_id: 0,
-        };
+        }
+    }
+
+    /// A 2025 connection: `initialize`, then `notifications/initialized`.
+    pub async fn connect(server: McpServer) -> Self {
+        let mut client = Self::connect_modern(server);
         let initialize = client
             .request(
                 "initialize",

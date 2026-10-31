@@ -169,3 +169,33 @@ async fn meta_tools_go_through_the_approval_middleware() {
     assert_eq!(pipe["steps"][0]["error"]["code"], "APPROVAL_REQUIRED");
     assert_eq!(runs.load(Ordering::SeqCst), 0);
 }
+
+#[tokio::test]
+async fn a_first_class_tool_and_the_meta_tools_of_a_hybrid_server_hold_for_approval() {
+    let (server, runs) = server();
+    let server = server
+        .with_tool_strategy(ToolStrategy::Hybrid)
+        .with_first_class_tools(["todo-delete"]);
+    let held = call_tool(&server, "todo-delete", json!({ "id": 1 }), json!({})).await;
+    assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
+    assert!(held["error"]["details"]["approvalToken"].is_string());
+    let called = call_tool(
+        &server,
+        "afd-call",
+        json!({ "command": "todo-delete", "input": { "id": 1 } }),
+        json!({}),
+    )
+    .await;
+    assert_eq!(called["error"]["code"], "APPROVAL_REQUIRED");
+    // Evidence in the arguments of a first-class tool is no evidence.
+    let token = held["error"]["details"]["approvalToken"].as_str().unwrap();
+    let smuggled = call_tool(
+        &server,
+        "todo-delete",
+        json!({ "id": 1, "approvalToken": token }),
+        json!({ "approval": token }),
+    )
+    .await;
+    assert_eq!(smuggled["error"]["code"], "APPROVAL_REQUIRED");
+    assert_eq!(runs.load(Ordering::SeqCst), 0);
+}

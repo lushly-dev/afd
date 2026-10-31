@@ -49,6 +49,9 @@ pub struct CommandInfo {
     /// Commands to call first (always listed when set).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires: Option<Vec<String>>,
+    /// `true` for a first-class command of a hybrid MCP server; left out otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_class: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +63,13 @@ pub struct HelpOutput {
     pub total: usize,
     pub filtered: bool,
     pub grouped_by_category: HashMap<String, Vec<CommandInfo>>,
+    /// How the MCP server lists its tools: `individual`, `grouped`, `lazy` or `hybrid`. Left out
+    /// when `afd-help` does not run behind an MCP server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_strategy: Option<String>,
+    /// The first-class command names in list order, on a hybrid MCP server only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_class_tools: Option<Vec<String>>,
 }
 
 /// Handler for `afd-help`.
@@ -124,6 +134,10 @@ impl CommandHandler for AfdHelpHandler {
             all_commands
         };
 
+        let surface = context.tool_surface.as_ref();
+        let first_class: &[String] = surface
+            .and_then(|surface| surface.first_class_tools.as_deref())
+            .map_or(&[], Vec::as_slice);
         let is_full = input.format == "full";
         let mut grouped_by_category: HashMap<String, Vec<CommandInfo>> = HashMap::new();
         let mut command_infos: Vec<CommandInfo> = Vec::new();
@@ -143,6 +157,7 @@ impl CommandHandler for AfdHelpHandler {
                     None
                 },
                 requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
+                first_class: first_class.contains(&cmd.name).then_some(true),
             };
             let category = cmd
                 .category
@@ -163,6 +178,10 @@ impl CommandHandler for AfdHelpHandler {
             total,
             filtered,
             grouped_by_category,
+            tool_strategy: surface.map(|surface| surface.strategy.to_owned()),
+            first_class_tools: surface
+                .and_then(|surface| surface.first_class_tools.as_deref())
+                .cloned(),
         };
 
         let reasoning = if filtered {

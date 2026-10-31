@@ -19,9 +19,14 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   are answered in the proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-2026-10-31).
   Step 0 (`spec/`) merged in [#538](https://github.com/lushly-dev/afd/pull/538) as `977a0a35`;
   Python ([#555](https://github.com/lushly-dev/afd/pull/555), merged as `51f8d9d8`) and TypeScript
-  ([#556](https://github.com/lushly-dev/afd/pull/556)) implement the strategy; Rust (step 3) and C++
-  (step 4) do not yet.
-- **Last verified:** 2026-10-31. Step 1 against `main` at `85f49a3f`: `pnpm -F @lushly-dev/afd-server test`
+  ([#556](https://github.com/lushly-dev/afd/pull/556), merged as `0d9720a1`) implement the strategy;
+  Rust (step 3) is in a pull request open for review (see the session log); C++ (step 4) does not yet.
+- **Last verified:** 2026-10-31. Step 3 against `main` at `0d9720a1`: in `packages/rust`, `cargo fmt --check`,
+  clippy `-D warnings` and `cargo test` with default, no default and `server` features, both wasm
+  checks, the nightly `cargo doc --all-features` with `--cfg docsrs`; the Rust todo backend's
+  `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings` and `cargo test --locked`;
+  its 34-case conformance suite (2025 and modern) and 5-case confirmations suite; `pnpm check:skills`.
+  Step 1 against `main` at `85f49a3f`: `pnpm -F @lushly-dev/afd-server test`
   (`hybrid-tools.test.ts` runs all 4 servers and 10 construction failures of `spec/tool-strategies.json`
   through `createMcpServer` and `createMcpHandler`), `pnpm -F @lushly-dev/afd-cli test`, and `pnpm check`.
   Step 2 against `main` at `85f49a3f`: `cd python && uv lock --check`,
@@ -41,7 +46,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `packages/examples/todo/backends/cpp/src/mcp_stdio.cpp`, and from `spec/command-metadata.md`,
   `spec/error-codes.md` and `spec/protocol-conformance.md`.
 - **Done:** nothing merged.
-- **In progress:** step 2, Python, in a pull request open for review (see the session log). Step 0
+- **In progress:** step 3, Rust, in a pull request open for review (see the session log). Step 0
   (`spec/`) and the proposal itself merged in [#538](https://github.com/lushly-dev/afd/pull/538) and
   [#522](https://github.com/lushly-dev/afd/pull/522).
 - **Not done:** every row of the proposal's implementation plan
@@ -54,7 +59,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0. `spec/` | Done | New [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) and [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json); amendments to `command-metadata.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows. `spec/VERSION` stays `1.0-rc` | Merged in [#538](https://github.com/lushly-dev/afd/pull/538), 22/22 checks green |
 | 1. TypeScript | In review | `toolStrategy: 'hybrid'` and `firstClassTools` on `createMcpServer` and `createMcpHandler` (`packages/server/src`: `command-names.ts` checks, `tools.ts` list, `mcp-modern.ts` TTL and instructions, `bootstrap/afd-help.ts` fields); `hybrid-tools.test.ts` runs every case of [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json) over both MCP eras; `afd validate --surface` completes a hybrid listing and warns on a first-class command with `contexts` (`packages/cli/src/commands/surface-commands.ts`); spec, parity, README and skill rows; a changeset | Merge the step 1 pull request; then parity and conformance rows for the other languages follow their own steps |
 | 2. Python | Done | `create_server(tool_strategy="hybrid", first_class_tools=[...])`, `ServerConfig.first_class_tools`, `python/src/afd/server/first_class.py`; `python/tests/test_hybrid_tool_strategy.py` runs every case in `spec/tool-strategies.json`; live SSE, Streamable HTTP (both eras) and stdio cases in `test_mcp_protocol_live.py` and `test_mcp_modern_live.py`; [#555](https://github.com/lushly-dev/afd/pull/555) open, not yet merged | Merged in [#555](https://github.com/lushly-dev/afd/pull/555) as `51f8d9d8`, 29/29 checks green |
-| 3. Rust | Not started | None | Step 0 merged; parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526) |
+| 3. Rust | In review | `ToolStrategy::Hybrid` and `McpServer::with_first_class_tools`, checked by `McpServer::validate` when the server starts (`serve_stdio`, `try_streamable_http_service`; `streamable_http_service` panics; any other transport answers `-32603`); `packages/rust/src/server.rs` (`hybrid_tools`, the TTL, `discover`), `server/strategy.rs` (`validate_first_class`, `MAX_FIRST_CLASS_TOOLS`), `bootstrap/afd_help.rs`; `packages/rust/tests/server_hybrid.rs` runs every case of [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json) over Streamable HTTP and stdio in both MCP eras, plus the context hook, confirmations, approvals, the panic guard and `afd-help`; spec, parity, README, CHANGELOG and `afd-rust` skill rows | Merge the step 3 pull request. Umbel phase 0 waits on it |
 | 4. C++ | Not started | None | Step 0 and language parity D2 merged |
 | 5. Parity matrix, conformance rows, skills | Not started | None | Each language's step merged |
 
@@ -84,3 +89,4 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 | 2026-10-31 | Coordinator | Step 0 merged in [#538](https://github.com/lushly-dev/afd/pull/538); corrected the stale D4 paragraph in `spec/error-codes.md`. [#540](https://github.com/lushly-dev/afd/pull/540) |
 | 2026-10-31 | Python step | Implemented the strategy in `python/src/afd/server` (H1 to H8) and loaded `spec/tool-strategies.json`. Two corrections it needed, both in `python/CHANGELOG.md` Unreleased: Python advertised `tools.listChanged: true` on the modern era (the SDK derives it from `subscriptions/listen`) although the spec says `false`, now forced to `false` on every strategy; and Python's `COMMAND_NOT_IN_CONTEXT` suggestion differed from the specified wording, now aligned. [#555](https://github.com/lushly-dev/afd/pull/555) open for review |
 | 2026-10-31 | Step 1 session | Implemented the hybrid strategy in TypeScript (server, `afd-help`, TTL, instructions), the `hybrid-tools.test.ts` loader for `spec/tool-strategies.json`, the `afd validate --surface` hybrid completion and H4 warning, docs and the changeset. [#556](https://github.com/lushly-dev/afd/pull/556) |
+| 2026-10-31 | Step 3 session | Implemented the strategy in the Rust `server` feature (H1 to H8) and loaded `spec/tool-strategies.json`. Rust builds commands and contexts after the strategy is chosen, so H2's check runs when the server starts (`McpServer::validate`), as H2 allows. Two corrections it needed, both in `packages/rust/CHANGELOG.md` Unreleased: `server/discover` answered `ttlMs: 0` and `cacheScope: private` where the spec gives it `tools/list`'s hints, and `tools.listChanged` was omitted where the spec says `false`; both now hold on every strategy. The JSON file stays in `spec/`: C++ (step 4) does not load it yet. Pull request open for review |

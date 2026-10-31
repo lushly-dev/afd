@@ -30,13 +30,13 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
-| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy)` | None (#341) |
+| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy \| Hybrid)` | None (#341) |
 | Default | `grouped` | `individual` | `Grouped` | — |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | — |
 | Contexts | `contexts` | `contexts` | `with_contexts` | — |
 | Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | — |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | — |
-| Hybrid first-class set | `firstClassTools` | `first_class_tools` | Planned: `with_first_class_tools` | Planned |
+| Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
 The C++ todo backend's hand-rolled stdio loop lists one command tool per command; parity item D2
 promotes it to `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)).
@@ -80,7 +80,7 @@ Python's grouped tool lists its actions sorted, with a generic `params` object a
 ### `hybrid`
 
 Specified in [Hybrid](#h3-the-tool-list-and-its-order): the meta-tools, then the context tools when
-contexts are configured, then the configured first-class command tools. TypeScript serves it; see
+contexts are configured, then the configured first-class command tools. TypeScript, Python and Rust serve it; see
 [Implementation status](#implementation-status).
 
 ## Routing
@@ -132,7 +132,7 @@ A command cannot take a name the server provides itself.
 | --- | --- | --- |
 | `ttlMs` on `tools/list` and `server/discover` | `toolsListTtlMs` when set; otherwise 300,000, or 0 when contexts are configured, because the list can vary by `_meta["dev.afd/context"]`, which clients leave out of their cache key | `toolsListTtlMs` when set; otherwise 300,000 whether or not contexts are configured ([H6](#h6-cache-hints-and-listchanged)) |
 | `cacheScope` | `public` | `public` |
-| `capabilities.tools.listChanged` | `false` in TypeScript and Python; Rust omits it, which means the same | `false` ([H6](#h6-cache-hints-and-listchanged)) |
+| `capabilities.tools.listChanged` | `false` | `false` ([H6](#h6-cache-hints-and-listchanged)) |
 
 The `ttlMs` default under contexts applies to the lazy strategy too, although TypeScript's and
 Rust's lazy lists do not vary by context. No AFD server sends `notifications/tools/list_changed`.
@@ -192,7 +192,7 @@ deployer's choice, and the list's order and cap need one owner.
 | --- | --- |
 | TypeScript | `toolStrategy: 'hybrid'` with `firstClassTools: string[]`, on `createMcpServer` and `createMcpHandler` |
 | Python | `tool_strategy="hybrid"` with `first_class_tools: list[str]`, on `create_server` and `ServerConfig` |
-| Rust | `with_tool_strategy(ToolStrategy::Hybrid)` with `with_first_class_tools(...)`. `ToolStrategy` is `Copy`, so the variant carries no list |
+| Rust | `with_tool_strategy(ToolStrategy::Hybrid)` with `with_first_class_tools(...)`. `ToolStrategy` is `Copy`, so the variant carries no list. `McpServer` registers commands and contexts after the strategy is chosen, so it checks the set when it starts: `McpServer::validate`, called by `serve_stdio` and `try_streamable_http_service` (`streamable_http_service` panics), and by every request over another transport, which answers `-32603` with the message |
 | C++ | `first_class_tools` on the `afd::mcp_stdio` options, once D2 lands |
 
 A server MUST fail at construction when:
@@ -315,7 +315,7 @@ strategy, and a call through a meta-tool exactly as under the lazy strategy.
 ## Conformance
 
 [`tool-strategies.json`](./tool-strategies.json) pins the hybrid strategy. It is written by hand
-from this page, because no implementation serves the strategy yet; each language's hybrid step adds
+from this page, before any implementation served the strategy; each language's hybrid step adds
 its loader. It covers only the hybrid strategy, because the other strategies' lists differ between
 languages until [#533](https://github.com/lushly-dev/afd/issues/533) is decided.
 
@@ -361,8 +361,8 @@ name, which every strategy serves, so it does not change.
 | `individual` | Yes | Yes (the default) | Yes | Todo backend only (#341) |
 | `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | No (#341) |
 | `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | No (#341) |
-| `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Planned | Planned |
-| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Planned | Planned |
-| Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Planned | Planned |
+| `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
+| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | Planned |
+| Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |
 
 Progress is recorded in the [hybrid tool strategy status](../docs/features/active/hybrid-tool-strategy/STATUS.md).
