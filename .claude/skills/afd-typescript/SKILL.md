@@ -330,7 +330,9 @@ the first name segment) taking `{ action, params }`, plus `afd-detail`, `afd-cal
 `afd-batch` and `afd-pipe`. Each grouped tool lists every action's command name, input
 schema, `requires`, `examples`, `mutation` and `outputSchema` in `_meta.actions`; small
 groups also inline the per-action schemas as `params.anyOf` branches titled with the
-action. Use `toolStrategy: 'individual'` for one tool per command.
+action. Use `toolStrategy: 'individual'` for one tool per command, `'lazy'` for the five meta-tools only, or
+`'hybrid'` for the meta-tools plus a few first-class commands (below). The tool lists of every strategy are
+in `spec/tool-strategies.md`.
 
 ```typescript
 const server = createMcpServer({
@@ -361,6 +363,27 @@ const server = createMcpServer({
 ```
 
 The expected agent workflow in lazy mode is `afd-discover -> afd-detail -> afd-call`. `afd-call`, `afd-batch`, and `afd-pipe` remain available across all tool strategies; `lazy` just keeps discovery constant-cost for large command sets. Meta-tool arguments are validated: bad `afd-call`/`afd-discover`/`afd-detail` arguments return `VALIDATION_ERROR`, bad batch or pipeline envelopes `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`.
+
+### Hybrid Strategy (Hot Path Plus Discovery)
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  toolStrategy: 'hybrid',
+  firstClassTools: ['knowledge-search', 'memory-remember'], // 1 to 8, in list order
+});
+```
+
+`tools/list` is the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), then
+the `afd-context-*` tools when `contexts` are configured, then the first-class commands as individual tools.
+The list never varies by context (so `ttlMs` stays 300000 under `contexts`) and never changes while the
+server runs; other commands run by name or through `afd-call`. Server creation throws, naming the entry,
+for an entry that is unregistered, not `expose.mcp`, reserved, repeated or beyond 8, and for
+`firstClassTools` with another strategy (or `hybrid` without it). Avoid `contexts` on a first-class command:
+it is listed everywhere but callable only in its contexts (`afd validate --surface` warns). `afd-help`
+reports `toolStrategy` and, on hybrid servers, `firstClassTools`.
 
 ### With Contexts
 

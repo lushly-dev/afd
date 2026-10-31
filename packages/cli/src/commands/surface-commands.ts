@@ -4,7 +4,10 @@
  *
  * - individual: one tool per command;
  * - grouped: one tool per group, whose `_meta.actions` lists each command;
- * - lazy: no command tools, so commands are listed with afd-discover and afd-detail.
+ * - lazy: no command tools, so commands are listed with afd-discover and afd-detail;
+ * - hybrid: a few first-class command tools beside the meta-tools, so the listed commands are
+ *   completed with afd-discover and afd-detail, and a first-class command that declares
+ *   `contexts` is reported (`spec/tool-strategies.md`, H4).
  *
  * Tools and commands that AFD servers provide themselves (afd-call, afd-batch,
  * afd-help, afd-context-list, ...) are skipped: they are not the application's
@@ -154,11 +157,24 @@ function collectFromListing(tools: McpTool[]): SurfaceCommandSet {
 }
 
 /**
+ * Whether the server's own `afd-help` says it uses the hybrid strategy. A server without
+ * `afd-help` (no bootstrap tools), or one that cannot answer, is not reported as hybrid.
+ */
+async function isHybridServer(client: SurfaceClient): Promise<boolean> {
+	try {
+		const result = await client.call<unknown>('afd-help', { format: 'brief' });
+		return result.success && isRecord(result.data) && result.data.toolStrategy === 'hybrid';
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Collect the commands to validate from a server's tool listing, calling
  * afd-discover and afd-detail when the listing does not carry them: a lazy
- * server (only built-in tools, including afd-discover), or grouped tools that
- * do not list their actions. If discovery fails, the listed tools are
- * validated as they are and a warning says why.
+ * server (only built-in tools, including afd-discover), a hybrid server (afd-discover beside
+ * first-class command tools), or grouped tools that do not list their actions. If discovery
+ * fails, the listed tools are validated as they are and a warning says why.
  */
 export async function collectSurfaceCommands(
 	tools: McpTool[],
@@ -168,8 +184,13 @@ export async function collectSurfaceCommands(
 	const opaque = set.commands.filter((command) =>
 		tools.some((tool) => tool.name === command.name && isOpaqueGroupedTool(tool))
 	);
-	const lazy = set.commands.length === 0 && tools.some((tool) => tool.name === 'afd-discover');
-	if (!lazy && opaque.length === 0) return set;
+	const discoverable = tools.some((tool) => tool.name === 'afd-discover');
+	const lazy = set.commands.length === 0 && discoverable;
+	// Command tools beside afd-discover: either a hybrid server, which lists only some of its
+	// commands, or one that lists every command and discovery adds nothing (Python's individual).
+	const partial = set.commands.length > 0 && discoverable;
+	if (partial) await warnFirstClassContexts(set, client);
+	if (!lazy && !partial && opaque.length === 0) return set;
 
 	try {
 		// A tool that only looks grouped may be a real command; discovery then lists it again.
@@ -193,10 +214,28 @@ export async function collectSurfaceCommands(
 		set.warnings.push(
 			lazy
 				? `Could not list commands with afd-discover (${reason}); no commands were validated.`
-				: `Could not list the commands of grouped tools ${opaque.map((c) => c.name).join(', ')} with afd-discover (${reason}); they were validated as tools.`
+				: partial && opaque.length === 0
+					? `Could not list the unlisted commands with afd-discover (${reason}); only the ${set.commands.length} listed tools were validated.`
+					: `Could not list the commands of grouped tools ${opaque.map((c) => c.name).join(', ')} with afd-discover (${reason}); they were validated as tools.`
 		);
 	}
 	return set;
+}
+
+/**
+ * Warn about first-class commands of a hybrid server that declare `contexts`: the list shows
+ * them in every context, but a call works only in theirs (`spec/tool-strategies.md`, H4). The
+ * listing is what carries `contexts`; afd-detail does not return them.
+ */
+async function warnFirstClassContexts(
+	set: SurfaceCommandSet,
+	client: SurfaceClient
+): Promise<void> {
+	const scoped = set.commands.filter((command) => command.contexts?.length);
+	if (scoped.length === 0 || !(await isHybridServer(client))) return;
+	set.warnings.push(
+		`Hybrid first-class tools ${scoped.map((command) => command.name).join(', ')} declare contexts: they are listed in every context but callable only in their own. Remove their contexts, or take them out of firstClassTools.`
+	);
 }
 
 async function callData<T>(client: SurfaceClient, name: string, args: Json): Promise<T> {

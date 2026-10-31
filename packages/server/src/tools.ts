@@ -1,5 +1,5 @@
 /**
- * @fileoverview MCP tool list generation — individual, grouped, and lazy strategies.
+ * @fileoverview MCP tool list generation — individual, grouped, lazy and hybrid strategies.
  */
 
 import {
@@ -8,6 +8,7 @@ import {
 	commandToolMeta,
 	isMcpExposed,
 } from '@lushly-dev/afd-core';
+import { CONTEXT_COMMAND_NAMES } from './bootstrap/registry.js';
 import { commandAction, commandGroup, filterByContext, type GroupByFn } from './command-routing.js';
 import { type ConfirmationMode, declaresConfirmInput } from './confirmations.js';
 import {
@@ -21,6 +22,7 @@ import {
 	type ToolInputSchema,
 } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
+import type { ToolStrategy } from './server-types.js';
 
 /**
  * Largest serialized size (in characters) of a grouped tool's per-action parameter
@@ -137,21 +139,84 @@ function groupedTool(
 // TOOLS LIST
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Options that shape the tools a list advertises. */
+export interface ToolsListOptions {
+	outputSchema?: boolean;
+	confirmations?: ConfirmationMode;
+	/** The hybrid strategy's first-class command names, in list order. */
+	firstClassTools?: readonly string[];
+}
+
+/**
+ * The tool for one command, as the individual strategy lists it. The hybrid strategy lists its
+ * first-class commands and context tools the same way.
+ */
+function commandTool(
+	cmd: ZodCommandDefinition,
+	options: Pick<ToolsListOptions, 'outputSchema' | 'confirmations'>
+): McpToolDefinition {
+	const meta = commandToolMeta(cmd, cmd.outputJsonSchema);
+	const annotations = commandToolAnnotations(cmd);
+	const outputSchema =
+		options.outputSchema !== false && cmd.outputJsonSchema
+			? (commandResultOutputSchema(cmd.outputJsonSchema) as unknown as Record<string, unknown>)
+			: undefined;
+	return {
+		name: cmd.name,
+		description: cmd.description,
+		inputSchema: individualInputSchema(cmd, options.confirmations),
+		...(annotations && { annotations }),
+		...(outputSchema && { outputSchema }),
+		...(meta && { _meta: meta }),
+	};
+}
+
+/**
+ * The hybrid list (`spec/tool-strategies.md`, H3): the five meta-tools, the context tools when
+ * the server registered them, then the first-class command tools in configured order. It
+ * depends on the server's configuration only, never on the active context (H4).
+ */
+function hybridToolsList(
+	commands: ZodCommandDefinition[],
+	options: ToolsListOptions
+): McpToolDefinition[] {
+	const byName = new Map(commands.map((cmd) => [cmd.name, cmd]));
+	const named = (names: readonly string[]) =>
+		names.flatMap((name) => {
+			const cmd = byName.get(name);
+			return cmd && isMcpExposed(cmd) ? [commandTool(cmd, options)] : [];
+		});
+	return [
+		discoverTool,
+		detailTool,
+		callTool,
+		batchTool,
+		pipeTool,
+		...named(CONTEXT_COMMAND_NAMES),
+		...named(options.firstClassTools ?? []),
+	];
+}
+
 /**
  * Get the tools list based on toolStrategy.
  */
 export function getToolsList(
 	commands: ZodCommandDefinition[],
-	toolStrategy: 'individual' | 'grouped' | 'lazy',
+	toolStrategy: ToolStrategy,
 	groupByFn?: GroupByFn,
 	activeContext?: string | null,
-	options: { outputSchema?: boolean; confirmations?: ConfirmationMode } = {}
+	options: ToolsListOptions = {}
 ): McpToolDefinition[] {
 	const builtInTools = [batchTool, pipeTool, callTool];
 
 	// Lazy strategy: meta-tools + built-ins only
 	if (toolStrategy === 'lazy') {
 		return [discoverTool, detailTool, ...builtInTools];
+	}
+
+	// Hybrid strategy: a fixed list that ignores the active context
+	if (toolStrategy === 'hybrid') {
+		return hybridToolsList(commands, options);
 	}
 
 	// Filter by active context before strategy-specific generation
@@ -162,28 +227,7 @@ export function getToolsList(
 
 	// Individual strategy: each command is its own tool + built-ins
 	if (toolStrategy === 'individual') {
-		return [
-			...builtInTools,
-			...filtered.map((cmd) => {
-				const meta = commandToolMeta(cmd, cmd.outputJsonSchema);
-				const annotations = commandToolAnnotations(cmd);
-				const outputSchema =
-					options.outputSchema !== false && cmd.outputJsonSchema
-						? (commandResultOutputSchema(cmd.outputJsonSchema) as unknown as Record<
-								string,
-								unknown
-							>)
-						: undefined;
-				return {
-					name: cmd.name,
-					description: cmd.description,
-					inputSchema: individualInputSchema(cmd, options.confirmations),
-					...(annotations && { annotations }),
-					...(outputSchema && { outputSchema }),
-					...(meta && { _meta: meta }),
-				};
-			}),
-		];
+		return [...builtInTools, ...filtered.map((cmd) => commandTool(cmd, options))];
 	}
 
 	// Grouped strategy: commands grouped by category/entity. afd-detail is listed

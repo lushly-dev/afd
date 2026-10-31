@@ -18,9 +18,13 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **State:** approved by the owner on 2026-10-31 with every recommendation; the six open questions
   are answered in the proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-2026-10-31).
   Step 0 (`spec/`) merged in [#538](https://github.com/lushly-dev/afd/pull/538) as `977a0a35`;
-  Python implements the strategy in a pull request open for review (step 2); no other language does
-  yet. Step 1 (TypeScript) can start or is in progress.
-- **Last verified:** 2026-10-31, against `main` at `85f49a3f`, for step 2: `cd python && uv lock --check`,
+  Python ([#555](https://github.com/lushly-dev/afd/pull/555), merged as `51f8d9d8`) and TypeScript
+  ([#556](https://github.com/lushly-dev/afd/pull/556)) implement the strategy; Rust (step 3) and C++
+  (step 4) do not yet.
+- **Last verified:** 2026-10-31. Step 1 against `main` at `85f49a3f`: `pnpm -F @lushly-dev/afd-server test`
+  (`hybrid-tools.test.ts` runs all 4 servers and 10 construction failures of `spec/tool-strategies.json`
+  through `createMcpServer` and `createMcpHandler`), `pnpm -F @lushly-dev/afd-cli test`, and `pnpm check`.
+  Step 2 against `main` at `85f49a3f`: `cd python && uv lock --check`,
   ruff (F821, F841, B904) and `uv run pytest -q` (2,962 passed on Python 3.14), the Python todo backend's
   pytest and its 34-case and 5-case confirmation conformance suites (2025 and modern), and the alfred
   tests. Earlier: 2026-10-31, against `main` at `5875e301`, for step 0: every statement about
@@ -48,8 +52,8 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Step | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 0. `spec/` | Done | New [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) and [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json); amendments to `command-metadata.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows. `spec/VERSION` stays `1.0-rc` | Merged in [#538](https://github.com/lushly-dev/afd/pull/538), 22/22 checks green |
-| 1. TypeScript | Not started | None | Step 0 merged ([#538](https://github.com/lushly-dev/afd/pull/538)); ready |
-| 2. Python | In review | `create_server(tool_strategy="hybrid", first_class_tools=[...])`, `ServerConfig.first_class_tools`, `python/src/afd/server/first_class.py`; `python/tests/test_hybrid_tool_strategy.py` runs every case in `spec/tool-strategies.json`; live SSE, Streamable HTTP (both eras) and stdio cases in `test_mcp_protocol_live.py` and `test_mcp_modern_live.py`; [#555](https://github.com/lushly-dev/afd/pull/555) open, not yet merged | Merged, with CI green |
+| 1. TypeScript | In review | `toolStrategy: 'hybrid'` and `firstClassTools` on `createMcpServer` and `createMcpHandler` (`packages/server/src`: `command-names.ts` checks, `tools.ts` list, `mcp-modern.ts` TTL and instructions, `bootstrap/afd-help.ts` fields); `hybrid-tools.test.ts` runs every case of [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json) over both MCP eras; `afd validate --surface` completes a hybrid listing and warns on a first-class command with `contexts` (`packages/cli/src/commands/surface-commands.ts`); spec, parity, README and skill rows; a changeset | Merge the step 1 pull request; then parity and conformance rows for the other languages follow their own steps |
+| 2. Python | Done | `create_server(tool_strategy="hybrid", first_class_tools=[...])`, `ServerConfig.first_class_tools`, `python/src/afd/server/first_class.py`; `python/tests/test_hybrid_tool_strategy.py` runs every case in `spec/tool-strategies.json`; live SSE, Streamable HTTP (both eras) and stdio cases in `test_mcp_protocol_live.py` and `test_mcp_modern_live.py`; [#555](https://github.com/lushly-dev/afd/pull/555) open, not yet merged | Merged in [#555](https://github.com/lushly-dev/afd/pull/555) as `51f8d9d8`, 29/29 checks green |
 | 3. Rust | Not started | None | Step 0 merged; parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526) |
 | 4. C++ | Not started | None | Step 0 and language parity D2 merged |
 | 5. Parity matrix, conformance rows, skills | Not started | None | Each language's step merged |
@@ -79,3 +83,4 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 | 2026-10-31 | Step 0 session | Wrote `spec/tool-strategies.md` (all four strategies, H1 to H8 normative), the hand-written hybrid cases in `spec/tool-strategies.json`, and the amendments the proposal lists; re-verified current behavior against `main` at `5875e301`, including Rust after #526. `spec/VERSION` unchanged: an additive change during `1.0-rc` is recorded under the `1.0-rc` entry, as earlier additions were. Pull request open for review |
 | 2026-10-31 | Coordinator | Step 0 merged in [#538](https://github.com/lushly-dev/afd/pull/538); corrected the stale D4 paragraph in `spec/error-codes.md`. [#540](https://github.com/lushly-dev/afd/pull/540) |
 | 2026-10-31 | Python step | Implemented the strategy in `python/src/afd/server` (H1 to H8) and loaded `spec/tool-strategies.json`. Two corrections it needed, both in `python/CHANGELOG.md` Unreleased: Python advertised `tools.listChanged: true` on the modern era (the SDK derives it from `subscriptions/listen`) although the spec says `false`, now forced to `false` on every strategy; and Python's `COMMAND_NOT_IN_CONTEXT` suggestion differed from the specified wording, now aligned. [#555](https://github.com/lushly-dev/afd/pull/555) open for review |
+| 2026-10-31 | Step 1 session | Implemented the hybrid strategy in TypeScript (server, `afd-help`, TTL, instructions), the `hybrid-tools.test.ts` loader for `spec/tool-strategies.json`, the `afd validate --surface` hybrid completion and H4 warning, docs and the changeset. [#556](https://github.com/lushly-dev/afd/pull/556) |

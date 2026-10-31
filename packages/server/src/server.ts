@@ -16,7 +16,7 @@ import {
 	createContextState,
 } from './bootstrap/afd-context.js';
 import { getBootstrapCommands } from './bootstrap/registry.js';
-import { assertValidCommandNames } from './command-names.js';
+import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
 import { createConfirmationGate } from './confirmations.js';
 import { resolveContextState } from './context-scope.js';
@@ -44,9 +44,10 @@ export type {
 	McpServer,
 	McpServerOptions,
 	McpTransport,
+	ToolStrategy,
 } from './server-types.js';
 // Re-export public types so existing imports from './server.js' still work
-export { isStdinPiped } from './server-types.js';
+export { isStdinPiped, MAX_FIRST_CLASS_TOOLS } from './server-types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SERVER FACTORY
@@ -69,6 +70,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contexts,
 		bootstrap = false,
 	} = options;
+	// A copy: the set must not change while the server runs.
+	const firstClassTools = options.firstClassTools ? [...options.firstClassTools] : undefined;
 
 	assertValidCommandNames(commands, { bootstrap, contexts: Boolean(contexts?.length) });
 
@@ -117,8 +120,11 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		// The caller's context state: the HTTP session's, or the single stdio state.
 		const describe = (context?: CommandContext) =>
 			filterByContext(remoteCommands, resolveContextState(context, contextState)?.getActive());
-		registeredCommands.push(...getBootstrapCommands(describe));
+		registeredCommands.push(
+			...getBootstrapCommands(describe, { toolSurface: { toolStrategy, firstClassTools } })
+		);
 	}
+	assertValidFirstClassTools({ toolStrategy, firstClassTools, commands: registeredCommands });
 	const commandMap = new Map<string, ZodCommandDefinition>();
 	for (const cmd of registeredCommands) {
 		commandMap.set(cmd.name, cmd);
@@ -170,7 +176,11 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			toolStrategy,
 			groupByFn,
 			resolveContextState(context, contextState)?.getActive(),
-			{ outputSchema: options.advertiseOutputSchema, confirmations: confirmations.mode }
+			{
+				outputSchema: options.advertiseOutputSchema,
+				confirmations: confirmations.mode,
+				firstClassTools,
+			}
 		);
 
 	const modernDeps: ModernMcpDeps = {
@@ -182,6 +192,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		routeToolCall,
 		contexts,
 		toolsListTtlMs: options.toolsListTtlMs,
+		toolStrategy,
 		confirmationKey: options.confirmationKey,
 		devMode,
 		onError,

@@ -44,6 +44,12 @@ export function isStdinPiped(): boolean {
 // SERVER OPTIONS & INTERFACE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** How an MCP server lists its commands as tools (`McpServerOptions.toolStrategy`). */
+export type ToolStrategy = 'individual' | 'grouped' | 'lazy' | 'hybrid';
+
+/** The most first-class tools a hybrid server lists (`spec/tool-strategies.md`, H5). */
+export const MAX_FIRST_CLASS_TOOLS = 8;
+
 /**
  * MCP Server configuration options.
  */
@@ -150,7 +156,8 @@ export interface McpServerOptions {
 	 * Freshness hint, in milliseconds, for `tools/list` and `server/discover` results on the
 	 * MCP 2026-07-28 lane (`ttlMs`, with `cacheScope: "public"`). Default: 300000 (5 minutes),
 	 * or 0 when `contexts` are configured, because MCP clients cache `tools/list` without its
-	 * `_meta` and a context-scoped list would be served from the unscoped entry. Set 0 when the
+	 * `_meta` and a context-scoped list would be served from the unscoped entry. The hybrid
+	 * strategy keeps 300000 under `contexts`: its list does not vary by context. Set 0 when the
 	 * command set changes at runtime.
 	 */
 	toolsListTtlMs?: number;
@@ -227,18 +234,29 @@ export interface McpServerOptions {
 	onError?: (error: Error) => void;
 
 	/**
-	 * Tool strategy for MCP tool listing. `afd-call`, `afd-batch` and `afd-pipe` are
-	 * listed in every strategy.
+	 * Tool strategy for MCP tool listing (`spec/tool-strategies.md`). `afd-call`, `afd-batch`
+	 * and `afd-pipe` are listed in every strategy.
 	 * - "grouped" (default): one tool per group (category, or the first name segment)
 	 *   taking `{ action, params }`. Each grouped tool's `_meta.actions` carries every
 	 *   action's command name, input schema and metadata; small groups also inline the
 	 *   per-action schemas as `params.anyOf`. `afd-detail` is listed too.
 	 * - "individual": each command is its own tool, with its input schema and `_meta`
 	 * - "lazy": only the afd-discover and afd-detail meta-tools (plus the three above)
+	 * - "hybrid": the five meta-tools, the context tools when `contexts` are configured, then
+	 *   the commands named by `firstClassTools` as individual tools. The list never varies by
+	 *   context and never changes while the server runs.
 	 *
 	 * @default "grouped"
 	 */
-	toolStrategy?: 'individual' | 'grouped' | 'lazy';
+	toolStrategy?: ToolStrategy;
+
+	/**
+	 * The commands the `"hybrid"` strategy lists as their own tools, in list order: at most
+	 * {@link MAX_FIRST_CLASS_TOOLS}, each registered and MCP-exposed, none a meta-tool or context
+	 * tool, none repeated. Required, and not empty, with `toolStrategy: "hybrid"`; refused with any
+	 * other strategy. Server creation throws on a mistake, naming the entry.
+	 */
+	firstClassTools?: string[];
 
 	/**
 	 * Custom function to derive group name from command.

@@ -419,6 +419,7 @@ every strategy.
 | `grouped` (default) | One tool per group (`category`, else the first name segment, or `groupByFn`) plus `afd-detail` |
 | `individual` | One tool per command with its input schema and `_meta` |
 | `lazy` | `afd-discover` and `afd-detail` |
+| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools; the list never varies by context |
 
 A grouped tool takes `{ action, params }` (`todo-create` → group `todo`, action `create`).
 Its `_meta.actions` lists every action with the full command name, description, input
@@ -544,6 +545,7 @@ The TypeScript server does not read environment variables. Pass these options to
 | `allowedOrigins` | same-origin only | Additional exact browser origins |
 | `maxBodyBytes` | 1048576 | Maximum JSON request body |
 | `devMode` | false | Verbose errors and any-origin CORS — never enable on a reachable host |
-| `toolStrategy` | `'grouped'` | `'grouped'`, `'individual'` or `'lazy'` (see Tool Strategies) |
+| `toolStrategy` | `'grouped'` | `'grouped'`, `'individual'`, `'lazy'` or `'hybrid'` (see Tool Strategies) |
+| `firstClassTools` | none | With `'hybrid'` only: the 1 to 8 commands listed as their own tools, in order |
 | `bootstrap` | false | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools |
 | `contexts` | none | Context scopes; registers the `afd-context-*` commands |

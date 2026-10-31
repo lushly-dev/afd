@@ -8,6 +8,7 @@ import type { CommandExample } from '@lushly-dev/afd-core';
 import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
+import type { ToolStrategy } from '../server-types.js';
 import { describableCommands, type GetDescribedCommands } from './described-command.js';
 
 const inputSchema = z.object({
@@ -25,27 +26,43 @@ interface CommandInfo {
 	undoable?: boolean;
 	requires?: string[];
 	examples?: CommandExample[];
+	/** `true` for a first-class command of a hybrid server; omitted otherwise. */
+	firstClass?: true;
 }
 
 interface HelpOutput {
 	/** The AFD contract version this server implements (`AFD_CONTRACT_VERSION`). */
 	contractVersion: string;
+	/** How the server lists its tools; omitted when `afd-help` is not served by an MCP server. */
+	toolStrategy?: ToolStrategy;
+	/** The first-class command names in list order; hybrid servers only. */
+	firstClassTools?: string[];
 	commands: CommandInfo[];
 	total: number;
 	filtered: boolean;
 	groupedByCategory: Record<string, CommandInfo[]>;
 }
 
+/** How the server lists its tools, which `afd-help` reports (`spec/tool-strategies.md`, H8). */
+export interface ToolSurface {
+	toolStrategy: ToolStrategy;
+	/** The hybrid strategy's first-class command names, in list order. */
+	firstClassTools?: readonly string[];
+}
+
 /**
  * Create the afd-help bootstrap command.
  *
  * Lists only MCP-exposed commands. `requires` is always included when set.
- * The output also carries the AFD contract version the server implements.
+ * The output also carries the AFD contract version the server implements, and, given
+ * `toolSurface`, the tool strategy (with the first-class set on a hybrid server).
  *
  * @param getCommands - Function to get all registered commands
+ * @param toolSurface - How the MCP server lists its tools; omit when not served by one
  */
 export function createAfdHelpCommand(
-	getCommands: GetDescribedCommands
+	getCommands: GetDescribedCommands,
+	toolSurface?: ToolSurface
 ): ZodCommandDefinition<typeof inputSchema, HelpOutput> {
 	return defineCommand({
 		name: 'afd-help',
@@ -74,6 +91,10 @@ export function createAfdHelpCommand(
 				);
 			}
 
+			const firstClass = new Set(
+				toolSurface?.toolStrategy === 'hybrid' ? (toolSurface.firstClassTools ?? []) : []
+			);
+
 			// Map to output format
 			const commandInfos: CommandInfo[] = commands.map((cmd) => {
 				const info: CommandInfo = {
@@ -83,6 +104,10 @@ export function createAfdHelpCommand(
 
 				if (cmd.requires?.length) {
 					info.requires = cmd.requires;
+				}
+
+				if (firstClass.has(cmd.name)) {
+					info.firstClass = true;
 				}
 
 				if (input.format === 'full') {
@@ -109,6 +134,10 @@ export function createAfdHelpCommand(
 
 			const output: HelpOutput = {
 				contractVersion: AFD_CONTRACT_VERSION,
+				...(toolSurface && { toolStrategy: toolSurface.toolStrategy }),
+				...(toolSurface?.toolStrategy === 'hybrid' && {
+					firstClassTools: [...(toolSurface.firstClassTools ?? [])],
+				}),
 				commands: commandInfos,
 				total: commandInfos.length,
 				filtered,

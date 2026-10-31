@@ -733,7 +733,8 @@ Create an MCP server from commands.
 | `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`, which picks stdio whenever stdin is not a TTY) |
 | `port` | number | No | Port for HTTP transport (default: 3100) |
 | `host` | string | No | Host for HTTP transport (default: localhost) |
-| `toolStrategy` | `'individual' \| 'grouped' \| 'lazy'` | No | How commands appear as MCP tools (default: `'grouped'`) |
+| `toolStrategy` | `'individual' \| 'grouped' \| 'lazy' \| 'hybrid'` | No | How commands appear as MCP tools (default: `'grouped'`) |
+| `firstClassTools` | `string[]` | With `'hybrid'` | The commands a hybrid server lists as their own tools, in list order (1 to 8; refused with any other strategy) |
 | `groupByFn` | `(command) => string \| undefined` | No | Group name for the grouped strategy (default: `category`, else the first name segment) |
 | `contexts` | `{ name, description }[]` | No | Context scopes for dynamic tool filtering |
 | `bootstrap` | boolean | No | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools (default: `false`) |
@@ -907,6 +908,7 @@ const server = createMcpServer({
 | `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
 | `individual` | One tool per command, with its full input schema and `_meta` |
 | `lazy` | `afd-discover` and `afd-detail` only |
+| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
 
 A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
 
@@ -970,6 +972,28 @@ Output is kept small so lazy discovery stays cheap:
 - Tool results are compact JSON (no indentation).
 - An unknown command name, whether called directly, through `afd-call`, `/rpc`, a batch entry or a pipeline step, returns `COMMAND_NOT_FOUND`. Its suggestion names at most three close matches callable in the active context and points to `afd-discover`, for example `Did you mean 'todo-create'? Other close matches: 'todo-update'. Use afd-discover to list all commands.` It never lists every command.
 - `afd-detail` entries for unknown names echo the requested name cut to 128 characters plus `…`. Found commands keep their exact name.
+
+## Hybrid Strategy (Hot Path Plus Discovery)
+
+The `hybrid` strategy lists a few commands as their own tools beside the lazy meta-tools. The list stays fixed as the command set grows, commands outside the set change without the client reloading tools, and `afd-call`, `afd-batch` and `afd-pipe` still reach every command ([`spec/tool-strategies.md`](../../spec/tool-strategies.md#hybrid)).
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: allCommands,
+  toolStrategy: 'hybrid',
+  firstClassTools: ['knowledge-search', 'knowledge-open', 'memory-remember'], // at most 8, in list order
+});
+```
+
+`tools/list` is `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`; then `afd-context-list`, `afd-context-enter` and `afd-context-exit` when `contexts` are configured; then the first-class tools in the order given. Each first-class tool is the tool the `individual` strategy would list for that command (`inputSchema` with `confirm`, `annotations`, `outputSchema`, `_meta`).
+
+- **Construction checks.** `createMcpServer` and `createMcpHandler` throw, naming the entry, when an entry is not a registered command, is not `expose.mcp`, is a meta-tool or context tool name, repeats, or is beyond the cap of 8; and when `firstClassTools` is given with another strategy, or `hybrid` has none or an empty list. A bootstrap tool (`afd-help`) may be first-class with `bootstrap: true`.
+- **Contexts.** The list never varies by the active context, so `toolsListTtlMs` keeps its 300,000 default even with `contexts`. A first-class command outside its `contexts` stays listed and answers `COMMAND_NOT_IN_CONTEXT`; `afd validate --surface` warns about it.
+- **Calls.** A first-class tool behaves as under `individual` (confirmations, approvals, errors); an exposed command that is not first-class runs by name or through the meta-tools.
+- **Fixed while running.** `tools/list` never changes and `listChanged` is `false`; changing the set is a restart.
+- **Reporting.** `afd-help` reports `toolStrategy` on every strategy and, on a hybrid server, `firstClassTools` and `firstClass: true` on those commands.
 
 ## Bootstrap Tools
 
