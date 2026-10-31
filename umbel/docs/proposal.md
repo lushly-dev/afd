@@ -26,6 +26,17 @@ configuration, content roots, the content schema, content packs, the list of
 installed plugins and their settings. The binary ships defaults for all of
 these and bakes none of a particular organization into code.
 
+## Positioning
+
+Memory in today's harnesses is first-party, machine-local and consolidated
+offline on each vendor's own store; nothing is shared across harnesses. Every
+enterprise platform now exposes its context over remote MCP behind its own
+small facade. Umbel takes the position nobody holds: a deployer-owned layer of
+knowledge, memory and context shared across harnesses and agents, with
+provenance and approval, that joins across vendor systems by mounting their
+MCP servers and by indexing what they permit. The dated reasoning is in the
+[trajectory watch](trajectory.md).
+
 ## Vocabulary
 
 AFD already names most of these extension points, so the host reuses them.
@@ -93,7 +104,10 @@ With zero plugins installed the host provides:
 
 ## First-party plugins
 
-Each is small enough to read as a tutorial and real enough to deploy.
+Each is small enough to read as a tutorial and real enough to deploy. The
+core comes first; the knowledge plugin follows because it is a present need
+and drives the others; further first-class plugins, federation among them,
+come after the core phases and get their own specifications.
 
 | Plugin | Purpose |
 | --- | --- |
@@ -103,9 +117,25 @@ Each is small enough to read as a tutorial and real enough to deploy.
 | memory, context | Short-term store, capture and recall, budgeted context bundles |
 | curator | Settling window, candidates, proposals and approvals, run on a schedule |
 | content-design | The pack exemplar: seeded with a public style manual, overridden per instance, rules declared in the pack |
-| mount-mcp | One external MCP server mounted as a plugin, setting the connector contract |
+| mount-mcp | An external MCP server mounted as a source and tool provider: the federation path across vendor systems, with indexed-copy and live modes, and the plugin that sets the connector contract |
 
 ## Knowledge, memory and context
+
+The retrieval lanes, and what a profile switches. The path from memory to the
+knowledge base is drawn in the [architecture](architecture.md#7-data-and-content).
+
+```mermaid
+flowchart LR
+    Q["Query<br/>filters, format"] --> B["Fielded BM25<br/>always on"]
+    Q --> V["Vector lane<br/>optional: local ONNX or HTTP"]
+    B & V --> F["Reciprocal rank fusion"]
+    F --> RR["Rerank lane<br/>optional, gated by eval"]
+    RR --> G["Graph expansion<br/>structural neighbors, related documents"]
+    G --> PF["Permission filter<br/>by principal"]
+    PF --> D["Document-level hits<br/>best chunk, locators, status"]
+    PR["Scale profile"] -. switches .-> V
+    PR -. switches .-> RR
+```
 
 - **Retrieval.** A fielded BM25 index with boolean, phrase, field and boost
   syntax is the non-optional core. Embeddings are an optional lane fused by
@@ -119,7 +149,8 @@ Each is small enough to read as a tutorial and real enough to deploy.
   opt-in with a budget. The graph is exposed as neighbors, related, path and
   outline commands and as a rank-expansion signal.
 - **Two stores, two write paths.** Memory is agent-writable, scoped by tuple
-  (org, project, actor, session), bitemporal and expiring. The knowledge base
+  (org, project, actor, session), bitemporal and expiring, in three classes:
+  episodic, semantic and procedural. Every write is an event with a cursor. The knowledge base
   changes only through a proposal: a diff with evidence and provenance that a
   policy or a person approves per area. Facts are invalidated, never
   overwritten.
@@ -242,8 +273,10 @@ Closed decisions are recorded in the [decision log](decisions.md).
 
 ## Research and evidence
 
+- [Status](STATUS.md), what is done, what is not, and follow-ups; read it first
 - [Architecture](architecture.md), the through line each phase implements against
 - [Decision log](decisions.md)
+- [Trajectory watch](trajectory.md), the movements anticipated and the dated watchlist
 - [Research synthesis](research.md)
 - [Annotated source ledger](sources.md)
 

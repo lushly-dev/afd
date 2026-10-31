@@ -20,11 +20,17 @@ rules.
 
 ## Documents
 
+Read [STATUS.md](docs/STATUS.md) first: it says exactly what is done, what
+is not, and what future sessions must know. No agent should have to scan the
+codebase to learn what is current.
+
 | Document | Purpose |
 | --- | --- |
+| [Status](docs/STATUS.md) | Source of truth for progress: document and phase state, exact done and not-done lists, follow-ups not yet issues, session log |
 | [Architecture](docs/architecture.md) | The through line: vision, principles, system shape, components, interfaces, libraries and phases. Each phase's owning agent writes a detailed specification against it |
 | [Proposal](docs/proposal.md) | What Umbel is, the plugin contract, first-party plugins, scale profiles, open decisions and the first proof |
 | [Decision log](docs/decisions.md) | Dated decisions each phase specification cites |
+| [Trajectory watch](docs/trajectory.md) | Where the protocol, harnesses and enterprise context are heading, what Umbel reserves for each, and the dated watchlist |
 | [Research](docs/research.md) | Synthesis of public sources on agent memory, retrieval and the MCP stack |
 | [Sources](docs/sources.md) | Annotated source ledger with dates and inference limits |
 
