@@ -242,7 +242,7 @@ sequenceDiagram
   such as the four above, with lazy discovery for the rest; this hybrid
   strategy is decision [D27](decisions.md) and an AFD feature for every
   language before Umbel uses it, in the
-  [hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+  [hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
   Documents are also resources; workflows are prompts. Tool lists carry cache hints and a stable
   order.
 - **Skills.** Plugins contribute skills, and the host delivers them three
@@ -530,9 +530,9 @@ criterion.
 | Prerequisite | Needed by | Tracked in |
 | --- | --- | --- |
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1 |
-| Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465 |
-| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer |
-| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on language parity D1 |
+| Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
+| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532 |
+| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on language parity D1 |
 | MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first; shared with Loam, which also needs `ui://` resources for MCP Apps views, so one proposal covers both |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |

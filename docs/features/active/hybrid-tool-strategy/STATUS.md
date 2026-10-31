@@ -15,8 +15,9 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** proposed, awaiting the owner's review. Not approved; nothing in `spec/` or code has
-  changed.
+- **State:** approved by the owner on 2026-10-31 with every recommendation; the six open questions
+  are answered in the proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-2026-10-31).
+  Nothing in `spec/` or code has changed.
 - **Last verified:** 2026-10-31, against `main` at `cdfbbfb7`. Every claim in the proposal's "How
   the strategies work today" was read from the code it cites: `packages/server/src` (`tools.ts`,
   `tool-router.ts`, `command-routing.ts`, `context-scope.ts`, `mcp-modern.ts`, `server.ts`,
@@ -26,14 +27,14 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `spec/error-codes.md` and `spec/protocol-conformance.md`.
 - **Done:** nothing merged.
 - **In progress:** the proposal and this file, in [#522](https://github.com/lushly-dev/afd/pull/522), open for the owner's review.
-- **Not done:** owner approval; the open questions; every row of the proposal's implementation plan
+- **Not done:** every row of the proposal's implementation plan
   (spec, TypeScript, Python, Rust, C++, parity and skills).
 
 ## Implementation plan
 
 | Step | State | Evidence | Next gate |
 | --- | --- | --- | --- |
-| 0. `spec/` | Not started | None | Owner approves the proposal and answers its open questions |
+| 0. `spec/` | Not started | None | Proposal approved 2026-10-31; ready to start |
 | 1. TypeScript | Not started | None | Step 0 merged |
 | 2. Python | Not started | None | Step 0 merged |
 | 3. Rust | Not started | None | Step 0 and language parity D1 merged |
@@ -42,16 +43,15 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Open questions
 
-The six questions at the end of the [proposal](hybrid-tool-strategy.proposal.md#open-questions-for-the-owner)
-are the owner's: the cap, option or metadata, contexts, order, the `afd-help` fields, and the lazy
-and meta-tool differences between TypeScript and Python.
+None. The six questions were answered by the owner on 2026-10-31 and are recorded as the
+proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-2026-10-31).
 
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-10-31 | Design session | Parity D1 is in progress in another session; when it merges, re-check that the Rust step still fits its strategy API and update step 3's size | Open |
-| 2026-10-31 | Design session | TypeScript and Python list different meta-tools in the individual and grouped strategies, and different tools in `lazy`; `spec/tool-strategies.md` records this until open question 6 is decided | Open |
+| 2026-10-31 | Design session | Parity D1 is in [#526](https://github.com/lushly-dev/afd/pull/526), whose `ToolStrategy` enum is non-exhaustive so hybrid adds a variant; when it merges, re-check that the Rust step still fits and update step 3's size | Open |
+| 2026-10-31 | Design session | TypeScript and Python list different meta-tools in the individual and grouped strategies, and different tools in `lazy`; `spec/tool-strategies.md` records this until it is decided | Issue [#533](https://github.com/lushly-dev/afd/issues/533) |
 | 2026-10-31 | Design session | When every backend has the strategy, consider a `--strategy hybrid` run of the todo conformance suite | Open |
 
 ## Session log
@@ -59,3 +59,4 @@ and meta-tool differences between TypeScript and Python.
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-10-31 | Design session | Proposal and this status file written after Umbel decision D27; no `spec/` or code changes. [#522](https://github.com/lushly-dev/afd/pull/522) |
+| 2026-10-31 | Owner review | The owner approved the proposal with every recommendation; the open questions became the proposal's owner decisions. Decision 6's alignment work filed as [#533](https://github.com/lushly-dev/afd/issues/533). [#522](https://github.com/lushly-dev/afd/pull/522) |

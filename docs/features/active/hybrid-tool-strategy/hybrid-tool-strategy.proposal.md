@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-31. Progress and open questions are in [STATUS.md](STATUS.md) |
+| Status | Approved by the owner 2026-10-31, with every recommendation; the [owner decisions](#owner-decisions-2026-10-31) record the answers. Not yet specified or implemented; progress is in [STATUS.md](STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D27](../../../../endpoints/umbel/docs/decisions.md): the owner chose the hybrid strategy as Umbel's execution model on 2026-10-31; under [D25](../../../../endpoints/umbel/docs/decisions.md) it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
@@ -106,8 +106,8 @@ meta-tools and bootstrap commands.
 
 | Difference | TypeScript | Python | Proposal |
 |---|---|---|---|
-| Meta-tools in `individual` and `grouped` | Three (`grouped` adds `afd-detail`) | All five | Out of scope here; recorded as open question 6 |
-| Lazy lists context and bootstrap tools | No | Yes | The spec records both as conforming until open question 6 is settled; the hybrid rule is below |
+| Meta-tools in `individual` and `grouped` | Three (`grouped` adds `afd-detail`) | All five | Out of scope here; owner decision 6, tracked in [#533](https://github.com/lushly-dev/afd/issues/533) |
+| Lazy lists context and bootstrap tools | No | Yes | The spec records both as conforming until [#533](https://github.com/lushly-dev/afd/issues/533) is settled; the hybrid rule is below |
 | Meta-tool order | Varies by strategy | Fixed | The hybrid fixes it |
 
 ## Proposal
@@ -221,7 +221,7 @@ option: a deployment that wants more tools listed wants the individual or groupe
 
 With 5 meta-tools and 3 context tools the list is at most 16 tools. Umbel's architecture names four
 hot-path commands (`knowledge-search`, `knowledge-open`, `context-bundle`, `memory-remember`), so 8
-leaves room. The number is open question 1.
+leaves room. The owner confirmed 8 on 2026-10-31 (decision 1).
 
 ### H6. Cache hints and `listChanged`
 
@@ -272,7 +272,7 @@ One pull request to `spec/`, reviewed by the owner, before any implementation:
 
 | File | Change |
 |---|---|
-| New `spec/tool-strategies.md` | Defines all four strategies: their options and defaults per language, the exact `tools/list` of each with its order, routing of meta-tools and unlisted names, context filtering, reserved names, cache hints and `listChanged`, and the `server/discover` instructions. Records the TypeScript and Python lazy and meta-tool differences as current behavior with open question 6. The hybrid section carries H1 to H8 |
+| New `spec/tool-strategies.md` | Defines all four strategies: their options and defaults per language, the exact `tools/list` of each with its order, routing of meta-tools and unlisted names, context filtering, reserved names, cache hints and `listChanged`, and the `server/discover` instructions. Records the TypeScript and Python lazy and meta-tool differences as current behavior, pointing at [#533](https://github.com/lushly-dev/afd/issues/533). The hybrid section carries H1 to H8 |
 | `spec/command-metadata.md` | [Reporting rules](../../../../spec/command-metadata.md#reporting-rules) and [Annotations](../../../../spec/command-metadata.md#annotations): first-class tools are command tools. [Structured results](../../../../spec/command-metadata.md#structured-results): "listed as its own tool (the individual strategy, or first-class in the hybrid strategy)". [Confirmations](../../../../spec/command-metadata.md#confirmations): enforcement and the acknowledgement list include first-class tools. [Surfaces](../../../../spec/command-metadata.md#surfaces): afd-help adds `firstClass`. [Implementation status](../../../../spec/command-metadata.md#implementation-status): a hybrid row |
 | `spec/error-codes.md` | [Suggestions name only tools the host provides](../../../../spec/error-codes.md#suggestions-name-only-tools-the-host-provides): a hybrid server lists `afd-discover` and, with contexts, the context tools; Rust's row gains the hybrid suggestion. No new codes, so `spec/vectors/error-codes.json` is unchanged |
 | `spec/protocol-conformance.md` | Three acceptance rows: the hybrid list and its order; a hybrid list unchanged by `_meta["dev.afd/context"]`, with `ttlMs` 300,000 under contexts; a first-class call outside the context answering `COMMAND_NOT_IN_CONTEXT`. The [limits](../../../../spec/protocol-conformance.md#limits) note names hybrid with Rust's other strategies |
@@ -319,24 +319,26 @@ list). No wire shape of results changes.
 - Code mode. Umbel's decision keeps a sandboxed code-mode plugin later and optional; it would run
   against the same registry and needs no change here.
 - Aligning the meta-tools of the individual and grouped strategies between TypeScript and Python
-  (open question 6).
+  (owner decision 6, tracked in [#533](https://github.com/lushly-dev/afd/issues/533)).
 - Per-tool output budgets and MCP resources, prompts and Skills over MCP, which Umbel's
   prerequisites list as separate AFD proposals.
 - Ranking or choosing first-class commands automatically from usage telemetry.
 
-## Open questions for the owner
+## Owner decisions (2026-10-31)
 
-1. **The cap.** 8 first-class tools, a spec constant. Alternatives: 4, matching Umbel's named hot
-   path, or a configurable cap with 8 as the default.
-2. **Option or metadata.** This proposal recommends a server option (H1). The alternative is a
-   `firstClass` command field, with registration order and a cap error.
-3. **Contexts.** H4 keeps the list fixed and refuses out-of-context calls. The alternative filters
-   first-class tools by context like the individual strategy, at the cost of `ttlMs` 0 under
-   contexts.
-4. **Order.** H3 puts the fixed meta-tools first for prefix caching. The alternative puts the hot
-   path first.
-5. **The `afd-help` fields.** `toolStrategy` on every strategy, and `firstClassTools` and
-   `firstClass` for hybrid (H8), or hybrid only.
-6. **The lazy and meta-tool differences.** Whether a later change aligns TypeScript and Python: all
-   five meta-tools in every strategy, as Python does, and context tools listed by `lazy`, as Python
-   and this hybrid do.
+The owner accepted every recommendation on 2026-10-31. These were the open questions; each answer
+is now binding on the spec step.
+
+1. **The cap.** 8 first-class tools, a constant of the spec (H5). Not 4, which fits only Umbel, and
+   not configurable, which invites the list to drift. Raising it later breaks no one.
+2. **Option or metadata.** A server option (H1). Whether a command is on the hot path is the
+   deployer's call, not the command author's.
+3. **Contexts.** A fixed list; out-of-context calls are refused with `COMMAND_NOT_IN_CONTEXT` and its
+   existing suggestion (H4), so `ttlMs` stays at its default under contexts.
+4. **Order.** Meta-tools first, then context tools, then first-class tools (H3), for prefix
+   caching.
+5. **The `afd-help` fields.** `toolStrategy` on every strategy; `firstClassTools` and `firstClass`
+   on hybrid servers (H8).
+6. **The lazy and meta-tool differences.** Recorded in `spec/tool-strategies.md` as current
+   behavior; no change in this proposal. Alignment is a separate parity decision,
+   [#533](https://github.com/lushly-dev/afd/issues/533).

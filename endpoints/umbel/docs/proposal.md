@@ -216,7 +216,7 @@ keeps the tool list fixed as plugins grow, lets commands change without the
 client reloading tools, and runs combinations in one call. AFD's lazy
 strategy today lists only the meta-tools; the hybrid is a deferred AFD
 feature, so it is specified for every language before Umbel uses it, in the
-[hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+[hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
 A later optional plugin may accept model-written code against the same
 registry inside a WebAssembly sandbox, journaled as one command with the
 script as its input.
