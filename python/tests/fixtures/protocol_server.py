@@ -18,6 +18,9 @@ server = create_server(
     "protocol-fixture",
     tool_strategy=sys.argv[2],
     contexts=[ContextConfig(name="alpha"), ContextConfig(name="beta")],
+    # The hybrid fixture lists a context-scoped pair and one universal command; the commands
+    # below are registered after the server is created, which the check allows.
+    **({"first_class_tools": ["alpha-run", "beta-run", "probe-read"]} if sys.argv[2] == "hybrid" else {}),
 )
 writes = 0
 
@@ -63,6 +66,9 @@ async def probe_read(value):
 
 
 async def main():
+    if sys.argv[3] == "stdio":
+        await server.run_async("stdio")
+        return
     port = int(sys.argv[1])
     if sys.argv[3] == "sse":
         await server.run_async("sse", port=port)

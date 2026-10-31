@@ -8,7 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Hybrid tool strategy** (`spec/tool-strategies.md`, H1 to H8): `create_server(tool_strategy="hybrid", first_class_tools=[...])` and `ServerConfig.first_class_tools` list the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), the context tools when `contexts` are configured, then 1 to 8 named commands as their own tools, in the order given. Every other command is reached by name, `afd-call`, `afd-batch` or `afd-pipe`. The list never varies by active context (a first-class command outside its context answers `COMMAND_NOT_IN_CONTEXT`), so `ttlMs` stays 300000 even with contexts. A bad set (not hybrid, empty, unregistered, unexposed, a built-in tool, repeated, over 8) raises `ValueError` naming the entry, at construction for the options and before the first request for the entries, so commands may be registered after `create_server`. `afd-help` reports `toolStrategy` on every strategy and, on hybrid servers, `firstClassTools` and `firstClass: true`; the default `server/discover` instructions gain the hybrid sentence. The shared cases in `spec/tool-strategies.json` run in `tests/test_hybrid_tool_strategy.py`.
+
 - Add the private DirectClient approval hook, validating direct registry, and in-process CLI `call --module` with `--approve` or an interactive prompt (#460). Public caller evidence is ignored, held results and observers stay token-free, and one total deadline covers the decision and retry. Trusted host middleware retains its token API. Raw JSON CLI output no longer receives Rich wrapping.
+
+### Fixed
+
+- `tools.listChanged` is now `false` in the server's capabilities on every tool strategy, as `spec/tool-strategies.md` says: the SDK reported `true` on MCP 2026-07-28 although no AFD server sends `notifications/tools/list_changed`.
+- The `COMMAND_NOT_IN_CONTEXT` suggestion is the specified "Use afd-context-list to see available contexts, or afd-context-enter to switch." on every route; two routes said "to see contexts" and one "to inspect contexts".
 
 ## [0.10.0] - 2026-10-27
 
