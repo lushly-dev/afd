@@ -500,6 +500,8 @@ let app = axum::Router::new().route_service("/mcp", server.streamable_http_servi
 - Every tool call runs with actor `agent` (reported as `metadata.actorKind`); `with_actor`, `with_clock` and `with_random` override the actor, clock and random source on its context.
 - `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
 - `with_confirmations(ConfirmationMode::Enforce)` gates commands with `confirm_prompt`: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call carries `confirm: true`. `RequireHuman` accepts the elicitation only; `with_confirmations_key` shares the `requestState` key across instances.
+- Every tool result also carries the whole `CommandResult` as `structuredContent`, and a command with `returns` advertises a top-level `outputSchema`; `with_advertise_output_schema(false)` leaves it out (clients validate `structuredContent` against it).
+- `with_context_hook(|request, context| async move { ... })` sets the per-request context (the actor) from the transport: `request.http_parts()` / `request.header(..)` over Streamable HTTP, `None` over stdio. It returns the context or a `CommandError` that becomes the failed result. It is trust-bearing and not token verification: read identity only from what a layer in front of the service verified, refuse by returning `Err` (it runs before the confirmation gate and the tool lookup), and keep the refusal generic (`details` and `cause` are dropped). The server re-asserts `interface: mcp` and the trace id after it.
 - Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
 
 ## Metadata Types

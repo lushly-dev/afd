@@ -366,7 +366,12 @@ This client does not add a pipeline client, remote transport, or CLI.
   `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers) and 2025 clients that open with
   `initialize`. Only MCP-exposed commands are listed or callable; unknown and unexposed tools return a
   `COMMAND_NOT_FOUND` result. `HttpOptions` sets the accepted `Host` names and browser `Origin`s (any
-  other `Origin` is refused) and the body cap. It covers the individual tool strategy; grouped and
+  other `Origin` is refused) and the body cap. Every tool result carries the whole `CommandResult` as
+  `structuredContent` too, and a command with `returns` advertises a top-level `outputSchema`
+  (`with_advertise_output_schema(false)` turns that off). `with_context_hook` sets the per-request
+  context, such as the actor, from the transport (HTTP headers or request extensions; nothing on
+  stdio) and may refuse a request; it is trust-bearing, so read the `afd::server::context_hook`
+  docs. It covers the individual tool strategy; grouped and
   lazy strategies, meta-tools and contexts are planned. **The `server` feature needs Rust 1.88**
   (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
 
