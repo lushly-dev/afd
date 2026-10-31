@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "1020de288e8c42afa13e3f4d699e817088350fded990c54b4f0e5917373987e0",
+      "current_import_sha256": "cec5bcb89894b90d1fb4eb63431b2fb989f0176b395f73734c63dae0e42899b6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "dca2f835b72d5806e2f91123a4347f1f4a34d6e33b73720baa9b4efa19ca3cf1",
+      "current_import_sha256": "99211483a1a53c40032b7b815fbb444fabced86bc3f6471b08dfa4e3c4deec68",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -3837,11 +3837,11 @@
       "path": "src/botcore/skills/mcp-builder/SKILL.md",
       "upstream_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
       "staged_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
-      "current_import_sha256": "d60bc82b0830716d21a32f96d096570ab3d39a8ba3440ac3d9f148e0acd9dad6",
+      "current_import_sha256": "0b3e2c47941894246b7e9d3bd00fc659df656340818d6317cebc2fbfa747e1fc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the configurable research budget default"
+      "import_reason": "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/fastmcp-patterns.md",
@@ -3857,21 +3857,21 @@
       "path": "src/botcore/skills/mcp-builder/references/token-budget.md",
       "upstream_sha256": "230748a6ff9852f9fc3b2d155f3598489950728d3b2c4ae3e2eccf29c868e0bd",
       "staged_sha256": "230748a6ff9852f9fc3b2d155f3598489950728d3b2c4ae3e2eccf29c868e0bd",
-      "current_import_sha256": "50699a0cf472b7203d3a69cba0d1b2cb7f99c55f6825a8e3fc359e34b1292eed",
+      "current_import_sha256": "8433800c81bc3a4e23e96d876842f3a2f7b28538e5e202c9ec2743d346eae78b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the configurable research budget default"
+      "import_reason": "Replace fixed tool-count and description caps with tools/list payload measurement"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/troubleshooting.md",
       "upstream_sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
       "staged_sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
-      "current_import_sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
+      "current_import_sha256": "ebf2584c7e26fdc01281eef668e17a61d1739918a2cbda735f4b521c666e15bd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Describe schema failures model-neutrally; re-test before adding the execute fallback"
     },
     {
       "path": "src/botcore/skills/migration-learn/SKILL.md",

@@ -1,15 +1,15 @@
 # Token Budget Management
 
-Preventing context overflow and model crashes in MCP servers.
+Measuring and bounding what an MCP server costs a client in context.
 
 ## The Problem
 
 MCP tool definitions and outputs consume context tokens. Large schemas or outputs can:
 
-1. **Crash Claude Opus 4.5** -- Large tool schemas cause agent termination
-2. **Exhaust context** -- 66,000+ tokens consumed before conversation starts
-3. **Trigger warnings** -- "Context low - Run /compact to continue"
-4. **Hit hard limits** -- Claude Code's default 25,000 token limit per tool output
+1. **Exhaust context** -- tens of thousands of tokens consumed before the conversation starts
+2. **Trigger warnings** -- "Context low - Run /compact to continue"
+3. **Hit client limits** -- Claude Code warns when a server's tools exceed about 25,000 tokens and caps each tool output (`MAX_MCP_OUTPUT_TOKENS`)
+4. **Degrade tool selection** -- the more schema the model holds, the smaller the share of context that describes the task at hand
 
 ### Real-World Examples
 
@@ -21,15 +21,29 @@ Sources:
 - [github.com/anthropics/claude-code/issues/12241](https://github.com/anthropics/claude-code/issues/12241)
 - [github.com/anthropics/claude-code/issues/3406](https://github.com/anthropics/claude-code/issues/3406)
 
-## Token Budget Guidelines
+## Measure First
+
+The cost is the serialized `tools/list` payload, not the number of `@mcp.tool` decorators. Measure it from the client side, which is what the model sees:
+
+```python
+import json
+from fastmcp import Client
+
+async with Client(mcp) as client:
+    tools = await client.list_tools()
+payload = json.dumps([tool.model_dump() for tool in tools])
+print(f"tools/list is about {len(payload) // 4:,} tokens")
+```
+
+Record the number next to the tool list in the README and re-measure when tools change. Compare it with the client's budget: Claude Code's `/doctor` reports per-server totals and flags large ones. Consolidate when the payload grows, not at a fixed count.
 
 ### Tool Descriptions
 
-| Metric | Target | Danger Zone |
-|--------|--------|-------------|
-| Total description tokens | <500 | >2000 |
-| Per-tool description | <50 tokens | >100 tokens |
-| Tool count | <10 | >20 |
+| Metric | Measure | Act when |
+|--------|---------|----------|
+| `tools/list` payload | Serialized JSON, ~4 chars per token | It is a large share of what the session can afford, or `/doctor` flags the server |
+| Per-tool description | Characters | It carries reference text, examples or option catalogs that belong behind a docs tool |
+| Tool count | The payload, not the count | Consolidation would cut the payload without hiding distinct operations |
 
 **Estimation:** ~4 characters = 1 token
 
@@ -37,8 +51,8 @@ Sources:
 
 ```python
 # Budgets for modern long-context models
-MAX_OUTPUT_LENGTH = 100_000   # ~25,000 tokens
-MAX_RESEARCH_LENGTH = 100_000 # default for research_stream(..., max_length=...)
+MAX_OUTPUT_LENGTH = 100_000     # ~25,000 tokens; botcore's run_command default
+MAX_RESEARCH_LENGTH = 100_000   # default for research_stream(..., max_length=...)
 
 # Structured payloads (JSON/NDJSON) must not be truncated at all --
 # clipping them yields a decode error, not a smaller result.
@@ -49,6 +63,8 @@ MAX_RESEARCH_LENGTH = 100_000 # default for research_stream(..., max_length=...)
 ```
 
 ### Truncation Pattern
+
+Botcore's `smart_truncate()` keeps the head and the tail of a stream (40% and 60% of the budget), so the summary at the top and the verdict at the bottom both survive. The simplest prose-only pattern keeps the head:
 
 ```python
 def truncate_output(output: str, max_length: int = MAX_OUTPUT_LENGTH) -> str:
@@ -152,13 +168,7 @@ Look for:
 
 ### Manual Audit
 
-```python
-# Count tools
-grep -c "@mcp.tool" mcp_server.py
-
-# Estimate description tokens
-# Count characters in all description= strings, divide by 4
-```
+Run the measurement snippet from [Measure First](#measure-first) in a test and keep the number in the README next to the tool list, so a review can see when a change moved it.
 
 ## Environment Variables
 

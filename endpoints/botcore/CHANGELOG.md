@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: mcp-builder token guidance** -- the skill and its `token-budget`/`troubleshooting`
+  references replaced the fixed "under 10 tools" and "under 50 tokens per description" caps
+  with measuring the serialized `tools/list` payload and keeping it small, dropped
+  model-version claims in favour of model-neutral observations to re-test, and made the
+  execute pattern an option to re-test on the target client rather than a rule. Skill
+  version 1.2.0.
 - `{name}-run` output is bounded by `MAX_OUTPUT_LENGTH` (100,000 characters) instead of a
   hard-coded 8,000; the code input guard is `MAX_RUN_CODE_LENGTH` (32,000 characters), an
   abuse guard rather than a context budget.

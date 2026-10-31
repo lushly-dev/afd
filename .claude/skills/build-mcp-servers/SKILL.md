@@ -1,9 +1,16 @@
 ---
 name: build-mcp-servers
-source: afd
+source: botcore
 description: >
-  Guides construction of MCP servers using FastMCP 2.x with emphasis on measuring the tools/list payload, consolidating tools, bounding prose output without truncating structured output, and the execute pattern as a re-testable fallback for clients that mishandle complex schemas. Covers async subprocess patterns, output budgets, and action-based tool design. Use when creating MCP servers, debugging tool overload or context overflow, measuring token usage, diagnosing silent tool-call failures, or consolidating tools. Triggers: MCP, FastMCP, tool schema, token limit, context overflow, MCP server, execute pattern, tool consolidation.
-
+  Guides construction of MCP servers using FastMCP 2.x with emphasis on
+  measuring the tools/list payload, consolidating tools, bounding prose output
+  without truncating structured output, and the execute pattern as a
+  re-testable fallback for clients that mishandle complex schemas. Covers async
+  subprocess patterns, output budgets, and action-based tool design. Use when
+  creating MCP servers, debugging tool overload or context overflow, measuring
+  token usage, diagnosing silent tool-call failures, or consolidating tools.
+  Triggers: MCP, FastMCP, tool schema, token limit, context overflow, MCP
+  server, execute pattern, tool consolidation.
 version: 1.2.0
 triggers:
   - MCP
@@ -16,6 +23,8 @@ triggers:
   - tool consolidation
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical mcp-builder skill. -->
 
 # Building MCP Servers
 

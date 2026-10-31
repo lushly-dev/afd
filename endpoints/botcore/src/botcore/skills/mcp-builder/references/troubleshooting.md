@@ -129,9 +129,9 @@ Look for "Large MCP tools context" in output.
 2. Consolidate tools with action parameters
 3. Disable unused MCP servers
 
-### Claude Opus 4.5/4.6 Crashes
+### Client Crashes on Large or Complex Schemas
 
-**Symptom:** Agent terminates when MCP server is active
+**Symptom:** Agent terminates when the MCP server is active. Observed on earlier Claude model versions; re-test on the current one before working around it.
 
 **Common culprits:**
 
@@ -149,11 +149,11 @@ def tool(config: Dict[str, Dict[str, Any]]): ...
 def tool(action: str, target: str = None): ...
 ```
 
-### Claude Opus Silent Tool Failures
+### Silent Tool Failures on One Model
 
-**Symptom:** Specific tools return "Sorry, no response was returned" or silently fail, while other tools on the same server work perfectly. Gemini and GPT call the same tools successfully.
+**Symptom:** Specific tools return "Sorry, no response was returned" or silently fail on one client and model, while other tools on the same server work, and other models call the same tools successfully.
 
-**Root cause:** Opus has issues with certain Pydantic model schemas during tool-call serialization. This is NOT about:
+**Root cause (as observed on earlier Claude model versions):** the client failed to construct tool-call parameters for certain Pydantic model schemas. This is NOT about:
 
 - Tool count (other tools work fine)
 - Output size (compact responses still fail)
@@ -161,11 +161,12 @@ def tool(action: str, target: str = None): ...
 
 **Diagnosis:**
 
-1. Test the failing tool with Gemini -- if it works, it is an Opus issue
+1. Test the failing tool with another model or client -- if it works, the schema, not the server, is the problem
 2. Check if the tool input uses Pydantic models with `Literal`, `EntityType` enums, or `dict[str, Any]` fields
 3. Simpler tools (no input or basic `str` params) on the same server work
+4. Re-test on the current model version before adding a workaround: the failures recorded here were observed on earlier versions and may not reproduce
 
-**Fix: Add an execute tool (recommended)**
+**Fix: Add an execute tool (once the failure reproduces)**
 
 Add a code-execution tool with a single `code: str` parameter that exposes the failing functionality through async wrapper functions:
 
@@ -179,14 +180,14 @@ async def my_execute(code: str) -> dict:
     ...
 ```
 
-**Why it works:** Opus writes Python fluently. The issue is in structured tool-call parameter construction, not in the model's ability to reason about the operation. A simple `code: str` schema bypasses the parsing entirely.
+**Why it works:** models write Python fluently; the failure was in structured tool-call parameter construction, not in reasoning about the operation. A simple `code: str` schema bypasses the parsing entirely.
 
 **Production examples:**
 
 - `lushx-execute` in lushbot (27 functions, 4 MCP tools total)
 - `nexus-execute` in kb-tooling (search, graph_stats, graph_query, etc.)
 
-**Keep original tools:** Do not remove the structured tools -- they work fine for Gemini, GPT, and other models. The execute tool is an Opus compatibility layer, not a replacement.
+**Keep original tools:** Do not remove the structured tools -- other clients call them directly. The execute tool is a compatibility fallback, not a replacement, and should be re-tested on each model update.
 
 ## Output Issues
 

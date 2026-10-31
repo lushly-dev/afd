@@ -119,10 +119,6 @@ IMPORT_REASONS = {
     "src/botcore/skills/plugin-builder/references/server-factory.md": (
         "Document the run input guard and the shared output budget"
     ),
-    "src/botcore/skills/mcp-builder/SKILL.md": ("Record the configurable research budget default"),
-    "src/botcore/skills/mcp-builder/references/token-budget.md": (
-        "Record the configurable research budget default"
-    ),
     "src/botcore/skills/systems-architect/references/agent-maintainable-design.md": (
         "Ground the file-length target in cohesion rather than context-window size"
     ),
@@ -149,6 +145,15 @@ IMPORT_REASONS = {
     ),
     "src/botcore/skills/dev-checks/references/troubleshooting.md": (
         "State the configured file-size thresholds instead of a 300-line target"
+    ),
+    "src/botcore/skills/mcp-builder/SKILL.md": (
+        "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
+    ),
+    "src/botcore/skills/mcp-builder/references/token-budget.md": (
+        "Replace fixed tool-count and description caps with tools/list payload measurement"
+    ),
+    "src/botcore/skills/mcp-builder/references/troubleshooting.md": (
+        "Describe schema failures model-neutrally; re-test before adding the execute fallback"
     ),
     "uv.lock": ("Lock local AFD 0.10 and MCP 2.3 development dependencies"),
 }
