@@ -15,6 +15,8 @@ The [plan](./python-parity.plan.md) tracks name parity only; behavior is in [`do
 
 ## Not done
 
+Tracked in #550 (2026-10-31).
+
 - **Wave 2:** `default_reconnect_policy` (and `create_handoff` applying it); MCP error-code constants, notification and list types.
 - **Wave 3:** export the implemented pipeline contract (38 names). Blocked by root-name collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` resolve to the `afd.direct` dataclasses. `DirectClient.pipe` is still a second pipeline engine.
 - **Wave 4:** export the 4 similarity names; final `__init__.py` cleanup.

@@ -29,9 +29,9 @@ The [plan](./versioning.plan.md) holds decisions V1–V6 and the dated September
 
 ## Not done
 
-- **Contract 1.0** (V2): still `1.0-rc`. The trigger is parity Wave 1, tracked in [parity closure](../parity-closure/STATUS.md) item 1.7.
-- **Site exit criterion:** the hardcoded "Beta v0.6.0" badge is gone, but `site/index.html` does not list the four implementations with live versions, and `deploy-pages.yml` stamps only the npm version into `llms.txt`.
-- **Policy row "Python 0.10.0 for the D5 server defaults":** 0.10.0 shipped without D5 (see parity closure).
+- **Contract 1.0** (V2): still `1.0-rc`. The trigger is parity Wave 1, tracked in [parity closure](../parity-closure/STATUS.md) item 1.7; #541.
+- **Site exit criterion:** the hardcoded "Beta v0.6.0" badge is gone, but `site/index.html` does not list the four implementations with live versions, and `deploy-pages.yml` stamps only the npm version into `llms.txt`. #551.
+- **Policy row "Python 0.10.0 for the D5 server defaults":** 0.10.0 shipped without D5 (see parity closure); #542.
 
 ## Verification evidence
 

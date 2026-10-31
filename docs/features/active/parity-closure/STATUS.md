@@ -25,14 +25,14 @@ The [plan](./parity-closure.plan.md) holds the decisions (D1–D8) and waves. [`
 
 ## Not done
 
-- **Wave 1.7 / contract 1.0:** `spec/VERSION` still reads `1.0-rc`. The plan's trigger (1.1–1.4 pass in all four languages) appears met but 1.0 has not been declared. Needs an owner decision.
-- **D5, Python defaults:** `create_server` still defaults to `tool_strategy="individual"` (`python/src/afd/server/factory.py`), and bootstrap is always registered. Python 0.10.0 shipped (#454) without D5, contrary to the plan and the versioning plan. Related strategy-list differences: #533 (open).
-- **Wave 2 Python:** one executor, `DirectClient` boundary (exposure, `allow`, middleware), `failure()` options, decorator `errors`/`execution_time`, handoff default policy, export cleanup (`missing_from_python` budget 88; see [Python parity](../python-parity/STATUS.md)).
-- **Wave 2 Rust:** result metadata stamping, `on_command`/`on_error` hooks, cancellation token, `list_by_tags`, built-in middleware, stream executor, example validation (matrix rows "No" on 2026-10-31).
-- **Wave 2 C++:** retry/rate-limit/telemetry middleware, `compose_middleware`, `list_by_tags`, `command_to_mcp_tool` emitting `_meta` (matrix: "Deferred"/"No").
-- **Wave 2 TypeScript:** `MockServer` still imports only from `@lushly-dev/afd-core` (matrix defect 20). D8 (engine enforces `CommandContext.timeout`): no enforcement found in `packages/server/src` by grep; unverified.
-- **Wave 3:** Python CLI `batch` and `stream` (matrix: "no `batch`, `stream` or `scenario`"); D2 C++ `afd::mcp_stdio` (#341, open).
-- **Wave 4:** Python auth adapter (matrix: No); D6 N/A rows not yet all recorded (unverified).
+- **Wave 1.7 / contract 1.0:** `spec/VERSION` still reads `1.0-rc`. The plan's trigger (1.1–1.4 pass in all four languages) appears met but 1.0 has not been declared. Needs an owner decision (#541).
+- **D5, Python defaults:** `create_server` still defaults to `tool_strategy="individual"` (`python/src/afd/server/factory.py`), and bootstrap is always registered. Python 0.10.0 shipped (#454) without D5, contrary to the plan and the versioning plan. Related strategy-list differences: #533 (open). Tracked in #542.
+- **Wave 2 Python:** one executor, `DirectClient` boundary (exposure, `allow`, middleware), `failure()` options, decorator `errors`/`execution_time`, handoff default policy, export cleanup (`missing_from_python` budget 88; see [Python parity](../python-parity/STATUS.md)). Tracked in #545 and #550.
+- **Wave 2 Rust:** result metadata stamping, `on_command`/`on_error` hooks, cancellation token, `list_by_tags`, built-in middleware, stream executor, example validation (matrix rows "No" on 2026-10-31). Tracked in #546.
+- **Wave 2 C++:** retry/rate-limit/telemetry middleware, `compose_middleware`, `list_by_tags`, `command_to_mcp_tool` emitting `_meta` (matrix: "Deferred"/"No"). Tracked in #547.
+- **Wave 2 TypeScript:** `MockServer` still imports only from `@lushly-dev/afd-core` (matrix defect 20); #544. D8 (engine enforces `CommandContext.timeout`): not enforced: only `DirectClient` applies it (`packages/client/src/direct.ts`), confirmed 2026-10-31; #543.
+- **Wave 3:** Python CLI `batch` and `stream` (matrix: "no `batch`, `stream` or `scenario`"), #548; D2 C++ `afd::mcp_stdio` (#341, open).
+- **Wave 4:** Python auth adapter (matrix: No); D6 N/A rows not yet all recorded (unverified); #549.
 - **Tracking:** the plan asked for one `parity` issue per wave item; only some exist (#341, #458, #465, #467, #468, #533 open).
 
 ## Verification evidence
@@ -50,7 +50,7 @@ The [plan](./parity-closure.plan.md) holds the decisions (D1–D8) and waves. [`
 
 - Owner decision: declare contract 1.0 now, or redefine its trigger.
 - Decide #533, then implement D5 in a Python release.
-- File `parity` issues for the open Wave 2–4 items so they can be assigned.
+- ~~File `parity` issues for the open Wave 2–4 items.~~ Filed 2026-10-31: #541–#550.
 
 ## Notes
 

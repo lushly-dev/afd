@@ -19,7 +19,7 @@ The [proposal](./mcp-confirmations.proposal.md) is the design and acceptance con
 
 - **#467** (open): C++ todo backend: acknowledgement path (`confirm: true`, `_meta["dev.afd/confirm"]`) and a `--suite confirmations` CI leg. Elicitation waits on #341 (C++ `afd::mcp_stdio`).
 - **#468** (open): Python client `on_elicitation` and the `INPUT_REQUIRED` failure. `spec/error-codes.md` still lists `INPUT_REQUIRED` as "Python planned".
-- **Phase 4** (optional, needs its own decision): elicitation for missing input and for offering `undoCommand`. No issue filed.
+- **Phase 4** (optional, needs its own decision): elicitation for missing input and for offering `undoCommand`. Decision tracked in #552.
 
 ## Verification evidence
 
