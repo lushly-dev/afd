@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-31. Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Proposed 2026-10-31; its open questions decided by the owner the same day (see [Decisions](#decisions)). Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [`spec/journal.md`](../../../../spec/journal.md), [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) per-request `_meta` |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (journal only) |
@@ -76,13 +76,25 @@ contextFields: [
 
 - **MCP `tools/call`, both eras, stdio and HTTP.** The server reads
   `params._meta[meta]`, validates it and sets the field. An invalid value
-  fails the call with `VALIDATION_ERROR`, and the error names the `_meta`
-  key and carries a suggestion. Undeclared `_meta` keys are still dropped.
+  fails the call with `VALIDATION_ERROR`: its details name the `_meta` key,
+  and its suggestion gives the expected shape. No new error code is added.
+  Undeclared `_meta` keys are still dropped.
+- **`_meta` only.** Declared fields are not read from HTTP headers, so
+  stdio and HTTP share one channel and no rule decides between two
+  sources. A gateway that needs a value reads headers in
+  `createContext(req)`, where trusted code wins. Whether gateways see
+  request values as headers is decided once, for MCP's own mechanism
+  (`x-mcp-header` mirrored into `Mcp-Param-*` headers), under #466 item 3.
 - **Trusted code wins.** A value that the host's own code sets for the same
   name, through `createContext` in TypeScript or the hook in Rust, is never
   overwritten by a caller's claim.
 - **Tool lists do not vary.** Unlike `dev.afd/context`, declared fields
   never change `tools/list`, so its cache hint stays `public`.
+- **One reader, two concepts.** The server reads `dev.afd/context`,
+  `dev.afd/confirm` and the declared keys in one `_meta` step, but an AFD
+  context is not a declared field. Contexts change the tool list and have
+  enter and exit commands; declared fields never change `tools/list` and
+  never grant anything, and that rule is what makes them safe to accept.
 - **Discovery.** `server/discover` and `afd-help` list the declared fields,
   with their `_meta` key, JSON Schema and `required` flag, under
   `_meta["dev.afd/context-fields"]`, so clients and agents know what to
@@ -109,27 +121,38 @@ caller's access to the claimed scope before using it.
 - **Entry.** An entry gains an optional `context` object holding each field
   declared `journal: true` that had a value: `{"scope": {...}}`. It is
   omitted when empty, so existing entries are unchanged.
-- **Hash.** When `context` is present, the hashed object gains a `context`
-  member, and the journaled names leave `keys`. When it is absent, the
-  hashed object is exactly today's, so the hashes in the existing entries
-  and in `spec/wire/journal.jsonl` still hold.
 - **Size.** Each journaled value is capped at 4 KiB of canonical JSON. A
-  larger value is recorded as `{"$omitted": "size"}` so the entry stays
-  bounded and the omission is visible.
+  larger value is left out of `context`, and its name is listed in the
+  entry's optional `contextOmitted` array, so the entry stays bounded, the
+  omission is visible and every value in `context` is real.
+- **Hash.** When `context` or `contextOmitted` is present, the hashed object
+  gains the same members, and the journaled names leave `keys`. When both
+  are absent, the hashed object is exactly today's, so the hashes in the
+  existing entries and in `spec/wire/journal.jsonl` still hold.
 - **Replay.** The replaying surface restores `context` into the replay
-  context, validated against the current declarations. A field that is no
-  longer declared is dropped with a replay warning.
+  context, validated against the current declarations, and warns for each
+  name in `contextOmitted`. A field that is no longer declared is dropped
+  with a replay warning.
 - **Redaction.** `redact` sees `record.context` and may drop it, as it may
   drop inputs today.
 
 ### 5. Clients that cannot set `_meta`
 
 Issue #466 notes that many MCP clients cannot set `_meta`, which already
-limits `dev.afd/context`. The fix belongs with it: the meta-tools that take
-other calls, `afd-call`, `afd-batch` and `afd-pipe`, accept an optional
-`meta` argument. Its keys are `dev.afd/context` and the declared fields'
-`_meta` keys, and it applies as if sent in `_meta`. Deciding #466 item 2
-should decide this too.
+limits `dev.afd/context`. The owner decided on 2026-10-31 that #466 item 2
+takes one `meta` object rather than a `context` argument, so a single
+argument carries the AFD context and every declared field:
+
+- `afd-call`, `afd-batch` and `afd-pipe` accept an optional `meta`
+  argument. Its keys are `dev.afd/context` and the declared fields' `_meta`
+  keys, and it applies as if sent in `_meta`, with the same validation.
+- `afd-discover` and `afd-detail`, the other two meta-tools #466 lists,
+  accept it too. Only `dev.afd/context` has an effect there, because
+  declared fields never change the tool surface.
+- A key sent both in `_meta` and in `meta` must agree, or the call fails
+  with `VALIDATION_ERROR`.
+
+`spec/command-metadata.md` records the decision when #466 is implemented.
 
 ## Parity
 
@@ -145,8 +168,8 @@ languages follow in the order the parity plan sets.
 
 ## Spec changes
 
-- `spec/journal.md`: the entry's `context` field, the hashing rule, the cap
-  and replay.
+- `spec/journal.md`: the entry's `context` and `contextOmitted` fields, the
+  hashing rule, the cap and replay.
 - A new `spec/context-fields.md`: declaration, reserved names, `_meta`
   delivery, precedence, discovery, the trust rule and the meta-tool
   argument.
@@ -175,14 +198,24 @@ languages follow in the order the parity plan sets.
 L: a contract change across four languages. The TypeScript reference and
 the spec are M.
 
-## Open questions
+## Decisions
 
-1. The error for an invalid value: `VALIDATION_ERROR` with the `_meta` key
-   in its details, recommended so the error code registry does not grow, or
-   a new code.
-2. The size cap's marker: `{"$omitted": "size"}`, or a list of omitted names
-   on the entry.
-3. Whether a declared field may also be read from an HTTP header on the
-   AFD-native lanes, for gateways that route on it.
-4. Whether `dev.afd/context` becomes a declared field internally, so one
-   mechanism carries both.
+Decided by the owner on 2026-10-31.
+
+1. **An invalid value returns `VALIDATION_ERROR`**, with the `_meta` key in
+   its details and a suggestion that gives the expected shape. Agents
+   already recover from it, and a new code would grow the error registry in
+   four languages for no difference in behavior.
+2. **An oversize value is listed by name in `contextOmitted`**, not marked
+   in place. An in-place `{"$omitted": "size"}` would fail schema
+   validation on replay and could match a real value of that shape; the
+   list keeps every value in `context` real and tells replay which fields
+   to warn about.
+3. **No HTTP header delivery.** `_meta` is the one channel on stdio and
+   HTTP. Gateways read headers in `createContext(req)`, and header
+   mirroring for gateways is decided once, under #466 item 3.
+4. **AFD contexts stay separate from declared fields.** The server shares
+   one `_meta` reader for both, but contexts change the tool list and
+   fields never do.
+5. **Clients that cannot set `_meta` use one `meta` argument on the
+   meta-tools**, recorded under #466 item 2 (section 5).
