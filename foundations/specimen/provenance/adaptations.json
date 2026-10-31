@@ -9,11 +9,11 @@
       "upstream_sha256": null,
       "staged_path": "SPECIMEN-SPLIT.md",
       "staged_sha256": "33629418ea3af162f6c93ac26ad8bdbbcdcacf86e62af99e457be930675c5a0d",
-      "current_import_sha256": "21d1b57363664f8118db27b52950089d61f19a051e6072d535fdc8de3342f552",
+      "current_import_sha256": "11f80a90b3959745cd75e91877709ba7d25df8d2aa58d8ae93851f310e4c4321",
       "stage_classification": "staging-evidence",
       "stage_reason": "Candidate staging tool or record, not upstream source",
       "import_classification": "derived-from-staging",
-      "import_reason": "Transition record adapted to the AFD tree: imported paths, validation routes and quarantine; staging-only paths removed"
+      "import_reason": "Transition record adapted to the AFD tree: imported paths, validation routes and quarantine; staging-only paths removed; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
     },
     {
       "path": "docs/features/active/specimens/consumer-validation.md",
@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "cb129dd06a7548a29c27dbf25a00a659651621f03d2f0f8833302f6df188114c",
+      "current_import_sha256": "c77409d555a7513ba35aae24fe95f450a5a120f77d4f9175bbe72fd0c368844b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -93,11 +93,11 @@
       "upstream_sha256": "3bf55e3699fdb17caa60e43d863bc307e9bc4a2831b25f87b5c3e200397eb8bf",
       "staged_path": "docs/features/proposed/specimens/specimens.proposal.md",
       "staged_sha256": "3bf55e3699fdb17caa60e43d863bc307e9bc4a2831b25f87b5c3e200397eb8bf",
-      "current_import_sha256": "3bf55e3699fdb17caa60e43d863bc307e9bc4a2831b25f87b5c3e200397eb8bf",
+      "current_import_sha256": "a7ccde2a8a0ee2a8b30f11f42b90439de5397ce3fb35b18a43947e6a7d49d205",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
     },
     {
       "path": "endpoints/specimen-cli/README.md",
@@ -213,11 +213,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "33017b750b47921bcf0b0662410fe7e10483be30b23eb7a6b448f1f2367bd5c2",
+      "current_import_sha256": "0147451bb0bdc29c3e76b69b6934cf071028100c9c0403b3eb1bf869eb6e958c",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -1010,6 +1010,18 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "Record the updated monorepo CPU/memory matrix and historical input/comparison limits; publication authority unchanged"
+    },
+    {
+      "path": "docs/features/active/specimens/STATUS.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "bc918c9f637a763f460f7b8b9784639653e4634a326b8e9a350b3991b8177623",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged"
     }
   ]
 }

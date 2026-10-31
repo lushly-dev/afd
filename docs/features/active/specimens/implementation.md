@@ -1,46 +1,92 @@
-# Specimens implementation
+# Specimens implementation plan
 
-Status: native feasibility milestone committed as `f1bc4488`; exploratory real-consumer pilot validated locally, 2026-10-28. Complete workstream 0 remains open. Branch: `codex/specimens-feasibility`. Base: `bc43019a4acd237e5ef3a2bf65f21564900143aa`.
-
-The [proposal](../../proposed/specimens/specimens.proposal.md) remains the full acceptance contract. This milestone builds the first local observation tool; consumer migration and Storybook removal remain gated by the later compatibility and operational checks.
-
-## Scope
-
-The first package is [`@lushly-dev/specimen`](../../../../foundations/specimen/README.md), a TypeScript browser/tooling integration outside AFD's core cross-language parity surface. It adds four AFD definitions and a JSON CLI: list, render, diff and build. Native feasibility fixtures use an explicit metadata manifest rather than automatic CSF discovery.
-
-| Capability | Implementation and proof |
+| Field | Current value |
 | --- | --- |
-| Command contract | Shared Zod input/output validation, typed failures with recovery suggestions, JSON CLI and MCP-exposed definitions |
-| Observation | Open-shadow DOM, ARIA, actual geometry/scroll, selected computed CSS, native live state, effective context and source/build provenance |
-| Comparison | Version/browser/context/checkpoint compatibility; scoped channel differences; incomplete evidence never becomes unchanged |
-| Lifecycle | Fresh browser context per render, bounded readiness, declared disposal on failure/success, context discarded after timeout |
-| Loading/build | Metadata-only index, lazy case modules, static output, numeric shell-budget report |
-| Regression corpus | CSS-only padding, clipping, live state, accessible names/relationships, generated ids, hover/focus, real viewport versus container, opaque-content limits and readiness/disposal failures |
+| State | Active native implementation; complete workstream 0 acceptance remains open |
+| Last reconciled | 2026-10-30, branch source `bb54a03b`, fetched main `40b6a7cc` |
+| Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
+| Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
+| Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
 
-## Acceptance checklist
+This plan describes the next implementation work. The status ledger owns current progress; the dated validation documents retain the actual observations and their limits. Native feasibility is implemented. Consumer migration, Storybook retirement and package publication remain open gates.
 
-- [x] Plain custom-element fixtures render through the same public API used by the CLI.
-- [x] Seeded layout changes are observable despite unchanged DOM and ARIA.
-- [x] Unknown/unsupported token, event, axe and pixel capabilities are reported explicitly.
-- [x] Initial package unit and Chromium integration suite passes.
-- [x] Final built-page and animation completeness checks recorded.
-- [x] Compiled CLI smoke, shell size and screenshot readback recorded.
-- [x] Full TypeScript repository `pnpm check` recorded for the final local source.
-- [x] Independent capture-only interpretation experiment recorded.
+## Package architecture and current contract
 
-The complete workstream 0 gate remains open. The later [real-consumer pilot](consumer-validation.md) exercises eight actual FAST-AF/Lushly components with sixteen behavior captures, but frozen current dependency conditions, an incumbent cost baseline, full consumer acceptance and eventual Vitest browser-driver parity remain unestablished. Helper and axe budget categories remain unmeasured until integrated. The proposal's compatibility adapter, full coverage rules, token-impact plugin and consumer cutover have not been implemented.
+| Unit | Responsibility | Implemented boundary |
+| --- | --- | --- |
+| [`@lushly-dev/specimen`](../../../../foundations/specimen/README.md), `foundations/specimen` | Native metadata/config, bench lifecycle, observations, diff/normalization, Vite/static tooling and schemas | No AFD, FAST-AF or Violet package dependency or peer; lazy in-process runtime by default, opt-in owned worker |
+| [`@lushly-dev/specimen-afd`](../../../../integrations/specimen-afd/README.md), `integrations/specimen-afd` | AFD definitions and validated `CommandResult` adapters over the native operations | list/render/diff/build; composable into an MCP host; not an application-command scenario runner |
+| [`@lushly-dev/specimen-cli`](../../../../endpoints/specimen-cli/README.md), `endpoints/specimen-cli` | The `specimen` JSON binary and embedding API | Same four commands through the integration; stdout envelope and exit status contract |
 
-## Validation receipts
+The [split transition](../platform-monorepo/specimen-transition.md) governs moved imports and the CLI. All three units remain quarantined; version 2.2.0 and successful local tarball checks do not admit publication. FAST-AF and Violet source now live in this monorepo, while Lushly remains a separate consumer. Future plugins MUST follow the family boundaries and release inventory; their names alone MUST NOT imply an implemented or published capability.
 
-The final local source passed `fnm exec --using=24 -- pnpm check` (exit 0, 37.75 seconds). Its nine stages passed: lint, build, typecheck, coverage tests, portability, file-size, orphan-files, versions and tooling-tests. This is the TypeScript gate on Node 24, not hosted CI or consumer-migration validation.
+```mermaid
+flowchart LR
+    API[Native API] --> Core[Specimen lifecycle and observations]
+    CLI[JSON CLI endpoint] --> Bindings[Optional AFD command bindings]
+    MCP[MCP host composition] --> Bindings
+    Bindings --> Core
+    Core --> Browser[Fresh Chromium context per render]
+    Core --> Static[Static index and lazy case chunks]
+    Core --> Worker[Opt-in owned runtime worker]
+```
 
-The new package contains 68 tests: 36 comparison/normalization tests, 14 command/CLI tests and 18 real-Chromium integration tests, with 29 registered native fixtures plus the isolated streaming-project fixture. Browser-only source runs in Chromium and is deliberately outside the Node-process V8 coverage calculation; the integration assertions exercise it directly.
+The worker is an execution choice for the same lifecycle, not a second observation contract. Metadata/listing do not initialize Vite/Playwright. Close drains accepted operations and releases the chosen backend; a closed in-process bench does not unload Node's imported runtime modules.
 
-The final compiled CLI ran on Node `v24.21.0` with Chromium `156.0.8078.4`. Its `list`, eight `render` calls, four structural `diff` calls, an insufficient-visual-evidence comparison and a static `build` all emitted one successful `CommandResult` JSON value per invocation. The built shell measured **25,569 minified UTF-8 JavaScript bytes against a 50,000-byte ceiling**, including its emitted static dependencies. The screenshot was read back as a valid rendered button; the static output was independently served over HTTP and exercised in Chromium, including the 375px iframe and theme controls.
+| Surface | Available now | Remaining proposal behavior |
+| --- | --- | --- |
+| `specimen-list` / `list` | Explicit metadata index without executing unrelated modules | Discovery/filter/coverage capability metadata and retained-CSF identity/policy inventory |
+| `specimen-render` / `render` | Native args/custom renderers; bounded ready/dispose; click/focus/hover/fill and named capture prefixes; context and screenshots | Retained plays/loaders/hooks/mocks, command/expectation steps, schema/slot validation, complete provenance and cross-driver parity |
+| `specimen-diff` / `diff` | Compatible observation comparison with scoped differences and insufficient-evidence results | Isolated git-ref builds, cache identity management and optional pixel comparison |
+| `specimen-build` / `build` | Metadata index, separate lazy cases, preview controls and 50,000-byte shell ceiling | Complete helper/axe/total budgets, loaded/compressed bytes and qualified human-review parity |
+| Other proposed commands | None exported | migrate, validate, inspect, run, a11y, matrix, impact, profile, coverage and suggest; experiments do not substitute for these commands |
+
+## Verified progress
+
+The [status ledger](STATUS.md#current-delivery-state) distinguishes main delivery from branch evidence. The native milestone observes open-shadow DOM, ARIA, actual geometry/scroll, selected CSS, live state and bounded source/context identities. Its regression corpus covers CSS-only padding, clipping, control state, labels/id relationships, interaction checkpoints, viewport versus container, animation/opaque-content limits and readiness/disposal failures. Five anonymized capture-only cases were interpreted independently at the original milestone.
+
+The resource work adds calibrated macOS process-family CPU/footprint recording, lazy initialization, optional process containment, larger reused-worker batches and cached Vite fallback maps. The [current monorepo rerun](monorepo-resource-validation.md) verifies 832 captures; it preserves memory recovery while recording higher CPU and changed historical inputs. It is not a consumer-runner parity result.
+
+The latest code-bearing branch passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
+
+## Ordered implementation queue
+
+Each task MUST record state, last verification, completed work, remaining work and follow-ups in [STATUS.md](STATUS.md), with links to its source and receipts. Next-task ownership is unassigned. This queue does not waive proposal exit criteria.
+
+| Task | Depends on | Bounded deliverable and acceptance |
+| --- | --- | --- |
+| T01. Freeze inputs and refresh inventory | Existing native probe | MUST record accepted FAST-AF/Lushly revisions, installed package/content identities, assets/fonts, browser/Node/hardware, worker/cache settings and numeric resource/latency tolerances before comparison. MUST enumerate retained exports, effective identity/annotations/checks, smoke/skip policies and operational obligations. Unresolved assets and dynamic annotations remain explicit. |
+| T02. Attribute the CPU increase | T01 | MUST profile coordinator and warmed isolated worker on the fixed 90/70-capture workloads, with ordinary matched controls kept separate from instrumentation/GC. Any optimization MUST address a confirmed cost and rerun CPU, active/post-close memory, verified-work and cleanup checks with unchanged guards. An unresolved cause MUST stay open; language rewrites require their own measured case. |
+| T03. Complete driver/observation feasibility | T01 | MUST prove CLI/static/reference-driver viewport, container, `innerWidth`, `matchMedia`, units, theme/media and lifecycle behavior on common fixtures. MUST test clocks/mocks/reset/disposal/failure ownership and define the remaining provenance fields. TrustedHTML/closed/raster/animation cases MUST either have executable supported scope or retain explicit insufficient evidence. |
+| T04. Close workstream 0 resource and budget gate | T01, T03; T02 results inform the resource decision | MUST measure an equivalent representative incumbent path, five cold/five warm representative samples, actual loaded/compressed bytes and every budget category (shell 50,000; helpers 600,000; axe 650,000; total 1,300,000 minified UTF-8 JS bytes). MUST report observations/checks that add different work. MUST record whether the original exit criteria and predeclared tolerances pass or whether an explicit architecture/budget revision is needed. |
+| T05. Deliver retained-CSF compatibility slice | Workstream 0 exit; T01 inventory | MUST specify/exercise the four plugin points, FAST-AF theme/schema integration, identity and field-specific annotation precedence. MUST deliver validate/inspect and a preview-first codemod preserving metadata. Both runners MUST agree on representative custom-renderer, named/global-theme, form, responsive, smoke and skipped cases and deliberately failing interaction/a11y/cleanup cases, identity collisions, missing exports and context mismatches. Unsupported active semantics MUST fail validation. |
+| T06. Full runner and operational checks | T05 | MUST implement run/a11y/profile, declared event history and required context/matrix behavior over the common lifecycle, retained plays/helpers, axe policy/exceptions and ready-checkpoint metrics. MUST preserve CEM/typechecks, scaffold output, flake identities/retry and worker limits. Exact discovered sets and pass/fail/skip categories MUST agree; index links and budgets MUST be verified. |
+| T07. Coverage and rule replacement | T06 | MUST distinguish represented, asserted, verified, missing and unknown obligations; add coverage/suggest and Fastbot adapters. Each existing required rule MUST have positive/failing detection evidence and a retirement record before deletion. Unknown required obligations MUST block acceptance. |
+| T08. Qualify consumer cutover and distribution | T05–T07 and proposal resource/review gates | MUST complete three consecutive qualifying full runner pairs on accepted consumer main snapshots with no migration change between runs. MUST pass normal consumer gates, preserve review/scaffold/flake behavior, account for legacy Fluent exceptions and retain exact source/lock/config rollback checkpoints. Package admission and main delivery MUST be resolved through their normal workflows; source import does not authorize publication. Native metadata cleanup remains a separate reversible change. |
+| T09. Violet context and observed impact | Exercised plugin/context contracts; consuming fixtures | MUST specify offline snapshots and versioned public/private maps, preserve alias/inheritance/shielding/unresolved effects, and test node matrices, scoped token evidence and candidate versus observed impact. |
+| T10. Optional Violet lens | Accepted commands and T09 contracts it uses | MUST present the same identities, context, incomplete states and evidence links as the commands; its iframe MUST pass the common viewport contract. The existing static index remains the review path before a lens exists. |
+| T11. Optional application-command runner | Exercised command-runner contract and an application consuming scenario | MUST prove explicit application-command/view-state dispatch, structured results and cancellation. Distribution allocation MUST be settled without conflating the existing `specimen-afd` command bindings with this runner. This task is independent of core Storybook cutover. |
+
+T03/T04 MAY use a bounded reference-driver or retained-CSF prototype to establish feasibility. Such a prototype MUST NOT be reported as the delivered compatibility adapter or full-runner parity. T09–T11 are optional additions to the replacement path; their absence MUST NOT become an invented prerequisite for core cutover. Pixel comparison also remains optional.
+
+## Verification and delivery gates
+
+- A changed native/integration/CLI implementation MUST run `pnpm check` and `pnpm test:specimen`; provenance records MUST cover every changed imported file. The repository gate includes only browser-free native tests, so it cannot replace the Chromium/packed-artifact route.
+- Benchmark claims MUST bind input and executable identities, retain raw resource/probe/phase/process evidence, and distinguish ordinary, diagnostic, failed and held runs. The current two-core / 25%-free-memory admission, one-job execution, 2-GiB limit and 120-second timeout MUST remain until a separately specified experiment revises them.
+- Compatibility qualification MUST use the existing authoritative consumer validation paths and required checks. Focused native fixtures, package tests and source counts MUST NOT stand in for full consumer parity.
+- Completion MUST link verified main content and required check evidence. Publishing MUST separately satisfy the inventory's authority/admission gates. Each cutover MUST retain the proposal's rollback and separate-cleanup safeguards.
+
+## Historical feasibility receipts
+
+At the original pre-split feasibility milestone, the local source passed `fnm exec --using=24 -- pnpm check` (exit 0, 37.75 seconds). Its nine stages passed: lint, build, typecheck, coverage tests, portability, file-size, orphan-files, versions and tooling-tests. This is the TypeScript gate on Node 24, not hosted CI or consumer-migration validation.
+
+That pre-split package contained 68 tests: 36 comparison/normalization tests, 14 command/CLI tests and 18 real-Chromium integration tests, with 29 registered native fixtures plus the isolated streaming-project fixture. Browser-only source runs in Chromium and is deliberately outside the Node-process V8 coverage calculation; the integration assertions exercise it directly.
+
+The compiled CLI at that milestone ran on Node `v24.21.0` with Chromium `156.0.8078.4`. Its `list`, eight `render` calls, four structural `diff` calls, an insufficient-visual-evidence comparison and a static `build` all emitted one successful `CommandResult` JSON value per invocation. The built shell measured **25,569 minified UTF-8 JavaScript bytes against a 50,000-byte ceiling**, including its emitted static dependencies. The screenshot was read back as a valid rendered button; the static output was independently served over HTTP and exercised in Chromium, including the 375px iframe and theme controls.
 
 An independent agent received only anonymized final captures/diffs, without fixture source or screenshots. It correctly identified the padding/geometry change, live checkbox state change, harmless generated-id churn, broken label relationship, and insufficient overall-appearance evidence. This is a five-case native interpretation result, not proof of arbitrary visual review or consumer parity.
 
-Local ignored artifacts are retained under `test-results/specimens-feasibility/`: `pnpm-check.log`, the gate/CLI JSON receipts, captures/diffs, `baseline.png`, the anonymized assessment input, and the static build/report. They are local working-tree evidence, not publication or deployment receipts.
+Historical local ignored artifacts were retained in the original feasibility checkout under `test-results/specimens-feasibility/`: `pnpm-check.log`, the gate/CLI JSON receipts, captures/diffs, `baseline.png`, the anonymized assessment input, and the static build/report. They are local working-tree evidence, not publication or deployment receipts.
 
 ## Independent source review
 
@@ -53,12 +99,6 @@ A bounded read-only reviewer found four issues. All were corrected and closed by
 | Declarative closed roots bypassed attachShadow tracking | HTML construction is conservatively observed in the initialized realm; a real nested declarative closed-root fixture returns partial DOM evidence |
 | Public and bench input bounds diverged | Both use one request/context schema; oversized timeout/dimension inputs return `VALIDATION_ERROR` before handler execution |
 
-## Remaining boundaries
+## Historical receipt interpretation
 
-The static Theme control applies CSS color-scheme and theme attributes. Forced browser/OS `prefers-color-scheme` parity with the CLI's browser emulation is not proven. Closed-root construction tracking covers the initialized specimen realm and cannot retrospectively inspect pre-existing or untouched foreign-realm internals. The complete proposal gate must account for these limits before general consumer acceptance.
-
-The consumer pilot found and corrected queued-update capture timing and cold Vite reload races. See its [validation record](consumer-validation.md) for measured scope, incomplete evidence and the Rust assessment. Host CPU/memory capacity is now the primary resource outcome. The [whole-process resource pilot](resource-validation.md) adds calibrated macOS accounting and 23 pure resource tests alongside the original 71 package tests. Both real consumer resource jobs passed, with peak sampled process-accounted footprint of approximately 522/562 MiB and waited CPU of 8.12/8.29 core-seconds. These are native workflow baselines, rather than proof of incumbent savings.
-
-Follow-up [Node/Vite heap and cache lifetime profiling](heap-lifetime-validation.md) identified a substantial import/runtime baseline, without evidence that retained closed public handles explain most residual memory. Metadata/listing now avoid heavy imports; render/build initialize lazily. The default stays in process, with an optional owned worker for long-lived hosts that prefer lower post-close retention at a higher repeated-start CPU cost. The package suite now has 108 tests, including real default/worker renders, serial close, immutable configuration, relative build paths, nested IPC failures and active/startup browser cleanup. The [larger reused-worker pilot](worker-reuse-validation.md) passed fourteen jobs and 832 verified captures: reuse reduced CPU against per-round worker restarts and preserved post-close memory recovery, while active peaks and some CPU premiums remained. Current consumer/incumbent comparisons, longer worker lifetimes and the supported CSF compatibility slice remain next work. No consumer Storybook configuration or suite was modified.
-
-The [warm CPU investigation](cpu-hotspot-validation.md) profiles both Node processes and identifies repeated Vite fallback sourcemap generation. Caching eligible maps in Vite's normal transform results reduces sampled warm map work by about 85%, with 3–9% lower CPU in two layout-matched ordinary isolated FAST-AF pairs and approximately 43 MiB retained after close. The native full suite now passes 100 tests; command/CLI validation remains in the split integration/endpoint units and packed consumers. Worker transport, cleanup and isolation defaults are unchanged.
+The receipts above describe the original pre-split feasibility milestone. The [consumer](consumer-validation.md), [resource](resource-validation.md), [heap](heap-lifetime-validation.md), [worker-reuse](worker-reuse-validation.md), [CPU](cpu-hotspot-validation.md) and [monorepo](monorepo-resource-validation.md) records preserve later measurements and their separate acceptance boundaries. The latest state and unresolved gaps are in [STATUS.md](STATUS.md); none of these local pilots closes the full replacement contract.
