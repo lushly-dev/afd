@@ -1,9 +1,10 @@
 /**
- * @fileoverview `@lushly-dev/afd-server/define` must stay transport-free.
+ * @fileoverview `@lushly-dev/afd-server/define` and `/direct` must stay transport-free.
  *
- * Bundles an entry that imports only the `/define` subpath with esbuild for
- * the browser. The bundle fails if anything in the module graph imports the
- * MCP SDK or a Node.js builtin.
+ * Bundles an entry that imports only one subpath with esbuild for the
+ * browser. The bundle fails if anything in the module graph imports the MCP
+ * SDK or a Node.js builtin. `/direct` is also held to a size budget for AFD's
+ * own code.
  */
 
 import { readFileSync } from 'node:fs';
@@ -12,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as define from './define.js';
+import * as direct from './direct.js';
 import * as root from './index.js';
 
 // ─── Minimal esbuild API surface used here ───────────────────────────────────
@@ -35,6 +37,7 @@ interface EsbuildPluginBuild {
 interface EsbuildResult {
 	errors: EsbuildMessage[];
 	metafile?: { inputs: Record<string, unknown> };
+	outputFiles?: { contents: Uint8Array }[];
 }
 
 interface EsbuildApi {
@@ -94,7 +97,13 @@ const selfReference = {
 	},
 };
 
-async function bundleForBrowser(specifier: string): Promise<EsbuildResult> {
+/** Workspace inputs appear as `../core/dist/...`, installed ones as `.../afd-core/dist/...`. */
+const NODE_ONLY_CORE = /core\/dist\/(platform\.js|connectors\/|journal-file\.js)/;
+
+async function bundleForBrowser(
+	specifier: string,
+	options: Record<string, unknown> = {}
+): Promise<EsbuildResult> {
 	const esbuild = await loadEsbuild();
 	try {
 		return await esbuild.build({
@@ -110,6 +119,7 @@ async function bundleForBrowser(specifier: string): Promise<EsbuildResult> {
 			metafile: true,
 			logLevel: 'silent',
 			plugins: [selfReference],
+			...options,
 		});
 	} catch (error) {
 		const errors = (error as { errors?: EsbuildMessage[] }).errors;
@@ -148,10 +158,9 @@ describe('@lushly-dev/afd-server/define', () => {
 		expect(inputs.some((input) => input.endsWith('src/schema.ts'))).toBe(true);
 		expect(inputs.some((input) => input.endsWith('core/dist/commands.js'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
-		// The core root entry still re-exports the process-spawning connectors.
-		// Workspace inputs appear as `../core/dist/...`, installed ones as `.../afd-core/dist/...`.
+		// Only the narrow core subpaths: not the core root, and nothing that needs Node.js.
 		expect(
-			inputs.filter((input) => /core\/dist\/(index\.js|platform\.js|connectors\/)/.test(input))
+			inputs.filter((input) => /core\/dist\/index\.js/.test(input) || NODE_ONLY_CORE.test(input))
 		).toEqual([]);
 	});
 
@@ -160,5 +169,72 @@ describe('@lushly-dev/afd-server/define', () => {
 
 		const texts = result.errors.map((message) => message.text).join('\n');
 		expect(texts).toMatch(/node:(http|tls|child_process)/);
+	});
+});
+
+/**
+ * Size budgets for AFD's own code in `/direct`, minified, with Zod left to the application (any
+ * app that defines commands loads it anyway). Measured 2026-10-31: 32.2 KB for a host that imports
+ * the registry, the journal and `defineCommand`, and 59.8 KB for every export.
+ */
+const DIRECT_BUDGETS = [
+	{
+		what: 'a host that imports the registry, the journal and defineCommand',
+		imports:
+			'createDirectRegistry, createJournalMiddleware, defineCommand, failure, MemoryJournalSink, success',
+		bytes: 35_000,
+	},
+	{ what: 'every export', imports: undefined, bytes: 66_000 },
+];
+describe('@lushly-dev/afd-server/direct', () => {
+	it('declares the subpath with the same conditions as the root export', () => {
+		expect(manifest.exports['./direct']).toEqual({
+			types: './dist/direct.d.ts',
+			import: './dist/direct.js',
+		});
+	});
+
+	it('re-exports the registry, journal and middleware of the root entry, and all of /define', () => {
+		expect(direct.createDirectRegistry).toBe(root.createDirectRegistry);
+		expect(direct.createJournalMiddleware).toBe(root.createJournalMiddleware);
+		expect(direct.replayJournal).toBe(root.replayJournal);
+		expect(direct.composeMiddleware).toBe(root.composeMiddleware);
+		expect(direct.defaultMiddleware).toBe(root.defaultMiddleware);
+		expect(direct.createLoggingMiddleware).toBe(root.createLoggingMiddleware);
+		expect(direct.createTelemetryMiddleware).toBe(root.createTelemetryMiddleware);
+		const directExports = new Map(Object.entries(direct));
+		for (const [name, value] of Object.entries(define)) {
+			expect(directExports.get(name), name).toBe(value);
+		}
+	});
+
+	it('bundles for the browser with no MCP SDK or Node builtin in its module graph', async () => {
+		const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`);
+
+		expect(result.errors.map((message) => message.text)).toEqual([]);
+		const inputs = Object.keys(result.metafile?.inputs ?? {});
+		expect(inputs.some((input) => input.endsWith('src/direct-registry.ts'))).toBe(true);
+		expect(inputs.some((input) => input.endsWith('src/journal-replay.ts'))).toBe(true);
+		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
+		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
+	});
+
+	it.each(DIRECT_BUDGETS)('keeps $what within $bytes bytes minified', async (budget) => {
+		const specifier = `${PACKAGE_NAME}/direct`;
+		const result = await bundleForBrowser(specifier, {
+			minify: true,
+			external: ['zod', 'zod/*'],
+			...(budget.imports && {
+				stdin: {
+					contents: `export { ${budget.imports} } from '${specifier}';`,
+					resolveDir: packageRoot,
+					sourcefile: 'browser-entry.js',
+				},
+			}),
+		});
+
+		expect(result.errors.map((message) => message.text)).toEqual([]);
+		const size = result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY;
+		expect(size).toBeLessThanOrEqual(budget.bytes);
 	});
 });

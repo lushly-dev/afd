@@ -8,14 +8,15 @@
  * packages and in-app agents.
  *
  * The root entry (`@lushly-dev/afd-server`) still exports everything below,
- * plus `createMcpServer`, `createMcpHandler`, `createDirectRegistry` and the
- * middleware, which need Node.js.
+ * plus `createMcpServer` and `createMcpHandler`, which need Node.js. The
+ * `/direct` entry adds `createDirectRegistry`, the journal and the middleware
+ * that run without Node.js.
  *
- * Module-graph rule: this file and `schema.ts` may take runtime values from
- * `@lushly-dev/afd-core` only through its browser-safe subpaths
- * (`/commands`, `/result`). The core root entry still re-exports the
- * process-spawning connectors. `define.test.ts` bundles this entry with
- * esbuild for the browser to enforce the rule.
+ * Module-graph rule: this file and `schema.ts` take runtime values from
+ * `@lushly-dev/afd-core` only through its narrow subpaths (`/commands`,
+ * `/result`), so the entry stays the smallest way to define commands.
+ * `entry-points.test.ts` bundles this entry with esbuild for the browser to
+ * enforce the rule.
  *
  * @example
  * ```typescript

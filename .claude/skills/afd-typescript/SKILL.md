@@ -40,6 +40,10 @@ import {
   createMcpHandler,
 } from '@lushly-dev/afd-server';
 
+// Browser, web worker or webview: no MCP SDK, no Node.js builtins
+import { defineCommand } from '@lushly-dev/afd-server/define';
+import { createDirectRegistry, createJournalMiddleware } from '@lushly-dev/afd-server/direct';
+
 // Schema validation
 import { z } from 'zod';
 
