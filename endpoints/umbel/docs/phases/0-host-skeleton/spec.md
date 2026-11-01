@@ -61,7 +61,7 @@
   +1.97.0 check --locked --all-targets`, run locally, then `umbel.yml` and
   `pnpm check` on the pull request.
 - **Done:** step 4, journal and events
-  ([#PR](https://github.com/lushly-dev/afd/pull/PR)), on 2026-11-01: the
+  ([#574](https://github.com/lushly-dev/afd/pull/574)), on 2026-11-01: the
   projecting sink over `FileJournalSink::shared`, the pending marker and the
   catch-up, `Host::repair_events`, event and provenance envelope version 0,
   cursors with consumers, `event-list`, `event-ack`, `event-rebuild`, and
