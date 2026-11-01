@@ -215,7 +215,7 @@ describe('theme:check', () => {
 		};
 		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
 		expect(report.errors).toEqual([]);
-		expect(report.notes).toEqual([]);
+		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the component export/)]);
 	});
 
 	it('fails without the kernel constant', async () => {
@@ -231,7 +231,7 @@ describe('theme:check', () => {
 			mainMin: 400,
 		};
 		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
-		expect(report.notes).toEqual([]);
+		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the component export/)]);
 		expect(report.errors).toHaveLength(NODE_IDS.length);
 	});
 

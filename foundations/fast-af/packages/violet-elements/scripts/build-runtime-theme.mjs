@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, "..");
-const registryPath = path.join(packageRoot, "tokens", "master-semantic.tokens.jsonc");
-const presetRegistryPath = path.join(packageRoot, "tokens", "theme-presets.jsonc");
+// The presets come from Loam's Violet themes, as a committed export of the component ids per theme
+// (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Loam's theme package
+// writes it with `pnpm -F @lushly-dev/loam-theme theme:export-components` and checks it in
+// `theme:check`. The light preset is the baked-in default (D38).
+const exportPath = path.join(packageRoot, "tokens", "violet-theme.export.json");
 const outputPath = path.join(
   packageRoot,
   "src",
@@ -13,47 +16,41 @@ const outputPath = path.join(
   "generated",
   "violet-theme.generated.ts",
 );
-
-function parseJsonc(text) {
-  const withoutBlockComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
-  const withoutLineComments = withoutBlockComments.replace(/(^|[^:\\])\/\/.*$/gm, "$1");
-  const withoutTrailingCommas = withoutLineComments.replace(/,(\s*[}\]])/g, "$1");
-
-  return JSON.parse(withoutTrailingCommas);
-}
+const defaultPreset = "light";
 
 function tokenIdToCssVar(tokenId) {
   return `--${tokenId.replace(/\./g, "-")}`;
 }
 
-function tokenValueToCssValue(value) {
-  if (typeof value === "object" && value !== null && "ref" in value) {
-    return `var(${tokenIdToCssVar(value.ref)})`;
-  }
-
-  return String(value);
+function buildDeclarations(tokens) {
+  return tokens.map(token => `  ${tokenIdToCssVar(token.id)}: ${token.value};`).join("\n");
 }
 
-function buildDeclarations(tokens, overrides = {}) {
-  return tokens
-    .map(token => {
-      const value = Object.hasOwn(overrides, token.id) ? overrides[token.id] : token.value;
-      return `  ${tokenIdToCssVar(token.id)}: ${tokenValueToCssValue(value)};`;
-    })
-    .join("\n");
+function readPresets(themeExport) {
+  if (themeExport?.contractVersion !== 1) {
+    throw new Error(`${exportPath}: expected contractVersion 1, got ${themeExport?.contractVersion}`);
+  }
+
+  const presets = themeExport.presets ?? {};
+  const defaultIds = (presets[defaultPreset] ?? []).map(token => token.id).join(",");
+
+  if (defaultIds === "") {
+    throw new Error(`${exportPath}: the ${defaultPreset} preset is missing or empty`);
+  }
+
+  for (const [presetName, tokens] of Object.entries(presets)) {
+    if (tokens.map(token => token.id).join(",") !== defaultIds) {
+      throw new Error(`${exportPath}: the ${presetName} preset does not have the ${defaultPreset} preset's ids`);
+    }
+  }
+
+  return presets;
 }
 
 async function main() {
-  const registryText = await readFile(registryPath, "utf8");
-  const registry = parseJsonc(registryText);
-  const presetRegistryText = await readFile(presetRegistryPath, "utf8");
-  const presetRegistry = parseJsonc(presetRegistryText);
-  const defaultPreset = presetRegistry.defaultPreset ?? "light";
+  const presets = readPresets(JSON.parse(await readFile(exportPath, "utf8")));
   const presetDeclarations = Object.fromEntries(
-    Object.entries(presetRegistry.presets ?? {}).map(([presetName, overrides]) => [
-      presetName,
-      buildDeclarations(registry.tokens, overrides),
-    ]),
+    Object.entries(presets).map(([presetName, tokens]) => [presetName, buildDeclarations(tokens)]),
   );
   const presetNames = Object.keys(presetDeclarations);
   const themeCssBlocks = [

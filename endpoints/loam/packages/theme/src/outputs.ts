@@ -2,6 +2,7 @@
  * The theme's outputs (2.1, 2.3): the contract, `loam-theme.css` and `loam-theme.json`, rendered
  * here rather than by Violet's exporters, which have no exclusion filter and no override diff.
  */
+import { type ComponentExport, renderComponentExport } from './components.js';
 import {
 	buildLoamTree,
 	type ContractKind,
@@ -139,14 +140,20 @@ export interface ThemeOutputs {
 	resolved: ResolvedTree;
 	contract: Contract;
 	files: { 'loam-theme.css': string; 'loam-theme.json': string; 'contract.json': string };
+	/** The component token export of 2.4, committed in `violet-elements`, not written to `dist/`. */
+	componentExport: ComponentExport;
+	componentExportJson: string;
 }
 
 export async function buildOutputs(): Promise<ThemeOutputs> {
 	const resolved = await resolveTree();
 	const contract = renderContract(resolved);
+	const componentExport = renderComponentExport(resolved, contract);
 	return {
 		resolved,
 		contract,
+		componentExport,
+		componentExportJson: toJson(componentExport),
 		files: {
 			'loam-theme.css': renderCss(resolved),
 			'loam-theme.json': toJson(renderThemeJson(resolved)),

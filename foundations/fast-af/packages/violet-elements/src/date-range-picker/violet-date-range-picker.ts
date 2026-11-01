@@ -90,7 +90,7 @@ const styles = css`
     }
 
     .trigger:hover {
-        border-color: var(--color-field-border-hover, rgba(28, 26, 13, 0.35));
+        border-color: var(--color-field-border-hover, rgba(28, 26, 13, 0.48));
     }
 
     .trigger:focus-visible,

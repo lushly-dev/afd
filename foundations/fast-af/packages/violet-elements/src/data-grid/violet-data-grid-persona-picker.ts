@@ -54,14 +54,14 @@ const styles = css`
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-card: var(--color-surface-card, #faf9f5);
-        --_surface-floating: var(--color-surface-floating, #ffffff);
+        --_surface-floating: var(--color-surface-floating, #f0efe6);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.35));
+        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
         --_text-primary: var(--color-text-primary, #18181b);
         --_text-secondary: var(--color-text-secondary, #414651);
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
-        --_radius-md: var(--radius-md, 8px);
+        --_radius-md: var(--radius-md, 4px);
         --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         --_size-font-md: var(--size-font-md, 14px);
         --_size-font-sm: var(--size-font-sm, 12px);
