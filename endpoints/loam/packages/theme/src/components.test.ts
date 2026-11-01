@@ -18,6 +18,14 @@ const outputs = await buildOutputs();
 const contractUrl = new URL('../contract/tokens.json', import.meta.url);
 const lightValues = lightValuesByProperty(outputs.componentExport, outputs.contract);
 
+/** The sizes of section 5.2, as the kernel's `LAYOUT_DEFAULTS_V0` gives them. */
+const layoutDefaults = {
+	sidebar: { default: 260, min: 200, max: 480 },
+	inspector: { default: 300, min: 240, max: 520 },
+	panel: { default: 240, min: 120 },
+	mainMin: 360,
+};
+
 describe('the component token export (2.4)', () => {
 	it('holds every component id, and no shell id, per theme at comfortable density', () => {
 		const { componentExport } = outputs;
@@ -145,12 +153,6 @@ describe('theme:check with the component paths', () => {
 		expect((await sourceFiles(components.sourceDirectory)).map((file) => file.path)).toEqual([
 			'button/button.ts',
 		]);
-		const layoutDefaults = {
-			sidebar: { default: 260, min: 200, max: 480 },
-			inspector: { default: 300, min: 240, max: 520 },
-			panel: { default: 240, min: 120 },
-			mainMin: 360,
-		};
 		const report = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
 		expect(report.errors).toEqual([]);
 		expect(report.notes).toEqual([]);
@@ -158,7 +160,7 @@ describe('theme:check with the component paths', () => {
 
 	it('fails on a drifted fallback and on a stale export', async () => {
 		const components = await fixture('var(--color-text-muted, #6b7280)', '{}\n');
-		const { errors } = await checkTheme(contractUrl, { outputs, components });
+		const { errors } = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
 		expect(errors.some((error) => /contractVersion undefined/.test(error))).toBe(true);
 		expect(errors).toContain(
 			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #616775'
@@ -172,7 +174,11 @@ describe('theme:check with the component paths', () => {
 			...components,
 			sourceDirectory: new URL('missing/', components.sourceDirectory),
 		};
-		const { errors } = await checkTheme(contractUrl, { outputs, components: missing });
+		const { errors } = await checkTheme(contractUrl, {
+			outputs,
+			components: missing,
+			layoutDefaults,
+		});
 		expect(errors).toEqual([expect.stringMatching(/^violet-elements\/src cannot be read/)]);
 	});
 });
