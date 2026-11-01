@@ -206,10 +206,21 @@ describe('exports', () => {
 });
 
 describe('theme:check', () => {
-	it('passes on the committed contract, skipping the kernel until it has the constant', async () => {
-		const report = await checkTheme(contractUrl, { outputs });
+	it('passes on the committed contract with the sizes of 5.2', async () => {
+		const layoutDefaults = {
+			sidebar: { default: 260, min: 200, max: 480 },
+			inspector: { default: 300, min: 240, max: 520 },
+			panel: { default: 240, min: 120 },
+			mainMin: 360,
+		};
+		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
 		expect(report.errors).toEqual([]);
-		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the shell sizes/)]);
+		expect(report.notes).toEqual([]);
+	});
+
+	it('fails without the kernel constant', async () => {
+		const report = await checkTheme(contractUrl, { outputs });
+		expect(report.errors).toEqual([expect.stringMatching(/^LAYOUT_DEFAULTS_V0 is missing/)]);
 	});
 
 	it('fails when the kernel it is given disagrees with the tree', async () => {
@@ -283,6 +294,6 @@ describe('theme:check', () => {
 			brokenReferences: [{ nodeId: 'loam', tokenId: 'color.x', message: 'not found' }],
 		};
 		const report = await checkTheme(contractUrl, { outputs: { ...outputs, resolved: broken } });
-		expect(report.errors).toEqual(['color.x in loam: not found']);
+		expect(report.errors[0]).toBe('color.x in loam: not found');
 	});
 });

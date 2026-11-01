@@ -141,7 +141,11 @@ should never have to scan the codebase to learn what is current.
     runs `theme:check` and `lint:tokens`.
   - 3, components onto Violet themes: not started.
   - 4, design document and skill: not started.
-  - 5, kernel: not started.
+  - 5, kernel: merged in [#638](https://github.com/lushly-dev/afd/pull/638).
+    `createKernel` with the two registries, name refusal, the commands, the
+    layout validator, the palette index, the journal options and the test
+    kit at `/testing`; decisions in section 6.7, and the kernel bundle's Zod
+    overrun recorded in section 8.1 for step 7.
   - 6, Specimen high contrast: merged in
     [#628](https://github.com/lushly-dev/afd/pull/628); it amended section 4,
     because the bench emulates media in its native host.
@@ -203,3 +207,4 @@ starts.
 | 2026-11-01 | Phase 0 step 0b | [#627](https://github.com/lushly-dev/afd/pull/627) merged: `VioletRuntime` applies a preloaded source with no token server (`switchNode` takes a new source, `ThemeManager` themes carry one), and `useSystemPreference` chooses a high-contrast theme under `prefers-contrast: more` or `forced-colors: active`. Four details the specification left open were decided and recorded in its section 3: the either/or config union, an optional `resolvedAt`, no cache with a source, and `Theme.source` |
 | 2026-11-01 | Phase 0 step 0a | [#629](https://github.com/lushly-dev/afd/pull/629): `IndexedDbAdapter`, the exported adapter contract suite and `IndexedDbJournalSink` with its writer lock, parity rows, READMEs, skills and a minor changeset for local-db and afd-core. The spec's section 3 and 6.6 gained `lock()`, `close()`, `IndexedDbJournalError` and its codes (`JOURNAL_LOCKED`, `JOURNAL_LOCK_UNAVAILABLE`, `JOURNAL_CLOSED`, storage errors), and the contract suite's `vitest` peer dependency. An independent review's lock-race findings were fixed before merge |
 | 2026-11-01 | Phase 0 step 2 | The theme in [#635](https://github.com/lushly-dev/afd/pull/635): `@lushly-dev/loam-theme` builds Loam's Violet tree (`loam`, `loam/{light,dark,high-contrast}`, each with `compact`), commits `contract/tokens.json` (127 ids), writes `loam-theme.css`, `loam-theme.json` and `contract.json`, checks the contract and contrast floors, and ships the token-only lint. Light and dark start from `violet-elements`' values, with `color.text.muted` and `color.border.strong` raised to meet the floors; decisions are recorded under "Decided by step 2" in the specification, with one follow-up (the resting field border's contrast). The `LAYOUT_DEFAULTS_V0` comparison is skipped until step 5 exports it. Verified with `pnpm check`, the `loam.yml` sequence and the pre-push hook on 2026-11-01 |
+| 2026-11-01 | Phase 0 step 5 | The kernel ([#638](https://github.com/lushly-dev/afd/pull/638)): `createKernel` over two direct registries sharing auth and journal middleware, name refusal (E8), layout state version 0 behind one validator (E1's kernel unit), appearance, the palette index, `replayKernel` replaying the scripted 50-call session with zero differences (E2's kernel unit), `diffJournals` and the reference workspace; `theme:check` now compares the shell sizes with the kernel's `LAYOUT_DEFAULTS_V0` and fails without it. Section 6.7 records the decisions, among them `flush()` on the kernel interface and own-key validation after an independent review; section 8.1 records that Zod puts the kernel's esbuild bundle at 520,541 bytes, over its 150,000-byte ceiling, for step 7 to resolve |

@@ -96,7 +96,7 @@ export function compareNodeIds(resolved: ResolvedTree, contract: Contract): stri
 export interface CheckOptions {
 	/** Outputs already built; built here when absent. */
 	outputs?: ThemeOutputs;
-	/** The kernel's `LAYOUT_DEFAULTS_V0`, or undefined while the kernel does not export it. */
+	/** The kernel's `LAYOUT_DEFAULTS_V0`; missing is an error. */
 	layoutDefaults?: unknown;
 }
 
@@ -129,8 +129,8 @@ export async function checkTheme(
 	}
 
 	if (layoutDefaults === undefined)
-		notes.push(
-			'Skipped the shell sizes against LAYOUT_DEFAULTS_V0: @lushly-dev/loam-kernel does not export it yet (step 5 of the phase 0 specification adds it and removes this skip)'
+		errors.push(
+			'LAYOUT_DEFAULTS_V0 is missing: @lushly-dev/loam-kernel must export it from its root (section 5.2 of the phase 0 specification); build the kernel first'
 		);
 	else errors.push(...compareLayoutDefaults(built.resolved, layoutDefaults));
 
