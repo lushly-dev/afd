@@ -1,4 +1,4 @@
-/// <reference lib="dom" preserve="true" />
+/// <reference lib="dom" />
 /**
  * A DataAdapter over IndexedDB, for browsers, web workers and webviews.
  *
@@ -207,7 +207,14 @@ export class IndexedDbAdapter implements DataAdapter {
 	private open(): Promise<IDBDatabase> {
 		if (this.connection) return this.connection;
 		const opening = new Promise<IDBDatabase>((resolve, reject) => {
-			const request = this.indexedDB().open(this.name, DB_VERSION);
+			let request: IDBOpenDBRequest;
+			try {
+				request = this.indexedDB().open(this.name, DB_VERSION);
+			} catch (error) {
+				// STORAGE_UNAVAILABLE, or for example a SecurityError in an opaque origin.
+				reject(storageError(error, 'open the database'));
+				return;
+			}
 			request.onupgradeneeded = () => {
 				const store = request.result.createObjectStore(STORE, { keyPath: ['table', 'id'] });
 				store.createIndex(TABLE_INDEX, 'table');
@@ -283,7 +290,7 @@ export class IndexedDbAdapter implements DataAdapter {
 		} catch (error) {
 			abort();
 			await finished;
-			throw error;
+			throw storageError(error, 'run a transaction');
 		}
 		await finished;
 		return result;

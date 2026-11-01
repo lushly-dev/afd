@@ -76,6 +76,8 @@ tests written against the memory adapter describe production behavior:
   `keyboard_shortcuts`) are the exception: there `update()` creates the record (`HttpAdapter`
   sends `PUT`).
 - **`remove()` of a missing record succeeds.**
+- **Order without `sort` is the backend's:** insertion order in `MemoryAdapter`, ID order in
+  `IndexedDbAdapter`, the server's in `HttpAdapter`. Pass `sort` when order matters.
 - **Table and record names** can be any string except `''`, `.` and `..`, which reject with a
   400 `DataAdapterError` (`code: 'INVALID_NAME'`). `HttpAdapter` sends an unmapped table as one
   percent-encoded path segment, so names like `constructor` or `../admin` stay inside the base
@@ -107,9 +109,9 @@ runDataAdapterContract('IndexedDbAdapter', () => {
 ```
 
 The entry imports `describe`, `it`, `expect`, `beforeEach` and `afterEach` from `vitest`, an
-optional peer dependency, and no Node.js builtin, so the same call runs in Node.js and in a
-Vitest browser-mode suite against the real IndexedDB. This package runs it for all three
-adapters, with `IndexedDbAdapter` over `fake-indexeddb`.
+optional peer dependency, and no Node.js builtin (a test bundles the entry for the browser), so
+the same call can run in a Vitest browser-mode suite against the real IndexedDB. This package
+runs it in Node.js for all three adapters, with `IndexedDbAdapter` over `fake-indexeddb`.
 
 ### `QueryParams`
 

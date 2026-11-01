@@ -1,4 +1,4 @@
-/// <reference lib="dom" preserve="true" />
+/// <reference lib="dom" />
 /**
  * @fileoverview A journal sink over IndexedDB, the browser counterpart of `journal-file`.
  *
@@ -27,6 +27,7 @@ export interface IndexedDbJournalSinkOptions {
 export type IndexedDbJournalErrorCode =
 	| 'JOURNAL_LOCKED'
 	| 'JOURNAL_LOCK_UNAVAILABLE'
+	| 'JOURNAL_CLOSED'
 	| 'JOURNAL_STORAGE_UNAVAILABLE'
 	| 'JOURNAL_STORAGE_ERROR';
 
@@ -35,7 +36,9 @@ export type IndexedDbJournalErrorCode =
  * `retryable`, so `wrapError()` turns it into a `CommandError` with the same fields.
  *
  * - `JOURNAL_LOCKED`: another context (a tab, a worker) holds the writer lock.
- * - `JOURNAL_LOCK_UNAVAILABLE`: there is no Web Locks API, so the sink cannot keep to one writer.
+ * - `JOURNAL_LOCK_UNAVAILABLE`: there is no Web Locks API, so the sink cannot keep to one writer,
+ *   or the lock request failed.
+ * - `JOURNAL_CLOSED`: the sink was closed while the append waited for the lock or the database.
  * - `JOURNAL_STORAGE_UNAVAILABLE`: there is no IndexedDB.
  * - `JOURNAL_STORAGE_ERROR`: IndexedDB failed, or the database was not created by this sink.
  */
@@ -72,6 +75,26 @@ function storageError(error: unknown, action: string): IndexedDbJournalError {
 	);
 }
 
+function closedError(): IndexedDbJournalError {
+	return new IndexedDbJournalError(
+		'JOURNAL_CLOSED',
+		'The journal sink was closed before the entry was written',
+		'Append again: the next call opens the journal and takes the writer lock again.',
+		true
+	);
+}
+
+function lockRequestError(error: unknown): IndexedDbJournalError {
+	if (error instanceof IndexedDbJournalError) return error;
+	const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+	return new IndexedDbJournalError(
+		'JOURNAL_LOCK_UNAVAILABLE',
+		`The writer lock could not be requested: ${reason}`,
+		'Check that the Web Locks API works in this context (a secure context), then retry.',
+		true
+	);
+}
+
 function settle<T>(request: IDBRequest<T>, action: string): Promise<T> {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result);
@@ -90,7 +113,8 @@ function settle<T>(request: IDBRequest<T>, action: string): Promise<T> {
  * per database: before its first `append` it takes the Web Lock `<name>:writer` and holds it
  * until {@link close}. When another context (another tab, say) holds the lock, `append` and
  * {@link lock} reject with `JOURNAL_LOCKED` instead of waiting. Call `lock()` first to find out
- * before any command runs. Reads never need the lock.
+ * before any command runs. Reads never need the lock; a read waits for the appends started
+ * before it.
  *
  * @example
  * ```typescript
@@ -113,10 +137,22 @@ export class IndexedDbJournalSink implements JournalSink {
 	private held: Promise<void> | undefined;
 	/** Releases the writer lock. */
 	private release: (() => void) | undefined;
+	/** Settles once the last lock request is over: refused, released or stolen. */
+	private released: Promise<void> = Promise.resolve();
+	/** Counts {@link close} calls, so work started before one does not run after it. */
+	private generation = 0;
+	/** Settles once every append started so far has finished. */
+	private appending: Promise<unknown> = Promise.resolve();
 
 	constructor(options: IndexedDbJournalSinkOptions) {
 		if (typeof options?.name !== 'string' || options.name === '') {
 			throw new TypeError('IndexedDbJournalSink needs a nonempty database name');
+		}
+		if (options.name.startsWith('-')) {
+			// Web Lock names starting with '-' are reserved.
+			throw new TypeError(
+				'IndexedDbJournalSink needs a database name that does not start with "-"'
+			);
 		}
 		this.name = options.name;
 		this.lockName = `${options.name}:writer`;
@@ -126,8 +162,9 @@ export class IndexedDbJournalSink implements JournalSink {
 
 	/**
 	 * Take the writer lock now, if this sink does not hold it yet. Resolves once it is held;
-	 * rejects with `JOURNAL_LOCKED` when another context holds it, and with
-	 * `JOURNAL_LOCK_UNAVAILABLE` when there is no Web Locks API. A refused call can be retried.
+	 * rejects with `JOURNAL_LOCKED` when another context holds it, with
+	 * `JOURNAL_LOCK_UNAVAILABLE` when there is no Web Locks API, and with `JOURNAL_CLOSED` when
+	 * {@link close} is called before the lock is granted. A refused call can be retried.
 	 */
 	lock(): Promise<void> {
 		if (this.held) return this.held;
@@ -141,85 +178,127 @@ export class IndexedDbJournalSink implements JournalSink {
 				)
 			);
 		}
-		const held = new Promise<void>((resolve, reject) => {
-			locks
-				.request(this.lockName, { ifAvailable: true }, (lock) => {
-					if (!lock) {
-						reject(
-							new IndexedDbJournalError(
-								'JOURNAL_LOCKED',
-								`The journal ${JSON.stringify(this.name)} is open for writing in another context (lock ${JSON.stringify(this.lockName)})`,
-								'Close the other tab or window that has the app open, then reload.'
-							)
-						);
-						return undefined;
-					}
-					resolve();
-					return new Promise<void>((done) => {
-						this.release = done;
+		const generation = this.generation;
+		// Wait until this sink's own previous lock is freed, or the request would see it as taken.
+		const held: Promise<void> = this.released.then(
+			() =>
+				new Promise<void>((resolve, reject) => {
+					const request = locks.request(this.lockName, { ifAvailable: true }, (lock) => {
+						if (!lock) {
+							reject(
+								new IndexedDbJournalError(
+									'JOURNAL_LOCKED',
+									`The journal ${JSON.stringify(this.name)} is open for writing in another context (lock ${JSON.stringify(this.lockName)})`,
+									'Close the other tab or window that has the app open, then reload.'
+								)
+							);
+							return undefined;
+						}
+						if (generation !== this.generation) {
+							// Closed while the request waited: returning frees the lock at once.
+							reject(closedError());
+							return undefined;
+						}
+						resolve();
+						return new Promise<void>((done) => {
+							this.release = done;
+						});
 					});
+					this.released = request.then(
+						() => undefined,
+						() => undefined
+					);
+					request
+						.catch((error: unknown) => reject(lockRequestError(error)))
+						.finally(() => {
+							// Released, refused or stolen: the next append asks again.
+							if (this.held === held) {
+								this.held = undefined;
+								this.release = undefined;
+							}
+						});
 				})
-				.catch(reject)
-				.finally(() => {
-					// Released, refused or stolen: the next append asks again.
-					if (this.held === held) {
-						this.held = undefined;
-						this.release = undefined;
-					}
-				});
-		});
+		);
 		this.held = held;
 		held.catch(() => {});
 		return held;
 	}
 
 	/** Append `record` with the next `seq`. Takes the writer lock first (see {@link lock}). */
-	async append(record: JournalRecord): Promise<JournalEntry> {
-		await this.lock();
-		const db = await this.open();
-		const transaction = transact(db, 'readwrite');
-		const last = await settle(transaction.store.openCursor(null, 'prev'), 'read the last entry');
-		const entry: JournalEntry = { seq: ((last?.key as number | undefined) ?? 0) + 1, ...record };
-		await settle(
-			transaction.store.add(JSON.parse(serializeJournalEntry(entry))),
-			'append an entry'
-		);
-		await transaction.done;
-		return entry;
+	append(record: JournalRecord): Promise<JournalEntry> {
+		const appended = this.write(record);
+		this.appending = Promise.allSettled([this.appending, appended]);
+		return appended;
 	}
 
+	/** Entries in `range`, in `seq` order, once every append started before this call is done. */
 	async read(range: JournalRange = {}): Promise<JournalEntry[]> {
+		await this.appending;
 		const from = range.from ?? Number.NEGATIVE_INFINITY;
 		const to = range.to ?? Number.POSITIVE_INFINITY;
 		if (Number.isNaN(from) || Number.isNaN(to) || from > to) return [];
-		const db = await this.open();
-		const transaction = transact(db, 'readonly');
-		const entries = await new Promise<JournalEntry[]>((resolve, reject) => {
-			const found: JournalEntry[] = [];
-			const request = transaction.store.openCursor();
-			request.onsuccess = () => {
-				const cursor = request.result;
-				if (!cursor) return resolve(found);
-				const seq = cursor.key as number;
-				if (seq < from) return cursor.continue(from);
-				if (seq > to) return resolve(found);
-				found.push(cursor.value as JournalEntry);
-				cursor.continue();
-			};
-			request.onerror = () => reject(storageError(request.error, 'read entries'));
-		});
-		await transaction.done;
-		return entries;
+		try {
+			const db = await this.open();
+			const transaction = transact(db, 'readonly');
+			const entries = await new Promise<JournalEntry[]>((resolve, reject) => {
+				const found: JournalEntry[] = [];
+				const request = transaction.store.openCursor();
+				request.onsuccess = () => {
+					const cursor = request.result;
+					if (!cursor) return resolve(found);
+					const seq = cursor.key as number;
+					if (seq < from) return cursor.continue(from);
+					if (seq > to) return resolve(found);
+					found.push(cursor.value as JournalEntry);
+					cursor.continue();
+				};
+				request.onerror = () => reject(storageError(request.error, 'read entries'));
+			});
+			await transaction.done;
+			return entries;
+		} catch (error) {
+			throw storageError(error, 'read entries');
+		}
 	}
 
-	/** Release the writer lock and close the database. The next call opens and locks again. */
+	/**
+	 * Release the writer lock and close the database, once the lock is free. Appends still waiting
+	 * for the lock or the database reject with `JOURNAL_CLOSED`. The next call opens and locks
+	 * again.
+	 */
 	async close(): Promise<void> {
+		const pending = this.held;
+		this.generation++;
 		this.release?.();
 		this.release = undefined;
 		this.held = undefined;
 		const connection = this.connection;
 		this.connection = undefined;
+		// A request still waiting to be made or granted sees the new generation and gives the lock
+		// back; wait for that, then for the lock to be free.
+		await pending?.catch(() => undefined);
+		await this.released;
 		if (connection) (await connection.catch(() => undefined))?.close();
+	}
+
+	private async write(record: JournalRecord): Promise<JournalEntry> {
+		const generation = this.generation;
+		await this.lock();
+		const db = await this.open();
+		if (generation !== this.generation) throw closedError();
+		try {
+			const transaction = transact(db, 'readwrite');
+			const last = await settle(transaction.store.openCursor(null, 'prev'), 'read the last entry');
+			const entry: JournalEntry = { seq: ((last?.key as number | undefined) ?? 0) + 1, ...record };
+			await settle(
+				transaction.store.add(JSON.parse(serializeJournalEntry(entry))),
+				'append an entry'
+			);
+			await transaction.done;
+			return entry;
+		} catch (error) {
+			throw storageError(error, 'append an entry');
+		}
 	}
 
 	private open(): Promise<IDBDatabase> {
@@ -235,7 +314,14 @@ export class IndexedDbJournalSink implements JournalSink {
 			);
 		}
 		const opening = new Promise<IDBDatabase>((resolve, reject) => {
-			const request = factory.open(this.name, DB_VERSION);
+			let request: IDBOpenDBRequest;
+			try {
+				request = factory.open(this.name, DB_VERSION);
+			} catch (error) {
+				// For example a SecurityError in an opaque origin.
+				reject(storageError(error, 'open the journal'));
+				return;
+			}
 			request.onupgradeneeded = () => {
 				request.result.createObjectStore(STORE, { keyPath: 'seq' });
 			};
@@ -244,11 +330,10 @@ export class IndexedDbJournalSink implements JournalSink {
 				if (!db.objectStoreNames.contains(STORE)) {
 					db.close();
 					reject(
-						storageError(
-							new Error(
-								`database ${JSON.stringify(this.name)} was not created by IndexedDbJournalSink (it has no "${STORE}" store); use another name`
-							),
-							'open the journal'
+						new IndexedDbJournalError(
+							'JOURNAL_STORAGE_ERROR',
+							`IndexedDB database ${JSON.stringify(this.name)} was not created by IndexedDbJournalSink (it has no "${STORE}" store)`,
+							'Use another `name` for the journal.'
 						)
 					);
 					return;

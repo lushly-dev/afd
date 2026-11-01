@@ -143,6 +143,21 @@ describe('IndexedDbAdapter', () => {
 		await expect(adapter.close()).resolves.toBeUndefined();
 	});
 
+	it('reports an open that throws, as in an opaque origin, as STORAGE_ERROR', async () => {
+		const factory = {
+			open: () => {
+				throw new DOMException('opaque origin', 'SecurityError');
+			},
+		} as unknown as IDBFactory;
+		const adapter = new IndexedDbAdapter({ name: 'opaque', indexedDB: factory });
+
+		await expect(adapter.get('users', 'u1')).rejects.toMatchObject({
+			status: 500,
+			code: 'STORAGE_ERROR',
+			message: expect.stringContaining('SecurityError'),
+		});
+	});
+
 	it('needs a database name', () => {
 		expect(() => new IndexedDbAdapter({ name: '' })).toThrow(DataAdapterError);
 		expect(() => new IndexedDbAdapter(undefined as never)).toThrow(/nonempty database name/);

@@ -19,7 +19,7 @@ function record(command: string, data: unknown = command): JournalRecord {
  * The Web Locks API for one origin, with `ifAvailable` and `steal`: enough for the writer lock.
  * Each sink stands for a context (a tab) that shares the origin's locks.
  */
-function createLocks() {
+function createLocks({ async = false } = {}) {
 	/** For each held lock, a function that breaks it (as `steal` does). */
 	const held = new Map<string, () => void>();
 	const locks = {
@@ -28,6 +28,8 @@ function createLocks() {
 			options: LockOptions,
 			callback: (lock: Lock | null) => unknown
 		): Promise<unknown> {
+			// Browsers grant a lock on a later task; Node.js calls back at once.
+			if (async) await tick();
 			if (held.has(name) && !options.steal) {
 				if (options.ifAvailable) return callback(null);
 				throw new Error('the fake only grants available locks');
@@ -41,6 +43,8 @@ function createLocks() {
 			try {
 				return await Promise.race([callback({ name, mode: 'exclusive' } as Lock), broken]);
 			} finally {
+				// Browsers free a lock on a later task too.
+				if (async) await tick();
 				if (held.get(name) === breakLock) held.delete(name);
 			}
 		},
@@ -224,7 +228,11 @@ describe('IndexedDbJournalSink', () => {
 			code: 'JOURNAL_STORAGE_ERROR',
 			message: expect.stringContaining('not created by IndexedDbJournalSink'),
 		});
-		await expect(foreign.read()).rejects.toMatchObject({ code: 'JOURNAL_STORAGE_ERROR' });
+		await expect(foreign.read()).rejects.toMatchObject({
+			code: 'JOURNAL_STORAGE_ERROR',
+			retryable: false,
+			suggestion: expect.stringContaining('another `name`'),
+		});
 	});
 
 	it('closes its connection when another one deletes the database', async () => {
@@ -242,7 +250,74 @@ describe('IndexedDbJournalSink', () => {
 		expect((await sink.append(record('b'))).seq).toBe(1);
 	});
 
-	it('needs a database name', () => {
+	it('needs a database name that can name a Web Lock', () => {
 		expect(() => new IndexedDbJournalSink({ name: '' })).toThrow(/nonempty database name/);
+		expect(() => new IndexedDbJournalSink({ name: '-x' })).toThrow(/does not start with "-"/);
+	});
+
+	it('frees the lock and writes nothing when closed while the lock is being granted', async () => {
+		const factory = new IDBFactory();
+		const { locks, held } = createLocks({ async: true });
+		const sink = sinkFor(factory, locks);
+
+		const pending = sink.append(record('a'));
+		pending.catch(() => {});
+		await sink.close();
+		// close() resolves only once the lock is free again.
+		expect(held.size).toBe(0);
+		await expect(pending).rejects.toMatchObject({ code: 'JOURNAL_CLOSED' });
+		expect(held.size).toBe(0);
+
+		const other = sinkFor(factory, locks);
+		expect((await other.append(record('b'))).seq).toBe(1);
+		expect((await other.read()).map((entry) => entry.command)).toEqual(['b']);
+	});
+
+	it('locks again right after close, without refusing itself', async () => {
+		for (const async of [false, true]) {
+			const sink = sinkFor(new IDBFactory(), createLocks({ async }).locks);
+			await sink.append(record('a'));
+			const closing = sink.close();
+			const next = sink.append(record('b'));
+			await closing;
+			expect((await next).seq).toBe(2);
+			await sink.close();
+		}
+	});
+
+	it('reads the appends started before the read', async () => {
+		const sink = sinkFor(new IDBFactory(), createLocks({ async: true }).locks);
+		void sink.append(record('a'));
+		void sink.append(record('b'));
+
+		expect((await sink.read()).map((entry) => entry.command)).toEqual(['a', 'b']);
+	});
+
+	it('reports a failed lock request as JOURNAL_LOCK_UNAVAILABLE', async () => {
+		const locks = {
+			request: () => Promise.reject(new DOMException('reserved name', 'NotSupportedError')),
+		} as unknown as LockManager;
+		const sink = sinkFor(new IDBFactory(), locks);
+
+		const refused = sink.lock();
+		await expect(refused).rejects.toMatchObject({
+			code: 'JOURNAL_LOCK_UNAVAILABLE',
+			message: expect.stringContaining('NotSupportedError'),
+		});
+		expect(wrapError(await refused.catch((error: unknown) => error)).suggestion).toBeTruthy();
+	});
+
+	it('reports an open that throws, as in an opaque origin, as JOURNAL_STORAGE_ERROR', async () => {
+		const factory = {
+			open: () => {
+				throw new DOMException('opaque origin', 'SecurityError');
+			},
+		} as unknown as IDBFactory;
+		const sink = sinkFor(factory, createLocks().locks);
+
+		await expect(sink.read()).rejects.toMatchObject({
+			code: 'JOURNAL_STORAGE_ERROR',
+			message: expect.stringContaining('SecurityError'),
+		});
 	});
 });

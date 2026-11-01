@@ -69,7 +69,9 @@ database: before its first `append` it takes the Web Lock `<name>:writer` and ho
 `close()`. When another context holds it, `append` and `lock()` reject with an
 `IndexedDbJournalError` whose `code` is `JOURNAL_LOCKED`, with a `suggestion`, instead of
 waiting; call `lock()` at startup to find out before any command runs. Without the Web Locks
-API it refuses to write (`JOURNAL_LOCK_UNAVAILABLE`). In Node.js tests, pass `indexedDB` (from
+API it refuses to write (`JOURNAL_LOCK_UNAVAILABLE`). `close()` resolves once the lock is free;
+an append still waiting for the lock then rejects with `JOURNAL_CLOSED`. A read waits for the
+appends started before it, as the file sink's does. In Node.js tests, pass `indexedDB` (from
 `fake-indexeddb`) and `locks`.
 
 The server package records entries (`createJournalMiddleware`) and replays them

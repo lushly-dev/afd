@@ -470,7 +470,8 @@ commit.
     `lock()` before any command runs.
   - Refusals are `IndexedDbJournalError`s with `code`, `suggestion` and
     `retryable`, which `wrapError()` keeps. Without the Web Locks API the
-    sink refuses to write, with `JOURNAL_LOCK_UNAVAILABLE`.
+    sink refuses to write, with `JOURNAL_LOCK_UNAVAILABLE`; an append still
+    waiting for the lock when `close()` runs rejects with `JOURNAL_CLOSED`.
   - `runDataAdapterContract` imports its test functions from `vitest`, an
     optional peer dependency of local-db, and no Node.js builtin, so the
     same call runs in Node.js and in Vitest's browser mode.
