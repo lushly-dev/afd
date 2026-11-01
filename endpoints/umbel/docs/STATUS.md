@@ -30,7 +30,7 @@ should never have to scan the codebase to learn what is current.
 | [Decision log](decisions.md) | D1 to D50; open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
-| [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; step 0a done 2026-11-01 (see Phase 1 below), which amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
+| [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a and 1 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); step 0a done (AFD spec, documents only); step 0b next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) | Step 0b (the Rust implementation and the todo library split) and step 1, which needs only 0a |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only) and 1 (manifest and configuration) done; step 0b and step 2a next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 1: [#606](https://github.com/lushly-dev/afd/pull/606) | Step 0b (the Rust implementation and the todo library split) and step 2a (loader core and compiled plugins), which needs 1 |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -215,9 +215,9 @@ should never have to scan the codebase to learn what is current.
 
 - **State:** specification approved by the owner (D24) and merged in
   [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff` on
-  2026-11-01; step 0a done the same day; step 0b and step 1 are next. Last
-  verified 2026-11-01 against `main` at `880779ff`. (Superseded: "in review,
-  revised, not approved", verified at `cdfbbfb7`.)
+  2026-11-01; steps 0a and 1 done the same day; step 0b and step 2a are next.
+  Last verified 2026-11-01 against `main` at `a7fc5f05`. (Superseded: "in
+  review, revised, not approved", verified at `cdfbbfb7`.)
 - **Done:** the [specification](phases/1-plugin-contract/spec.md), in
   review: the manifest `umbel-plugin.toml` version 1 (D37) and the WIT world
   `umbel:plugin/plugin@1.0.0` on WASI 0.2 (D38), which close O3; wasmtime's 48
@@ -264,8 +264,41 @@ should never have to scan the codebase to learn what is current.
   and `prompts` capabilities (on the modern era with `subscribe` and
   `listChanged` true); recorded in the AFD status. It does not affect Umbel,
   which is Rust.
-- **Not done:** steps 0b, 1, 2a, 2b and 3 to 8; the exit criterion.
-- **Needs the owner:** nothing for step 0b. O1 is unchanged.
+- **Done:** step 1, manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): `umbel-plugin.toml`
+  version 1 read and validated in `plugins/manifest.rs` (closed; Plugin
+  Discovery's field meanings; `ui` and the other reserved keys refused naming
+  their version; a mount's manifest says only `bearer`, never `url` or
+  `bearer_env`); `plugins/source.rs` (`compiled:<id>` against a
+  `CompiledCatalog`, workspace directories confined against `..`, absolute
+  paths and symlinks, the both and neither cases); file checks for packs
+  (`plugins/packs.rs`) and skills (`plugins/skills.rs`); the schemas
+  `workspace-config.v2.json`, `plugin-manifest.v1.json` and
+  `pack-manifest.v1.json` with examples (`$defs` holds every top-level
+  property for Loam); `umbel.toml` version 2 (D41, D44: instance `url`,
+  `bearer_env`, `spaces`, `deny`, `limits`, `env`; `grants.<grant>.allow` and
+  the instance id `enabled` reserved; version 1 still opens as version 2 with
+  no plugins) and `umbel init` writing 2; the doctor's `plugins.none` replaced
+  by `plugins.config`, `plugins.sources`, `plugins.grants`, `plugins.packs`
+  and `plugins.skills`, which need no sealed host (`plugins.loaded`,
+  `plugins.first_class` and `plugins.pipelines` are `skip` until step 2a; a
+  `compiled:` source is `skip` without a catalog, resolved by
+  `doctor::run_with_catalog` with one); the WIT file
+  `wit/umbel-plugin-1.0.0/world.wit` (a test pins it to the specification's
+  text); the version constants, reported by `workspace-show`;
+  `[workspace.lints]` with `lints.workspace = true`; `--workspace` in every
+  cargo step of `umbel.yml`; `architecture.json` and the repository-contract
+  test gain the five new surfaces. Tests: `manifest.rs` (27),
+  `doctor_plugins.rs` (24), extended `schemas.rs` (17), `workspace.rs` (34),
+  `doctor.rs` (19) and unit tests. Verified 2026-11-01 in `endpoints/umbel`:
+  `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets
+  -- -D warnings`, the library-only clippy leg, `cargo test --locked
+  --workspace`, `cargo +1.97.0 check --locked --workspace --all-targets`;
+  `pnpm check` and `umbel.yml` on the pull request. One amendment is listed in
+  the specification's "Amendments from step 1": until step 2a, `seal` refuses
+  a workspace whose `plugins.enabled` is not empty, as phase 0 did, so a
+  configured plugin is never silently ignored.
+- **Not done:** steps 0b, 2a, 2b and 3 to 8; the exit criterion.
+- **Needs the owner:** nothing for step 0b or step 2a. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
 Phases 2 to 7 have no detail yet; add a heading in this shape when one
@@ -331,3 +364,4 @@ starts.
 | 2026-11-01 | Phase 1 specification | Wrote the [phase 1 specification](phases/1-plugin-contract/spec.md) at the D24 path, in review: manifest, WIT world, protocol version, configuration version 2, grants and effects, the compiled, component and mounted loaders, packs, skills on three paths, AFD contexts and pipelines, the SDK, test kit, `plugin new` and `plugin check`, security with four trust-model points for the owner, the exit criterion with every test file, and a plan with an AFD step 0 (resources, the Skills extension, tool `_meta`, the todo library split). Closed O3 as D37 and D38; D39 to D50; architecture amendments (host services, manifest, WIT world, packs, the sandbox and MCP client rows, versioning, prerequisites, glossary) and the trajectory refresh with the new W17. Spec in review, not approved |
 | 2026-11-01 | Phase 1 specification revision | Revised the phase 1 specification after the independent review of [#583](https://github.com/lushly-dev/afd/pull/583), each finding checked against the code first: recorded the owner's four trust-model decisions and the coordinator's allow-list rule (section 11, D42, D43); moved a mount's `url` and `bearer_env` to `umbel.toml`; gave pipelines the union of their steps' confirmation prompts; made mounted commands space-less unless `bind_space`; instance prefixes, transport-level result limits, load-time description scans, advertised and validation schemas; `--workspace` CI, `hello-mcp` location, rustls for HTTPS mounts, CI cost measures; restated W17 and D38 (wasmtime 48 is the constraint); split step 2 into 2a and 2b; added exit run 4 (the stock binary mounts the Rust todo backend) and the `plugin-isolation` job. Amended D38, D40, D42, D43, D47, D48, D50 and architecture section 8. Spec in review, not approved |
 | 2026-11-01 | Phase 1 step 0a | Owner approval of the phase 1 specification recorded (merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`). Wrote the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and its status, approved under the owner's delegation, and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) with `spec/mcp-resources.json`; amended `command-metadata.md`, `protocol-conformance.md`, `CHANGELOG.md` and the language parity matrix (Planned); reconciled the Skill Knowledge Layer; amended the phase 1 specification (digest key, step 0a path, status block) and the prerequisites rows of the Umbel and Loam architectures. Documents only |
+| 2026-11-01 | Phase 1 step 1 | Manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): the manifest, source resolution, pack and skill file checks, the three schemas with examples, configuration version 2 and `init`, the doctor's file-only plugin checks (replacing `plugins.none`), the WIT file, the version constants, `[workspace.lints]` and `--workspace` in `umbel.yml`. Resumed from a partial branch left by an agent whose disk filled; reviewed, merged with `main`, and verified (fmt, clippy `-D warnings`, 338 tests, the MSRV check). Amendment: `seal` still refuses an enabled plugin until step 2a |

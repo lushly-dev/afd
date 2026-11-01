@@ -94,6 +94,16 @@ impl HostBuilder {
     /// `mcp.first_class_tools` for an invalid first-class set, or naming the command for a
     /// reserved CLI verb or a name collision.
     pub fn seal(self) -> Result<Host, HostError> {
+        // The loader arrives with step 2a of the phase 1 plan. A configured plugin is never
+        // silently ignored, so until then a workspace that enables one does not seal; the
+        // doctor still checks its files.
+        if !self.workspace.config().plugins.enabled.is_empty() {
+            return Err(HostError::config_invalid(
+                "`plugins.enabled`",
+                "names plugin instances, but this build has no plugin loader yet",
+                "Empty plugins.enabled until the loader lands; umbel workspace doctor still checks the plugins' files.",
+            ));
+        }
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());

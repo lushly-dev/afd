@@ -1,6 +1,7 @@
 //! `workspace-show`: what this deployment is.
 
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
+use crate::plugins::{MANIFEST_VERSION, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD};
 use crate::versions::{CURSOR_VERSION, EVENT_VERSION, PRINCIPAL_VERSION, PROVENANCE_VERSION};
 use crate::workspace::{CONFIG_VERSION, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, success};
@@ -36,6 +37,10 @@ impl CommandHandler for Handler {
             },
             "versions": {
                 "config": CONFIG_VERSION,
+                "manifest": MANIFEST_VERSION,
+                "protocol": PLUGIN_PROTOCOL_VERSION,
+                "wit": WIT_WORLD,
+                "pack": PACK_VERSION,
                 "principal": PRINCIPAL_VERSION,
                 "provenance": PROVENANCE_VERSION,
                 "event": EVENT_VERSION,

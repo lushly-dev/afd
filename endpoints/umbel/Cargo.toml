@@ -9,7 +9,18 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
+# Later steps add "sdk", "plugins/hello", "tests/fixtures/components/*" and "plugins/todo".
 members = ["."]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
 
 [features]
 default = ["cli"]
@@ -28,6 +39,9 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"], optional = true }
 getrandom = ">=0.3, <0.5"
+# Offline only (no resolve-http/tls features): configuration schemas of plugins, and the schema
+# files' own checks. reqwest and rustls stay out of the lock until the mounted loader.
+jsonschema = { version = "0.60", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -43,18 +57,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"]
 bytes = "1"
 http = "1"
 http-body-util = "0.1"
-# No resolve-http/tls features: the schemas are checked offline, and reqwest and rustls stay out of the lock.
-jsonschema = { version = "0.60", default-features = false }
 # The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
 
-[lints.rust]
-unsafe_code = "forbid"
-missing_docs = "warn"
-unreachable_pub = "warn"
-
-[lints.clippy]
-all = { level = "warn", priority = -1 }
-unwrap_used = "warn"
-expect_used = "warn"
+[lints]
+workspace = true

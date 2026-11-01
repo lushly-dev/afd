@@ -1,0 +1,30 @@
+{
+	"manifest_version": 1,
+	"protocol": 1,
+	"plugin": {
+		"id": "style",
+		"title": "House style",
+		"version": "2.0.0",
+		"description": "Reference packs and a skill, no code.",
+		"kind": "pack"
+	},
+	"packs": [
+		{
+			"id": "voice",
+			"path": "packs/voice"
+		}
+	],
+	"skills": [
+		{
+			"name": "style-guide",
+			"path": "skills/style-guide"
+		}
+	],
+	"config": {
+		"schema": {
+			"type": "object",
+			"properties": {},
+			"additionalProperties": false
+		}
+	}
+}
