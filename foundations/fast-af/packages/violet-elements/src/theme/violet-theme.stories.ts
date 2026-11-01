@@ -67,7 +67,7 @@ const meta: Meta<ScopedThemeArgs> = {
     argTypes: {
         preset: {
             control: "inline-radio",
-            options: ["light", "dark"],
+            options: ["light", "dark", "high-contrast"],
         },
         accentBackground: { control: "color" },
         accentText: { control: "color" },

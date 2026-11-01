@@ -7701,11 +7701,11 @@
       "upstream_sha256": "ad4f438a08fbf6d8932f5f36c39c654d9d141777a1e01bb578fc595ae043fb91",
       "staged_path": "packages/violet-elements/src/foundations/token-registry.ts",
       "staged_sha256": "ad4f438a08fbf6d8932f5f36c39c654d9d141777a1e01bb578fc595ae043fb91",
-      "current_import_sha256": "f9e46d33a36b0943a7598b13daeacd2733858adc706267a50b172d650e6351c0",
+      "current_import_sha256": "aeb0538239c27f1c8ab1474fe25af428a18cb4e4535e08f693dc8f1bfa64e3da",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Read tokens/violet-theme.export.json in place of the retired master-semantic registry, keeping the exported names; category and tier follow the registry's families, and each token carries its value per preset (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Read tokens/violet-theme.export.json in place of the retired master-semantic registry, keeping the exported function and variable names; category and tier follow the registry's families, each token carries its value per preset, and the registry's 32 aliases are restored for the story's labs while both light values agree (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/violet-direction.spec.ts",
@@ -7761,11 +7761,11 @@
       "upstream_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
       "staged_path": "packages/violet-elements/src/foundations/violet-foundations.stories.ts",
       "staged_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
-      "current_import_sha256": "971fe6bef59211416f7f65660d3db650fbc2a0833f3c05c20317805db8099b94",
+      "current_import_sha256": "cc6789bf946420ae8b5f58764adff39ae321d3227b1fcf3c17dd32fc7bd118a1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose, semantic spacing maps to its ramp step by value; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/violet-safe-url.ts",
@@ -9285,11 +9285,11 @@
       "upstream_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
       "staged_path": "packages/violet-elements/src/theme/violet-theme.stories.ts",
       "staged_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
-      "current_import_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
+      "current_import_sha256": "c2432e1f23426574847bc51269774ffb1d1a9e117f8104c2af8c14bcfd7bdc9d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Offer the generated high-contrast preset in the scoped theme story's preset control (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/violet-theme.ts",
@@ -9621,7 +9621,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c59c7488fcb80332a4b89ea30d6d0951a9ec4742a8f43de2c7b4d4fe27d8c25f",
+      "current_import_sha256": "d24d0d9af062393136f356759eb21300621c0f5d5670c410f0e69ef355b692af",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",

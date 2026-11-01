@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { checkTheme, compareComponentExport, sourceFiles } from './check.js';
 import {
 	findFallbacks,
@@ -52,6 +52,20 @@ describe('the component token export (2.4)', () => {
 			/not the generated formatting/
 		);
 		expect(compareComponentExport('{', outputs)[0]).toMatch(/is not JSON/);
+		const extra = {
+			...outputs.componentExport,
+			presets: { ...outputs.componentExport.presets, sepia: [] },
+		};
+		expect(compareComponentExport(JSON.stringify(extra), outputs)).toContain(
+			"violet-theme.export.json has a preset 'sepia' that the tree does not"
+		);
+		const broken = {
+			...outputs.componentExport,
+			presets: { ...outputs.componentExport.presets, dark: {} },
+		};
+		expect(compareComponentExport(JSON.stringify(broken), outputs)).toContain(
+			'violet-theme.export.json has no dark preset list'
+		);
 	});
 });
 
@@ -109,8 +123,13 @@ describe('the fallback scan (2.4)', () => {
 });
 
 describe('theme:check with the component paths', () => {
+	const roots: string[] = [];
+	afterAll(async () => {
+		await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+	});
 	const fixture = async (source: string, exportJson = outputs.componentExportJson) => {
 		const root = await mkdtemp(join(tmpdir(), 'loam-theme-components-'));
+		roots.push(root);
 		await mkdir(join(root, 'src', 'button'), { recursive: true });
 		await writeFile(join(root, 'export.json'), exportJson);
 		await writeFile(join(root, 'src', 'button', 'button.ts'), source);
@@ -145,5 +164,15 @@ describe('theme:check with the component paths', () => {
 			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #616775'
 		);
 		expect(errors.at(-1)).toMatch(/^1 fallbacks differ from the light theme/);
+	});
+
+	it('reports a source directory it cannot read', async () => {
+		const components = await fixture('');
+		const missing = {
+			...components,
+			sourceDirectory: new URL('missing/', components.sourceDirectory),
+		};
+		const { errors } = await checkTheme(contractUrl, { outputs, components: missing });
+		expect(errors).toEqual([expect.stringMatching(/^violet-elements\/src cannot be read/)]);
 	});
 });

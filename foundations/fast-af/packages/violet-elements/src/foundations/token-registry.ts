@@ -72,6 +72,46 @@ const families: ReadonlyArray<[prefix: string, category: string, tier: string]> 
   ["easing.", "motion", "semantic"],
 ];
 
+/**
+ * The aliases the retired registry declared. The export holds resolved values, so the story's labs
+ * get these chains back (`--space-inline-sm: var(--size-space-sm)`) and editing a ramp step still
+ * moves the semantic tokens on it. An alias is kept only while both light values agree.
+ */
+const registryAliases: Readonly<Record<string, string>> = {
+  "color.control.selected.background": "color.surface.selected",
+  "color.field.background": "color.surface.page",
+  "color.field.background.readonly": "color.surface.subtle",
+  "color.field.text": "color.text.primary",
+  "color.field.placeholder": "color.text.muted",
+  "color.field.border": "color.border.subtle",
+  "color.field.border.hover": "color.border.strong",
+  "color.field.border.focus": "color.focus.ring",
+  "color.field.border.invalid": "color.state.danger.border",
+  "type.caption.xs.size": "size.font.xs",
+  "type.caption.xs.line": "size.line.xs",
+  "type.caption.xs.weight": "weight.medium",
+  "type.label.sm.size": "size.font.sm",
+  "type.label.sm.line": "size.line.sm",
+  "type.label.sm.weight": "weight.medium",
+  "type.body.md.size": "size.font.md",
+  "type.body.md.line": "size.line.md",
+  "type.body.md.weight": "weight.regular",
+  "type.title.sm.size": "size.font.lg",
+  "type.title.sm.line": "size.line.lg",
+  "type.title.sm.weight": "weight.semibold",
+  "type.title.md.size": "size.font.xl",
+  "type.title.md.line": "size.line.xl",
+  "type.title.md.weight": "weight.semibold",
+  "space.inline.sm": "size.space.sm",
+  "space.inline.md": "size.space.md",
+  "space.inline.lg": "size.space.lg",
+  "space.stack.xs": "size.space.sm",
+  "space.stack.sm": "size.space.md",
+  "space.stack.md": "size.space.lg",
+  "space.layout.sm": "size.space.lg",
+  "space.layout.md": "size.space.xl",
+};
+
 function familyIndex(tokenId: string): number {
   const index = families.findIndex(([prefix]) => tokenId.startsWith(prefix));
   return index < 0 ? families.length : index;
@@ -80,14 +120,16 @@ function familyIndex(tokenId: string): number {
 function readRegistry(text: string): VioletTokenRegistry {
   const themeExport = JSON.parse(text) as VioletThemeExport;
   const light = themeExport.presets.light ?? [];
+  const lightValues = new Map(light.map(({ id, value }) => [id, value]));
   const tokens = light
     .map(({ id, value }, order) => {
       const family = families[familyIndex(id)];
+      const alias = registryAliases[id];
       return {
         order,
         token: {
           id,
-          value,
+          value: alias !== undefined && lightValues.get(alias) === value ? { ref: alias } : value,
           presets: Object.fromEntries(
             Object.entries(themeExport.presets).map(([preset, presetTokens]) => [
               preset,

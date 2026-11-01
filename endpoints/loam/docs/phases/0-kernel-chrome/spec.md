@@ -468,7 +468,9 @@ Decided by step 3 (2026-11-01):
   `var()` (`--color-field-background` is `#FFFEFA`, not
   `var(--color-surface-page)`), and every preset still declares all 108
   properties. Rendering is unchanged, but a page that overrides a base
-  property no longer moves its aliases; no consumer in the repository does.
+  property no longer moves its aliases. No consumer in the repository
+  overrides one; the foundations story's labs do, so `token-registry.ts`
+  restores the retired registry's 32 aliases for them (below).
   The generator refuses an export whose `contractVersion` is not 1 or whose
   presets do not all have the light preset's ids.
 - **The scan.** It reads every `.ts` file under `violet-elements/src`,
@@ -485,14 +487,22 @@ Decided by step 3 (2026-11-01):
   given the export and source paths, which `theme:check` always passes; the
   unit tests use temporary fixtures, so `theme`'s tests read nothing outside
   the package.
-- **`token-registry.ts`** keeps its exported names and signatures, so the
-  custom-elements manifest changes only where it records style defaults
-  (which carry the rewritten fallbacks). The export has no prose, so each
-  token takes its category and tier from its family, as in the retired
-  registry, and carries its value in each preset. The foundations story shows
-  the custom property and the dark and high-contrast values where it showed
-  the registry's descriptions, and maps a semantic spacing token to the ramp
-  step with the same light value, since the export has no references.
+- **`token-registry.ts`** keeps its exported function and variable names and
+  signatures, so the custom-elements manifest changes only where it records
+  style defaults (which carry the rewritten fallbacks) and the generated
+  theme constants. Its exported types follow the export: the registry has
+  `contractVersion` and `source` in place of `registryVersion`, and a token
+  has `presets` and `metadata` (`category`, `tier`, `cssProperty`) in place
+  of `usage` and the prose fields; nothing in the repository imports them.
+  The export has no prose, so each token takes its category and tier from
+  its family, as in the retired registry. The foundations story shows the
+  custom property and the dark and high-contrast values where it showed the
+  registry's descriptions. The retired registry's aliases (field colors to
+  surface, text and border colors, `type.*` to the font, line and weight
+  ramps, `space.*` to the spacing ramp) are a table in `token-registry.ts`,
+  applied while the two light values agree, so editing a ramp step in the
+  story's labs still moves the semantic tokens on it. The scoped theme
+  story offers the `high-contrast` preset.
 - **The packed consumer** (`tests/consumers/fast-af/verify-artifacts.mjs`)
   also hashes the packed `tokens/violet-theme.export.json`.
 

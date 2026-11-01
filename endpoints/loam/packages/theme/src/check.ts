@@ -97,7 +97,7 @@ export function compareNodeIds(resolved: ResolvedTree, contract: Contract): stri
 }
 
 const EXPORT_FIX =
-	'run `pnpm -F @lushly-dev/loam-theme theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build`, and record both files in foundations/fast-af/provenance/adaptations.json';
+	'run `pnpm -F @lushly-dev/loam-theme theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build` and `cem:analyze` (the manifest records the generated theme), and record every changed file in foundations/fast-af/provenance/adaptations.json';
 
 /** Every difference between the committed component export and the tree's. */
 export function compareComponentExport(committedText: string, built: ThemeOutputs): string[] {
@@ -117,13 +117,22 @@ export function compareComponentExport(committedText: string, built: ThemeOutput
 		errors.push(
 			`violet-theme.export.json has contractVersion ${String(committed.contractVersion)} and source ${String(committed.source)}, the tree ${expected.contractVersion} and ${expected.source}`
 		);
+	const committedPresets: Record<string, unknown> =
+		typeof committed.presets === 'object' && committed.presets !== null ? committed.presets : {};
+	for (const theme of Object.keys(committedPresets))
+		if (!(theme in expected.presets))
+			errors.push(`violet-theme.export.json has a preset '${theme}' that the tree does not`);
 	for (const [theme, tokens] of Object.entries(expected.presets)) {
+		const preset = committedPresets[theme];
+		if (!Array.isArray(preset)) {
+			errors.push(`violet-theme.export.json has no ${theme} preset list`);
+			continue;
+		}
 		const listed = new Map(
-			(committed.presets?.[theme as keyof ComponentExport['presets']] ?? []).map((token) => [
-				token.id,
-				token.value,
-			])
+			(preset as { id: string; value: string }[]).map((token) => [token.id, token.value])
 		);
+		if (listed.size !== preset.length)
+			errors.push(`violet-theme.export.json has a repeated id in ${theme}`);
 		for (const { id, value } of tokens)
 			if (listed.get(id) !== value)
 				errors.push(
@@ -167,8 +176,15 @@ async function checkComponents(built: ThemeOutputs, paths: ComponentPaths): Prom
 			`violet-theme.export.json cannot be read: ${(error as Error).message}; ${EXPORT_FIX}`
 		);
 	}
+	let files: { path: string; text: string }[];
+	try {
+		files = await sourceFiles(paths.sourceDirectory);
+	} catch (error) {
+		errors.push(`violet-elements/src cannot be read: ${(error as Error).message}`);
+		return errors;
+	}
 	const mismatches = scanFallbacks(
-		await sourceFiles(paths.sourceDirectory),
+		files,
 		lightValuesByProperty(built.componentExport, built.contract)
 	);
 	for (const mismatch of mismatches)
@@ -177,7 +193,7 @@ async function checkComponents(built: ThemeOutputs, paths: ComponentPaths): Prom
 		);
 	if (mismatches.length > 0)
 		errors.push(
-			`${mismatches.length} fallbacks differ from the light theme; run \`pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks\` to rewrite them, and record every edited file in foundations/fast-af/provenance/adaptations.json`
+			`${mismatches.length} fallbacks differ from the light theme; run \`pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks\` to rewrite them, then \`pnpm -F @lushly-dev/violet-elements cem:analyze\` (the manifest records the style defaults), and record every edited file in foundations/fast-af/provenance/adaptations.json`
 		);
 	return errors;
 }

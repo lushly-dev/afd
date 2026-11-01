@@ -1628,12 +1628,12 @@ function renderSpacingLab(): HTMLElement {
   );
 
   const getReferencedRampId = (tokenId: string): string => {
-    // The export holds resolved values, so a semantic spacing token maps to the ramp step with
-    // the same light value.
     const token = spacingSemanticTokens.find((entry) => entry.id === tokenId);
-    const rampToken = spacingRampTokens.find((entry) => String(entry.value) === String(token?.value));
+    if (token && typeof token.value === "object" && token.value !== null && "ref" in token.value) {
+      return token.value.ref;
+    }
 
-    return rampToken?.id ?? tokenId;
+    return tokenId;
   };
 
   const getResolvedSpacingValue = (tokenId: string, currentRampValues: Map<string, string>): string => {

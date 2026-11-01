@@ -92,7 +92,7 @@ async function exportComponents(rewriteFallbacks) {
 	}
 	for (const path of edited) console.log(`rewrote fallbacks in violet-elements/src/${path}`);
 	console.log(
-		`${edited.length} files edited; record each in foundations/fast-af/provenance/adaptations.json`
+		`${edited.length} files edited; run \`pnpm -F @lushly-dev/violet-elements cem:analyze\`, then record each changed file in foundations/fast-af/provenance/adaptations.json`
 	);
 	return 0;
 }
