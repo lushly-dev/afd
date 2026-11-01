@@ -288,10 +288,10 @@ Decided by step 2 (2026-11-01):
   each of the constant's numbers to its shell id (`LAYOUT_DEFAULT_TOKENS`)
   and compares every node with the kernel's export, which
   `theme/scripts/theme.mjs` reads: the kernel is a development dependency,
-  and the boundary check refuses it in `src/`. Until step 5 adds the
-  constant, `theme:check` prints a note and skips that comparison, and
-  `theme`'s `test` compares the tree with the numbers of 5.2 instead. Step 5
-  removes the skip, so a missing export then fails.
+  and the boundary check refuses it in `src/`, so `theme`'s `test` compares
+  the tree with the numbers of 5.2 instead. Until step 5 added the constant,
+  `theme:check` printed a note and skipped that comparison; step 5 removed
+  the skip, so a missing export now fails `theme:check`.
 
 ### 2.2 Loam's Violet tree
 
