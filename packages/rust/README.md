@@ -354,7 +354,9 @@ code: only `Ok(true)` permits one retry; errors or panics return the original ho
 never a token. Credentials stay out of result observers and journals. Caller-supplied
 approval is ignored, and `CommandContext::with_timeout` covers both attempts and the decision.
 Dropping the call cancels the flow. Raw registry execution remains a trusted host token API.
-This client does not add a pipeline client, remote transport, or CLI.
+`with_interface(CommandInterface::Cli)` runs every call as another interface than the default
+`Agent`: which commands it may run, and which an unknown name's suggestions list, follow
+`expose` for that interface. This client does not add a pipeline client or remote transport.
 
 ## Features
 
@@ -369,6 +371,10 @@ This client does not add a pipeline client, remote transport, or CLI.
 - `journal-file` (default) - `FileJournalSink`, a command journal in a JSON Lines file, through
   blocking `std::fs`. The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
   every build, WebAssembly included.
+- `journal-file-shared` - `FileJournalSink::shared`: several sinks and processes append to one
+  journal file under an exclusive OS file lock (`lock`, `append_locked`, `JournalFileLock`), reading
+  the last `seq` from the end of the file instead of caching it. **It needs Rust 1.89**
+  (`std::fs::File::lock`); the rest of the crate keeps the 1.82 minimum. Local file systems only.
 - `approval` (default) - The approval middleware (`create_approval_middleware`): a command whose
   `ApprovalPolicy` holds the call fails with `APPROVAL_REQUIRED` and an HMAC-SHA256 token bound to
   the command, the validated input and the actor, until trusted code retries it with

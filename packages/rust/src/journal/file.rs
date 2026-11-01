@@ -26,6 +26,9 @@ use super::{
 /// around it that runs the calls with `tokio::task::spawn_blocking`. It needs the `journal-file`
 /// feature (on by default) and a platform with a file system.
 ///
+/// A sink made with `new` caches the last `seq` and allows one writer per file. For several sinks
+/// or processes on one file, use `FileJournalSink::shared` (the `journal-file-shared` feature).
+///
 /// ```rust,no_run
 /// use afd::{CommandRegistry, FileJournalSink, JournalRecorder};
 /// use std::sync::Arc;
@@ -39,6 +42,9 @@ pub struct FileJournalSink {
     /// The last `seq` written, once the existing file has been read. Held during each append,
     /// so lines and `seq` values stay in order.
     last_seq: Mutex<Option<u64>>,
+    /// Set by `shared`: the lock file and how long an append waits for it.
+    #[cfg(feature = "journal-file-shared")]
+    pub(super) shared: Option<super::file_shared::SharedMode>,
 }
 
 /// What [`FileJournalSink`] found in its file.
@@ -57,6 +63,8 @@ impl FileJournalSink {
         Self {
             path: path.into(),
             last_seq: Mutex::new(None),
+            #[cfg(feature = "journal-file-shared")]
+            shared: None,
         }
     }
 
@@ -65,7 +73,7 @@ impl FileJournalSink {
         &self.path
     }
 
-    fn describe(&self, error: impl std::fmt::Display) -> String {
+    pub(super) fn describe(&self, error: impl std::fmt::Display) -> String {
         format!("Journal file {}: {error}", self.path.display())
     }
 
@@ -110,6 +118,11 @@ impl FileJournalSink {
 #[async_trait]
 impl JournalSink for FileJournalSink {
     async fn append(&self, record: JournalRecord) -> Result<JournalEntry, String> {
+        #[cfg(feature = "journal-file-shared")]
+        if self.shared.is_some() {
+            let lock = self.lock().map_err(|error| self.describe(error))?;
+            return self.append_locked(&lock, record);
+        }
         let mut last_seq = self.last_seq.lock().unwrap_or_else(PoisonError::into_inner);
         let mut prefix = "";
         let last = match *last_seq {
@@ -149,6 +162,11 @@ impl JournalSink for FileJournalSink {
     }
 
     async fn read(&self, range: JournalRange) -> Result<Vec<JournalEntry>, String> {
+        // A shared sink reads without a lock: a torn last line is skipped.
+        #[cfg(feature = "journal-file-shared")]
+        if self.shared.is_some() {
+            return Ok(range.select(&self.read_file()?.entries));
+        }
         // Wait for a pending append, so a read sees every entry appended before it.
         let _appending = self.last_seq.lock().unwrap_or_else(PoisonError::into_inner);
         Ok(range.select(&self.read_file()?.entries))

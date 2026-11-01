@@ -76,6 +76,14 @@ jobs:
       - name: Test (server feature)
         run: cargo test --features server
 
+      # The process-shared file journal (`FileJournalSink::shared`); off by default, and its file
+      # locks need Rust 1.89.
+      - name: Clippy (journal-file-shared feature)
+        run: cargo clippy --all-targets --features journal-file-shared -- -D warnings
+
+      - name: Test (journal-file-shared feature)
+        run: cargo test --features journal-file-shared
+
       # The `wasm` feature targets browsers, where `std::time::Instant::now()` traps.
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown

@@ -9,13 +9,14 @@
 
 ## Status
 
-- **State:** proposed, revised. Written 2026-10-31 and revised the same day
-  after an independent review returned "approve after must-fixes"; the
-  coordinator's decisions on D29, D32, D33 and D34, made under the owner's
-  delegation of 2026-10-31, are recorded as amendments in the
-  [decision log](../../decisions.md). Awaiting the owner's approval by pull
-  request (D24). Nothing is implemented.
-- **Last verified:** 2026-10-31 against `main` at `472b5f68`. Evidence, read
+- **State:** approved, implementation in progress. Written and revised
+  2026-10-31 after an independent review returned "approve after
+  must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
+  under the owner's delegation of 2026-10-31, are recorded as amendments in
+  the [decision log](../../decisions.md). The owner approved the
+  specification on 2026-10-31 under that delegation (D24), and it merged in
+  [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`.
+- **Last verified:** 2026-10-31 against `main` at `fb35d525`. Evidence, read
   in `packages/rust`: `FileJournalSink` (`src/journal/file.rs`: caches
   `last_seq`, forbids two processes per file), `create_context_digest`,
   `MiddlewareNext` (takes no arguments), `execute_batch_with_context` (merges
@@ -35,8 +36,10 @@
 - **Done:** this specification; the architecture amendments and decisions
   [D28 to D36](../../decisions.md) it needs, with their 2026-10-31
   amendments, in [#564](https://github.com/lushly-dev/afd/pull/564).
-- **Not done:** every implementation step in the
-  [plan](#11-implementation-plan), including the AFD step 0; the exit
+- **In review:** step 0, the AFD pull request ([#567](https://github.com/lushly-dev/afd/pull/567)), implemented
+  2026-10-31 exactly as the [plan](#step-0-the-afd-pull-request) lists it.
+  Not done until it merges.
+- **Not done:** steps 1 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
