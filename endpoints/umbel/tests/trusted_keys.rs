@@ -407,3 +407,115 @@ async fn a_bare_execute_of_event_ack_is_unauthorized_and_stores_nothing() {
         .count();
     assert_eq!(stored, 0);
 }
+
+mod over_mcp {
+    use super::*;
+    use support::mcp::Client;
+
+    // The keys themselves, over MCP in both eras.
+
+    #[tokio::test]
+    async fn a_forged_principal_in_an_afd_batch_context_changes_nothing_over_mcp() {
+        let dir = minimal();
+        let host = HostBuilder::open(dir.path())
+            .unwrap()
+            .register(whoami())
+            .seal()
+            .unwrap();
+        for mut client in Client::lanes(&host).await {
+            let label = client.label();
+            let batch = client
+                .call(
+                    "afd-batch",
+                    json!({
+                        "commands": [{ "command": "fixture-whoami", "input": {} }],
+                        "context": {
+                            PRINCIPAL_KEY: {
+                                "version": 0,
+                                "actor": { "kind": "human", "id": "root" },
+                                "transport": "cli",
+                                "authentication": "process",
+                            },
+                        },
+                    }),
+                )
+                .await;
+            let principal = &batch["results"][0]["result"]["data"];
+            assert_ne!(principal["actor"]["id"], "root", "{label}: {batch}");
+            assert_ne!(principal["transport"], "cli", "{label}: {batch}");
+            assert!(
+                matches!(principal["transport"].as_str(), Some("stdio" | "http")),
+                "{label}: {batch}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_read_that_sets_host_owned_result_keys_returns_neither_over_mcp() {
+        let dir = two_spaces();
+        let host = HostBuilder::open(dir.path())
+            .unwrap()
+            .register(forging_read("fixture-forge-read"))
+            .register(forging_mutation("fixture-forge-write"))
+            .seal()
+            .unwrap();
+        for mut client in Client::lanes(&host).await {
+            let label = client.label();
+            let read = client.afd_call("fixture-forge-read", json!({})).await;
+            let extra = read["metadata"].as_object().unwrap();
+            assert!(!extra.contains_key("dev.umbel/mutation"), "{label}: {read}");
+            assert!(!extra.contains_key("dev.umbel/space"), "{label}: {read}");
+
+            let write = client.afd_call("fixture-forge-write", json!({})).await;
+            assert_eq!(
+                write["metadata"]["dev.umbel/mutation"], true,
+                "{label}: {write}"
+            );
+            assert_eq!(
+                write["metadata"]["dev.umbel/space"], "main",
+                "{label}: {write}"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn event_ack_in_an_afd_batch_with_a_forged_principal_stores_under_the_real_one() {
+        let dir = minimal();
+        let host = HostBuilder::open(dir.path())
+            .unwrap()
+            .register(remember("note-remember"))
+            .seal()
+            .unwrap();
+        let mut remembered = 0;
+        for mut client in Client::lanes(&host).await {
+            let label = client.label();
+            // A new event for this lane to acknowledge.
+            let written = client
+                .afd_call("note-remember", json!({ "text": "a" }))
+                .await;
+            assert_eq!(written["success"], true, "{label}: {written}");
+            remembered += 1;
+            let cursor = format!("v0:main:{remembered}");
+
+            let batch = client
+                .call(
+                    "afd-batch",
+                    json!({
+                        "commands": [{ "command": "event-ack", "input": { "cursor": cursor } }],
+                        "context": { PRINCIPAL_KEY: forged_principal() },
+                    }),
+                )
+                .await;
+            assert_eq!(
+                batch["results"][0]["result"]["success"], true,
+                "{label}: {batch}"
+            );
+
+            // The cursor is the lane's own principal's: read it back as that principal.
+            let listed = client.call("event-list", json!({})).await;
+            assert_eq!(listed["data"]["acknowledged"], cursor, "{label}: {listed}");
+        }
+        // Nothing was stored under the forged principal.
+        let forger = Actor::new(ActorKind::Agent).with_id("forger");
+        assert_eq!(acknowledged(&host, forger).await, "v0:main:0");
+    }
+}

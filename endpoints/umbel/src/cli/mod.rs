@@ -12,6 +12,7 @@ mod args;
 mod output;
 mod parse;
 mod prompt;
+mod serve;
 mod terminal;
 
 pub use prompt::Console;
@@ -115,7 +116,9 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    let cli = match Cli::try_parse_from(args) {
+    let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
+    let serving = names_serve(&args);
+    let cli = match Cli::try_parse_from(&args) {
         Ok(cli) => cli,
         Err(error) => {
             use clap::error::ErrorKind;
@@ -125,6 +128,13 @@ where
             ) {
                 let _ = out.write_all(error.to_string().as_bytes());
                 return 0;
+            }
+            if serving {
+                return fail_on_stderr(&output::pre_run_failure(
+                    error_codes::INVALID_INPUT,
+                    error.to_string().trim_end(),
+                    "Run umbel serve --help for the usage.",
+                ));
             }
             let mut writers = Writers {
                 out,
@@ -148,12 +158,33 @@ where
             let dir = environment.cwd.join(dir.unwrap_or_default());
             return init(&dir, name.as_deref(), &mut writers);
         }
-        Verb::Serve { .. } => {
-            return writers.failure(
-                error_codes::NOT_IMPLEMENTED,
-                "umbel serve is not available in this build yet",
-                "Use umbel call <command> for now; the MCP surfaces arrive in phase 0 step 5.",
-            );
+        Verb::Serve {
+            stdio,
+            http,
+            bind,
+            print_token,
+        } => {
+            let mode = match (stdio, http) {
+                (true, false) if bind.is_none() && !print_token => serve::Mode::Stdio,
+                (false, true) => serve::Mode::Http { print_token },
+                _ => {
+                    return fail_on_stderr(&output::pre_run_failure(
+                        error_codes::INVALID_INPUT,
+                        "Choose exactly one transport: --stdio, or --http with the optional --bind and --print-token",
+                        "Run umbel serve --stdio, or umbel serve --http [--bind <addr>] [--print-token].",
+                    ));
+                }
+            };
+            return serve_host(
+                &cli.workspace,
+                &cli.log,
+                bind,
+                environment,
+                configure,
+                mode,
+                writers.out,
+            )
+            .await;
         }
         Verb::Help { filter, full } => {
             let mut input = json!({ "format": if full { "full" } else { "brief" } });
@@ -262,6 +293,50 @@ where
     run_command(&host, &command, input, &flags, environment, &mut writers).await
 }
 
+/// Whether the arguments name the `serve` verb, loosely: a startup failure of `serve` is written
+/// to stderr, never stdout, even when the arguments do not parse.
+fn names_serve(args: &[OsString]) -> bool {
+    args.iter().skip(1).any(|arg| arg == "serve")
+}
+
+/// Whether `umbel` is invoked as `umbel ... serve ...`. The binary does not turn Ctrl+C into exit
+/// code 130 for it: `serve` stops on SIGINT and SIGTERM with exit code 0.
+pub fn is_serve<I, T>(args: I) -> bool
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    Cli::try_parse_from(args).is_ok_and(|cli| matches!(cli.command, Verb::Serve { .. }))
+}
+
+/// A startup failure of `serve`: one failure `CommandResult` as JSON on one line of stderr,
+/// nothing on stdout, exit code 1.
+fn fail_on_stderr(result: &CommandResult<Value>) -> i32 {
+    let line = serde_json::to_string(result).unwrap_or_else(|_| "null".to_owned());
+    let _ = writeln!(std::io::stderr(), "{line}");
+    1
+}
+
+async fn serve_host(
+    flag: &Option<PathBuf>,
+    log: &Option<String>,
+    bind: Option<String>,
+    environment: &Environment,
+    configure: impl FnOnce(HostBuilder) -> HostBuilder,
+    mode: serve::Mode,
+    out: &mut dyn Write,
+) -> i32 {
+    let (sealed, _) = build_host(flag, log, bind, environment, configure);
+    let outcome = match sealed {
+        Ok(host) => serve::serve(&host, mode, out).await,
+        Err(error) => Err(error),
+    };
+    match outcome {
+        Ok(()) => 0,
+        Err(error) => fail_on_stderr(&error.into_result()),
+    }
+}
+
 /// The input of a command: ready, or still words to parse.
 enum Target {
     Input(Value),
@@ -297,19 +372,7 @@ async fn open_host(
     writers: &mut Writers<'_>,
     command: Option<&str>,
 ) -> Option<Host> {
-    let located = discover(
-        flag.as_deref(),
-        environment.workspace.as_ref(),
-        &environment.cwd,
-    );
-    let opened = open_with(&located, log, environment);
-    let sealed = opened.and_then(|workspace| {
-        logging::init(
-            workspace.config().log.filter(),
-            workspace.config().log.format == LogFormat::Json,
-        );
-        configure(HostBuilder::from_workspace(workspace)).seal()
-    });
+    let (sealed, located) = build_host(flag, log, None, environment, configure);
     match sealed {
         Ok(host) => Some(host),
         Err(error) => {
@@ -325,14 +388,40 @@ async fn open_host(
     }
 }
 
+/// Find the workspace, open it, install logging and seal a host; also the discovery result, which
+/// the doctor reports when the workspace does not open.
+fn build_host(
+    flag: &Option<PathBuf>,
+    log: &Option<String>,
+    bind: Option<String>,
+    environment: &Environment,
+    configure: impl FnOnce(HostBuilder) -> HostBuilder,
+) -> (Result<Host, HostError>, Result<Located, WorkspaceError>) {
+    let located = discover(
+        flag.as_deref(),
+        environment.workspace.as_ref(),
+        &environment.cwd,
+    );
+    let opened = open_with(&located, log, bind, environment);
+    let sealed = opened.and_then(|workspace| {
+        logging::init(
+            workspace.config().log.filter(),
+            workspace.config().log.format == LogFormat::Json,
+        );
+        configure(HostBuilder::from_workspace(workspace)).seal()
+    });
+    (sealed, located)
+}
+
 fn open_with(
     located: &Result<Located, WorkspaceError>,
     log: &Option<String>,
+    bind: Option<String>,
     environment: &Environment,
 ) -> Result<Workspace, HostError> {
     let located = located.clone().map_err(HostError::from)?;
     let flags = Overrides {
-        http_bind: None,
+        http_bind: bind,
         log_filter: log.clone(),
     };
     Workspace::open_located(&located, &flags.or(environment.overrides.clone()))

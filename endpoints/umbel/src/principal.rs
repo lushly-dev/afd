@@ -1,12 +1,15 @@
 //! The principal behind a call, version 0.
 //!
 //! A surface sets the principal on every call, always overwriting
-//! `CommandContext.extra["dev.umbel/principal"]`: the CLI and [`Host::context`](crate::Host::context)
-//! in this crate, the MCP context hook once the MCP surfaces land. Phase 0 has no authentication,
-//! so nothing is ever read from the request. A command takes the caller's identity **only** from
-//! this key, through [`Principal::from_context`], never from `context.actor` alone.
+//! `CommandContext.extra["dev.umbel/principal"]`: the CLI, [`Host::context`](crate::Host::context)
+//! and the MCP context hook. Phase 0 has no authentication, so nothing is ever read from the
+//! request: no header, no query parameter, and not the HTTP bearer token. A command takes the
+//! caller's identity **only** from this key, through [`Principal::from_context`], never from
+//! `context.actor` alone.
 
-use afd::{Actor, CommandContext};
+use crate::workspace::PrincipalConfig;
+use afd::server::ContextHookRequest;
+use afd::{Actor, ActorKind, CommandContext, CommandError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -88,6 +91,51 @@ impl Principal {
             .insert(PRINCIPAL_KEY.to_owned(), self.to_value());
     }
 }
+
+/// The MCP context hook, version 0 (specification section 4). It runs on every `tools/call`
+/// and always overwrites [`PRINCIPAL_KEY`]:
+///
+/// | Transport | `actor` | `authentication` |
+/// | --- | --- | --- |
+/// | stdio | an agent with `principal.local_id`, acting for `principal.on_behalf_of` when set | `process` |
+/// | Streamable HTTP | an agent with id `loopback` | `none` |
+///
+/// A request that carries HTTP parts came over Streamable HTTP, and one that does not came over
+/// stdio; AFD sets the parts itself, so a caller cannot choose its transport. Nothing else of the
+/// request is read.
+pub(crate) fn hook(
+    config: &PrincipalConfig,
+) -> impl Fn(
+    ContextHookRequest,
+    CommandContext,
+) -> std::future::Ready<Result<CommandContext, CommandError>>
++ Send
++ Sync
++ 'static {
+    let local_id = config.local_id.clone();
+    let on_behalf_of = config.on_behalf_of.clone();
+    move |request, mut context| {
+        let principal = if request.http_parts().is_some() {
+            Principal::new(
+                Actor::new(ActorKind::Agent).with_id(LOOPBACK_ID),
+                Transport::Http,
+                Authentication::None,
+            )
+        } else {
+            let mut actor = Actor::new(ActorKind::Agent).with_id(&local_id);
+            if let Some(person) = &on_behalf_of {
+                actor = actor.with_on_behalf_of(person);
+            }
+            Principal::new(actor, Transport::Stdio, Authentication::Process)
+        };
+        principal.apply(&mut context);
+        std::future::ready(Ok(context))
+    }
+}
+
+/// The actor id of every caller of the loopback HTTP endpoint: the bearer token grants access
+/// and names no one.
+pub(crate) const LOOPBACK_ID: &str = "loopback";
 
 #[cfg(test)]
 mod tests {

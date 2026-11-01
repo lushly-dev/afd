@@ -17,6 +17,7 @@ use crate::middleware;
 use crate::principal::{Authentication, Principal, Transport};
 use crate::surfaces;
 use crate::workspace::{Workspace, codes};
+use afd::server::McpServer;
 use afd::{
     Actor, ApprovalMiddlewareOptions, CommandContext, CommandDefinition, CommandInterface,
     CommandRegistry, DirectClient, JournalRecorder, create_approval_middleware,
@@ -140,7 +141,7 @@ impl HostBuilder {
         let _ = first_class_cell.set(first_class.clone());
 
         install_middleware(&registry, &workspace)?;
-        surfaces::mcp::build_server(&registry, &workspace, &first_class)?;
+        let server = surfaces::mcp::build_server(&registry, &workspace, &first_class)?;
         install_journal(&registry, &workspace, &projector);
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
@@ -157,6 +158,7 @@ impl HostBuilder {
             registry,
             first_class,
             projector,
+            server,
         })
     }
 }
@@ -269,6 +271,7 @@ pub struct Host {
     registry: Arc<CommandRegistry>,
     first_class: Vec<String>,
     projector: Arc<Projector>,
+    server: McpServer,
 }
 
 impl Host {
@@ -300,6 +303,26 @@ impl Host {
     /// The first-class tools of the hybrid MCP surface, in list order.
     pub fn first_class_tools(&self) -> &[String] {
         &self.first_class
+    }
+
+    /// The configured MCP server (hybrid strategy, the first-class tools, confirmations signed
+    /// with the workspace's shared key, the context hook of version 0). It serves stdio and
+    /// Streamable HTTP; the hook tells them apart by whether the request has HTTP parts.
+    /// Cloning is cheap, but a stdio connection needs a server of its own
+    /// ([`McpServer::serve_stdio`] makes one).
+    pub fn mcp_server(&self) -> McpServer {
+        self.server.clone()
+    }
+
+    /// The HTTP router: the MCP endpoint at `http.path` and `GET /health`, every request behind
+    /// the bearer layer. The token is read from `state/keys/http.token`, created race-safe with
+    /// mode 0600 when missing; to rotate it, delete the file and build a new router.
+    ///
+    /// # Errors
+    /// `WORKSPACE_KEY_INVALID` for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it
+    /// cannot be created.
+    pub fn http_router(&self) -> Result<axum::Router, HostError> {
+        surfaces::http::router(&self.server, &self.workspace)
     }
 
     /// A context for a library call: `actor`, a new trace id, and the principal under

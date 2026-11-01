@@ -21,6 +21,8 @@ pub mod codes {
     pub const WORKSPACE_LOCK_TIMEOUT: &str = "WORKSPACE_LOCK_TIMEOUT";
     /// A doctor check failed.
     pub const WORKSPACE_UNHEALTHY: &str = "WORKSPACE_UNHEALTHY";
+    /// `umbel serve` could not start serving: the address is in use, or stdio did not open.
+    pub const SERVER_START_FAILED: &str = "SERVER_START_FAILED";
     /// AFD's `ALREADY_EXISTS`, which `init` returns for a directory that holds a workspace.
     pub const ALREADY_EXISTS: &str = afd::error_codes::ALREADY_EXISTS;
 }

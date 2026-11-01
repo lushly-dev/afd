@@ -439,3 +439,52 @@ async fn the_doctor_agrees_with_the_projection() {
         .clone();
     assert_eq!(events["status"], "pass", "{events}");
 }
+
+mod over_mcp {
+    use super::*;
+    use support::mcp::Client;
+
+    /// A mutation called over MCP on every lane is journaled with the MCP interface and the
+    /// transport's actor, and projected into the default space's stream with that actor.
+    #[tokio::test]
+    async fn mutations_over_mcp_are_journaled_and_projected_with_the_transports_actor() {
+        let dir = minimal();
+        let host = seal_with_fixtures(dir.path());
+        let validator = schema_validator("event.v0");
+        for mut client in Client::lanes(&host).await {
+            let label = client.label();
+            let result = client
+                .afd_call("note-remember", json!({ "text": label }))
+                .await;
+            assert_eq!(result["success"], true, "{label}: {result}");
+            // A read leaves no event.
+            let peeked = client.afd_call("note-peek", json!({})).await;
+            assert_eq!(peeked["success"], true, "{label}");
+        }
+        let entries = journal_entries(dir.path());
+        let remembered: Vec<_> = entries
+            .iter()
+            .filter(|entry| entry.command == "note-remember")
+            .collect();
+        assert_eq!(remembered.len(), 4);
+        for entry in &remembered {
+            assert_eq!(entry.context_digest.interface.as_deref(), Some("mcp"));
+        }
+        let stream = events(dir.path(), "main");
+        assert_eq!(stream.len(), 4, "{stream:?}");
+        for (index, event) in stream.iter().enumerate() {
+            assert!(validator.is_valid(event), "{event}");
+            assert_eq!(event["seq"], index as u64 + 1);
+            assert_eq!(event["command"], "note-remember");
+            let id = event["actor"]["id"].as_str().unwrap();
+            assert!(id == "local" || id == "loopback", "{event}");
+            assert_eq!(event["actor"]["kind"], "agent");
+        }
+        // HTTP lanes are the loopback actor, stdio lanes the local one.
+        let ids: Vec<&str> = stream
+            .iter()
+            .map(|event| event["actor"]["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, ["loopback", "local", "loopback", "local"]);
+    }
+}

@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (steps 0 to 4 done). Written and revised
+- **State:** approved, implementation in progress (steps 0 to 5 done). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -71,9 +71,18 @@
   --all-targets --locked -- -D warnings`, the library-only clippy leg, `cargo
   test --locked` and `cargo +1.97.0 check --locked --all-targets`, run
   locally, then `umbel.yml` and `pnpm check` on the pull request. Amendments it
-  needed: see [Amendments from step 4](#amendments-from-step-4). The MCP cases
-  of `journal_events.rs`, `trusted_keys.rs` and `process.rs` wait for step 5.
-- **Not done:** steps 5 and 6 of the [plan](#11-implementation-plan); the exit
+  needed: see [Amendments from step 4](#amendments-from-step-4).
+- **Done:** step 5, the MCP surfaces ([#575](https://github.com/lushly-dev/afd/pull/575)), on 2026-11-01: `Host::mcp_server`
+  and `Host::http_router`, the context hook version 0, the bearer layer, `umbel
+  serve --stdio` and `--http`, Umbel's own drivers in `tests/support/`, and
+  `protocol_http.rs`, `protocol_stdio.rs`, `hybrid_surface.rs`,
+  `context_hook.rs`, `approvals.rs`, `confirmations.rs`, `process.rs` and the
+  MCP cases of `journal_events.rs` and `trusted_keys.rs`. Checks: `cargo fmt --check`, `cargo clippy
+  --all-targets --locked -- -D warnings`, the library-only clippy leg, `cargo
+  test --locked` and `cargo +1.97.0 check --locked --all-targets`, run locally,
+  then `umbel.yml` and `pnpm check` on the pull request. What it changed in
+  this document: [Amendments from step 5](#amendments-from-step-5).
+- **Not done:** step 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -208,6 +217,8 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # preserve_order keeps [spaces.*] in the file's order, which space-list reports.
 toml = { version = "1", features = ["preserve_order"] }
+# The exact-path MCP service behind the bearer layer (`service_fn`).
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
@@ -220,7 +231,6 @@ jsonschema = { version = "0.60", default-features = false }
 # The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
-tower = { version = "0.5", features = ["util"] }
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -259,8 +269,8 @@ Rules:
 | `Host`, `HostBuilder`, `HostError` | Open a workspace, register extra commands before sealing (the seam phase 1's compiled-in loader uses, and tests use for fixtures), seal into a `Host` |
 | `Host::registry() -> Arc<CommandRegistry>` | The one registry. A bare `registry.execute` carries no principal: commands that need one answer `UNAUTHORIZED` (section 3) |
 | `Host::context(actor: Actor) -> CommandContext` | A context for a library call: the actor, a new trace id, and `extra["dev.umbel/principal"]` filled with transport `library` and authentication `embedder` (section 4) |
-| `Host::mcp_server() -> McpServer` | The configured MCP server (section 4) |
-| `Host::http_router() -> axum::Router` | `/mcp` (or `http.path`) and `/health`, behind the bearer layer (section 4) |
+| `Host::mcp_server() -> McpServer` | The configured MCP server, built once at `seal` (section 4) |
+| `Host::http_router() -> Result<axum::Router, HostError>` | `http.path` (default `/mcp`) and `/health`, behind the bearer layer (section 4); the token is read, or created, here |
 | `Host::cli_client() -> DirectClient` | What the CLI projection calls through, with the CLI interface (section 4) |
 | `RESERVED_VERBS`, `SPACE_NOT_FOUND` | The reserved CLI verbs `seal` refuses; the code of an undeclared space |
 | `cli::{run, Environment, Console}` (feature `cli`) | The whole command line as a function: the `umbel` binary calls `run` with the process's terminal; tests call it in process with fixture commands and a scripted `Console` (section 4) |
@@ -872,6 +882,7 @@ AFD's.
 | `WORKSPACE_KEY_INVALID` | A key file is shorter than 32 bytes or, for `http.token`, malformed | No | "Delete <file>; the next open creates a new key. Pending confirmations, and HTTP clients holding the old token, must start again." |
 | `WORKSPACE_LOCK_TIMEOUT` | The workspace lock was not taken within `journal.lock_timeout_ms` | Yes | "Another umbel process held the workspace lock for more than <ms> ms, usually during umbel event rebuild. Retry when it finishes; if no umbel process is running, run umbel workspace doctor." |
 | `WORKSPACE_UNHEALTHY` | A doctor check failed | No | The first failing check's suggestion |
+| `SERVER_START_FAILED` | `umbel serve` could not start serving: the address is in use, or stdio did not open (added in step 5) | No | "Choose another address with --bind (port 0 picks a free one), or stop the process using this one; run umbel workspace doctor to check the workspace." |
 
 The `WORKSPACE_*` codes other than `WORKSPACE_UNHEALTHY` and
 `WORKSPACE_LOCK_TIMEOUT` come only from opening the workspace, so only the
@@ -1617,6 +1628,49 @@ document (the pull request number is in the status block):
   OS lock is exercised across real processes. The MCP cases of
   `journal_events.rs`, `trusted_keys.rs` (`afd-batch` over MCP) and
   `process.rs` are step 5's.
+
+## Amendments from step 5
+
+Made in the step 5 pull request ([#575](https://github.com/lushly-dev/afd/pull/575)), each the smallest change the code or
+the tests needed:
+
+- **`Host::mcp_server()` takes no argument.** The pseudo-code of section 4 passes a
+  `transport` to the hook; the hook instead reads whether the request carries HTTP
+  parts, which AFD sets itself over Streamable HTTP and never over stdio, so a caller
+  cannot choose its transport and one server serves both. The server is built once at
+  `seal` (which already built and validated it) and `mcp_server()` clones it.
+- **`Host::http_router()` returns `Result<axum::Router, HostError>`.** Reading or
+  creating `state/keys/http.token` can fail (`WORKSPACE_KEY_INVALID` for a malformed
+  token, `WORKSPACE_STATE_UNWRITABLE`), and section 4 already makes that a startup
+  failure. The token is created here, at the first router, not at `open`.
+- **The MCP endpoint is an exact-path service, not `nest_service`.** `http.path` is
+  deployer text, and axum reads braces and wildcards in a nested path as captures and
+  panics on some. A request is served only when its path equals `http.path`; any other
+  path is 404 (behind the bearer layer, so 401 without the token). `tower` moves from
+  the dev-dependencies to the dependencies for `service_fn`; the lock gains no package.
+- **A new package code, `SERVER_START_FAILED`** (section 3's table), for an address in
+  use or a stdio transport that did not open. Usage errors of `serve` (neither or both
+  transports, `--bind` or `--print-token` with `--stdio`, an unknown flag) are
+  `INVALID_INPUT`; like every startup failure they are one JSON line on stderr with exit
+  1 and nothing on stdout. `cli::is_serve` is public so that the binary can leave `serve`
+  out of its Ctrl+C handling (`serve` stops on SIGINT and SIGTERM with exit 0).
+- **The binary exits with `std::process::exit`, and holds no `stdout` lock.** A lock
+  held for the whole run blocked `rmcp`'s stdout writer thread, so a stdio server never
+  answered; and the runtime's shutdown waits for a blocking read of stdin that nothing
+  can cancel. `process.rs` covers both.
+- **The 401 body names the real token file** (the `<workspace>` of section 4 is the
+  workspace's absolute path), as the listening line does.
+- **`umbel serve` repairs the event streams at start.** It calls `Host::repair_events`
+  before serving, as section 3 says; a workspace whose streams are too damaged to
+  repair does not serve (the startup failure of section 4). Step 5 rebased onto step 4,
+  so the MCP cases that waited for it are in this pull request: `journal_events.rs`
+  (mutations over MCP are journaled and projected with the transport's actor),
+  `trusted_keys.rs` (`event-ack` in an `afd-batch` with a forged principal stores under
+  the real one) and `process.rs` (one-shot `umbel event ack` and `umbel event list`
+  beside a stdio server, contiguous journal `seq`). `context_hook.rs` reads the
+  host's own journal.
+- The `cli.rs` case `serve_is_reserved_but_not_yet_available` is removed; `process.rs`
+  covers `serve`.
 
 ## Follow-ups
 
