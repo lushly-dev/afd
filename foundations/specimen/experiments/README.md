@@ -78,6 +78,28 @@ node foundations/specimen/experiments/run-load-pair.mjs \
 
 `resources/pairs.mjs` applies the baseline policy's `hostCondition` and repeatability rules. Each job's two probes must be at most 1.10 times the session's quietest probe. A consumer's comparison gives no ratio if any planned job's final attempt failed or fell outside that band, or if either cell's repetitions spread more than 10%.
 
+## Incumbent/candidate pairs (T04)
+
+`run-t04-pairs.mjs` compares each consumer's own Storybook Vitest path with Specimen's native wrappers on one frozen snapshot, under the baseline policy:
+
+```sh
+SPECIMEN_FROZEN_MANIFESTS=/path/to/fast-af.json:/path/to/lushly.json \
+node foundations/specimen/experiments/run-t04-pairs.mjs \
+  --fast-af /path/to/fast-af-snapshot --lushly /path/to/lushly-snapshot \
+  --fonts /path/to/recorded-fonts --out /path/to/empty-evidence-directory
+```
+
+Per consumer it runs a nested ABBA of six jobs under `run-resources.mjs`: the incumbent outside, Specimen's in-process default and its opt-in isolated worker inside. Each job takes five cold and five warm samples:
+
+- **Incumbent** (`run-incumbent.mjs`, `incumbent.mjs`): `vitest run` with the consumer's own config over the story files for the components the wrappers mount. Cold runs first remove the snapshot's Storybook and Vite caches; warm runs repeat immediately. A generated wrapper config loads the consumer config unchanged and adds one plugin that points the test page's Google Fonts links at the recorded copies.
+- **Candidate** (`run-consumers.mjs`): warm renders in a primed bench, and with `SPECIMEN_COLD_PROCESS=1` each cold sample in a new Node process (`cold-sample.mjs`), the policy's first render after process start. `SPECIMEN_FONT_STYLESHEETS` makes the wrapper link the same recorded stylesheets and wait for them, and `SPECIMEN_BENCH_EXECUTABLE` selects the incumbent's headless Chromium, which the driver reads from the freeze manifest.
+
+The driver serves fonts from its own process, outside both measured families, and fails a job that asks for an unrecorded font. It waits for the quiet-window gate and applies the policy's probe band, repeatability rule and acceptance criteria in `resources/comparison.mjs`. Incumbent jobs get the policy's larger family memory limit.
+
+`inputs/remote-fonts.mjs record --snapshot DIR --inputs FREEZE.json --out STORE` records a consumer's preview-head fonts and compares their digests with the freeze manifest's.
+
+`run-budgets.mjs --fast-af DIR --lushly DIR --out DIR` builds each wrapper project statically, loads every case in Chromium to account for its actual JavaScript (raw, gzip and brotli), and sizes two prototypes from the consumer's own installs: the play helpers retained stories import from `storybook/test`, and axe-core's minified build with a minimal runner. The prototypes size budget categories Specimen does not ship yet.
+
 ## Diagnostic heap lifetime
 
 Run a separate, guarded allocation-sampling job:

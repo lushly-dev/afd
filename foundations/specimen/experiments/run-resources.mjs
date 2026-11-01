@@ -22,8 +22,10 @@ if (!Number.isInteger(samples) || samples < 1 || samples > 20)
 	throw new Error('--samples must be 1..20');
 const selected = option('--consumer', 'all');
 const workload = option('--workload', 'consumer');
-if (!['consumer', 'batches'].includes(workload))
-	throw new Error('--workload must be consumer or batches');
+if (!['consumer', 'batches', 'incumbent'].includes(workload))
+	throw new Error('--workload must be consumer, batches or incumbent');
+if (workload === 'incumbent' && !option('--fonts'))
+	throw new Error('--workload incumbent needs --fonts, the consumer recorded-font store');
 const batches = Number(option('--batches', '5'));
 if (!Number.isInteger(batches) || batches < 1 || batches > 10)
 	throw new Error('--batches must be 1..10');
@@ -40,10 +42,18 @@ if (!consumers.length) throw new Error('--consumer must be all, fast-af or lushl
 await mkdir(directory, { recursive: true });
 if ((await readdir(directory)).length) throw new Error('Resource evidence directory must be empty');
 const json = (file, data) => writeFile(file, `${JSON.stringify(data, null, 2)}\n`);
+const policyLimits = JSON.parse(
+	await readFile(join(import.meta.dirname, 'inputs/baseline-policy.json'), 'utf8')
+).limits;
 const implementationFiles = [
 	'run-resources.mjs',
 	'run-consumers.mjs',
 	'run-batches.mjs',
+	'run-incumbent.mjs',
+	'cold-sample.mjs',
+	'incumbent.mjs',
+	'inputs/font-rewrite.mjs',
+	'inputs/remote-fonts.mjs',
 	'consumer-project.mjs',
 	'fast-af.fixture.mjs',
 	'lushly.fixture.mjs',
@@ -73,14 +83,20 @@ const report = {
 	status: 'failed',
 	purpose: cpuProfiling
 		? 'Diagnostic warmed Node CPU profiles; instrumented resource totals are not ordinary acceptance'
-		: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
+		: workload === 'incumbent'
+			? 'Incumbent Storybook Vitest representative samples under the same process-family recorder'
+			: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
 	runtime: { node: process.version, executable: process.execPath },
 	host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model },
 	budgets: {
 		concurrentJobs: 1,
 		minFreeMemoryPercent: 25,
 		reservedCores: 2,
-		maxFootprintBytes: 2 * 1024 ** 3,
+		// The policy allows the incumbent's representative jobs a larger family limit (T04).
+		maxFootprintBytes:
+			workload === 'incumbent'
+				? policyLimits.incumbentFamilyFootprintBytes
+				: policyLimits.familyFootprintBytes,
 		intervalMs: 100,
 		graceMs: 500,
 		idleWindowMs: 1000,
@@ -122,7 +138,14 @@ try {
 			const cpuProfileDirectory = join(profileDirectory, 'cpu-profiles');
 			if (cpuProfiling) await mkdir(cpuProfileDirectory);
 			const childArgs = [
-				join(import.meta.dirname, workload === 'batches' ? 'run-batches.mjs' : 'run-consumers.mjs'),
+				join(
+					import.meta.dirname,
+					{
+						batches: 'run-batches.mjs',
+						incumbent: 'run-incumbent.mjs',
+						consumer: 'run-consumers.mjs',
+					}[workload]
+				),
 				'--consumer',
 				consumer,
 				'--out',
@@ -131,6 +154,7 @@ try {
 			if (workload === 'batches')
 				childArgs.push('--batches', String(batches), '--lifetime', lifetime);
 			else childArgs.push('--samples', String(samples));
+			if (workload === 'incumbent') childArgs.push('--fonts', resolve(option('--fonts')));
 			for (const name of ['--fast-af', '--lushly']) {
 				const value = option(name);
 				if (value) childArgs.push(name, resolve(value));
