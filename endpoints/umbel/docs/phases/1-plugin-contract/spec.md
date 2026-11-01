@@ -107,8 +107,9 @@
   row of the [plan](#14-implementation-plan) lists it. The amendments are in
   [Amendments from step 4](#amendments-from-step-4); the one that matters most
   is that the normative WIT file did not parse (`list` is a WIT keyword).
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3, 4 and 5.
-- **Not done:** the Umbel steps 6 to 8 of the
+- **Step 6 done 2026-11-01** ([#622](https://github.com/lushly-dev/afd/pull/622)): `umbel-plugin-todo` and `umbel-todo`, `--backend umbel` and `umbel-mounted` in the todo example, the `todo-http` fixture, and the `conformance` and `plugin-isolation` jobs, as the step 6 row of the [plan](#14-implementation-plan) lists them. The amendments are in [Amendments from step 6](#amendments-from-step-6); the one that matters most is that the Rust todo backend lists one grouped `todo` tool by default, so it gained `TOOL_STRATEGY=individual` for the mount.
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5 and 6.
+- **Not done:** the Umbel steps 7 and 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
