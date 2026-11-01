@@ -1461,7 +1461,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fc8c07de616d119a85821d14f322caec2dba982cd86a712c46772c03331f73b4",
+      "current_import_sha256": "0ae5b3c5c0cfb4abb4b5595fb72dc8eb118aaf44467aba382b9c75ce46cd5f45",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",

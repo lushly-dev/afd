@@ -54,11 +54,12 @@ describe('recorded fonts', () => {
 			expect(font.headers.get('access-control-allow-origin')).toBe('*');
 			expect(await font.text()).toBe('woff2-bytes');
 			expect((await fetch(`${server.url}/font/${'0'.repeat(64)}`)).status).toBe(404);
-			await fetch(`${server.url}/`);
+			await fetch(`${server.url}/unrelated`);
 			const stats = server.stats();
 			expect(stats).toMatchObject({ stylesheets: 1, fonts: 1 });
 			expect(stats.missing).toHaveLength(1);
-			expect(stats.other).toHaveLength(1);
+			// Host tools may probe a new local port too, so check for this request, not a count.
+			expect(stats.other.some((entry) => entry.startsWith('GET /unrelated '))).toBe(true);
 		} finally {
 			await server.close();
 		}
