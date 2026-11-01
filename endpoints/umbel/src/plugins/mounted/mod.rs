@@ -478,6 +478,7 @@ impl<'a> Plan<'a> {
                         kind: super::manifest::PluginKind::Mounted,
                         spaces: self.request.spaces.to_vec(),
                         space_command: tool.bind_space,
+                        pipeline: false,
                     },
                 )
             })

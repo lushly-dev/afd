@@ -225,6 +225,7 @@ pub(crate) struct Inputs<'a> {
     pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
     /// Extra trusted root certificates (PEM) for HTTPS mounts.
+    #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub mount_roots: &'a [Vec<u8>],
 }
 
@@ -235,6 +236,7 @@ struct Resolved {
     compiled: Option<Arc<dyn CompiledPlugin>>,
     source: String,
     /// The plugin directory (canonical), for a directory source.
+    #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     root: Option<PathBuf>,
 }
 
@@ -522,6 +524,7 @@ fn failed_report(
         packs: Vec::new(),
         contexts: Vec::new(),
         pipelines: Vec::new(),
+        mount: prepared.mount.clone(),
         status: Status::Failed(error),
     }
 }
@@ -725,13 +728,32 @@ fn prepare(
             taken,
             roots: inputs.mount_roots,
         })?;
+        // Pipelines and contexts are data in the manifest, so a mounted plugin may ship them; the
+        // names they take must not collide with the tools just named.
+        for pipeline in &manifest.pipelines {
+            check_name(&pipeline.name, &instance.id, taken)?;
+            if built.commands.iter().any(|(d, _)| d.name == pipeline.name) {
+                return Err(PluginError::conflict(format!(
+                    "plugin instance `{}` declares the pipeline `{}`, but a mounted tool already maps to that command",
+                    instance.id, pipeline.name
+                )));
+            }
+        }
+        check_context_names(instance, manifest, contexts_taken)?;
         let skills = check_skill_names(instance, skills, shipped)?;
+        let suggestions = built
+            .report
+            .tools
+            .iter()
+            .filter(|tool| tool.first_class)
+            .map(|tool| tool.command.clone())
+            .collect();
         return Ok(Prepared {
             report: InstanceReport {
                 id: instance.id.clone(),
                 required,
                 source: resolved.source.clone(),
-                spaces: enabled,
+                spaces: enabled.clone(),
                 manifest: Some(manifest.clone()),
                 grants,
                 commands: built
@@ -740,12 +762,20 @@ fn prepare(
                     .iter()
                     .map(|tool| tool.command.clone())
                     .collect(),
+                packs: pack_states,
+                contexts: manifest.contexts.iter().map(|c| c.name.clone()).collect(),
+                pipelines: Vec::new(),
                 mount: Some(built.report),
                 status: Status::Loaded,
             },
+            manifest: manifest.clone(),
             commands: built.commands,
             advertised: built.advertised,
             gate: built.gate,
+            pipeline_schemas,
+            contexts: context_configs(manifest),
+            suggestions,
+            spaces: enabled,
             skills,
         });
     }
@@ -772,14 +802,7 @@ fn prepare(
     for pipeline in &manifest.pipelines {
         check_name(&pipeline.name, &instance.id, taken)?;
     }
-    for context in &manifest.contexts {
-        if let Some(owner) = contexts_taken.get(&context.name) {
-            return Err(PluginError::conflict(format!(
-                "plugin instance `{}` declares the context `{}`, but it is already taken by {owner}",
-                instance.id, context.name
-            )));
-        }
-    }
+    check_context_names(instance, manifest, contexts_taken)?;
 
     let skills = check_skill_names(instance, skills, shipped)?;
 
@@ -806,19 +829,7 @@ fn prepare(
             )
         })
         .collect();
-    let contexts = manifest
-        .contexts
-        .iter()
-        .map(|context| {
-            let mut config = ContextConfig::new(&context.name)
-                .with_description(&context.description)
-                .with_priority(context.priority);
-            if !context.triggers.is_empty() {
-                config = config.with_triggers(context.triggers.clone());
-            }
-            config
-        })
-        .collect();
+    let contexts = context_configs(manifest);
     let suggestions = manifest
         .commands
         .iter()
@@ -850,6 +861,40 @@ fn prepare(
         spaces: space_names,
         skills,
     })
+}
+
+/// A context the instance declares must not already be taken by another instance.
+fn check_context_names(
+    instance: &PluginInstance,
+    manifest: &Manifest,
+    contexts_taken: &BTreeMap<String, String>,
+) -> Result<(), PluginError> {
+    for context in &manifest.contexts {
+        if let Some(owner) = contexts_taken.get(&context.name) {
+            return Err(PluginError::conflict(format!(
+                "plugin instance `{}` declares the context `{}`, but it is already taken by {owner}",
+                instance.id, context.name
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// The AFD contexts a manifest contributes.
+fn context_configs(manifest: &Manifest) -> Vec<ContextConfig> {
+    manifest
+        .contexts
+        .iter()
+        .map(|context| {
+            let mut config = ContextConfig::new(&context.name)
+                .with_description(&context.description)
+                .with_priority(context.priority);
+            if !context.triggers.is_empty() {
+                config = config.with_triggers(context.triggers.clone());
+            }
+            config
+        })
+        .collect()
 }
 
 /// Read and validate every skill the manifest declares (`SKILL_INVALID`).

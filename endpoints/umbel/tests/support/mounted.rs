@@ -209,12 +209,15 @@ pub fn certificate() -> (Arc<tokio_rustls::rustls::ServerConfig>, String) {
     (Arc::new(config), pem)
 }
 
-/// What an HTTP fixture saw: every request's headers, as `(name, value)` pairs.
+/// One request's headers, as `(name, value)` pairs.
+pub type Headers = Vec<(String, String)>;
+
+/// What an HTTP fixture saw: every request's headers.
 #[derive(Clone, Default)]
-pub struct Seen(pub Arc<Mutex<Vec<Vec<(String, String)>>>>);
+pub struct Seen(pub Arc<Mutex<Vec<Headers>>>);
 
 impl Seen {
-    pub fn all(&self) -> Vec<Vec<(String, String)>> {
+    pub fn all(&self) -> Vec<Headers> {
         self.0.lock().unwrap().clone()
     }
 

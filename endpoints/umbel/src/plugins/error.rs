@@ -198,6 +198,7 @@ impl PluginError {
 
     /// `PLUGIN_UNAVAILABLE` for `instance`: its mounted server is not reachable now. Retryable,
     /// and never retried by the host, because the call may have run.
+    #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub(crate) fn unavailable(instance: &str, problem: impl fmt::Display) -> Self {
         let mut error = Self::new(
             codes::PLUGIN_UNAVAILABLE,
@@ -210,6 +211,7 @@ impl PluginError {
 
     /// `PLUGIN_LIMIT_EXCEEDED` for `instance`: the per-call limit `limit` (`details.limit`) was
     /// reached.
+    #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub(crate) fn limit_exceeded(
         instance: &str,
         limit: &'static str,

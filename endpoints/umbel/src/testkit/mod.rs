@@ -61,6 +61,7 @@ struct PackOverride {
 pub struct TestHost {
     host: Host,
     dir: TempDir,
+    #[cfg_attr(not(feature = "cli"), allow(dead_code))]
     plugin: Arc<dyn CompiledPlugin>,
     source: Source,
     instance: String,

@@ -488,10 +488,10 @@ mod tests {
         let mut reader = LimitedRead::new(reader, std::sync::Arc::clone(&limit));
         writer.write_all(b"12345678\n12345678\n1234").await.unwrap();
         let mut buffer = [0u8; 64];
-        reader.read(&mut buffer).await.unwrap();
+        assert!(reader.read(&mut buffer).await.unwrap() > 0);
         assert!(!limit.tripped());
         writer.write_all(b"56789\n").await.unwrap();
-        reader.read(&mut buffer).await.unwrap();
+        assert!(reader.read(&mut buffer).await.unwrap() > 0);
         assert!(limit.tripped(), "4 + 5 bytes make a 9 byte line");
     }
 }

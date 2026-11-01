@@ -40,11 +40,7 @@ fn patterns() -> &'static [Pattern] {
     PATTERNS.get_or_init(|| {
         SOURCES
             .iter()
-            .filter_map(|(id, source)| {
-                Regex::new(source)
-                    .ok()
-                    .map(|regex| Pattern { id: *id, regex })
-            })
+            .filter_map(|(id, source)| Regex::new(source).ok().map(|regex| Pattern { id, regex }))
             .collect()
     })
 }

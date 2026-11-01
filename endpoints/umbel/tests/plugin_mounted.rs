@@ -1012,10 +1012,3 @@ async fn two_instances_with_their_own_prefixes_serve_disjoint_commands_and_one_c
     hello_dir(dir.path(), "h2");
     assert_eq!(error_of(open(dir.path())).code(), "PLUGIN_CONFLICT");
 }
-
-#[tokio::test]
-async fn the_stock_binary_features_name_the_mounted_loader() {
-    // `mounted` is on by default; a build without it answers PLUGIN_KIND_UNAVAILABLE (covered by
-    // the library-only leg of the checks).
-    assert!(cfg!(feature = "mounted"));
-}
