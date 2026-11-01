@@ -30,9 +30,7 @@ journal-file = []
 # exclusive OS file lock (`std::fs::File::lock` and `try_lock`). Needs Rust 1.89.
 journal-file-shared = ["journal-file"]
 # The approval middleware (`create_approval_middleware`): HMAC-SHA256 tokens and OS-random nonces.
-# `serde_json/float_roundtrip` parses floats exactly as JavaScript does, so canonical input JSON
-# (and so a token's input digest) matches TypeScript's.
-approval = ["dep:hmac", "dep:subtle", "dep:getrandom", "dep:ryu-js", "serde_json/float_roundtrip"]
+approval = ["dep:hmac", "dep:subtle", "dep:getrandom"]
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
 server = ["native", "dep:rmcp", "dep:http", "dep:getrandom", "tokio/rt", "tokio/io-std"]
@@ -40,19 +38,22 @@ server = ["native", "dep:rmcp", "dep:http", "dep:getrandom", "tokio/rt", "tokio/
 [dependencies]
 # Core dependencies
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# `float_roundtrip` parses floats exactly as JavaScript does, so canonical JSON (an approval
+# token's input digest, the journal's context cap) matches TypeScript's.
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 futures-util = "0.3"
 # The command journal's context digest (`sha256:` hashes).
 sha2 = "0.10"
+# Numbers in canonical JSON (approval input digests, the journal's context cap), spelled as
+# ECMAScript `Number::toString`.
+ryu-js = "1.0"
 
 # `approval` feature: the approval token's MAC and constant-time comparisons.
 hmac = { version = "0.12", optional = true }
 subtle = { version = "2.5", optional = true }
-# `approval` feature: numbers in canonical input JSON, spelled as ECMAScript `Number::toString`.
-ryu-js = { version = "1.0", optional = true }
 
 # Native-only: only `tokio::time::timeout` is used.
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }

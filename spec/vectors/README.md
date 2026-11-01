@@ -10,6 +10,7 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
 | `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | `generate-approval-tokens.mjs` |
+| `journal-context-cap.json` | The journal's 4096-byte cap on a declared context field's value ([`spec/journal.md`](../journal.md#declared-context-fields)): values just at, under and over it, where number spelling, multibyte UTF-8 and escapes decide kept or omitted | `generate-journal-context-cap.mjs` |
 
 ## Contract
 
@@ -19,12 +20,12 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` |
-  | --- | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` | `journal-context-cap.json` |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` | `packages/server/src/journal-context-cap-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` | `python/tests/test_journal_context_cap_vectors.py` |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` | `packages/rust/tests/journal_context_cap_vectors.rs` |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` | `packages/cpp/tests/journal_context_cap_vectors_test.cpp` |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 - A vector file joins this directory once all four languages load it, because `alfred parity`
@@ -121,6 +122,28 @@ result. The cases cover single use and reuse within the TTL, the expiry boundary
 and the order they are checked in, key rotation, changed payloads and MACs, a MAC respelled with
 nonzero padding bits, and malformed tokens.
 
+### `journal-context-cap.json`
+
+`json` is a context field's value as JSON text, spelled as a caller might send it: `1.0`, `1e21`,
+`-0`, `€` escapes and whitespace reach the language's JSON reader as written. The cap measures
+the value's canonical JSON instead: object keys sorted, no whitespace, strings escaped and numbers
+written as JavaScript's `JSON.stringify` writes them, so `1.0` is `1`, `1e21` is `1e+21`, `1e20` is
+`100000000000000000000` and `-0` is `0`. An integer that a 64-bit float cannot hold exactly is
+written as the float JavaScript reads it as: `99999999999999999` is `100000000000000000`. The
+generator pads each text with ASCII `x`s until its canonical JSON is 4095, 4096 or 4097 bytes.
+
+For each case a language must:
+- parse `json` with its JSON reader;
+- measure the UTF-8 canonical JSON of the result as `bytes`, where it exposes the measure;
+- journal the value as the declared field `field` (marked `journal: true`) and get `expected`:
+  `kept`, the value alone in `context`, or `omitted`, `field` alone in `contextOmitted`.
+
+A value of exactly `maxBytes` bytes is kept. The cases cover strings, whitespace and key order,
+whole numbers written with a fraction, exponents, fixed and scientific notation, shortest
+round-trip decimals, negative zero, integers past 2^53, two-, three- and four-byte characters,
+`\u` escapes, the short escapes, other control characters, the characters JavaScript leaves
+unescaped (DEL, U+2028 and U+2029), object keys and nesting.
+
 ## Regenerating
 
 After an intentional TypeScript change:
@@ -132,6 +155,7 @@ node spec/vectors/generate-pipeline-variables.mjs
 node spec/vectors/generate-batch-controls.mjs
 node spec/vectors/generate-validation.mjs
 node spec/vectors/generate-approval-tokens.mjs
+node spec/vectors/generate-journal-context-cap.mjs
 npx biome format --write spec/vectors
 ```
 

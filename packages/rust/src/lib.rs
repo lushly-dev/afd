@@ -67,6 +67,7 @@ pub use direct::{DirectApprovalHook, DirectApprovalRequest, DirectClient};
 pub mod batch;
 pub mod bootstrap;
 pub mod builtin_names;
+mod canonical;
 pub mod clock;
 pub mod commands;
 pub mod connectors;

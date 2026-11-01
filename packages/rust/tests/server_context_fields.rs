@@ -342,6 +342,41 @@ async fn every_route_runs_with_the_values() {
 }
 
 #[tokio::test]
+async fn an_afd_batch_context_argument_never_reaches_extra() {
+    // `context` is not an `afd-batch` argument (`spec/meta-tools.json`), so it is ignored like
+    // any other argument the tool does not declare: a declared field cannot arrive outside
+    // `_meta`, and neither can any other `extra` key.
+    for lane in [Lane::HttpModern, Lane::StdioLegacy] {
+        let mut client = Client::connect(server(), lane).await;
+        for context in [
+            json!({ "scope": { "project": "from-arguments" }, "tenant": "acme" }),
+            json!("not an object"),
+        ] {
+            let arguments = json!({
+                "commands": [{ "command": "scope-echo" }],
+                "context": context,
+                "undeclared": true,
+            });
+            let result = client.call("afd-batch", arguments.clone(), json!({})).await;
+            assert_eq!(result["success"], true, "{lane:?}: {result}");
+            assert_eq!(
+                result["results"][0]["result"]["data"]["extra"],
+                json!({}),
+                "{lane:?}: {result}"
+            );
+
+            // `_meta` still delivers the declared fields, and nothing is added beside them.
+            let result = client.call("afd-batch", arguments, meta()).await;
+            assert_eq!(
+                result["results"][0]["result"]["data"]["extra"],
+                json!({ "scope": { "project": "p-1" }, "locale": "en-GB" }),
+                "{lane:?}: {result}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn a_required_field_is_enforced_except_for_afd_commands_on_every_lane() {
     for lane in LANES {
         let mut client =
