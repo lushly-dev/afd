@@ -166,11 +166,15 @@ const paths = [
 	'incumbent',
 ];
 const plan = consumers.flatMap((consumer) => paths.map((path) => ({ consumer, path })));
+const settlePolicy = quietPolicy({ windowSeconds: 20, intervalSeconds: 10 });
 for (const [index, job] of plan.entries()) {
 	const details = study.consumers[job.consumer];
 	const server = servers[job.consumer];
 	for (let attempt = 1; attempt <= 6; attempt++) {
 		const name = `${String(index + 1).padStart(2, '0')}-${job.consumer}-${job.path}-a${attempt}`;
+		// Let the previous job's processes finish exiting before this job's first probe: a
+		// probe taken while an incumbent's browser and Vitest workers shut down reads as contention.
+		const settle = await waitForQuiet(settlePolicy, { timeoutSeconds: 300 });
 		const directory = join(out, name);
 		mkdirSync(directory);
 		const fontsBefore = server.stats();
@@ -247,6 +251,12 @@ for (const [index, job] of plan.entries()) {
 				other: fontsAfter.other.slice(fontsBefore.other.length),
 			},
 			hostBefore: profile?.hostBefore ?? report.hostBefore ?? null,
+			settle: {
+				quiet: settle.quiet,
+				reasons: settle.reasons,
+				samples: settle.samples.length,
+				timedOut: settle.timedOut ?? false,
+			},
 		};
 		if (record.fonts.missing.length) {
 			record.status = 'failed';
