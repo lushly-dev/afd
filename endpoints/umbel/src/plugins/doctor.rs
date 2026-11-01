@@ -13,6 +13,7 @@ use std::path::Path;
 
 use super::error::PluginError;
 use super::files::DirFiles;
+use super::loader::{LoadedPlugins, Status, TRUST_NOTE};
 use super::manifest::{Bearer, Manifest, PluginKind, Transport};
 use super::packs::check_pack;
 use super::skills::check_skill;
@@ -78,6 +79,57 @@ impl Issue {
             message: format!("{instance}: {}: {}", error.code(), error.message()),
             suggestion: error.suggestion().to_owned(),
         }
+    }
+}
+
+/// `plugins.loaded` on a sealed host (section 9.2): every instance loaded, with its kind and
+/// counts; `warn` when an optional instance failed. A required failure never gets here: it stops
+/// the host from opening.
+pub(crate) fn loaded_check(loaded: &LoadedPlugins) -> Check {
+    if loaded.instances.is_empty() {
+        return Check::pass("plugins.loaded", "No plugins are enabled");
+    }
+    let mut parts = Vec::new();
+    let mut failures = Vec::new();
+    let mut trusted = Vec::new();
+    for instance in &loaded.instances {
+        match &instance.status {
+            Status::Loaded => {
+                let kind = instance
+                    .kind()
+                    .map_or_else(String::new, |kind| kind.to_string());
+                parts.push(format!(
+                    "{} ({kind}, {} command(s))",
+                    instance.id,
+                    instance.commands.len()
+                ));
+                if instance.kind() == Some(PluginKind::Compiled) {
+                    trusted.push(instance.id.clone());
+                }
+            }
+            Status::Failed(error) => failures.push(format!(
+                "{} failed to load: {}: {}",
+                instance.id,
+                error.code(),
+                error.message()
+            )),
+        }
+    }
+    let mut message = format!("{} instance(s) loaded: {}", parts.len(), parts.join(", "));
+    if !trusted.is_empty() {
+        message.push_str(&format!(
+            "; compiled instance(s) {} are {TRUST_NOTE}: grants are a declaration, not a sandbox",
+            trusted.join(", ")
+        ));
+    }
+    if failures.is_empty() {
+        Check::pass("plugins.loaded", message)
+    } else {
+        Check::warn(
+            "plugins.loaded",
+            format!("{message}; {}", failures.join("; ")),
+            "Fix the failing optional instance, or run umbel plugin show plugin=<id>.",
+        )
     }
 }
 
@@ -201,7 +253,7 @@ fn load(root: &Path, instance: &PluginInstance, catalog: Option<&CompiledCatalog
 
 /// The instance's keys against the plugin's kind, which only the manifest knows
 /// (`PLUGIN_CONFIG_INVALID`, section 9.1).
-fn fits(
+pub(crate) fn fits(
     instance: &PluginInstance,
     manifest: &Manifest,
     compiled_source: bool,

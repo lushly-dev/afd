@@ -12,6 +12,7 @@ use afd::server::ContextHookRequest;
 use afd::{Actor, ActorKind, CommandContext, CommandError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 
 /// The version of the principal projection this crate writes.
 pub const PRINCIPAL_VERSION: u32 = 0;
@@ -105,6 +106,7 @@ impl Principal {
 /// request is read.
 pub(crate) fn hook(
     config: &PrincipalConfig,
+    clock: Option<Arc<dyn afd::Clock>>,
 ) -> impl Fn(
     ContextHookRequest,
     CommandContext,
@@ -129,6 +131,9 @@ pub(crate) fn hook(
             Principal::new(actor, Transport::Stdio, Authentication::Process)
         };
         principal.apply(&mut context);
+        if let Some(clock) = &clock {
+            context.clock = Some(Arc::clone(clock));
+        }
         std::future::ready(Ok(context))
     }
 }

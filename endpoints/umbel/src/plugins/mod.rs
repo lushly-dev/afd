@@ -1,21 +1,33 @@
-//! The plugin contract: the manifest, plugin sources, packs and the versions they carry
-//! (phase 1 specification, sections 2, 3, 8.2 and 9.1).
+//! The plugin contract: the manifest, plugin sources, packs and the versions they carry, the
+//! load sequence and compiled plugins (phase 1 specification, sections 2, 3, 6, 7, 8.2 and 9.1).
 //!
-//! This is the file-only half of the loader: everything here reads `umbel-plugin.toml`,
-//! `pack.toml` and the plugin directory, and registers nothing. The load sequence, the grants
-//! and the three kinds arrive in the steps that follow it.
+//! The file-only half reads `umbel-plugin.toml`, `pack.toml` and the plugin directory and
+//! registers nothing. The loader runs the load sequence of section 6, with compiled plugins
+//! ([`CompiledPlugin`]) and the host services they are granted ([`Services`]); the component and
+//! mounted kinds arrive in the steps that follow.
 
+mod compiled;
+mod config;
 mod doctor;
 mod error;
 mod files;
+mod grants;
+mod loader;
 mod manifest;
 mod packs;
 mod skills;
 mod source;
 
-pub(crate) use doctor::checks as doctor_checks;
+pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
+pub(crate) use doctor::{checks as doctor_checks, loaded_check};
 pub use error::{PluginError, codes};
-pub use files::{DirFiles, PluginFiles};
+pub use files::{AssetFiles, DirFiles, PluginFiles};
+pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
+pub use loader::TRUST_NOTE;
+pub(crate) use loader::{
+    Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, Status, embedded_id,
+    load,
+};
 pub(crate) use manifest::to_json;
 pub use manifest::{
     Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect, Expose, GrantDecl,
@@ -25,6 +37,7 @@ pub use manifest::{
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
+pub use umbel_sdk::{HostError as ServiceError, HostServices, Level};
 
 /// The manifest version this host reads (`manifest_version`).
 pub const MANIFEST_VERSION: u32 = 1;

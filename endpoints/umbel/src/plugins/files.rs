@@ -1,12 +1,14 @@
 //! The files of one plugin, confined to its root.
 //!
 //! A manifest names schemas, a component, packs and skills by relative path. [`PluginFiles`] is
-//! how the loader reads them: [`DirFiles`] over a directory, and (in a later step) over the
-//! assets a compiled plugin embeds. Every path stays inside the root: no `..`, no absolute path,
+//! how the loader reads them: [`DirFiles`] over a directory, and [`AssetFiles`] over the assets a
+//! compiled plugin embeds. Every path stays inside the root: no `..`, no absolute path,
 //! and symlinks are resolved and checked.
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+
+use umbel_sdk::Asset;
 
 /// Read access to the files of one plugin by relative path.
 pub trait PluginFiles {
@@ -25,6 +27,12 @@ pub trait PluginFiles {
     fn is_file(&self, rel: &str) -> bool;
     /// Whether `rel` is a directory inside the root.
     fn is_dir(&self, rel: &str) -> bool;
+    /// Every file under the directory `rel`, as paths relative to `rel` with `/` separators, in
+    /// byte order.
+    ///
+    /// # Errors
+    /// A sentence saying why `rel` is not a directory inside the root.
+    fn list(&self, rel: &str) -> Result<Vec<String>, String>;
 }
 
 /// Why `rel` is not a path that stays inside a plugin root, judged by its text alone.
@@ -152,11 +160,159 @@ impl PluginFiles for DirFiles {
     fn is_dir(&self, rel: &str) -> bool {
         self.resolve(rel).is_ok_and(|path| path.is_dir())
     }
+
+    fn list(&self, rel: &str) -> Result<Vec<String>, String> {
+        let dir = self.resolve(rel)?;
+        if !dir.is_dir() {
+            return Err(format!("`{rel}` is not a directory"));
+        }
+        let mut names = Vec::new();
+        self.collect(&dir, &dir, &mut names)?;
+        names.sort();
+        Ok(names)
+    }
+}
+
+impl DirFiles {
+    fn collect(&self, base: &Path, dir: &Path, names: &mut Vec<String>) -> Result<(), String> {
+        let entries = fs::read_dir(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+        for entry in entries.flatten() {
+            let resolved = fs::canonicalize(entry.path())
+                .map_err(|error| format!("{}: {error}", entry.path().display()))?;
+            if !resolved.starts_with(&self.root) {
+                return Err(format!(
+                    "{} leaves the plugin root through a symlink",
+                    entry.path().display()
+                ));
+            }
+            if resolved.is_dir() {
+                self.collect(base, &resolved, names)?;
+            } else if let Ok(relative) = resolved.strip_prefix(base) {
+                let text = relative
+                    .components()
+                    .map(|part| part.as_os_str().to_str().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| format!("{} is not a UTF-8 file name", resolved.display()))?;
+                names.push(text.join("/"));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The files a compiled plugin embeds (`Plugin::assets`, `CompiledPlugin::assets`), by relative
+/// path.
+#[derive(Debug, Clone, Copy)]
+pub struct AssetFiles {
+    assets: &'static [Asset],
+}
+
+impl AssetFiles {
+    /// The files of `assets`.
+    pub fn new(assets: &'static [Asset]) -> Self {
+        Self { assets }
+    }
+
+    /// The asset at `rel`, after the lexical rules and with a leading `./` ignored.
+    fn find(&self, rel: &str) -> Result<&'static Asset, String> {
+        if let Some(problem) = lexical_problem(rel) {
+            return Err(format!("`{rel}` {problem}"));
+        }
+        let wanted = normalize(rel);
+        self.assets
+            .iter()
+            .find(|asset| asset.path == wanted)
+            .ok_or_else(|| format!("`{rel}` is not among the plugin's embedded files"))
+    }
+}
+
+/// `rel` without `.` segments and a trailing `/`.
+fn normalize(rel: &str) -> String {
+    rel.split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+impl PluginFiles for AssetFiles {
+    fn read(&self, rel: &str) -> Result<Vec<u8>, String> {
+        self.find(rel).map(|asset| asset.bytes.to_vec())
+    }
+
+    fn len(&self, rel: &str) -> Result<u64, String> {
+        self.find(rel).map(|asset| asset.bytes.len() as u64)
+    }
+
+    fn is_file(&self, rel: &str) -> bool {
+        self.find(rel).is_ok()
+    }
+
+    fn is_dir(&self, rel: &str) -> bool {
+        if lexical_problem(rel).is_some() {
+            return false;
+        }
+        let prefix = format!("{}/", normalize(rel));
+        self.assets
+            .iter()
+            .any(|asset| asset.path.starts_with(&prefix))
+    }
+
+    fn list(&self, rel: &str) -> Result<Vec<String>, String> {
+        if let Some(problem) = lexical_problem(rel) {
+            return Err(format!("`{rel}` {problem}"));
+        }
+        let prefix = format!("{}/", normalize(rel));
+        let mut names: Vec<String> = self
+            .assets
+            .iter()
+            .filter_map(|asset| asset.path.strip_prefix(&prefix).map(str::to_owned))
+            .collect();
+        if names.is_empty() {
+            return Err(format!(
+                "`{rel}` is not a directory among the embedded files"
+            ));
+        }
+        names.sort();
+        Ok(names)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static ASSETS: &[Asset] = &[
+        Asset {
+            path: "packs/greetings/pack.toml",
+            bytes: b"x",
+        },
+        Asset {
+            path: "packs/greetings/data/salutation.txt",
+            bytes: b"Hello",
+        },
+        Asset {
+            path: "schemas/a.json",
+            bytes: b"{}",
+        },
+    ];
+
+    #[test]
+    fn embedded_files_follow_the_directory_rules() {
+        let files = AssetFiles::new(ASSETS);
+        assert_eq!(files.read("./schemas/a.json").unwrap(), b"{}");
+        assert_eq!(files.len("packs/greetings/data/salutation.txt").unwrap(), 5);
+        assert!(files.is_file("schemas/a.json"));
+        assert!(!files.is_file("schemas"));
+        assert!(files.is_dir("packs/greetings"));
+        assert!(files.is_dir("packs/greetings/"));
+        assert!(!files.is_dir("packs/other"));
+        assert!(files.read("../x").is_err());
+        assert_eq!(
+            files.list("packs/greetings").unwrap(),
+            ["data/salutation.txt", "pack.toml"]
+        );
+        assert!(files.list("nope").is_err());
+    }
 
     #[test]
     fn lexical_rules() {

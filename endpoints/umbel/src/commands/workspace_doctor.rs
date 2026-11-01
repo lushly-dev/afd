@@ -6,6 +6,7 @@
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
 use crate::doctor::{self, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
+use crate::plugins::{CompiledCatalog, LoadedPlugins, loaded_check};
 use crate::surfaces;
 use crate::workspace::{Located, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult};
@@ -17,12 +18,14 @@ struct Handler {
     workspace: Arc<Workspace>,
     registry: Weak<CommandRegistry>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
+    catalog: Arc<CompiledCatalog>,
 }
 
 impl Handler {
     fn mcp_surface(&self, registry: &Arc<CommandRegistry>) -> Check {
         let first_class = self.first_class.get().cloned().unwrap_or_default();
-        match surfaces::mcp::build_server(registry, &self.workspace, &first_class) {
+        match surfaces::mcp::build_server(registry, &self.workspace, &first_class, None) {
             Ok(_) => Check::pass(
                 "mcp.surface",
                 format!(
@@ -66,14 +69,18 @@ impl CommandHandler for Handler {
         let workspace = Arc::clone(&self.workspace);
         let registry = self.registry.upgrade();
         let first_class_ready = self.first_class.get().is_some();
+        let catalog = Arc::clone(&self.catalog);
         let mut report = tokio::task::spawn_blocking(move || {
-            doctor::inspect(Ok(Located {
-                root: workspace.root().to_path_buf(),
-                found_by: workspace.found_by(),
-            }))
+            doctor::inspect_with_catalog(
+                Ok(Located {
+                    root: workspace.root().to_path_buf(),
+                    found_by: workspace.found_by(),
+                }),
+                Some(&catalog),
+            )
         })
         .await
-        .unwrap_or_else(|_| doctor::run(self.workspace.root()));
+        .unwrap_or_else(|_| doctor::run_with_catalog(self.workspace.root(), &self.catalog));
         if let Some(registry) = registry {
             for check in &mut report.checks {
                 if check.status != CheckStatus::Skip {
@@ -82,6 +89,11 @@ impl CommandHandler for Handler {
                 match check.id.as_str() {
                     "mcp.surface" if first_class_ready => *check = self.mcp_surface(&registry),
                     "cli.verbs" => *check = Self::cli_verbs(&registry),
+                    "plugins.loaded" => {
+                        if let Some(loaded) = self.loaded.get() {
+                            *check = loaded_check(loaded);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -95,6 +107,8 @@ pub(crate) fn workspace_doctor(
     workspace: Arc<Workspace>,
     registry: Weak<CommandRegistry>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
+    catalog: Arc<CompiledCatalog>,
 ) -> Builtin {
     let definition = CommandDefinition::new(
         "workspace-doctor",
@@ -104,6 +118,8 @@ pub(crate) fn workspace_doctor(
             workspace,
             registry,
             first_class,
+            loaded,
+            catalog,
         },
     )
     .with_category("workspace")

@@ -9,8 +9,8 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-# Later steps add "sdk", "plugins/hello", "tests/fixtures/components/*" and "plugins/todo".
-members = ["."]
+# Later steps add "tests/fixtures/components/*" and "plugins/todo".
+members = [".", "sdk", "plugins/hello"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -26,6 +26,10 @@ expect_used = "warn"
 default = ["cli"]
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
+# `umbel::testkit`: `TestHost` and its MCP drivers, for plugin crates' tests and the host's own
+# (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
+# need `http` and `http-body-util` to speak to the router in process.
+testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
 
 [[bin]]
 name = "umbel"
@@ -53,13 +57,24 @@ tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
+# Optional: the `testkit` feature's drivers (the same crates are dev-dependencies below, for the
+# integration tests' own use).
+http = { version = "1", optional = true }
+http-body-util = { version = "0.1", optional = true }
+# The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
+rmcp = { version = "3.7", optional = true, default-features = false, features = ["server", "transport-io"] }
+tempfile = { version = "3", optional = true }
+umbel-sdk = { path = "sdk" }
+
 [dev-dependencies]
 bytes = "1"
 http = "1"
 http-body-util = "0.1"
-# The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
+# The integration tests drive the test kit, and the hello plugin as a second compiled plugin.
+umbel = { path = ".", features = ["testkit"] }
+umbel-plugin-hello = { path = "plugins/hello" }
 
 [lints]
 workspace = true

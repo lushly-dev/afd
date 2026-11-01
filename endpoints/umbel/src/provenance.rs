@@ -14,6 +14,44 @@ pub use crate::versions::PROVENANCE_VERSION;
 /// The `result.metadata` key a command sets to supply provenance.
 pub const PROVENANCE_KEY: &str = "dev.umbel/provenance";
 
+/// The fields a command may supply in `dev.umbel/provenance`, each with its documented type. The
+/// host fills every other field of the envelope (`space`, `agent`, `principal`, `traceId`,
+/// `observedAt`) from the journal entry.
+const SUPPLIED_FIELDS: &[(&str, FieldType)] = &[
+    ("origin", FieldType::Text),
+    ("session", FieldType::Text),
+    ("validFrom", FieldType::Text),
+    ("validUntil", FieldType::Text),
+    ("confidence", FieldType::Number),
+    ("authority", FieldType::Text),
+];
+
+#[derive(Clone, Copy)]
+enum FieldType {
+    Text,
+    Number,
+}
+
+/// What a plugin supplied under [`PROVENANCE_KEY`], reduced to the fields a command may supply,
+/// each of its documented type: everything else is removed, so a plugin, sandboxed or not,
+/// cannot supply the host-filled fields. `None` when nothing is left, or the value is not an
+/// object.
+pub fn supplied_fields(value: &Value) -> Option<Value> {
+    let map = value.as_object()?;
+    let kept: Map<String, Value> = SUPPLIED_FIELDS
+        .iter()
+        .filter_map(|(name, kind)| {
+            let field = map.get(*name)?;
+            let ok = match kind {
+                FieldType::Text => field.is_string(),
+                FieldType::Number => field.is_number(),
+            };
+            ok.then(|| ((*name).to_owned(), field.clone()))
+        })
+        .collect();
+    (!kept.is_empty()).then_some(Value::Object(kept))
+}
+
 /// Where a record came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -120,5 +158,32 @@ impl Envelope {
             confidence,
             authority: text("authority"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn only_the_fields_a_command_may_supply_survive_with_their_types() {
+        let supplied = json!({
+            "origin": "user-stated",
+            "confidence": 0.5,
+            "session": 7,
+            "space": "second",
+            "agent": {"kind": "agent"},
+            "principal": "root",
+            "traceId": "forged",
+            "observedAt": "2000-01-01T00:00:00Z",
+            "extra": true,
+        });
+        assert_eq!(
+            supplied_fields(&supplied),
+            Some(json!({"origin": "user-stated", "confidence": 0.5}))
+        );
+        assert_eq!(supplied_fields(&json!({"space": "second"})), None);
+        assert_eq!(supplied_fields(&json!("text")), None);
     }
 }

@@ -171,6 +171,40 @@ impl PluginError {
         )
     }
 
+    /// `PLUGIN_LOAD_FAILED` for `instance`: preparing the plugin failed.
+    pub fn load_failed(instance: &str, problem: impl fmt::Display) -> Self {
+        Self::new(
+            codes::PLUGIN_LOAD_FAILED,
+            format!("plugins.{instance}: {problem}"),
+            "Run umbel plugin check path=<dir>; for a mount, check that its server starts."
+                .to_owned(),
+        )
+    }
+
+    /// `PLUGIN_KIND_UNAVAILABLE`: this build has no loader for the plugin's kind.
+    pub(crate) fn kind_unavailable(instance: &str, kind: impl fmt::Display) -> Self {
+        Self::new(
+            codes::PLUGIN_KIND_UNAVAILABLE,
+            format!("plugins.{instance}: this build has no loader for `{kind}` plugins"),
+            "Build umbel with the component or mounted feature.".to_owned(),
+        )
+    }
+
+    /// `PLUGIN_NOT_ENABLED`: the call's space is not one of the instance's spaces.
+    pub(crate) fn not_enabled(instance: &str, space: &str, spaces: &[String]) -> Self {
+        Self::new(
+            codes::PLUGIN_NOT_ENABLED,
+            format!(
+                "plugins.{instance} is not enabled for the space `{space}`; it is enabled for: {}",
+                spaces.join(", ")
+            ),
+            format!(
+                "Call it in one of {}, or add the space to plugins.{instance}.spaces.",
+                spaces.join(", ")
+            ),
+        )
+    }
+
     /// `PACK_INVALID` naming the pack `path`.
     pub(crate) fn pack_invalid(path: &str, problem: impl fmt::Display) -> Self {
         Self::new(

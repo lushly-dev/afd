@@ -1,0 +1,26 @@
+[package]
+name = "umbel-plugin-hello"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel hello plugin: one command, one pack and one skill, the reference plugin"
+repository = "https://github.com/lushly-dev/afd"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+serde_json = "1"
+umbel-sdk = { path = "../../sdk" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "1"
+umbel = { path = "../..", default-features = false, features = ["testkit"] }
+
+[lints]
+workspace = true
