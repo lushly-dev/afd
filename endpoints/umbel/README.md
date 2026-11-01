@@ -17,7 +17,8 @@ point and none depends on another. That is the architecture.
 Phase 0, the host skeleton, is done: the empty host serves MCP over stdio and
 Streamable HTTP and a CLI from one registry, with a workspace, the journal and
 its per-space event log, approvals and confirmations, and no plugins. Phase 1,
-the plugin contract, is next. Nothing is released or published; the crate is
+the plugin contract, has its
+[specification](docs/phases/1-plugin-contract/spec.md) in review. Nothing is released or published; the crate is
 `publish = false` and its release unit is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
 [STATUS.md](docs/STATUS.md) says exactly what is done.
