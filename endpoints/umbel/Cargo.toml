@@ -44,6 +44,14 @@ name = "umbel"
 path = "src/main.rs"
 required-features = ["cli"]
 
+# A scriptable stdio MCP server for tests/plugin_mounted.rs. `cargo test` enables `testkit`
+# through the dev-dependency on this crate, so the integration tests get `CARGO_BIN_EXE_*` for it
+# with no build step of their own; the stock `umbel` binary and `cargo build` never build it.
+[[bin]]
+name = "umbel-mount-fixture"
+path = "src/bin/umbel-mount-fixture.rs"
+required-features = ["testkit"]
+
 [dependencies]
 afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
 async-trait = "0.1"
@@ -85,11 +93,17 @@ umbel-sdk = { path = "sdk" }
 bytes = "1"
 http = "1"
 http-body-util = "0.1"
+# The mounted-loader tests serve a plugin over HTTPS with a certificate made on the spot.
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1", "server", "service"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 # The integration tests drive the test kit, and the hello plugin as a second compiled plugin.
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
+umbel-sdk = { path = "sdk", features = ["mounted"] }
 
 [lints]
 workspace = true

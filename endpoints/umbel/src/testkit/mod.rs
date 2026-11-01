@@ -33,6 +33,7 @@ fn plugin_id(manifest: &str) -> Result<String, PluginError> {
 }
 
 /// Where the plugin under test comes from.
+#[derive(Clone)]
 enum Source {
     Compiled(Arc<dyn CompiledPlugin>),
     Directory(PathBuf),
@@ -42,6 +43,7 @@ enum Source {
 pub struct TestHostBuilder {
     source: Source,
     config: toml::Table,
+    keys: toml::Table,
     spaces: Vec<String>,
     clock: i64,
     overrides: Vec<PackOverride>,
@@ -60,9 +62,11 @@ pub struct TestHost {
     host: Host,
     dir: TempDir,
     plugin: Arc<dyn CompiledPlugin>,
+    source: Source,
     instance: String,
     spaces: Vec<String>,
     config: toml::Table,
+    keys: toml::Table,
     clock: i64,
     overrides: Vec<PackOverride>,
 }
@@ -171,14 +175,20 @@ impl TestHost {
             overrides: Overrides::default(),
             console: Arc::new(NoPerson),
         };
-        let plugin = Arc::clone(&self.plugin);
+        let plugin = matches!(self.source, Source::Compiled(_)).then(|| Arc::clone(&self.plugin));
         let clock = self.clock;
         let mut stdout = Vec::new();
         let code = crate::cli::run(
             std::iter::once("umbel").chain(args.iter().copied()),
             &environment,
             &mut stdout,
-            move |builder| builder.with_compiled(plugin).with_clock(fixed_clock(clock)),
+            move |builder| {
+                let builder = match plugin {
+                    Some(plugin) => builder.with_compiled(plugin),
+                    None => builder,
+                };
+                builder.with_clock(fixed_clock(clock))
+            },
         )
         .await;
         CliOutput {
@@ -210,8 +220,9 @@ impl TestHost {
                     == Some("recorded")
             });
         let fresh = TestHostBuilder {
-            source: Source::Compiled(Arc::clone(&self.plugin)),
+            source: self.source.clone(),
             config: self.config.clone(),
+            keys: self.keys.clone(),
             spaces: self.spaces.clone(),
             clock: self.clock,
             overrides: self.overrides.clone(),
@@ -235,6 +246,7 @@ impl TestHostBuilder {
         Self {
             source,
             config: toml::Table::new(),
+            keys: toml::Table::new(),
             spaces: vec!["main".to_owned()],
             clock: DEFAULT_CLOCK_MS,
             overrides: Vec::new(),
@@ -245,6 +257,14 @@ impl TestHostBuilder {
     #[must_use]
     pub fn config(mut self, table: toml::Table) -> Self {
         self.config = table;
+        self
+    }
+
+    /// More keys of the instance's table, beside `source` and `config`: `prefix`, `url`,
+    /// `bearer_env`, `env`, `required`, `max_result_bytes` and the like.
+    #[must_use]
+    pub fn instance_keys(mut self, keys: toml::Table) -> Self {
+        self.keys = keys;
         self
     }
 
@@ -320,6 +340,7 @@ impl TestHostBuilder {
         if !self.config.is_empty() {
             instance.insert("config".into(), self.config.clone().into());
         }
+        instance.extend(self.keys.clone());
         let mut plugins = toml::Table::new();
         plugins.insert("enabled".into(), vec![id.clone()].into());
         plugins.insert(id.clone(), instance.into());
@@ -347,9 +368,11 @@ impl TestHostBuilder {
             host,
             dir,
             plugin,
+            source: self.source,
             instance: id,
             spaces: self.spaces,
             config: self.config,
+            keys: self.keys,
             clock: self.clock,
             overrides: self.overrides,
         })

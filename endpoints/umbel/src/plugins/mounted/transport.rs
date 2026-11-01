@@ -459,3 +459,39 @@ impl StreamableHttpClient for BoundedHttp {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Limit, LimitedRead};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn a_line_over_the_limit_trips_before_its_end_arrives() {
+        let limit = Limit::new(16);
+        let (mut writer, reader) = tokio::io::duplex(1024);
+        let mut reader = LimitedRead::new(reader, std::sync::Arc::clone(&limit));
+        // 17 bytes and no newline: the message is not complete, but it is already too long.
+        writer.write_all(&[b'a'; 17]).await.unwrap();
+        let mut buffer = [0u8; 64];
+        let read = reader.read(&mut buffer).await.unwrap();
+        assert_eq!(read, 17);
+        assert!(limit.tripped());
+        tokio::time::timeout(std::time::Duration::from_secs(1), limit.exceeded())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn lines_at_the_limit_pass_and_the_count_restarts_at_each_newline() {
+        let limit = Limit::new(8);
+        let (mut writer, reader) = tokio::io::duplex(1024);
+        let mut reader = LimitedRead::new(reader, std::sync::Arc::clone(&limit));
+        writer.write_all(b"12345678\n12345678\n1234").await.unwrap();
+        let mut buffer = [0u8; 64];
+        reader.read(&mut buffer).await.unwrap();
+        assert!(!limit.tripped());
+        writer.write_all(b"56789\n").await.unwrap();
+        reader.read(&mut buffer).await.unwrap();
+        assert!(limit.tripped(), "4 + 5 bytes make a 9 byte line");
+    }
+}

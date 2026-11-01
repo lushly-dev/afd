@@ -187,7 +187,12 @@ pub(crate) fn plugin_gate(
 fn sanitize(result: &mut CommandResult<Value>, entry: &GateEntry) {
     let mounted = entry.kind == PluginKind::Mounted;
     let metadata = metadata_mut(result);
-    let provenance = metadata.extra.get(PROVENANCE_KEY).and_then(supplied_fields);
+    // A mounted server supplies no provenance: it is outside the host.
+    let provenance = metadata
+        .extra
+        .get(PROVENANCE_KEY)
+        .and_then(supplied_fields)
+        .filter(|_| !mounted);
     // A compiled or component result may carry a record for the event projector; nothing a
     // mounted server says about the host is kept.
     metadata

@@ -194,8 +194,9 @@ fn confined(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
         ));
     }
     let joined = root.join(path);
-    let resolved = std::fs::canonicalize(&joined)
-        .map_err(|error| format!("`{relative}` cannot be resolved: {error}"))?;
+    // A path that does not exist yet stays as written (the spawn reports it); one that does is
+    // resolved, so a symbolic link cannot lead out of the plugin directory.
+    let resolved = std::fs::canonicalize(&joined).unwrap_or(joined);
     if resolved.starts_with(root) {
         Ok(resolved)
     } else {
@@ -269,6 +270,12 @@ impl<'a> Plan<'a> {
             if let Some(only) = &self.mount.only
                 && !only.iter().any(|name| name == original)
             {
+                continue;
+            }
+            // The meta-tools of an AFD server (`afd-call`, `afd-batch`, `afd-pipe`) are its
+            // tool surface, not its commands, and `afd-call` would reach every remote command
+            // past the `only` list, the effects and `bind_space`.
+            if afd::is_afd_builtin_name(original) {
                 continue;
             }
             let over = self.mount.tools.iter().find(|entry| entry.tool == original);
