@@ -252,16 +252,38 @@ test('Loam is four private, route-less endpoints under endpoints/loam/packages',
 			/not admitted/
 		);
 	}
-	// Nothing outside Loam depends on it.
+	// Nothing outside Loam depends on it, at runtime or in development.
 	const names = new Set(loam.map((name) => `@lushly-dev/loam-${name}`));
 	for (const [name, targets] of Object.entries(dependencies))
 		if (!names.has(name)) assert.ok(!targets.some((target) => names.has(target)), name);
-	// The kernel has no DOM or foundation dependency; the chrome reaches Violet only through FAST-AF.
+	// Strip GIT_* so a hook's environment cannot point git at another repository.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	for (const manifestPath of execFileSync('git', ['ls-files', '*package.json'], {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		env,
+	})
+		.split('\n')
+		.filter((path) => path && !path.startsWith('endpoints/loam/'))) {
+		const manifest = JSON.parse(read(manifestPath));
+		const declared = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
+		assert.ok(!declared.some((target) => names.has(target)), manifestPath);
+	}
+	// The kernel has no DOM, foundation or other Loam dependency; the chrome reaches Violet only
+	// through FAST-AF's components.
 	assert.ok(
 		!dependencies['@lushly-dev/loam-kernel'].some((target) =>
 			/fast-element|violet|specimen|loam-/.test(target)
 		)
 	);
+	assert.deepEqual(dependencies['@lushly-dev/loam-chrome'], [
+		'@lushly-dev/fast-element',
+		'@lushly-dev/loam-kernel',
+		'@lushly-dev/loam-theme',
+		'@lushly-dev/violet-elements',
+	]);
 	const workflow = read('.github/workflows/loam.yml');
 	assert.match(workflow, /permissions:\n {2}contents: read/);
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
