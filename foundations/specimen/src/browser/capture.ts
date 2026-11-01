@@ -248,7 +248,7 @@ export function captureDocument(
 			height: innerHeight,
 			media: matchMedia('(max-width: 600px)').matches,
 			colorScheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-			contrast: matchMedia('(prefers-contrast: more)').matches ? 'more' : 'no-preference',
+			contrast: observedContrast(),
 			reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches
 				? 'reduce'
 				: 'no-preference',
@@ -256,6 +256,13 @@ export function captureDocument(
 			devicePixelRatio,
 		},
 	};
+}
+
+/** The `prefers-contrast` this document observes. */
+export function observedContrast(): BrowserObservation['viewport']['contrast'] {
+	for (const value of ['more', 'less', 'custom'] as const)
+		if (matchMedia(`(prefers-contrast: ${value})`).matches) return value;
+	return 'no-preference';
 }
 
 /** The color scheme a theme renders in; high contrast is the light scheme. */

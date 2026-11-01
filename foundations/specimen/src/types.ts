@@ -93,7 +93,7 @@ export interface BrowserObservation {
 		height: number;
 		media: boolean;
 		colorScheme: 'light' | 'dark';
-		contrast: 'more' | 'no-preference';
+		contrast: 'more' | 'less' | 'custom' | 'no-preference';
 		reducedMotion: 'reduce' | 'no-preference';
 		language: string;
 		devicePixelRatio: number;

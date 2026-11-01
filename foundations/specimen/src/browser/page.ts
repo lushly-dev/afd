@@ -1,5 +1,5 @@
 import type { SpecimenContext, SpecimenEntry } from '../types.js';
-import { colorSchemeOf, contrastOf, sameLocale } from './capture.js';
+import { colorSchemeOf, contrastOf, observedContrast, sameLocale } from './capture.js';
 
 function viewport(value: string): SpecimenContext['viewport'] {
 	const dimensions = /^(\d+)x(\d+)$/.exec(value.trim());
@@ -73,12 +73,10 @@ function hostDifferences(context: SpecimenContext): string[] {
 		differences.push(
 			`prefers-color-scheme is ${dark ? 'dark' : 'light'} from this browser, not ${colorScheme}`
 		);
-	const more = matchMedia('(prefers-contrast: more)').matches;
+	const observed = observedContrast();
 	const contrast = contrastOf(context.theme);
-	if (more !== (contrast === 'more'))
-		differences.push(
-			`prefers-contrast is ${more ? 'more' : 'no-preference'} from this browser, not ${contrast}`
-		);
+	if (observed !== contrast)
+		differences.push(`prefers-contrast is ${observed} from this browser, not ${contrast}`);
 	const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 	if (reduce !== (context.reducedMotion === 'reduce'))
 		differences.push(

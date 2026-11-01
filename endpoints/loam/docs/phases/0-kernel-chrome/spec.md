@@ -58,7 +58,9 @@
       HTTP only, and `ThemeManager.useSystemPreference` knows light and dark
       only.
   - **Specimen:** `foundations/specimen/src`:
-    - `bench-runtime.ts:157` passes `theme` to Playwright as `colorScheme`;
+    - `bench-runtime.ts:157` passes `theme` to Playwright as `colorScheme`
+      (corrected by step 6: since #616 the native host, `host/src/page.rs`,
+      sends the media over CDP);
     - `capture.ts:283` checks the color scheme;
     - `browser/index.ts:95-96` and `browser/page.ts:50`;
     - `axe: 'not-run'`.
@@ -493,7 +495,7 @@ CDP. The mapping is therefore the same media the host sends with
 `Emulation.setEmulatedMedia`, `prefers-color-scheme: light` and
 `prefers-contrast: more`, and the light and dark themes now send
 `prefers-contrast: no-preference` rather than leaving it to the browser.
-The capture records `prefers-contrast` beside `prefers-color-scheme`, and
+The capture observes `prefers-contrast` beside `prefers-color-scheme`, and
 reports a `Context mismatch` when either differs from what the theme
 requires, so a capture that did not have high contrast is never evidence
 for it.
