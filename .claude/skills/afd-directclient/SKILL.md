@@ -149,7 +149,9 @@ await client.call('invoice-pay', { id: 'in-1' }, { activeContext: 'billing' });
   command a handler runs by passing its own context to `execute`. Refusals are
   `COMMAND_NOT_ALLOWED`; `afd-discover`, `afd-detail`, the bootstrap tools and
   `listTools()` leave refused commands out. Allow a grouped tool by its group
-  name (`note`). The predicate rides on the context as an opaque token:
+  name (`note`). A grouped tool sees only its permitted actions: a refused
+  action is `COMMAND_NOT_FOUND` and cannot make another ambiguous, and a group
+  with none permitted is `COMMAND_NOT_ALLOWED`. The predicate rides on the context as an opaque token:
   handlers cannot read or replace it, and tool arguments cannot carry one.
 - Without `tools`, `registry.listTools()` throws a `TypeError`, and the tool
   router is not bundled: a browser host pays for it only when it asks.

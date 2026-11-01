@@ -428,10 +428,17 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 			}
 
+			// Only the commands the call's `allow` permits, so a refused command is invisible here: it
+			// cannot make an action ambiguous, and a group with none left is refused as a whole.
+			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
+			const allowedGroupCommands = filterAllowed(groupCommands, callContext);
+			if (groupCommands.length > 0 && allowedGroupCommands.length === 0) {
+				return resultContent(failure(commandNotAllowed(toolName)), true);
+			}
+
 			if (action && typeof action === 'string') {
-				const candidates = commands.filter(
-					(command) =>
-						commandGroup(command, groupByFn) === toolName && commandAction(command) === action
+				const candidates = allowedGroupCommands.filter(
+					(command) => commandAction(command) === action
 				);
 				if (candidates.length !== 1) {
 					return resultContent(
@@ -467,10 +474,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 			// In grouped mode, if tool is a known group but action is missing/invalid,
 			// return a helpful error instead of falling through
-			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
-
-			if (groupCommands.length > 0) {
-				const availableActions = filterAllowed(groupCommands, callContext).map(commandAction);
+			if (allowedGroupCommands.length > 0) {
+				const availableActions = allowedGroupCommands.map(commandAction);
 
 				return resultContent(
 					{

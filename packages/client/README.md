@@ -418,7 +418,10 @@ the `afd-call` target, each `afd-batch` item, each `afd-pipe` step and a grouped
 tool's action. A refused command fails with `COMMAND_NOT_ALLOWED`, and
 `afd-discover`, `afd-detail` and `listTools()` leave it out (a grouped tool
 lists only the actions `allow` permits). Allow a grouped tool by its group
-name, such as `note`. A hand-written registry whose `execute` ignores call
+name, such as `note`. A grouped tool resolves its action among the permitted
+commands only: a refused action reads as one the group does not have
+(`COMMAND_NOT_FOUND`), and a group with no permitted action is refused with
+`COMMAND_NOT_ALLOWED`. A hand-written registry whose `execute` ignores call
 options gets name checks only.
 
 ```typescript

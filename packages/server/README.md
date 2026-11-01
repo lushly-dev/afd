@@ -347,7 +347,10 @@ approval retry, so allowing a meta-tool or a grouped tool no longer reaches
 commands `allow` refuses. The registry binds the predicate to the call's context
 as an opaque token, so handlers cannot read or replace it, and tool arguments
 cannot carry one. Without `allow`, nothing changes. A grouped tool's own name
-is checked too: allow the group (`note`) to call its permitted actions.
+is checked too: allow the group (`note`) to call its permitted actions. The
+action resolves among the permitted commands only, so a refused action is
+`COMMAND_NOT_FOUND` and cannot make another ambiguous, and a group with no
+permitted action is `COMMAND_NOT_ALLOWED`.
 
 ### Basic Command
 

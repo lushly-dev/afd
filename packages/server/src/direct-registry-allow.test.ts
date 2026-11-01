@@ -151,8 +151,9 @@ describe('DirectClient allow, through a registry with a tool surface', () => {
 		// The group's tool name is checked like any other name, so the client allows `note` too.
 		const client = createDirectClient(registry, { allow: allowing([...ALLOW, 'note']) });
 
+		// A refused action is invisible, so it reads as one the group does not have.
 		const refused = await client.call('note', { action: 'delete', params: { id: 'n1' } });
-		expect(refused).toEqual(NOT_ALLOWED);
+		expect(refused.error?.code).toBe('COMMAND_NOT_FOUND');
 		const listed = await client.call('note', { action: 'list', params: {} });
 		expect(listed).toEqual(expect.objectContaining({ success: true, data: { notes: ['milk'] } }));
 		expect(deleted).toEqual([]);
@@ -297,14 +298,13 @@ describe('createDirectRegistry execute with the allow option', () => {
 		const registry = surfaceRegistry({ strategy: 'grouped' });
 		const withGroup = allowing([...ALLOW, 'note']);
 
-		expect(
-			await registry.execute(
-				'note',
-				{ action: 'delete', params: { id: 'n1' } },
-				{},
-				{ allow: withGroup }
-			)
-		).toEqual(NOT_ALLOWED);
+		const refusedAction = await registry.execute(
+			'note',
+			{ action: 'delete', params: { id: 'n1' } },
+			{},
+			{ allow: withGroup }
+		);
+		expect(refusedAction.error?.code).toBe('COMMAND_NOT_FOUND');
 		expect(
 			(await registry.execute('note', { action: 'list', params: {} }, {}, { allow: withGroup }))
 				.success
@@ -316,6 +316,42 @@ describe('createDirectRegistry execute with the allow option', () => {
 		const refused = await registry.execute('note-list', {}, {}, { allow: throwing });
 		expect(refused.error?.code).toBe('COMMAND_NOT_ALLOWED');
 		expect(deleted).toEqual([]);
+	});
+
+	it('refuses a group whose every action allow refuses, as it lists none of them', async () => {
+		const registry = surfaceRegistry({ strategy: 'grouped' });
+		const allow = allowing(['note']);
+		for (const args of [{ action: 'list', params: {} }, {}]) {
+			const result = await registry.execute('note', args, {}, { allow });
+			expect(result.error).toMatchObject({
+				code: 'COMMAND_NOT_ALLOWED',
+				message: "Command 'note' is not allowed for this client",
+			});
+		}
+		expect(registry.listTools({ strategy: 'grouped', allow }).map((tool) => tool.name)).toEqual([]);
+		expect(deleted).toEqual([]);
+	});
+
+	it('does not let a refused command make a grouped action ambiguous', async () => {
+		const archive = defineCommand({
+			name: 'archive-list',
+			description: 'List archived notes',
+			category: 'note',
+			input: z.object({}),
+			handler: async () => success({ archived: [] }),
+		});
+		const registry = createDirectRegistry([...commands, archive], {
+			tools: createDirectToolSurface({ strategy: 'grouped' }),
+		});
+		const call = (allow?: (name: string) => boolean) =>
+			registry.execute('note', { action: 'list', params: {} }, {}, allow ? { allow } : {});
+
+		expect((await call())?.error?.code).toBe('AMBIGUOUS_ACTION');
+		// With archive-list refused, the action names one command, as if archive-list did not exist.
+		expect(await call(allowing(['note', 'note-list']))).toEqual(
+			expect.objectContaining({ success: true, data: { notes: ['milk'] } })
+		);
+		expect((await call(allowing(['note', 'archive-list'])))?.data).toEqual({ archived: [] });
 	});
 
 	it('lists only what allow permits from listTools', () => {
