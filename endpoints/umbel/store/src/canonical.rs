@@ -117,7 +117,11 @@ const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx
 pub fn base64_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
         for shift in [18, 12, 6, 0].iter().take(chunk.len() + 1) {
             out.push(char::from(ALPHABET[((n >> shift) & 63) as usize]));
@@ -135,8 +139,10 @@ pub fn base64_encode(bytes: &[u8]) -> String {
 /// [`StoreError::Invalid`] on a character outside the alphabet or a bad length.
 pub fn base64_decode(text: &str) -> Result<Vec<u8>> {
     let bytes = text.as_bytes();
-    if bytes.len() % 4 != 0 {
-        return Err(StoreError::invalid("base64 text must be a multiple of 4 long"));
+    if !bytes.len().is_multiple_of(4) {
+        return Err(StoreError::invalid(
+            "base64 text must be a multiple of 4 long",
+        ));
     }
     let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
     for (index, quad) in bytes.chunks(4).enumerate() {
@@ -147,10 +153,9 @@ pub fn base64_decode(text: &str) -> Result<Vec<u8>> {
         }
         let mut n = 0u32;
         for &c in &quad[..4 - padding] {
-            let value = ALPHABET
-                .iter()
-                .position(|&a| a == c)
-                .ok_or_else(|| StoreError::invalid("base64 text has a character outside the alphabet"))?;
+            let value = ALPHABET.iter().position(|&a| a == c).ok_or_else(|| {
+                StoreError::invalid("base64 text has a character outside the alphabet")
+            })?;
             n = (n << 6) | value as u32;
         }
         n <<= 6 * padding as u32;

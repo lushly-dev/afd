@@ -17,10 +17,18 @@ fn base() -> Envelope {
 }
 
 /// Every refusal must hold on all three write paths and leave the store untouched.
-fn refused(d: &dyn DocumentStore, mutate: impl Fn(&mut Envelope), what: &str) -> Result<(), String> {
+fn refused(
+    d: &dyn DocumentStore,
+    mutate: impl Fn(&mut Envelope),
+    what: &str,
+) -> Result<(), String> {
     let mut doc = samples::document("a/doc", &["space"], "x", "t");
     mutate(&mut doc.envelope);
-    expect_err(d.put_document(doc, Expect::Any), &format!("put_document with {what}"), invalid)?;
+    expect_err(
+        d.put_document(doc, Expect::Any),
+        &format!("put_document with {what}"),
+        invalid,
+    )?;
     let mut e = base();
     mutate(&mut e);
     expect_err(
@@ -28,22 +36,35 @@ fn refused(d: &dyn DocumentStore, mutate: impl Fn(&mut Envelope), what: &str) ->
         &format!("put_record with {what}"),
         invalid,
     )?;
-    d.put_document(samples::document("a/seed", &["space"], "x", "t"), Expect::Any).ctx("seed")?;
+    d.put_document(
+        samples::document("a/seed", &["space"], "x", "t"),
+        Expect::Any,
+    )
+    .ctx("seed")?;
     let before = d.head().ctx("head")?;
     expect_err(
         d.delete_document("a/seed", Expect::Any, e),
         &format!("delete_document with {what}"),
         invalid,
     )?;
-    ensure_eq(d.head().ctx("head")?, before, &format!("{what} took a revision"))?;
+    ensure_eq(
+        d.head().ctx("head")?,
+        before,
+        &format!("{what} took a revision"),
+    )?;
     // Leave the store as it was found for the next refusal.
-    d.delete_document("a/seed", Expect::Any, base()).ctx("unseed")?;
+    d.delete_document("a/seed", Expect::Any, base())
+        .ctx("unseed")?;
     Ok(())
 }
 
 fn unspecified(env: &Env<'_>) -> CaseResult {
     let s = env.fresh()?;
-    refused(&*s.stores.documents, |e| e.origin = Origin::Unspecified, "origin `unspecified`")?;
+    refused(
+        &*s.stores.documents,
+        |e| e.origin = Origin::Unspecified,
+        "origin `unspecified`",
+    )?;
     pass()
 }
 
@@ -58,15 +79,39 @@ fn missing(env: &Env<'_>) -> CaseResult {
 fn malformed(env: &Env<'_>) -> CaseResult {
     let s = env.fresh()?;
     let d = &*s.stores.documents;
-    refused(d, |e| e.access = vec!["everybody".to_owned()], "an access token that is not a token")?;
-    refused(d, |e| e.version = 0, "version 0")?;
-    refused(d, |e| e.space = "other".to_owned(), "another space")?;
-    refused(d, |e| e.principal = Some("robot:x".to_owned()), "a principal of an unknown kind")?;
-    refused(d, |e| e.confidence = Some(1.5), "confidence above 1")?;
-    refused(d, |e| e.content_hash = Some("md5:abc".to_owned()), "a content hash that is not sha256")?;
     refused(
         d,
-        |e| e.sources = Some((0..65).map(|n| Source { resource: format!("/r{n}"), id: None, title: None, author: None, last_modified: None }).collect()),
+        |e| e.access = vec!["everybody".to_owned()],
+        "an access token that is not a token",
+    )?;
+    refused(d, |e| e.version = 0, "version 0")?;
+    refused(d, |e| e.space = "other".to_owned(), "another space")?;
+    refused(
+        d,
+        |e| e.principal = Some("robot:x".to_owned()),
+        "a principal of an unknown kind",
+    )?;
+    refused(d, |e| e.confidence = Some(1.5), "confidence above 1")?;
+    refused(
+        d,
+        |e| e.content_hash = Some("md5:abc".to_owned()),
+        "a content hash that is not sha256",
+    )?;
+    refused(
+        d,
+        |e| {
+            e.sources = Some(
+                (0..65)
+                    .map(|n| Source {
+                        resource: format!("/r{n}"),
+                        id: None,
+                        title: None,
+                        author: None,
+                        last_modified: None,
+                    })
+                    .collect(),
+            )
+        },
         "65 sources",
     )?;
     pass()
@@ -76,7 +121,11 @@ fn reserved(_: &Env<'_>) -> CaseResult {
     for field in ["redactions", "delegationChain", "tenant", "surprise"] {
         let mut value = serde_json::to_value(base()).map_err(|e| e.to_string())?;
         value[field] = json!("x");
-        expect_err(Envelope::from_value(value), &format!("the reserved field `{field}`"), invalid)?;
+        expect_err(
+            Envelope::from_value(value),
+            &format!("the reserved field `{field}`"),
+            invalid,
+        )?;
     }
     pass()
 }

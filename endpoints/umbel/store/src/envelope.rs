@@ -201,8 +201,14 @@ impl Envelope {
         if self.confidence.is_some_and(|c| !(0.0..=1.0).contains(&c)) {
             return refuse("confidence must be between 0 and 1");
         }
-        if self.sources.as_ref().is_some_and(|s| s.len() > MAX_ENVELOPE_LIST)
-            || self.derived_from.as_ref().is_some_and(|s| s.len() > MAX_ENVELOPE_LIST)
+        if self
+            .sources
+            .as_ref()
+            .is_some_and(|s| s.len() > MAX_ENVELOPE_LIST)
+            || self
+                .derived_from
+                .as_ref()
+                .is_some_and(|s| s.len() > MAX_ENVELOPE_LIST)
         {
             return refuse("sources and derivedFrom hold at most 64 entries");
         }

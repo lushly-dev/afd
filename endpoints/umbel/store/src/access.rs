@@ -180,10 +180,26 @@ mod tests {
 
     #[test]
     fn tokens_follow_the_grammar() {
-        for good in ["space", "group:eng", "group:a-1", "principal:human:ada", "principal:agent:a:b"] {
+        for good in [
+            "space",
+            "group:eng",
+            "group:a-1",
+            "principal:human:ada",
+            "principal:agent:a:b",
+        ] {
             assert!(validate_token(good).is_ok(), "{good}");
         }
-        for bad in ["", "Space", "group:", "group:Eng", "group:1a", "principal:robot:x", "principal:human:", "principal:human", "x"] {
+        for bad in [
+            "",
+            "Space",
+            "group:",
+            "group:Eng",
+            "group:1a",
+            "principal:robot:x",
+            "principal:human:",
+            "principal:human",
+            "x",
+        ] {
             assert!(validate_token(bad).is_err(), "{bad}");
         }
     }
@@ -199,9 +215,17 @@ mod tests {
     #[test]
     fn readers_admit_by_intersection() {
         let set = AccessSet::new(["group:eng"]).unwrap();
-        assert!(ReaderFilter::tokens(["space", "group:eng"]).unwrap().admits(&set));
+        assert!(
+            ReaderFilter::tokens(["space", "group:eng"])
+                .unwrap()
+                .admits(&set)
+        );
         assert!(!ReaderFilter::tokens(["space"]).unwrap().admits(&set));
-        assert!(!ReaderFilter::tokens(Vec::<String>::new()).unwrap().admits(&set));
+        assert!(
+            !ReaderFilter::tokens(Vec::<String>::new())
+                .unwrap()
+                .admits(&set)
+        );
         assert!(ReaderFilter::derivation().admits(&set));
     }
 }

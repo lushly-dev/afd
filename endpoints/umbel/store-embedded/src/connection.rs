@@ -23,7 +23,9 @@ pub struct StoreOptions {
 
 impl Default for StoreOptions {
     fn default() -> Self {
-        Self { lock_timeout_ms: 5000 }
+        Self {
+            lock_timeout_ms: 5000,
+        }
     }
 }
 
@@ -39,11 +41,19 @@ pub(crate) struct Pool {
 impl Pool {
     /// Open (creating when new) the database at `path` for `space`: WAL, the schema, the version
     /// check. Several processes may do this at once.
-    pub(crate) fn open(path: PathBuf, space: &str, options: StoreOptions) -> Result<Self, StoreError> {
+    pub(crate) fn open(
+        path: PathBuf,
+        space: &str,
+        options: StoreOptions,
+    ) -> Result<Self, StoreError> {
         let timeout = Duration::from_millis(options.lock_timeout_ms);
         let mut conn = connect(&path, timeout).map_err(StoreError::from)?;
         initialise(&mut conn, space, timeout).map_err(StoreError::from)?;
-        Ok(Self { path, timeout, idle: Mutex::new(vec![conn]) })
+        Ok(Self {
+            path,
+            timeout,
+            idle: Mutex::new(vec![conn]),
+        })
     }
 
     /// Run `work` on a pooled connection.
@@ -96,7 +106,9 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
         // process opening at the same moment can hold past the busy handler.
         match conn.query_row("PRAGMA journal_mode=WAL", [], |row| row.get::<_, String>(0)) {
             Ok(_) => break,
-            Err(error) if matches!(map_sql(&error), StoreError::Busy) && Instant::now() < deadline => {
+            Err(error)
+                if matches!(map_sql(&error), StoreError::Busy) && Instant::now() < deadline =>
+            {
                 std::thread::sleep(Duration::from_millis(2));
             }
             Err(error) => return Err(error.into()),
@@ -104,17 +116,28 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
     }
     let version = user_version(conn)?;
     if version > SCHEMA_VERSION {
-        return Err(StoreError::VersionUnsupported { found: version, supported: SCHEMA_VERSION }.into());
+        return Err(StoreError::VersionUnsupported {
+            found: version,
+            supported: SCHEMA_VERSION,
+        }
+        .into());
     }
     if version < SCHEMA_VERSION {
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let version = user_version(&tx)?;
         if version > SCHEMA_VERSION {
-            return Err(StoreError::VersionUnsupported { found: version, supported: SCHEMA_VERSION }.into());
+            return Err(StoreError::VersionUnsupported {
+                found: version,
+                supported: SCHEMA_VERSION,
+            }
+            .into());
         }
         if version == 0 {
             tx.execute_batch(SCHEMA)?;
-            tx.execute("INSERT INTO meta (key, value) VALUES ('space', ?1)", [space])?;
+            tx.execute(
+                "INSERT INTO meta (key, value) VALUES ('space', ?1)",
+                [space],
+            )?;
             tx.execute(
                 "INSERT INTO meta (key, value) VALUES ('store_traits_version', ?1)",
                 [umbel_store::STORE_TRAITS_VERSION.to_string()],
@@ -124,7 +147,9 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
         tx.commit()?;
     }
     let stored: Option<String> = conn
-        .query_row("SELECT value FROM meta WHERE key = 'space'", [], |row| row.get(0))
+        .query_row("SELECT value FROM meta WHERE key = 'space'", [], |row| {
+            row.get(0)
+        })
         .optional()?;
     match stored {
         Some(stored) if stored == space => Ok(()),

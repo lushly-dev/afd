@@ -4,8 +4,8 @@
 use serde_json::Map;
 
 use crate::{
-    ContentHash, DocumentWrite, Envelope, Flag, Origin, Sensitivity, Status, Tier, Verification,
-    AccessSet,
+    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, Origin, Sensitivity, Status, Tier,
+    Verification,
 };
 
 use super::SPACE;
@@ -73,7 +73,11 @@ pub fn document(id: &str, access: &[&str], text: &str, trace: &str) -> DocumentW
         status: Status::Stable,
         stale_after: None,
         superseded_by: None,
-        verification: Verification { tier: Tier::Unverified, last: None, count: 0 },
+        verification: Verification {
+            tier: Tier::Unverified,
+            last: None,
+            count: 0,
+        },
         access: access_set,
         sensitivity: Sensitivity::Internal,
         flags: Vec::<Flag>::new(),

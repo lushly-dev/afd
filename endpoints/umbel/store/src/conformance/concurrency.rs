@@ -11,13 +11,19 @@ use super::{CaseResult, Ctx, Env, ensure, ensure_eq, everyone, pass, samples, sk
 use crate::{ChangeKind, DocGraph, Expect, GraphBatch, Node, ReaderFilter, StoreError};
 
 pub(super) const CASES: &[(&str, super::CaseFn)] = &[
-    ("two_threads_write_densely_and_a_reader_sees_whole_commits", threads),
+    (
+        "two_threads_write_densely_and_a_reader_sees_whole_commits",
+        threads,
+    ),
     ("two_processes_write_densely", processes),
     ("graph_applied_never_lowers_under_contention", graph_applied),
     ("two_index_writer_sessions_take_turns", index_writers),
 ];
 
 const PER_WRITER: usize = 100;
+
+/// What one graph-writing thread saw: each `applied` it tried and how the store answered.
+type Attempts = Result<Vec<(u64, Result<(), StoreError>)>, String>;
 
 fn threads(env: &Env<'_>) -> CaseResult {
     let f = env.fresh()?;
@@ -35,9 +41,20 @@ fn threads(env: &Env<'_>) -> CaseResult {
                     ensure_eq(change.rev, after + 1, "revisions come out dense")?;
                     after = change.rev;
                     ensure_eq(change.kind, ChangeKind::Put, "kind")?;
-                    let doc = d.get_document(&change.target, &derivation).ctx("get_document")?;
-                    let doc = doc.ok_or_else(|| format!("revision {} is visible but `{}` is not", change.rev, change.target))?;
-                    ensure_eq(doc.rev, change.rev, "the document carries its change's revision")?;
+                    let doc = d
+                        .get_document(&change.target, &derivation)
+                        .ctx("get_document")?;
+                    let doc = doc.ok_or_else(|| {
+                        format!(
+                            "revision {} is visible but `{}` is not",
+                            change.rev, change.target
+                        )
+                    })?;
+                    ensure_eq(
+                        doc.rev,
+                        change.rev,
+                        "the document carries its change's revision",
+                    )?;
                 }
                 if finished && d.head().ctx("head")? == after {
                     return Ok(());
@@ -52,7 +69,10 @@ fn threads(env: &Env<'_>) -> CaseResult {
                     for n in 0..PER_WRITER {
                         let id = format!("{name}/doc-{n:03}");
                         let meta = d
-                            .put_document(samples::document(&id, &["space"], &id, "t"), Expect::Absent)
+                            .put_document(
+                                samples::document(&id, &["space"], &id, "t"),
+                                Expect::Absent,
+                            )
                             .ctx("put_document")?;
                         revs.push(meta.rev);
                     }
@@ -70,19 +90,35 @@ fn threads(env: &Env<'_>) -> CaseResult {
             }
         }
         done.store(true, Ordering::SeqCst);
-        let read = reader.join().map_err(|_| "the reader thread panicked".to_owned())?;
+        let read = reader
+            .join()
+            .map_err(|_| "the reader thread panicked".to_owned())?;
         if let Some(why) = failure {
             return Err(why);
         }
         read?;
-        ensure_eq(all.len(), PER_WRITER * 2, "no two writes took the same revision")?;
-        ensure_eq(all.into_iter().collect::<Vec<_>>(), (1..=(PER_WRITER as u64 * 2)).collect::<Vec<_>>(), "revisions are dense")
+        ensure_eq(
+            all.len(),
+            PER_WRITER * 2,
+            "no two writes took the same revision",
+        )?;
+        ensure_eq(
+            all.into_iter().collect::<Vec<_>>(),
+            (1..=(PER_WRITER as u64 * 2)).collect::<Vec<_>>(),
+            "revisions are dense",
+        )
     });
     reads?;
     ensure_eq(d.head().ctx("head")?, PER_WRITER as u64 * 2, "head")?;
     for name in ["a", "b"] {
         let page = d
-            .list_documents(&crate::ListQuery { prefix: Some(format!("{name}/")), ..crate::ListQuery::all(500) }, &everyone())
+            .list_documents(
+                &crate::ListQuery {
+                    prefix: Some(format!("{name}/")),
+                    ..crate::ListQuery::all(500)
+                },
+                &everyone(),
+            )
             .ctx("list")?;
         ensure_eq(page.items.len(), PER_WRITER, "every write is readable")?;
     }
@@ -104,16 +140,24 @@ fn processes(env: &Env<'_>) -> CaseResult {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        children.push(command.spawn().map_err(|e| format!("spawning a writer child: {e}"))?);
+        children.push(
+            command
+                .spawn()
+                .map_err(|e| format!("spawning a writer child: {e}"))?,
+        );
     }
     // The barrier: both children are up and waiting on this line before either writes.
     for child in &mut children {
         let mut stdin = child.stdin.take().ok_or("a child has no stdin")?;
-        stdin.write_all(b"go\n").map_err(|e| format!("starting a child: {e}"))?;
+        stdin
+            .write_all(b"go\n")
+            .map_err(|e| format!("starting a child: {e}"))?;
     }
     let mut seen: BTreeMap<u64, String> = BTreeMap::new();
     for child in children {
-        let output = child.wait_with_output().map_err(|e| format!("waiting for a child: {e}"))?;
+        let output = child
+            .wait_with_output()
+            .map_err(|e| format!("waiting for a child: {e}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         if !output.status.success() {
             return Err(format!(
@@ -123,15 +167,34 @@ fn processes(env: &Env<'_>) -> CaseResult {
             ));
         }
         for line in stdout.lines().filter_map(|l| l.strip_prefix(WROTE_PREFIX)) {
-            let (rev, id) = line.trim().split_once(' ').ok_or("a malformed child line")?;
-            let rev: u64 = rev.parse().map_err(|e| format!("a child printed a bad revision: {e}"))?;
-            ensure(seen.insert(rev, id.to_owned()).is_none(), &format!("two writes took revision {rev}"))?;
+            let (rev, id) = line
+                .trim()
+                .split_once(' ')
+                .ok_or("a malformed child line")?;
+            let rev: u64 = rev
+                .parse()
+                .map_err(|e| format!("a child printed a bad revision: {e}"))?;
+            ensure(
+                seen.insert(rev, id.to_owned()).is_none(),
+                &format!("two writes took revision {rev}"),
+            )?;
         }
     }
-    ensure_eq(seen.keys().copied().collect::<Vec<_>>(), (1..=(PER_WRITER as u64 * 2)).collect::<Vec<_>>(), "revisions are dense across processes")?;
-    ensure_eq(d.head().ctx("head")?, PER_WRITER as u64 * 2, "head, read by the parent")?;
+    ensure_eq(
+        seen.keys().copied().collect::<Vec<_>>(),
+        (1..=(PER_WRITER as u64 * 2)).collect::<Vec<_>>(),
+        "revisions are dense across processes",
+    )?;
+    ensure_eq(
+        d.head().ctx("head")?,
+        PER_WRITER as u64 * 2,
+        "head, read by the parent",
+    )?;
     for (rev, id) in &seen {
-        let doc = d.get_document(id, &everyone()).ctx("get_document")?.ok_or_else(|| format!("`{id}` was written and is not readable"))?;
+        let doc = d
+            .get_document(id, &everyone())
+            .ctx("get_document")?
+            .ok_or_else(|| format!("`{id}` was written and is not readable"))?;
         ensure_eq(doc.rev, *rev, "the revision the child was told")?;
     }
     pass()
@@ -140,25 +203,52 @@ fn processes(env: &Env<'_>) -> CaseResult {
 fn graph_applied(env: &Env<'_>) -> CaseResult {
     let f = env.fresh()?;
     for n in 0..20 {
-        f.stores.documents.put_document(samples::document(&format!("a/doc-{n:02}"), &["space"], "x", "t"), Expect::Any).ctx("put")?;
+        f.stores
+            .documents
+            .put_document(
+                samples::document(&format!("a/doc-{n:02}"), &["space"], "x", "t"),
+                Expect::Any,
+            )
+            .ctx("put")?;
     }
     let g = &*f.stores.graph;
-    let outcomes: Vec<Result<Vec<(u64, Result<(), StoreError>)>, String>> = std::thread::scope(|scope| {
+    let outcomes: Vec<Attempts> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..2u64)
             .map(|t| {
-                scope.spawn(move || -> Result<Vec<(u64, Result<(), StoreError>)>, String> {
+                scope.spawn(move || -> Attempts {
                     (0..10u64)
                         .map(|i| {
                             let applied = 1 + i * 2 + t;
                             let doc = format!("a/doc-{:02}", i * 2 + t);
-                            let graph = DocGraph { nodes: vec![Node { id: format!("doc:{doc}"), kind: "document".to_owned(), label: doc.clone() }], edges: vec![] };
-                            Ok((applied, g.apply(GraphBatch { entries: vec![(doc, Some(graph))] }, applied)))
+                            let graph = DocGraph {
+                                nodes: vec![Node {
+                                    id: format!("doc:{doc}"),
+                                    kind: "document".to_owned(),
+                                    label: doc.clone(),
+                                }],
+                                edges: vec![],
+                            };
+                            Ok((
+                                applied,
+                                g.apply(
+                                    GraphBatch {
+                                        entries: vec![(doc, Some(graph))],
+                                    },
+                                    applied,
+                                ),
+                            ))
                         })
                         .collect()
                 })
             })
             .collect();
-        handles.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("a thread panicked".to_owned()))).collect()
+        handles
+            .into_iter()
+            .map(|h| {
+                h.join()
+                    .unwrap_or_else(|_| Err("a thread panicked".to_owned()))
+            })
+            .collect()
     });
     let mut highest = 0;
     let mut written = BTreeSet::new();
@@ -170,7 +260,9 @@ fn graph_applied(env: &Env<'_>) -> CaseResult {
                     written.insert(applied);
                 }
                 Err(StoreError::Conflict { current: Some(c) }) => {
-                    let current: u64 = c.parse().map_err(|e| format!("a non-numeric current: {e}"))?;
+                    let current: u64 = c
+                        .parse()
+                        .map_err(|e| format!("a non-numeric current: {e}"))?;
                     ensure(current > applied, "a conflict names a higher revision")?;
                     highest = highest.max(current);
                 }
@@ -178,9 +270,34 @@ fn graph_applied(env: &Env<'_>) -> CaseResult {
             }
         }
     }
-    ensure_eq(g.applied().ctx("applied")?, highest, "applied is the highest ever accepted")?;
-    let nodes = g.subgraph(&ReaderFilter::derivation()).ctx("subgraph")?.nodes;
-    ensure_eq(nodes.len(), written.len(), "every accepted apply left its contribution")?;
+    ensure_eq(
+        g.applied().ctx("applied")?,
+        highest,
+        "applied is the highest ever accepted",
+    )?;
+    let nodes = g
+        .subgraph(&ReaderFilter::derivation())
+        .ctx("subgraph")?
+        .nodes;
+    ensure_eq(
+        nodes.len(),
+        written.len(),
+        "every accepted apply left its contribution",
+    )?;
+    // Whatever the interleaving was, the contended store still refuses to go back.
+    let lower = GraphBatch::default();
+    ensure(
+        matches!(
+            g.apply(lower, highest - 1),
+            Err(StoreError::Conflict { .. })
+        ),
+        "after the contention, a lower revision is still refused",
+    )?;
+    ensure_eq(
+        g.applied().ctx("applied")?,
+        highest,
+        "and applied did not move",
+    )?;
     pass()
 }
 

@@ -3281,6 +3281,7 @@ dependencies = [
  "umbel",
  "umbel-plugin-hello",
  "umbel-sdk",
+ "umbel-store",
  "wasmtime",
  "wasmtime-wasi",
  "wasmtime-wasi-io",

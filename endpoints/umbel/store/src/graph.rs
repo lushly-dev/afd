@@ -2,7 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::document::DocId;
+use std::collections::HashSet;
+
+use crate::document::{DocId, check_identifier};
+use crate::error::{Result, StoreError};
 
 /// The most nodes, and the most edges, one document's contribution may hold.
 pub const MAX_CONTRIBUTION_ITEMS: usize = 100_000;
@@ -79,4 +82,74 @@ pub struct Subgraph {
     pub nodes: Vec<Node>,
     /// Aggregated edges whose endpoints and origins are readable, by `(from, to, kind)`.
     pub edges: Vec<Edge>,
+}
+
+/// The longest node id, edge end or kind, in bytes.
+const MAX_GRAPH_ID_BYTES: usize = 1024;
+/// The longest node label, in bytes.
+const MAX_GRAPH_LABEL_BYTES: usize = 4096;
+
+fn check_text(what: &str, text: &str, max: usize) -> Result<()> {
+    if text.is_empty() || text.len() > max || text.chars().any(char::is_control) {
+        return Err(StoreError::invalid(format!(
+            "{what} must be 1 to {max} bytes without a control character"
+        )));
+    }
+    Ok(())
+}
+
+impl GraphBatch {
+    /// The checks every backend makes before applying a batch, so all refuse alike: each origin
+    /// once, bounded contributions, well-formed ids, no node or edge twice within a
+    /// contribution, weights that fit a signed 64-bit integer.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`] or [`StoreError::TooLarge`] naming the first rule broken.
+    pub fn check(&self) -> Result<()> {
+        let mut origins = HashSet::new();
+        for (doc, contribution) in &self.entries {
+            check_identifier("a graph origin", doc)?;
+            if !origins.insert(doc.as_str()) {
+                return Err(StoreError::invalid(format!(
+                    "the batch names `{doc}` twice"
+                )));
+            }
+            let Some(graph) = contribution else { continue };
+            if graph.nodes.len() > MAX_CONTRIBUTION_ITEMS
+                || graph.edges.len() > MAX_CONTRIBUTION_ITEMS
+            {
+                return Err(StoreError::TooLarge(format!(
+                    "a contribution holds at most {MAX_CONTRIBUTION_ITEMS} nodes and as many edges"
+                )));
+            }
+            let mut nodes = HashSet::new();
+            for node in &graph.nodes {
+                check_text("a node id", &node.id, MAX_GRAPH_ID_BYTES)?;
+                check_text("a node kind", &node.kind, MAX_GRAPH_ID_BYTES)?;
+                check_text("a node label", &node.label, MAX_GRAPH_LABEL_BYTES)?;
+                if !nodes.insert(node.id.as_str()) {
+                    return Err(StoreError::invalid(format!(
+                        "`{doc}` contributes node `{}` twice",
+                        node.id
+                    )));
+                }
+            }
+            let mut edges = HashSet::new();
+            for edge in &graph.edges {
+                check_text("an edge end", &edge.from, MAX_GRAPH_ID_BYTES)?;
+                check_text("an edge end", &edge.to, MAX_GRAPH_ID_BYTES)?;
+                check_text("an edge kind", &edge.kind, MAX_GRAPH_ID_BYTES)?;
+                if i64::try_from(edge.weight).is_err() {
+                    return Err(StoreError::invalid("an edge weight is at most 2^63 - 1"));
+                }
+                if !edges.insert((edge.from.as_str(), edge.to.as_str(), edge.kind.as_str())) {
+                    return Err(StoreError::invalid(format!(
+                        "`{doc}` contributes the edge `{}` -{}-> `{}` twice",
+                        edge.from, edge.kind, edge.to
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
 }

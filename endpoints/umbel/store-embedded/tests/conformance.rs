@@ -11,8 +11,15 @@ fn the_suite_passes() {
     report.assert_passed();
     // Only the index cases wait for step 3; nothing else may be skipped.
     let skipped = report.skipped();
-    assert!(skipped.iter().all(|s| s.contains("index")), "unexpected skips: {skipped:?}");
-    assert!(report.passed() >= 40, "the suite ran only {} cases", report.passed());
+    assert!(
+        skipped.iter().all(|s| s.contains("index")),
+        "unexpected skips: {skipped:?}"
+    );
+    assert!(
+        report.passed() >= 40,
+        "the suite ran only {} cases",
+        report.passed()
+    );
 }
 
 #[test]

@@ -9,7 +9,10 @@ use crate::{ChangeKind, Direction, EdgeKey, ListQuery, ReaderFilter};
 
 pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     ("documents_listed_and_fetched_per_reader", documents),
-    ("an_unreadable_document_is_indistinguishable_from_an_absent_one", indistinguishable),
+    (
+        "an_unreadable_document_is_indistinguishable_from_an_absent_one",
+        indistinguishable,
+    ),
     ("records_listed_and_fetched_per_reader", records),
     ("changes_per_reader", changes),
     ("graph_per_reader", graph),
@@ -29,11 +32,19 @@ fn setup(env: &Env<'_>) -> Result<Setup, String> {
     let fresh = env.fresh()?;
     let fixture = fixture::load()?;
     fixture::populate(&fresh.stores, &fixture)?;
-    Ok(Setup { stores: fresh.stores.clone(), fixture, _dir: fresh })
+    Ok(Setup {
+        stores: fresh.stores.clone(),
+        fixture,
+        _dir: fresh,
+    })
 }
 
 fn readers(fixture: &Fixture) -> Vec<(String, Vec<String>)> {
-    fixture.readers.iter().map(|(n, t)| (n.clone(), t.clone())).collect()
+    fixture
+        .readers
+        .iter()
+        .map(|(n, t)| (n.clone(), t.clone()))
+        .collect()
 }
 
 fn documents(env: &Env<'_>) -> CaseResult {
@@ -44,21 +55,42 @@ fn documents(env: &Env<'_>) -> CaseResult {
         let mut listed = Vec::new();
         let mut query = ListQuery::all(7);
         loop {
-            let page = s.stores.documents.list_documents(&query, &reader).ctx("list_documents")?;
+            let page = s
+                .stores
+                .documents
+                .list_documents(&query, &reader)
+                .ctx("list_documents")?;
             listed.extend(page.items.into_iter().map(|m| m.id));
             match page.next {
                 Some(next) => query.after = Some(next),
                 None => break,
             }
         }
-        ensure_eq(listed, oracle.docs.iter().cloned().collect::<Vec<_>>(), &format!("{name}: the listing"))?;
+        ensure_eq(
+            listed,
+            oracle.docs.iter().cloned().collect::<Vec<_>>(),
+            &format!("{name}: the listing"),
+        )?;
         for doc in &s.fixture.documents {
-            let got = s.stores.documents.get_document(&doc.id, &reader).ctx("get_document")?;
-            ensure_eq(got.is_some(), oracle.docs.contains(&doc.id), &format!("{name}: get_document({})", doc.id))?;
+            let got = s
+                .stores
+                .documents
+                .get_document(&doc.id, &reader)
+                .ctx("get_document")?;
+            ensure_eq(
+                got.is_some(),
+                oracle.docs.contains(&doc.id),
+                &format!("{name}: get_document({})", doc.id),
+            )?;
         }
         let mut by_collection = ListQuery::all(50);
         by_collection.collection = Some("runbooks".to_owned());
-        let expected: Vec<String> = oracle.docs.iter().filter(|id| id.starts_with("runbooks/")).cloned().collect();
+        let expected: Vec<String> = oracle
+            .docs
+            .iter()
+            .filter(|id| id.starts_with("runbooks/"))
+            .cloned()
+            .collect();
         let got: Vec<String> = s
             .stores
             .documents
@@ -68,7 +100,11 @@ fn documents(env: &Env<'_>) -> CaseResult {
             .into_iter()
             .map(|m| m.id)
             .collect();
-        ensure_eq(got, expected, &format!("{name}: a filtered listing is still filtered by access"))?;
+        ensure_eq(
+            got,
+            expected,
+            &format!("{name}: a filtered listing is still filtered by access"),
+        )?;
     }
     pass()
 }
@@ -76,13 +112,30 @@ fn documents(env: &Env<'_>) -> CaseResult {
 fn indistinguishable(env: &Env<'_>) -> CaseResult {
     let s = setup(env)?;
     let outsider = fixture::reader_filter(&["space".to_owned()])?;
-    let hidden = s.fixture.documents.iter().find(|d| !d.access.contains(&"space".to_owned())).ok_or("the fixture has no hidden document")?;
+    let hidden = s
+        .fixture
+        .documents
+        .iter()
+        .find(|d| !d.access.contains(&"space".to_owned()))
+        .ok_or("the fixture has no hidden document")?;
     let hidden_result = s.stores.documents.get_document(&hidden.id, &outsider);
-    let absent_result = s.stores.documents.get_document("runbooks/never-written", &outsider);
-    ensure_eq(hidden_result.clone(), absent_result.clone(), "the same answer for hidden and absent")?;
+    let absent_result = s
+        .stores
+        .documents
+        .get_document("runbooks/never-written", &outsider);
+    ensure_eq(
+        hidden_result.clone(),
+        absent_result.clone(),
+        "the same answer for hidden and absent",
+    )?;
     ensure(matches!(hidden_result, Ok(None)), "that answer is Ok(None)")?;
     ensure(
-        matches!(s.stores.documents.get_record(RECORD_NS, RECORD_KIND, &hidden.id, &outsider), Ok(None)),
+        matches!(
+            s.stores
+                .documents
+                .get_record(RECORD_NS, RECORD_KIND, &hidden.id, &outsider),
+            Ok(None)
+        ),
         "a hidden record reads as None",
     )?;
     pass()
@@ -96,17 +149,33 @@ fn records(env: &Env<'_>) -> CaseResult {
         let mut listed = Vec::new();
         let mut after: Option<String> = None;
         loop {
-            let page = s.stores.documents.list_records(RECORD_NS, RECORD_KIND, after.as_deref(), 9, &reader).ctx("list_records")?;
+            let page = s
+                .stores
+                .documents
+                .list_records(RECORD_NS, RECORD_KIND, after.as_deref(), 9, &reader)
+                .ctx("list_records")?;
             listed.extend(page.items.into_iter().map(|r| r.id));
             match page.next {
                 Some(next) => after = Some(next),
                 None => break,
             }
         }
-        ensure_eq(listed, oracle.docs.iter().cloned().collect::<Vec<_>>(), &format!("{name}: the record listing"))?;
+        ensure_eq(
+            listed,
+            oracle.docs.iter().cloned().collect::<Vec<_>>(),
+            &format!("{name}: the record listing"),
+        )?;
         for doc in &s.fixture.documents {
-            let got = s.stores.documents.get_record(RECORD_NS, RECORD_KIND, &doc.id, &reader).ctx("get_record")?;
-            ensure_eq(got.is_some(), oracle.docs.contains(&doc.id), &format!("{name}: get_record({})", doc.id))?;
+            let got = s
+                .stores
+                .documents
+                .get_record(RECORD_NS, RECORD_KIND, &doc.id, &reader)
+                .ctx("get_record")?;
+            ensure_eq(
+                got.is_some(),
+                oracle.docs.contains(&doc.id),
+                &format!("{name}: get_record({})", doc.id),
+            )?;
         }
     }
     pass()
@@ -117,7 +186,11 @@ fn changes(env: &Env<'_>) -> CaseResult {
     for (name, tokens) in readers(&s.fixture) {
         let oracle = Oracle::new(&s.fixture, Some(&tokens));
         let reader = fixture::reader_filter(&tokens)?;
-        let got = s.stores.documents.changes(0, 1000, &reader, None).ctx("changes")?;
+        let got = s
+            .stores
+            .documents
+            .changes(0, 1000, &reader, None)
+            .ctx("changes")?;
         let mut expected: Vec<(u64, String)> = Vec::new();
         for (n, doc) in s.fixture.documents.iter().enumerate() {
             if oracle.docs.contains(&doc.id) {
@@ -126,12 +199,22 @@ fn changes(env: &Env<'_>) -> CaseResult {
         }
         for (n, doc) in s.fixture.documents.iter().enumerate() {
             if oracle.docs.contains(&doc.id) {
-                expected.push((n as u64 + 41, format!("{RECORD_NS}/{RECORD_KIND}/{}", doc.id)));
+                expected.push((
+                    n as u64 + 41,
+                    format!("{RECORD_NS}/{RECORD_KIND}/{}", doc.id),
+                ));
             }
         }
-        ensure_eq(got.iter().map(|c| (c.rev, c.target.clone())).collect::<Vec<_>>(), expected, &format!("{name}: changes"))?;
+        ensure_eq(
+            got.iter()
+                .map(|c| (c.rev, c.target.clone()))
+                .collect::<Vec<_>>(),
+            expected,
+            &format!("{name}: changes"),
+        )?;
         ensure(
-            got.iter().all(|c| matches!(c.kind, ChangeKind::Put | ChangeKind::Record)),
+            got.iter()
+                .all(|c| matches!(c.kind, ChangeKind::Put | ChangeKind::Record)),
             "the fixture only writes",
         )?;
     }
@@ -153,14 +236,30 @@ fn graph(env: &Env<'_>) -> CaseResult {
         };
         let g = &*s.stores.graph;
         let subgraph = g.subgraph(&reader).ctx("subgraph")?;
-        ensure_eq(subgraph.nodes, oracle.node_list(), &format!("{name}: subgraph nodes"))?;
-        ensure_eq(subgraph.edges, oracle.edge_list(), &format!("{name}: subgraph edges"))?;
-        let ids: Vec<String> = s.fixture.documents.iter().map(|d| format!("doc:{}", d.id)).chain((0..5).map(|n| format!("tag:t{n}"))).collect();
+        ensure_eq(
+            subgraph.nodes,
+            oracle.node_list(),
+            &format!("{name}: subgraph nodes"),
+        )?;
+        ensure_eq(
+            subgraph.edges,
+            oracle.edge_list(),
+            &format!("{name}: subgraph edges"),
+        )?;
+        let ids: Vec<String> = s
+            .fixture
+            .documents
+            .iter()
+            .map(|d| format!("doc:{}", d.id))
+            .chain((0..5).map(|n| format!("tag:t{n}")))
+            .collect();
         let nodes = g.nodes(&ids, &reader).ctx("nodes")?;
         ensure_eq(nodes, oracle.node_list(), &format!("{name}: nodes"))?;
         for id in &ids {
             for direction in [Direction::Out, Direction::In, Direction::Both] {
-                let got = g.neighbors(id, &[], direction, 1000, &reader).ctx("neighbors")?;
+                let got = g
+                    .neighbors(id, &[], direction, 1000, &reader)
+                    .ctx("neighbors")?;
                 let expected: Vec<_> = oracle
                     .edge_list()
                     .into_iter()
@@ -170,17 +269,30 @@ fn graph(env: &Env<'_>) -> CaseResult {
                         Direction::Both => &e.from == id || &e.to == id,
                     })
                     .collect();
-                ensure_eq(got, expected, &format!("{name}: neighbors({id}, {direction:?})"))?;
+                ensure_eq(
+                    got,
+                    expected,
+                    &format!("{name}: neighbors({id}, {direction:?})"),
+                )?;
             }
         }
-        let co: Vec<_> = oracle.edge_list().into_iter().filter(|e| e.kind == "co_cited").collect();
+        let co: Vec<_> = oracle
+            .edge_list()
+            .into_iter()
+            .filter(|e| e.kind == "co_cited")
+            .collect();
         let mut paged = Vec::new();
         let mut after: Option<EdgeKey> = None;
         loop {
-            let page = g.edges_of_kind("co_cited", 11, after.as_ref(), &reader).ctx("edges_of_kind")?;
+            let page = g
+                .edges_of_kind("co_cited", 11, after.as_ref(), &reader)
+                .ctx("edges_of_kind")?;
             let full = page.len() == 11;
             if let Some(last) = page.last() {
-                after = Some(EdgeKey { from: last.from.clone(), to: last.to.clone() });
+                after = Some(EdgeKey {
+                    from: last.from.clone(),
+                    to: last.to.clone(),
+                });
             }
             paged.extend(page);
             if !full {
@@ -203,20 +315,100 @@ fn no_leaks(env: &Env<'_>) -> CaseResult {
         let mut push = |value: serde_json::Value| seen.push_str(&value.to_string());
         let mut query = ListQuery::all(500);
         query.after = None;
-        push(serde_json::to_value(s.stores.documents.list_documents(&query, &reader).ctx("list")?).map_err(|e| e.to_string())?);
+        push(
+            serde_json::to_value(
+                s.stores
+                    .documents
+                    .list_documents(&query, &reader)
+                    .ctx("list")?,
+            )
+            .map_err(|e| e.to_string())?,
+        );
         for doc in &s.fixture.documents {
-            push(serde_json::to_value(s.stores.documents.get_document(&doc.id, &reader).ctx("get")?).map_err(|e| e.to_string())?);
-            push(serde_json::to_value(s.stores.documents.get_record(RECORD_NS, RECORD_KIND, &doc.id, &reader).ctx("get")?).map_err(|e| e.to_string())?);
-            push(serde_json::to_value(s.stores.graph.neighbors(&format!("doc:{}", doc.id), &[], Direction::Both, 1000, &reader).ctx("neighbors")?).map_err(|e| e.to_string())?);
+            push(
+                serde_json::to_value(
+                    s.stores
+                        .documents
+                        .get_document(&doc.id, &reader)
+                        .ctx("get")?,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            push(
+                serde_json::to_value(
+                    s.stores
+                        .documents
+                        .get_record(RECORD_NS, RECORD_KIND, &doc.id, &reader)
+                        .ctx("get")?,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            push(
+                serde_json::to_value(
+                    s.stores
+                        .graph
+                        .neighbors(
+                            &format!("doc:{}", doc.id),
+                            &[],
+                            Direction::Both,
+                            1000,
+                            &reader,
+                        )
+                        .ctx("neighbors")?,
+                )
+                .map_err(|e| e.to_string())?,
+            );
         }
-        push(serde_json::to_value(s.stores.documents.list_records(RECORD_NS, RECORD_KIND, None, 500, &reader).ctx("list")?).map_err(|e| e.to_string())?);
-        push(serde_json::to_value(s.stores.documents.changes(0, 1000, &reader, None).ctx("changes")?).map_err(|e| e.to_string())?);
-        push(serde_json::to_value(s.stores.graph.subgraph(&reader).ctx("subgraph")?).map_err(|e| e.to_string())?);
-        let hidden: BTreeSet<&str> = s.fixture.documents.iter().map(|d| d.id.as_str()).filter(|id| !oracle.docs.contains(*id)).collect();
-        ensure(!hidden.is_empty(), "the fixture hides something from every reader")?;
-        for doc in s.fixture.documents.iter().filter(|d| hidden.contains(d.id.as_str())) {
-            ensure(!seen.contains(&doc.id), &format!("{name}: the id `{}` of an unreadable document appeared", doc.id))?;
-            ensure(!seen.contains(&doc.title), &format!("{name}: the title of unreadable `{}` appeared", doc.id))?;
+        push(
+            serde_json::to_value(
+                s.stores
+                    .documents
+                    .list_records(RECORD_NS, RECORD_KIND, None, 500, &reader)
+                    .ctx("list")?,
+            )
+            .map_err(|e| e.to_string())?,
+        );
+        push(
+            serde_json::to_value(
+                s.stores
+                    .documents
+                    .changes(0, 1000, &reader, None)
+                    .ctx("changes")?,
+            )
+            .map_err(|e| e.to_string())?,
+        );
+        push(
+            serde_json::to_value(s.stores.graph.subgraph(&reader).ctx("subgraph")?)
+                .map_err(|e| e.to_string())?,
+        );
+        let hidden: BTreeSet<&str> = s
+            .fixture
+            .documents
+            .iter()
+            .map(|d| d.id.as_str())
+            .filter(|id| !oracle.docs.contains(*id))
+            .collect();
+        ensure(
+            !hidden.is_empty(),
+            "the fixture hides something from every reader",
+        )?;
+        for doc in s
+            .fixture
+            .documents
+            .iter()
+            .filter(|d| hidden.contains(d.id.as_str()))
+        {
+            ensure(
+                !seen.contains(&doc.id),
+                &format!(
+                    "{name}: the id `{}` of an unreadable document appeared",
+                    doc.id
+                ),
+            )?;
+            ensure(
+                !seen.contains(&doc.title),
+                &format!("{name}: the title of unreadable `{}` appeared", doc.id),
+            )?;
         }
     }
     pass()
@@ -225,20 +417,62 @@ fn no_leaks(env: &Env<'_>) -> CaseResult {
 fn nobody(env: &Env<'_>) -> CaseResult {
     let s = setup(env)?;
     let reader = fixture::reader_filter(&[])?;
-    ensure(s.stores.documents.list_documents(&ListQuery::all(50), &reader).ctx("list")?.items.is_empty(), "documents")?;
-    ensure(s.stores.documents.changes(0, 1000, &reader, None).ctx("changes")?.is_empty(), "changes")?;
-    ensure(s.stores.documents.list_records(RECORD_NS, RECORD_KIND, None, 50, &reader).ctx("list")?.items.is_empty(), "records")?;
+    ensure(
+        s.stores
+            .documents
+            .list_documents(&ListQuery::all(50), &reader)
+            .ctx("list")?
+            .items
+            .is_empty(),
+        "documents",
+    )?;
+    ensure(
+        s.stores
+            .documents
+            .changes(0, 1000, &reader, None)
+            .ctx("changes")?
+            .is_empty(),
+        "changes",
+    )?;
+    ensure(
+        s.stores
+            .documents
+            .list_records(RECORD_NS, RECORD_KIND, None, 50, &reader)
+            .ctx("list")?
+            .items
+            .is_empty(),
+        "records",
+    )?;
     let sub = s.stores.graph.subgraph(&reader).ctx("subgraph")?;
     ensure(sub.nodes.is_empty() && sub.edges.is_empty(), "graph")?;
-    ensure(s.stores.graph.neighbors("doc:handbook/doc-00", &[], Direction::Both, 10, &reader).ctx("neighbors")?.is_empty(), "neighbors")?;
+    ensure(
+        s.stores
+            .graph
+            .neighbors("doc:handbook/doc-00", &[], Direction::Both, 10, &reader)
+            .ctx("neighbors")?
+            .is_empty(),
+        "neighbors",
+    )?;
     pass()
 }
 
 fn derivation(env: &Env<'_>) -> CaseResult {
     let s = setup(env)?;
-    let page = s.stores.documents.list_documents(&ListQuery::all(500), &ReaderFilter::derivation()).ctx("list")?;
-    ensure_eq(page.items.len(), 40, "a derivation read lists every document")?;
-    let changes = s.stores.documents.changes(0, 1000, &ReaderFilter::derivation(), None).ctx("changes")?;
+    let page = s
+        .stores
+        .documents
+        .list_documents(&ListQuery::all(500), &ReaderFilter::derivation())
+        .ctx("list")?;
+    ensure_eq(
+        page.items.len(),
+        40,
+        "a derivation read lists every document",
+    )?;
+    let changes = s
+        .stores
+        .documents
+        .changes(0, 1000, &ReaderFilter::derivation(), None)
+        .ctx("changes")?;
     ensure_eq(changes.len(), 80, "and every change")?;
     pass()
 }

@@ -56,8 +56,10 @@ jobs:
           workspaces: endpoints/umbel
       - name: Format
         run: cargo fmt --all --check
+      # The embedded store builds SQLite's C code; the `knowledge` job owns it, so these jobs keep
+      # their build time and timeouts (phase 2 specification, section 12).
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings
       - name: Clippy (library only, no default features)
         run: cargo clippy --locked -p umbel --lib --no-default-features -- -D warnings
       - name: Clippy (library only, mounted loader)
@@ -79,7 +81,7 @@ jobs:
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
-        run: cargo test --locked --workspace
+        run: cargo test --locked --workspace --exclude umbel-store-embedded
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -100,7 +102,47 @@ jobs:
           workspaces: endpoints/umbel
           key: msrv
       - name: Check
-        run: cargo +1.97.0 check --locked --workspace --all-targets
+        run: cargo +1.97.0 check --locked --workspace --exclude umbel-store-embedded --all-targets
+
+  # The knowledge stack's crates (phase 2 specification, section 12): the store traits and the
+  # conformance suite, and the SQLite backend with its bundled C build. Each later step adds its
+  # crates to these commands. Step 3 measures this job on CI and sets the timeout to three times
+  # the measured time.
+  knowledge:
+    name: Umbel knowledge (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: endpoints/umbel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+          key: knowledge
+      - name: Clippy
+        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked -p umbel-store -p umbel-store-embedded
+      # The traits and types build for WebAssembly components (section 1); the backend does not.
+      - name: Check umbel-store (wasm32-wasip2)
+        run: cargo check --locked --target wasm32-wasip2 -p umbel-store
+      - name: Install Rust 1.97
+        if: matrix.os == 'ubuntu-latest'
+        run: rustup toolchain install 1.97.0 --profile minimal
+      - name: Check (MSRV 1.97)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).

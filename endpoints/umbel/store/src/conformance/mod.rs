@@ -29,7 +29,9 @@ use std::sync::Arc;
 
 use crate::{DocumentStore, GraphStore, SearchIndex, StoreError};
 
-pub use child::{ENV_COUNT, ENV_ID, ENV_WRITER, WROTE_PREFIX, run_child};
+pub use child::{
+    ENV_COUNT, ENV_ID, ENV_WRITER, WROTE_PREFIX, run_child, wait_for_start, write_documents,
+};
 
 /// The space every suite store serves.
 pub const SPACE: &str = "main";
@@ -86,7 +88,9 @@ impl GroupReport {
     /// Whether any case failed.
     #[must_use]
     pub fn failed(&self) -> bool {
-        self.cases.iter().any(|c| matches!(c.outcome, Outcome::Failed(_)))
+        self.cases
+            .iter()
+            .any(|c| matches!(c.outcome, Outcome::Failed(_)))
     }
 }
 
@@ -148,7 +152,11 @@ impl Report {
     /// When a case failed.
     pub fn assert_passed(&self) {
         let failures = self.failures();
-        assert!(failures.is_empty(), "conformance failures:\n{}", failures.join("\n"));
+        assert!(
+            failures.is_empty(),
+            "conformance failures:\n{}",
+            failures.join("\n")
+        );
     }
 }
 
@@ -203,7 +211,8 @@ impl Env<'_> {
     /// A new empty directory with fresh stores.
     pub(crate) fn fresh(&self) -> Result<Fresh, String> {
         let dir = tempfile::tempdir().map_err(|e| format!("a temporary directory: {e}"))?;
-        let stores = (self.factory)(dir.path(), SPACE).map_err(|e| format!("opening fresh stores: {e}"))?;
+        let stores =
+            (self.factory)(dir.path(), SPACE).map_err(|e| format!("opening fresh stores: {e}"))?;
         Ok(Fresh { dir, stores })
     }
 }
@@ -220,7 +229,11 @@ impl<T> Ctx<T> for Result<T, StoreError> {
 }
 
 pub(crate) fn ensure(condition: bool, what: &str) -> Result<(), String> {
-    if condition { Ok(()) } else { Err(what.to_owned()) }
+    if condition {
+        Ok(())
+    } else {
+        Err(what.to_owned())
+    }
 }
 
 pub(crate) fn ensure_eq<T: Debug + PartialEq>(left: T, right: T, what: &str) -> Result<(), String> {
@@ -254,7 +267,8 @@ pub(crate) fn conflict(error: &StoreError) -> bool {
 
 /// A reader holding these tokens.
 pub(crate) fn reader(tokens: &[&str]) -> crate::ReaderFilter {
-    crate::ReaderFilter::tokens(tokens.iter().copied()).unwrap_or_else(|_| crate::ReaderFilter::derivation())
+    crate::ReaderFilter::tokens(tokens.iter().copied())
+        .unwrap_or_else(|_| crate::ReaderFilter::derivation())
 }
 
 /// A reader that may read what `space` guards.
@@ -279,14 +293,20 @@ const GROUPS: &[Group] = &[
 /// index cases wait for a backend whose stores carry an index.
 #[must_use]
 pub fn run_all(factory: Factory<'_>, spawn_writer: Option<SpawnWriter>) -> Report {
-    let env = Env { factory, spawn_writer };
+    let env = Env {
+        factory,
+        spawn_writer,
+    };
     let groups = GROUPS
         .iter()
         .map(|(name, cases)| GroupReport {
             name,
             cases: cases
                 .iter()
-                .map(|(case, run)| CaseReport { name: case, outcome: run_case(&env, *run) })
+                .map(|(case, run)| CaseReport {
+                    name: case,
+                    outcome: run_case(&env, *run),
+                })
                 .collect(),
         })
         .collect();

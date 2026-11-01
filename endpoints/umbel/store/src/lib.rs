@@ -32,12 +32,10 @@ pub use envelope::{
 };
 pub use error::{Result, StoreError};
 pub use graph::{
-    DocGraph, Direction, Edge, EdgeKey, GraphBatch, MAX_CONTRIBUTION_ITEMS, MAX_NODE_LOOKUP, Node,
+    Direction, DocGraph, Edge, EdgeKey, GraphBatch, MAX_CONTRIBUTION_ITEMS, MAX_NODE_LOOKUP, Node,
     Subgraph,
 };
-pub use index::{
-    ChunkHit, IndexChunk, IndexFilters, IndexQuery, MAX_QUERY_CHARS, MAX_QUERY_LIMIT,
-};
+pub use index::{ChunkHit, IndexChunk, IndexFilters, IndexQuery, MAX_QUERY_CHARS, MAX_QUERY_LIMIT};
 pub use traits::{DocumentStore, GraphStore, IndexWriterSession, SearchIndex};
 
 /// The store traits' version (`workspace-show`'s `versions.store`). Owned here from step 2; the

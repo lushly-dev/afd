@@ -41,7 +41,10 @@ pub(crate) struct Sql {
 
 impl Sql {
     pub(crate) fn new(text: &str) -> Self {
-        Self { text: text.to_owned(), params: Vec::new() }
+        Self {
+            text: text.to_owned(),
+            params: Vec::new(),
+        }
     }
 
     pub(crate) fn push(&mut self, text: &str) -> &mut Self {
@@ -89,9 +92,15 @@ impl Sql {
         if tokens.is_empty() {
             return self.push(" AND 0");
         }
-        self.push(" AND EXISTS (SELECT 1 FROM ").push(table).push(" ax WHERE ");
+        self.push(" AND EXISTS (SELECT 1 FROM ")
+            .push(table)
+            .push(" ax WHERE ");
         for (column, outer) in keys {
-            self.push("ax.").push(column).push(" = ").push(outer).push(" AND ");
+            self.push("ax.")
+                .push(column)
+                .push(" = ")
+                .push(outer)
+                .push(" AND ");
         }
         self.push("ax.token IN ");
         self.bind_list(tokens.iter().cloned());

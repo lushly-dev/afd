@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::access::AccessSet;
-use crate::canonical::{canonical_json, base64_bytes, ContentHash};
+use crate::canonical::{ContentHash, base64_bytes, canonical_json};
 use crate::envelope::{ByAt, Envelope, Sensitivity};
 use crate::error::{Result, StoreError};
 
@@ -228,7 +228,13 @@ impl ListQuery {
     /// Everything, `limit` at a time.
     #[must_use]
     pub fn all(limit: u32) -> Self {
-        Self { collection: None, prefix: None, doc_type: None, after: None, limit }
+        Self {
+            collection: None,
+            prefix: None,
+            doc_type: None,
+            after: None,
+            limit,
+        }
     }
 }
 
@@ -338,7 +344,9 @@ impl DocumentWrite {
             ));
         }
         if self.id.len() == self.collection.len() + 1 {
-            return Err(StoreError::invalid("a document id needs a path after the collection"));
+            return Err(StoreError::invalid(
+                "a document id needs a path after the collection",
+            ));
         }
         if self.space != space {
             return Err(StoreError::invalid(format!(
@@ -352,7 +360,9 @@ impl DocumentWrite {
             )));
         }
         if ContentHash::of(&self.bytes) != self.content_hash {
-            return Err(StoreError::invalid("contentHash is not the hash of the bytes"));
+            return Err(StoreError::invalid(
+                "contentHash is not the hash of the bytes",
+            ));
         }
         if self.size != self.bytes.len() as u64 {
             return Err(StoreError::invalid("size is not the length of the bytes"));
@@ -381,8 +391,9 @@ impl DocumentWrite {
     /// # Errors
     /// [`StoreError::Corrupt`] if the record cannot be serialised.
     pub fn metadata_json(&self) -> Result<String> {
-        let mut value = serde_json::to_value(self)
-            .map_err(|e| StoreError::Corrupt(format!("a document record would not serialise: {e}")))?;
+        let mut value = serde_json::to_value(self).map_err(|e| {
+            StoreError::Corrupt(format!("a document record would not serialise: {e}"))
+        })?;
         if let Value::Object(map) = &mut value {
             map.remove("bytes");
         }
@@ -394,8 +405,9 @@ impl DocumentWrite {
     /// # Errors
     /// [`StoreError::Corrupt`] when the stored JSON is not a document record.
     pub fn from_metadata_json(json: &str, bytes: Vec<u8>) -> Result<Self> {
-        let mut write: Self = serde_json::from_str(json)
-            .map_err(|e| StoreError::Corrupt(format!("a stored document record is unreadable: {e}")))?;
+        let mut write: Self = serde_json::from_str(json).map_err(|e| {
+            StoreError::Corrupt(format!("a stored document record is unreadable: {e}"))
+        })?;
         write.bytes = bytes;
         Ok(write)
     }
