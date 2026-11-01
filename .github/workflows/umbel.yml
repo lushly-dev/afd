@@ -22,6 +22,10 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
       - '.github/workflows/umbel.yml'
+  # The macOS leg and the MSRV check run daily and on demand.
+  schedule:
+    - cron: '53 7 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,12 +42,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    # A todo example or AFD CLI change runs only the conformance job; the host checks need a change to Umbel, the afd crate or this workflow. Scheduled and manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      host: ${{ steps.host.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: host
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --path packages/rust/ --path .github/workflows/umbel.yml
+
   check:
     name: Umbel (fmt, clippy, test)
+    needs: scope
+    if: needs.scope.outputs.host == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
@@ -90,6 +116,7 @@ jobs:
 
   msrv:
     name: Umbel (MSRV 1.97)
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -115,10 +142,14 @@ jobs:
   # the measured time.
   knowledge:
     name: Umbel knowledge (${{ matrix.os }})
+    needs: scope
+    if: needs.scope.outputs.host == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
