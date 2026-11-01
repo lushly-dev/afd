@@ -480,6 +480,22 @@ commit.
   node, chosen when `(prefers-contrast: more)` or `(forced-colors: active)`
   matches.
 
+Decided while implementing step 0b, as the options most consistent with
+the rest of this section (amended 2026-11-01):
+
+- `source` and `apiUrl`/`apiKey` are either/or: `VioletConfig` is the union
+  of `VioletHttpConfig` and `VioletSourceConfig`, and the constructor
+  refuses both.
+- A source token is `{ id, value }` with an optional `resolvedAt`, which
+  defaults to the node, so `loam-theme.json`'s tokens feed the source as
+  they are.
+- A source runtime never reads or writes the cache, and `preload()` does
+  nothing. `switchNode(nodeId)` without a source only reapplies the node the
+  runtime holds; an HTTP runtime refuses a source.
+- A `ThemeManager` theme may carry its `source`, which the manager passes to
+  `switchNode`, so the manager and `useSystemPreference` work over a
+  preloaded runtime.
+
 The chrome does not use the runtime in phase 0: it applies `loam-theme.css`.
 The runtime path is what D50 offers consumers. One `web` Chromium test
 applies `loam-theme.json`'s `loam/dark` through `VioletRuntime` and gets the

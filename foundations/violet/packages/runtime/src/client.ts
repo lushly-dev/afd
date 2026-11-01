@@ -14,6 +14,8 @@ import type {
 	Token,
 	TokensResponse,
 	VioletConfig,
+	VioletHttpConfig,
+	VioletTokenSource,
 } from './types.js';
 
 /**
@@ -21,7 +23,7 @@ import type {
  * there is no default remote host, so an API key is only ever sent to a URL
  * the caller chose.
  */
-const DEFAULT_CONFIG: Required<Omit<VioletConfig, 'nodeId' | 'apiKey'>> = {
+const DEFAULT_CONFIG: Required<Omit<VioletHttpConfig, 'nodeId' | 'apiKey' | 'source'>> = {
 	apiUrl: '',
 	cacheEnabled: true,
 	cacheTtl: 3600,
@@ -40,6 +42,37 @@ function globToRegExp(pattern: string): RegExp {
 		.map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
 		.join('.*');
 	return new RegExp(`^${source}$`);
+}
+
+/**
+ * Validate a preloaded source and copy its tokens, so later changes to the
+ * caller's array do not reach the runtime. A token without `resolvedAt` is
+ * recorded as resolved at `nodeId`.
+ */
+function sourceTokens(source: VioletTokenSource, nodeId: string): Token[] {
+	if (!source || !Array.isArray(source.tokens)) {
+		throw new Error(
+			`VioletRuntime: the source for "${nodeId}" must be { tokens: Token[] }, an array of resolved tokens such as { id: "color.brand", value: "#352064" }.`,
+		);
+	}
+	return source.tokens.map((token, index) => {
+		const value = token?.value;
+		const valid =
+			token !== null &&
+			typeof token === 'object' &&
+			typeof token.id === 'string' &&
+			token.id !== '' &&
+			(typeof value === 'string' ||
+				(typeof value === 'number' && Number.isFinite(value)) ||
+				(value !== null && typeof value === 'object' && !Array.isArray(value))) &&
+			(token.resolvedAt === undefined || typeof token.resolvedAt === 'string');
+		if (!valid) {
+			throw new Error(
+				`VioletRuntime: token ${index} in the source for "${nodeId}" needs a non-empty string id, a string, finite number or object value, and a string resolvedAt if any.`,
+			);
+		}
+		return { ...token, resolvedAt: token.resolvedAt ?? nodeId };
+	});
 }
 
 /**
@@ -64,10 +97,17 @@ function globToRegExp(pattern: string): RegExp {
  *
  * // Switch to different theme
  * await violet.switchNode("xbox-web-light");
+ *
+ * // Or apply preloaded tokens with no token server
+ * const local = new VioletRuntime({ nodeId: "brand-dark", source: { tokens } });
+ * await local.load();
+ * await local.switchNode("brand-light", { tokens: lightTokens });
  * ```
  */
 export class VioletRuntime {
-	private config: Required<VioletConfig>;
+	private config: Required<Omit<VioletHttpConfig, 'source'>>;
+	/** Tokens for currentNodeId when created with a preloaded source; null over HTTP. */
+	private source: Token[] | null = null;
 	private cache: TokenCache;
 	private tokens: Map<string, Token> = new Map();
 	private currentNodeId: string;
@@ -80,16 +120,26 @@ export class VioletRuntime {
 	private generation = 0;
 
 	constructor(config: VioletConfig) {
-		if (config.apiKey && !config.apiUrl?.trim()) {
+		if (config.source !== undefined) {
+			if (config.apiUrl !== undefined || config.apiKey !== undefined) {
+				throw new Error(
+					'VioletRuntime: pass either source or apiUrl/apiKey, not both. A preloaded source makes no request; drop apiUrl and apiKey, or drop source to load over HTTP.',
+				);
+			}
+			this.source = sourceTokens(config.source, config.nodeId);
+		} else if (config.apiKey && !config.apiUrl?.trim()) {
 			throw new Error(
 				'VioletRuntime: apiUrl is required when apiKey is set. Pass the URL of your Violet deployment, for example { apiUrl: "https://violet.example.com", apiKey }.',
 			);
 		}
+		const { source: _source, ...options } = config;
 		this.config = {
 			...DEFAULT_CONFIG,
-			...config,
+			...options,
 			apiKey: config.apiKey ?? '',
 		};
+		// A preloaded source is already in memory; a cached copy could only shadow it.
+		if (this.source) this.config.cacheEnabled = false;
 		this.currentNodeId = config.nodeId;
 		this.cache = new TokenCache();
 	}
@@ -107,7 +157,7 @@ export class VioletRuntime {
 	}
 
 	/**
-	 * Load tokens from API or cache.
+	 * Load tokens from the preloaded source, or from API or cache.
 	 * Automatically applies tokens if autoApply is enabled.
 	 */
 	async load(): Promise<Token[]> {
@@ -115,7 +165,9 @@ export class VioletRuntime {
 
 		const generation = ++this.generation;
 		const nodeId = this.currentNodeId;
-		const { tokens, fromCache } = await this.resolveTokens(nodeId);
+		const { tokens, fromCache } = this.source
+			? { tokens: [...this.source], fromCache: false }
+			: await this.resolveTokens(nodeId);
 
 		// A newer load()/switchNode() has started: don't clobber its state.
 		if (generation !== this.generation) return tokens;
@@ -199,8 +251,15 @@ export class VioletRuntime {
 
 	/**
 	 * Switch to a different node (e.g., theme switch).
+	 *
+	 * A runtime created with a `source` takes the new node's tokens as
+	 * `source`; it may be omitted only to reapply the node it already holds.
+	 * An HTTP runtime refuses a source.
 	 */
-	async switchNode(nodeId: string): Promise<Token[]> {
+	async switchNode(nodeId: string, source?: VioletTokenSource): Promise<Token[]> {
+		// Checked before anything starts, so a refused switch supersedes nothing.
+		const preloaded = this.nextSource(nodeId, source);
+
 		await this.init();
 
 		const generation = ++this.generation;
@@ -208,7 +267,9 @@ export class VioletRuntime {
 
 		// Resolve first: if this fails (network, API error) nothing has changed -
 		// the previous theme stays applied and currentNodeId is untouched.
-		const { tokens, fromCache } = await this.resolveTokens(nodeId);
+		const { tokens, fromCache } = preloaded
+			? { tokens: [...preloaded], fromCache: false }
+			: await this.resolveTokens(nodeId);
 
 		// A newer load()/switchNode() has started: this result is stale.
 		if (generation !== this.generation) return tokens;
@@ -216,6 +277,7 @@ export class VioletRuntime {
 		// Commit: remove old tokens, then apply the new ones.
 		this.removeFromDocument();
 		this.currentNodeId = nodeId;
+		if (preloaded) this.source = preloaded;
 		this.setTokens(tokens);
 		if (!fromCache) {
 			this.emit('load', { tokens });
@@ -242,9 +304,11 @@ export class VioletRuntime {
 	}
 
 	/**
-	 * Preload tokens for a node without applying.
+	 * Preload tokens for a node without applying. Nothing to do with a
+	 * preloaded source: its tokens are already in memory.
 	 */
 	async preload(nodeId: string): Promise<void> {
+		if (this.source) return;
 		await this.init();
 
 		if (this.config.cacheEnabled) {
@@ -311,6 +375,27 @@ export class VioletRuntime {
 				}
 			}
 		}
+	}
+
+	/**
+	 * The validated tokens a switch to `nodeId` applies from memory, or null
+	 * when this runtime loads over HTTP. Throws when the call does not fit the
+	 * runtime's token origin.
+	 */
+	private nextSource(nodeId: string, source: VioletTokenSource | undefined): Token[] | null {
+		if (this.source === null) {
+			if (source !== undefined) {
+				throw new Error(
+					'VioletRuntime: switchNode was given a source, but this runtime loads over HTTP. Create the runtime with { nodeId, source } to apply preloaded tokens, or call switchNode(nodeId) without one.',
+				);
+			}
+			return null;
+		}
+		if (source !== undefined) return sourceTokens(source, nodeId);
+		if (nodeId === this.currentNodeId) return this.source;
+		throw new Error(
+			`VioletRuntime: switchNode("${nodeId}") needs a source, because this runtime applies preloaded tokens and holds none for "${nodeId}". Call switchNode("${nodeId}", { tokens }).`,
+		);
 	}
 
 	/**

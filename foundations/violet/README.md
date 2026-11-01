@@ -5,7 +5,7 @@ Violet's native token engine and web runtime, imported from [lushly-dev/violet](
 | Unit | Layer | Path | Contract |
 | --- | --- | --- | --- |
 | `@lushly-dev/violet-core` 0.2.0 | foundation | [`packages/core`](./packages/core/README.md) | Data contracts, storage, inheritance resolution, export, CSS validators. Requires only `zod`; SQLite and Neon drivers are optional. No AFD dependency, peer or type reference. |
-| `@lushly-dev/violet-runtime` 0.2.0 | foundation | [`packages/runtime`](./packages/runtime/README.md) | Browser SDK for token loading and theme switching. Unchanged. |
+| `@lushly-dev/violet-runtime` 0.2.0 | foundation | [`packages/runtime`](./packages/runtime/README.md) | Browser SDK for token loading and theme switching. Adapted for Loam (D50): a preloaded token source in place of a token server, and a high-contrast theme for `ThemeManager.useSystemPreference`. |
 | `@lushly-dev/violet-afd` 0.2.0 | integration | [`integrations/violet-afd`](../../integrations/violet-afd/README.md) | The command registry, commands, `CommandResult` types and demo seed. Peer `@lushly-dev/violet-core`; depends on `@lushly-dev/afd-core` `^2.2.0` (the workspace AFD core). |
 | `@lushly-dev/violet-cli` 0.2.0 | endpoint | [`endpoints/violet-cli`](../../endpoints/violet-cli/README.md) | `violet` binary. |
 | `@lushly-dev/violet-server` 0.2.0 | endpoint | [`endpoints/violet-server`](../../endpoints/violet-server/README.md) | `violet-mcp` binary, MCP server and local REST API (`.`, `./server`, `./api`). |

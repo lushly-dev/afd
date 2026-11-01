@@ -41,6 +41,11 @@ export { TokenCache } from './cache.js';
 // Types
 export type {
 	VioletConfig,
+	VioletBaseConfig,
+	VioletHttpConfig,
+	VioletSourceConfig,
+	VioletTokenSource,
+	SourceToken,
 	Token,
 	TokenMetadata,
 	Theme,

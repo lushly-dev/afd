@@ -123,7 +123,10 @@ should never have to scan the codebase to learn what is current.
 - **Steps** ([plan](phases/0-kernel-chrome/spec.md#12-implementation-plan);
   one line each, so parallel pull requests touch different lines):
   - 0a, AFD browser stores: in progress.
-  - 0b, Violet preloaded source and high contrast: in progress.
+  - 0b, Violet preloaded source and high contrast: merged in
+    [#627](https://github.com/lushly-dev/afd/pull/627). `VioletRuntime` takes
+    a preloaded source in place of `apiUrl`; `useSystemPreference` takes a
+    high-contrast theme; decisions recorded in section 3.
   - 1, scaffold: merged in [#626](https://github.com/lushly-dev/afd/pull/626).
     The four packages build with empty sources; `loam.yml` runs build,
     typecheck, units and a Chromium boot test under the CSP. Steps 2 and 7
@@ -188,4 +191,6 @@ starts.
 | 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |
 | 2026-11-01 | Phase 0 specification | The [phase 0 specification](phases/0-kernel-chrome/spec.md) written: four packages under `endpoints/loam/packages/`, the token contract and Loam's Violet tree, the shared components moved onto a committed Violet export (D50), the design document and the `loam-design` skill, the token-only lint, kernel interface version 0, the phase 0 commands with `appearance` and `palette` (D51), stores version 0 on IndexedDB for browser and desktop (D52), Specimen high contrast (D53), the bundle budget and the accelerator rule's operations and budgets (D37), and the exit tests |
 | 2026-11-01 | Owner's approval | The owner approved the phase 0 specification, deciding D50 to D53, and granted autonomy across phases: commit, merge, fix and approve later specifications without checking in unless a question blocks on the owner. D53's wording aligned with the specification (light scheme plus `prefers-contrast: more`; forced colors tested in Loam's suite) |
+| 2026-11-01 | Phase 0 step 6 | Specimen's `high-contrast` theme context (D53) merged in [#628](https://github.com/lushly-dev/afd/pull/628): the light scheme with `prefers-contrast: more`, emulated by the native host over CDP, checked at capture, offered by the static preview and run by all three drivers. Section 4 of the specification amended: since #616 the mapping lives in `host/src/page.rs`, not `bench-runtime.ts` |
 | 2026-11-01 | Phase 0 step 1 | The scaffold: four private, quarantined packages under `endpoints/loam/packages/`, the workspace glob, four release-inventory entries, `loam.yml`, `AGENTS.md` rows and a repository contract test. Steps 0a, 0b and 6 started in parallel. The phase 0 block now has one line per step |
+| 2026-11-01 | Phase 0 step 0b | [#627](https://github.com/lushly-dev/afd/pull/627) merged: `VioletRuntime` applies a preloaded source with no token server (`switchNode` takes a new source, `ThemeManager` themes carry one), and `useSystemPreference` chooses a high-contrast theme under `prefers-contrast: more` or `forced-colors: active`. Four details the specification left open were decided and recorded in its section 3: the either/or config union, an optional `resolvedAt`, no cache with a source, and `Theme.source` |

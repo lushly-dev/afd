@@ -65,6 +65,8 @@ export class ThemeManager {
 	private listeners: Set<(theme: Theme) => void> = new Set();
 	/** Incremented by every apply()/switch(); only the latest request updates state. */
 	private requestSeq = 0;
+	/** Theme of the latest apply()/switch() while it is in flight, else null. */
+	private requestedTheme: string | null = null;
 	/** Number of in-flight transitions holding the transition class on <html>. */
 	private activeTransitions = 0;
 
@@ -136,12 +138,16 @@ export class ThemeManager {
 			throw new Error(`Theme not found: ${nodeId}`);
 		}
 
-		const seq = ++this.requestSeq;
+		const seq = this.begin(nodeId);
 
-		if (this.runtime.getCurrentNodeId() !== nodeId) {
-			await this.runtime.switchNode(nodeId);
-		} else {
-			await this.runtime.load();
+		try {
+			if (this.runtime.getCurrentNodeId() !== nodeId) {
+				await this.switchRuntime(theme);
+			} else {
+				await this.runtime.load();
+			}
+		} finally {
+			this.settle(seq);
 		}
 
 		// A newer apply()/switch() superseded this one: leave its state alone.
@@ -161,11 +167,13 @@ export class ThemeManager {
 			throw new Error(`Theme not found: ${nodeId}`);
 		}
 
-		if (this.currentTheme?.nodeId === nodeId) {
-			return; // Already on this theme
+		// Already on this theme, or already switching to it. Compared with the latest
+		// request, not the committed theme, so a quick A -> B -> A ends on A.
+		if ((this.requestedTheme ?? this.currentTheme?.nodeId) === nodeId) {
+			return;
 		}
 
-		const seq = ++this.requestSeq;
+		const seq = this.begin(nodeId);
 
 		// Add transition class (removed in `finally`, even if the switch fails)
 		if (typeof document !== 'undefined') {
@@ -175,7 +183,7 @@ export class ThemeManager {
 
 		try {
 			// Switch tokens
-			await this.runtime.switchNode(nodeId);
+			await this.switchRuntime(theme);
 
 			// Wait for transition duration
 			await this.delay(this.transitionDuration);
@@ -184,6 +192,7 @@ export class ThemeManager {
 			if (this.activeTransitions === 0 && typeof document !== 'undefined') {
 				document.documentElement.classList.remove(this.transitionClass);
 			}
+			this.settle(seq);
 		}
 
 		// A newer apply()/switch() superseded this one: leave its state alone.
@@ -231,29 +240,79 @@ export class ThemeManager {
 	}
 
 	/**
-	 * Set up system preference detection (prefers-color-scheme).
+	 * Set up system preference detection (prefers-color-scheme), and, when a
+	 * high-contrast theme is given, prefers-contrast and forced-colors: the
+	 * high-contrast theme wins whenever `(prefers-contrast: more)` or
+	 * `(forced-colors: active)` matches, whatever the color scheme.
+	 *
+	 * Follows changes to every query until the returned function is called.
 	 */
-	useSystemPreference(lightTheme: string, darkTheme: string): () => void {
+	useSystemPreference(
+		lightTheme: string,
+		darkTheme: string,
+		highContrastTheme?: string,
+	): () => void {
 		if (typeof window === 'undefined' || !window.matchMedia) {
 			return () => {};
 		}
 
-		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		const dark = window.matchMedia('(prefers-color-scheme: dark)');
+		const contrast = highContrastTheme
+			? [
+					window.matchMedia('(prefers-contrast: more)'),
+					window.matchMedia('(forced-colors: active)'),
+				]
+			: [];
 
-		const handler = (e: MediaQueryListEvent | MediaQueryList) => {
-			const theme = e.matches ? darkTheme : lightTheme;
+		// Read every query on each change, so one query's change never undoes another's.
+		const handler = () => {
+			const theme =
+				highContrastTheme && contrast.some((query) => query.matches)
+					? highContrastTheme
+					: dark.matches
+						? darkTheme
+						: lightTheme;
 			this.switch(theme).catch(console.error);
 		};
 
 		// Set initial theme based on system preference
-		handler(mediaQuery);
+		handler();
 
 		// Listen for changes
-		mediaQuery.addEventListener('change', handler);
+		const queries = [dark, ...contrast];
+		for (const query of queries) {
+			query.addEventListener('change', handler);
+		}
 
 		return () => {
-			mediaQuery.removeEventListener('change', handler);
+			for (const query of queries) {
+				query.removeEventListener('change', handler);
+			}
 		};
+	}
+
+	/**
+	 * Start a request: it becomes the latest, and its theme the requested one.
+	 */
+	private begin(nodeId: string): number {
+		this.requestedTheme = nodeId;
+		return ++this.requestSeq;
+	}
+
+	/**
+	 * End a request, successful or not. Only the latest clears the requested theme.
+	 */
+	private settle(seq: number): void {
+		if (seq === this.requestSeq) this.requestedTheme = null;
+	}
+
+	/**
+	 * Switch the runtime to a theme, with the theme's preloaded tokens if it has any.
+	 */
+	private switchRuntime(theme: Theme): Promise<unknown> {
+		return theme.source
+			? this.runtime.switchNode(theme.nodeId, theme.source)
+			: this.runtime.switchNode(theme.nodeId);
 	}
 
 	/**
