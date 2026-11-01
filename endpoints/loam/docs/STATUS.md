@@ -122,7 +122,10 @@ should never have to scan the codebase to learn what is current.
   D50 to D53.
 - **Steps** ([plan](phases/0-kernel-chrome/spec.md#12-implementation-plan);
   one line each, so parallel pull requests touch different lines):
-  - 0a, AFD browser stores: in progress.
+  - 0a, AFD browser stores: merged in
+    [#629](https://github.com/lushly-dev/afd/pull/629). `IndexedDbAdapter`,
+    `runDataAdapterContract` at `/testing` and `IndexedDbJournalSink` with its
+    writer lock; sections 3 and 6.6 amended (`lock()`, `close()`, error codes).
   - 0b, Violet preloaded source and high contrast: merged in
     [#627](https://github.com/lushly-dev/afd/pull/627). `VioletRuntime` takes
     a preloaded source in place of `apiUrl`; `useSystemPreference` takes a
@@ -194,3 +197,4 @@ starts.
 | 2026-11-01 | Phase 0 step 6 | Specimen's `high-contrast` theme context (D53) merged in [#628](https://github.com/lushly-dev/afd/pull/628): the light scheme with `prefers-contrast: more`, emulated by the native host over CDP, checked at capture, offered by the static preview and run by all three drivers. Section 4 of the specification amended: since #616 the mapping lives in `host/src/page.rs`, not `bench-runtime.ts` |
 | 2026-11-01 | Phase 0 step 1 | The scaffold: four private, quarantined packages under `endpoints/loam/packages/`, the workspace glob, four release-inventory entries, `loam.yml`, `AGENTS.md` rows and a repository contract test. Steps 0a, 0b and 6 started in parallel. The phase 0 block now has one line per step |
 | 2026-11-01 | Phase 0 step 0b | [#627](https://github.com/lushly-dev/afd/pull/627) merged: `VioletRuntime` applies a preloaded source with no token server (`switchNode` takes a new source, `ThemeManager` themes carry one), and `useSystemPreference` chooses a high-contrast theme under `prefers-contrast: more` or `forced-colors: active`. Four details the specification left open were decided and recorded in its section 3: the either/or config union, an optional `resolvedAt`, no cache with a source, and `Theme.source` |
+| 2026-11-01 | Phase 0 step 0a | [#629](https://github.com/lushly-dev/afd/pull/629): `IndexedDbAdapter`, the exported adapter contract suite and `IndexedDbJournalSink` with its writer lock, parity rows, READMEs, skills and a minor changeset for local-db and afd-core. The spec's section 3 and 6.6 gained `lock()`, `close()`, `IndexedDbJournalError` and its codes (`JOURNAL_LOCKED`, `JOURNAL_LOCK_UNAVAILABLE`, `JOURNAL_CLOSED`, storage errors), and the contract suite's `vitest` peer dependency. An independent review's lock-race findings were fixed before merge |

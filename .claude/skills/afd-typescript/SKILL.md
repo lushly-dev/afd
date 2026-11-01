@@ -509,7 +509,9 @@ Declare `approval: 'required'` (or `'not-required'`, or a function of input and 
 `context.clock` / `context.random` values the handler read; `replayJournal(server, entries)`
 re-runs them against a fresh server and reports `same`, `different` (with a diff) or `error` per
 entry. Handlers must read time and randomness from the context for replay to match. Sinks:
-`MemoryJournalSink` (core) and `FileJournalSink` (`@lushly-dev/afd-core/journal-file`, JSON Lines).
+`MemoryJournalSink` (core), `FileJournalSink` (`@lushly-dev/afd-core/journal-file`, JSON Lines) and,
+in browsers, `IndexedDbJournalSink` (`@lushly-dev/afd-core/journal-indexeddb`: one writer per database
+under the Web Lock `<name>:writer`; a second tab's `append`/`lock()` rejects with `JOURNAL_LOCKED`).
 Journals never store context values beyond actor, interface, trace ID and declared context fields marked `journal: true` (`contextFields` on `createMcpServer`/`createDirectRegistry`: `{ name, meta, schema, journal?, required? }`, validated before middleware, `VALIDATION_ERROR` naming the field; MCP callers send them in `tools/call` `_meta[meta]`, `createContext` values win, and `server/discover`/`afd-help` list them; `spec/context-fields.md`). `auth-*` commands are
 skipped by default; use `redact` for other secret inputs or results (and drop `tape` when the
 secret comes from `context.random`). Replay against a server with the same middleware. Format: `spec/journal.md`.

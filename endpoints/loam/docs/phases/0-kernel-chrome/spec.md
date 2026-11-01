@@ -463,6 +463,18 @@ commit.
 - **One writer.** The sink takes the Web Lock `<name>:writer` before its
   first `append` and refuses `append` when another context holds it, with
   `JOURNAL_LOCKED`. This mirrors `journal-file`'s one-process-per-file rule.
+  Step 0a settled what the plan left open:
+  - The sink also has `lock()`, which takes the lock without appending, and
+    `close()`, which releases it. The journal middleware only reports a
+    failed `append` to `onError`, so a host learns of a second tab from
+    `lock()` before any command runs.
+  - Refusals are `IndexedDbJournalError`s with `code`, `suggestion` and
+    `retryable`, which `wrapError()` keeps. Without the Web Locks API the
+    sink refuses to write, with `JOURNAL_LOCK_UNAVAILABLE`; an append still
+    waiting for the lock when `close()` runs rejects with `JOURNAL_CLOSED`.
+  - `runDataAdapterContract` imports its test functions from `vitest`, an
+    optional peer dependency of local-db, and no Node.js builtin, so the
+    same call runs in Node.js and in Vitest's browser mode.
 - **Parity and auth.**
   - TypeScript only, because both are browser features;
     `docs/language-parity.md` gains the rows marked TypeScript-only with
@@ -856,9 +868,9 @@ Mutations declare `mutation: true` and return an `undoCommand` with
   real IndexedDB. It already runs in Node over `fake-indexeddb` in
   local-db's own suite.
 - **A second tab.** The journal sink's writer lock (step 0a) is held by the
-  first tab. A second tab whose sink reports `JOURNAL_LOCKED` renders a
-  full-page notice, "Loam is open in another tab", and does not create a
-  kernel.
+  first tab. A second tab whose sink's `lock()` rejects with
+  `JOURNAL_LOCKED` renders a full-page notice, "Loam is open in another
+  tab", and does not create a kernel.
 
 ## 7. The chrome
 

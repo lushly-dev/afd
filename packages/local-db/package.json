@@ -1,12 +1,20 @@
 {
 	"name": "@lushly-dev/local-db",
 	"version": "2.2.1",
-	"description": "Async data adapter with swappable backends (Memory, HTTP) for Agent-First Development",
+	"description": "Async data adapter with swappable backends (Memory, HTTP, IndexedDB) for Agent-First Development",
 	"type": "module",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./indexeddb": {
+			"types": "./dist/indexeddb-adapter.d.ts",
+			"import": "./dist/indexeddb-adapter.js"
+		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"import": "./dist/testing.js"
 		}
 	},
 	"main": "./dist/index.js",
@@ -31,6 +39,7 @@
 		"adapter",
 		"sqlite",
 		"local-storage",
+		"indexeddb",
 		"data-layer"
 	],
 	"author": "Falkicon",
@@ -51,9 +60,18 @@
 	"devDependencies": {
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^4.1.12",
+		"fake-indexeddb": "^6.2.7",
 		"rimraf": "^6.1.3",
 		"typescript": "^5.9.3",
 		"vitest": "^4.1.12"
+	},
+	"peerDependencies": {
+		"vitest": ">=1.0.0"
+	},
+	"peerDependenciesMeta": {
+		"vitest": {
+			"optional": true
+		}
 	},
 	"publishConfig": {
 		"access": "public"
