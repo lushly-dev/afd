@@ -25,7 +25,7 @@ should never have to scan the codebase to learn what is current.
 
 | Document | State | Evidence | Verified |
 | --- | --- | --- | --- |
-| [Architecture](architecture.md) | The through line; drafted 2026-10-30 and 2026-10-31, revised after review; awaiting the owner's read of the whole | [#524](https://github.com/lushly-dev/afd/pull/524), the set and the review fixes | 2026-10-31: three independent reviews (AFD and repository accuracy, cross-document coherence, external facts); every relative link and anchor resolved; portability gate passed |
+| [Architecture](architecture.md) | The through line; drafted 2026-10-30 and 2026-10-31, revised after review; the owner read the whole set and approved the direction on 2026-11-01 | [#524](https://github.com/lushly-dev/afd/pull/524), the set and the review fixes | 2026-10-31: three independent reviews (AFD and repository accuracy, cross-document coherence, external facts); every relative link and anchor resolved; portability gate passed |
 | [Proposal](proposal.md) | Rationale; the architecture wins where they differ | Same | Same |
 | [Decision log](decisions.md) | D1 to D49; D22 decided by the owner on 2026-10-30, D25 to D49 on 2026-10-31; no decision open; review corrections marked in consequences | Same | Same |
 | [Landscape](landscape.md) | Opportunities OP1 to OP12 with dispositions; OP1 to OP8 closed as D39 to D46, OP12 as D47 to D49 | Same | 2026-10-31: primary pages read for the platform, product and standards claims; secondary claims marked |
@@ -36,9 +36,9 @@ should never have to scan the codebase to learn what is current.
 
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
-| Design review | In progress | Owner | This document set | The owner reads the full set as a whole and approves the direction |
-| AFD prerequisites | Not started | None | None | The phase 0 rows of the architecture's prerequisites table land in AFD |
-| 0. Kernel, chrome and design foundation | Not started | None | None | Specification written and approved by the owner (D17) |
+| Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
+| AFD prerequisites | Phase 0 rows done; the phase 2 rows and part of phase 5's done; phase 1, 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608) | TypeScript MCP resources before phase 1; see the phase detail |
+| 0. Kernel, chrome and design foundation | Specification in progress | Phase 0 agent | None yet | Specification written and approved by the owner (D17) |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
@@ -53,7 +53,8 @@ should never have to scan the codebase to learn what is current.
 
 ### Design review
 
-- **State:** in progress.
+- **State:** done 2026-11-01: the owner read the full set as a whole and
+  approved the direction ("It is done, start the work").
 - **Done:** research across loved application layouts, plugin shells, web
   platform isolation and overlay primitives, client-side runtimes, identity,
   experiments, agent runtimes, documents and multiplayer
@@ -64,22 +65,45 @@ should never have to scan the codebase to learn what is current.
   three independent reviews on 2026-10-31 and their fixes, recorded in the
   session log; the set proposed in
   [#524](https://github.com/lushly-dev/afd/pull/524).
-- **Not done:** the owner's read of the full set as a whole.
+- **Done:** the owner's read of the full set as a whole, 2026-11-01.
+- **Not done:** nothing.
 
 ### AFD prerequisites
 
-- **State:** not started.
-- **Done:** nothing.
-- **Not done:** every row of the
-  [prerequisites table](architecture.md#afd-prerequisites). Phase 0 needs a
-  browser-safe entry for `createDirectRegistry`, the journal and the
-  approval middleware, and Loam's kernel refusing badly named commands.
-  Phase 1 needs the shared manifest proposal and serving `ui://` resources
-  from AFD servers. Phase 2 needs the MCP server to forward a declared
-  `_meta` key and the journal to keep declared context fields. Phase 5
-  needs AFD contexts in the direct registry and the `apps` exposure flag
-  (D30). Nothing waits on Rust parity since D25, and the FAST-AF and Violet
-  units are already consumable from the workspace.
+- **State:** phase 0 rows done; phase 2 rows done; phase 1, 3 and 5 rows
+  partly open. Last verified 2026-11-01 against `main` at `b0782de7`, from
+  the AFD status files of the three features.
+- **Done:**
+  - The browser-safe `@lushly-dev/afd-server/direct` entry with
+    `createDirectRegistry`, the journal, replay and the WebCrypto approval
+    middleware, under bundle budgets checked in
+    `packages/server/src/entry-points.test.ts`
+    ([#527](https://github.com/lushly-dev/afd/issues/527), closed by
+    [#576](https://github.com/lushly-dev/afd/pull/576)).
+  - AFD contexts and the lazy strategy in the direct registry (#527 part 3),
+    and `DirectClient` `allow` enforced per routed command
+    ([#581](https://github.com/lushly-dev/afd/pull/581)).
+  - Declared context fields: the MCP server forwards a declared `_meta`
+    key into the command context, and the journal keeps fields declared
+    `journal: true` ([#528](https://github.com/lushly-dev/afd/issues/528),
+    closed by [#569](https://github.com/lushly-dev/afd/pull/569)); clients
+    that cannot set `_meta` can send the meta-tools' `meta` argument
+    ([#589](https://github.com/lushly-dev/afd/pull/589)).
+  - Loam's kernel refusing badly named commands needs no AFD change: the
+    kernel does it (architecture, prerequisites table).
+- **Not done:**
+  - Phase 1: serving MCP resources and `ui://` resources from the
+    TypeScript server (step 2 of
+    [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/STATUS.md);
+    the spec and Rust are done, TypeScript started 2026-11-01); the shared
+    plugin manifest proposal.
+  - Phase 3: the TypeScript token-verification layer, `scopes` and
+    `credentials` (MCP Authorization proposal).
+  - Phase 5: the `apps` exposure flag (D30); agent, delegation, run and
+    session records proposed to the Agent Engine.
+  - Phase 6, optional: a fetch-style `createMcpHandler`.
+  Nothing waits on Rust parity since D25, and the FAST-AF and Violet units
+  are consumable from the workspace.
 - **Note:** the shared plugin manifest, the `apps` exposure flag, `_meta`
   forwarding, declared journal fields, and serving MCP Apps resources from
   AFD servers are AFD-wide changes; each that crosses languages needs a
@@ -113,7 +137,7 @@ starts.
 | 2026-10-31 | Multiplayer discussion | Choose the CRDT library behind the document store interface in the collaboration specification (W28), and add a two-client journal-replay scenario to the test kit | Open |
 | 2026-10-31 | Builder discussion | Specify the sandbox policy for drafts built in the shell, including kit delivery into the sandbox and the content security policy, in the phase 7 specification (D47) | Open |
 | 2026-10-31 | Builder discussion | Write the builder agent's skills, the SDK skill and the design skill, in `skills/exports.json`, so the same guidance serves the copilot and repository agents | Open |
-| 2026-10-31 | Review | Write the AFD changes the review found missing: a browser-safe entry for `createDirectRegistry`, the journal and the approval middleware with WebCrypto; MCP forwarding a declared `_meta` key into the command context; journal entries that keep declared context fields; AFD contexts and the lazy strategy in the direct registry; optionally a fetch-style `createMcpHandler` | Proposed and filed 2026-10-31: the browser-safe direct registry as [#527](https://github.com/lushly-dev/afd/issues/527) and declared context fields as [#528](https://github.com/lushly-dev/afd/issues/528), both approved by the owner and moved to `docs/features/active/` the same day; the optional fetch-style handler is not filed |
+| 2026-10-31 | Review | Write the AFD changes the review found missing: a browser-safe entry for `createDirectRegistry`, the journal and the approval middleware with WebCrypto; MCP forwarding a declared `_meta` key into the command context; journal entries that keep declared context fields; AFD contexts and the lazy strategy in the direct registry; optionally a fetch-style `createMcpHandler` | Closed 2026-11-01: the browser-safe direct registry ([#527](https://github.com/lushly-dev/afd/issues/527), [#576](https://github.com/lushly-dev/afd/pull/576)) and declared context fields ([#528](https://github.com/lushly-dev/afd/issues/528), [#569](https://github.com/lushly-dev/afd/pull/569)) merged and moved to `docs/features/complete/`; the optional fetch-style handler is not filed and stays a phase 6 option |
 | 2026-10-31 | Review | Umbel's architecture says Umbel joins the `architecture.json` families, which list foundations only; endpoints are classified by path. Umbel's D22 on name enforcement is correct, because the Rust registry refuses bad names. Raised with the Umbel session on 2026-10-31 | Sent to Umbel |
 | 2026-10-31 | Review | Revisit D45 when the runtime adapter is stable: Chrome 148 shipped the Prompt API on pages, so Chrome meets its condition | Open |
 
@@ -133,3 +157,4 @@ starts.
 | 2026-10-31 | Builder discussion | The owner's vision of building and publishing apps from the copilot without a repository recorded as D47, with the console as every app's first UI and a usage view (D48) and the builder promises, document type kit, triggers and actions, affordance tests, packaging (D49). Builder added as phase 7 and the guides phase renumbered to 8; principle 20, the builder component, `app-*` commands, the artifact lifecycle, the security rule and glossary added; the proposal's building-inside-Loam section and first proof 10 written; landscape OP12 added |
 | 2026-10-31 | Commit and review | The set opened as [#524](https://github.com/lushly-dev/afd/pull/524). Three independent reviews ran: AFD and repository accuracy, cross-document coherence, external facts. Fixed: four AFD gaps added as prerequisites (browser-safe registry, `_meta` forwarding, journal context fields, contexts in the direct registry) and D31 and D36 corrected; D39 to D45 carried into the architecture's components, interfaces, commands, phases and glossary; Rust-kernel, agent-panel and `trait` leftovers removed; "handoff" renamed "delegation" to avoid AFD's handoff pattern; commands made singular and verb-final (`setting-*`, `event-list`, `document-link-list`, `app-usage-get`); a minimal console moved into phase 1; phase 6's hosted lane gating phases 3 and 5; Health made a native app; facts corrected for Firefox 159 scoped registries, Chrome 148 Prompt API, TanStack AI's harness, the Copilot SDK's GA and BYOK, Tauri 2.12, Grafana, Slack Code, Stack Overflow and others |
 | 2026-10-31 | AFD proposals | The two AFD areas the review found were written as feature proposals with status files, the browser-safe direct registry and declared context fields, filed as #527 and #528, and linked from the prerequisites table |
+| 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |

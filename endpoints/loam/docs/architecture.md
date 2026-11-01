@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Living document; the through line every phase implements against. Drafted 2026-10-30 and 2026-10-31, revised 2026-10-31 after three independent reviews; awaiting the owner's read of the whole |
+| Status | Living document; the through line every phase implements against. Drafted 2026-10-30 and 2026-10-31, revised 2026-10-31 after three independent reviews; direction approved by the owner on 2026-11-01 |
 | Owner | Repository owner; each phase's owning agent proposes amendments by pull request |
 | Elevation | Infrastructure, libraries, interfaces, principles and phases. No code. Interfaces are described by their invariants and minimum contents; each phase's specification settles the exact shapes |
 | Read first | [STATUS.md](STATUS.md) for what is done; then this document; then the [decision log](decisions.md) |
@@ -546,7 +546,7 @@ sequenceDiagram
 
 ## 6. Built on AFD
 
-| Loam needs | AFD mechanism | State on 2026-10-31 |
+| Loam needs | AFD mechanism | State on 2026-11-01 |
 | --- | --- | --- |
 | Command identity | `domain-action` names; `defineCommand` warns on a bad name | The warning exists; the refusal is Loam's kernel |
 | Results, reasoning, degradation, undo | `CommandResult`: `reasoning`, `warnings`, `confidence`, `undoCommand`, `undoArgs` | Exists |
@@ -559,20 +559,20 @@ sequenceDiagram
 | Store adapter shape | `@lushly-dev/local-db` `DataAdapter` | Exists |
 | Sign-in and sessions | `@lushly-dev/afd-auth`: adapter, middleware, multi-tab sync, Better Auth and Convex adapters, auth commands | Exists |
 | Rendering results generically | `@lushly-dev/afd-adapters` | Exists; the console extends it with forms from input schemas |
-| Record of calls and replay | Journal with `seq`, actor, context digest, clock and random tape, replay | Exists; an entry keeps actor, interface and trace only, so scope, the calling app, session and turn need declared fields, a prerequisite |
+| Record of calls and replay | Journal with `seq`, actor, context digest, clock and random tape, replay | Exists; since #528 an entry keeps context fields declared `journal: true`, so scope, the calling app, session and turn can be recorded |
 | Composition | `afd-batch`, `afd-pipe`, pipeline variables | Exists |
-| Discovery for the agent | Bootstrap commands; lazy meta-tools; AFD contexts as explicit per-request input | Exists in the MCP server; not in the direct registry, a prerequisite |
+| Discovery for the agent | Bootstrap commands; lazy meta-tools; AFD contexts as explicit per-request input | Exists in the MCP server and, since #527 part 3, in the direct registry |
 | Plugin contract | Plugin Discovery: protocol version, conflict policy, command origin, diagnostics | Proposed; shared with Umbel |
 | Grants and effects | Botcore command policy: declared effects and capabilities | Exists in Botcore |
 | App check | Surface validation, including `afd validate --surface` against a server | Exists |
 | Test kit | Scenario runner in `@lushly-dev/afd-testing`; journal replay; Specimen for the chrome's geometry and ARIA | Exists |
-| In-process registry | `DirectClient` and `createDirectRegistry` | Exists for Node; the root entry, the journal and the approval middleware are not browser-safe, a prerequisite |
+| In-process registry | `DirectClient` and `createDirectRegistry` | Exists; `@lushly-dev/afd-server/direct` is browser-safe with the journal, replay and WebCrypto approvals since #527 |
 | Copilot confirmations and approvals | `confirmPrompt` and approval tokens, mapped to the runtime's interrupts | Exists; the mapping is Loam's |
 | Agents, delegations, runs and sessions as records | Agent Engine proposal | Proposed: it defines runs, events, schedules and a control lifecycle but not these records, and leaves its first host open; Loam proposes the records and offers itself as a host |
 | Document undo | `undoCommand`, `undoArgs` and the journal | Exists |
 | Hosted MCP | `createMcpHandler` on the official TypeScript SDK; 2026-07-28 served dual-era; a Node `(req, res)` handler | Exists |
 | Hosted authorization | The token-verification layer, `scopes`, `credentials` | Proposed in MCP Authorization |
-| Agent UI | Serving `ui://` resources from AFD servers | New AFD feature, with resources support |
+| Agent UI | Serving `ui://` resources from AFD servers | Specified in `spec/mcp-resources.md` (#588); Rust done (#608); TypeScript in progress |
 | Chrome observation | Specimen | Exists, quarantined |
 | Tokens and components | Violet and FAST-AF foundations | Exist, quarantined |
 
@@ -580,7 +580,7 @@ sequenceDiagram
 
 | Need | Choice, as of 2026-10-31 | Why | Constraint |
 | --- | --- | --- | --- |
-| Commands, registry, exposure, contexts, journal, confirmations, approvals | `@lushly-dev/afd-core` and `@lushly-dev/afd-server`: `createDirectRegistry` in the browser and the desktop webview, `createMcpHandler` hosted | One contract across surfaces; most of what the kernel needs exists in TypeScript, and the gaps are the AFD prerequisites | The server package's root entry is Node-only today; Node 24 on the hosted server |
+| Commands, registry, exposure, contexts, journal, confirmations, approvals | `@lushly-dev/afd-core` and `@lushly-dev/afd-server`: `createDirectRegistry` in the browser and the desktop webview, `createMcpHandler` hosted | One contract across surfaces; most of what the kernel needs exists in TypeScript, and the gaps are the AFD prerequisites | The server package's root entry is Node-only; the browser and the webview import `@lushly-dev/afd-server/direct`; Node 26 on the hosted server |
 | Layout state | `@lushly-dev/afd-view-state` | The contract and the implementation | |
 | Identity | `@lushly-dev/afd-auth` with Better Auth | Exists | |
 | Stores | Store interfaces over IndexedDB in the browser and the desktop webview, SQLite or Postgres hosted; `@lushly-dev/local-db` as the adapter shape | Offline in the browser; one interface set | Chosen in phase 0, including whether the desktop adds SQLite through a Tauri plugin |
