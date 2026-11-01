@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (steps 0 to 5 done). Written and revised
+- **State:** done 2026-11-01; the exit criterion is met. Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -82,8 +82,9 @@
   test --locked` and `cargo +1.97.0 check --locked --all-targets`, run locally,
   then `umbel.yml` and `pnpm check` on the pull request. What it changed in
   this document: [Amendments from step 5](#amendments-from-step-5).
-- **Not done:** step 6 of the [plan](#11-implementation-plan); the exit
-  criterion.
+- **Done:** step 6, the exit: the README's build and run sections, and the
+  [exit criterion](#10-exit-criterion-and-tests) re-run. Evidence: 2026-11-01 on `main` at `8001fc74`: `cargo test --locked` in `endpoints/umbel` passed all 261 tests (18 integration files and the unit tests); `umbel init` then `umbel workspace doctor` on the fresh workspace exited 0 with `healthy: true` and all 13 checks `pass`; `umbel.yml` on `main` at that commit, [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249).
+- **Not done:** nothing.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
