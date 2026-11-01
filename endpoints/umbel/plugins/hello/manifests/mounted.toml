@@ -1,0 +1,28 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "hello"
+title = "Hello"
+version = "0.1.0"
+description = "One command, one pack, one skill: the reference plugin."
+kind = "mounted"
+domains = ["hello"]
+
+[mount]
+prefix = "hello"
+transport = "stdio"
+command = ["bin/hello-mcp"]
+
+[[mount.tools]]
+tool = "hello-greet"
+effects = ["inspect"]     # without it hello-greet defaults to external: a mutation that writes events
+first_class = true
+
+[[packs]]
+id = "greetings"
+path = "packs/greetings"
+
+[[skills]]
+name = "hello-guide"
+path = "skills/hello-guide"

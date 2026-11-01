@@ -95,6 +95,7 @@ pub(crate) fn loaded_check(loaded: &LoadedPlugins) -> Check {
     let mut parts = Vec::new();
     let mut failures = Vec::new();
     let mut trusted = Vec::new();
+    let mut notes = Vec::new();
     for instance in &loaded.instances {
         match &instance.status {
             Status::Loaded => {
@@ -108,6 +109,20 @@ pub(crate) fn loaded_check(loaded: &LoadedPlugins) -> Check {
                 ));
                 if instance.kind() == Some(PluginKind::Compiled) {
                     trusted.push(instance.id.clone());
+                }
+                if let Some(mount) = &instance.mount {
+                    for skipped in &mount.skipped {
+                        notes.push(format!(
+                            "{}: the tool `{}` was skipped ({}: {})",
+                            instance.id, skipped.tool, skipped.code, skipped.message
+                        ));
+                    }
+                    for warning in &mount.warnings {
+                        notes.push(format!(
+                            "{}: the tool `{}` has a {} match (`description-injection`, {})",
+                            instance.id, warning.tool, warning.pattern, warning.location
+                        ));
+                    }
                 }
             }
             Status::Failed(error) => failures.push(format!(
@@ -125,6 +140,7 @@ pub(crate) fn loaded_check(loaded: &LoadedPlugins) -> Check {
             trusted.join(", ")
         ));
     }
+    failures.extend(notes);
     if failures.is_empty() {
         Check::pass("plugins.loaded", message)
     } else {

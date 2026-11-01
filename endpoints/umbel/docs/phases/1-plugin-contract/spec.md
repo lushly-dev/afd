@@ -100,8 +100,11 @@
 - **Step 3 done 2026-11-01** ([#611](https://github.com/lushly-dev/afd/pull/611)): skills on three paths and the origin
   `_meta` of plugin tools, as the step 3 row of the [plan](#14-implementation-plan)
   lists them. The amendments are in [Amendments from step 3](#amendments-from-step-3).
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b and 3.
-- **Not done:** the Umbel steps 4 to 8 of the
+- **Step 5 done 2026-11-01** ([#613](https://github.com/lushly-dev/afd/pull/613)): the mounted loader, as the step 5 row of
+  the [plan](#14-implementation-plan) lists it. The amendments are in
+  [Amendments from step 5](#amendments-from-step-5).
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3 and 5.
+- **Not done:** the Umbel steps 4 and 6 to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2056,6 +2059,20 @@ use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 | 8.3 | `umbel skill export dir=<path> [skill=<name>]` refuses to overwrite a differing file unless `force=true` | Also all or nothing: when any target differs and `force` is not true, nothing is written (`ALREADY_EXISTS` with `details.differs`); an unchanged file is not rewritten; a target that is a symbolic link, or a directory path component that is one, is refused; an unknown `skill` is `NOT_FOUND` naming the choices. A relative `dir` is relative to the process's working directory. The origin file is deterministic (`umbel_origin: 1`, `skill`, `uri`, `instance`, `plugin`, `version`, and the files with digest and size) and follows the same overwrite rule. `skill-export` joins `event-ack` and `event-rebuild` in the unprojected mutations | A half-written export would leave a harness skill directory that matches neither version |
 | 8.6 | `skill-list`: name, description, instance, URI, digest, file count | Also `plugin` and `version` | The origin file records them; the list should agree |
 | 10.1 | The test kit's drivers send `Mcp-Name` for tools | They also send it for `resources/read` (the URI, R5) | Modern HTTP rejects a `resources/read` without it |
+
+## Amendments from step 5
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 1 | `rmcp` features include `transport-child-process` | Not enabled; the host spawns the child itself (`tokio::process::Command`, `kill_on_drop`, `env_clear`) and gives rmcp a line transport over the pipes. The `mounted` feature also names `reqwest`, `sse-stream`, `futures` and `regex` | rmcp's `TokioChildProcess` owns the pipes, so a reader that counts line length for the result limit cannot be put under it |
+| 6.3 | The result limit is "a body limit on the reqwest client" | A `StreamableHttpClient` of the host's own wraps `reqwest::Client` (POST only; GET streams and session deletes delegate) and counts the JSON body or event-stream bytes of each response; the stdio reader trips a shared signal when a line passes the limit. A call in flight on a connection that trips gets `PLUGIN_LIMIT_EXCEEDED`; the connection is dropped, so the next call reconnects (counted against the respawn budget, for HTTP too) | reqwest has no body-limit setting |
+| 6.3 | A tool the server lists is mounted or skipped by the naming and schema rules | AFD's own meta-tools (`is_afd_builtin_name`: `afd-call`, `afd-batch`, `afd-pipe`, ...) are never mounted; `only` or an override naming a tool the server does not list fails the load (`PLUGIN_LOAD_FAILED`) | `afd-call` of a mounted AFD server would reach every remote command past `only`, `effects` and `bind_space`; a typo must not quietly serve fewer tools |
+| 6.3, 10.1 | HTTPS "against a local TLS server with a test certificate the client is configured to trust" | `HostBuilder::with_mount_root_certificate(pem)` adds a trusted root for HTTP mounts (an embedder API; no `umbel.toml` key) | The test needs a way to trust its certificate; a private CA is a real deployment need |
+| 10.1 | The test kit has `config`, `spaces`, `clock` | `TestHostBuilder::instance_keys(table)` sets more keys of the instance (`url`, `prefix`, `env`, ...); `replay` and `cli` work for directory sources | Mounted instances need those keys |
+| 1, 13 | `hello-mcp` is the only extra binary the host tests find | The mounted tests also use `umbel-mount-fixture`, a `[[bin]]` of the `umbel` package with `required-features = ["testkit"]`, which `cargo test` builds with no extra step; `umbel.yml` builds `hello-mcp` before the tests and gains the mounted library-only clippy leg and a clippy step for the mounted SDK and `hello-mcp` | A scriptable server is needed for the environment, limits, respawn and eras |
+| 8.1 | The gate keeps `dev.umbel/provenance` fields a command may supply | For a mounted result it keeps none | A mounted server is outside the host |
+| 8.4, 8.5, 6 | A mounted instance's declarations are not mentioned beyond its tools | A mounted manifest may ship packs, contexts, pipelines and skills; a tool is a first-class suggestion when its `[[mount.tools]]` override says `first_class = true`; a pipeline over mounted commands is checked against the effects the load gave the tools (the manifest has no `[[commands]]` for a mounted plugin); a pipeline or context name that collides with a mounted command is `PLUGIN_CONFLICT` | Step 2b merged while step 5 was open; the two had to meet in the loader |
+| Shared vectors | Ported rule "pinned by test vectors shared with `packages/testing`" | `packages/testing/src/surface/injection-vectors.json`, read by `surface.test.ts` and `tests/mount_naming.rs`. The TypeScript `<<SYS` alternative only matches after a word character (`\b`); the vectors record that | One file keeps both implementations honest |
 
 ## Follow-ups
 

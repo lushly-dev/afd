@@ -3,7 +3,8 @@
 use super::plugin_list::summary;
 use super::{Builtin, expose_everywhere_but_the_palette, returns_object, validation_error};
 use crate::plugins::{
-    GrantReport, InstanceReport, LoadedPlugins, Manifest, PipelineState, PluginKind, TRUST_NOTE,
+    GrantReport, InstanceReport, LoadedPlugins, Manifest, MountReport, PipelineState, PluginKind,
+    TRUST_NOTE, Transport,
 };
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
 use async_trait::async_trait;
@@ -120,6 +121,71 @@ fn pipelines(instance: &InstanceReport, manifest: &Manifest) -> Value {
     )
 }
 
+/// A mounted instance's commands: one per tool, with the server's original name beside the
+/// command's.
+fn mount_commands(
+    instance: &InstanceReport,
+    manifest: &Manifest,
+    mount: &MountReport,
+) -> Vec<Value> {
+    mount
+        .tools
+        .iter()
+        .map(|tool| {
+            let effects: Vec<&str> = tool.effects.iter().map(|e| e.as_str()).collect();
+            json!({
+                "name": tool.command,
+                "description": tool.description,
+                "effects": effects,
+                "mutation": tool.mutation,
+                "firstClass": tool.first_class,
+                "bindSpace": tool.bind_space,
+                "expose": { "mcp": true, "agent": true, "cli": true, "palette": false },
+                "origin": {
+                    "plugin": instance.id,
+                    "kind": manifest.plugin.kind.as_str(),
+                    "version": manifest.plugin.version,
+                    "effects": effects,
+                    "tool": tool.tool,
+                },
+            })
+        })
+        .collect()
+}
+
+/// Where the tools came from, what was left out and what the description scan found. The bearer
+/// token is never shown, only whether one is configured.
+fn mount_summary(mount: &MountReport) -> Value {
+    json!({
+        "prefix": mount.prefix,
+        "transport": match mount.transport {
+            Transport::Stdio => "stdio",
+            Transport::Http => "http",
+        },
+        "bearer": if mount.bearer_configured { "configured" } else { "none" },
+        "tools": mount
+            .tools
+            .iter()
+            .map(|tool| json!({ "tool": tool.tool, "command": tool.command }))
+            .collect::<Vec<_>>(),
+        "skipped": mount
+            .skipped
+            .iter()
+            .map(|tool| json!({ "tool": tool.tool, "code": tool.code, "message": tool.message }))
+            .collect::<Vec<_>>(),
+        "warnings": mount
+            .warnings
+            .iter()
+            .map(|warning| json!({
+                "tool": warning.tool,
+                "rule": "description-injection",
+                "pattern": warning.pattern,
+                "location": warning.location,
+            }))
+            .collect::<Vec<_>>(),
+    })
+}
+
 fn show(instance: &InstanceReport) -> Value {
     let mut data = Map::new();
     let mut about = summary(instance);
@@ -172,8 +238,15 @@ fn show(instance: &InstanceReport) -> Value {
             })
         })
         .collect();
+    let commands = match &instance.mount {
+        Some(mount) => mount_commands(instance, manifest, mount),
+        None => commands,
+    };
     data.insert("commands".into(), Value::Array(commands));
     data.insert("packs".into(), packs(instance, manifest));
+    if let Some(mount) = &instance.mount {
+        data.insert("mount".into(), mount_summary(mount));
+    }
     data.insert(
         "contexts".into(),
         json!(

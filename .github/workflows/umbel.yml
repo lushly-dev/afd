@@ -31,7 +31,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: endpoints/umbel
@@ -51,13 +51,21 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Clippy (library only, no default features)
         run: cargo clippy --locked -p umbel --lib --no-default-features -- -D warnings
+      - name: Clippy (library only, mounted loader)
+        run: cargo clippy --locked -p umbel --lib --no-default-features --features mounted -- -D warnings
+      - name: Clippy (mounted SDK and hello-mcp)
+        run: cargo clippy --locked -p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets -- -D warnings
+      # A host test cannot use another crate's CARGO_BIN_EXE_*: the mounted-loader tests find
+      # hello-mcp in the target directory, next to the test binaries.
+      - name: Build hello-mcp
+        run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
         run: cargo test --locked --workspace
 
   msrv:
     name: Umbel (MSRV 1.97)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: endpoints/umbel

@@ -53,6 +53,7 @@ pub struct HostBuilder {
     commands: Vec<Pending>,
     compiled: Vec<Arc<dyn CompiledPlugin>>,
     clock: Option<Arc<dyn Clock>>,
+    mount_roots: Vec<Vec<u8>>,
 }
 
 impl HostBuilder {
@@ -72,6 +73,7 @@ impl HostBuilder {
             commands: Vec::new(),
             compiled: Vec::new(),
             clock: None,
+            mount_roots: Vec::new(),
         }
     }
 
@@ -82,6 +84,15 @@ impl HostBuilder {
     #[must_use]
     pub fn with_compiled(mut self, plugin: impl CompiledPlugin) -> Self {
         self.compiled.push(Arc::new(plugin));
+        self
+    }
+
+    /// Trust one more root certificate (PEM) when an HTTP mount connects over HTTPS, beside the
+    /// platform's own roots: for a server behind a private certificate authority.
+    #[cfg(feature = "mounted")]
+    #[must_use]
+    pub fn with_mount_root_certificate(mut self, pem: impl Into<Vec<u8>>) -> Self {
+        self.mount_roots.push(pem.into());
         self
     }
 
@@ -182,6 +193,7 @@ impl HostBuilder {
             projector: &projector,
             registry: &registry,
             catalog: &catalog,
+            mount_roots: &self.mount_roots,
         })?);
         let _ = loaded_cell.set(Arc::clone(&loaded));
         for command in get_bootstrap_commands(&registry) {

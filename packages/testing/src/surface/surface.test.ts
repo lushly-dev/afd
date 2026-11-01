@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkInjection } from './injection.js';
+import { checkInjection, INJECTION_PATTERNS } from './injection.js';
 import { checkSchemaOverlap, checkSimilarDescriptions } from './pair-rules.js';
 import { checkCircularPrerequisites, checkUnresolvedPrerequisites } from './prerequisite-rules.js';
 import {
@@ -244,6 +245,23 @@ describe('checkInjection', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // RULES
 // ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkInjection shared vectors', () => {
+	// The same file pins Umbel's Rust port (endpoints/umbel/src/plugins/mounted/scan.rs).
+	const vectors = JSON.parse(
+		readFileSync(new URL('./injection-vectors.json', import.meta.url), 'utf8')
+	) as { patterns: string[]; cases: { text: string; matches: string[] }[] };
+
+	it('names the same patterns, in order', () => {
+		expect(INJECTION_PATTERNS.map((pattern) => pattern.id)).toEqual(vectors.patterns);
+	});
+
+	for (const { text, matches } of vectors.cases) {
+		it(`matches ${JSON.stringify(matches)} for ${JSON.stringify(text)}`, () => {
+			expect(checkInjection(text).map((match) => match.patternId)).toEqual(matches);
+		});
+	}
+});
 
 describe('checkSimilarDescriptions', () => {
 	it('flags pair with high similarity', () => {

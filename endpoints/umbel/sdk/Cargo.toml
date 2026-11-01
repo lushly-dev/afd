@@ -8,11 +8,22 @@ license = "MIT"
 description = "AFD Umbel plugin SDK: the portable plugin API, one source for every plugin kind"
 repository = "https://github.com/lushly-dev/afd"
 
-# The features of later steps (`component`, `mounted`) are not declared before they exist.
+# The `component` feature arrives with the component loader.
+
+[features]
+# `serve_mounted`: the same plugin as a stdio MCP server (specification section 5). Needs the
+# `afd` crate and Tokio; the default build and the component build stay free of both.
+mounted = ["dep:afd", "dep:async-trait", "dep:tokio", "dep:toml"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Optional: the `mounted` feature.
+afd = { path = "../../../packages/rust", default-features = false, features = ["server"], optional = true }
+async-trait = { version = "0.1", optional = true }
+tokio = { version = "1", features = ["rt"], optional = true }
+toml = { version = "1", optional = true }
 
 [dev-dependencies]
 # The wire-format tests compare `Outcome` with `afd::CommandResult` round trips.
