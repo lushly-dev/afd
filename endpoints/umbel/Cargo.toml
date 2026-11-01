@@ -34,6 +34,8 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # preserve_order keeps [spaces.*] in the file's order, which space-list reports.
 toml = { version = "1", features = ["preserve_order"] }
+# The exact-path MCP service behind the bearer layer (`service_fn`).
+tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
@@ -46,7 +48,6 @@ jsonschema = { version = "0.60", default-features = false }
 # The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
-tower = { version = "0.5", features = ["util"] }
 
 [lints.rust]
 unsafe_code = "forbid"

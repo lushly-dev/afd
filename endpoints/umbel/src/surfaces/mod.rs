@@ -1,5 +1,6 @@
 //! How the host presents its registry: the first-class tool set, the MCP server.
 
+pub(crate) mod http;
 pub(crate) mod mcp;
 
 use afd::CommandRegistry;

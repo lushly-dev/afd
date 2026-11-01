@@ -37,7 +37,7 @@ should never have to scan the codebase to learn what is current.
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
-| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: steps 0 to 4 done | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 5 (MCP surfaces; it may have run beside step 4); then step 6 (exit) |
+| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: steps 0 to 5 done | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 6 (exit) |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
@@ -107,7 +107,7 @@ should never have to scan the codebase to learn what is current.
 ### Phase 0. Host skeleton
 
 - **State:** specification approved 2026-10-31 under the owner's delegation
-  (D24); implementation in progress, steps 0 to 4 done. Last verified
+  (D24); implementation in progress, steps 0 to 5 done. Last verified
   2026-11-01 against `main` at `d03f2bbd`.
 - **Done:** the [specification](phases/0-host-skeleton/spec.md), merged in
   [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`, with
@@ -183,9 +183,28 @@ should never have to scan the codebase to learn what is current.
   test --locked`, `cargo +1.97.0 check --locked --all-targets`; `pnpm check`
   and `umbel.yml` on the pull request. Amendments: the specification's
   "Amendments from step 4".
-- **Not done:** steps 5 and 6 of the specification's plan (MCP surfaces, exit);
-  the exit criterion. The MCP cases of `journal_events.rs`, `trusted_keys.rs`
-  and `process.rs` wait for step 5.
+- **Done:** step 5, the MCP surfaces ([#575](https://github.com/lushly-dev/afd/pull/575)): `Host::mcp_server` (hybrid,
+  `workspace-show` and `event-list` first-class, confirmations signed with the
+  shared key, approval tokens off), `Host::http_router` (the exact `http.path`
+  and `/health` behind the bearer layer: a random token in
+  `state/keys/http.token`, mode 0600, on every request; the bound IP in the
+  allowed hosts), the context hook version 0 (stdio, HTTP), `umbel serve
+  --stdio` and `--http [--bind] [--print-token]` (stdout carries only JSON-RPC;
+  startup failures are one JSON line on stderr with exit 1; SIGINT and SIGTERM
+  exit 0), and Umbel's own drivers in `tests/support/` (in-process HTTP, in-memory
+  stdio in both eras, a child-process driver that kills on drop). Tests:
+  `protocol_http.rs` (26), `protocol_stdio.rs` (7), `hybrid_surface.rs` (13),
+  `context_hook.rs` (7), `approvals.rs` (4), `confirmations.rs` (9),
+  `process.rs` (16) and the MCP cases of `journal_events.rs` and `trusted_keys.rs`. Verified
+  2026-11-01 in `endpoints/umbel`: `cargo fmt --check`, `cargo clippy
+  --all-targets --locked -- -D warnings`, the library-only clippy leg, `cargo
+  test --locked`, `cargo +1.97.0 check --locked --all-targets`; `pnpm check` and
+  `umbel.yml` on the pull request. Amendments: the specification's "Amendments
+  from step 5". With zero plugins, the host's built-in commands pass the
+  protocol tests in both MCP eras over stdio and HTTP, and the first-class set is
+  `workspace-show` then `event-list`; `umbel serve` repairs the event streams at
+  start.
+- **Not done:** step 6 (exit) of the specification's plan; the exit criterion.
 - **Follow-ups:** the open rows of the specification's follow-ups table,
   mirrored below.
 
@@ -215,7 +234,7 @@ starts.
 | 2026-10-31 | Phase 0 review | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line without replacing them | Open, AFD, if wanted |
 | 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix (key permissions, file locks, signals) | Open, phase 7 |
 | 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open, phase 1 |
-| 2026-11-01 | Step 4 | For the step 5 agent: when both steps have landed, add the MCP cases to `journal_events.rs` (events and cursors over `afd-call`/`event-list` in both eras), `trusted_keys.rs` (`afd-batch` over MCP with a forged `dev.umbel/principal` stores `event-ack` under the real principal's cursor) and `process.rs` (one-shot `umbel event ack` and `umbel event list` beside a running `serve --stdio`, journal `seq` contiguous). `umbel serve` should call `Host::repair_events` at start (run it with `spawn_blocking`); `multi_process.rs` already runs real `umbel` processes against one journal | Open, step 5 |
+| 2026-11-01 | Step 4 | For the step 5 agent: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs`, and `Host::repair_events` at the start of `umbel serve` | Done 2026-11-01 in [#575](https://github.com/lushly-dev/afd/pull/575) |
 
 ## Session log
 
@@ -238,3 +257,4 @@ starts.
 | 2026-10-31 | Phase 0 step 2 | Implemented the workspace in `endpoints/umbel/` ([#572](https://github.com/lushly-dev/afd/pull/572)): `src/workspace/` (discovery, configuration version 1, layout, keys, lock, `init`), `src/doctor.rs`, the six schemas and examples under `schemas/`, and the `workspace.rs`, `doctor.rs` and `schemas.rs` tests. Marked step 1 done ([#570](https://github.com/lushly-dev/afd/pull/570), `273e0160`, `umbel.yml` green on Linux, macOS and MSRV). Kept `reqwest` and `rustls` out of the lock. Spec amended in four small places |
 | 2026-11-01 | Phase 0 step 3 | Implemented the registry and the CLI in `endpoints/umbel/` ([#573](https://github.com/lushly-dev/afd/pull/573)): `src/host/` (`HostBuilder`, `seal`, `Host`, `HostError`, `Workspace::resolve_space`), `src/commands/` (`workspace-show`, `space-list`, `workspace-doctor`), `src/middleware.rs` (event stamp, space check), `src/principal.rs`, `src/surfaces/` (the default first-class set, the MCP server `seal` validates), `src/logging.rs`, `src/cli/` (`run`, argument parsing, JSON and text output, the sanitizer, approvals and confirmations) and the `umbel` binary; tests `cli.rs`, `seal.rs`, `doctor_sealed.rs`, `trusted_keys.rs`. Spec amendments: `async-trait`, the event stamp outermost, public `cli::run` and `RESERVED_VERBS`, the `cli.rs` row. Marked step 3 done |
 | 2026-11-01 | Phase 0 step 4 | Journal and events: the projecting sink, the pending marker and catch-up, `repair_events`, event and provenance version 0, cursors and consumers, `event-list`, `event-ack`, `event-rebuild`, and the multi-process tests, in [#574](https://github.com/lushly-dev/afd/pull/574). Amendments recorded in the specification's "Amendments from step 4" |
+| 2026-11-01 | Phase 0 step 5 | Implemented the MCP surfaces in `endpoints/umbel/` ([#575](https://github.com/lushly-dev/afd/pull/575)): `src/surfaces/http.rs` (the exact-path service and the bearer layer), the context hook in `src/principal.rs`, `Host::mcp_server` and `Host::http_router`, `src/cli/serve.rs` (`umbel serve --stdio` and `--http`) and the binary's exit handling; tests `protocol_http.rs`, `protocol_stdio.rs`, `hybrid_surface.rs`, `context_hook.rs`, `approvals.rs`, `confirmations.rs`, `process.rs`, the MCP cases of `trusted_keys.rs` and the drivers in `tests/support/`. Rebased onto step 4: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs` are in, and `umbel serve` calls `Host::repair_events`. Found and fixed: a held `stdout` lock blocked the stdio transport's writer, and the runtime waited for an uncancellable stdin read at exit. Spec amended ("Amendments from step 5"); marked step 5 done. |

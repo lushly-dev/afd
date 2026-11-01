@@ -1,6 +1,9 @@
 //! Helpers shared by the integration tests: workspaces, fixture commands, the in-process CLI.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
+pub mod mcp;
+pub mod process;
+
 use afd::{
     ApprovalPolicy, CommandContext, CommandDefinition, CommandHandler, CommandParameter,
     CommandResult, ExposeOptions, ResultMetadata, failure, success,
@@ -395,4 +398,20 @@ pub async fn call(
 
 pub fn agent(id: &str) -> afd::Actor {
     afd::Actor::new(afd::ActorKind::Agent).with_id(id)
+}
+
+/// The tools a sealed host with zero plugins lists under the hybrid strategy: the five
+/// meta-tools, then the default first-class set (`workspace-show`, `event-list`).
+pub fn default_tools(_host: &Host) -> Vec<String> {
+    [
+        "afd-discover",
+        "afd-detail",
+        "afd-call",
+        "afd-batch",
+        "afd-pipe",
+        "workspace-show",
+        "event-list",
+    ]
+    .map(str::to_owned)
+    .into()
 }

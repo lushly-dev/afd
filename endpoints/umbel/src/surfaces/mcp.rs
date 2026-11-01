@@ -2,6 +2,7 @@
 //! workspace's shared key.
 
 use crate::host::HostError;
+use crate::principal;
 use crate::workspace::{Confirmations, Workspace};
 use afd::CommandRegistry;
 use afd::server::{ConfirmationMode, McpServer, ToolStrategy};
@@ -29,6 +30,7 @@ pub(crate) fn build_server(
     let key = workspace.confirmation_key()?;
     let mut server = McpServer::new(Arc::clone(registry), "umbel", env!("CARGO_PKG_VERSION"))
         .with_tool_strategy(ToolStrategy::Hybrid)
+        .with_context_hook(principal::hook(&workspace.config().principal))
         .with_first_class_tools(first_class.iter().cloned())
         .with_tools_list_ttl_ms(config.tools_list_ttl_ms)
         .with_confirmations_key(mode(config.confirmations), key)

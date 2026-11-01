@@ -201,14 +201,6 @@ fn version_and_help_print_to_stdout_and_exit_zero() {
     assert!(String::from_utf8_lossy(&help.stdout).contains("init"));
 }
 
-#[test]
-fn serve_is_reserved_but_not_yet_available() {
-    let dir = minimal();
-    let output = umbel(dir.path(), &["serve", "--stdio"]);
-    assert_eq!(output.status.code(), Some(1));
-    assert_eq!(stdout_json(&output)["error"]["code"], "NOT_IMPLEMENTED");
-}
-
 #[tokio::test]
 async fn key_value_arguments_parse_as_json_when_they_can() {
     let dir = minimal();
