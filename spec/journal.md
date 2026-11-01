@@ -83,6 +83,10 @@ value.
 Each kept value is capped at 4096 bytes of UTF-8 canonical JSON (object keys sorted, no
 whitespace, numbers as JavaScript writes them). A larger value is left out of `context`, and its name goes in `contextOmitted`, so an
 entry stays bounded, the omission is visible, and every value in `context` is the real one.
+JavaScript writes `1.0` as `1`, `1e21` as `1e+21` and `-0` as `0`, and an integer beyond 2^53 − 1
+as the double it reads (`99999999999999999` as `100000000000000000`).
+[`vectors/journal-context-cap.json`](./vectors/journal-context-cap.json) has values on either side
+of the cap.
 
 ### Tape: clock and random
 

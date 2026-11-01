@@ -2,7 +2,6 @@
 // the journal half of packages/server/src/journal.ts).
 #include "detail/context_fields.hpp"
 
-#include "afd/approval.hpp"
 #include "afd/errors.hpp"
 
 #include <algorithm>
@@ -10,6 +9,8 @@
 #include <set>
 #include <string_view>
 #include <utility>
+
+#include "detail/canonical_json.hpp"
 
 namespace afd::detail {
 namespace {
@@ -119,11 +120,12 @@ Json context_field_issue(std::string path, std::string message) {
     return issue;
 }
 
-/// The byte length of `value`'s UTF-8 canonical JSON, as TypeScript measures it. `canonical_json`
-/// writes numbers as JavaScript does; a value it refuses (an unsafe integer, invalid UTF-8) is
-/// measured as `wire::serialize` writes it.
+/// The byte length of `value`'s UTF-8 canonical JSON, as TypeScript measures it.
+/// `canonical_json_as_read` writes numbers as JavaScript does, an integer beyond 2^53 − 1 as the
+/// double JavaScript reads it as; a value it refuses (invalid UTF-8, a non-finite number, nesting
+/// deeper than 256 levels) is measured as `wire::serialize` writes it.
 std::size_t canonical_json_bytes(const Json& value) {
-    if (auto text = canonical_json(value)) {
+    if (auto text = canonical_json_as_read(value)) {
         return text->size();
     }
     return wire::serialize(value).size();

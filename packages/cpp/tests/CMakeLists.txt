@@ -12,6 +12,7 @@ add_executable(
     direct_client_test.cpp
     handoff_test.cpp
     helpers_test.cpp
+    journal_context_cap_vectors_test.cpp
     journal_test.cpp
     journal_wire_test.cpp
     json_test.cpp

@@ -47,9 +47,10 @@ pub use replay::{
 /// Largest integer a JavaScript number represents exactly: the largest `seq` a journal holds.
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
-/// Most bytes of UTF-8 canonical JSON (object keys sorted, no whitespace) a journaled context
-/// field value may take (`spec/journal.md`, "Declared context fields"). A larger value is left
-/// out of [`JournalEntry::context`] and named in [`JournalEntry::context_omitted`].
+/// Most bytes of UTF-8 canonical JSON (object keys sorted, no whitespace, numbers as JavaScript
+/// writes them; see [`canonical_context_json`]) a journaled context field value may take
+/// (`spec/journal.md`, "Declared context fields"). A larger value is left out of
+/// [`JournalEntry::context`] and named in [`JournalEntry::context_omitted`].
 pub const MAX_JOURNAL_CONTEXT_BYTES: usize = 4096;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -378,9 +379,9 @@ pub struct JournalContextFields {
 /// The values of the context fields `names` (those declared `journal: true`) that `context`
 /// has in [`CommandContext::extra`], as an entry keeps them. A `null` value counts as none.
 ///
-/// Each value is kept with its object keys sorted. A value whose canonical JSON is larger than
-/// [`MAX_JOURNAL_CONTEXT_BYTES`] is left out and its name listed in `context_omitted` instead.
-/// Both members are `None` when empty.
+/// Each value is kept with its object keys sorted. A value whose canonical JSON
+/// ([`canonical_context_json`]) is larger than [`MAX_JOURNAL_CONTEXT_BYTES`] is left out and its
+/// name listed in `context_omitted` instead. Both members are `None` when empty.
 pub fn journal_context_fields<I, S>(context: &CommandContext, names: I) -> JournalContextFields
 where
     I: IntoIterator<Item = S>,
@@ -396,18 +397,27 @@ where
         let Some(value) = context.extra.get(&name).filter(|value| !value.is_null()) else {
             continue;
         };
-        let value = sort_keys(value.clone());
-        let text = serde_json::to_string(&value).expect("JSON values serialize");
-        if text.len() > MAX_JOURNAL_CONTEXT_BYTES {
+        if canonical_context_json(value).len() > MAX_JOURNAL_CONTEXT_BYTES {
             omitted.push(name);
         } else {
-            kept.insert(name, value);
+            kept.insert(name, sort_keys(value.clone()));
         }
     }
     JournalContextFields {
         context: (!kept.is_empty()).then_some(kept),
         context_omitted: (!omitted.is_empty()).then_some(omitted),
     }
+}
+
+/// The canonical JSON of a context field's value, whose UTF-8 length the journal compares with
+/// [`MAX_JOURNAL_CONTEXT_BYTES`] (`spec/journal.md`, "Declared context fields"): object keys
+/// sorted (by UTF-16 code units, as JavaScript sorts), no whitespace, and strings and numbers as
+/// JavaScript's `JSON.stringify` writes them (`1.0` is `1`, `1e20` is `100000000000000000000`,
+/// `-0` is `0`). An integer that a 64-bit float cannot hold exactly is written as the nearest
+/// float, as JavaScript reads it (`99999999999999999` is `100000000000000000`), so every
+/// language measures a value the same way.
+pub fn canonical_context_json(value: &Value) -> String {
+    crate::canonical::nearest(value)
 }
 
 /// The [`JournalContextDigest`] of `context`.

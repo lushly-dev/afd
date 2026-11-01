@@ -6,8 +6,9 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use super::token::{base64url_decode, base64url_encode, canonical_json, hmac_sha256, js_number};
+use super::token::{base64url_decode, base64url_encode, canonical_json, hmac_sha256};
 use super::*;
+use crate::canonical::js_number;
 use crate::{
     error_codes, fixed_clock, success, Actor, ActorKind, CommandDefinition, CommandHandler,
     CommandParameter, CommandRegistry, CommandResult, ManualClock,

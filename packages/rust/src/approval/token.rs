@@ -8,9 +8,7 @@ use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
 use crate::actor::Actor;
-
-/// Largest integer every JSON number reader holds exactly (`Number.MAX_SAFE_INTEGER`).
-const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
+use crate::canonical::{self, Inexact};
 
 /// Stable JSON for binding a token to an input: object keys sorted at every depth (by UTF-16
 /// code units, as JavaScript sorts), strings escaped and numbers written as JavaScript's
@@ -22,83 +20,12 @@ const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 /// # Errors
 /// The value holds an integer that a 64-bit float cannot represent exactly.
 pub fn canonical_json(value: &Value) -> Result<String, String> {
-    let mut out = String::new();
-    encode(value, &mut out)?;
-    Ok(out)
-}
-
-fn encode(value: &Value, out: &mut String) -> Result<(), String> {
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
-        Value::Number(number) => out.push_str(&number_json(number)?),
-        Value::String(text) => out.push_str(&string_json(text)),
-        Value::Array(items) => {
-            out.push('[');
-            for (index, item) in items.iter().enumerate() {
-                if index > 0 {
-                    out.push(',');
-                }
-                encode(item, out)?;
-            }
-            out.push(']');
+    canonical::exact(value).map_err(|inexact| match inexact {
+        Inexact::BeyondSixtyFourBits => "Cannot bind an approval to a number beyond 64 bits".into(),
+        Inexact::UnsafeInteger => {
+            "Cannot bind an approval to an integer that a 64-bit float cannot hold exactly".into()
         }
-        Value::Object(map) => encode_object(map, out)?,
-    }
-    Ok(())
-}
-
-fn encode_object(map: &Map<String, Value>, out: &mut String) -> Result<(), String> {
-    let mut keys: Vec<&String> = map.keys().collect();
-    keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
-    out.push('{');
-    for (index, key) in keys.into_iter().enumerate() {
-        if index > 0 {
-            out.push(',');
-        }
-        out.push_str(&string_json(key));
-        out.push(':');
-        encode(&map[key], out)?;
-    }
-    out.push('}');
-    Ok(())
-}
-
-/// `JSON.stringify` of a string. serde_json escapes the same characters the same way (`\"`,
-/// `\\`, `\b`, `\f`, `\n`, `\r`, `\t`, other controls as lowercase `\u00xx`).
-fn string_json(text: &str) -> String {
-    serde_json::to_string(text).expect("strings serialize")
-}
-
-fn number_json(number: &serde_json::Number) -> Result<String, String> {
-    if number.is_f64() {
-        // serde_json holds only finite floats.
-        return Ok(js_number(number.as_f64().unwrap_or_default()));
-    }
-    let integer = number
-        .as_i64()
-        .map(i128::from)
-        .or_else(|| number.as_u64().map(i128::from))
-        .ok_or_else(|| {
-            // Only with serde_json's `arbitrary_precision`: a number beyond 64 bits.
-            "Cannot bind an approval to a number beyond 64 bits".to_owned()
-        })?;
-    if integer.unsigned_abs() <= u128::from(MAX_SAFE_INTEGER) {
-        return Ok(integer.to_string());
-    }
-    let float = integer as f64;
-    if float as i128 == integer {
-        Ok(js_number(float))
-    } else {
-        Err("Cannot bind an approval to an integer that a 64-bit float cannot hold exactly".into())
-    }
-}
-
-/// ECMAScript `Number::toString` of a finite float (as `JSON.stringify` writes it): the shortest
-/// digits that round-trip, ties to even, in fixed notation for decimal exponents from -7 to 20
-/// and scientific notation otherwise.
-pub(crate) fn js_number(value: f64) -> String {
-    ryu_js::Buffer::new().format(value).to_owned()
+    })
 }
 
 /// The actor fields a token is bound to. `label` is display text, so it is left out.

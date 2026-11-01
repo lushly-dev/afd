@@ -62,6 +62,13 @@ In the same pull request:
 
 ## 1.0-rc
 
+[`vectors/journal-context-cap.json`](./vectors/journal-context-cap.json) pins the journal's 4096-byte
+cap on a declared context field's value for existing behavior (#578): 19 values just at, under and
+over the cap, where JavaScript's number spelling, multibyte UTF-8 or escaped characters decide whether
+a value is kept or omitted. All four languages load it. Rust measured with serde's number spelling and
+C++ measured an integer beyond 2^53 as written; both now measure as JavaScript writes the value. No
+fixture, wire field or error code changes.
+
 In-process context scoping (#527, part 3): TypeScript's `createDirectRegistry` takes the active
 context of each call as a call option, refusing an unknown name with `CONTEXT_NOT_FOUND`
 ([`error-codes.md`](./error-codes.md#contexts)), and with `createDirectToolSurface` lists and routes

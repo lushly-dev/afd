@@ -192,22 +192,39 @@ std::string format_double(double value) {
     return out;
 }
 
+/// What `encode` does with an integer beyond 2^53 − 1 that JavaScript would write differently.
+enum class UnsafeIntegers {
+    /// Refuse it (an approval binding).
+    refuse,
+    /// Write the double JavaScript reads it as (the journal's context cap).
+    nearest,
+};
+
 /// An integer written as `text`, whose nearest double is `nearest`. Beyond 2^53 − 1 JavaScript
 /// holds only the double, which it writes with as few digits as identify it (2^60 is
-/// `1152921504606847000`). An integer is accepted there only when `text` is that spelling, so
-/// two distinct integers can never share one; anything else could not have come from
-/// JavaScript, and is refused.
+/// `1152921504606847000`). Under `UnsafeIntegers::refuse`, an integer is accepted there only
+/// when `text` is that spelling, so two distinct integers can never share one; anything else
+/// could not have come from JavaScript, and is refused.
 std::optional<std::string> encode_integer(const std::string& text, double nearest, bool safe,
-                                          std::string& out) {
-    if (!safe && format_double(nearest) != text) {
-        return std::string("an integer beyond 2^53 - 1 that JavaScript would write differently");
+                                          UnsafeIntegers unsafe, std::string& out) {
+    if (!safe) {
+        std::string spelled = format_double(nearest);
+        if (unsafe == UnsafeIntegers::nearest) {
+            out += spelled;
+            return std::nullopt;
+        }
+        if (spelled != text) {
+            return std::string(
+                "an integer beyond 2^53 - 1 that JavaScript would write differently");
+        }
     }
     out += text;
     return std::nullopt;
 }
 
 /// Appends the canonical JSON of `value` to `out`; returns why it cannot, if it cannot.
-std::optional<std::string> encode(const Json& value, std::string& out, std::size_t depth) {
+std::optional<std::string> encode(const Json& value, std::string& out, std::size_t depth,
+                                  UnsafeIntegers unsafe) {
     if (depth > max_canonical_depth) {
         return std::string("the input is nested deeper than 256 levels");
     }
@@ -221,12 +238,13 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
     case Json::value_t::number_integer: {
         const auto number = value.get<std::int64_t>();
         return encode_integer(std::to_string(number), static_cast<double>(number),
-                              number <= max_safe_integer && number >= -max_safe_integer, out);
+                              number <= max_safe_integer && number >= -max_safe_integer, unsafe,
+                              out);
     }
     case Json::value_t::number_unsigned: {
         const auto number = value.get<std::uint64_t>();
         return encode_integer(std::to_string(number), static_cast<double>(number),
-                              number <= static_cast<std::uint64_t>(max_safe_integer), out);
+                              number <= static_cast<std::uint64_t>(max_safe_integer), unsafe, out);
     }
     case Json::value_t::number_float: {
         const auto number = value.get<double>();
@@ -257,7 +275,7 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
                 out.push_back(',');
             }
             first = false;
-            if (auto failed = encode(item, out, depth + 1)) {
+            if (auto failed = encode(item, out, depth + 1, unsafe)) {
                 return failed;
             }
         }
@@ -284,7 +302,7 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
             first = false;
             append_string(out, *key);
             out.push_back(':');
-            if (auto failed = encode(*value.find(*key), out, depth + 1)) {
+            if (auto failed = encode(*value.find(*key), out, depth + 1, unsafe)) {
                 return failed;
             }
         }
@@ -537,11 +555,23 @@ std::string_view approval_rejection_name(ApprovalRejection rejection) noexcept {
 
 Expected<std::string> canonical_json(const Json& value) {
     std::string out;
-    if (auto failed = encode(value, out, 1)) {
+    if (auto failed = encode(value, out, 1, UnsafeIntegers::refuse)) {
         return unexpected("Cannot bind an approval to this value: " + *failed);
     }
     return out;
 }
+
+namespace detail {
+
+Expected<std::string> canonical_json_as_read(const Json& value) {
+    std::string out;
+    if (auto failed = encode(value, out, 1, UnsafeIntegers::nearest)) {
+        return unexpected("No canonical JSON for this value: " + *failed);
+    }
+    return out;
+}
+
+} // namespace detail
 
 Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions options) {
     if (options.secrets.empty()) {
