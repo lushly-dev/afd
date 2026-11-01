@@ -149,6 +149,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | [afd](.claude/skills/afd/) | Core AFD patterns, command design, workflow |
 | [afd-developer](.claude/skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
 | [afd-site-design](.claude/skills/afd-site-design/) | afd.dev design system: tokens, colour fields, type ramp, section patterns, motion rules |
+| [loam-design](.claude/skills/loam-design/) | Loam's chrome and kit design: token contract, type ramp, contrast floors, density, parts, motion, focus and state, layout classes, component checklist |
 | [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic, FastMCP |
 | [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
 | [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
