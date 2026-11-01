@@ -22,6 +22,9 @@ version is separate from each implementation's own package version.
   `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
   definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
   [`tool-strategies.json`](./tool-strategies.json).
+- [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
+  `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
+  with the cases in [`mcp-resources.json`](./mcp-resources.json).
 
 The bounded TypeScript/Python protocol acceptance inventory is recorded in
 [`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.
@@ -61,6 +64,18 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`mcp-resources.md`](./mcp-resources.md) specifies four opt-in additions to AFD MCP servers (Umbel
+decision D47, shared with Loam): MCP resources from a provider, listed in one stable page with the
+`tools/list` TTL and `cacheScope: "public"` on the result, read with `-32602` for an unknown URI on
+both eras, and digested under `_meta["dev.afd/digest"]`; the Skills over MCP extension
+(`io.modelcontextprotocol/skills`, SEP-2640) from a skill catalog fixed at construction, with
+`skills/list`, `skills/get`, every skill file as a resource and optional directory reads; a command's
+`toolMeta`, extra tool `_meta` entries under reverse-DNS keys or MCP Apps' `ui`; and an advertised
+input schema kept apart from the one the registry validates with. `command-metadata.md` gains the
+`toolMeta` field and the advertised schema. It is additive: no existing fixture, vector, error code or
+result changes, and no language implements it yet. Its cases are in `mcp-resources.json`, which joins
+`vectors/` once all four languages load it.
 
 [`vectors/journal-context-cap.json`](./vectors/journal-context-cap.json) pins the journal's 4096-byte
 cap on a declared context field's value for existing behavior (#578): 19 values just at, under and

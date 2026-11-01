@@ -24,6 +24,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [MCP Confirmations](./active/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback; resolves D10 of the MCP upgrade |
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 | [Hybrid Tool Strategy](./active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Approved 2026-10-31; requested by Umbel (D27); status in [STATUS.md](./active/hybrid-tool-strategy/STATUS.md) |
+| [MCP Resources and Skills](./active/mcp-resources-skills/mcp-resources-skills.proposal.md) | MCP resources, the Skills over MCP extension, extra tool `_meta` (including MCP Apps' `ui`) and advertised input schemas in AFD servers; spec first for every language, Rust first. Approved 2026-11-01 under the owner's delegation (Umbel D47, shared with Loam); status in [STATUS.md](./active/mcp-resources-skills/STATUS.md) |
 
 ## Complete Features
 
