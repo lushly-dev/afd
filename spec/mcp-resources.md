@@ -69,7 +69,7 @@ Each entry carries:
 
 | Field | Rule |
 | --- | --- |
-| `uri` | REQUIRED. An absolute URI ([RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986)) with a scheme; unique within the server. Compared as an exact string: no normalization, no case folding |
+| `uri` | REQUIRED. An absolute URI ([RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986)) with a scheme and no whitespace or control character; unique within the server. Compared as an exact string: no normalization, no case folding |
 | `name` | REQUIRED, non-empty |
 | `title`, `description`, `icons`, `annotations` | Optional, as MCP defines them, passed through unchanged |
 | `mimeType` | Optional; SHOULD be set |
@@ -179,7 +179,7 @@ re-reads them. It MUST refuse to start, with an error naming the skill and the r
 | Check | Rule |
 | --- | --- |
 | `SKILL.md` | Every skill has one at its root |
-| Frontmatter | `SKILL.md` begins with a line `---`, then YAML, then a line `---`. The YAML is one mapping with string keys, read with the YAML 1.2 core schema, using no tags, anchors or aliases; every value is a string, finite number, boolean, null, sequence or mapping. So `2026-11-01` unquoted is a string, as in JSON |
+| Frontmatter | `SKILL.md` begins with a line `---`, then YAML, then a line `---`. The YAML is one mapping with string keys, read with the YAML 1.2 core schema, using no tags, anchors or aliases; every value is a string, finite number, boolean, null, sequence or mapping, nested at most 64 levels deep; no key is repeated. So `2026-11-01` unquoted is a string, as in JSON |
 | `name` | A string of 1 to 64 characters of `a-z`, `0-9` and `-`, not starting or ending with `-`, with no `--` (Agent Skills) |
 | `description` | A non-empty string of at most 1,024 characters (Agent Skills) |
 | Skill path | Its last segment equals `name`. Prefix segments, if any, follow the same character rule as `name`. Unique in the catalog |
@@ -232,9 +232,11 @@ UTF-8, otherwise `blob`. Skill files are served whichever AFD context is active.
 
 Off by default. When the catalog enables them, the server declares `directoryRead: true` and answers
 `resources/directory/read` for every directory of every skill: the skill's root
-(`skill://<skill path>`, with no trailing slash) and each subdirectory that holds a file. The result
-lists the directory's direct children in ascending order of their names' UTF-8 bytes: files as their
-S5 resources, subdirectories as `{ "uri", "name", "mimeType": "inode/directory" }`. Any other URI
+(`skill://<skill path>`, with no trailing slash) and each subdirectory that holds a file. The result's
+`resources` array (the field SEP-2640 names, with R3's cache hints on the modern era) lists the
+directory's direct children in ascending order of each child's own name, its last path segment, by
+UTF-8 bytes: files as their S5 resources, subdirectories as
+`{ "uri", "name", "mimeType": "inode/directory" }` with `name` the segment. Any other URI
 answers `-32602`. Directory resources are not listed by `resources/list`. With directory reads off,
 `resources/directory/read` answers `-32601`.
 
@@ -280,7 +282,7 @@ An extra key is allowed when it is either:
    digit and has only letters, digits, `-`, `_` and `.` between. For example `dev.umbel/origin` or
    `com.example/flags`. It MUST NOT be under `dev.afd/`, and MUST NOT be under a prefix MCP reserves
    (any whose second label is `modelcontextprotocol` or `mcp`, such as `io.modelcontextprotocol/`);
-   or
+   both prefix checks ignore case; or
 2. **exactly `ui`**, the MCP Apps key. Its value MUST be an object; when it has `resourceUri`, that
    MUST be a string beginning `ui://`. AFD checks nothing else in it (`visibility` and future fields
    pass through), and does not check that the URI is served. Loam's views use it to name their
@@ -366,14 +368,14 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Resources (R1 to R6) | Planned | Planned | Planned (Umbel phase 1 step 0b) | Planned (after #341) |
-| Skills extension (S1 to S6) | Planned | Planned | Planned (step 0b) | Planned (after #341) |
-| Extra tool `_meta` (T1 to T3) | Planned | Planned | Planned (step 0b) | Planned |
-| Advertised and validation schemas (V1, V2) | Planned | Planned | Planned (step 0b) | Planned |
-| Loads [`mcp-resources.json`](./mcp-resources.json) | Planned | Planned | Planned (step 0b) | Planned |
+| Resources (R1 to R6) | Planned | Planned | Yes (Umbel phase 1 step 0b) | Planned (after #341) |
+| Skills extension (S1 to S6) | Planned | Planned | Yes (step 0b) | Planned (after #341) |
+| Extra tool `_meta` (T1 to T3) | Planned | Planned | Yes (step 0b) | Planned |
+| Advertised and validation schemas (V1, V2) | Planned | Planned | Yes (step 0b) | Planned |
+| Loads [`mcp-resources.json`](./mcp-resources.json) | Planned | Planned | Yes (step 0b) | Planned |
 
-Today no language serves resources, the Skills extension or extra tool `_meta`, and none keeps an
-advertised schema apart from its validation schema. Python's SDK declares empty `resources` and
+Today only Rust serves resources, the Skills extension and extra tool `_meta`, and keeps an
+advertised schema apart from its validation schema (`packages/rust`, Umbel phase 1 step 0b). Python's SDK declares empty `resources` and
 `prompts` capabilities, which R1 forbids. The proposal's
 [current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
 records what each does instead. Progress is recorded in the

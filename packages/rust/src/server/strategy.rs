@@ -178,7 +178,8 @@ pub fn command_action(command: &CommandDefinition) -> String {
 
 /// The per-command `_meta` of a tool (`spec/command-metadata.md`, "Surfaces"): `category`,
 /// `requires`, `mutation` (when true: Rust has no unset state), `destructive`, `undoable`,
-/// `approval`, `examples`, `outputSchema` and `contexts`, each only when set.
+/// `approval`, `examples`, `outputSchema` and `contexts`, each only when set, then the command's
+/// extra tool `_meta` entries.
 pub(crate) fn command_tool_meta(command: &CommandDefinition) -> Map<String, Value> {
     let mut meta = Map::new();
     if let Some(category) = &command.category {
@@ -207,6 +208,10 @@ pub(crate) fn command_tool_meta(command: &CommandDefinition) -> Map<String, Valu
     }
     if let Some(contexts) = command.contexts.as_ref().filter(|list| !list.is_empty()) {
         meta.insert("contexts".into(), json!(contexts));
+    }
+    // Extra entries (`toolMeta`): the key rule keeps them from replacing any entry above.
+    for (key, value) in command.tool_meta.iter().flatten() {
+        meta.insert(key.clone(), value.clone());
     }
     meta
 }

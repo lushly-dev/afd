@@ -169,7 +169,7 @@ Record the service/backend version, deployment revision and actual outcomes.
 That baseline verifies persistence across requests/clients. The additional
 [durable REST harness](hosted/README.md) supplies a SQLite fixture and separate
 write/read/cleanup processes using the actual HttpAdapter and ViewStateRegistry.
-`pnpm test:hosted:local` (repository root, Node 24 and Chromium) includes its
+`pnpm test:hosted:local` (repository root, Node 24 or newer and Chromium) includes its
 restart, unavailable/recovery, two-principal isolation and exact-ID cleanup checks.
 
 For external execution, `pnpm -F @lushly-dev/local-db test:hosted` accepts explicit

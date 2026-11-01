@@ -737,6 +737,12 @@ pub struct CommandDefinition {
     /// Whether a call needs a human's approval before the handler runs. `None` is unset
     /// (`not-required`). Enforced by the approval middleware; reported as `_meta.approval`.
     pub approval: Option<ApprovalPolicy>,
+
+    /// Extra `_meta` entries emitted on the command's tool and reported by `afd-detail` as
+    /// `toolMeta` (`spec/mcp-resources.md`, T1). Keys follow the key rule
+    /// ([`check_meta_entry`](crate::check_meta_entry)); the registry refuses anything else when the
+    /// command is registered. `None` or empty is omitted.
+    pub tool_meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl CommandDefinition {
@@ -770,7 +776,20 @@ impl CommandDefinition {
             confirm_prompt: None,
             undoable: None,
             approval: None,
+            tool_meta: None,
         }
+    }
+
+    /// Add one extra `_meta` entry to the command's tool (`spec/mcp-resources.md`, T1 and T2): a
+    /// prefixed key with two or more labels outside `dev.afd/` and MCP's reserved prefixes (for
+    /// example `dev.umbel/origin`), or `ui`, the MCP Apps key. A later call with the same key
+    /// replaces the value. The key is checked when the command is registered
+    /// ([`CommandRegistry::register`]), which refuses the command, naming it and the key.
+    pub fn with_tool_meta(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.tool_meta
+            .get_or_insert_with(serde_json::Map::new)
+            .insert(key.into(), value);
+        self
     }
 
     /// Set the display label, reported as the MCP tool `title`.
@@ -951,7 +970,11 @@ pub struct CommandRegistry {
 struct RegisteredCommands {
     by_name: HashMap<String, Arc<CommandDefinition>>,
     ordered: Vec<Arc<CommandDefinition>>,
+    /// The whole input schemas commands validate with ([`CommandRegistry::register_with_schema`]).
     schemas: HashMap<String, serde_json::Value>,
+    /// The input schemas commands advertise in place of the validation schema
+    /// ([`CommandRegistry::register_with_schemas`]).
+    advertised: HashMap<String, serde_json::Value>,
 }
 
 /// Read a lock, ignoring poisoning: no registry invariant spans a panic.
@@ -972,10 +995,12 @@ impl CommandRegistry {
     /// Register a command.
     ///
     /// # Errors
-    /// Returns an error if the name is not `domain-action` kebab-case or a
-    /// command with the same name already exists.
+    /// Returns an error if the name is not `domain-action` kebab-case, a
+    /// command with the same name already exists, or an extra `_meta` key of
+    /// [`CommandDefinition::with_tool_meta`] breaks the key rule.
     pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
+        validate_tool_meta(&command)?;
         for parameter in &command.parameters {
             if let Some(schema) = &parameter.schema {
                 crate::validation::validate_schema_definition(
@@ -1004,19 +1029,60 @@ impl CommandRegistry {
         command: CommandDefinition,
         schema: serde_json::Value,
     ) -> Result<(), String> {
+        self.register_whole(command, schema, None)
+    }
+
+    fn register_whole(
+        &self,
+        command: CommandDefinition,
+        schema: serde_json::Value,
+        advertised: Option<serde_json::Value>,
+    ) -> Result<(), String> {
         crate::schema_validation::compile(&schema)?;
         validate_command_name(&command.name)?;
+        validate_tool_meta(&command)?;
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
         }
         commands.schemas.insert(command.name.clone(), schema);
+        if let Some(advertised) = advertised {
+            commands.advertised.insert(command.name.clone(), advertised);
+        }
         let command = Arc::new(command);
         commands
             .by_name
             .insert(command.name.clone(), Arc::clone(&command));
         commands.ordered.push(command);
         Ok(())
+    }
+
+    /// [`Self::register_with_schema`] with a second schema the command advertises
+    /// (`spec/mcp-resources.md`, V1 and V2).
+    ///
+    /// `validation` is compiled and every call is validated against it, exactly as for
+    /// [`Self::register_with_schema`]. `advertised` is what every surface shows (a tool's
+    /// `inputSchema`, grouped `_meta.actions`, `afd-detail`, `afd-schema` and `afd-docs`) and is
+    /// checked for one thing only: a JSON object whose `type` is `"object"`. Nothing else in it is
+    /// compiled, so it may use keywords the validator refuses. AFD cannot prove the two agree;
+    /// keeping `validation` no wider than `advertised` is the caller's duty.
+    ///
+    /// # Errors
+    /// The command is refused, naming it, when `advertised` is not an object schema, and for every
+    /// reason [`Self::register_with_schema`] refuses one.
+    pub fn register_with_schemas(
+        &self,
+        command: CommandDefinition,
+        validation: serde_json::Value,
+        advertised: serde_json::Value,
+    ) -> Result<(), String> {
+        if advertised.get("type").and_then(serde_json::Value::as_str) != Some("object") {
+            return Err(format!(
+                "Command '{}': the advertised input schema must be a JSON object whose type is \"object\"",
+                command.name
+            ));
+        }
+        self.register_whole(command, validation, Some(advertised))
     }
 
     /// Export the authoritative MCP tool, including any whole schema registered with it.
@@ -1030,7 +1096,11 @@ impl CommandRegistry {
         let commands = read_lock(&self.commands);
         let command = commands.by_name.get(name)?;
         let mut tool = serde_json::to_value(command_to_mcp_tool(command)).expect("tool serializes");
-        if let Some(schema) = commands.schemas.get(name) {
+        if let Some(schema) = commands
+            .advertised
+            .get(name)
+            .or_else(|| commands.schemas.get(name))
+        {
             tool["inputSchema"] = schema.clone();
         }
         if let Some(annotations) = command_tool_annotations(command) {
@@ -1041,6 +1111,15 @@ impl CommandRegistry {
                 tool["_meta"] = serde_json::json!({});
             }
             tool["_meta"]["approval"] = serde_json::json!(approval);
+        }
+        // The key rule keeps these from replacing any entry the server sets.
+        if let Some(extra) = command.tool_meta.as_ref().filter(|extra| !extra.is_empty()) {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            for (key, value) in extra {
+                tool["_meta"][key] = value.clone();
+            }
         }
         Some(tool)
     }
@@ -1762,6 +1841,15 @@ pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
             required,
         },
     }
+}
+
+/// Refuse a command whose extra tool `_meta` breaks the key rule, naming the command and the key.
+fn validate_tool_meta(command: &CommandDefinition) -> Result<(), String> {
+    for (key, value) in command.tool_meta.iter().flatten() {
+        crate::meta_keys::check_meta_entry(key, value, true)
+            .map_err(|reason| format!("Command '{}': {reason}", command.name))?;
+    }
+    Ok(())
 }
 
 pub fn create_command_registry() -> CommandRegistry {

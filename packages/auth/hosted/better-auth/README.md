@@ -6,7 +6,7 @@ outside default tests and published package files. Node **24+**, OpenSSL and
 Playwright Chromium are required for local mode. Normal package/runtime behavior
 and default tests remain on their existing Node support range.
 
-From `packages/auth` with Node 24 selected:
+From `packages/auth` with Node 24 or newer selected:
 
 ```sh
 pnpm exec playwright install chromium
