@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "935d4cee3ad7148d2b408f6ec7b52f59c40897a0f3319f58d8beb4f01021ab93",
+      "current_import_sha256": "690c69b6a77c8a10f5ca8cb30c9d5ee94338993df44fe40903a2b04507642eb4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "dfdead8eeecb128e298dd2ad2559f904f240291df1dcc4e1801e9e43cf397f65",
+      "current_import_sha256": "0a2cb9d8874eb37a99366c6c6b633c3b94075d3110641d22dfe9b47bf84a9080",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -1017,11 +1017,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b9d658eb95caf2a9198c6b53a4b063a8b2739bbf80a80d09f67f94f86b089af5",
+      "current_import_sha256": "a25559c6f631744a5c2edc72dc116713227f5de0696d7eda98e803fe435128bd",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
@@ -1041,11 +1041,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "aa55684c204b0af88ff415be8f6cbb60d7d7cd382c7ebe2b0af90af5b99d5c75",
+      "current_import_sha256": "87b3ae6b134b35adfc3f117e5967db477bf2f33a4bbf4cf10de779fc7aa7c600",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/inputs/consumers.json",
@@ -1161,11 +1161,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "84654786ef59b18857b03440217c8cc0c90e428d0a19bd1868d12aa4c4e07bf9",
+      "current_import_sha256": "62e28582063b938adc0cdb06f670068c1c091c70a533cb63cd360246773fc3d1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/resources/speed-probe.test.mjs",
@@ -1173,11 +1173,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "0bb560d6da008eab751cd576582d6552361fec9f0172f28cc9098b112dc193e5",
+      "current_import_sha256": "680c79326e3b7305b7fca4645df6e70cabdbbc2da49b8fef19214c30c445cd64",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/driver-context-validation.md",
@@ -1437,11 +1437,47 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "3dd4190462d904f3c35ae354d082de04f14a0b67ab9165951119cc3f99dda394",
+      "current_import_sha256": "e620f6bbaaeee4440cbde3f2209d68a044c2a88bc784295028c8c3bb25dfd5d7",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "docs/features/active/specimens/resource-budget-validation.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "f47232dabe1733b5780939a162428d3374bf1e01018f3ac07a50d764bfb76896",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/remote-fonts.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "fc8c07de616d119a85821d14f322caec2dba982cd86a712c46772c03331f73b4",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/run-budgets.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1491c26af83951d8ca0ce5d5771ca22cea84cd48dd13d5fb9097d6eb3096656e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     }
   ]
 }

@@ -59,13 +59,14 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 ### Workstream 0 verification block
 
 - **State:** in progress, full exit criterion open.
-- **Last verified:** 2026-10-31; main `51f8d9d8` (including #517, #521, #525 and #536), the [T01 record](frozen-inputs-inventory.md), the [T02 record](cpu-attribution-validation.md) and the [T03 record](driver-context-validation.md); 2026-10-30 for the linked ordinary monorepo resource receipts.
+- **Last verified:** 2026-11-01; main `8001fc74` (including #517, #521, #525, #536 and #558), the [T01 record](frozen-inputs-inventory.md), the [T02 record](cpu-attribution-validation.md), the [T03 record](driver-context-validation.md) and the [T04 record](resource-budget-validation.md); 2026-10-30 for the linked ordinary monorepo resource receipts.
 - **Done / merged:** bounded native observation/lifecycle/static tooling, command/CLI split, calibrated macOS recorder, lazy loading and opt-in worker. Initial native honesty fixtures and the five-case capture-only interpretation experiment are recorded in the implementation history.
 - **Merged since the native milestone:** cached dev maps, dual Node profiler diagnostics and the current ordinary FAST-AF/Lushly rerun (#517). The six preliminary flat-copy comparison jobs remain excluded from accepted performance claims.
 - **Merged in #521:** T01 snapshots, input manifests, story inventory and the baseline policy, whose tolerances the owner confirmed on 2026-10-31.
 - **Merged in #525:** T02 attribution, the runner's fixed-work speed probe and frozen-snapshot support for the consumer runners.
 - **Merged in #536:** T03 driver comparison, context-mismatch labels, `TrustedHTML` support, the static index's full context URL and the CLI's locale and motion options.
-- **Implemented on branch:** the T04 quiet-window gate, the confirmed host-condition rule and the controlled synthetic-load pair.
+- **Merged in #558:** the T04 quiet-window gate, the confirmed host-condition rule and the controlled synthetic-load pair.
+- **Measured on branch:** T04's incumbent/candidate pairs and budgets; the predeclared tolerances do not pass as declared.
 - **Not done:** equivalent Storybook/Vitest baselines, the chosen font and browser condition, remaining budgets and broader acceptance below. Native wrappers do not prove retained stories, plays, axe, coverage or operational parity.
 - **Follow-ups:** the owner's decision on T04's [revision options](resource-budget-validation.md#decision-needed); every CPU comparison carries the host-condition control. No Rust rewrite or concurrent-session capacity is accepted by these pilots.
 
