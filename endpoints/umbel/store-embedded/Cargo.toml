@@ -1,0 +1,25 @@
+[package]
+name = "umbel-store-embedded"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel embedded reference store backend: SQLite (WAL) documents, records, changes and graph"
+repository = "https://github.com/lushly-dev/afd"
+
+[dependencies]
+umbel-store = { path = "../store" }
+# Bundled SQLite: no system library is needed (specification section 1). The backend is the only
+# crate that links it.
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde = "1"
+serde_json = "1"
+
+[dev-dependencies]
+# The conformance suite, and a directory per test.
+umbel-store = { path = "../store", features = ["conformance"] }
+tempfile = "3"
+
+[lints]
+workspace = true
