@@ -36,7 +36,12 @@ export const criteria = [
 export function compare(
 	jobs,
 	band,
-	{ maxSpreadPercent, noiseFloorPercent, candidate = 'candidate' }
+	{
+		maxSpreadPercent,
+		maxPeakSpreadPercent = maxSpreadPercent,
+		noiseFloorPercent,
+		candidate = 'candidate',
+	}
 ) {
 	const inBand = new Map(band.jobs.map((entry) => [entry.name, entry.inBand]));
 	const planned = finalAttempts(jobs);
@@ -52,13 +57,21 @@ export function compare(
 			incumbent: own.filter((job) => job.path === 'incumbent').map(jobMetrics),
 			candidate: own.filter((job) => job.path === candidate).map(jobMetrics),
 		};
+		// The policy's two repeatability rules: CPU and peak footprint spreads.
 		for (const path of ['incumbent', 'candidate']) {
 			const cpu = sides[path].map((metrics) => metrics.cpuSeconds);
+			const peak = sides[path].map((metrics) => metrics.peakFootprintBytes);
 			if (cpu.length < 2) held.push(`${path}: fewer than two repetitions`);
-			else if (spreadPercent(cpu) > maxSpreadPercent)
-				held.push(
-					`${path}: CPU spread ${spreadPercent(cpu).toFixed(2)}% exceeds ${maxSpreadPercent}%`
-				);
+			else {
+				if (spreadPercent(cpu) > maxSpreadPercent)
+					held.push(
+						`${path}: CPU spread ${spreadPercent(cpu).toFixed(2)}% exceeds ${maxSpreadPercent}%`
+					);
+				if (spreadPercent(peak) > maxPeakSpreadPercent)
+					held.push(
+						`${path}: peak spread ${spreadPercent(peak).toFixed(2)}% exceeds ${maxPeakSpreadPercent}%`
+					);
+			}
 		}
 		const results = criteria.map((criterion) => {
 			const incumbent = median(sides.incumbent.map((metrics) => metrics[criterion.key]));

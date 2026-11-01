@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 /**
  * T04 build and load budgets. For each consumer: Specimen's static build of the native wrapper
  * project (shell versus consumer chunks), the JavaScript each case actually loads in Chromium
@@ -23,9 +24,10 @@ import { pathToFileURL } from 'node:url';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { build } from 'vite';
-import { prepareConsumerProject } from './consumer-project.mjs';
+import { gitEnvironment, prepareConsumerProject } from './consumer-project.mjs';
 import fastAf from './fast-af.fixture.mjs';
 import lushly from './lushly.fixture.mjs';
+import { directoryDigest, hostDetails } from './resources/session.mjs';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -157,9 +159,19 @@ async function loadedBytes(browser, base, id) {
 	};
 }
 
+const afd = resolve(import.meta.dirname, '../../..');
+const git = (...command) =>
+	spawnSync('git', ['-C', afd, ...command], {
+		encoding: 'utf8',
+		env: gitEnvironment(),
+	}).stdout.trim();
 const report = {
 	purpose: 'T04 build and load budgets with prototype helper and axe bundles',
 	createdUtc: new Date().toISOString(),
+	host: hostDetails(),
+	node: process.version,
+	afd: { revision: git('rev-parse', 'HEAD'), status: git('status', '--porcelain=v1') },
+	dist: directoryDigest(join(afd, 'foundations/specimen/dist')),
 	budgets,
 	consumers: {},
 };

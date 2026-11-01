@@ -2,7 +2,17 @@
 import assert from 'node:assert/strict';
 /** Exploratory native wrappers; this does not execute or compare retained CSF suites. */
 import { execFile as execFileCallback } from 'node:child_process';
-import { appendFile, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+	appendFile,
+	cp,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	realpath,
+	rm,
+	writeFile,
+} from 'node:fs/promises';
 import { cpus, freemem, homedir, loadavg, platform, release, tmpdir, totalmem } from 'node:os';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -22,6 +32,9 @@ if (!['in-process', 'process'].includes(runtimeIsolation))
 // T04 runs each pair on the incumbent's browser build; unset uses Playwright's own.
 const executablePath = process.env.SPECIMEN_BENCH_EXECUTABLE || undefined;
 const coldProcess = process.env.SPECIMEN_COLD_PROCESS === '1';
+// A pair driver prepares the project outside the measured job, so the job holds only the
+// tool's own work; its provenance sits beside the root as <root>.provenance.json.
+const preparedRoot = process.env.SPECIMEN_PREPARED_ROOT || undefined;
 
 const execFile = promisify(execFileCallback);
 const args = process.argv.slice(2);
@@ -165,15 +178,21 @@ for (const descriptor of descriptors) {
 	try {
 		if (resourceEvents) await idle('baseline-idle', descriptor.name);
 		// A neutral temporary root avoids inheriting AFD's Git and lockfile identities.
-		root = await realpath(await mkdtemp(join(tmpdir(), `specimens-${descriptor.name}-`)));
-		result.snapshot = { executionRoot: root, retainedRoot: join(directory, 'project') };
-		result.provenance = await phase(
-			'prepare',
-			() => prepareConsumerProject(descriptor, roots[descriptor.name], root),
-			{
-				consumer: descriptor.name,
-			}
-		);
+		if (preparedRoot) {
+			root = await realpath(preparedRoot);
+			result.snapshot = { executionRoot: root, preparedOutsideJob: true };
+			result.provenance = JSON.parse(await readFile(`${root}.provenance.json`, 'utf8'));
+		} else {
+			root = await realpath(await mkdtemp(join(tmpdir(), `specimens-${descriptor.name}-`)));
+			result.snapshot = { executionRoot: root, retainedRoot: join(directory, 'project') };
+			result.provenance = await phase(
+				'prepare',
+				() => prepareConsumerProject(descriptor, roots[descriptor.name], root),
+				{
+					consumer: descriptor.name,
+				}
+			);
+		}
 		await json(join(directory, 'capture-provenance.json'), {
 			...result.provenance,
 			captureIdentity:
@@ -290,9 +309,11 @@ for (const descriptor of descriptors) {
 	} catch (error) {
 		result.error = error instanceof Error ? error.stack : String(error);
 	} finally {
+		// With a prepared root, the driver reads the snapshot back and retains the project.
 		try {
-			result.consumerAfter = await git(roots[descriptor.name]);
+			if (!preparedRoot) result.consumerAfter = await git(roots[descriptor.name]);
 			if (
+				!preparedRoot &&
 				result.provenance &&
 				JSON.stringify(result.provenance.before) !== JSON.stringify(result.consumerAfter)
 			) {
@@ -303,7 +324,7 @@ for (const descriptor of descriptors) {
 			result.status = 'failed';
 			result.readbackError = error instanceof Error ? error.message : String(error);
 		}
-		if (root) {
+		if (root && !preparedRoot) {
 			try {
 				await cp(root, join(directory, 'project'), { recursive: true });
 			} catch (error) {

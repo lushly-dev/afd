@@ -46,6 +46,24 @@ describe('incumbent versus candidate comparison', () => {
 		});
 	});
 
+	it('passes a ratio just above 1 that the noise floor covers, and holds on peak spread', () => {
+		const within = [
+			job('01-lushly-incumbent-a1', 'incumbent', 40, { verifiedCases: 20 }),
+			job('02-lushly-candidate-a1', 'candidate', 41, { peakFootprintBytes: 900 }),
+			job('03-lushly-candidate-a1', 'candidate', 41, { peakFootprintBytes: 900 }),
+			job('04-lushly-incumbent-a1', 'incumbent', 40, { verifiedCases: 20 }),
+		];
+		const [result] = compare(within, probeBand(within, 1.1), policy);
+		const cpu = result.results.find((entry) => entry.key === 'cpuPerCase');
+		// 2.05 / 2.0 = 1.025: above the limit of 1 but inside the 5% noise floor.
+		expect(cpu.verdict).toBe('passes, no measurable difference');
+		const spread = within.map((entry, index) =>
+			index === 1 ? { ...entry, peakFootprintBytes: 1100 } : entry
+		);
+		const [held] = compare(spread, probeBand(spread, 1.1), policy);
+		expect(held.held).toEqual(['candidate: peak spread 22.22% exceeds 10%']);
+	});
+
 	it('holds every criterion when a job is out of band or a side does not repeat', () => {
 		const jobs = [
 			job('01-lushly-incumbent-a1', 'incumbent', 40),

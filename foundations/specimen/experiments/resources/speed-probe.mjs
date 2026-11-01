@@ -31,12 +31,8 @@ function probeOnce() {
 	}
 }
 
-/**
- * The fastest of `runs` separate runs. On Apple silicon a half-second single-threaded run lands
- * on a performance or an efficiency core, and the two read about 1.6 times apart on a quiet
- * host; contention slows every run, while an unlucky placement slows one.
- */
-export function speedProbe({ runs = 3 } = {}) {
+/** One run by default; `runs` takes the fastest of several separate runs for diagnosis. */
+export function speedProbe({ runs = 1 } = {}) {
 	const timestampUtc = new Date().toISOString();
 	const results = Array.from({ length: runs }, probeOnce);
 	const failed = results.find((result) => result.status !== 'complete');

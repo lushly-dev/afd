@@ -56,6 +56,7 @@ const summary = (values) => {
 	};
 };
 
+const driverReadback = process.env.SPECIMEN_DRIVER_READBACK === '1';
 const fontRecord = join(fontStore, 'remote-fonts.json');
 // A pair driver serves fonts from outside both measured families and passes its URL; a direct
 // run starts its own server, inside the job.
@@ -68,7 +69,8 @@ const result = {
 	status: 'failed',
 	path: 'incumbent',
 	selection: incumbents[consumer],
-	provenance: { before: await git(snapshot) },
+	// A pair driver reads the snapshot back outside the job, as it does for the candidate.
+	provenance: driverReadback ? { readback: 'driver' } : { before: await git(snapshot) },
 	runs: [],
 };
 const report = {
@@ -96,6 +98,8 @@ const report = {
 };
 try {
 	const wrapper = await writeWrapperConfig({ snapshot, consumer, directory: output });
+	if (resourceEvents)
+		await phase('baseline-idle', () => new Promise((done) => setTimeout(done, idleMs)));
 	for (let index = 0; index < samples; index++)
 		for (const kind of ['cold', 'warm']) {
 			const run = await phase(
@@ -134,8 +138,11 @@ try {
 		result.status = 'failed';
 		result.error ??= `Unrecorded font requests: ${result.fonts.missing.join(', ')}`;
 	}
-	result.consumerAfter = await git(snapshot);
-	if (JSON.stringify(result.provenance.before) !== JSON.stringify(result.consumerAfter)) {
+	if (!driverReadback) result.consumerAfter = await git(snapshot);
+	if (
+		!driverReadback &&
+		JSON.stringify(result.provenance.before) !== JSON.stringify(result.consumerAfter)
+	) {
 		result.status = 'failed';
 		result.checkoutChanged = true;
 	}

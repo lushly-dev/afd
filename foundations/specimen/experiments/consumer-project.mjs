@@ -94,7 +94,7 @@ await Promise.all(${JSON.stringify(stylesheets)}.map((href) => new Promise((reso
 `;
 }
 
-export async function prepareConsumerProject(descriptor, source, destination) {
+export async function prepareConsumerProject(descriptor, source, destination, options = {}) {
 	const before = await readGitState(source);
 	if (before.status) throw new Error(`Consumer checkout must be clean: ${source}`);
 	await mkdir(destination, { recursive: true });
@@ -109,7 +109,9 @@ export async function prepareConsumerProject(descriptor, source, destination) {
 		await symlink(target, join(destination, link.to), 'dir');
 		dependencies.push({ ...link, target });
 	}
-	const wrapper = `${fontPreamble()}${descriptor.source}`;
+	const stylesheets =
+		options.fontStylesheets ?? JSON.parse(process.env.SPECIMEN_FONT_STYLESHEETS ?? '[]');
+	const wrapper = `${fontPreamble(stylesheets)}${descriptor.source}`;
 	await writeFile(join(destination, 'probe.ts'), wrapper);
 	await json(join(destination, 'specimen.config.json'), { specimens: descriptor.specimens });
 	if (descriptor.tsconfig) await json(join(destination, 'tsconfig.json'), descriptor.tsconfig);
@@ -155,6 +157,6 @@ export async function prepareConsumerProject(descriptor, source, destination) {
 		installed,
 		declaredInputs,
 		wrapperSha256: hash(wrapper),
-		fontStylesheets: JSON.parse(process.env.SPECIMEN_FONT_STYLESHEETS ?? '[]'),
+		fontStylesheets: stylesheets,
 	};
 }

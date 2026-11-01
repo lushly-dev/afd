@@ -10,8 +10,9 @@ describe('speedProbe', () => {
 		expect(first.wallSeconds).toBeGreaterThan(0);
 		// Same work, same result: the digest identifies the workload, not the host.
 		expect(second.digest).toBe(first.digest);
-		// The reported value is the fastest of the separate runs.
-		expect(first.runs).toHaveLength(3);
-		expect(first.cpuSeconds).toBe(Math.min(...first.runs.map((run) => run.cpuSeconds)));
+		// A multi-run probe reports the fastest of its separate runs.
+		const several = speedProbe({ runs: 2 });
+		expect(several.runs).toHaveLength(2);
+		expect(several.cpuSeconds).toBe(Math.min(...several.runs.map((run) => run.cpuSeconds)));
 	});
 });

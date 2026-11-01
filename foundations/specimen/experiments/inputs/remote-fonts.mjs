@@ -63,10 +63,10 @@ export async function startFontServer(record, store) {
 	const fonts = new Map(
 		record.stylesheets.flatMap((sheet) => sheet.fonts.map((font) => [font.url, font]))
 	);
-	const stats = { stylesheets: 0, fonts: 0, bytes: 0, missing: [], other: [] };
+	const stats = { stylesheets: 0, fonts: 0, bytes: 0, missing: [], other: [], errors: [] };
 	let base = '';
 	const server = createServer((request, response) => {
-		void (async () => {
+		(async () => {
 			const [, kind, digest] = /^\/(css|font)\/([0-9a-f]{64})$/.exec(request.url ?? '') ?? [];
 			const known =
 				kind === 'css'
@@ -98,7 +98,12 @@ export async function startFontServer(record, store) {
 				'cache-control': 'no-store',
 			});
 			response.end(body);
-		})();
+		})().catch((error) => {
+			// A failed read is a serving fault, reported apart from unrecorded requests.
+			stats.errors.push(`${request.url ?? ''}: ${error.message}`);
+			if (!response.headersSent) response.writeHead(500);
+			response.end();
+		});
 	});
 	await new Promise((resolveListen, reject) => {
 		server.once('error', reject);

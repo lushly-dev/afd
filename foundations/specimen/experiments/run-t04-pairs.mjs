@@ -9,13 +9,19 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cp, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { gitEnvironment } from './consumer-project.mjs';
+import { gitEnvironment, prepareConsumerProject, readGitState } from './consumer-project.mjs';
+import fastAf from './fast-af.fixture.mjs';
 import { startFontServer } from './inputs/remote-fonts.mjs';
+import lushly from './lushly.fixture.mjs';
 import { compare } from './resources/comparison.mjs';
 import { probeBand } from './resources/pairs.mjs';
 import { quietPolicy, waitForQuiet } from './resources/quiet.mjs';
 import { directoryDigest, hostDetails, sha256File } from './resources/session.mjs';
+
+const descriptors = { 'fast-af': fastAf, lushly };
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -47,7 +53,10 @@ const manifestFor = (root) => {
 function incumbentBrowser(manifest) {
 	const shell = manifest.browsers?.find((entry) => entry.name === 'chromium-headless-shell');
 	const executable =
-		shell && join(shell.installPath, 'chrome-headless-shell-mac-arm64/chrome-headless-shell');
+		shell &&
+		readdirSync(shell.installPath, { recursive: true, withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name === 'chrome-headless-shell')
+			.map((entry) => join(entry.parentPath, entry.name))[0];
 	if (!executable || !existsSync(executable))
 		throw new Error(`Incumbent headless shell is not installed: ${executable ?? 'unrecorded'}`);
 	return { ...shell, executable };
@@ -93,9 +102,9 @@ for (const consumer of consumers) {
 		},
 	};
 }
-process.on('exit', () => {
-	for (const server of Object.values(servers)) void server.close();
-});
+// The snapshot is read back outside every measured job: before the session and after each job.
+for (const consumer of consumers)
+	study.consumers[consumer].stateBefore = await readGitState(study.consumers[consumer].snapshot);
 
 if (args.includes('--skip-quiet')) study.quietGate = { skipped: true };
 else {
@@ -118,13 +127,24 @@ else {
 // The font servers live in this process, so jobs must run without blocking its event loop.
 function runJob(command, commandArgs, options) {
 	return new Promise((resolveRun) => {
-		const child = spawn(command, commandArgs, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+		// Its own process group, so a timeout stops the whole job: Vitest and browsers included.
+		const child = spawn(command, commandArgs, {
+			...options,
+			detached: true,
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
 		let stderr = '';
 		child.stdout.resume();
 		child.stderr.on('data', (chunk) => {
 			stderr = `${stderr}${chunk}`.slice(-8000);
 		});
-		const timer = setTimeout(() => child.kill('SIGTERM'), options.timeout);
+		const timer = setTimeout(() => {
+			try {
+				process.kill(-child.pid, 'SIGTERM');
+			} catch {
+				child.kill('SIGTERM');
+			}
+		}, options.timeout);
 		child.on('error', (error) => {
 			clearTimeout(timer);
 			resolveRun({ status: null, error, stderr });
@@ -145,6 +165,17 @@ function captureBrowsers(directory) {
 				.filter(Boolean)
 		),
 	];
+}
+/** Browser process names the recorder saw: proves which build each side actually ran. */
+function browserProcesses(file) {
+	if (!existsSync(file)) return [];
+	const names = new Set();
+	for (const line of readFileSync(file, 'utf8').split('\n')) {
+		if (!line.includes('"processes"')) continue;
+		for (const entry of JSON.parse(line).processes ?? [])
+			if (/chrom|headless/i.test(entry.name)) names.add(entry.name);
+	}
+	return [...names].sort();
 }
 const pause = (ms) => new Promise((resolvePause) => setTimeout(resolvePause, ms));
 
@@ -177,15 +208,40 @@ for (const [index, job] of plan.entries()) {
 		const settle = await waitForQuiet(settlePolicy, { timeoutSeconds: 300 });
 		const directory = join(out, name);
 		mkdirSync(directory);
+		if (!settle.quiet) {
+			study.jobs.push({
+				...job,
+				name,
+				attempt,
+				status: 'failed',
+				held: true,
+				error: `Host did not settle: ${settle.reasons.join(', ')}`,
+			});
+			save();
+			await pause(60_000);
+			continue;
+		}
+		const stylesheets = details.fonts.stylesheets.map((sha) => `${server.url}/css/${sha}`);
+		// The candidate's project copy is made here, outside the measured job; the incumbent
+		// runs in the snapshot itself.
+		let prepared;
+		if (job.path !== 'incumbent') {
+			prepared = await realpath(await mkdtemp(join(tmpdir(), `specimens-${job.consumer}-`)));
+			const provenance = await prepareConsumerProject(
+				descriptors[job.consumer],
+				details.snapshot,
+				prepared,
+				{ fontStylesheets: stylesheets }
+			);
+			await writeFile(`${prepared}.provenance.json`, `${JSON.stringify(provenance, null, 2)}\n`);
+		}
 		const fontsBefore = server.stats();
 		const env = {
 			...process.env,
 			...(job.path === 'incumbent'
-				? { SPECIMEN_FONT_BASE: server.url }
+				? { SPECIMEN_FONT_BASE: server.url, SPECIMEN_DRIVER_READBACK: '1' }
 				: {
-						SPECIMEN_FONT_STYLESHEETS: JSON.stringify(
-							details.fonts.stylesheets.map((sha) => `${server.url}/css/${sha}`)
-						),
+						SPECIMEN_PREPARED_ROOT: prepared,
 						SPECIMEN_BENCH_EXECUTABLE: details.browser.executable,
 						SPECIMEN_COLD_PROCESS: '1',
 					}),
@@ -210,6 +266,13 @@ for (const [index, job] of plan.entries()) {
 			{ env, timeout: 15 * 60_000 }
 		);
 		const fontsAfter = server.stats();
+		if (prepared) {
+			await cp(prepared, join(directory, 'project'), { recursive: true, verbatimSymlinks: true });
+			await rm(prepared, { recursive: true, force: true });
+			await rm(`${prepared}.provenance.json`, { force: true });
+		}
+		const stateAfter = await readGitState(details.snapshot);
+		const snapshotChanged = JSON.stringify(stateAfter) !== JSON.stringify(details.stateBefore);
 		const report = readJson(join(directory, 'resource-report.json')) ?? {};
 		const profile = report.consumers?.[0];
 		const workload = profile?.probeReport ? readJson(profile.probeReport) : null;
@@ -241,14 +304,16 @@ for (const [index, job] of plan.entries()) {
 			coldMs: receipt?.coldMilliseconds?.median ?? null,
 			warmMs: receipt?.warmMilliseconds?.median ?? null,
 			storiesPerRun: receipt?.storiesPerRun ?? null,
-			// Candidate captures record the browser they ran on; the incumbent runs its own build.
+			// Candidate captures record the browser they ran on; process names show both sides'.
 			browserVersions: captureBrowsers(join(directory, job.consumer, 'probe', job.consumer)),
+			browserProcesses: browserProcesses(join(directory, job.consumer, 'processes.jsonl')),
 			fonts: {
 				stylesheets: fontsAfter.stylesheets - fontsBefore.stylesheets,
 				files: fontsAfter.fonts - fontsBefore.fonts,
 				bytes: fontsAfter.bytes - fontsBefore.bytes,
 				missing: fontsAfter.missing.slice(fontsBefore.missing.length),
 				other: fontsAfter.other.slice(fontsBefore.other.length),
+				errors: fontsAfter.errors.slice(fontsBefore.errors.length),
 			},
 			hostBefore: profile?.hostBefore ?? report.hostBefore ?? null,
 			settle: {
@@ -258,9 +323,13 @@ for (const [index, job] of plan.entries()) {
 				timedOut: settle.timedOut ?? false,
 			},
 		};
-		if (record.fonts.missing.length) {
+		if (record.fonts.missing.length || record.fonts.errors.length) {
 			record.status = 'failed';
-			record.error ??= `Unrecorded font requests: ${record.fonts.missing.join(', ')}`;
+			record.error ??= `Font serving failed: ${[...record.fonts.missing, ...record.fonts.errors].join(', ')}`;
+		}
+		if (snapshotChanged) {
+			record.status = 'failed';
+			record.error ??= 'The frozen snapshot changed during the job';
 		}
 		study.jobs.push(record);
 		save();
@@ -274,6 +343,7 @@ for (const [index, job] of plan.entries()) {
 study.band = probeBand(study.jobs, policy.hostCondition.maxProbeRatio);
 const tolerance = {
 	maxSpreadPercent: policy.tolerances.repeatability.cpuSpreadPercent,
+	maxPeakSpreadPercent: policy.tolerances.repeatability.peakFootprintSpreadPercent,
 	noiseFloorPercent: policy.tolerances.noiseFloorPercent,
 };
 study.comparison = Object.fromEntries(
