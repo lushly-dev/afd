@@ -50,10 +50,10 @@
 		"yaml": "^2.9.0"
 	},
 	"devDependencies": {
-		"@vitest/coverage-v8": "^4.1.11",
+		"@vitest/coverage-v8": "^4.1.12",
 		"rimraf": "^6.1.3",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.11"
+		"vitest": "^4.1.12"
 	},
 	"peerDependencies": {
 		"vitest": ">=1.0.0"

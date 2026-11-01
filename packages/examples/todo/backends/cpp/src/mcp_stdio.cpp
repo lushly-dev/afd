@@ -96,6 +96,11 @@ Json tools_list(const afd::CommandRegistry& registry) {
         Json tool{{"name", command->definition.name},
                   {"description", command->definition.description},
                   {"inputSchema", command->definition.input_schema}};
+        // The display label (spec/command-metadata.md, "Tool titles"): only when the command sets
+        // one, never derived from the name, never in `_meta` or `annotations`.
+        if (command->definition.title) {
+            tool["title"] = *command->definition.title;
+        }
         // MCP annotations (spec/command-metadata.md): `mutation` has no unset state here, so only
         // a mutation claims anything.
         if (command->definition.mutation) {

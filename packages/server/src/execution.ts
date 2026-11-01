@@ -29,6 +29,8 @@ import {
 	truncateName,
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
+import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	filterByContext,
 	isAccessibleInContext,
@@ -107,6 +109,13 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		input: unknown,
 		callerContext: CommandContext = {}
 	): Promise<CommandResult> {
+		// A direct registry call's `allow` option covers every command the call runs, however it
+		// is reached (afd-call, batch items, pipeline steps, grouped tools). Checked before the
+		// lookup, as DirectClient does, so a refused name gives the same answer whether it exists.
+		if (!isCommandAllowed(callerContext, commandName)) {
+			return failure(commandNotAllowed(commandName));
+		}
+
 		// One context object flows through every middleware into the handler.
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
 		const command = commandMap.get(commandName);
@@ -114,8 +123,12 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		if (!command) {
 			// A few close matches, never the whole list: in lazy mode that would load
-			// every command name into the agent's context on a single typo.
-			const candidates = filterByContext([...commandMap.values()], activeContext);
+			// every command name into the agent's context on a single typo. Never one the call's
+			// `allow` option refuses.
+			const candidates = filterAllowed(
+				filterByContext([...commandMap.values()], activeContext),
+				callerContext
+			);
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Command '${truncateName(commandName)}' not found`,

@@ -80,9 +80,9 @@
       "path": "endpoints/violet-cli/package.json",
       "upstream_path": "packages/cli/package.json",
       "upstream_sha256": "0c4b5cbc44d8ed4c4fe8239b51428c7c96de18f7eac8fd1a1b006fda51a96f91",
-      "current_import_sha256": "61d5b4bd2f01054d682a26093e70cbfdd75ccecab0fbceddb56cde6c376a13f9",
+      "current_import_sha256": "8acf40b29c159f9ecf0e264f3bfb1a2da165afdf879102cc336237594a0791f2",
       "classification": "adapted",
-      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
+      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
       "candidate": {
         "path": "packages/cli/package.json",
         "sha256": "3f4d5de9963def5ea02322e1e2f45c7bedc7ecd09749c07fc7253b72ab61da12",
@@ -314,9 +314,9 @@
       "path": "endpoints/violet-server/package.json",
       "upstream_path": "packages/server/package.json",
       "upstream_sha256": "5f34f53cbff0550a001eb43a3b9540352aa49984e4ce3f11c4f2a633bd72912e",
-      "current_import_sha256": "123dd891f737a70b1ddc59c905232acdf5aae723de78f345c164010545011217",
+      "current_import_sha256": "a5682ff02ce052a3612f885e9eca0a9ae0968e7dc70de72b7af78bd426be6ae5",
       "classification": "adapted",
-      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
+      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
       "candidate": {
         "path": "packages/server/package.json",
         "sha256": "5d41d6c4cfa4452ac78bca816f4e7af42b70d7d08ef93df7c55518738b9b8556",
@@ -561,9 +561,9 @@
       "path": "foundations/violet/packages/core/package.json",
       "upstream_path": "packages/core/package.json",
       "upstream_sha256": "1966100f0c58be7e00832c9962d9ce6fd50c6ebb17b3a3c876bfaf84043e94ce",
-      "current_import_sha256": "4700d68ba5992a7dbf117a7d3d0e80ac4e8f81460d320bc2b5785b88576a19b1",
+      "current_import_sha256": "830a9735372d6a99e0d19ebed829a8a0e69b3886dc375b029c1de07d0b8d4c35",
       "classification": "adapted",
-      "reason": "Native manifest: remove ./commands, the AFD, zod-to-json-schema and nanoid dependencies (nanoid stays for test support); better-sqlite3 stays optional and Neon/ws become optional peers (also dev dependencies) so a consumer's copies satisfy ./neon under strict layouts; add ./engine and ./neon; test runs the store-free subset and test:db the full suite; Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
+      "reason": "Native manifest: remove ./commands, the AFD, zod-to-json-schema and nanoid dependencies (nanoid stays for test support); better-sqlite3 stays optional and Neon/ws become optional peers (also dev dependencies) so a consumer's copies satisfy ./neon under strict layouts; add ./engine and ./neon; test runs the store-free subset and test:db the full suite; Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
       "candidate": {
         "path": "packages/core/package.json",
         "sha256": "71e22d1ec46e057acbfdafe1fe94f4504788b68fbded2639e62d42fd55b6088b",
@@ -870,6 +870,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/export/registry.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "186989b5956f39f7062674bcea303dfbd90e3940a4d59e02c795dc7f4df5a520",
+      "classification": "afd-authored",
+      "reason": "Covers the transformer registry (duplicate format, unknown lookups), idempotent initializeExport and the shared nesting helpers (prototype-free output, unsafe and empty paths, leaf/group collisions, Style Dictionary metadata), restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/export/registry.ts",
       "upstream_path": "packages/core/src/export/registry.ts",
       "upstream_sha256": "da9a560aa6be7bd49f5bcab371ecdd0eadf206dd6414bfd9f7272262c3b4e461",
@@ -896,6 +909,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/export/transformers/css.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "274b30c6abb020ea65db103b0c970027498a178123a4151983c39aeb0815223a",
+      "classification": "afd-authored",
+      "reason": "Covers the CSS transformer's prefix, selector, comments, composite values, outputReferences fallbacks and grouped output, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/export/transformers/css.ts",
       "upstream_path": "packages/core/src/export/transformers/css.ts",
       "upstream_sha256": "0524fe6da08de76b441cbc461595dc4f59eb64c70a4caf40362c4c5810de6223",
@@ -906,6 +932,19 @@
         "path": "packages/core/src/export/transformers/css.ts",
         "sha256": "0524fe6da08de76b441cbc461595dc4f59eb64c70a4caf40362c4c5810de6223",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/dart.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "4ba78bafc8e51bfd8fb5f75d2d9b0447f87b605eda5c0f4f08a9a17dd59ceb9f",
+      "classification": "afd-authored",
+      "reason": "Covers the Dart transformer's class naming, camelCase constants, colour expansion, dimension conversion, String fallback and comments, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -922,6 +961,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/export/transformers/json.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "7abc9c3a2c3919f23fe41bf4e8197eacc1bb59deafeea994ed3c4c83ad95e0a0",
+      "classification": "afd-authored",
+      "reason": "Covers the JSON transformer's pretty and compact output, prefix, metadata comments, unsafe ids and per-category transformMulti, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/export/transformers/json.ts",
       "upstream_path": "packages/core/src/export/transformers/json.ts",
       "upstream_sha256": "664c1063b99b6838f8f6d67bd72e30e19e3d0539e970f390f4292ce65f5eb17c",
@@ -932,6 +984,19 @@
         "path": "packages/core/src/export/transformers/json.ts",
         "sha256": "664c1063b99b6838f8f6d67bd72e30e19e3d0539e970f390f4292ce65f5eb17c",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/kotlin.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "4d47191f0691d4dee4c8fd290dbe515a20ccb290948b7a36eb2ce08b6759fafd",
+      "classification": "afd-authored",
+      "reason": "Covers the Kotlin transformer's package and object naming, subcategory objects, colour expansion, dp/sp conversion and comments, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -974,6 +1039,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/export/transformers/scss.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "1aad8ae16044eab14c41baff7893650b8d1417c9a556f2fac81b8c791189d9b6",
+      "classification": "afd-authored",
+      "reason": "Covers the SCSS transformer's prefix, comments, grouped output and nested maps for composite values, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/export/transformers/scss.ts",
       "upstream_path": "packages/core/src/export/transformers/scss.ts",
       "upstream_sha256": "83af4c9c086cd509091ce74daeb669a9455397bedb4cca9b341ee67680e3d687",
@@ -984,6 +1062,19 @@
         "path": "packages/core/src/export/transformers/scss.ts",
         "sha256": "83af4c9c086cd509091ce74daeb669a9455397bedb4cca9b341ee67680e3d687",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/swift.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "e2972f428ee2acd7d2794b71539bec844be17e4fcab4126704c328b2dc12d19b",
+      "classification": "afd-authored",
+      "reason": "Covers the Swift transformer's struct naming and access level, subcategory structs, CGFloat conversion, colour detection and doc comments, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1000,6 +1091,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/core/src/export/transformers/tailwind.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "8558a4c4e01cbcbeb68796bb0cd3177eee6d51dcce2f0f8c7af5de20b1ee1248",
+      "classification": "afd-authored",
+      "reason": "Covers the Tailwind transformer's CommonJS and ESM output, theme scales and unit normalisation, unknown categories and unsafe ids, by evaluating the generated config, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/core/src/export/transformers/tailwind.ts",
       "upstream_path": "packages/core/src/export/transformers/tailwind.ts",
       "upstream_sha256": "5b9422e2256ac73c9056191f6856795354fd1c02d3c9410d3b347475d9d3fda7",
@@ -1010,6 +1114,19 @@
         "path": "packages/core/src/export/transformers/tailwind.ts",
         "sha256": "5b9422e2256ac73c9056191f6856795354fd1c02d3c9410d3b347475d9d3fda7",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/typescript.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "4734f39f0075cec416cd4bf5f5ba65b7d9dc63a4a98055f56897ddcf13289f35",
+      "classification": "afd-authored",
+      "reason": "Covers the TypeScript transformer's export types, prefix, comments, string escaping, literal formatting and transformMulti, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1341,13 +1458,26 @@
       "path": "foundations/violet/packages/runtime/package.json",
       "upstream_path": "packages/runtime/package.json",
       "upstream_sha256": "53464ac59e55d40f06e2a2988dec06ced6d776156a114d479d08d12f0bec7e9c",
-      "current_import_sha256": "72b3b1cdd352a5fc56ffd56167454abb0af437d1b468e49175e4c6e49394ec1c",
+      "current_import_sha256": "04e451519be5865658916ace81a1b86591837dbc68035375d1370cee95fecb3c",
       "classification": "adapted",
-      "reason": "Biome 1.9 dev dependency, which the upstream root supplied to the lint script Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
+      "reason": "Biome 1.9 dev dependency, which the upstream root supplied to the lint script Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
       "candidate": {
         "path": "packages/runtime/package.json",
         "sha256": "62eacdd88535bbad845c623b946107498a522658872cd4551806ace989466ec3",
         "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/cache-indexeddb.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "6b2cbeb19298f18710377be9e9b69761b55ab147662112a8401ece8b471b0b8c",
+      "classification": "afd-authored",
+      "reason": "Drives TokenCache's IndexedDB path through an in-memory IndexedDB: store creation and upgrade, persistence across instances, request errors, open failures falling back to memory, and VioletRuntime over the persistent cache, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1361,6 +1491,19 @@
         "path": "packages/runtime/src/__tests__/cache.test.ts",
         "sha256": "1babf9349f74e29e2c2cc0bd160e60956b15471fb5738a25a78a29136e87f1a1",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/client-cache.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "c2845a92241bd8cb68839ba8e0b094eb7f543128a74ff35ce6be6cf8410ff8cd",
+      "classification": "afd-authored",
+      "reason": "Covers VioletRuntime cache hits and expiry, preload, invalidateCache and clearCache, cssPrefix and composite values on the document, listener isolation and fetch failure paths, restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1400,6 +1543,19 @@
         "path": "packages/runtime/src/__tests__/theme-robustness.test.ts",
         "sha256": "d644e46910a5bd3b6515db55bf8909447c940bad35c0831cebfd4143026c0996",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/theme-system-preference.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "5866a71571f2cd827a3b0c6a360cd66f7968328f6e0d254a31c8027ade42c984",
+      "classification": "afd-authored",
+      "reason": "Covers ThemeManager.useSystemPreference, transition options, preference persistence with and without storage, toggle, listener isolation and superseded apply(), restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1497,9 +1653,9 @@
       "path": "foundations/violet/packages/runtime/vitest.config.ts",
       "upstream_path": "packages/runtime/vitest.config.ts",
       "upstream_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
-      "current_import_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "0a33f35452b0421ed023d8d539446d0d89f392ec39eef2521bad00350680f7fc",
+      "classification": "adapted",
+      "reason": "Test workers run with --no-experimental-webstorage: Node 25 and later define a global localStorage that is undefined without --localstorage-file and shadows happy-dom's",
       "candidate": {
         "path": "packages/runtime/vitest.config.ts",
         "sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
@@ -1510,9 +1666,9 @@
       "path": "foundations/violet/tsconfig.json",
       "upstream_path": "tsconfig.json",
       "upstream_sha256": "dda3984a6877df8002e1d494f49062d461bb82fb7b6d2d84963f1f45c651655d",
-      "current_import_sha256": "dda3984a6877df8002e1d494f49062d461bb82fb7b6d2d84963f1f45c651655d",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "8fc1288b76543bc84604dbf44439c544a31cd7ea8159979846bfe1c703eb4fb9",
+      "classification": "adapted",
+      "reason": "Solution references trimmed to packages/core and packages/runtime, the two Violet packages under foundations/violet; upstream also references packages/cli, server, api and figma, which AFD moved to endpoints/ or did not import, and Vite 8's oxc transform fails on the dangling references",
       "candidate": {
         "path": "tsconfig.json",
         "sha256": "13d57ce078c6e2be7b1ac211fdf76b0dad8483af8827a61c1b92a0a06290b014",
@@ -1575,9 +1731,9 @@
       "path": "integrations/violet-afd/package.json",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "99f7ca990ca0ba46b9f9c4d1f9282f33f348b19972e133bdf5646a1a1ea567b1",
+      "current_import_sha256": "086b4058e38579d89bec015e9ffc02a8e883bbd1ea6c85f54272b0b795e787a5",
       "classification": "afd-authored",
-      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
+      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
       "candidate": {
         "path": "packages/afd/package.json",
         "sha256": "0007e820a3b32fb06d1ea01ae27cfff2ff4e539580b7f6fac5b9e46096b42a91",
@@ -3512,9 +3668,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "5c1df21ffc4e1d78b66041333e8a7d7d793303540dce51e479e94e65d4b82101",
+      "current_import_sha256": "157a3c8797dfb1158b89403e39d9daec4dd5658a3f498b89e586168f8e2b2b65",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR",
       "candidate": {
         "path": null,
         "sha256": null,

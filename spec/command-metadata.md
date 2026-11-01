@@ -16,8 +16,9 @@ an unset field stays distinguishable from an explicit `false`.
 | --- | --- | --- | --- |
 | `name` | string, `domain-action` kebab-case | Required | Every surface |
 | `description` | string | Required | Every surface; afd-discover shortens it to its first sentence, at most 120 characters |
+| `title` | string, a short human-readable label | None; nothing is derived from the name | The MCP tool `title` of the command's own tool, afd-detail, afd-help (full), `DirectRegistry.listCommands()`. Display text, so never in `_meta` ([Tool titles](#tool-titles)) |
 | `category` | string | None; grouping falls back to the name's first segment | `_meta`, afd-detail, afd-discover, afd-help (full), afd-docs headings, grouped tool names, `afd tools` groups |
-| Input schema | JSON Schema object (TypeScript: Zod `input`, or core `parameters`) | Required | Tool `inputSchema`, afd-detail, afd-schema, afd-docs parameter table |
+| Input schema | JSON Schema object (TypeScript: Zod `input`, or core `parameters`) | Required | Tool `inputSchema`, afd-detail, afd-schema, afd-docs parameter table. A command MAY add an advertised schema, shown on those surfaces while the registry validates with this one ([V1](./mcp-resources.md#v1-two-schemas-one-command)) |
 | Output schema (`returns`) | JSON Schema of `CommandResult.data` | None | `_meta.outputSchema`, afd-detail `outputSchema` |
 | `errors` | string[] of error codes | None | afd-detail |
 | `version` | string | None | afd-detail; results carry it as `metadata.commandVersion` |
@@ -34,6 +35,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `expose` | `palette`, `agent`, `mcp`, `cli` booleans | `palette` and `agent` true, `mcp` and `cli` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable` |
 | `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
 | `contexts` | string[] | None: the command is visible in every context | `_meta`; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
+| `toolMeta` | object: `_meta` key to JSON value | None | Merged into the command tool's `_meta`, a grouped action entry and afd-detail (`toolMeta`). Keys follow the [key rule](./mcp-resources.md#t2-the-key-rule): reverse-DNS prefixed keys outside `dev.afd/`, or the MCP Apps key `ui`; anything else is refused at registration ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
 
 `destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
 not act on `destructive` or `undoable`: an undo mechanism belongs to the consumer. A server MAY
@@ -52,6 +54,8 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
   of `_meta.actions`, not on the tool.
+- **Extra entries** (`toolMeta`) sit beside the fields above on the same tool or action entry. The
+  key rule keeps them from replacing any of them ([T2](./mcp-resources.md#t2-the-key-rule)).
 - **First-class tools** (`toolStrategy: 'hybrid'`) are command tools: each carries `_meta`,
   `annotations` and `outputSchema` exactly as the individual strategy's tool for that command
   ([tool strategies, H3](./tool-strategies.md#h3-the-tool-list-and-its-order)).
@@ -60,10 +64,11 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
 
 | Surface | Fields |
 | --- | --- |
-| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts` |
-| afd-detail | `name`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable` |
+| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`, and the command's `toolMeta` entries |
+| tools/list `title` | `title`, on a command's own tool (individual, and first-class under hybrid); the meta-tools carry fixed titles |
+| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `toolMeta` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
-| afd-help | `name`, `description`, `requires`; the `full` format adds `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report)) |
+| afd-help | `name`, `description`, `requires`; the `full` format adds `title`, `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report)) |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |
 | afd-schema | `name`, `description`, `inputSchema` |
 
@@ -287,6 +292,28 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
 
+## Decisions on the tool surface (#466)
+
+Phase 5 of the MCP 2026-07-28 plan deferred three items. The owner decided them on 2026-10-31:
+
+1. **Tool `title`: adopted.** An optional `title` field (above), reported as described in
+   [Tool titles](#tool-titles).
+2. **A request-values argument on the meta-tools: adopted as one `meta` object.** `afd-call`,
+   `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take an optional `meta` argument whose
+   keys are `dev.afd/context` and the declared context fields' `_meta` keys
+   ([`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)), applied as if sent
+   in `_meta`, for clients that cannot set `_meta`. Only `dev.afd/context` has an effect on
+   `afd-discover` and `afd-detail`. A key sent both ways must agree, or the call fails with
+   `VALIDATION_ERROR`. [`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)
+   gives the rules; TypeScript, Python and Rust implement it (C++ has no MCP server).
+3. **`x-mcp-header: "Afd-Command"` on `afd-call.command`: not adopted.** A server that declares it
+   makes clients mirror the value into an `Mcp-Param-Afd-Command` header and rejects a call whose
+   header is missing or differs, so a client without support could no longer use `afd-call`; client
+   support has not been verified. Gateways already route every command tool by `Mcp-Name`; only
+   calls through the meta-tools are opaque to them. The same answer covers declared context fields:
+   they are read from `_meta` only, never mirrored into headers. Revisit when a gateway needs
+   per-command routing through `afd-call` and the clients AFD supports mirror `x-mcp-header`.
+
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 
 An MCP tool for a command also carries standard MCP fields, derived from the metadata above. They
@@ -308,6 +335,16 @@ default:
 never enforced. Grouped and meta-tools carry no annotations, because one tool covers several
 commands; their per-command metadata stays in `_meta.actions`. The hybrid strategy's first-class
 tools are command tools and carry annotations as individual tools do.
+
+### Tool titles
+
+A command's own tool (the individual strategy's, and a first-class tool under hybrid) carries the
+command's `title` as the MCP tool `title`, a display label for clients. A command without `title`
+gets none: the name is not turned into one, so adding the field changes no existing tool list. A
+grouped tool has no title, as one tool covers several commands. The five meta-tools carry the fixed
+titles in [`meta-tools.json`](./meta-tools.json), which every implementation lists.
+
+`annotations.title` is not set: the tool's top-level `title` takes precedence in MCP.
 
 ### Structured results
 
@@ -343,9 +380,11 @@ follows `destructive`, `false` when it is unset.
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
+| Tool `title` | Yes | Yes | Yes | Yes (`title` on the definition; todo backend tool lists) |
 | Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
 | Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
 | `structuredContent` | Yes | Planned | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Planned |
+| `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Planned | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
 

@@ -15,6 +15,7 @@ dependencies = [
  "regex",
  "rmcp",
  "ryu-js",
+ "saphyr-parser",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -109,6 +110,12 @@ dependencies = [
  "once_cell_polyfill",
  "windows-sys",
 ]
+
+[[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
 
 [[package]]
 name = "async-trait"
@@ -1415,6 +1422,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714"
 
 [[package]]
+name = "saphyr-parser"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48cf5a82d41247a625f040af08e91008fec945bce3b0bffba992c44af092caa2"
+dependencies = [
+ "arraydeque",
+ "thiserror",
+]
+
+[[package]]
 name = "schemars"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1943,6 +1960,31 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "umbel",
+ "umbel-plugin-hello",
+ "umbel-sdk",
+]
+
+[[package]]
+name = "umbel-plugin-hello"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "chrono",
+ "serde_json",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-sdk",
+]
+
+[[package]]
+name = "umbel-sdk"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

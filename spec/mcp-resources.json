@@ -1,0 +1,291 @@
+{
+	"description": "Cases for spec/mcp-resources.md: the tool _meta key rule, a skill catalog served through skills/list, resources/list and resources/read, and catalog checks that must fail. Written by hand; digests are SHA-256 of the exact bytes (text as UTF-8, base64 decoded).",
+	"toolMetaKeys": [
+		{
+			"key": "dev.umbel/origin",
+			"value": { "plugin": "hello", "kind": "compiled" },
+			"allowed": true
+		},
+		{ "key": "com.example/flags", "value": ["a", "b"], "allowed": true },
+		{ "key": "com.example.mcp/x", "value": 1, "allowed": true },
+		{ "key": "org.example-co/v2.name_x", "value": true, "allowed": true },
+		{ "key": "ui", "value": { "resourceUri": "ui://hello/view.html" }, "allowed": true },
+		{
+			"key": "ui",
+			"value": { "resourceUri": "ui://hello/view.html", "visibility": ["model", "app"] },
+			"allowed": true
+		},
+		{ "key": "ui", "value": {}, "allowed": true },
+		{ "key": "ui", "value": { "resourceUri": "https://example.com/view.html" }, "allowed": false },
+		{ "key": "ui", "value": "ui://hello/view.html", "allowed": false },
+		{ "key": "ui/resourceUri", "value": "ui://hello/view.html", "allowed": false },
+		{ "key": "approval", "value": "required", "allowed": false },
+		{ "key": "category", "value": "hello", "allowed": false },
+		{ "key": "outputSchema", "value": {}, "allowed": false },
+		{ "key": "actions", "value": [], "allowed": false },
+		{ "key": "origin", "value": "x", "allowed": false },
+		{ "key": "dev.afd/context", "value": "x", "allowed": false },
+		{ "key": "dev.afd/digest", "value": "x", "allowed": false },
+		{ "key": "io.modelcontextprotocol/ui", "value": {}, "allowed": false },
+		{ "key": "dev.mcp/x", "value": 1, "allowed": false },
+		{ "key": "com.modelcontextprotocol.api/x", "value": 1, "allowed": false },
+		{ "key": "progressToken", "value": 1, "allowed": false },
+		{ "key": "traceparent", "value": "00", "allowed": false },
+		{ "key": "example/x", "value": 1, "allowed": false },
+		{ "key": "1com.example/x", "value": 1, "allowed": false },
+		{ "key": "com.example-/x", "value": 1, "allowed": false },
+		{ "key": "com.example/", "value": 1, "allowed": false },
+		{ "key": "com.example/-x", "value": 1, "allowed": false },
+		{ "key": "com.example/x y", "value": 1, "allowed": false }
+	],
+	"catalog": {
+		"skills": [
+			{
+				"path": "hello-greeting",
+				"files": [
+					{
+						"path": "SKILL.md",
+						"text": "---\nname: hello-greeting\ndescription: Greet a person by name. Use when someone asks to be greeted.\nlicense: Apache-2.0\nmetadata:\n  version: \"1.0\"\n---\n\n# Greeting\n\nCall hello-greet with the name. See references/STYLE.md.\n"
+					},
+					{ "path": "references/STYLE.md", "text": "# Style\n\nKeep greetings short.\n" },
+					{ "path": "assets/dot.bin", "base64": "/wD+" }
+				]
+			},
+			{
+				"path": "acme/lint-rules",
+				"files": [
+					{
+						"path": "SKILL.md",
+						"text": "---\nname: lint-rules\ndescription: Team lint rules. Use before committing.\nupdated: 2026-11-01\n---\n\nRun the linter, then fix every error.\n"
+					}
+				]
+			}
+		],
+		"skillsList": {
+			"skills": [
+				{
+					"uri": "skill://hello-greeting/SKILL.md",
+					"frontmatter": {
+						"name": "hello-greeting",
+						"description": "Greet a person by name. Use when someone asks to be greeted.",
+						"license": "Apache-2.0",
+						"metadata": { "version": "1.0" }
+					},
+					"resources": [
+						{
+							"uri": "skill://hello-greeting/SKILL.md",
+							"digest": "sha256:78dbbe307d186b9ef3f8fb27e89ee739b282c46b8ea6d111377e6c68e817f5fa",
+							"size": 220
+						},
+						{
+							"uri": "skill://hello-greeting/assets/dot.bin",
+							"digest": "sha256:af9ceddc9d8b08ac09e1994bfd20459b5e377425df7354dfce3501992828a5b7",
+							"size": 3
+						},
+						{
+							"uri": "skill://hello-greeting/references/STYLE.md",
+							"digest": "sha256:34c29e526687825c9ca8b7cd89547960296cfc7ca198b2e450a33592fad551da",
+							"size": 31
+						}
+					]
+				},
+				{
+					"uri": "skill://acme/lint-rules/SKILL.md",
+					"frontmatter": {
+						"name": "lint-rules",
+						"description": "Team lint rules. Use before committing.",
+						"updated": "2026-11-01"
+					},
+					"resources": [
+						{
+							"uri": "skill://acme/lint-rules/SKILL.md",
+							"digest": "sha256:924cd47a527652511b19d3fa24b084d17640529c36f3f9c8e25b174e72af37e4",
+							"size": 137
+						}
+					]
+				}
+			]
+		},
+		"resourcesList": {
+			"resources": [
+				{
+					"uri": "skill://hello-greeting/SKILL.md",
+					"name": "hello-greeting",
+					"description": "Greet a person by name. Use when someone asks to be greeted.",
+					"mimeType": "text/markdown",
+					"size": 220,
+					"_meta": {
+						"dev.afd/digest": "sha256:78dbbe307d186b9ef3f8fb27e89ee739b282c46b8ea6d111377e6c68e817f5fa"
+					}
+				},
+				{
+					"uri": "skill://hello-greeting/assets/dot.bin",
+					"name": "assets/dot.bin",
+					"mimeType": "application/octet-stream",
+					"size": 3,
+					"_meta": {
+						"dev.afd/digest": "sha256:af9ceddc9d8b08ac09e1994bfd20459b5e377425df7354dfce3501992828a5b7"
+					}
+				},
+				{
+					"uri": "skill://hello-greeting/references/STYLE.md",
+					"name": "references/STYLE.md",
+					"mimeType": "text/markdown",
+					"size": 31,
+					"_meta": {
+						"dev.afd/digest": "sha256:34c29e526687825c9ca8b7cd89547960296cfc7ca198b2e450a33592fad551da"
+					}
+				},
+				{
+					"uri": "skill://acme/lint-rules/SKILL.md",
+					"name": "lint-rules",
+					"description": "Team lint rules. Use before committing.",
+					"mimeType": "text/markdown",
+					"size": 137,
+					"_meta": {
+						"dev.afd/digest": "sha256:924cd47a527652511b19d3fa24b084d17640529c36f3f9c8e25b174e72af37e4"
+					}
+				}
+			]
+		},
+		"reads": [
+			{
+				"uri": "skill://hello-greeting/references/STYLE.md",
+				"contents": [
+					{
+						"uri": "skill://hello-greeting/references/STYLE.md",
+						"mimeType": "text/markdown",
+						"text": "# Style\n\nKeep greetings short.\n"
+					}
+				]
+			},
+			{
+				"uri": "skill://hello-greeting/assets/dot.bin",
+				"contents": [
+					{
+						"uri": "skill://hello-greeting/assets/dot.bin",
+						"mimeType": "application/octet-stream",
+						"blob": "/wD+"
+					}
+				]
+			},
+			{
+				"uri": "skill://acme/lint-rules/SKILL.md",
+				"contents": [
+					{
+						"uri": "skill://acme/lint-rules/SKILL.md",
+						"mimeType": "text/markdown",
+						"text": "---\nname: lint-rules\ndescription: Team lint rules. Use before committing.\nupdated: 2026-11-01\n---\n\nRun the linter, then fix every error.\n"
+					}
+				]
+			}
+		],
+		"errors": [
+			{ "method": "resources/read", "uri": "skill://hello-greeting/missing.md", "code": -32602 },
+			{ "method": "resources/read", "uri": "skill://Hello-Greeting/SKILL.md", "code": -32602 },
+			{ "method": "resources/read", "uri": "skill://hello-greeting", "code": -32602 },
+			{
+				"method": "skills/get",
+				"uri": "skill://hello-greeting/references/STYLE.md",
+				"code": -32602
+			},
+			{ "method": "skills/get", "uri": "skill://lint-rules/SKILL.md", "code": -32602 },
+			{ "method": "skills/get", "uri": "skill://nobody/SKILL.md", "code": -32602 }
+		],
+		"skillsGet": [{ "uri": "skill://acme/lint-rules/SKILL.md", "skillsListIndex": 1 }]
+	},
+	"catalogFailures": [
+		{
+			"name": "no SKILL.md",
+			"skills": [
+				{ "path": "empty-skill", "files": [{ "path": "README.md", "text": "# Empty\n" }] }
+			],
+			"entry": "empty-skill"
+		},
+		{
+			"name": "name differs from the path's last segment",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: goodbye\ndescription: Says goodbye.\n---\n" }
+					]
+				}
+			],
+			"entry": "hello"
+		},
+		{
+			"name": "uppercase name",
+			"skills": [
+				{
+					"path": "Hello",
+					"files": [{ "path": "SKILL.md", "text": "---\nname: Hello\ndescription: Greets.\n---\n" }]
+				}
+			],
+			"entry": "Hello"
+		},
+		{
+			"name": "consecutive hyphens",
+			"skills": [
+				{
+					"path": "hello--there",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello--there\ndescription: Greets.\n---\n" }
+					]
+				}
+			],
+			"entry": "hello--there"
+		},
+		{
+			"name": "missing description",
+			"skills": [
+				{ "path": "hello", "files": [{ "path": "SKILL.md", "text": "---\nname: hello\n---\n" }] }
+			],
+			"entry": "hello"
+		},
+		{
+			"name": "no frontmatter",
+			"skills": [{ "path": "hello", "files": [{ "path": "SKILL.md", "text": "# Hello\n" }] }],
+			"entry": "hello"
+		},
+		{
+			"name": "YAML alias in frontmatter",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [{ "path": "SKILL.md", "text": "---\nname: &n hello\ndescription: *n\n---\n" }]
+				}
+			],
+			"entry": "hello"
+		},
+		{
+			"name": "the same name under two prefixes",
+			"skills": [
+				{
+					"path": "a/hello",
+					"files": [{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets.\n---\n" }]
+				},
+				{
+					"path": "b/hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets again.\n---\n" }
+					]
+				}
+			],
+			"entry": "hello"
+		},
+		{
+			"name": "a file path that leaves the skill",
+			"skills": [
+				{
+					"path": "hello",
+					"files": [
+						{ "path": "SKILL.md", "text": "---\nname: hello\ndescription: Greets.\n---\n" },
+						{ "path": "../escape.md", "text": "x" }
+					]
+				}
+			],
+			"entry": "../escape.md"
+		}
+	]
+}

@@ -1,6 +1,10 @@
 //! `workspace-show`: what this deployment is.
 
+use super::plugin_list::summary;
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
+use crate::plugins::{
+    LoadedPlugins, MANIFEST_VERSION, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
+};
 use crate::versions::{CURSOR_VERSION, EVENT_VERSION, PRINCIPAL_VERSION, PROVENANCE_VERSION};
 use crate::workspace::{CONFIG_VERSION, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, success};
@@ -11,6 +15,7 @@ use std::sync::{Arc, OnceLock};
 struct Handler {
     workspace: Arc<Workspace>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
 }
 
 #[async_trait]
@@ -23,6 +28,21 @@ impl CommandHandler for Handler {
             .iter()
             .map(|space| json!({ "id": space.id.as_str(), "title": space.title }))
             .collect();
+        let plugins: Vec<Value> = self
+            .loaded
+            .get()
+            .map(|loaded| {
+                loaded
+                    .instances
+                    .iter()
+                    .map(|instance| {
+                        let mut entry = summary(instance);
+                        entry.remove("error");
+                        Value::Object(entry)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         success(json!({
             "name": config.name,
             "workspace": self.workspace.root().display().to_string(),
@@ -36,6 +56,10 @@ impl CommandHandler for Handler {
             },
             "versions": {
                 "config": CONFIG_VERSION,
+                "manifest": MANIFEST_VERSION,
+                "protocol": PLUGIN_PROTOCOL_VERSION,
+                "wit": WIT_WORLD,
+                "pack": PACK_VERSION,
                 "principal": PRINCIPAL_VERSION,
                 "provenance": PROVENANCE_VERSION,
                 "event": EVENT_VERSION,
@@ -45,7 +69,7 @@ impl CommandHandler for Handler {
                 "toolStrategy": "hybrid",
                 "firstClassTools": self.first_class.get().cloned().unwrap_or_default(),
             },
-            "plugins": config.plugins.enabled,
+            "plugins": plugins,
         }))
     }
 }
@@ -54,6 +78,7 @@ impl CommandHandler for Handler {
 pub(crate) fn workspace_show(
     workspace: Arc<Workspace>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
 ) -> Builtin {
     let definition = CommandDefinition::new(
         "workspace-show",
@@ -62,6 +87,7 @@ pub(crate) fn workspace_show(
         Handler {
             workspace,
             first_class,
+            loaded,
         },
     )
     .with_category("workspace")

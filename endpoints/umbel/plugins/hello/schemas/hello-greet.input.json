@@ -1,0 +1,16 @@
+{
+	"type": "object",
+	"properties": {
+		"name": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"description": "Who to greet; default: the instance's default_name"
+		},
+		"space": {
+			"type": "string",
+			"description": "The space whose greetings pack to use; default: the workspace's default space"
+		}
+	},
+	"additionalProperties": false
+}

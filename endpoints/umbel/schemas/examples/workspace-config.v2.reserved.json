@@ -1,0 +1,22 @@
+{
+	"config_version": 2,
+	"spaces": {
+		"main": {
+			"content_roots": ["notes"],
+			"backend": "embedded"
+		}
+	},
+	"events": {
+		"retention": "forever"
+	},
+	"plugins": {
+		"enabled": ["hello"],
+		"hello": {
+			"grants": {
+				"http": {
+					"allow": ["example.com"]
+				}
+			}
+		}
+	}
+}

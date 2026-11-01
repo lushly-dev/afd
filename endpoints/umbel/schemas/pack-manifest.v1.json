@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/pack-manifest.v1.json",
+	"title": "Umbel pack manifest, version 1",
+	"description": "pack.toml read as JSON (D46). A pack is a directory with this file and up to three subdirectories: data/, reference/ and rules/. A space may hold a pack of the same id and plugin under spaces/<space>/packs/<plugin id>/<pack id>/, which replaces the plugin's default whole. The limits (1000 files, 64 MiB, no symlink out of the pack) are checked on the directory.",
+	"type": "object",
+	"required": ["pack_version", "id", "plugin", "version", "title", "description"],
+	"additionalProperties": false,
+	"properties": {
+		"pack_version": {
+			"const": 1
+		},
+		"id": {
+			"description": "Equals the plugin manifest's [[packs]] id.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"plugin": {
+			"description": "The plugin id.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]{0,31}$"
+		},
+		"version": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+		},
+		"title": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80
+		},
+		"description": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 500
+		}
+	}
+}

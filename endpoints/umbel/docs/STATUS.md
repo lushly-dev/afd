@@ -27,9 +27,10 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519) | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main` |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D36; open decisions O1 and O3 to O5; O2 closed as D27 on 2026-10-31 | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
-| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
+| [Decision log](decisions.md) | D1 to D50; open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
+| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
+| [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b and 3 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -38,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Not started; unblocked | None | None | Specification written and approved (D24); decides O3 |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration), 2a (loader core and compiled plugins) 2b (packs, suggestions, contexts, pipelines) and 3 (skills on three paths) done; steps 4 and 5 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611) | Steps 4 and 5 (which need 2a and may run in parallel) |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -210,8 +211,176 @@ should never have to scan the codebase to learn what is current.
 - **Follow-ups:** the open rows of the specification's follow-ups table,
   mirrored below.
 
-Phases 1 to 7 have no detail yet; add a heading in this shape when one
-starts. Phase 1 is next.
+### Phase 1. Plugin contract
+
+- **State:** specification approved by the owner (D24) and merged in
+  [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff` on
+  2026-11-01; steps 0a, 0b, 1, 2a, 2b and 3 done the same day; step 4 is next.
+  Last verified 2026-11-01 against `main` at `28ac8ffe`. (Superseded: "in
+  review, revised, not approved", verified at `cdfbbfb7`.)
+- **Done:** the [specification](phases/1-plugin-contract/spec.md), in
+  review: the manifest `umbel-plugin.toml` version 1 (D37) and the WIT world
+  `umbel:plugin/plugin@1.0.0` on WASI 0.2 (D38), which close O3; wasmtime's 48
+  long-term line (D39); plugin protocol version 1 (D40); workspace
+  configuration version 2 with plugin instances (D41); the phase 1 grants and
+  effects (D42); the mounted loader on `rmcp`'s client (D43); per-space
+  enablement (D44); first-class suggestions (D45); packs (D46); skills on
+  three paths with an AFD step 0 (D47); the SDK and plugin crates (D48); the
+  test kit and AFD's own tools in CI (D49); failure isolation (D50). The
+  architecture, decision log and trajectory amendments are in the same pull
+  request.
+- **Revised 2026-11-01:** the owner decided the four trust-model points
+  (compiled-in plugins are trusted, not sandboxed; stdio mounts run as the
+  host's user with no OS sandbox and are as trusted as compiled plugins;
+  enabling consents to declared grants except `deny`, with any future write,
+  `http` or `secrets` grant requiring a per-instance `allow` list; HTTP
+  mounts may send the deployer's own bearer, with `url` and `bearer_env` in
+  `umbel.toml`), recorded in section 11, D42 and D43. Review must-fixes M1
+  to M7, the should-fixes and nits applied; should-fix 17 partly (the
+  provenance envelope version 0 has no source field). The plan now splits
+  step 2 into 2a (loader core, compiled plugins) and 2b (packs, suggestions,
+  contexts, pipelines).
+- **Done:** step 0a, documents only: the AFD feature proposal
+  [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md)
+  with its [status](../../../docs/features/active/mcp-resources-skills/STATUS.md),
+  approved under the owner's delegation of 2026-10-31 and placed in
+  `docs/features/active/`; [`spec/mcp-resources.md`](../../../spec/mcp-resources.md)
+  (resources R1 to R6, the Skills extension S1 to S8, tool `_meta` T1 to T3
+  with MCP Apps' `ui` key allowed, advertised and validation schemas V1 and
+  V2) and its cases `spec/mcp-resources.json`; the `command-metadata.md`,
+  `protocol-conformance.md` and `CHANGELOG.md` amendments, `spec/VERSION`
+  unchanged at `1.0-rc`; four language parity rows, Planned in every
+  language; the Skill Knowledge Layer reconciled (its command skills stay
+  separate). Verified 2026-11-01 against `main` at `880779ff`: current
+  behavior read in `packages/server/src`, `python/src/afd/server`,
+  `packages/rust/src` and the C++ todo backend, and external rules checked
+  against the MCP 2026-07-28 and 2025-11-25 pages, SEP-2640, the Agent Skills
+  specification and the MCP Apps specification; links and anchors resolve;
+  `pnpm check` and the alfred parity tests pass. Its choices are listed in
+  the specification's "Amendments from step 0a"; the one that changes Umbel:
+  a resource's digest is AFD's `_meta["dev.afd/digest"]` (`sha256:<hex>`),
+  not `dev.umbel/sha256`.
+- **Found by step 0a:** Python's MCP SDK already declares empty `resources`
+  and `prompts` capabilities (on the modern era with `subscribe` and
+  `listChanged` true); recorded in the AFD status. It does not affect Umbel,
+  which is Rust.
+- **Done:** step 1, manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): `umbel-plugin.toml`
+  version 1 read and validated in `plugins/manifest.rs` (closed; Plugin
+  Discovery's field meanings; `ui` and the other reserved keys refused naming
+  their version; a mount's manifest says only `bearer`, never `url` or
+  `bearer_env`); `plugins/source.rs` (`compiled:<id>` against a
+  `CompiledCatalog`, workspace directories confined against `..`, absolute
+  paths and symlinks, the both and neither cases); file checks for packs
+  (`plugins/packs.rs`) and skills (`plugins/skills.rs`); the schemas
+  `workspace-config.v2.json`, `plugin-manifest.v1.json` and
+  `pack-manifest.v1.json` with examples (`$defs` holds every top-level
+  property for Loam); `umbel.toml` version 2 (D41, D44: instance `url`,
+  `bearer_env`, `spaces`, `deny`, `limits`, `env`; `grants.<grant>.allow` and
+  the instance id `enabled` reserved; version 1 still opens as version 2 with
+  no plugins) and `umbel init` writing 2; the doctor's `plugins.none` replaced
+  by `plugins.config`, `plugins.sources`, `plugins.grants`, `plugins.packs`
+  and `plugins.skills`, which need no sealed host (`plugins.loaded`,
+  `plugins.first_class` and `plugins.pipelines` are `skip` until step 2a; a
+  `compiled:` source is `skip` without a catalog, resolved by
+  `doctor::run_with_catalog` with one); the WIT file
+  `wit/umbel-plugin-1.0.0/world.wit` (a test pins it to the specification's
+  text); the version constants, reported by `workspace-show`;
+  `[workspace.lints]` with `lints.workspace = true`; `--workspace` in every
+  cargo step of `umbel.yml`; `architecture.json` and the repository-contract
+  test gain the five new surfaces. Tests: `manifest.rs` (27),
+  `doctor_plugins.rs` (24), extended `schemas.rs` (17), `workspace.rs` (34),
+  `doctor.rs` (19) and unit tests. Verified 2026-11-01 in `endpoints/umbel`:
+  `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets
+  -- -D warnings`, the library-only clippy leg, `cargo test --locked
+  --workspace`, `cargo +1.97.0 check --locked --workspace --all-targets`;
+  `pnpm check` and `umbel.yml` on the pull request. One amendment is listed in
+  the specification's "Amendments from step 1": until step 2a, `seal` refuses
+  a workspace whose `plugins.enabled` is not empty, as phase 0 did, so a
+  configured plugin is never silently ignored.
+- **Done:** step 0b, the AFD Rust implementation ([#608](https://github.com/lushly-dev/afd/pull/608)):
+  `McpServer::with_resources` and `with_skills` (resources, the Skills extension, `skills/list`,
+  `skills/get`, optional `resources/directory/read`), `CommandDefinition::with_tool_meta`,
+  `CommandRegistry::register_with_schemas` and `afd::check_meta_entry` in `packages/rust`; the Rust
+  todo backend split into a library (`commands`, `TodoStore`, `register_commands`; the binary needs
+  the default `server` feature). `rmcp` 3.8.0 routes the extension's methods, so the spec stood.
+  Verified in `packages/rust`: fmt, clippy `-D warnings` and tests for default, no-default, `server`
+  and `journal-file-shared`, both wasm checks, `tests/server_resources.rs` running
+  `spec/mcp-resources.json` over HTTP and stdio on both eras; the todo backend with and without
+  default features; todo conformance 34/34 legacy, 34/34 modern, 5/5 confirmations; `cargo test
+  --locked --workspace` in `endpoints/umbel`. Seven amendments are in the specification's
+  "Amendments from step 0b".
+- **Done:** step 2a, the loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610)): the load
+  sequence of section 6 for compiled plugins (`plugins/loader.rs`),
+  `CompiledPlugin` and `HostBuilder::with_compiled` (through `cli::run`'s
+  `configure` hook), `Services` and the grant gates, failure isolation per
+  `required`, per-space enablement and the plugin gate with the provenance
+  rule, the host's own set of space commands, `plugin-list` and `plugin-show`
+  (printing "trusted, not sandboxed"), `workspace-show` reporting loaded
+  plugins, the doctor's `plugins.loaded` on a sealed host (the `seal` guard of
+  step 1 is gone, and the CLI passes the compiled catalog even when `seal`
+  fails), `umbel-sdk` with `assets()` and `build::embed_assets`,
+  `umbel-plugin-hello` as a compiled plugin, and the `testkit` feature
+  (`TestHost`, with phase 0's drivers moved into it). Release inventory and
+  `architecture.json` rows for `umbel-sdk` and `umbel-plugin-hello`
+  (quarantined, no route). Tests: `plugin_compiled.rs`, `grants.rs`,
+  `plugin_spaces.rs`, `plugin_conflicts.rs`, `plugin_commands.rs`,
+  `testkit.rs`, the sealed cases of `doctor_plugins.rs` and hello's own tests.
+  Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, the library-only clippy leg, `cargo test --locked --workspace` (396 passed), `cargo +1.97.0 check --locked --workspace --all-targets`; `pnpm check` and `umbel.yml` on the pull request. The earlier session's clippy fix had never compiled, and clippy found three more unused-import and `unwrap_or_default` findings, fixed here. Not in 2a: origin
+  `_meta` on plugin tools (step 3). Amendments: the specification's
+  "Amendments from step 2a".
+- **Done:** step 2b, packs, suggestions, contexts and pipelines ([#612](https://github.com/lushly-dev/afd/pull/612)):
+  packs and per-space overrides (D46: a space's directory under
+  `spaces/<space>/packs/<plugin>/<pack>/` replaces the default whole, never
+  merged; the defaults and the overrides are validated at `seal`, an invalid
+  one is `PACK_INVALID`; the `packs` grant reads the call's space's copy;
+  `plugin-show` reports `default` or `override` per space with version and
+  file count; `TestHostBuilder::pack_override`), first-class suggestions
+  (D45: manifest `first_class` after `workspace-show` and `event-list`, in
+  instance and manifest order, the cap of 8 with the doctor's
+  `plugins.first_class` naming what was dropped, the deployer's list always
+  wins), plugin AFD contexts (`build_server` now runs before
+  `install_middleware`, so `McpServer::with_contexts` registers
+  `afd-context-*` once and inside the middleware snapshot), and pipelines as
+  data (steps run over the host registry with `$input`; one that names a
+  missing command is not registered and the instance loads, reported by
+  `plugin-show` and the doctor's `plugins.pipelines`; effects must cover the
+  steps'; a pipeline with a confirm-gated step gets the union of its steps'
+  prompts, so an unconfirmed call fails with `CONFIRMATION_REQUIRED` before
+  any step runs). Tests: `packs.rs` (9), `first_class_plugins.rs` (6),
+  `contexts_pipelines.rs` (10), the override case of hello's own tests, the
+  new `commands[i].contexts` rule in `manifest.rs` and the sealed
+  `plugins.first_class` and `plugins.pipelines` cases of `doctor_plugins.rs`.
+  Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --all --check`, `cargo
+  clippy --locked --workspace --all-targets -- -D warnings`, the library-only
+  clippy leg, `cargo test --locked --workspace`, `cargo +1.97.0 check
+  --locked --workspace --all-targets`; `pnpm check` and `umbel.yml` on the
+  pull request. Eleven amendments are in the specification's "Amendments from
+  step 2b".
+- **Done:** step 3, skills on three paths ([#611](https://github.com/lushly-dev/afd/pull/611)): skills validated at load
+  by AFD's own `SkillCatalog` (frontmatter, name equal to the directory,
+  description, `SKILL_INVALID`; the doctor's `plugins.skills` checks the same);
+  every loaded plugin's skills served by the host's MCP server on the Skills
+  extension (`skills/list`, `skills/get`) and as resources (`resources/list`,
+  `resources/read`, with `size` and `_meta["dev.afd/digest"]`), through
+  `McpServer::with_skills`; a skill name served once per plugin and a
+  `PLUGIN_CONFLICT` for the same plugin id with other content; `skill-list`
+  (read-only, everywhere) and `skill-export` (CLI only, all or nothing,
+  `force=true`, the origin file, no write through a symbolic link, unprojected);
+  `_meta["dev.umbel/origin"]` (`plugin`, `kind`, `version`, `effects`) on every
+  plugin tool; `SkillCatalog::entries()` made public in `packages/rust`.
+  Tests: `skills.rs` (18) and the two doctor fixtures that now need real
+  frontmatter. Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --all
+  --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`,
+  the library-only clippy leg, `cargo test --locked --workspace`, `cargo
+  +1.97.0 check --locked --workspace --all-targets`; `pnpm check` and
+  `umbel.yml` on the pull request. Amendments: the specification's
+  "Amendments from step 3".
+- **Not done:** steps 4 to 8; the exit criterion.
+- **Needs the owner:** nothing for step 4. O1 is unchanged.
+- **Follow-ups:** the specification's follow-ups table, mirrored below.
+
+Phases 2 to 7 have no detail yet; add a heading in this shape when one
+starts.
 
 ## Follow-ups not yet issues
 
@@ -223,7 +392,7 @@ starts. Phase 1 is next.
 | 2026-10-30 | Design session | When crates land, add the units under `endpoints/umbel/` to the release inventory (`scripts/release/inventory.json`, D21); units start quarantined. Corrected 2026-10-31: `architecture.json` needs no change, since the boundary check classifies endpoint manifests by path | Open; specified 2026-10-31 as step 1 of the [phase 0 plan](phases/0-host-skeleton/spec.md#11-implementation-plan) (one unit, `umbel`, private, no route). Corrected again 2026-10-31 in the phase 0 review: `architecture.json` gains an explicit unit with `publicSurfaces`, as Botcore and Health have (D21, D35) |
 | 2026-10-30 | Design session | Harness channels must negotiate MCP 2025-11-25 or earlier; keep the SDK's compatibility on push paths and re-check watchlist row W15 | Open |
 | 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W2 and W3 ahead of 2027-03-30 | Open, recurring; refreshed 2026-10-31 for phase 0 |
-| 2026-10-30 | End-to-end review | Write `docs/features` proposals, spec first, for the hybrid tool strategy, for resources, prompts and Skills over MCP in AFD servers reconciled with the Skill Knowledge Layer (shared with Loam, which also needs `ui://` resources), and for per-tool output budgets | Open. Hybrid tool strategy: [proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) written and approved 2026-10-31; the other two not started |
+| 2026-10-30 | End-to-end review | Write `docs/features` proposals, spec first, for the hybrid tool strategy, for resources, prompts and Skills over MCP in AFD servers reconciled with the Skill Knowledge Layer (shared with Loam, which also needs `ui://` resources), and for per-tool output budgets | Open. Hybrid tool strategy: [proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) written and approved 2026-10-31. Resources and Skills over MCP: [proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and spec written and approved 2026-11-01 (phase 1 step 0a), prompts deferred to its next step. Output budgets not started |
 | 2026-10-30 | End-to-end review | Reconcile vocabulary and the proposal record with the Agent Engine proposal, whose modules are Umbel's plugins and whose loop overlaps the curator | Open |
 | 2026-10-30 | End-to-end review | Over MCP, the Rust approval middleware includes approval tokens by default; Umbel must turn that off on the MCP path. Re-checked 2026-10-31: [#518](https://github.com/lushly-dev/afd/pull/518) closed #460 with the private in-process exchange, and the default on the MCP path is unchanged | Open |
 | 2026-10-31 | Owner review | Confirmation `requestState` is bound to the command and input, not the actor; with the context hook admitting several actors, one could replay another's confirmation | Issue [#532](https://github.com/lushly-dev/afd/issues/532); needed before phase 5 |
@@ -235,9 +404,17 @@ starts. Phase 1 is next.
 | 2026-10-31 | Phase 0 review | The phase 2 embedded store must support several processes on one workspace (for example SQLite in WAL mode, or LMDB), so D29's model survives; no single-writer daemon (D28) | Open, phase 2 specification |
 | 2026-10-31 | Phase 0 review | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line without replacing them | Open, AFD, if wanted |
 | 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix (key permissions, file locks, signals) | Open, phase 7 |
-| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open, phase 1 |
+| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open; specified 2026-11-01 as the `conformance` job of the [phase 1 plan](phases/1-plugin-contract/spec.md#14-implementation-plan), step 6 (D49) |
 | 2026-11-01 | Step 4 | For the step 5 agent: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs`, and `Host::repair_events` at the start of `umbel serve` | Done 2026-11-01 in [#575](https://github.com/lushly-dev/afd/pull/575) |
 | 2026-11-01 | Phase 0 step 4 | AFD's Rust schema validation has no `pattern` keyword, so a schema using it is refused at registration and the handler checks the `consumer` pattern itself (spec "Amendments from step 4"); decide whether AFD adds `pattern` across languages (see `spec/validation.md`) | Open |
+| 2026-11-01 | Phase 1 specification | The owner's decision on the four trust-model points of the specification's section 11 | Done 2026-11-01: decided by the owner; recorded in the specification's section 11, D42 and D43 |
+| 2026-11-01 | Phase 1 review | Operating-system sandboxing for stdio mounts: a stdio child runs as the host's user and can read `state/keys/` and every space (owner decision 2) | Open, a later phase; owner to place |
+| 2026-11-01 | Phase 1 review | Carry the plugin inside the provenance envelope (version 0 is closed with no source field) | Open, phase 3 |
+| 2026-11-01 | Phase 1 specification | A precompiled component cache; wasmtime's `Component::deserialize` is `unsafe`, which the crate forbids | Open, phase 7 or when startup cost is measured |
+| 2026-11-01 | Phase 1 specification | A mount's tool snapshot under `state/`, so one-shot CLI calls do not spawn every mounted server | Open, a later phase |
+| 2026-11-01 | Phase 1 specification | WIT world 2.0.0 on WASI 0.3 when a wasmtime long-term line supports the async component model (about 60), or the owner decides to leave the long-term line (W17, restated after review) | Open |
+| 2026-11-01 | Phase 1 specification | MCP prompts in AFD servers, after the resources and Skills proposal of step 0a | Open, AFD; recorded as the next step of the [proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#implementation-plan) on 2026-11-01 |
+| 2026-11-01 | Phase 1 specification | The `http` and `secrets` grants, each with a required per-instance `allow` list, and moving an HTTP mount's `bearer_env` under `secrets` | Open, the first plugin that needs outbound calls; `secrets` by phase 5 |
 
 ## Session log
 
@@ -262,3 +439,11 @@ starts. Phase 1 is next.
 | 2026-11-01 | Phase 0 step 4 | Journal and events: the projecting sink, the pending marker and catch-up, `repair_events`, event and provenance version 0, cursors and consumers, `event-list`, `event-ack`, `event-rebuild`, and the multi-process tests, in [#574](https://github.com/lushly-dev/afd/pull/574). Amendments recorded in the specification's "Amendments from step 4" |
 | 2026-11-01 | Phase 0 step 5 | Implemented the MCP surfaces in `endpoints/umbel/` ([#575](https://github.com/lushly-dev/afd/pull/575)): `src/surfaces/http.rs` (the exact-path service and the bearer layer), the context hook in `src/principal.rs`, `Host::mcp_server` and `Host::http_router`, `src/cli/serve.rs` (`umbel serve --stdio` and `--http`) and the binary's exit handling; tests `protocol_http.rs`, `protocol_stdio.rs`, `hybrid_surface.rs`, `context_hook.rs`, `approvals.rs`, `confirmations.rs`, `process.rs`, the MCP cases of `trusted_keys.rs` and the drivers in `tests/support/`. Rebased onto step 4: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs` are in, and `umbel serve` calls `Host::repair_events`. Found and fixed: a held `stdout` lock blocked the stdio transport's writer, and the runtime waited for an uncancellable stdin read at exit. Spec amended ("Amendments from step 5"); marked step 5 done. |
 | 2026-11-01 | Phase 0 exit | Phase 0 done. Steps 0 to 5 merged in #567, #570, #572, #573, #574 and #575; step 6 added the README's build and run sections and re-ran the exit criterion on `main` at `8001fc74`: 261 tests passed, `umbel workspace doctor` on a fresh workspace healthy with 13 checks passing, `umbel.yml` green. Phase 1 is unblocked. [#580](https://github.com/lushly-dev/afd/pull/580) |
+| 2026-11-01 | Phase 1 specification | Wrote the [phase 1 specification](phases/1-plugin-contract/spec.md) at the D24 path, in review: manifest, WIT world, protocol version, configuration version 2, grants and effects, the compiled, component and mounted loaders, packs, skills on three paths, AFD contexts and pipelines, the SDK, test kit, `plugin new` and `plugin check`, security with four trust-model points for the owner, the exit criterion with every test file, and a plan with an AFD step 0 (resources, the Skills extension, tool `_meta`, the todo library split). Closed O3 as D37 and D38; D39 to D50; architecture amendments (host services, manifest, WIT world, packs, the sandbox and MCP client rows, versioning, prerequisites, glossary) and the trajectory refresh with the new W17. Spec in review, not approved |
+| 2026-11-01 | Phase 1 specification revision | Revised the phase 1 specification after the independent review of [#583](https://github.com/lushly-dev/afd/pull/583), each finding checked against the code first: recorded the owner's four trust-model decisions and the coordinator's allow-list rule (section 11, D42, D43); moved a mount's `url` and `bearer_env` to `umbel.toml`; gave pipelines the union of their steps' confirmation prompts; made mounted commands space-less unless `bind_space`; instance prefixes, transport-level result limits, load-time description scans, advertised and validation schemas; `--workspace` CI, `hello-mcp` location, rustls for HTTPS mounts, CI cost measures; restated W17 and D38 (wasmtime 48 is the constraint); split step 2 into 2a and 2b; added exit run 4 (the stock binary mounts the Rust todo backend) and the `plugin-isolation` job. Amended D38, D40, D42, D43, D47, D48, D50 and architecture section 8. Spec in review, not approved |
+| 2026-11-01 | Phase 1 step 0a | Owner approval of the phase 1 specification recorded (merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`). Wrote the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and its status, approved under the owner's delegation, and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) with `spec/mcp-resources.json`; amended `command-metadata.md`, `protocol-conformance.md`, `CHANGELOG.md` and the language parity matrix (Planned); reconciled the Skill Knowledge Layer; amended the phase 1 specification (digest key, step 0a path, status block) and the prerequisites rows of the Umbel and Loam architectures. Documents only |
+| 2026-11-01 | Phase 1 step 1 | Manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): the manifest, source resolution, pack and skill file checks, the three schemas with examples, configuration version 2 and `init`, the doctor's file-only plugin checks (replacing `plugins.none`), the WIT file, the version constants, `[workspace.lints]` and `--workspace` in `umbel.yml`. Resumed from a partial branch left by an agent whose disk filled; reviewed, merged with `main`, and verified (fmt, clippy `-D warnings`, 338 tests, the MSRV check). Amendment: `seal` still refuses an enabled plugin until step 2a |
+| 2026-11-01 | Phase 1 step 0b | Rust MCP resources, the Skills extension, tool `_meta` and `register_with_schemas` in `packages/rust`, and the todo backend library split ([#608](https://github.com/lushly-dev/afd/pull/608)); `rmcp` 3.8.0 routed the extension's methods, so no spec stop. Seven spec clarifications (see the specification's "Amendments from step 0b"). New optional dependency `saphyr-parser` |
+| 2026-11-01 | Phase 1 step 2a | Loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610)): the load sequence, grant gates, plugin gate, `plugin-list` and `plugin-show`, `umbel-sdk`, `umbel-plugin-hello`, the `testkit` feature and its tests. Resumed from a partial branch left by an agent whose disk filled; reviewed against the specification, merged with `main` (step 0b), fixed the clippy findings the earlier session never compiled. Origin `_meta` stays with step 3 (the plan assigns it there). Six amendments in the specification |
+| 2026-11-01 | Phase 1 step 3 | Skills on three paths ([#611](https://github.com/lushly-dev/afd/pull/611)): validation through AFD's `SkillCatalog`, the host's MCP server serving every loaded skill on the Skills extension and as resources, `skill-list`, `skill-export` and the origin `_meta` on plugin tools; `SkillCatalog::entries()` made public in `packages/rust`. Seven amendments in the specification |
+| 2026-11-01 | Phase 1 step 2b | Packs and per-space overrides, first-class suggestions, plugin contexts (`build_server` before `install_middleware`) and pipelines as data with the confirmation union ([#612](https://github.com/lushly-dev/afd/pull/612)): `plugins/pipelines.rs`, `PackSet` in `plugins/packs.rs`, the loader preparing every instance before it registers any, `surfaces::first_class_plan`, the doctor's sealed `plugins.first_class` and `plugins.pipelines`, `TestHostBuilder::pack_override`. Step 3 (skills) ran in parallel in the same crate. Eleven spec amendments, mostly shapes the specification left open |

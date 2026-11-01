@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional, Sequence
 
 from afd.core.commands import CommandDefinition, command_to_mcp_tool
 from afd.server.confirmations import CONFIRM_PROPERTY, accepts_confirm
+from afd.server.meta_argument import META_ARGUMENT_DESCRIPTION
 from afd.server.types import ToolStrategy
 
 MAX_FIRST_CLASS_TOOLS = 8
@@ -18,6 +19,7 @@ CONTEXT_TOOL_ORDER = ("afd-context-list", "afd-context-enter", "afd-context-exit
 
 BatchToolSchema = {
     "name": "afd-batch",
+    "title": "Run commands in a batch",
     "description": "Execute multiple commands in a single batch request with partial success semantics",
     "inputSchema": {
         "type": "object",
@@ -50,6 +52,7 @@ BatchToolSchema = {
 
 PipeToolSchema = {
     "name": "afd-pipe",
+    "title": "Run a command pipeline",
     "description": "Execute a pipeline of chained commands where earlier outputs can feed later steps",
     "inputSchema": {
         "type": "object",
@@ -89,6 +92,7 @@ PipeToolSchema = {
 
 CallToolSchema = {
     "name": "afd-call",
+    "title": "Call a command",
     "description": "Invoke any command by name with runtime input validation",
     "inputSchema": {
         "type": "object",
@@ -102,6 +106,7 @@ CallToolSchema = {
 
 DiscoverToolSchema = {
     "name": "afd-discover",
+    "title": "Discover commands",
     "description": "List available commands with optional filtering by category, tag, or search text",
     "inputSchema": {
         "type": "object",
@@ -123,6 +128,7 @@ DiscoverToolSchema = {
 
 DetailToolSchema = {
     "name": "afd-detail",
+    "title": "Describe commands",
     "description": "Get detailed input/output schema and metadata for one or more commands",
     "inputSchema": {
         "type": "object",
@@ -163,6 +169,14 @@ for _schema in (BatchToolSchema, PipeToolSchema):
             "Names of the commands that ask for confirmation and are confirmed, once the user "
             "intends them (only on servers that enforce confirmations)"
         ),
+    }
+
+# The `meta` argument (spec/command-metadata.md, "Decisions on the tool surface (#466)"), last in
+# each meta-tool's properties as in spec/meta-tools.json.
+for _schema in (CallToolSchema, BatchToolSchema, PipeToolSchema, DiscoverToolSchema, DetailToolSchema):
+    _schema["inputSchema"]["properties"]["meta"] = {
+        "type": "object",
+        "description": META_ARGUMENT_DESCRIPTION,
     }
 
 

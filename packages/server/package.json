@@ -40,11 +40,11 @@
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
 		"@modelcontextprotocol/client": "^2.4.0",
-		"@vitest/coverage-v8": "^4.1.11",
+		"@vitest/coverage-v8": "^4.1.12",
 		"esbuild": "0.28.2",
 		"playwright": "1.64.0",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.11"
+		"vitest": "^4.1.12"
 	},
 	"keywords": [
 		"afd",

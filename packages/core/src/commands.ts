@@ -207,6 +207,12 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	description: string;
 
 	/**
+	 * A short human-readable label, such as "Create a todo". Reported as the MCP tool `title` and
+	 * by afd-detail; nothing is derived from the name when it is unset.
+	 */
+	title?: string;
+
+	/**
 	 * Category for grouping related commands.
 	 * Used for filtering in `afd tools --category <name>`
 	 */

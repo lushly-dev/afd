@@ -58,6 +58,7 @@ from afd.core.result import (
     coerce_command_result,
     error,
     execution_failure,
+    failure,
 )
 from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
@@ -84,6 +85,7 @@ from afd.server.context_fields import (
 )
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
 from afd.server.lazy_tools import not_found_suggestion
+from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
 from afd.server.confirmations import (
     AFD_CONFIRM_META_KEY,
@@ -280,6 +282,7 @@ class MCPServer:
         undoable: bool | None = None,
         approval: ApprovalPolicy | None = None,
         version: str | None = None,
+        title: str | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -301,6 +304,7 @@ class MCPServer:
                 undoable=undoable,
                 approval=approval,
                 version=version,
+                title=title,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -1189,6 +1193,7 @@ class MCPServer:
         return Tool(
             fn=handler,
             name=tool_definition["name"],
+            title=tool_definition.get("title"),
             description=tool_definition.get("description", ""),
             parameters=input_schema,
             fn_metadata=FuncMetadata(arg_model=input_model),
@@ -1228,13 +1233,16 @@ class MCPServer:
             finally:
                 _CURRENT_REQUEST.reset(token)
 
+        meta_keys = meta_argument_keys(self.config.context_fields)
+
         @contextmanager
-        def bound_request() -> Iterator[None]:
+        def bound_request(**meta: Any) -> Iterator[None]:
             try:
                 with server._context_state.bind(
                     _CURRENT_REQUEST.get(),
                     stateless=server._stateless_http,
                     contexts=context_names,
+                    **meta,
                 ):
                     yield
             except UnknownContextError as exc:
@@ -1255,14 +1263,18 @@ class MCPServer:
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
             async def call_tool(self, name, arguments, context=None):
+                # A meta-tool's `meta` argument counts as _meta from here on.
+                lifted = lift_meta_argument(
+                    name, arguments, _request_meta(_CURRENT_REQUEST.get()), meta_keys
+                )
+                if lifted.error is not None:
+                    return _tool_call_result(failure(lifted.error))
                 # Declared context fields come from this request's _meta, on both eras and
                 # every transport; undeclared keys are dropped. The router puts them in
                 # context.extra and the command's execution validates them.
-                values = context_field_values(
-                    server.config.context_fields, _request_meta(_CURRENT_REQUEST.get())
-                )
-                with bound_request(), bind_context_field_values(values):
-                    return await super().call_tool(name, arguments, context)
+                values = context_field_values(server.config.context_fields, lifted.meta)
+                with bound_request(meta=lifted.meta), bind_context_field_values(values):
+                    return await super().call_tool(name, lifted.arguments, context)
 
         self._mcp_server = SessionMCPServer(
             self.config.name,

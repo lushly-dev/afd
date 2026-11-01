@@ -23,8 +23,10 @@ import {
 	isPipelineRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import { approvalRelay, withoutApprovalRelay } from './approval-relay.js';
 import type { ContextState } from './bootstrap/afd-context.js';
+import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	commandAction,
 	commandGroup,
@@ -116,7 +118,7 @@ const emptyPipelineResult = {
  * Wrap a result as MCP tool content. The JSON is compact: the text is read by an
  * agent, and indentation only adds tokens.
  */
-function resultContent(data: unknown, isError: boolean): ToolCallResult {
+export function resultContent(data: unknown, isError: boolean): ToolCallResult {
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],
 		...(data !== null && typeof data === 'object' && { structuredContent: data }),
@@ -160,7 +162,20 @@ function contextDenial(
 }
 
 /**
+ * The `COMMAND_NOT_ALLOWED` tool result when the `allow` option of a direct registry call refuses
+ * `commandName`; undefined otherwise, and always on the MCP lanes, which bind no `allow`.
+ */
+function allowDenial(commandName: string, callContext: CommandContext): ToolCallResult | undefined {
+	if (isCommandAllowed(callContext, commandName)) return undefined;
+	return resultContent(failure(commandNotAllowed(commandName)), true);
+}
+
+/**
  * Create a tool call router that dispatches to the appropriate execution function.
+ *
+ * A direct registry call's `allow` option (`command-allow.ts`) narrows every route: a refused
+ * command is not run, suggested, discovered or described. The engine checks it again for each
+ * command it runs, so batch items and pipeline steps are covered too.
  */
 export function createToolRouter(deps: ToolRouterDeps) {
 	const {
@@ -222,13 +237,20 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (!parsed.success) return resultContent(parsed.result, true);
 			const { command: commandName, input, confirm: confirmArg } = parsed.data;
 
+			// Before the lookup, so a refused name gives the same answer whether it exists.
+			const refused = allowDenial(commandName, callContext);
+			if (refused) return refused;
+
 			// Check if command exists in the exposed commands
 			const cmd = commands.find((c) => c.name === commandName);
 			if (!cmd) {
 				// An unexposed command gets the same answer as an unknown one, so a remote
 				// caller cannot learn that a private command exists (spec/error-codes.md, D4).
 				// Suggest a few close matches the caller can use.
-				const callable = filterByContext(commands, contextState?.getActive());
+				const callable = filterAllowed(
+					filterByContext(commands, contextState?.getActive()),
+					callContext
+				);
 				return resultContent(
 					{
 						success: false,
@@ -271,8 +293,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				'Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }'
 			);
 			if (!parsed.success) return resultContent(parsed.result, true);
-			// Filter by active context when context state is available
-			const discoverCommands = filterByContext(commands, contextState?.getActive());
+			// Filter by active context when context state is available, and by the call's `allow`
+			const discoverCommands = filterAllowed(
+				filterByContext(commands, contextState?.getActive()),
+				callContext
+			);
 			const result = executeDiscover(discoverCommands, parsed.data);
 			return resultContent(result, false);
 		}
@@ -287,10 +312,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (!parsed.success) return resultContent(parsed.result, true);
 			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
-			// Filter by active context so agents cannot inspect commands outside their context
-			const contextFilteredCmds = filterByContext(
-				allCommands ?? commands,
-				contextState?.getActive()
+			// Filter by active context so agents cannot inspect commands outside their context, and
+			// by the call's `allow`, so a refused command reads as unknown
+			const contextFilteredCmds = filterAllowed(
+				filterByContext(allCommands ?? commands, contextState?.getActive()),
+				callContext
 			);
 			const result = executeDetail(contextFilteredCmds, exposedNames, parsed.data);
 			return resultContent(result, false);
@@ -402,10 +428,17 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 			}
 
+			// Only the commands the call's `allow` permits, so a refused command is invisible here: it
+			// cannot make an action ambiguous, and a group with none left is refused as a whole.
+			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
+			const allowedGroupCommands = filterAllowed(groupCommands, callContext);
+			if (groupCommands.length > 0 && allowedGroupCommands.length === 0) {
+				return resultContent(failure(commandNotAllowed(toolName)), true);
+			}
+
 			if (action && typeof action === 'string') {
-				const candidates = commands.filter(
-					(command) =>
-						commandGroup(command, groupByFn) === toolName && commandAction(command) === action
+				const candidates = allowedGroupCommands.filter(
+					(command) => commandAction(command) === action
 				);
 				if (candidates.length !== 1) {
 					return resultContent(
@@ -419,6 +452,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					);
 				}
 				const actualCommandName = candidates[0]?.name as string;
+
+				const refused = allowDenial(actualCommandName, callContext);
+				if (refused) return refused;
 
 				// Context check for grouped strategy
 				const denied = contextDenial(candidates[0], actualCommandName, contextState);
@@ -438,10 +474,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 			// In grouped mode, if tool is a known group but action is missing/invalid,
 			// return a helpful error instead of falling through
-			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
-
-			if (groupCommands.length > 0) {
-				const availableActions = groupCommands.map(commandAction);
+			if (allowedGroupCommands.length > 0) {
+				const availableActions = allowedGroupCommands.map(commandAction);
 
 				return resultContent(
 					{
@@ -459,6 +493,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		}
 
 		// Handle user-defined commands (individual mode or direct command calls)
+		const refused = allowDenial(toolName, callContext);
+		if (refused) return refused;
 		// Context check: validate the command is accessible in current context
 		const command = commands.find((c) => c.name === toolName);
 		const denied = contextDenial(command, toolName, contextState);

@@ -1,0 +1,696 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/plugin-manifest.v1.json",
+	"title": "Umbel plugin manifest, version 1",
+	"description": "umbel-plugin.toml read as JSON (D37). Closed: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read.",
+	"type": "object",
+	"required": ["manifest_version", "protocol", "plugin"],
+	"additionalProperties": false,
+	"properties": {
+		"manifest_version": {
+			"$ref": "#/$defs/manifest_version"
+		},
+		"protocol": {
+			"$ref": "#/$defs/protocol"
+		},
+		"plugin": {
+			"$ref": "#/$defs/plugin"
+		},
+		"component": {
+			"$ref": "#/$defs/component"
+		},
+		"mount": {
+			"$ref": "#/$defs/mount"
+		},
+		"grants": {
+			"$ref": "#/$defs/grants"
+		},
+		"commands": {
+			"$ref": "#/$defs/commands"
+		},
+		"contexts": {
+			"$ref": "#/$defs/contexts"
+		},
+		"pipelines": {
+			"$ref": "#/$defs/pipelines"
+		},
+		"packs": {
+			"$ref": "#/$defs/packs"
+		},
+		"skills": {
+			"$ref": "#/$defs/skills"
+		},
+		"config": {
+			"$ref": "#/$defs/config"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["component"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"required": ["component"]
+			},
+			"else": {
+				"properties": {
+					"component": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["mounted"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"required": ["mount"]
+			},
+			"else": {
+				"properties": {
+					"mount": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["mounted", "pack"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"commands": false,
+					"grants": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["pack"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"contexts": false,
+					"pipelines": false
+				}
+			}
+		}
+	],
+	"$defs": {
+		"manifest_version": {
+			"const": 1
+		},
+		"protocol": {
+			"const": 1
+		},
+		"plugin": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "title", "version", "description", "kind"],
+			"properties": {
+				"id": {
+					"description": "The default instance id.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"version": {
+					"description": "A semantic version.",
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"kind": {
+					"enum": ["compiled", "component", "mounted", "pack"]
+				},
+				"domains": {
+					"description": "The first name segments the plugin's commands use. Required for every kind but pack, which refuses it. A host domain or a reserved CLI verb is refused when the manifest is read.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/domain"
+					}
+				},
+				"homepage": {
+					"type": "string",
+					"pattern": "^https://\\S+$"
+				},
+				"license": {
+					"description": "An SPDX expression.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[A-Za-z0-9 .+()-]+$"
+				}
+			},
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "pack"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"properties": {
+					"domains": false
+				}
+			},
+			"else": {
+				"required": ["domains"]
+			}
+		},
+		"domain": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]{0,31}$",
+			"not": {
+				"enum": [
+					"workspace",
+					"space",
+					"event",
+					"plugin",
+					"skill",
+					"afd",
+					"init",
+					"serve",
+					"help",
+					"docs",
+					"schema",
+					"call",
+					"batch"
+				]
+			}
+		},
+		"jsonPath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*\\.json$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"relativePath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"component": {
+			"description": "Required when plugin.kind is component, refused otherwise. The component's world is read from the binary, so there is no world key.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path"],
+			"properties": {
+				"path": {
+					"description": "A .wasm file relative to the plugin root, at most 32 MiB.",
+					"type": "string",
+					"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*\\.wasm$",
+					"not": {
+						"pattern": "(^|/)\\.\\.(/|$)"
+					}
+				}
+			}
+		},
+		"mount": {
+			"description": "Required when plugin.kind is mounted, refused otherwise. Where the server runs and with what credential (url, bearer_env) is the deployer's, in umbel.toml, so those keys are refused here.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["prefix", "transport"],
+			"properties": {
+				"prefix": {
+					"description": "Must equal one of plugin.domains.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"transport": {
+					"enum": ["stdio", "http"]
+				},
+				"command": {
+					"description": "stdio: the command line; the first element is resolved against the plugin root, then PATH.",
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"cwd": {
+					"$ref": "#/$defs/relativePath"
+				},
+				"env": {
+					"description": "stdio: defaults for the child's environment. No secrets.",
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"bearer": {
+					"description": "http: whether the server needs a bearer token.",
+					"enum": ["none", "optional", "required"]
+				},
+				"only": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"tools": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/mountTool"
+					}
+				}
+			},
+			"if": {
+				"properties": {
+					"transport": {
+						"const": "stdio"
+					}
+				},
+				"required": ["transport"]
+			},
+			"then": {
+				"required": ["command"],
+				"properties": {
+					"bearer": false
+				}
+			},
+			"else": {
+				"properties": {
+					"command": false,
+					"cwd": false,
+					"env": false
+				}
+			}
+		},
+		"mountTool": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["tool"],
+			"properties": {
+				"tool": {
+					"type": "string",
+					"minLength": 1
+				},
+				"name": {
+					"description": "Relative to the prefix: the command is <prefix>-<name>.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone; store-write and workspace-write are reserved.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"bind_space": {
+					"type": "boolean"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"approval": {
+					"enum": ["none", "required"]
+				},
+				"first_class": {
+					"type": "boolean"
+				}
+			}
+		},
+		"grant": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "reason"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_]*$"
+				},
+				"required": {
+					"type": "boolean"
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				}
+			}
+		},
+		"grants": {
+			"description": "Refused for mounted and pack plugins. A grant outside the host's catalog is PLUGIN_GRANT_UNAVAILABLE at load, not a manifest error.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/grant"
+			}
+		},
+		"command": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description", "effects", "input_schema"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone; store-write and workspace-write are reserved.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"returns": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"category": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"version": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+				},
+				"contexts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/contextName"
+					}
+				},
+				"first_class": {
+					"type": "boolean"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"destructive": {
+					"type": "boolean"
+				},
+				"approval": {
+					"enum": ["none", "required"]
+				},
+				"execution_time": {
+					"enum": ["instant", "fast", "slow", "long-running"]
+				},
+				"expose": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"mcp": {
+							"type": "boolean"
+						},
+						"agent": {
+							"type": "boolean"
+						},
+						"cli": {
+							"type": "boolean"
+						},
+						"palette": {
+							"type": "boolean"
+						}
+					}
+				},
+				"examples": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["title", "input"],
+						"properties": {
+							"title": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 200
+							},
+							"input": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"commands": {
+			"description": "Compiled and component plugins only; mounted commands come from tools/list. The first segment of each name is one of plugin.domains.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/command"
+			}
+		},
+		"schemaOrPath": {
+			"description": "A JSON Schema as an inline table, or the path of a JSON file relative to the plugin root.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/jsonPath"
+				},
+				{
+					"type": "object"
+				}
+			]
+		},
+		"contextName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+		},
+		"context": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description"],
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/contextName"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"triggers": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"priority": {
+					"type": "integer"
+				}
+			}
+		},
+		"contexts": {
+			"description": "AFD contexts. Each name starts with one of plugin.domains. Refused for pack plugins.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/context"
+			}
+		},
+		"pipeline": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description", "effects", "input_schema", "steps"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone; store-write and workspace-write are reserved.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"steps": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["command"],
+						"properties": {
+							"command": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+							},
+							"input": {
+								"type": "object"
+							},
+							"as": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_-]{0,63}$"
+							}
+						}
+					}
+				}
+			}
+		},
+		"pipelines": {
+			"description": "Pipelines as data. Parallel and streaming steps are refused, as the afd crate refuses them. Refused for pack plugins.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/pipeline"
+			}
+		},
+		"pack": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "path"],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			}
+		},
+		"packs": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/pack"
+			}
+		},
+		"skill": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "path"],
+			"properties": {
+				"name": {
+					"description": "Equals the plugin id or starts with \"<plugin id>-\", and equals the directory's last segment.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			}
+		},
+		"skills": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/skill"
+			}
+		},
+		"config": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema"],
+			"properties": {
+				"schema": {
+					"description": "A JSON Schema 2020-12 object schema, closed at its root (additionalProperties false); defaults in it are applied.",
+					"$ref": "#/$defs/schemaOrPath"
+				}
+			}
+		}
+	}
+}

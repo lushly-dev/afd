@@ -21,6 +21,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
+import { failure } from '@lushly-dev/afd-core';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import {
 	CLIENT_CAPABILITIES_META_KEY,
@@ -70,9 +71,10 @@ import {
 	type RoundAnswers,
 	type RoundState,
 } from './elicitation-state.js';
+import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { requestContextValues } from './request-context.js';
 import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
-import type { ToolCallResult } from './tool-router.js';
+import { resultContent, type ToolCallResult } from './tool-router.js';
 
 /** The MCP protocol revision this lane serves statelessly. */
 export const MODERN_PROTOCOL_VERSION = '2026-07-28';
@@ -219,6 +221,8 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		state.enter(requested);
 		return state;
 	}
+
+	const metaKeys = metaArgumentKeys(deps.contextFields);
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined) {
 		return state === undefined ? context : bindContextState(context, state);
@@ -400,8 +404,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		});
 
 		server.setRequestHandler('tools/call', async (request, ctx) => {
-			const { name, arguments: args } = request.params;
-			const state = contextStateFor(era, ctx.mcpReq._meta);
+			const { name } = request.params;
+			// A meta-tool's `meta` argument counts as `_meta` from here on.
+			const lifted = liftMetaArgument(name, request.params.arguments, ctx.mcpReq._meta, metaKeys);
+			if (!lifted.ok) return resultContent(failure(lifted.error), true) as never;
+			const { args, meta } = lifted;
+			const state = contextStateFor(era, meta);
 			let values: Record<string, unknown>;
 			try {
 				values = options.requestValues ? await options.requestValues() : {};
@@ -412,14 +420,18 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			const round = elicitationRound(ctx);
 			const relay = canElicit ? approvalRelayFor(round) : undefined;
 			// Declared fields from `_meta` first, so a value `createContext` sets wins.
-			const declared = contextFieldValues(deps.contextFields, ctx.mcpReq._meta);
+			const declared = contextFieldValues(deps.contextFields, meta);
 			let context = bindConfirmationChannel(
 				scoped({ ...declared, ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
 			try {
-				const result = await deps.routeToolCall(name, args ?? {}, context);
+				const result = await deps.routeToolCall(
+					name,
+					(args ?? {}) as Record<string, unknown>,
+					context
+				);
 				// The approval middleware held the call for the human: ask, instead of returning
 				// the held result.
 				const held = relay?.held();

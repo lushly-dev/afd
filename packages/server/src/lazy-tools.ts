@@ -32,6 +32,7 @@ interface DiscoverResult {
 interface DetailResult {
 	name: string;
 	found: true;
+	title?: string;
 	description: string;
 	category?: string;
 	tags?: string[];
@@ -199,6 +200,7 @@ export function executeDetail(
 		return {
 			name: cmd.name,
 			found: true as const,
+			title: cmd.title,
 			description: cmd.description,
 			category: cmd.category,
 			tags: cmd.tags,

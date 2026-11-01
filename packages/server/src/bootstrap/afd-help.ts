@@ -23,6 +23,7 @@ const inputSchema = z.object({
 
 interface CommandInfo {
 	name: string;
+	title?: string;
 	description: string;
 	category?: string;
 	tags?: string[];
@@ -120,6 +121,7 @@ export function createAfdHelpCommand(
 				}
 
 				if (input.format === 'full') {
+					info.title = cmd.title;
 					info.category = cmd.category;
 					info.tags = cmd.tags;
 					info.mutation = cmd.mutation;

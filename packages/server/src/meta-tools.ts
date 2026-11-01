@@ -46,10 +46,18 @@ const confirmNames = z
 		'Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)'
 	);
 
+/** The `meta` argument (`meta-argument.ts`): `_meta` values for clients that cannot set `_meta`. */
+const metaArgument = z.unknown().optional().meta({
+	type: 'object',
+	description:
+		"Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta",
+});
+
 export const callArgsSchema = z.object({
 	command: z.string().min(1).describe('Command name to invoke'),
 	input: commandInput("Command input (validated against the command's own schema at runtime)"),
 	confirm: confirmFlag,
+	meta: metaArgument,
 });
 
 export const batchArgsSchema = z.object({
@@ -76,6 +84,7 @@ export const batchArgsSchema = z.object({
 		.optional()
 		.describe('Batch execution options'),
 	confirm: confirmNames,
+	meta: metaArgument,
 });
 
 export const pipeArgsSchema = z.object({
@@ -115,6 +124,7 @@ export const pipeArgsSchema = z.object({
 		.optional()
 		.describe('Pipeline execution options'),
 	confirm: confirmNames,
+	meta: metaArgument,
 });
 
 export const discoverArgsSchema = z.object({
@@ -130,6 +140,7 @@ export const discoverArgsSchema = z.object({
 	includeMutation: z.boolean().optional().describe('Include mutation classification'),
 	limit: z.number().optional().describe('Max results (1-200, default 50)'),
 	offset: z.number().optional().describe('Results to skip for pagination'),
+	meta: metaArgument,
 });
 
 export const detailArgsSchema = z.object({
@@ -140,6 +151,7 @@ export const detailArgsSchema = z.object({
 		.describe(
 			'Command name or names (exact match, kebab-case). String or array of strings (max 10).'
 		),
+	meta: metaArgument,
 });
 
 export type DiscoverInput = z.infer<typeof discoverArgsSchema>;
@@ -220,6 +232,8 @@ export type GroupedToolAction = CommandToolMeta & {
 /** An MCP tool as listed by `tools/list`. */
 export type McpToolDefinition = {
 	name: string;
+	/** Display label (`spec/command-metadata.md`, "Tool titles"); never derived from the name. */
+	title?: string;
 	description: string;
 	inputSchema: ToolInputSchema;
 	/** MCP annotations derived from `mutation`/`destructive` (individual command tools only). */
@@ -229,37 +243,47 @@ export type McpToolDefinition = {
 	_meta?: CommandToolMeta & { actions?: GroupedToolAction[] };
 };
 
-function metaTool(name: string, description: string, schema: z.ZodType): McpToolDefinition {
+function metaTool(
+	name: string,
+	title: string,
+	description: string,
+	schema: z.ZodType
+): McpToolDefinition {
 	const { type: _type, ...rest } = zodToJsonSchema(schema, { io: 'input' });
-	return { name, description, inputSchema: { type: 'object', ...rest } };
+	return { name, title, description, inputSchema: { type: 'object', ...rest } };
 }
 
 export const callTool = metaTool(
 	'afd-call',
+	'Call a command',
 	'Invoke any command by name with runtime input validation. Works in all server strategies.',
 	callArgsSchema
 );
 
 export const batchTool = metaTool(
 	'afd-batch',
+	'Run commands in a batch',
 	'Execute multiple commands in a single batch request with partial success semantics',
 	batchArgsSchema
 );
 
 export const pipeTool = metaTool(
 	'afd-pipe',
+	'Run a command pipeline',
 	'Execute a pipeline of chained commands where the output of one becomes the input of the next',
 	pipeArgsSchema
 );
 
 export const discoverTool = metaTool(
 	'afd-discover',
+	'Discover commands',
 	'List available commands with optional filtering by category, tag, or search text. Returns compact summaries.',
 	discoverArgsSchema
 );
 
 export const detailTool = metaTool(
 	'afd-detail',
+	'Describe commands',
 	'Get the full input schema and metadata for one or more commands by name.',
 	detailArgsSchema
 );

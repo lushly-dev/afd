@@ -19,12 +19,14 @@ use crate::{
 use super::strategy::{default_command_group, object_schema};
 
 const CONFIRM_FLAG: &str = "Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)";
+const META_ARGUMENT: &str = "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta";
 const CONFIRM_NAMES: &str = "Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)";
 
 /// The `afd-call` tool.
 pub fn call_tool() -> Value {
     json!({
         "name": "afd-call",
+        "title": "Call a command",
         "description": "Invoke any command by name with runtime input validation. Works in all server strategies.",
         "inputSchema": {
             "type": "object",
@@ -32,6 +34,7 @@ pub fn call_tool() -> Value {
                 "command": { "type": "string", "minLength": 1, "description": "Command name to invoke" },
                 "input": { "type": "object", "description": "Command input (validated against the command's own schema at runtime)" },
                 "confirm": { "description": CONFIRM_FLAG, "type": "boolean" },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["command"],
         },
@@ -42,6 +45,7 @@ pub fn call_tool() -> Value {
 pub fn batch_tool() -> Value {
     json!({
         "name": "afd-batch",
+        "title": "Run commands in a batch",
         "description": "Execute multiple commands in a single batch request with partial success semantics",
         "inputSchema": {
             "type": "object",
@@ -74,6 +78,7 @@ pub fn batch_tool() -> Value {
                     },
                 },
                 "confirm": { "description": CONFIRM_NAMES, "type": "array", "items": { "type": "string" } },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["commands"],
         },
@@ -86,6 +91,7 @@ const STEP_INPUT: &str = "Input parameters. A string value that is exactly $prev
 pub fn pipe_tool() -> Value {
     json!({
         "name": "afd-pipe",
+        "title": "Run a command pipeline",
         "description": "Execute a pipeline of chained commands where the output of one becomes the input of the next",
         "inputSchema": {
             "type": "object",
@@ -124,6 +130,7 @@ pub fn pipe_tool() -> Value {
                     },
                 },
                 "confirm": { "description": CONFIRM_NAMES, "type": "array", "items": { "type": "string" } },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["steps"],
         },
@@ -134,6 +141,7 @@ pub fn pipe_tool() -> Value {
 pub fn discover_tool() -> Value {
     json!({
         "name": "afd-discover",
+        "title": "Discover commands",
         "description": "List available commands with optional filtering by category, tag, or search text. Returns compact summaries.",
         "inputSchema": {
             "type": "object",
@@ -148,6 +156,7 @@ pub fn discover_tool() -> Value {
                 "includeMutation": { "description": "Include mutation classification", "type": "boolean" },
                 "limit": { "description": "Max results (1-200, default 50)", "type": "number" },
                 "offset": { "description": "Results to skip for pagination", "type": "number" },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
         },
     })
@@ -157,6 +166,7 @@ pub fn discover_tool() -> Value {
 pub fn detail_tool() -> Value {
     json!({
         "name": "afd-detail",
+        "title": "Describe commands",
         "description": "Get the full input schema and metadata for one or more commands by name.",
         "inputSchema": {
             "type": "object",
@@ -165,6 +175,7 @@ pub fn detail_tool() -> Value {
                     "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
                     "description": "Command name or names (exact match, kebab-case). String or array of strings (max 10).",
                 },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["command"],
         },
@@ -529,6 +540,9 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
     let mut entry = Map::new();
     entry.insert("name".into(), json!(command.name));
     entry.insert("found".into(), json!(true));
+    if let Some(title) = &command.title {
+        entry.insert("title".into(), json!(title));
+    }
     entry.insert("description".into(), json!(command.description));
     let mut optional = |key: &str, value: Option<Value>| {
         if let Some(value) = value {
@@ -572,5 +586,13 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
     );
     // Every command afd-detail can see is MCP-exposed, so callable.
     optional("callable", Some(json!(true)));
+    optional(
+        "toolMeta",
+        command
+            .tool_meta
+            .as_ref()
+            .filter(|extra| !extra.is_empty())
+            .map(|extra| Value::Object(extra.clone())),
+    );
     Value::Object(entry)
 }

@@ -2,6 +2,7 @@
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
 pub mod mcp;
+pub mod plugins;
 pub mod process;
 
 use afd::{

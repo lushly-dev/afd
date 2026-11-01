@@ -164,6 +164,9 @@ may read; isolation between spaces is enforced here, not by plugins.
 
 | Grant | The host provides | Rule |
 | --- | --- | --- |
+| config | The plugin instance's validated configuration | Read-only; phase 1 ([D42](decisions.md)) |
+| log | Lines into the host log, tagged with the instance | Capped per call; never into the journal; phase 1 |
+| packs | The plugin's own packs, the call's space's effective copy | Only its own packs; phase 1 |
 | documents | Read and write the document store | Writes without the provenance envelope are refused |
 | index | Query and update the search index | Queries are filtered by the caller's principal |
 | graph | Query and update the graph | Traversal returns only nodes the caller may read |
@@ -173,9 +176,15 @@ may read; isolation between spaces is enforced here, not by plugins.
 | secrets | Named deployer secrets | Never the caller's tokens |
 | clock, random | Time and randomness from the command context | Required so the journal can replay a call |
 
+Phase 1 provides config, log, packs, events, clock and random; the others are
+named and refused until their phase. The journal is not a grant: the host
+journals every call itself. Enabling a plugin instance consents to its
+declared grants, minus those the deployer denies ([D42](decisions.md)).
+
 Each command also declares its effects and capabilities in the shape of
 Botcore's command policy, so a deployer can see what a plugin may do before
-enabling it.
+enabling it. Phase 1 fixes the effects as `inspect`, `plugin-state` and
+`external`, with the grants as the capabilities ([D42](decisions.md)).
 
 How a plugin reaches the registry. Every edge goes to the host; there is no
 edge between plugins.
@@ -265,10 +274,14 @@ sequenceDiagram
   contributions (commands, connectors, backends, packs, skills, AFD contexts),
   required grants with declared effects, and a configuration schema. It
   follows the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md)
-  fields where they apply.
+  fields where they apply. Settled as `umbel-plugin.toml`, manifest version 1
+  ([D37](decisions.md)); connectors and backends are reserved keys until
+  their phases.
 - **Host WIT world.** The imports a component may use, each gated by a grant,
   including clock and random from the command context, and the exports a
-  component provides. Versioned with the manifest.
+  component provides. Versioned with the manifest. Settled as
+  `umbel:plugin/plugin@1.0.0` on WASI 0.2, with WASI 0.3 reserved for world
+  2.0.0 ([D38](decisions.md)).
 - **Store traits.** Document store, index, graph, memory store, each with a
   conformance suite; the embedded backend is the reference implementation.
 - **Principal.** Projected onto AFD's command context: the `actor`, with the
@@ -306,6 +319,7 @@ sequenceDiagram
   never its id, so metering is not telemetry.
 - **Pack.** A directory with a manifest, data, reference material and
   declarative rules, selected per instance, overriding a plugin's default.
+  Overrides are per space and replace a pack whole ([D46](decisions.md)).
 
 A harness session end to end, with Umbel on the push side as well as the
 pull side:
@@ -364,7 +378,8 @@ sequenceDiagram
 | Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 2 ([D28](decisions.md)); phase 0 stores only files. It must let several host processes open one workspace (for example SQLite in WAL mode, or LMDB), as phase 0's files do ([D29](decisions.md)); no single-writer daemon |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
-| Plugin sandbox | wasmtime 50.0.1 or later with the component model and WASI 0.3; wit-bindgen 0.63 | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.97; wit-bindgen moves with wasmtime |
+| Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |
+| MCP client for mounted plugins | `rmcp`'s client role with its child-process and Streamable HTTP client transports, and its `reqwest` feature for rustls ([D43](decisions.md)) | The `afd` crate has no Rust MCP client | Brings `reqwest` and `rustls` into Umbel's lock |
 | Code structure | tree-sitter | Deterministic symbol graph for repositories | |
 | Schemas | JSON Schema 2020-12 through serde and schemars | Matches the MCP revision | |
 | Observability | OpenTelemetry GenAI semantic conventions: tool-execution spans, trace context from request metadata, agent and session baggage carried into stored records | Debuggable inside harness traces | The conventions are in development; the schema is pinned |
@@ -444,7 +459,9 @@ material, from loosest to strongest:
 
 ## 8. Cross-cutting rules
 
-- **Security.** Sandboxed plugins; no token forwarding to plugins or mounted
+- **Security.** Sandboxed component plugins (only components are sandboxed;
+  compiled-in plugins and stdio mounts are trusted code, the owner's decision
+  of 2026-11-01, [D42](decisions.md) and [D43](decisions.md)); no token forwarding to plugins or mounted
   servers; untrusted content labeled on read and scanned on write; rate limits
   and size caps per agent; audit on every write, recording both the agent and
   the person on whose behalf it acted. Over MCP, a held result never carries
@@ -462,9 +479,10 @@ material, from loosest to strongest:
   redacted in the journal.
 - **Scale profiles.** team, org, enterprise and beyond switch lanes and
   backends; nothing else changes.
-- **Versioning.** The plugin protocol version, the WIT world, the pack schema,
-  the store traits, the workspace configuration, the principal projection, the
-  provenance envelope and the event shape are versioned under
+- **Versioning.** The plugin protocol version, the plugin manifest, the WIT
+  world, the pack schema, the store traits, the workspace configuration, the
+  principal projection, the provenance envelope and the event shape are
+  versioned under
   `endpoints/umbel/`, independently of the binary and of AFD's contract
   version; the host refuses what it cannot serve and names the upgrade. The
   shapes are closed JSON Schemas in `endpoints/umbel/schemas/`, with reserved
@@ -522,7 +540,8 @@ flowchart LR
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
-(approved 2026-10-31 under the owner's delegation, after review; merged in #564).
+(approved 2026-10-31 under the owner's delegation, after review; merged in #564);
+[phase 1, plugin contract](phases/1-plugin-contract/spec.md) (in review).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -544,7 +563,7 @@ criterion.
 | The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); spec in #538; TypeScript #556, Python #555 and Rust #560 done; C++ waits on parity D2 and does not block Umbel |
 | A process-shared mode for the Rust `FileJournalSink`, so several host processes append to one journal under one lock ([D29](decisions.md)) | Phase 0 | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request); not started |
 | Interface selection on the Rust `DirectClient`, as TypeScript and Python have ([D34](decisions.md)) | Phase 0 | Step 0 of the phase 0 plan; not started |
-| MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first; shared with Loam, which also needs `ui://` resources for MCP Apps views, so one proposal covers both |
+| MCP resources, the Skills extension and per-command tool `_meta` in AFD servers, reconciled with the Skill Knowledge Layer ([D47](decisions.md)) | Phase 1 | Step 0 of the [phase 1 plan](phases/1-plugin-contract/spec.md#step-0-afd-first): the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md), done 2026-11-01 (step 0a); the Rust implementation is step 0b. Shared with Loam, which also needs `ui://` resources for MCP Apps views. Prompts follow when a phase needs them |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
 | The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 2 | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
@@ -574,6 +593,14 @@ document needs as an amendment.
 | Term | Meaning |
 | --- | --- |
 | Plugin | The unit that lands in the host. Plugin Discovery's term; the Agent Engine proposal calls the same idea a module |
+| Manifest | A plugin's `umbel-plugin.toml`: identity, version, protocol version, contributions, grants and configuration schema |
+| Plugin kind | How a plugin's code runs: `compiled`, `component`, `mounted` or `pack` (no code) |
+| Plugin instance | One entry of `plugins.enabled`: a plugin, its source, configuration and spaces |
+| Plugin protocol version | The manifest version, the WIT world's major version and the grant semantics, as one compatible set |
+| Host domain | A first name segment the host owns and no plugin command may use: `workspace`, `space`, `event`, `plugin`, `skill`, `afd` |
+| Effect | What a command may change, declared per command: `inspect`, `plugin-state` or `external` in phase 1 |
+| Mount | A mounted plugin's connection to its MCP server, and the prefix its tools are renamed under |
+| Pack override | A pack directory in a space that replaces a plugin's default pack of the same id there |
 | Command | AFD's unit of capability, exposed to every surface from one registry |
 | Surface | A way callers reach the registry: MCP over stdio or Streamable HTTP, the CLI, or in-process. Loam (`endpoints/loam/`) uses "surface" for a region of its shell UI; its glossary records the difference |
 | Connector | A plugin's binding to an external system or source |

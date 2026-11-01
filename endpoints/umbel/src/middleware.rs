@@ -6,16 +6,18 @@
 //! `dev.umbel/mutation`, and these layers **always overwrite** them: a handler (or a plugin) can
 //! neither forge a mutation, nor hide one, nor redirect an event to another space.
 //!
-//! Outermost first: the event stamp, then the space check, then (installed by `seal`) the
-//! approval middleware. The event stamp is outermost so that it runs last on the way out and can
+//! Outermost first: the event stamp, then the space check, then the plugin gate, then (installed by
+//! `seal`) the approval middleware. The event stamp is outermost so that it runs last on the way out and can
 //! put the default space on a mutation of a command that has no `space` input.
 
+use crate::plugins::{GateEntry, PluginError};
+use crate::provenance::{PROVENANCE_KEY, supplied_fields};
 use afd::{
     BoxFuture, CommandContext, CommandError, CommandMiddleware, CommandResult, MiddlewareNext,
     ResultMetadata, failure,
 };
-use serde_json::Value;
-use std::collections::HashSet;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 /// `result.metadata` key: the space a result belongs to. Written only by the host.
@@ -24,9 +26,17 @@ pub(crate) const SPACE_KEY: &str = "dev.umbel/space";
 /// event. Written only by the host.
 pub(crate) const MUTATION_KEY: &str = "dev.umbel/mutation";
 
+/// `result.metadata` key: the plugin that answered, `{ "id", "kind" }`. Written only by the plugin
+/// gate.
+pub(crate) const PLUGIN_KEY: &str = "dev.umbel/plugin";
+/// `result.metadata` key: a command's record, which the event projector reads (phase 0).
+pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
+/// The prefix of every key the host owns.
+const HOST_PREFIX: &str = "dev.umbel/";
+
 /// Commands whose successful result is never projected into an event: the cursor the caller
-/// stores and the rebuild of the streams themselves.
-pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &["event-ack", "event-rebuild"];
+/// stores, the rebuild of the streams themselves and the export of skills to a directory.
+pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &["event-ack", "event-rebuild", "skill-export"];
 
 /// Resolves a call's space (`Workspace::resolve_space`).
 pub(crate) type ResolveSpace =
@@ -121,4 +131,65 @@ pub(crate) fn space_check(
             })
         },
     )
+}
+
+/// The plugin gate (specification section 8.1), between the space check and approvals. For a
+/// plugin command it resolves the space (the default space for a command with no `space` input)
+/// and refuses one the instance is not enabled for with `PLUGIN_NOT_ENABLED` before the handler
+/// runs. After the handler it removes every `dev.umbel/` key a plugin may not set, keeps
+/// `dev.umbel/record`, reduces `dev.umbel/provenance` to the fields a command may supply, and
+/// stamps `dev.umbel/plugin`. The event stamp and the space check are outer, so
+/// `dev.umbel/space` and `dev.umbel/mutation` remain the host's.
+pub(crate) fn plugin_gate(
+    entries: Arc<BTreeMap<String, GateEntry>>,
+    resolve: ResolveSpace,
+    default_space: String,
+) -> CommandMiddleware {
+    Arc::new(
+        move |name: String,
+              input: Value,
+              context: CommandContext,
+              next: MiddlewareNext|
+              -> BoxFuture<'static, CommandResult<Value>> {
+            let Some(entry) = entries.get(&name).cloned() else {
+                return next();
+            };
+            let space = if entry.space_command {
+                resolve(&input, &context)
+            } else {
+                Ok(default_space.clone())
+            };
+            Box::pin(async move {
+                let space = match space {
+                    Ok(space) => space,
+                    Err(error) => return failure(error),
+                };
+                if !entry.spaces.contains(&space) {
+                    return failure(
+                        PluginError::not_enabled(&entry.instance, &space, &entry.spaces)
+                            .to_command_error(),
+                    );
+                }
+                let mut result = next().await;
+                sanitize(&mut result, &entry);
+                result
+            })
+        },
+    )
+}
+
+/// Reduce a plugin result's metadata to what a plugin may supply, and stamp the plugin.
+fn sanitize(result: &mut CommandResult<Value>, entry: &GateEntry) {
+    let metadata = metadata_mut(result);
+    let provenance = metadata.extra.get(PROVENANCE_KEY).and_then(supplied_fields);
+    metadata
+        .extra
+        .retain(|key, _| !key.starts_with(HOST_PREFIX) || key == RECORD_KEY);
+    if let Some(provenance) = provenance {
+        metadata.extra.insert(PROVENANCE_KEY.to_owned(), provenance);
+    }
+    metadata.extra.insert(
+        PLUGIN_KEY.to_owned(),
+        json!({ "id": entry.instance, "kind": entry.kind.as_str() }),
+    );
 }

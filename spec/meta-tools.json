@@ -1,6 +1,7 @@
 [
 	{
 		"name": "afd-call",
+		"title": "Call a command",
 		"description": "Invoke any command by name with runtime input validation. Works in all server strategies.",
 		"inputSchema": {
 			"type": "object",
@@ -17,6 +18,10 @@
 				"confirm": {
 					"description": "Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)",
 					"type": "boolean"
+				},
+				"meta": {
+					"type": "object",
+					"description": "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["command"]
@@ -24,6 +29,7 @@
 	},
 	{
 		"name": "afd-batch",
+		"title": "Run commands in a batch",
 		"description": "Execute multiple commands in a single batch request with partial success semantics",
 		"inputSchema": {
 			"type": "object",
@@ -77,6 +83,10 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"meta": {
+					"type": "object",
+					"description": "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["commands"]
@@ -84,6 +94,7 @@
 	},
 	{
 		"name": "afd-pipe",
+		"title": "Run a command pipeline",
 		"description": "Execute a pipeline of chained commands where the output of one becomes the input of the next",
 		"inputSchema": {
 			"type": "object",
@@ -146,6 +157,10 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"meta": {
+					"type": "object",
+					"description": "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["steps"]
@@ -153,6 +168,7 @@
 	},
 	{
 		"name": "afd-discover",
+		"title": "Discover commands",
 		"description": "List available commands with optional filtering by category, tag, or search text. Returns compact summaries.",
 		"inputSchema": {
 			"type": "object",
@@ -195,12 +211,17 @@
 				"offset": {
 					"description": "Results to skip for pagination",
 					"type": "number"
+				},
+				"meta": {
+					"type": "object",
+					"description": "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			}
 		}
 	},
 	{
 		"name": "afd-detail",
+		"title": "Describe commands",
 		"description": "Get the full input schema and metadata for one or more commands by name.",
 		"inputSchema": {
 			"type": "object",
@@ -218,6 +239,10 @@
 						}
 					],
 					"description": "Command name or names (exact match, kebab-case). String or array of strings (max 10)."
+				},
+				"meta": {
+					"type": "object",
+					"description": "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta"
 				}
 			},
 			"required": ["command"]

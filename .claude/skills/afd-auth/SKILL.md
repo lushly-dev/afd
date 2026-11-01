@@ -214,7 +214,7 @@ Secure-cookie or cross-site SameSite enforcement, OAuth callbacks/upstream token
 refresh, simultaneous lock atomicity, other browser engines or Convex deployment.
 The additional `packages/auth/hosted/better-auth/` fixture runs actual HTTPS,
 local OAuth callbacks and SQLite-backed provider restart. Run the repository-root
-`pnpm test:hosted:local` on Node 24 with Chromium for this lifecycle, Convex SDK
+`pnpm test:hosted:local` on Node 26 (24 or newer) with Chromium for this lifecycle, Convex SDK
 fixture checks and durable REST/view-state restart checks. The Convex fixture in
 `packages/auth/hosted/convex/` uses real SDKs and deployable functions; local build
 success does not establish live provider behavior. Convex backend module filenames

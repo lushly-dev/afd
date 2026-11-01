@@ -117,11 +117,11 @@
       "upstream_sha256": null,
       "staged_path": "endpoints/specimen-cli/package.json",
       "staged_sha256": "620992fb4973b1bcc84d96ba3c5f0a9d6f9186b164533ffb3a031156b9efc779",
-      "current_import_sha256": "620992fb4973b1bcc84d96ba3c5f0a9d6f9186b164533ffb3a031156b9efc779",
+      "current_import_sha256": "7605df5a1dbbcdcbb6ad7e235a5d0c5373a17c15742273de36c59e85e9fc7790",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy"
     },
     {
       "path": "endpoints/specimen-cli/src/bin.ts",
@@ -445,7 +445,7 @@
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-heap-profile.mjs",
@@ -513,11 +513,11 @@
       "upstream_sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
-      "current_import_sha256": "81f541681fa34fedc58fcb70dde870fdceea5b3702259dff5f0f6de9843c62f9",
+      "current_import_sha256": "7f325596dbd0c0f11e4eb13608a36518d91dc255baeaa44724d2e775207fab23",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
-      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/bench-runtime.ts",
@@ -529,7 +529,7 @@
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/bench-worker-client.ts",
@@ -793,7 +793,7 @@
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/tsconfig.json",
@@ -861,11 +861,11 @@
       "upstream_sha256": null,
       "staged_path": "integrations/specimen-afd/package.json",
       "staged_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
-      "current_import_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
+      "current_import_sha256": "56c0d097efe28328557b30f348586887a66bebfb83bc6f1575a57c786af25405",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy"
     },
     {
       "path": "integrations/specimen-afd/src/commands.test.ts",
@@ -1345,7 +1345,7 @@
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/incumbent.mjs",
@@ -1480,6 +1480,18 @@
       "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
+      "path": "docs/features/active/specimens/t04-optimization.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5f3d0db7d2dde0d72f026547b72c0b018ac1cacbfe0bc640756b901e3eae1d65",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+    },
+    {
       "path": "foundations/specimen/experiments/resources/attribution.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
@@ -1510,30 +1522,6 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "9dde1771bf89a686810b3dd6fd13aef36df14e29e0dc8608089a81e3d8bbef76",
-      "stage_classification": "post-import-addition",
-      "stage_reason": "New local work with no selected upstream or staging predecessor",
-      "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
-    },
-    {
-      "path": "foundations/specimen/src/trace.ts",
-      "upstream_path": null,
-      "upstream_sha256": null,
-      "staged_path": null,
-      "staged_sha256": null,
-      "current_import_sha256": "d75668df48b366b537f1f8a1b4e0671828801864d30262e6c8a6c60307dc31f5",
-      "stage_classification": "post-import-addition",
-      "stage_reason": "New local work with no selected upstream or staging predecessor",
-      "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
-    },
-    {
-      "path": "docs/features/active/specimens/t04-optimization.md",
-      "upstream_path": null,
-      "upstream_sha256": null,
-      "staged_path": null,
-      "staged_sha256": null,
-      "current_import_sha256": "5f3d0db7d2dde0d72f026547b72c0b018ac1cacbfe0bc640756b901e3eae1d65",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1684,6 +1672,18 @@
       "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
+      "path": "foundations/specimen/reference/locate.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "39a783e67e59a52096bafb01b9402d08e9cec2c0f7698060a0d265985c90b5d1",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+    },
+    {
       "path": "foundations/specimen/src/browser/locate.ts",
       "upstream_path": null,
       "upstream_sha256": null,
@@ -1720,6 +1720,18 @@
       "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
     },
     {
+      "path": "foundations/specimen/src/trace.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "d75668df48b366b537f1f8a1b4e0671828801864d30262e6c8a6c60307dc31f5",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+    },
+    {
       "path": "foundations/specimen/src/validate.test.ts",
       "upstream_path": null,
       "upstream_sha256": null,
@@ -1738,18 +1750,6 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "f87d3775d4fc3760e6e54dfa20d8dd72d38ba00ab039bb672de356f2ca783776",
-      "stage_classification": "post-import-addition",
-      "stage_reason": "New local work with no selected upstream or staging predecessor",
-      "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
-    },
-    {
-      "path": "foundations/specimen/reference/locate.test.ts",
-      "upstream_path": null,
-      "upstream_sha256": null,
-      "staged_path": null,
-      "staged_sha256": null,
-      "current_import_sha256": "39a783e67e59a52096bafb01b9402d08e9cec2c0f7698060a0d265985c90b5d1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",

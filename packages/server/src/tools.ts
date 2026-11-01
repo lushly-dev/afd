@@ -163,6 +163,7 @@ function commandTool(
 			: undefined;
 	return {
 		name: cmd.name,
+		...(cmd.title !== undefined && { title: cmd.title }),
 		description: cmd.description,
 		inputSchema: individualInputSchema(cmd, options.confirmations),
 		...(annotations && { annotations }),

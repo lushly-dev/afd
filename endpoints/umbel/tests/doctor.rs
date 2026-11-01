@@ -79,7 +79,7 @@ fn write_events(root: &Path, space: &str, text: &str) {
 }
 
 #[test]
-fn a_fresh_workspace_is_healthy_with_two_skipped_checks() {
+fn a_fresh_workspace_is_healthy_with_five_skipped_checks() {
     let (_dir, root) = fresh();
     let report = doctor::run(&root);
     assert!(report.healthy());
@@ -99,11 +99,25 @@ fn a_fresh_workspace_is_healthy_with_two_skipped_checks() {
             "http.config",
             "mcp.surface",
             "cli.verbs",
-            "plugins.none"
+            "plugins.config",
+            "plugins.sources",
+            "plugins.grants",
+            "plugins.packs",
+            "plugins.skills",
+            "plugins.loaded",
+            "plugins.first_class",
+            "plugins.pipelines"
         ]
     );
     for check in &report.checks {
-        let expected = if check.id == "mcp.surface" || check.id == "cli.verbs" {
+        let sealed_only = [
+            "mcp.surface",
+            "cli.verbs",
+            "plugins.loaded",
+            "plugins.first_class",
+            "plugins.pipelines",
+        ];
+        let expected = if sealed_only.contains(&check.id.as_str()) {
             CheckStatus::Skip
         } else {
             CheckStatus::Pass
@@ -154,7 +168,16 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
     assert!(!report.healthy());
     assert_eq!(status(&report, "workspace.found"), CheckStatus::Pass);
     assert_eq!(status(&report, "config.parse"), CheckStatus::Fail);
-    for id in ["config.keys", "spaces.valid", "http.config", "plugins.none"] {
+    for id in [
+        "config.keys",
+        "spaces.valid",
+        "http.config",
+        "plugins.config",
+        "plugins.sources",
+        "plugins.grants",
+        "plugins.packs",
+        "plugins.skills",
+    ] {
         assert_eq!(status(&report, id), CheckStatus::Skip, "{id}");
     }
     // The checks that need no configuration still run.
@@ -164,11 +187,11 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
 
 #[test]
 fn config_parse_fails_for_another_version_and_names_the_supported_one() {
-    let (_dir, root) = with_config("config_version = 2\n");
+    let (_dir, root) = with_config("config_version = 3\n");
     let report = doctor::run(&root);
     let parse = check(&report, "config.parse");
     assert_eq!(parse.status, CheckStatus::Fail);
-    assert!(parse.message.contains("version 1"));
+    assert!(parse.message.contains("versions 1 and 2"));
     assert!(parse.suggestion.is_some());
 }
 
@@ -564,14 +587,18 @@ fn events_are_found_by_directory_when_the_configuration_is_unreadable() {
 }
 
 #[test]
-fn http_config_and_plugins_none_fail_on_their_rules() {
+fn http_config_and_plugins_config_fail_on_their_rules() {
     let (_dir, root) = with_config(
         "config_version = 1\n[http]\nbind = \"0.0.0.0:1\"\n[plugins]\nenabled = [\"x\"]\n",
     );
     let report = doctor::run(&root);
     assert_eq!(status(&report, "http.config"), CheckStatus::Fail);
-    assert_eq!(status(&report, "plugins.none"), CheckStatus::Fail);
-    assert!(check(&report, "plugins.none").message.contains("phase 1"));
+    assert_eq!(status(&report, "plugins.config"), CheckStatus::Fail);
+    assert!(
+        check(&report, "plugins.config")
+            .message
+            .contains("configuration version 1")
+    );
     // Each of these rules is reported by its own check, so config.parse stays a pass.
     assert_eq!(status(&report, "config.parse"), CheckStatus::Pass);
 }

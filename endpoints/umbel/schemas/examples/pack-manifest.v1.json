@@ -1,0 +1,8 @@
+{
+	"pack_version": 1,
+	"id": "greetings",
+	"plugin": "hello",
+	"version": "1.0.0",
+	"title": "Greetings",
+	"description": "Salutations hello-greet uses."
+}

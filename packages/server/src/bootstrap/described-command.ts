@@ -19,6 +19,7 @@ import { isMcpExposed } from '@lushly-dev/afd-core';
  */
 export interface DescribedCommand {
 	name: string;
+	title?: string;
 	description: string;
 	category?: string;
 	tags?: string[];

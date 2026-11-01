@@ -10,7 +10,8 @@
  * MCP 2026-07-28 request names it in `_meta["dev.afd/context"]`; the registry keeps no context
  * state between calls. With `tools: createDirectToolSurface()`, it also lists and routes the MCP
  * tool surface: the module-graph rule below keeps that surface out of a registry that does not
- * ask for it.
+ * ask for it. The `allow` call option, which `DirectClient` passes from its own `allow`, narrows
+ * one call to the commands a trusted predicate permits, at every level the call reaches.
  *
  * Module-graph rule: this module imports only types from the tool router, the tool list, the
  * meta-tools and `bootstrap/`, so a registry built without `tools` does not bundle them.
@@ -23,6 +24,7 @@ import type {
 	BatchResult,
 	Clock,
 	CommandContext,
+	CommandError,
 	CommandMiddleware,
 	CommandResult,
 	ExposeOptions,
@@ -32,11 +34,13 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import { failure, isExposedTo as isCoreExposedTo, truncateName } from '@lushly-dev/afd-core';
+import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import {
 	createDirectApprovalExchange,
 	directApprovalExchange,
 	publicDirectContext,
 } from '@lushly-dev/afd-core/internal/direct-approval';
+import { bindCommandAllow, filterAllowed, isCommandAllowed } from './command-allow.js';
 import { type ContextField, checkContextFields } from './context-fields.js';
 import { bindContextState, type ContextState, createContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
@@ -119,6 +123,17 @@ export interface DirectExecuteOptions {
 	 * command is available.
 	 */
 	activeContext?: string;
+
+	/**
+	 * The commands this call may run: a trusted, in-process predicate over names, such as
+	 * `DirectClient`'s `allow`. It covers the name called and every command the call runs: the
+	 * `afd-call` target, each `afd-batch` item, each `afd-pipe` step and a grouped tool's action.
+	 * A name it rejects (or a throw) fails with `COMMAND_NOT_ALLOWED` and does not run, and
+	 * `afd-discover`, `afd-detail` and the bootstrap tools leave such commands out. Handlers
+	 * cannot read or change it; it may be called more than once per name. Default: none, so every
+	 * exposed command runs.
+	 */
+	allow?: (command: string) => boolean;
 }
 
 /** Options of {@link DirectCommandRegistry.listTools}. */
@@ -127,6 +142,12 @@ export interface DirectListToolsOptions {
 	strategy?: ToolStrategy;
 	/** The context to list in, as for {@link DirectExecuteOptions.activeContext}. Default: none. */
 	activeContext?: string;
+	/**
+	 * List only what this predicate permits, as for {@link DirectExecuteOptions.allow}: the
+	 * commands it rejects are left out (grouped tools list only the actions it permits), and so
+	 * are the tool names it rejects. Default: none.
+	 */
+	allow?: (command: string) => boolean;
 }
 
 /**
@@ -164,8 +185,27 @@ export interface DirectToolBinding {
 	routes(name: string): boolean;
 	/** Route one tool call; the result is the JSON an MCP client reads. */
 	callTool(name: string, input: unknown, context: CommandContext): Promise<unknown>;
-	/** The tool list of an MCP server with the same commands, contexts and strategy. */
-	listTools(strategy: ToolStrategy | undefined, activeContext: string | null): McpToolDefinition[];
+	/**
+	 * Apply a meta-tool's `meta` argument (`meta-argument.ts`) to an in-process call, where the
+	 * `activeContext` option and the declared fields' values on the context stand for `_meta`.
+	 */
+	liftMetaArgument(
+		name: string,
+		input: unknown,
+		context: CommandContext,
+		activeContext: string | undefined
+	):
+		| { ok: true; input: unknown; context: CommandContext; activeContext: string | undefined }
+		| { ok: false; error: CommandError };
+	/**
+	 * The tool list of an MCP server with the same commands, contexts and strategy, narrowed to
+	 * what `allow` permits when it is given.
+	 */
+	listTools(
+		strategy: ToolStrategy | undefined,
+		activeContext: string | null,
+		allow?: (command: string) => boolean
+	): McpToolDefinition[];
 }
 
 /**
@@ -173,6 +213,8 @@ export interface DirectToolBinding {
  */
 export interface DirectRegistryCommand {
 	name: string;
+	/** Display label, when the command sets one. */
+	title?: string;
 	description: string;
 	category?: string;
 	mutation?: boolean;
@@ -199,8 +241,8 @@ export interface DirectCommandRegistry {
 	 * through the middleware. Returns `COMMAND_NOT_FOUND` for unknown names,
 	 * `COMMAND_NOT_EXPOSED` for commands not exposed to this interface,
 	 * `CONTEXT_NOT_FOUND` for an unknown `activeContext`, `COMMAND_NOT_IN_CONTEXT` for a
-	 * command outside it, and `VALIDATION_ERROR` for invalid input; the handler does not run
-	 * for any of them.
+	 * command outside it, `COMMAND_NOT_ALLOWED` for a name the `allow` option rejects, and
+	 * `VALIDATION_ERROR` for invalid input; the handler does not run for any of them.
 	 *
 	 * With a tool surface, a meta-tool name (`afd-call`, `afd-batch`, `afd-pipe`,
 	 * `afd-discover`, `afd-detail`), or a grouped tool name when the surface's strategy is
@@ -362,7 +404,13 @@ export function createDirectRegistry(
 			context: CommandContext = {},
 			callOptions: DirectExecuteOptions = {}
 		): Promise<CommandResult<T>> {
-			const { activeContext } = callOptions;
+			const { allow } = callOptions;
+			let { activeContext } = callOptions;
+			if (tools && !exposed.has(name) && tools.routes(name)) {
+				const lifted = tools.liftMetaArgument(name, input, context, activeContext);
+				if (!lifted.ok) return failure(lifted.error);
+				({ input, context, activeContext } = lifted);
+			}
 			if (activeContext !== undefined && !contextNames.has(activeContext)) {
 				return failure({
 					code: 'CONTEXT_NOT_FOUND',
@@ -370,8 +418,16 @@ export function createDirectRegistry(
 					retryable: false,
 				});
 			}
+			// The predicate rides on the context, under a private symbol, so every command this call
+			// runs (through the router, a batch or a pipeline) is checked by the engine.
+			const allowed = bindCommandAllow(publicDirectContext(context), allow);
+			if (!isCommandAllowed(allowed, name)) {
+				return failure(commandNotAllowed(name));
+			}
 			if (!exposed.has(name) && registered.has(name)) {
-				const available = [...exposed.keys()];
+				const available = filterAllowed([...exposed.values()], allowed).map(
+					(command) => command.name
+				);
 				return failure({
 					code: 'COMMAND_NOT_EXPOSED',
 					message: `Command '${name}' is not exposed to ${iface}`,
@@ -387,10 +443,7 @@ export function createDirectRegistry(
 			const exchange = supplied ?? createDirectApprovalExchange();
 			try {
 				const scoped = exchange.bind(
-					bindContextState(
-						{ ...publicDirectContext(context), interface: iface },
-						callContextState(activeContext)
-					)
+					bindContextState({ ...allowed, interface: iface }, callContextState(activeContext))
 				);
 				if (tools && !exposed.has(name) && tools.routes(name)) {
 					return (await tools.callTool(name, input, scoped)) as CommandResult<T>;
@@ -407,12 +460,12 @@ export function createDirectRegistry(
 					'This registry has no tool surface: create it with createDirectRegistry(commands, { tools: createDirectToolSurface() }) to list tools'
 				);
 			}
-			const { activeContext } = listOptions;
+			const { activeContext, allow } = listOptions;
 			if (activeContext !== undefined && !contextNames.has(activeContext)) {
 				const { message, suggestion } = unknownContext(activeContext, contexts);
 				throw new RangeError(`${message}. ${suggestion}`);
 			}
-			return tools.listTools(listOptions.strategy, activeContext ?? null);
+			return tools.listTools(listOptions.strategy, activeContext ?? null, allow);
 		},
 
 		listCommandNames(): string[] {
@@ -422,6 +475,7 @@ export function createDirectRegistry(
 		listCommands(): DirectRegistryCommand[] {
 			return [...exposed.values()].map((command) => ({
 				name: command.name,
+				...(command.title !== undefined && { title: command.title }),
 				description: command.description,
 				category: command.category,
 				mutation: command.mutation,

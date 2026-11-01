@@ -6,6 +6,10 @@
 mod event_ack;
 mod event_list;
 mod event_rebuild;
+mod plugin_list;
+mod plugin_show;
+mod skill_export;
+mod skill_list;
 mod space_list;
 mod workspace_doctor;
 mod workspace_show;
@@ -14,8 +18,12 @@ use afd::{CommandDefinition, ExposeOptions, JsonSchema, JsonSchemaType};
 use serde_json::{Value, json};
 
 pub(crate) use event_ack::event_ack;
-pub(crate) use event_list::event_list;
+pub(crate) use event_list::{event_list, read_events};
 pub(crate) use event_rebuild::event_rebuild;
+pub(crate) use plugin_list::plugin_list;
+pub(crate) use plugin_show::plugin_show;
+pub(crate) use skill_export::skill_export;
+pub(crate) use skill_list::skill_list;
 pub(crate) use space_list::space_list;
 pub(crate) use workspace_doctor::workspace_doctor;
 pub(crate) use workspace_show::workspace_show;

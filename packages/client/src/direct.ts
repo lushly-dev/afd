@@ -33,6 +33,7 @@ import {
 	truncateName,
 	validationError,
 } from '@lushly-dev/afd-core';
+import { commandNotAllowed, directAllows } from '@lushly-dev/afd-core/internal/direct-allow';
 import {
 	createDirectApprovalExchange,
 	publicDirectContext,
@@ -129,6 +130,9 @@ export class DirectClient {
 			middleware: CommandMiddleware[];
 		};
 
+	/** The `allow` call option the registry gets: the client's own check, or none without `allow`. */
+	private readonly registryAllow: ((command: string) => boolean) | undefined;
+
 	constructor(
 		private readonly registry: DirectRegistry,
 		options: DirectClientOptions = {}
@@ -144,16 +148,12 @@ export class DirectClient {
 			random: options.random,
 			onApprovalNeeded: options.onApprovalNeeded,
 		};
+		this.registryAllow = options.allow ? (command) => this.isAllowed(command) : undefined;
 	}
 
 	/** Whether the `allow` option lets this client call a command. A throwing predicate denies. */
 	private isAllowed(name: string): boolean {
-		if (!this.options.allow) return true;
-		try {
-			return this.options.allow(name) === true;
-		} catch {
-			return false;
-		}
+		return !this.options.allow || directAllows(this.options.allow, name);
 	}
 
 	/**
@@ -179,12 +179,7 @@ export class DirectClient {
 
 		if (!this.isAllowed(name)) {
 			this.debug(`[${traceId}] Not allowed: ${name}`);
-			return failure<T>({
-				code: 'COMMAND_NOT_ALLOWED',
-				message: `Command '${truncateName(name)}' is not allowed for this client`,
-				suggestion: 'Call one of the commands returned by listCommandNames()',
-				retryable: false,
-			});
+			return failure<T>(commandNotAllowed(name));
 		}
 
 		// Check if the command exists - return structured error if not
@@ -212,11 +207,16 @@ export class DirectClient {
 			}
 		}
 
-		// The active context is a registry call option, never a command-context value, so a
-		// handler cannot read or set it. Every attempt (the approval retry too) passes it.
+		// The active context and the allow check are registry call options, never command-context
+		// values, so a handler cannot read or set them. Every attempt (the approval retry too)
+		// passes them; the registry applies allow to each command a meta-tool or grouped tool runs.
+		// Without either, the registry is called exactly as before, with no options.
 		const { activeContext, ...callContext } = context ?? {};
+		const allow = this.registryAllow;
 		const executeOptions: DirectExecuteOptions | undefined =
-			activeContext === undefined ? undefined : { activeContext };
+			activeContext === undefined && !allow
+				? undefined
+				: { ...(activeContext !== undefined && { activeContext }), ...(allow && { allow }) };
 
 		// Build command context. The call's actor, clock and random win over the client's.
 		// Clock and random are only set when configured, so a registry's own defaults
@@ -333,9 +333,11 @@ export class DirectClient {
 	 * with the same commands, contexts and strategy lists them: forwarded to `registry.listTools`,
 	 * which `createDirectRegistry(commands, { tools: createDirectToolSurface() })` provides.
 	 *
-	 * `allow` filters by tool name, as `call()` checks it, so the client never lists a tool it
-	 * would refuse to call. Allowing a meta-tool (`afd-call`, `afd-batch`, `afd-pipe`) or a grouped
-	 * tool lets the client reach, through it, every command the registry exposes.
+	 * With `allow`, the client passes its check to the registry, so a grouped tool lists only the
+	 * actions it permits, and filters the tool names, as `call()` checks them, so the client never
+	 * lists a tool it would refuse to call. Through an allowed meta-tool (`afd-call`, `afd-batch`,
+	 * `afd-pipe`) or grouped tool, a `createDirectRegistry()` registry runs only the commands
+	 * `allow` permits.
 	 *
 	 * @param options - The strategy (default: the surface's) and the AFD context to list in
 	 * @throws TypeError when the registry cannot list tools; RangeError (from the registry) for
@@ -347,7 +349,11 @@ export class DirectClient {
 				"This client's registry cannot list tools: create it with createDirectRegistry(commands, { tools: createDirectToolSurface() }) from @lushly-dev/afd-server"
 			);
 		}
-		return this.registry.listTools(options).filter((tool) => this.isAllowed(tool.name));
+		const allow = this.registryAllow;
+		const tools = allow
+			? this.registry.listTools({ ...options, allow })
+			: this.registry.listTools(options);
+		return tools.filter((tool) => this.isAllowed(tool.name));
 	}
 
 	/**

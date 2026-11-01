@@ -189,6 +189,8 @@ class CommandDefinition:
             ``"required"``, ``"not-required"`` (the default when unset) or a function of
             the validated input and context. Enforced by ``create_approval_middleware``;
             reported as ``_meta.approval``.
+        title: A short human-readable label, the MCP tool ``title`` of the command's own
+            tool. Display text, never derived from the name and never in ``_meta``.
     
     Example:
         >>> async def create_doc(input, context=None):
@@ -234,6 +236,7 @@ class CommandDefinition:
     confirm_prompt: Optional[str] = None
     undoable: Optional[bool] = None
     approval: Optional[ApprovalPolicy] = None
+    title: Optional[str] = None
 
 
 class CommandRegistry(Protocol):
@@ -527,17 +530,18 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
             "required": required,
         }
 
-    tool = {
-        "name": command.name,
-        "description": command.description,
-        "inputSchema": input_schema,
-    }
+    tool: Dict[str, Any] = {"name": command.name}
+    # Display label only (spec/command-metadata.md, "Tool titles"); none when unset.
+    if command.title is not None:
+        tool["title"] = command.title
+    tool["description"] = command.description
+    tool["inputSchema"] = input_schema
     annotations = command_tool_annotations(command)
     if annotations:
         tool["annotations"] = annotations
 
     meta: Dict[str, Any] = {"mutation": command.mutation}
-    # Planning signals only: confirm_prompt is display text and stays out of _meta.
+    # Planning signals only: title and confirm_prompt are display text and stay out of _meta.
     if command.destructive is not None:
         meta["destructive"] = command.destructive
     if command.undoable is not None:
