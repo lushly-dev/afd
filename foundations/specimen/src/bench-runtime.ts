@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { type Browser, type BrowserServer, chromium, type Page } from 'playwright';
 import type { SpecimenBench } from './bench.js';
 import { BROWSER_LAUNCH_TIMEOUT } from './bench-worker-client.js';
+import { startBuiltBench } from './built.js';
 import { digest, type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { normalizeDom } from './normalize.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
@@ -16,7 +17,6 @@ import {
 	type ScenarioStep,
 	type Target,
 } from './types.js';
-import { startBenchServer } from './vite.js';
 
 function coverage(
 	status: Completeness['status'],
@@ -101,9 +101,7 @@ export async function createInProcessBench(
 	});
 	const config =
 		validatedConfig ?? (await traced(createTrace, 'load-config', () => loadConfig(options)));
-	const server = await traced(createTrace, 'start-server', () =>
-		startBenchServer(config, { automation: true })
-	);
+	const server = await traced(createTrace, 'start-server', () => startBuiltBench(config));
 	await createTrace?.flush();
 	let browser: Promise<Browser> | undefined;
 	let browserServer: Promise<BrowserServer> | undefined;
@@ -160,21 +158,30 @@ export async function createInProcessBench(
 				}
 			}
 
+			// The bench's own server records which bundle files this render loaded. Application
+			// traffic, including streams, never reaches it, so it cannot hold provenance open.
+			const site = await traced(trace, 'bundle', () => server.render());
 			const launched = browser;
 			const instance = await traced(
 				trace,
 				launching ? 'browser-launch' : 'browser-ready',
 				() => launched
 			);
-			const browserContext = await traced(trace, 'new-context', () =>
-				instance.newContext({
-					viewport: context.viewport,
-					locale: context.locale,
-					colorScheme: context.theme,
-					reducedMotion: context.reducedMotion,
-					deviceScaleFactor: 1,
-				})
-			);
+			let browserContext: Awaited<ReturnType<Browser['newContext']>>;
+			try {
+				browserContext = await traced(trace, 'new-context', () =>
+					instance.newContext({
+						viewport: context.viewport,
+						locale: context.locale,
+						colorScheme: context.theme,
+						reducedMotion: context.reducedMotion,
+						deviceScaleFactor: 1,
+					})
+				);
+			} catch (error) {
+				site.end();
+				throw error;
+			}
 			const page = await traced(trace, 'new-page', () => browserContext.newPage());
 			// Chromium's own per-page task, script, layout and style totals, only when tracing.
 			const cdp = trace ? await browserContext.newCDPSession(page) : undefined;
@@ -186,22 +193,6 @@ export async function createInProcessBench(
 				if (message.type() === 'warning') messages.warnings.push(message.text());
 			});
 			page.on('pageerror', (error) => messages.errors.push(error.message));
-			const resources: Promise<string>[] = [];
-			let resourceBytes = 0;
-			page.on('response', (response) => {
-				// Streaming application traffic must not hold source provenance open.
-				if (!['document', 'script', 'stylesheet'].includes(response.request().resourceType()))
-					return;
-				resources.push(
-					response
-						.body()
-						.then((body) => {
-							resourceBytes += body.length;
-							return `${new URL(response.url()).pathname}:${digest(body)}`;
-						})
-						.catch(() => `${new URL(response.url()).pathname}:unavailable`)
-				);
-			});
 			let runtimeReady = false;
 			let disposed = false;
 			try {
@@ -209,7 +200,7 @@ export async function createInProcessBench(
 					(async (): Promise<Observation> => {
 						await page.mouse.move(-1, -1);
 						const response = await traced(trace, 'goto', () =>
-							page.goto(`${server.url}/specimen.html?automation=1`)
+							page.goto(`${site.url}specimen.html?automation=1`)
 						);
 						if (!response?.ok())
 							throw new Error(`Bench page returned HTTP ${response?.status() ?? 'unknown'}`);
@@ -234,14 +225,11 @@ export async function createInProcessBench(
 						);
 						const screenshot = request.screenshot ? resolve(config.root, request.screenshot) : null;
 						if (screenshot) await page.screenshot({ path: screenshot, fullPage: true });
-						const [source, dependencies, loadedResources] = await traced(trace, 'provenance', () =>
-							Promise.all([
-								sourceState(config.root),
-								dependencyIdentity(config.root),
-								Promise.all(resources),
-							])
+						const [source, dependencies] = await traced(trace, 'provenance', () =>
+							Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
 						);
-						trace?.record({ resources: loadedResources.length, resourceBytes });
+						const loadedResources = site.loaded();
+						trace?.record({ resources: loadedResources.length });
 						const limitations = captured.limitations;
 						const unstable = limitations.filter((value) => value.includes('time-dependent'));
 						// Layout and styles observed under a context other than the manifest's are not evidence for it.
@@ -343,6 +331,7 @@ export async function createInProcessBench(
 				}
 				throw error;
 			} finally {
+				site.end();
 				await traced(trace, 'context-close', () => browserContext.close());
 				await trace?.flush();
 			}

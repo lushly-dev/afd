@@ -441,7 +441,7 @@
       "upstream_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
       "staged_path": "packages/specimen/experiments/run-consumers.mjs",
       "staged_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
-      "current_import_sha256": "331e5e754863c8e08c7a4c438c1a55e65af1dfdba0d3f9188a179e2c45e7b4ff",
+      "current_import_sha256": "4f7ca30ad41d93f465ec967e8be9ff297003d702ab70b301434975c893c4a190",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -525,11 +525,11 @@
       "upstream_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
       "staged_path": "packages/specimen/src/bench-runtime.ts",
       "staged_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
-      "current_import_sha256": "093a434890f406aac8be8ad33a3751709841e084ad926186f1ca3df6f00fcf8b",
+      "current_import_sha256": "71ef9f3915639ccba382d337b2e016e041562869fed0379f04b4cdc19028dda1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/bench-worker-client.ts",
@@ -789,11 +789,11 @@
       "upstream_sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
       "staged_path": "packages/specimen/src/vite.ts",
       "staged_sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
-      "current_import_sha256": "80e3f7209717c132e6122e02eef6724876403bf45671cda42cc4445a6ded9d3e",
+      "current_import_sha256": "001c907ed0c3f030bc109dee618e7ddf41ca7eb1026a921bf31d7e974e4520e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/tsconfig.json",
@@ -1341,11 +1341,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "0da1daf3c135633bc91818960eb6a28af76a41c24831ad69aebb62d896d76f50",
+      "current_import_sha256": "3267ae6c848be7dce3c4f199069a3807af4214a619dbc4aadae1cb5d5d36fb30",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/incumbent.mjs",
@@ -1437,7 +1437,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ea7dc22db1ec919eada38f1eafc829169dbe6cdd932e181ac8a13533e30203ad",
+      "current_import_sha256": "f6ce16a9311d3f5bb181d6efda7477e4cf64fafced74a72bef9998ee09de5003",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1474,6 +1474,66 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "42f1fab3de7722f5053afe33acc3a3fea3d6c1f7705d1bef7f4c4340079f7683",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/src/built.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5d19d36e0e6d60ea75a1b8c955c4a90c34eafdfd57204ba2453f6fa431810dba",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/attribution.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "3e38ad0c067591b2bfa1c5163d7387bdb91d21dc39c53d476c50125188378131",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/attribution.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "df7de83779be5e3f4011d6df2c068f4e7f8f068526f826b113f5669d32d4767d",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/profile-summary.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "9dde1771bf89a686810b3dd6fd13aef36df14e29e0dc8608089a81e3d8bbef76",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/src/trace.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "d75668df48b366b537f1f8a1b4e0671828801864d30262e6c8a6c60307dc31f5",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
