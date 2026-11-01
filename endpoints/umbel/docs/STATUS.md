@@ -37,7 +37,7 @@ should never have to scan the codebase to learn what is current.
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
-| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: step 0 done, step 1 in review | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 1 merged, then steps 2 and 3 (may run in parallel) |
+| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: steps 0 to 2 done | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 3 (registry and CLI), then step 4; step 5 may run beside 4 |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
@@ -107,8 +107,8 @@ should never have to scan the codebase to learn what is current.
 ### Phase 0. Host skeleton
 
 - **State:** specification approved 2026-10-31 under the owner's delegation
-  (D24); implementation in progress, steps 0 done and 1 in review. Last
-  verified 2026-10-31 against `main` at `045b6feb`.
+  (D24); implementation in progress, steps 0 to 2 done. Last verified
+  2026-10-31 against `main` at `273e0160`.
 - **Done:** the [specification](phases/0-host-skeleton/spec.md), merged in
   [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`, with
   decisions D28 to D36 and the architecture amendments they need (embedded
@@ -123,14 +123,28 @@ should never have to scan the codebase to learn what is current.
 - **Done:** step 0, the AFD pull request
   ([#567](https://github.com/lushly-dev/afd/pull/567), `045b6feb`): see the
   AFD prerequisites detail above.
-- **In review:** step 1, the scaffold ([#570](https://github.com/lushly-dev/afd/pull/570)): the `umbel` package with a
-  binary that prints `--version`, its committed `Cargo.lock`, toolchain and
-  clippy configuration, `umbel.yml`, the quarantined release unit with no
-  route, the explicit `architecture.json` unit, the repository-contract test,
-  the `.gitignore` negation and the `AGENTS.md` rows. Not done until it
-  merges and `umbel.yml` has run green on `main`.
-- **Not done:** steps 2 to 6 of the specification's plan (workspace, registry
-  and CLI, journal and events, MCP surfaces, exit); the exit criterion.
+- **Done:** step 1, the scaffold ([#570](https://github.com/lushly-dev/afd/pull/570),
+  `273e0160`): the `umbel` package with a binary that prints `--version`, its
+  committed `Cargo.lock`, toolchain and clippy configuration, `umbel.yml`, the
+  quarantined release unit with no route, the explicit `architecture.json`
+  unit, the repository-contract test, the `.gitignore` negation and the
+  `AGENTS.md` rows. `umbel.yml` ran green on Linux, macOS and the MSRV leg.
+- **Done:** step 2, the workspace ([#572](https://github.com/lushly-dev/afd/pull/572)):
+  `workspace::discover`, `umbel.toml` version 1 with defaults and validation,
+  the layout and `Workspace::init`, race-safe keys (temporary file, hard link,
+  mode 0600), the workspace lock over AFD's `JournalFileLock` with the
+  `WORKSPACE_LOCK_TIMEOUT` error, `doctor::run` with the registry-dependent
+  checks as `skip`, and the six schema files under `schemas/` with their
+  examples. Tests: `workspace.rs` (23), `doctor.rs` (19), `schemas.rs` (9) and
+  unit tests. Verified 2026-10-31 in `endpoints/umbel`: `cargo fmt --check`,
+  `cargo clippy --all-targets --locked -- -D warnings`, the library-only
+  clippy leg, `cargo test --locked`, `cargo +1.97.0 check --locked
+  --all-targets`; `pnpm check` and `umbel.yml` on the pull request.
+  `jsonschema` takes `default-features = false` and `toml` gains
+  `preserve_order`; four small spec amendments are listed in the
+  specification's "Amendments from step 2".
+- **Not done:** steps 3 to 6 of the specification's plan (registry and CLI,
+  journal and events, MCP surfaces, exit); the exit criterion.
 - **Follow-ups:** the open rows of the specification's follow-ups table,
   mirrored below.
 
@@ -179,3 +193,4 @@ starts.
 | 2026-10-31 | Phase 0 specification review | Revised the specification in [#564](https://github.com/lushly-dev/afd/pull/564) after the independent review ("approve after must-fixes"), every finding checked against the code: any number of host processes per workspace under one append lock held across the journal and event appends, with tail-read sequence numbers, a pending-projection marker and catch-up before the next append, race-safe shared keys (D29 amended); a bearer token on loopback HTTP, path and host validation (D32 amended); no interim telemetry (D33 dropped); `DirectClient::with_interface` in AFD (D34 amended); the store criterion (D28 amended). New step 0, an AFD pull request for the shared `FileJournalSink` mode and the `DirectClient` interface; Umbel's own test drivers; trusted host-owned keys, `Host::context`, `Workspace::resolve_space`; cursor consumers and `v0:<space>:0`; doctor `skip`; CLI confirmations, reserved verbs and sanitized text; an explicit `architecture.json` unit and a repository-contract test; cursor schemas and example files. Spec in review, not approved |
 | 2026-10-31 | Phase 0 approval and step 0 | The owner delegated approval of the phase 0 specification; it merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`, with D28 to D36. Implemented step 0 in `packages/rust` ([#567](https://github.com/lushly-dev/afd/pull/567)): `FileJournalSink::shared`, `with_lock_timeout`, `lock`, `append_locked`, `JournalFileLock` and `JournalLockError` behind the `journal-file-shared` feature (Rust 1.89; the crate's minimum stays 1.82 for every other feature set), and `DirectClient::with_interface`; tests in `src/journal/tests.rs`, `tests/journal_shared.rs` and `tests/direct_approval.rs`; the two `rust.yml` legs for the new feature; the CHANGELOG, README and language parity rows. Spec status block updated. Merged as `045b6feb` |
 | 2026-10-31 | Phase 0 step 1 | Scaffolded `endpoints/umbel/` ([#570](https://github.com/lushly-dev/afd/pull/570)): `Cargo.toml` (the single `umbel` package, library and binary, `afd` by path with `server` and `journal-file-shared`), `Cargo.lock` committed (and the `.gitignore` negation), `rust-toolchain.toml` (1.98.0), `clippy.toml`, a `src/lib.rs` that forbids unsafe code, a `src/main.rs` that prints `--version` and one smoke test; `.github/workflows/umbel.yml` (Linux and macOS, plus an MSRV 1.97 check); the quarantined `umbel` unit in `scripts/release/inventory.json` (private, no route), its explicit `architecture.json` unit and a repository-contract test; the `AGENTS.md` CI row, key rule and tree line. In review |
+| 2026-10-31 | Phase 0 step 2 | Implemented the workspace in `endpoints/umbel/` ([#572](https://github.com/lushly-dev/afd/pull/572)): `src/workspace/` (discovery, configuration version 1, layout, keys, lock, `init`), `src/doctor.rs`, the six schemas and examples under `schemas/`, and the `workspace.rs`, `doctor.rs` and `schemas.rs` tests. Marked step 1 done ([#570](https://github.com/lushly-dev/afd/pull/570), `273e0160`, `umbel.yml` green on Linux, macOS and MSRV). Kept `reqwest` and `rustls` out of the lock. Spec amended in four small places |

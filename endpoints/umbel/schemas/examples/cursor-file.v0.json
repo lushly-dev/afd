@@ -1,0 +1,7 @@
+{
+	"version": 0,
+	"actor": { "kind": "agent", "id": "local" },
+	"consumer": "default",
+	"cursor": "v0:main:40",
+	"updatedAt": "2026-11-02T10:16:00.000Z"
+}

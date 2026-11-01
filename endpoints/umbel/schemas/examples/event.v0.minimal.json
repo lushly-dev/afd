@@ -1,0 +1,25 @@
+{
+	"version": 0,
+	"id": "research:1",
+	"space": "research",
+	"seq": 1,
+	"cursor": "v0:research:1",
+	"journalSeq": 1,
+	"command": "note-add",
+	"timestamp": "2026-11-02T10:15:00.000Z",
+	"record": null,
+	"provenance": {
+		"version": 0,
+		"origin": "unspecified",
+		"space": "research",
+		"agent": null,
+		"principal": null,
+		"session": null,
+		"traceId": null,
+		"observedAt": "2026-11-02T10:15:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null
+	}
+}

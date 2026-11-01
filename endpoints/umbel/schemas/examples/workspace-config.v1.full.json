@@ -1,0 +1,27 @@
+{
+	"config_version": 1,
+	"name": "my-team",
+	"default_space": "main",
+	"profile": "team",
+	"spaces": {
+		"main": { "title": "Main" },
+		"research": { "title": "Research" }
+	},
+	"plugins": { "enabled": [] },
+	"mcp": {
+		"first_class_tools": ["workspace-show", "event-list"],
+		"tools_list_ttl_ms": 300000,
+		"confirmations": "enforce",
+		"instructions": ""
+	},
+	"http": {
+		"bind": "127.0.0.1:7410",
+		"path": "/mcp",
+		"allowed_hosts": ["umbel.local:7410"],
+		"allowed_origins": ["https://example.test"],
+		"max_body_bytes": 1048576
+	},
+	"journal": { "record_failures": true, "lock_timeout_ms": 10000 },
+	"log": { "level": "info", "format": "text" },
+	"principal": { "local_id": "local", "on_behalf_of": "ada" }
+}

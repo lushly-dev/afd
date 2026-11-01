@@ -1,0 +1,27 @@
+{
+	"version": 0,
+	"id": "main:12",
+	"space": "main",
+	"seq": 12,
+	"cursor": "v0:main:12",
+	"journalSeq": 341,
+	"command": "memory-remember",
+	"timestamp": "2026-11-02T10:15:00.000Z",
+	"traceId": "c0f3a1d2e4b5968778695a4b3c2d1e0f",
+	"actor": { "kind": "agent", "id": "local" },
+	"record": { "kind": "memory", "id": "mem-77" },
+	"provenance": {
+		"version": 0,
+		"origin": "agent-inferred",
+		"space": "main",
+		"agent": { "kind": "agent", "id": "local" },
+		"principal": "ada",
+		"session": null,
+		"traceId": "c0f3a1d2e4b5968778695a4b3c2d1e0f",
+		"observedAt": "2026-11-02T10:15:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": 0.8,
+		"authority": null
+	}
+}
