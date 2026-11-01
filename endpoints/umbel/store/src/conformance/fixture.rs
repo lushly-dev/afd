@@ -197,3 +197,28 @@ impl Oracle {
 pub(super) fn reader_filter(tokens: &[String]) -> Result<ReaderFilter, String> {
     ReaderFilter::tokens(tokens.iter().cloned()).ctx("building a reader filter")
 }
+
+/// Index one chunk per fixture document, committed at revision 80 (the head after
+/// [`populate`]): the title and `shared fixture note` as the body, the document's own tags, type,
+/// collection and access set.
+pub(super) fn index_documents(stores: &Stores, fixture: &Fixture) -> Result<(), String> {
+    let index = stores
+        .index
+        .as_ref()
+        .ok_or("this backend has no search index")?;
+    let mut writer = index.writer().ctx("writer")?;
+    for doc in &fixture.documents {
+        let mut chunk = samples::chunk(
+            &doc.id,
+            0,
+            &doc.title,
+            &format!("shared fixture note {}", doc.id),
+            &doc.access_refs(),
+        );
+        chunk.tags = doc.tags.clone();
+        chunk.doc_type = doc.doc_type.clone();
+        chunk.collection = doc.collection.clone();
+        writer.replace(&doc.id, vec![chunk]).ctx("replace")?;
+    }
+    writer.commit(80).ctx("commit")
+}

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use umbel_store::conformance::{SPACE, Stores, run_child, wait_for_start, write_documents};
 use umbel_store::{DocumentStore, Expect, StoreError};
-use umbel_store_embedded::{SqliteStore, StoreOptions};
+use umbel_store_embedded::{SqliteStore, StoreOptions, TantivyIndex};
 
 /// Set to `race` for a child that opens the store only after the start line, or `busy` for one
 /// that tries a single write with a short lock timeout and reports whether it was `Busy`.
@@ -22,13 +22,23 @@ pub(crate) fn open_with(
     SqliteStore::open(dir, space, options).map(Arc::new)
 }
 
-/// Open the SQLite stores of `space` under `dir`.
+/// Open the index of `space` under `dir`.
+pub(crate) fn open_index(
+    dir: &Path,
+    space: &str,
+    options: StoreOptions,
+) -> Result<Arc<TantivyIndex>, StoreError> {
+    TantivyIndex::open(dir, space, options).map(Arc::new)
+}
+
+/// Open the SQLite stores and the tantivy index of `space` under `dir`.
 pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
     let store = open_with(dir, space, StoreOptions::default())?;
+    let index = open_index(dir, space, StoreOptions::default())?;
     Ok(Stores {
         documents: store.clone(),
         graph: store,
-        index: None,
+        index: Some(index),
     })
 }
 

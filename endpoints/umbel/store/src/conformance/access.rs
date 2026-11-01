@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use super::fixture::{self, Fixture, Oracle, RECORD_KIND, RECORD_NS};
 use super::{CaseResult, Ctx, Env, Stores, ensure, ensure_eq, pass, skip};
-use crate::{ChangeKind, Direction, EdgeKey, ListQuery, ReaderFilter};
+use crate::{ChangeKind, Direction, EdgeKey, IndexQuery, ListQuery, ReaderFilter};
 
 pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     ("documents_listed_and_fetched_per_reader", documents),
@@ -478,9 +478,56 @@ fn derivation(env: &Env<'_>) -> CaseResult {
 }
 
 fn index(env: &Env<'_>) -> CaseResult {
-    let fresh = env.fresh()?;
-    if fresh.stores.index.is_none() {
-        return skip("this backend has no search index yet (step 3)");
+    let s = setup(env)?;
+    let Some(index) = s.stores.index.clone() else {
+        return skip("this backend has no search index");
+    };
+    fixture::index_documents(&s.stores, &s.fixture)?;
+    for (name, tokens) in readers(&s.fixture) {
+        let oracle = Oracle::new(&s.fixture, Some(&tokens));
+        let reader = fixture::reader_filter(&tokens)?;
+        let ask = |text: &str| IndexQuery {
+            text: text.to_owned(),
+            filters: crate::IndexFilters::default(),
+            limit: crate::MAX_QUERY_LIMIT,
+        };
+        // Whatever the words, the reader's clause comes with them: a word every document has, an
+        // all-negative query (everything but one word), and a tag filter.
+        for text in ["shared", "-zzzznothing", "shared OR fixture OR note"] {
+            let hits = index.search(&ask(text), &reader).ctx("search")?;
+            let found: BTreeSet<String> = hits.iter().map(|h| h.doc.clone()).collect();
+            ensure_eq(found, oracle.docs.clone(), &format!("`{text}` as {name}"))?;
+        }
+        let tagged = index.search(&ask("tags:t0"), &reader).ctx("search")?;
+        for hit in &tagged {
+            ensure(
+                oracle.docs.contains(&hit.doc),
+                &format!("{name} was shown `{}` by a tag query", hit.doc),
+            )?;
+        }
+        for doc in &s.fixture.documents {
+            let chunks = index.chunks(&doc.id, &reader).ctx("chunks")?;
+            ensure_eq(
+                chunks.len(),
+                usize::from(oracle.docs.contains(&doc.id)),
+                &format!("the chunks of `{}` as {name}", doc.id),
+            )?;
+        }
     }
-    skip("the index cases arrive with the tantivy index (step 3)")
+    let nobody = ReaderFilter::tokens(Vec::<String>::new()).ctx("a reader")?;
+    ensure(
+        index
+            .search(
+                &IndexQuery {
+                    text: "shared".to_owned(),
+                    filters: crate::IndexFilters::default(),
+                    limit: 10,
+                },
+                &nobody,
+            )
+            .ctx("search")?
+            .is_empty(),
+        "a reader with no tokens finds nothing",
+    )?;
+    pass()
 }

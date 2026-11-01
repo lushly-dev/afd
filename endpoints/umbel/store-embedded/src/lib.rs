@@ -1,12 +1,16 @@
 //! Umbel's embedded reference store backend (phase 2 specification, section 3.2): SQLite in WAL
 //! mode, bundled, for documents, plugin records, the change log and the structural graph. Several
 //! processes may open one space's store at once; writers take turns under `BEGIN IMMEDIATE` and
-//! wait at most `store.lock_timeout_ms`. The tantivy index joins this crate in step 3.
+//! wait at most `store.lock_timeout_ms`. The lexical lane is [`TantivyIndex`], tantivy under
+//! `index/v1/` with LZ4 and English stems; the readable graph's petgraph form is cached per
+//! process.
 
 mod connection;
 mod documents;
 mod error;
 mod graph;
+mod index;
+mod readable_graph;
 mod schema;
 mod sql;
 
@@ -15,6 +19,8 @@ use std::path::{Path, PathBuf};
 use umbel_store::StoreError;
 
 pub use connection::StoreOptions;
+pub use index::{IndexCheck, IndexInfo, TantivyIndex};
+pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 
 /// The file and directory names under a space's state directory (section 3.2).
 const STORE_DIR: &str = "store";
@@ -48,6 +54,7 @@ pub struct StoreInfo {
 pub struct SqliteStore {
     space: String,
     pool: connection::Pool,
+    graph_cache: readable_graph::GraphCache,
 }
 
 impl SqliteStore {
@@ -70,6 +77,7 @@ impl SqliteStore {
         Ok(Self {
             space: space.to_owned(),
             pool,
+            graph_cache: readable_graph::GraphCache::default(),
         })
     }
 
