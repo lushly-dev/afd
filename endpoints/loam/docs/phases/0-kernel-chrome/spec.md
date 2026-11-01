@@ -12,9 +12,8 @@
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
   Approved by the owner on 2026-11-01 (D17). In implementation; each
-  step's state is one line in STATUS.md's phase 0 block. Step 1 merged in
-  [#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM). Step 6 merged in
-  [#628](https://github.com/lushly-dev/afd/pull/628); it amended
+  step's state is one line in STATUS.md's phase 0 block. Step 6
+  ([#628](https://github.com/lushly-dev/afd/pull/628)) amended
   [section 4](#4-specimen-with-high-contrast-d53), because the bench now
   emulates media in its native host rather than through Playwright.
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read

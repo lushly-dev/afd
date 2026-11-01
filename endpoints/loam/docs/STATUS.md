@@ -124,7 +124,7 @@ should never have to scan the codebase to learn what is current.
   one line each, so parallel pull requests touch different lines):
   - 0a, AFD browser stores: in progress.
   - 0b, Violet preloaded source and high contrast: in progress.
-  - 1, scaffold: merged in [#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM).
+  - 1, scaffold: merged in [#626](https://github.com/lushly-dev/afd/pull/626).
     The four packages build with empty sources; `loam.yml` runs build,
     typecheck, units and a Chromium boot test under the CSP. Steps 2 and 7
     add `theme:check`, `lint:tokens` and `budget` to it.
