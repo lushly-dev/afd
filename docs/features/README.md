@@ -24,12 +24,12 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [MCP Confirmations](./active/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback; resolves D10 of the MCP upgrade |
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 | [Hybrid Tool Strategy](./active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Approved 2026-10-31; requested by Umbel (D27); status in [STATUS.md](./active/hybrid-tool-strategy/STATUS.md) |
-| [Browser-Safe Direct Registry](./active/browser-direct-registry/proposal.md) | A `/direct` entry point that runs the validating registry, journal, approvals (on WebCrypto) and AFD contexts in a browser or webview. Approved 2026-10-31; status in [STATUS.md](./active/browser-direct-registry/STATUS.md) |
 
 ## Complete Features
 
 | Feature | Description |
 |---------|-------------|
+| [Browser-Safe Direct Registry](./complete/browser-direct-registry/proposal.md) | The `@lushly-dev/afd-server/direct` entry point: the validating registry, journal, WebCrypto approvals, AFD contexts with a per-call `activeContext`, and an optional MCP tool surface, in a browser, worker or webview. Completed 2026-11-01; status in [STATUS.md](./complete/browser-direct-registry/STATUS.md) |
 | [Declared Context Fields](./complete/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, validated on every surface, listed by `server/discover` and `afd-help`, and kept by the journal when declared safe; in TypeScript, Python, Rust and C++. Completed 2026-10-31; status in [STATUS.md](./complete/declared-context-fields/STATUS.md) |
 | [AFD Bot (Alfred)](./complete/afd-bot/) | Deterministic repo quality agent with lint, parity, and quality commands |
 | [AFD PyPI Publishing](./complete/afd-pypi-publishing/) | Python package publishing to PyPI |
