@@ -13,6 +13,7 @@ import {
 	createErrorChunk,
 	createFailedBatchResult,
 	failedBatchRequest,
+	failure,
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
@@ -39,9 +40,10 @@ import {
 	parseJsonRpcMessage,
 } from './json-rpc.js';
 import type { ModernHttpLane } from './mcp-modern.js';
+import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { requestContextValues } from './request-context.js';
 import type { CreateRequestContext } from './server-types.js';
-import type { ToolCallResult } from './tool-router.js';
+import { resultContent, type ToolCallResult } from './tool-router.js';
 
 /** Routes whose errors are JSON-RPC error objects rather than AFD failures. */
 const JSON_RPC_PATHS = new Set(['/message', '/rpc', '/mcp']);
@@ -121,6 +123,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		confirmations,
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
+	const metaKeys = metaArgumentKeys(contextFields);
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
 		throw new Error('maxBodyBytes must be a positive integer');
@@ -227,7 +230,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 						'Send params as { "name": "<tool>", "arguments": { ... } }'
 					);
 				}
-				const args = params.arguments ?? {};
+				const lifted = liftMetaArgument(params.name, params.arguments, params._meta, metaKeys);
+				if (!lifted.ok) return resultContent(failure(lifted.error), true);
+				const args = lifted.args ?? {};
 				if (!isRecord(args)) {
 					throw new JsonRpcError(
 						JsonRpcErrorCode.INVALID_PARAMS,
@@ -238,7 +243,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				return routeToolCall(
 					params.name,
 					args,
-					await commandContext(req, res, state, undefined, params._meta)
+					await commandContext(req, res, state, undefined, lifted.meta)
 				);
 			}
 			default:

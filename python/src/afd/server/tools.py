@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional, Sequence
 
 from afd.core.commands import CommandDefinition, command_to_mcp_tool
 from afd.server.confirmations import CONFIRM_PROPERTY, accepts_confirm
+from afd.server.meta_argument import META_ARGUMENT_DESCRIPTION
 from afd.server.types import ToolStrategy
 
 MAX_FIRST_CLASS_TOOLS = 8
@@ -168,6 +169,14 @@ for _schema in (BatchToolSchema, PipeToolSchema):
             "Names of the commands that ask for confirmation and are confirmed, once the user "
             "intends them (only on servers that enforce confirmations)"
         ),
+    }
+
+# The `meta` argument (spec/command-metadata.md, "Decisions on the tool surface (#466)"), last in
+# each meta-tool's properties as in spec/meta-tools.json.
+for _schema in (CallToolSchema, BatchToolSchema, PipeToolSchema, DiscoverToolSchema, DetailToolSchema):
+    _schema["inputSchema"]["properties"]["meta"] = {
+        "type": "object",
+        "description": META_ARGUMENT_DESCRIPTION,
     }
 
 

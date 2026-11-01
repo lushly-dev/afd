@@ -35,6 +35,7 @@ use crate::{
 
 use super::confirmations::{self, Acknowledgement, Decision, Step};
 use super::context_hook;
+use super::meta_argument;
 use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
 use super::McpServer;
@@ -580,7 +581,32 @@ pub(crate) async fn route(
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResponse, ErrorData> {
     let name = request.name.as_ref();
-    // The hook runs before anything else, so a refused caller reaches neither a confirmation
+    // A meta-tool's `meta` argument counts as `_meta` from here on, for the hook, the active
+    // context and the declared context fields alike (TypeScript lifts it first too).
+    let keys = meta_argument::meta_argument_keys(&server.inner.registry.context_fields());
+    let lifted = match meta_argument::lift_meta_argument(
+        name,
+        request.arguments.as_ref(),
+        &context.meta,
+        &keys,
+    ) {
+        Ok(lifted) => lifted,
+        Err(error) => return refused(*error),
+    };
+    let (owned_request, owned_context);
+    let (request, context) = match lifted {
+        None => (request, context),
+        Some(lifted) => {
+            let mut params = request.clone();
+            params.arguments = lifted.args;
+            let mut scoped = context.clone();
+            **scoped.meta = lifted.meta;
+            owned_request = params;
+            owned_context = scoped;
+            (&owned_request, &owned_context)
+        }
+    };
+    // The hook runs before anything else but that, so a refused caller reaches neither a confirmation
     // prompt nor the unknown-tool answer.
     let base = server
         .base_context()

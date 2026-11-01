@@ -19,6 +19,7 @@ use crate::{
 use super::strategy::{default_command_group, object_schema};
 
 const CONFIRM_FLAG: &str = "Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)";
+const META_ARGUMENT: &str = "Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta";
 const CONFIRM_NAMES: &str = "Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)";
 
 /// The `afd-call` tool.
@@ -33,6 +34,7 @@ pub fn call_tool() -> Value {
                 "command": { "type": "string", "minLength": 1, "description": "Command name to invoke" },
                 "input": { "type": "object", "description": "Command input (validated against the command's own schema at runtime)" },
                 "confirm": { "description": CONFIRM_FLAG, "type": "boolean" },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["command"],
         },
@@ -76,6 +78,7 @@ pub fn batch_tool() -> Value {
                     },
                 },
                 "confirm": { "description": CONFIRM_NAMES, "type": "array", "items": { "type": "string" } },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["commands"],
         },
@@ -127,6 +130,7 @@ pub fn pipe_tool() -> Value {
                     },
                 },
                 "confirm": { "description": CONFIRM_NAMES, "type": "array", "items": { "type": "string" } },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["steps"],
         },
@@ -152,6 +156,7 @@ pub fn discover_tool() -> Value {
                 "includeMutation": { "description": "Include mutation classification", "type": "boolean" },
                 "limit": { "description": "Max results (1-200, default 50)", "type": "number" },
                 "offset": { "description": "Results to skip for pagination", "type": "number" },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
         },
     })
@@ -170,6 +175,7 @@ pub fn detail_tool() -> Value {
                     "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }],
                     "description": "Command name or names (exact match, kebab-case). String or array of strings (max 10).",
                 },
+                "meta": { "type": "object", "description": META_ARGUMENT },
             },
             "required": ["command"],
         },

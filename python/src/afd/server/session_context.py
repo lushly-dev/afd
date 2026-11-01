@@ -23,6 +23,9 @@ from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY, ContextState
 MODERN_PROTOCOL_VERSION = "2026-07-28"
 """The first MCP revision without sessions (per-request ``_meta``)."""
 
+_REQUEST_META: Any = object()
+"""``bind``'s default: read ``_meta`` from the request itself."""
+
 
 class UnknownContextError(ValueError):
     """``_meta["dev.afd/context"]`` names a context the server does not configure."""
@@ -78,6 +81,7 @@ class SessionContextState(ContextState):
         *,
         stateless: bool = False,
         contexts: Collection[str] = (),
+        meta: Any = _REQUEST_META,
     ) -> Iterator[None]:
         """Bind the state of one SDK request (``ServerRequestContext``).
 
@@ -85,6 +89,9 @@ class SessionContextState(ContextState):
         request gets a per-request state with its ``_meta`` context active; a
         2025-era request over stateless HTTP gets a state that cannot change; any
         other 2025-era request shares its session's stack.
+
+        ``meta``, when given, stands for the request's ``_meta`` (a meta-tool call with its
+        ``meta`` argument lifted into it); otherwise ``_meta`` is read from the request.
 
         Raises:
             UnknownContextError: a modern request names an unconfigured context.
@@ -94,8 +101,9 @@ class SessionContextState(ContextState):
             return
         if is_modern_protocol(getattr(request, "protocol_version", None)):
             state = ContextState(persistent=False)
-            params = getattr(request, "params", None)
-            meta = params.get("_meta") if isinstance(params, dict) else None
+            if meta is _REQUEST_META:
+                params = getattr(request, "params", None)
+                meta = params.get("_meta") if isinstance(params, dict) else None
             requested = meta.get(AFD_CONTEXT_META_KEY) if isinstance(meta, dict) else None
             if requested is not None:
                 if not isinstance(requested, str) or requested not in contexts:

@@ -734,6 +734,7 @@ await server.execute('project-summary', {}, { scope: { project: 'p-1' } });
 - A field is a claim made by the caller: use it to narrow what a handler does (pick a project), never to grant access. Check the caller's access to the claimed scope.
 - `journal: true` keeps the value in the journal (below). Only declare it for a field that never holds a secret.
 - Over MCP the value comes from `tools/call`'s `params._meta[meta]`, on both eras and over stdio and HTTP; undeclared `_meta` keys are dropped, and a value `createContext` sets for the same name wins. On AFD's HTTP lanes, `/message` reads `params._meta`, `/rpc` reads `params._meta` and `/stream` the `_meta` member of its input (both leave it out of the command input), and `/batch` reads the body's `_meta`.
+- A client that cannot set `_meta` can send the same values in the meta-tools' `meta` argument: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take `meta: { "dev.afd/context": "billing", "dev.loam/scope": { ... } }`, applied as if sent in `_meta`. Other keys are dropped, and a key sent both ways must agree, or the call fails with `VALIDATION_ERROR`.
 - `server/discover` lists the fields under `_meta["dev.afd/context-fields"]` and `afd-help` returns them as `contextFields`, each with its JSON Schema. `tools/list` never varies by a field. `spec/context-fields.md` is the cross-language contract.
 
 ### Command Journal and Replay

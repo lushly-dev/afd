@@ -80,9 +80,24 @@ agents know what to send. Both are omitted when no field is declared.
 
 ## Clients that cannot set `_meta`
 
-The meta-tools take one `meta` argument whose keys are `dev.afd/context` and the declared fields'
-`_meta` keys, applied as if sent in `_meta`. It ships with #466 (`command-metadata.md` records it
-there); a key sent both ways must agree, or the call fails with `VALIDATION_ERROR`.
+The meta-tools (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`) take an
+optional `meta` argument, advertised in [`meta-tools.json`](./meta-tools.json), for clients that
+cannot set `_meta` (#466, recorded in [`command-metadata.md`](./command-metadata.md#decisions-on-the-tool-surface-466)):
+
+- Its keys are `dev.afd/context` and the declared fields' `_meta` keys. Other keys are dropped, as
+  undeclared `_meta` keys are. `null`, for `meta` or for a value in either place, is no value.
+- The server removes `meta` from the arguments and applies its keys as if the request had sent
+  them in `_meta`, before it reads `_meta`: the context and each field then behave exactly as they
+  would from `_meta`, in each era. A value trusted code sets still wins.
+- A key sent both in `_meta` and in `meta` must have the same JSON value, or the call fails with
+  `VALIDATION_ERROR` whose details name the key (`{ "meta": "<key>" }`). A `meta` that is not an
+  object fails with `VALIDATION_ERROR` too (`{ "argument": "meta" }`).
+- On `afd-discover` and `afd-detail` only `dev.afd/context` has an effect, because declared fields
+  never change the tool surface.
+- In process (a TypeScript direct registry with a tool surface), the `activeContext` call option
+  and the declared fields' values on the call context stand for `_meta`.
+
+Other tools take no `meta` argument: a command's own input keeps a `meta` property it declares.
 
 ## Status
 
