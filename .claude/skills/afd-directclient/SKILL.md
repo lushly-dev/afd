@@ -7,7 +7,7 @@ description: >
   observability patterns.
   Triggers: directclient, in-process, zero overhead, co-located agent,
   embedded agent, gemini integration, chat server, createDirectRegistry,
-  DirectRegistry.
+  DirectRegistry, createDirectToolSurface, activeContext, listTools.
 ---
 
 # AFD DirectClient Patterns
@@ -102,6 +102,44 @@ const client = new DirectClient(registry, {
 // Refused names return COMMAND_NOT_ALLOWED and are hidden from
 // listCommands(), listCommandNames() and hasCommand().
 ```
+
+### AFD Contexts and the MCP Tool Surface
+
+Give the registry `contexts` (as on `createMcpServer`) and, for an agent that
+should see what an MCP agent sees, `tools: createDirectToolSurface()`:
+
+```typescript
+import { createDirectRegistry, createDirectToolSurface } from '@lushly-dev/afd-server/direct';
+
+const registry = createDirectRegistry(allCommands, {
+  contexts: [{ name: 'billing' }, { name: 'writing' }],
+  tools: createDirectToolSurface({ strategy: 'lazy' }), // individual (default), grouped, lazy, hybrid
+});
+const client = new DirectClient(registry, { actor: { kind: 'agent' } });
+
+const tools = client.listTools({ activeContext: 'billing' }); // exactly the MCP server's list
+await client.call('afd-discover', {}, { activeContext: 'billing' });
+await client.call('invoice-pay', { id: 'in-1' }, { activeContext: 'billing' });
+```
+
+- **The active context is per call, never state.** `activeContext` goes to the
+  registry beside the command context (handlers never see it), with every
+  `pipe()` step and on the approval retry. An unknown name is
+  `CONTEXT_NOT_FOUND`; a command outside it `COMMAND_NOT_IN_CONTEXT`. To keep a
+  stack, keep it in the host and pass its top on each call.
+- **The context tools only validate**, as on the stateless MCP 2026-07-28 lane:
+  `afd-context-enter`/`-exit` change nothing and return `persisted: false`.
+- **Meta-tools route through the server's router** (`afd-call`, `afd-batch`,
+  `afd-pipe`, `afd-discover`, `afd-detail`; grouped tools under `grouped`);
+  `afd-batch` returns a `BatchResult` and `afd-pipe` a `PipelineResult`.
+- **Exposure is the registry's interface** (`'agent'` by default), where the
+  MCP server uses `expose.mcp`. Use `interface: 'mcp'` for the server's exact
+  surface.
+- **`allow` checks tool names.** Allowing `afd-call`, `afd-batch`, `afd-pipe` or
+  a grouped tool reaches every command the registry exposes; hide commands with
+  `expose: { agent: false }`, not with `allow`.
+- Without `tools`, `registry.listTools()` throws a `TypeError`, and the tool
+  router is not bundled: a browser host pays for it only when it asks.
 
 ### Timeouts and Cancellation
 
@@ -396,8 +434,9 @@ const result = await client.pipe(
 
 Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeoutMs`.
 Each step goes through `call()`, so `allow`, the registry's Zod validation,
-`onApprovalNeeded` (asked when a gated step is reached) and a `timeout` passed in
-the pipe context (applied per step) all hold for pipelines.
+`onApprovalNeeded` (asked when a gated step is reached), a `timeout` passed in
+the pipe context (applied per step) and an `activeContext` passed there all hold
+for pipelines.
 
 ## Related
 

@@ -108,10 +108,14 @@ export {
 export {
 	createDirectRegistry,
 	type DirectCommandRegistry,
+	type DirectExecuteOptions,
+	type DirectListToolsOptions,
 	type DirectRegistryCommand,
 	type DirectRegistryOptions,
+	type DirectToolSurface,
 	type ExposeInterface,
 } from './direct-registry.js';
+export { createDirectToolSurface, type DirectToolSurfaceOptions } from './direct-tool-surface.js';
 // Handoff schemas
 export {
 	type HandoffCredentialsInput,

@@ -8,65 +8,24 @@
 import type { CommandDefinition, CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
-import { resolveContextState } from '../context-scope.js';
+import {
+	type ContextState,
+	DEFAULT_CONTEXT_MAX_DEPTH,
+	resolveContextState,
+} from '../context-scope.js';
 import type { ContextConfig } from '../server-types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONTEXT STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Default maximum depth of a context stack. */
-export const DEFAULT_CONTEXT_MAX_DEPTH = 16;
-
-export interface ContextState {
-	stack: string[];
-	/** Maximum stack depth (default: 16). `afd-context-enter` fails once it is reached. */
-	maxDepth?: number;
-	/**
-	 * `false` for the per-request state of a stateless MCP 2026-07-28 request: the active
-	 * context comes from the request's `_meta["dev.afd/context"]`, and `afd-context-enter` and
-	 * `afd-context-exit` validate but never change it. Omitted (persistent) otherwise.
-	 */
-	persistent?: boolean;
-	getActive(): string | null;
-	enter(name: string): void;
-	exit(): string | null;
-}
-
-/**
- * Create a context state manager: one stack of entered contexts.
- *
- * The MCP server keeps one for stdio and one per HTTP session. Re-entering the active context
- * is a no-op, and `enter` throws once `maxDepth` contexts are stacked.
- */
-export function createContextState(
-	options: { maxDepth?: number; persistent?: boolean } = {}
-): ContextState {
-	const maxDepth = options.maxDepth ?? DEFAULT_CONTEXT_MAX_DEPTH;
-	if (!Number.isSafeInteger(maxDepth) || maxDepth <= 0) {
-		throw new Error('Context maxDepth must be a positive integer');
-	}
-	const stack: string[] = [];
-
-	return {
-		stack,
-		maxDepth,
-		...(options.persistent === false && { persistent: false }),
-		getActive() {
-			return stack.length > 0 ? (stack[stack.length - 1] ?? null) : null;
-		},
-		enter(name: string) {
-			if (stack[stack.length - 1] === name) return;
-			if (stack.length >= maxDepth) {
-				throw new Error(`Context stack is limited to ${maxDepth} levels`);
-			}
-			stack.push(name);
-		},
-		exit() {
-			return stack.pop() ?? null;
-		},
-	};
-}
+// The state lives in `context-scope.ts`, beside its binding, so that `createDirectRegistry` can
+// scope calls without loading these commands.
+export {
+	type ContextState,
+	createContextState,
+	DEFAULT_CONTEXT_MAX_DEPTH,
+} from '../context-scope.js';
 
 /** Failure for context changes requested by a caller that has no session to hold them. */
 function sessionRequired(): CommandResult<never> {

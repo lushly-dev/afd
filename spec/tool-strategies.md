@@ -304,7 +304,9 @@ strategy, and a call through a meta-tool exactly as under the lazy strategy.
   list order, and each `commands` entry for a first-class command carries `firstClass: true`. Both
   are omitted on other strategies, and `firstClass` is omitted for other commands
   ([Reporting rules](./command-metadata.md#reporting-rules)). An `afd-help` that is not served by an
-  MCP server (for example run in-process) omits all three.
+  MCP server (for example run in-process) omits all three, unless an in-process tool surface serves
+  it (TypeScript's `createDirectToolSurface({ bootstrap: true })`), which reports its strategy as a
+  server does.
 - **`server/discover` instructions** for `hybrid` MUST say that the listed command tools are the
   common ones and that `afd-discover`, `afd-detail` and `afd-call` reach every other command. The
   default sentence is: "The command tools listed are the common ones. Call afd-discover to find

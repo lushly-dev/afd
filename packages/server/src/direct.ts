@@ -8,6 +8,10 @@
  * worker or a webview as in Node.js. The name says what the entry is for, not where it runs: a
  * Node.js host that does not want the MCP SDK can use it too.
  *
+ * `createDirectToolSurface` adds the MCP tool surface to a registry: the tool list of every
+ * strategy, the meta-tools, the context tools and, optionally, the bootstrap tools, from the same
+ * code the MCP server runs. A registry built without it does not bundle the tool router.
+ *
  * The root entry (`@lushly-dev/afd-server`) still exports everything below. The approval
  * middleware joins this entry once it runs on WebCrypto.
  *
@@ -59,10 +63,14 @@ export * from './define.js';
 export {
 	createDirectRegistry,
 	type DirectCommandRegistry,
+	type DirectExecuteOptions,
+	type DirectListToolsOptions,
 	type DirectRegistryCommand,
 	type DirectRegistryOptions,
+	type DirectToolSurface,
 	type ExposeInterface,
 } from './direct-registry.js';
+export { createDirectToolSurface, type DirectToolSurfaceOptions } from './direct-tool-surface.js';
 export { createJournalMiddleware, type JournalMiddlewareOptions } from './journal.js';
 export {
 	type JournalReplayTarget,
@@ -96,3 +104,4 @@ export {
 	type Tracer,
 	type TracingOptions,
 } from './middleware.js';
+export type { ContextConfig, ToolStrategy } from './server-types.js';

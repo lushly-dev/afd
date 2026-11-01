@@ -388,7 +388,27 @@ can tell it apart from the user.
 
 `allow` narrows what the client may call. Refused commands return a
 `COMMAND_NOT_ALLOWED` failure without reaching the registry, and are left out of
-`listCommands()`, `listCommandNames()` and `hasCommand()`.
+`listCommands()`, `listCommandNames()`, `hasCommand()` and `listTools()`.
+
+#### AFD Contexts and Tools
+
+With a registry built by `createDirectRegistry(commands, { contexts, tools:
+createDirectToolSurface() })` from `@lushly-dev/afd-server`:
+
+```typescript
+// The context of this call only; pipe() passes it with every step, and an approval retry runs in it.
+await client.call('invoice-pay', { id: 'in-1' }, { activeContext: 'billing' });
+
+// What an MCP server with the same commands lists, minus the tools `allow` refuses.
+client.listTools({ strategy: 'lazy', activeContext: 'billing' });
+```
+
+`activeContext` reaches the registry as a call option beside the command
+context, so handlers never see it. `listTools()` throws a `TypeError` when the
+registry cannot list tools. `allow` checks tool names: allowing a meta-tool
+(`afd-call`, `afd-batch`, `afd-pipe`) or a grouped tool lets the client reach
+every command the registry exposes through it, so keep a command from in-app
+agents with `expose: { agent: false }` instead.
 
 #### Approvals
 
@@ -460,14 +480,15 @@ exposure checks:
 
 ```typescript
 import type { CommandDefinition, DirectRegistry } from '@lushly-dev/afd-client';
-import type { CommandResult, CommandContext } from '@lushly-dev/afd-core';
+import type { CommandResult, CommandContext, McpTool } from '@lushly-dev/afd-core';
 
 class MyRegistry implements DirectRegistry {
   // Required methods
   async execute<T>(
     name: string,
     input?: unknown,
-    context?: CommandContext  // Receives traceId, source, etc.
+    context?: CommandContext,  // Receives traceId, source, etc.
+    options?: { activeContext?: string }  // Ignore it if you do not scope by context
   ): Promise<CommandResult<T>>;
 
   listCommandNames(): string[];
@@ -476,6 +497,9 @@ class MyRegistry implements DirectRegistry {
 
   // Optional - enables DirectClient's shallow input checks
   getCommand?(name: string): CommandDefinition | undefined;
+
+  // Optional - enables DirectClient.listTools()
+  listTools?(options?: { strategy?: string; activeContext?: string }): McpTool[];
 }
 ```
 

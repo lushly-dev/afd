@@ -29,7 +29,6 @@ import {
 	truncateName,
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
-import type { ContextState } from './bootstrap/afd-context.js';
 import {
 	filterByContext,
 	isAccessibleInContext,
@@ -37,7 +36,7 @@ import {
 	notInContextError,
 } from './command-routing.js';
 import { applyContextFields, type ContextField } from './context-fields.js';
-import { resolveContextState } from './context-scope.js';
+import { type ContextState, resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
@@ -58,6 +57,13 @@ export interface ExecutionDeps {
 	contextDefaults?: ContextDefaults;
 	/** Declared context fields, validated on each call's context (`spec/context-fields.md`). */
 	contextFields?: readonly ContextField[];
+	/**
+	 * Whether refusals may name `afd-discover` and the `afd-context-*` tools, which only a host that
+	 * serves them can (`spec/error-codes.md`, "Suggestions name only tools the host provides").
+	 * Default `true`: the MCP server serves both. A direct registry without a tool surface sets
+	 * `false`.
+	 */
+	suggestTools?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -83,6 +89,7 @@ function runHook(hook: () => unknown, onHookError: (error: unknown) => void): vo
 
 export function createExecutionEngine(deps: ExecutionDeps) {
 	const { commandMap, middleware, devMode, onCommand, onError } = deps;
+	const suggestTools = deps.suggestTools ?? true;
 
 	/** Report to `onError`. A failing `onError` has nowhere left to report, so it is ignored. */
 	function reportError(error: unknown): void {
@@ -114,13 +121,16 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				message: `Command '${truncateName(commandName)}' not found`,
 				suggestion: notFoundSuggestion(
 					commandName,
-					candidates.map((candidate) => candidate.name)
+					candidates.map((candidate) => candidate.name),
+					suggestTools
 				),
 			});
 		}
 
 		if (activeContext && !isAccessibleInContext(command, activeContext)) {
-			return failure(notInContextError(commandName, activeContext));
+			return failure(
+				notInContextError(commandName, activeContext, suggestTools ? undefined : command.contexts)
+			);
 		}
 		// Validate input with enhanced error messages. Schema callbacks (.refine,
 		// .superRefine, .transform, .preprocess) run here, so an exception they throw

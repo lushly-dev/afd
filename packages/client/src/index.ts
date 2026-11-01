@@ -47,6 +47,8 @@ export {
 	type DirectCallContext,
 	DirectClient,
 	type DirectClientOptions,
+	type DirectExecuteOptions,
+	type DirectListToolsOptions,
 	type DirectRegistry,
 	DirectTransport,
 	isUnknownToolError,

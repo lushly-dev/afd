@@ -21,6 +21,7 @@ import type {
 	CommandMiddleware,
 	CommandResult,
 	HandoffResult,
+	McpTool,
 	PipelineRequest,
 	PipelineResult,
 	PipelineStep,
@@ -55,13 +56,21 @@ export type { CommandDefinition, CommandParameter } from './direct-validation.js
 export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
 
 // Option, context and registry types live in direct-types.ts
-import type { DirectCallContext, DirectClientOptions, DirectRegistry } from './direct-types.js';
+import type {
+	DirectCallContext,
+	DirectClientOptions,
+	DirectExecuteOptions,
+	DirectListToolsOptions,
+	DirectRegistry,
+} from './direct-types.js';
 
 export type {
 	DirectApprovalHook,
 	DirectApprovalRequest,
 	DirectCallContext,
 	DirectClientOptions,
+	DirectExecuteOptions,
+	DirectListToolsOptions,
 	DirectRegistry,
 } from './direct-types.js';
 
@@ -203,13 +212,19 @@ export class DirectClient {
 			}
 		}
 
+		// The active context is a registry call option, never a command-context value, so a
+		// handler cannot read or set it. Every attempt (the approval retry too) passes it.
+		const { activeContext, ...callContext } = context ?? {};
+		const executeOptions: DirectExecuteOptions | undefined =
+			activeContext === undefined ? undefined : { activeContext };
+
 		// Build command context. The call's actor, clock and random win over the client's.
 		// Clock and random are only set when configured, so a registry's own defaults
 		// (createDirectRegistry) still apply.
 		const actor = context?.actor ?? this.options.actor;
 		const commandContext: CommandContext = {
 			traceId,
-			...publicDirectContext(context ?? {}),
+			...publicDirectContext(callContext),
 			actor,
 		};
 		const clock = context?.clock ?? this.options.clock;
@@ -233,7 +248,7 @@ export class DirectClient {
 			});
 			return runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
 				if (signal) attemptContext.signal = signal;
-				return this.execute<T>(name, args, attemptContext);
+				return this.execute<T>(name, args, attemptContext, executeOptions);
 			});
 		};
 		try {
@@ -285,10 +300,13 @@ export class DirectClient {
 	private async execute<T>(
 		name: string,
 		args: Record<string, unknown> | undefined,
-		commandContext: CommandContext
+		commandContext: CommandContext,
+		executeOptions?: DirectExecuteOptions
 	): Promise<CommandResult<T>> {
 		let next: () => Promise<CommandResult> = () =>
-			this.registry.execute<T>(name, args, commandContext);
+			executeOptions
+				? this.registry.execute<T>(name, args, commandContext, executeOptions)
+				: this.registry.execute<T>(name, args, commandContext);
 		for (let i = this.options.middleware.length - 1; i >= 0; i--) {
 			const mw = this.options.middleware[i];
 			if (!mw) continue;
@@ -308,6 +326,28 @@ export class DirectClient {
 	 */
 	listCommands(): Array<{ name: string; description: string }> {
 		return this.registry.listCommands().filter((command) => this.isAllowed(command.name));
+	}
+
+	/**
+	 * List the MCP tools the registry offers (those the `allow` option permits), as an AFD server
+	 * with the same commands, contexts and strategy lists them: forwarded to `registry.listTools`,
+	 * which `createDirectRegistry(commands, { tools: createDirectToolSurface() })` provides.
+	 *
+	 * `allow` filters by tool name, as `call()` checks it, so the client never lists a tool it
+	 * would refuse to call. Allowing a meta-tool (`afd-call`, `afd-batch`, `afd-pipe`) or a grouped
+	 * tool lets the client reach, through it, every command the registry exposes.
+	 *
+	 * @param options - The strategy (default: the surface's) and the AFD context to list in
+	 * @throws TypeError when the registry cannot list tools; RangeError (from the registry) for
+	 *   an unknown context
+	 */
+	listTools(options?: DirectListToolsOptions): McpTool[] {
+		if (!this.registry.listTools) {
+			throw new TypeError(
+				"This client's registry cannot list tools: create it with createDirectRegistry(commands, { tools: createDirectToolSurface() }) from @lushly-dev/afd-server"
+			);
+		}
+		return this.registry.listTools(options).filter((tool) => this.isAllowed(tool.name));
 	}
 
 	/**

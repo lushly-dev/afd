@@ -3,7 +3,7 @@
  * that the tool router or a built-in command would shadow.
  */
 
-import { isMcpExposed } from '@lushly-dev/afd-core';
+import { type ExposeOptions, isExposedTo } from '@lushly-dev/afd-core';
 import { BOOTSTRAP_COMMAND_NAMES, CONTEXT_COMMAND_NAMES } from './bootstrap/registry.js';
 import { META_TOOL_NAMES } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -52,13 +52,17 @@ export function assertValidCommandNames(
  * (`spec/tool-strategies.md`, H1, H2 and H5). Every message names the offending entry or option.
  *
  * @param commands - Every registered command, built-ins included
+ * @param interface - The interface whose exposure a first-class command needs: `'mcp'` (the
+ *   default) for the MCP server, the registry's own for `createDirectToolSurface`
  */
 export function assertValidFirstClassTools(options: {
 	toolStrategy: ToolStrategy;
 	firstClassTools: readonly string[] | undefined;
 	commands: ReadonlyArray<Pick<ZodCommandDefinition, 'name' | 'expose'>>;
+	interface?: keyof ExposeOptions;
 }): void {
 	const { toolStrategy, firstClassTools, commands } = options;
+	const iface = options.interface ?? 'mcp';
 	if (toolStrategy !== 'hybrid') {
 		if (firstClassTools !== undefined) {
 			throw new Error(
@@ -109,9 +113,10 @@ export function assertValidFirstClassTools(options: {
 				`[AFD] firstClassTools entry ${shown} is not a registered command.${hint} Register it in commands, or remove it.`
 			);
 		}
-		if (!isMcpExposed(command)) {
+		if (!isExposedTo(command, iface)) {
+			const where = iface === 'mcp' ? 'over MCP' : `to ${iface}`;
 			throw new Error(
-				`[AFD] firstClassTools entry ${shown} is not exposed over MCP (expose.mcp is not true), so it cannot be listed. Expose it, or remove it.`
+				`[AFD] firstClassTools entry ${shown} is not exposed ${where} (expose.${iface} is not true), so it cannot be listed. Expose it, or remove it.`
 			);
 		}
 	});

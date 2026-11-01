@@ -55,6 +55,11 @@ export interface DirectClientOptions {
 	 * This narrows what the registry offers; it does not replace exposure
 	 * checks. Pair it with `createDirectRegistry()` from `@lushly-dev/afd-server`,
 	 * which validates input and honours `expose.agent`.
+	 *
+	 * With a registry tool surface, `allow` checks tool names too, and `listTools()` leaves out
+	 * the tools it refuses. A meta-tool (`afd-call`, `afd-batch`, `afd-pipe`) or a grouped tool
+	 * reaches every command the registry exposes, so allow one only when the client may call all
+	 * of them; keep a command from in-app agents with `expose: { agent: false }`.
 	 */
 	allow?: (commandName: string) => boolean;
 
@@ -151,9 +156,34 @@ export interface DirectCallContext {
 	random?: RandomSource;
 
 	/**
+	 * The AFD context this call runs in, one of the registry's `contexts`. It is passed to the
+	 * registry as the `activeContext` call option, beside the command context, so handlers never
+	 * see it; `pipe()` passes it with every step, and an approval retry runs in it too. A
+	 * `createDirectRegistry()` registry refuses an unknown name with `CONTEXT_NOT_FOUND` and a
+	 * command outside the context with `COMMAND_NOT_IN_CONTEXT`. A registry whose `execute` takes
+	 * no call options ignores it: contexts scope what an agent sees, they are not a security
+	 * boundary.
+	 */
+	activeContext?: string;
+
+	/**
 	 * Additional custom context values. `approval` is reserved and stripped at runtime.
 	 */
 	[key: string]: unknown;
+}
+
+/** Options of one registry call, passed beside the command context (`DirectRegistry.execute`). */
+export interface DirectExecuteOptions {
+	/** The AFD context the call runs in; see {@link DirectCallContext.activeContext}. */
+	activeContext?: string;
+}
+
+/** Options of `DirectRegistry.listTools` and `DirectClient.listTools`. */
+export interface DirectListToolsOptions {
+	/** The MCP tool strategy to list by. Default: the registry's tool surface's. */
+	strategy?: 'individual' | 'grouped' | 'lazy' | 'hybrid';
+	/** The AFD context to list in. Default: none. */
+	activeContext?: string;
 }
 
 /**
@@ -170,9 +200,16 @@ export interface DirectRegistry {
 	 * @param name - Command name
 	 * @param input - Command input
 	 * @param context - Optional command context for tracing/cancellation
+	 * @param options - Call options passed beside the context: the active AFD context. A registry
+	 *   that does not scope by context may ignore them
 	 * @returns Command result
 	 */
-	execute<T>(name: string, input?: unknown, context?: CommandContext): Promise<CommandResult<T>>;
+	execute<T>(
+		name: string,
+		input?: unknown,
+		context?: CommandContext,
+		options?: DirectExecuteOptions
+	): Promise<CommandResult<T>>;
 
 	/**
 	 * List available command names.
@@ -192,9 +229,16 @@ export interface DirectRegistry {
 	>;
 
 	/**
-	 * Check if a command exists.
+	 * Check if a command exists. A registry with a tool surface also answers `true` for the tool
+	 * names it routes (the meta-tools, and grouped tools under the grouped strategy).
 	 */
 	hasCommand(name: string): boolean;
+
+	/**
+	 * The MCP tools an AFD server with the same commands would list (optional).
+	 * `createDirectRegistry(commands, { tools: createDirectToolSurface() })` provides it.
+	 */
+	listTools?(options?: DirectListToolsOptions): McpTool[];
 
 	/**
 	 * Get command definition for validation (optional).

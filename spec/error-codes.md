@@ -89,6 +89,7 @@ can call that tool.
 | Implementation | Unknown-command suggestion ends with | `COMMAND_NOT_IN_CONTEXT` suggestion |
 | --- | --- | --- |
 | TypeScript server | "Use afd-discover to list all commands." (the router serves `afd-discover` in every tool strategy) | "Use afd-context-list to see available contexts, or afd-context-enter to switch." (the server registers both when it has contexts) |
+| TypeScript direct registry (`createDirectRegistry`) | As the TypeScript server with a tool surface (`tools: createDirectToolSurface()`), which serves `afd-discover`; otherwise "Check the command name against the available commands." | As the TypeScript server with a tool surface, which serves the context tools when the registry has contexts; otherwise as C++ |
 | TypeScript core registry | "Use 'afd tools' to see available commands" (the CLI) | Not emitted |
 | Rust registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands."; calls from the MCP server (`server` feature, which serves `afd-discover` in every strategy) end as TypeScript's | As TypeScript when the caller can call `afd-context-list`; otherwise as C++ |
 | C++ registry | As Rust | Names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
@@ -180,7 +181,7 @@ engines emitted without a constant; then the 2 confirmation codes and the approv
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
 | `SESSION_REQUIRED` | `afd-context-enter` or `afd-context-exit` was called over HTTP without an MCP session to hold the context | No | Router (context tools) |
-| `CONTEXT_NOT_FOUND` | `afd-context-enter` named a context the server does not configure | No | Router (context tools) |
+| `CONTEXT_NOT_FOUND` | `afd-context-enter` named a context the server does not configure, or an in-process call's active context (TypeScript `activeContext`) named one the registry does not configure | No | Router (context tools); server engine (`createDirectRegistry`) |
 | `CONTEXT_DEPTH_EXCEEDED` | The context stack is full (16 levels by default) | No | Router (context tools) |
 
 ### Batch and pipeline

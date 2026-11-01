@@ -5,27 +5,44 @@
  * `createMcpServer()`: Zod input validation, middleware, error sanitization and
  * `onCommand`/`onError` hooks. It only lists and runs the commands exposed to
  * one interface, `'agent'` by default.
+ *
+ * With `contexts`, each call names its active context in the `activeContext` call option, as an
+ * MCP 2026-07-28 request names it in `_meta["dev.afd/context"]`; the registry keeps no context
+ * state between calls. With `tools: createDirectToolSurface()`, it also lists and routes the MCP
+ * tool surface: the module-graph rule below keeps that surface out of a registry that does not
+ * ask for it.
+ *
+ * Module-graph rule: this module imports only types from the tool router, the tool list, the
+ * meta-tools and `bootstrap/`, so a registry built without `tools` does not bundle them.
+ * `entry-points.test.ts` holds it to that with a size budget.
  */
 
 import type {
 	Actor,
+	BatchRequest,
+	BatchResult,
 	Clock,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	PipelineRequest,
+	PipelineResult,
 	RandomSource,
 } from '@lushly-dev/afd-core';
-import { failure, isExposedTo as isCoreExposedTo } from '@lushly-dev/afd-core';
+import { failure, isExposedTo as isCoreExposedTo, truncateName } from '@lushly-dev/afd-core';
 import {
 	createDirectApprovalExchange,
 	directApprovalExchange,
 	publicDirectContext,
 } from '@lushly-dev/afd-core/internal/direct-approval';
 import { type ContextField, checkContextFields } from './context-fields.js';
+import { bindContextState, type ContextState, createContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
+import type { McpToolDefinition } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
+import type { ContextConfig, ToolStrategy } from './server-types.js';
 
 /** An interface a command can be exposed to (`palette`, `mcp`, `agent`, `cli`). */
 export type ExposeInterface = keyof ExposeOptions;
@@ -73,6 +90,82 @@ export interface DirectRegistryOptions {
 	 * required one fails the call with `VALIDATION_ERROR`.
 	 */
 	contextFields?: readonly ContextField[];
+
+	/**
+	 * The contexts commands can be scoped to, as for `createMcpServer`. A call names its context
+	 * in the `activeContext` option of {@link DirectCommandRegistry.execute}; a command whose
+	 * `contexts` leave it out fails with `COMMAND_NOT_IN_CONTEXT`. Without `activeContext` every
+	 * command is available, as on MCP with no context selected.
+	 */
+	contexts?: ContextConfig[];
+
+	/**
+	 * The MCP tool surface: pass `createDirectToolSurface()` to list tools with
+	 * {@link DirectCommandRegistry.listTools} and route the meta-tools, the context tools and,
+	 * with `bootstrap: true`, the bootstrap tools through `execute`, as an MCP server with the
+	 * same commands, contexts and strategy does. Without it, the registry runs only the commands
+	 * it is given, and does not load the tool router.
+	 */
+	tools?: DirectToolSurface;
+}
+
+/** Options of one {@link DirectCommandRegistry.execute} call, passed beside the command context. */
+export interface DirectExecuteOptions {
+	/**
+	 * The context the call runs in: one of the registry's `contexts`, as MCP 2026-07-28 names it
+	 * in `_meta["dev.afd/context"]`. It applies to this call only, including the commands it runs
+	 * through `afd-call`, `afd-batch` and `afd-pipe`; handlers cannot read or change it. An
+	 * unknown name fails with `CONTEXT_NOT_FOUND` before anything runs. Default: none, so every
+	 * command is available.
+	 */
+	activeContext?: string;
+}
+
+/** Options of {@link DirectCommandRegistry.listTools}. */
+export interface DirectListToolsOptions {
+	/** The strategy to list by. Default: the tool surface's. */
+	strategy?: ToolStrategy;
+	/** The context to list in, as for {@link DirectExecuteOptions.activeContext}. Default: none. */
+	activeContext?: string;
+}
+
+/**
+ * The MCP tool surface of a registry, from `createDirectToolSurface()`. Pass it as the `tools`
+ * option of {@link createDirectRegistry}; the registry calls `attach` once.
+ */
+export interface DirectToolSurface {
+	/** The strategy `listTools` uses by default, and that grouped tool calls route by. */
+	readonly strategy: ToolStrategy;
+	/** Connect the surface to one registry. Called by `createDirectRegistry`. */
+	attach(host: DirectToolHost): DirectToolBinding;
+}
+
+/** What {@link createDirectRegistry} gives its tool surface. */
+export interface DirectToolHost {
+	readonly interface: ExposeInterface;
+	readonly contexts: readonly ContextConfig[];
+	readonly contextFields: readonly ContextField[];
+	readonly devMode: boolean;
+	/** The registered commands, in order, before the surface adds its own. */
+	readonly commands: readonly ZodCommandDefinition[];
+	/** Whether a command is exposed to the registry's interface. */
+	isExposed(command: Pick<ZodCommandDefinition, 'expose'>): boolean;
+	/** The registry's engine, which the router runs commands through. */
+	executeCommand(name: string, input: unknown, context?: CommandContext): Promise<CommandResult>;
+	executeBatch(request: BatchRequest, context?: CommandContext): Promise<BatchResult>;
+	executePipeline(request: PipelineRequest, context?: CommandContext): Promise<PipelineResult>;
+}
+
+/** A tool surface attached to one registry. */
+export interface DirectToolBinding {
+	/** The commands the surface registers: the context tools, then the bootstrap tools. */
+	readonly commands: readonly ZodCommandDefinition[];
+	/** Whether `name` is a tool the router handles that is not a command (a meta-tool or group). */
+	routes(name: string): boolean;
+	/** Route one tool call; the result is the JSON an MCP client reads. */
+	callTool(name: string, input: unknown, context: CommandContext): Promise<unknown>;
+	/** The tool list of an MCP server with the same commands, contexts and strategy. */
+	listTools(strategy: ToolStrategy | undefined, activeContext: string | null): McpToolDefinition[];
 }
 
 /**
@@ -104,18 +197,45 @@ export interface DirectCommandRegistry {
 	/**
 	 * Validate the input with the command's Zod schema, then run the command
 	 * through the middleware. Returns `COMMAND_NOT_FOUND` for unknown names,
-	 * `COMMAND_NOT_EXPOSED` for commands not exposed to this interface and
-	 * `VALIDATION_ERROR` for invalid input; the handler does not run for any of them.
+	 * `COMMAND_NOT_EXPOSED` for commands not exposed to this interface,
+	 * `CONTEXT_NOT_FOUND` for an unknown `activeContext`, `COMMAND_NOT_IN_CONTEXT` for a
+	 * command outside it, and `VALIDATION_ERROR` for invalid input; the handler does not run
+	 * for any of them.
+	 *
+	 * With a tool surface, a meta-tool name (`afd-call`, `afd-batch`, `afd-pipe`,
+	 * `afd-discover`, `afd-detail`), or a grouped tool name when the surface's strategy is
+	 * `grouped`, runs through the MCP server's tool router, and the result is the JSON an MCP
+	 * client reads: `afd-batch` gives a `BatchResult` and `afd-pipe` a `PipelineResult`.
 	 */
-	execute<T>(name: string, input?: unknown, context?: CommandContext): Promise<CommandResult<T>>;
+	execute<T>(
+		name: string,
+		input?: unknown,
+		context?: CommandContext,
+		options?: DirectExecuteOptions
+	): Promise<CommandResult<T>>;
 
-	/** Names of the commands exposed to this interface. */
+	/**
+	 * The tools an MCP server with the same commands, contexts and strategy lists, from the
+	 * server's own tool list. Needs a tool surface (`tools: createDirectToolSurface()`).
+	 *
+	 * @throws TypeError without a tool surface; RangeError for an unknown `activeContext`, as
+	 *   MCP answers `tools/list` with an invalid-params error
+	 */
+	listTools(options?: DirectListToolsOptions): McpToolDefinition[];
+
+	/**
+	 * Names of the commands exposed to this interface, the tool surface's context and bootstrap
+	 * tools included.
+	 */
 	listCommandNames(): string[];
 
 	/** Commands exposed to this interface, with their input schemas. */
 	listCommands(): DirectRegistryCommand[];
 
-	/** Whether a command is registered and exposed to this interface. */
+	/**
+	 * Whether `execute` runs `name`: a command registered and exposed to this interface or, with
+	 * a tool surface, a tool name its router handles (a meta-tool, or a grouped tool).
+	 */
 	hasCommand(name: string): boolean;
 }
 
@@ -132,6 +252,18 @@ export function isExposedTo(
 	return isCoreExposedTo(command, iface);
 }
 
+/** The message and suggestion for an active context the registry does not configure. */
+function unknownContext(name: unknown, contexts: readonly ContextConfig[]) {
+	const names = contexts.map((context) => context.name);
+	return {
+		message: `Context '${truncateName(String(name))}' is not configured`,
+		suggestion:
+			names.length > 0
+				? `Use one of: ${names.join(', ')}`
+				: 'This registry configures no contexts: pass contexts to createDirectRegistry, or leave activeContext unset',
+	};
+}
+
 /**
  * Create a validating in-process registry for `DirectClient`.
  *
@@ -142,8 +274,9 @@ export function isExposedTo(
  * that are not exposed to the chosen interface.
  *
  * @param commands - Commands created with `defineCommand()`
- * @param options - Interface, middleware and hooks
- * @throws If two commands share a name
+ * @param options - Interface, middleware, hooks, contexts and the tool surface
+ * @throws If two commands share a name; with a tool surface, also for a reserved name or an
+ *   invalid `firstClassTools`, as `createMcpServer` does
  *
  * @example
  * ```typescript
@@ -164,27 +297,60 @@ export function createDirectRegistry(
 	options: DirectRegistryOptions = {}
 ): DirectCommandRegistry {
 	const iface = options.interface ?? 'agent';
+	const contexts = [...(options.contexts ?? [])];
+	const contextNames = new Set(contexts.map((context) => context.name));
+	const contextFields = checkContextFields(options.contextFields);
+	const devMode = options.devMode ?? false;
 
 	const registered = new Map<string, ZodCommandDefinition>();
-	for (const command of commands) {
+	const register = (command: ZodCommandDefinition) => {
 		if (registered.has(command.name)) {
 			throw new Error(`Duplicate command name: ${command.name}`);
 		}
 		registered.set(command.name, command);
-	}
+	};
+	for (const command of commands) register(command);
+
+	// The surface checks the names, adds its context and bootstrap tools, and routes tool calls
+	// back into this registry's engine.
+	const tools = options.tools?.attach({
+		interface: iface,
+		contexts,
+		contextFields,
+		devMode,
+		commands: [...registered.values()],
+		isExposed: (command) => isExposedTo(command, iface),
+		executeCommand: (name, input, context) => engine.executeCommand(name, input, context),
+		executeBatch: (request, context) => engine.executeBatch(request, context),
+		executePipeline: (request, context) => engine.executePipeline(request, context),
+	});
+	for (const command of tools?.commands ?? []) register(command);
 
 	const exposed = new Map([...registered].filter(([, command]) => isExposedTo(command, iface)));
-	const contextFields = checkContextFields(options.contextFields);
 
 	const engine = createExecutionEngine({
 		commandMap: exposed,
 		middleware: options.middleware ?? [],
-		devMode: options.devMode ?? false,
+		devMode,
 		onCommand: options.onCommand,
 		onError: options.onError,
 		contextDefaults: { clock: options.clock, random: options.random, actor: options.actor },
 		contextFields,
+		// Refusals name afd-discover and the context tools only where the surface serves them.
+		suggestTools: tools !== undefined,
 	});
+
+	/**
+	 * The context state of one call, as the MCP 2026-07-28 lane builds one per request: nothing
+	 * persists, and the context tools only validate. Without contexts the state is `null`, which
+	 * also drops any state a caller's context carried in from another surface.
+	 */
+	function callContextState(activeContext: string | undefined): ContextState | null {
+		if (contexts.length === 0) return null;
+		const state = createContextState({ persistent: false });
+		if (activeContext !== undefined) state.enter(activeContext);
+		return state;
+	}
 
 	return {
 		interface: iface,
@@ -193,8 +359,17 @@ export function createDirectRegistry(
 		async execute<T>(
 			name: string,
 			input: unknown = {},
-			context: CommandContext = {}
+			context: CommandContext = {},
+			callOptions: DirectExecuteOptions = {}
 		): Promise<CommandResult<T>> {
+			const { activeContext } = callOptions;
+			if (activeContext !== undefined && !contextNames.has(activeContext)) {
+				return failure({
+					code: 'CONTEXT_NOT_FOUND',
+					...unknownContext(activeContext, contexts),
+					retryable: false,
+				});
+			}
 			if (!exposed.has(name) && registered.has(name)) {
 				const available = [...exposed.keys()];
 				return failure({
@@ -211,17 +386,33 @@ export function createDirectRegistry(
 			const supplied = directApprovalExchange(context);
 			const exchange = supplied ?? createDirectApprovalExchange();
 			try {
-				return (await engine.executeCommand(
-					name,
-					input,
-					exchange.bind({
-						...publicDirectContext(context),
-						interface: iface,
-					})
-				)) as CommandResult<T>;
+				const scoped = exchange.bind(
+					bindContextState(
+						{ ...publicDirectContext(context), interface: iface },
+						callContextState(activeContext)
+					)
+				);
+				if (tools && !exposed.has(name) && tools.routes(name)) {
+					return (await tools.callTool(name, input, scoped)) as CommandResult<T>;
+				}
+				return (await engine.executeCommand(name, input, scoped)) as CommandResult<T>;
 			} finally {
 				if (!supplied) exchange.dispose();
 			}
+		},
+
+		listTools(listOptions: DirectListToolsOptions = {}): McpToolDefinition[] {
+			if (!tools) {
+				throw new TypeError(
+					'This registry has no tool surface: create it with createDirectRegistry(commands, { tools: createDirectToolSurface() }) to list tools'
+				);
+			}
+			const { activeContext } = listOptions;
+			if (activeContext !== undefined && !contextNames.has(activeContext)) {
+				const { message, suggestion } = unknownContext(activeContext, contexts);
+				throw new RangeError(`${message}. ${suggestion}`);
+			}
+			return tools.listTools(listOptions.strategy, activeContext ?? null);
 		},
 
 		listCommandNames(): string[] {
@@ -241,7 +432,7 @@ export function createDirectRegistry(
 		},
 
 		hasCommand(name: string): boolean {
-			return exposed.has(name);
+			return exposed.has(name) || (tools?.routes(name) ?? false);
 		},
 	};
 }

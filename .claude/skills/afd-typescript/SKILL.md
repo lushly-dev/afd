@@ -42,7 +42,11 @@ import {
 
 // Browser, web worker or webview: no MCP SDK, no Node.js builtins
 import { defineCommand } from '@lushly-dev/afd-server/define';
-import { createDirectRegistry, createJournalMiddleware } from '@lushly-dev/afd-server/direct';
+import {
+  createDirectRegistry,
+  createDirectToolSurface, // the MCP tool surface, only when asked for
+  createJournalMiddleware,
+} from '@lushly-dev/afd-server/direct';
 
 // Schema validation
 import { z } from 'zod';
@@ -402,6 +406,16 @@ const server = createMcpServer({
   ],
 });
 ```
+
+In process, `createDirectRegistry(commands, { contexts })` takes the same definitions; each call
+names its context in a call option, never registry state:
+`registry.execute(name, input, context, { activeContext: 'editing' })` (DirectClient: `call(name,
+args, { activeContext })`). An unknown name is `CONTEXT_NOT_FOUND`, a command outside it
+`COMMAND_NOT_IN_CONTEXT`. Add `tools: createDirectToolSurface({ strategy, firstClassTools?,
+bootstrap? })` for `registry.listTools({ strategy?, activeContext? })` (the server's own list),
+the meta-tools and the context tools, which answer `persisted: false` as on the stateless
+2026-07-28 lane. The surface uses the registry's `interface` exposure where the server uses
+`expose.mcp`; without it, the router is not bundled and `listTools` throws a `TypeError`.
 
 ### With Confirmations
 
