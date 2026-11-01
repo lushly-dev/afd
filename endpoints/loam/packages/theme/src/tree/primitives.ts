@@ -17,7 +17,7 @@ const COLORS: Record<string, string> = {
 	// Light text.
 	'ink.900': '#18181b',
 	'ink.700': '#414651',
-	'ink.500': '#666c7a',
+	'ink.500': '#616775',
 	// Dark surfaces and secondary actions.
 	'night.950': '#161713',
 	'night.900': '#1D1F1B',

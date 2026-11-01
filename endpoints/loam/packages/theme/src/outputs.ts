@@ -28,10 +28,14 @@ export interface Contract {
 	tokens: Record<string, ContractEntry>;
 }
 
-/** `@lushly-dev/violet-runtime`'s token shape, with the resolved value. */
+/**
+ * `@lushly-dev/violet-runtime`'s token shape: the resolved value, and the node that set the
+ * token's own value (an alias keeps its node when its target changes).
+ */
 export interface Token {
 	id: string;
 	value: string;
+	resolvedAt: string;
 }
 
 /** A broken reference, which no output may contain. */
@@ -44,6 +48,8 @@ export interface BrokenReference {
 export interface ResolvedTree {
 	/** Per node, every exported token (no `ref.*`) by id, in id order. */
 	nodes: Map<string, Map<string, string>>;
+	/** Per node, the node that set each token's value. */
+	origins: Map<string, Map<string, string>>;
 	brokenReferences: BrokenReference[];
 }
 
@@ -55,6 +61,7 @@ const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 export async function resolveTree(): Promise<ResolvedTree> {
 	const tree = await buildLoamTree();
 	const nodes = new Map<string, Map<string, string>>();
+	const origins = new Map<string, Map<string, string>>();
 	const brokenReferences: BrokenReference[] = [];
 	for (const nodeId of NODE_IDS) {
 		const tokens = await tree.resolve(nodeId);
@@ -65,8 +72,9 @@ export async function resolveTree(): Promise<ResolvedTree> {
 			.filter((token) => !isPrimitive(token.id))
 			.sort((a, b) => byId(a.id, b.id));
 		nodes.set(nodeId, new Map(exported.map((token) => [token.id, String(token.resolvedValue)])));
+		origins.set(nodeId, new Map(exported.map((token) => [token.id, token.resolvedAt])));
 	}
-	return { nodes, brokenReferences };
+	return { nodes, origins, brokenReferences };
 }
 
 const node = (resolved: ResolvedTree, nodeId: string): Map<string, string> => {
@@ -125,7 +133,11 @@ export function renderThemeJson(resolved: ResolvedTree): {
 } {
 	const nodes: Record<string, Token[]> = {};
 	for (const nodeId of NODE_IDS)
-		nodes[nodeId] = [...node(resolved, nodeId)].map(([id, value]) => ({ id, value }));
+		nodes[nodeId] = [...node(resolved, nodeId)].map(([id, value]) => ({
+			id,
+			value,
+			resolvedAt: resolved.origins.get(nodeId)?.get(id) ?? nodeId,
+		}));
 	return { contractVersion: CONTRACT_VERSION, nodes };
 }
 

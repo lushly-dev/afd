@@ -48,10 +48,15 @@ const NAMED_COLORS = new Set(
 	wheat white whitesmoke yellow yellowgreen`.split(/\s+/)
 );
 
+// The current system colors and the deprecated ones, less `Background`, which as a value is far
+// more often the property name (`transition-property: background`).
 const SYSTEM_COLORS = new Set(
 	`accentcolor accentcolortext activetext buttonborder buttonface buttontext canvas canvastext field
 	fieldtext graytext highlight highlighttext linktext mark marktext selecteditem selecteditemtext
-	visitedtext`.split(/\s+/)
+	visitedtext activeborder activecaption appworkspace buttonhighlight buttonshadow captiontext
+	inactiveborder inactivecaption inactivecaptiontext infobackground infotext menu menutext
+	scrollbar threeddarkshadow threedface threedhighlight threedlightshadow threedshadow window
+	windowframe windowtext`.split(/\s+/)
 );
 
 const COLOR_FUNCTION = /(?<![\w-])(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/gi;
@@ -59,7 +64,7 @@ const HEX = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![\w-])/gi;
 const IDENT = /(?<![\w-])[a-z]+(?![\w(-])/gi;
 const LENGTH =
 	/(?<![\w.#-])[-+]?(\d*\.\d+|\d+)(rcap|ric|rch|rex|rlh|rem|cap|px|em|pt|pc|in|cm|mm|ex|ch|ic|lh|q)(?![\w-])/gi;
-const VAR = /var\(\s*(--[\w-]+)/g;
+const VAR = /var\(\s*(--[\w-]+)/gi;
 const CUSTOM_NAME = /--[\w-]+/g;
 
 /** Same-length replacement, so offsets (and lines) still point into the original text. */
@@ -67,13 +72,31 @@ const blank = (text) => text.replace(/[^\n]/g, ' ');
 
 /** Comments, strings and `url()` contents blanked; what is left is CSS syntax. */
 function maskCss(css) {
-	return css
-		.replace(/\/\*[\s\S]*?\*\//g, blank)
-		.replace(
-			/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g,
-			(match) => match[0] + blank(match.slice(1, -1)) + match[0]
-		)
-		.replace(/url\(([^)]*)\)/gi, (_match, inner) => `url(${blank(inner)})`);
+	let masked = '';
+	let index = 0;
+	while (index < css.length) {
+		const char = css[index];
+		if (css.startsWith('/*', index)) {
+			const close = css.indexOf('*/', index + 2);
+			const end = close === -1 ? css.length : close + 2;
+			masked += blank(css.slice(index, end));
+			index = end;
+		} else if (char === '"' || char === "'") {
+			let end = index + 1;
+			while (end < css.length && css[end] !== char && css[end] !== '\n')
+				end += css[end] === '\\' ? 2 : 1;
+			masked += char + blank(css.slice(index + 1, end));
+			index = end;
+			if (css[index] === char) {
+				masked += char;
+				index++;
+			}
+		} else {
+			masked += char;
+			index++;
+		}
+	}
+	return masked.replace(/url\(([^)]*)\)/gi, (_match, inner) => `url(${blank(inner)})`);
 }
 
 /**
@@ -125,8 +148,9 @@ function interpolationEnd(source, index) {
 }
 
 /**
- * Every declaration of a stylesheet, its value masked, with the value's offset and whether it is inside
- * `@media (forced-colors: active)`.
+ * Every declaration of a stylesheet, its value masked, with the offsets of its property and value
+ * and whether it is inside `@media (forced-colors: active)`. Declarations outside any block count
+ * too, as in a `css.partial` fragment.
  */
 function declarations(css) {
 	const masked = maskCss(css);
@@ -137,10 +161,11 @@ function declarations(css) {
 	const take = (end) => {
 		const text = masked.slice(segmentStart, end);
 		const colon = text.indexOf(':');
-		if (stack.length > 0 && colon > 0 && !text.trim().startsWith('@')) {
+		if (colon > 0 && !text.trim().startsWith('@')) {
 			const property = text.slice(0, colon).trim();
 			found.push({
 				property,
+				propertyOffset: segmentStart + text.indexOf(property),
 				masked: text.slice(colon + 1),
 				offset: segmentStart + colon + 1,
 				forcedColors: stack.some((entry) => entry.forcedColors),
@@ -155,7 +180,10 @@ function declarations(css) {
 		else if (char === '{') {
 			const prelude = masked.slice(segmentStart, index).trim();
 			stack.push({
-				forcedColors: /^@media\b/i.test(prelude) && /forced-colors\s*:\s*active/i.test(prelude),
+				forcedColors:
+					/^@media\b/i.test(prelude) &&
+					/forced-colors\s*:\s*active/i.test(prelude) &&
+					!/\bnot\b/i.test(prelude),
 			});
 			segmentStart = index + 1;
 		} else if (char === ';' || char === '}') {
@@ -164,6 +192,7 @@ function declarations(css) {
 			segmentStart = index + 1;
 		}
 	}
+	take(masked.length);
 	return found;
 }
 
@@ -193,11 +222,21 @@ export function lintStylesheet(css, { properties, allowShell, stateProperties = 
 			else if (name.startsWith('--shell-') && !allowShell)
 				report('shell-token', index, `${name} is a shell token, read only by ${CHROME_PACKAGE}`);
 		}
-		if (declaration.property.startsWith('--_'))
-			aliases.set(
-				declaration.property,
-				references.map((reference) => reference.name)
+		const { property, propertyOffset } = declaration;
+		if (property.startsWith('--ref-'))
+			report('primitive', propertyOffset, `${property} is a primitive; no component may set it`);
+		else if (property.startsWith('--shell-') && !allowShell)
+			report(
+				'shell-token',
+				propertyOffset,
+				`${property} is a shell token, set only by ${CHROME_PACKAGE}`
 			);
+		// An alias declared more than once is sound when any of its declarations is.
+		if (property.startsWith('--_'))
+			aliases.set(property, [
+				...(aliases.get(property) ?? []),
+				...references.map((reference) => reference.name),
+			]);
 
 		const scan = masked.replace(CUSTOM_NAME, blank);
 		for (const match of scan.matchAll(HEX))
@@ -307,6 +346,10 @@ export function main(patterns, cwd = process.cwd()) {
 			)
 		),
 	].sort();
+	if (files.length === 0) {
+		console.error(`loam-lint-tokens: no file matches ${patterns.join(' ')} in ${cwd}`);
+		return 2;
+	}
 	let count = 0;
 	for (const file of files) {
 		if (!file.endsWith('.css') && !file.endsWith('.ts')) continue;

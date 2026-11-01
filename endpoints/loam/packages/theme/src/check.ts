@@ -2,7 +2,8 @@
  * `theme:check` (2.1, 2.3): rebuild the outputs in memory and compare them with the committed
  * files and the kernel. `dist/` is build output and never compared.
  *
- * - `contract/tokens.json` must equal the contract the tree gives, id for id.
+ * - `contract/tokens.json` must equal the contract the tree gives, id for id, and every node
+ *   must resolve to exactly the contract's ids.
  * - No token may have a broken reference.
  * - The shell size defaults must equal the kernel's `LAYOUT_DEFAULTS_V0` (5.2). Until step 5 of
  *   the phase 0 specification adds that constant, the comparison is skipped with a note.
@@ -74,6 +75,22 @@ export function compareLayoutDefaults(resolved: ResolvedTree, defaults: unknown)
 	return errors;
 }
 
+/**
+ * Every id a theme or density node has that the contract lacks, or the reverse. Violet treats
+ * an `override` of an id no ancestor has as an `add`, so a misspelt override shows up here.
+ */
+export function compareNodeIds(resolved: ResolvedTree, contract: Contract): string[] {
+	const errors: string[] = [];
+	for (const [nodeId, tokens] of resolved.nodes) {
+		for (const id of tokens.keys())
+			if (!(id in contract.tokens))
+				errors.push(`'${id}' is in ${nodeId} but not in the contract; is an override misspelt?`);
+		for (const id of Object.keys(contract.tokens))
+			if (!tokens.has(id)) errors.push(`'${id}' is in the contract but not in ${nodeId}`);
+	}
+	return errors;
+}
+
 /** The kernel's constant, or undefined while the kernel does not export it yet. */
 async function kernelLayoutDefaults(): Promise<unknown> {
 	const kernel: Record<string, unknown> = await import('@lushly-dev/loam-kernel');
@@ -93,6 +110,7 @@ export async function checkTheme(contractPath: URL, outputs?: ThemeOutputs): Pro
 	} catch (error) {
 		errors.push(`contract/tokens.json cannot be read: ${(error as Error).message}`);
 	}
+	errors.push(...compareNodeIds(built.resolved, built.contract));
 	if (committed !== undefined) {
 		errors.push(...compareContract(committed, built.contract));
 		if (

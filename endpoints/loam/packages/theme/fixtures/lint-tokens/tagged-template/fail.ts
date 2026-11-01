@@ -10,3 +10,5 @@ export const styles = css`
 	}
 	${css`:host { gap: 4px; }`}
 `;
+
+export const fragment = css.partial`color: red; padding: 12px;`;

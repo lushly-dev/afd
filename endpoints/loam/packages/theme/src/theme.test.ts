@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkTheme, compareContract, compareLayoutDefaults } from './check.js';
+import { checkTheme, compareContract, compareLayoutDefaults, compareNodeIds } from './check.js';
 import { contrastRatio, parseColor } from './contrast.js';
 import { buildOutputs, cssProperty, type ResolvedTree, renderContract } from './outputs.js';
 import { CONTRAST_FLOORS, CONTRAST_PAIRS } from './pairs.js';
@@ -36,7 +36,7 @@ const px = (text: string) => {
 };
 
 describe("Loam's Violet tree", () => {
-	it('has the eight nodes of 2.2 and no broken reference', () => {
+	it('has the seven nodes of 2.2 and no broken reference', () => {
 		expect(NODE_IDS).toEqual([
 			'loam',
 			'loam/light',
@@ -80,7 +80,7 @@ describe("Loam's Violet tree", () => {
 		expect(value(light, 'color.field.border.focus')).toBe('rgba(24, 24, 27, 0.5)');
 		expect(value(light, 'type.title.md.weight')).toBe('600');
 		expect(value(light, 'space.layout.md')).toBe('24px');
-		expect(value(light, 'color.text.muted')).toBe('#666c7a');
+		expect(value(light, 'color.text.muted')).toBe('#616775');
 		expect(value(light, 'color.border.strong')).toBe('rgba(28, 26, 13, 0.48)');
 		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#161713');
 		expect(value(themeNode('dark'), 'color.border.strong')).toBe('rgba(255, 248, 235, 0.37)');
@@ -195,7 +195,13 @@ describe('exports', () => {
 		expect(json.contractVersion).toBe(1);
 		expect(Object.keys(json.nodes)).toEqual(NODE_IDS);
 		const dark = json.nodes['loam/dark'] as { id: string; value: string }[];
-		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#F5EFE3' });
+		expect(dark).toContainEqual({
+			id: 'color.action.secondary.text',
+			value: '#F5EFE3',
+			resolvedAt: 'loam/dark',
+		});
+		const contrast = json.nodes['loam/high-contrast'] as { id: string; resolvedAt: string }[];
+		expect(contrast.find((token) => token.id === 'color.field.text')?.resolvedAt).toBe('loam');
 		expect(dark.some((token) => token.id.startsWith('ref.'))).toBe(false);
 		expect(outputs.files['contract.json']).toBe(readFileSync(contractUrl, 'utf8'));
 	});
@@ -231,6 +237,20 @@ describe('theme:check', () => {
 		retyped.tokens['radius.sm'] = { property: '--radius-sm', type: 'number', kind: 'component' };
 		expect(compareContract(retyped, built)).toHaveLength(1);
 		expect(compareContract([], built)).toHaveLength(1);
+	});
+
+	it('fails when a node has an id the contract lacks, as a misspelt override would', () => {
+		const built = renderContract(resolved);
+		expect(compareNodeIds(resolved, built)).toEqual([]);
+		const dark = new Map(tokens(themeNode('dark')));
+		dark.set('color.surface.pagee', '#161713');
+		const misspelt: ResolvedTree = {
+			...resolved,
+			nodes: new Map([...resolved.nodes, [themeNode('dark'), dark]]),
+		};
+		expect(compareNodeIds(misspelt, built)).toEqual([
+			"'color.surface.pagee' is in loam/dark but not in the contract; is an override misspelt?",
+		]);
 	});
 
 	it('compares the shell sizes with LAYOUT_DEFAULTS_V0 of 5.2', () => {

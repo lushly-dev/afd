@@ -16,6 +16,8 @@
   ([#628](https://github.com/lushly-dev/afd/pull/628)) amended
   [section 4](#4-specimen-with-high-contrast-d53), because the bench now
   emulates media in its native host rather than through Playwright.
+  Step 2 recorded its decisions in sections 2.1, 2.2, 2.3 and 2.7, each
+  under "Decided by step 2".
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -316,16 +318,21 @@ Decided by step 2 (2026-11-01):
 - **Two version 1 values differ from today's.** Today's values miss the
   floors in two places, so version 1 raises them, and step 3's fallback
   scan carries them into the components:
-  - `color.text.muted` in light, `#6b7280` to `#666c7a`: 4.19:1 on
-    `color.surface.subtle` (and on the read-only field) becomes 4.56:1;
+  - `color.text.muted` in light, `#6b7280` to `#616775`: 4.19:1 on
+    `color.surface.subtle` (and on the read-only field) becomes 4.91:1, and
+    4.24:1 on `color.surface.selected` (muted cells of selected rows) becomes
+    4.56:1;
   - `color.border.strong`, the boundary of checkboxes, radios, switches and
     sliders, from `rgba(28, 26, 13, 0.35)` to `0.48` in light and from
     `rgba(255, 248, 235, 0.26)` to `0.37` in dark: 2.2:1 becomes 3:1 or more
     on every surface.
+
+  The aliases of the two follow them: `color.field.placeholder`,
+  `color.field.border.hover` and `shell.color.handle.hover`.
 - **The pairs** are listed in `theme/src/pairs.ts`; step 4's design document
   adopts them. In every theme:
-  - text: primary and secondary text on the five surfaces, muted text on all
-    but `selected`, each action's text on its background, hover and pressed
+  - text: primary, secondary and muted text on the five surfaces, each
+    action's text on its background, hover and pressed
     colors, state text on its background and on page and card, the selected
     control's foreground on its background, and field text and placeholder
     on both field backgrounds;
@@ -366,13 +373,17 @@ rebuilds the outputs in memory and compares the committed files
 (`contract/tokens.json` and the component token export of 2.4); `dist/` is
 build output and is never compared.
 
-Decided by step 2 (2026-11-01): the compact block is one rule per theme,
+Decided by step 2 (2026-11-01): `loam-theme.json`'s tokens also carry
+`resolvedAt`, the node that set the token's own value, because the runtime's
+`Token` requires it. The compact block is one rule per theme,
 `[data-loam-theme="<theme>"][data-loam-density="compact"]`, each holding the
 compact node's diff against its theme. Properties are in id order. The three
 files are also the package's `./loam-theme.css`, `./loam-theme.json` and
 `./contract.json` exports, and `build` writes them after `tsc`, so the
-workspace build produces them. `theme:check` compares the component token
-export from step 3, which adds `theme:export-components` with the file.
+workspace build produces them. `theme:check` also fails when any node
+resolves to an id the contract lacks, because Violet takes an override of an
+unknown id as an add. It compares the component token export from step 3,
+which adds `theme:export-components` with the file.
 
 ### 2.4 The shared components onto Violet themes (D50, revising D28)
 
@@ -520,13 +531,22 @@ Decided by step 2 (2026-11-01):
   manifest lists the three of section 7, and step 7's test checks that its
   `STATE_PROPERTIES` constant equals that list.
 - **A private alias** is sound when declared from a contract id, from a state
-  property, or from another sound alias; outside the chrome, an alias of a
-  shell id is not sound.
+  property, or from another sound alias; declared more than once, it is sound
+  when any declaration is. Outside the chrome, an alias of a shell id is not
+  sound.
+- **Setting is reading.** Declaring a `--ref-*` property fails as a primitive,
+  and declaring a `--shell-*` property outside the chrome as a shell token.
+- **Fragments.** Declarations outside any block, as in `css.partial`, are
+  linted too.
 - **What it does not check:** selectors and at-rule preludes, string and
   `url()` contents, and the values of `${…}` interpolations, which are
   blanked. A `css` template nested in an interpolation is linted on its own.
 - **Lengths:** zero in any unit and `±1px` pass. Time, angle and resolution
   units are not lengths.
+- **System colors** include the deprecated ones except `Background`, which as
+  a value is usually the property name; `@media not (forced-colors: active)`
+  does not count as forced colors.
+- **Globs** that match no file fail, so a mistyped glob cannot pass.
 - **The corpus** is `theme/fixtures/lint-tokens/`, which the root Biome
   configuration skips.
 

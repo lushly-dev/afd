@@ -4,7 +4,13 @@
  * built with `@lushly-dev/violet-core` at build time. Browsers read the built files,
  * `dist/loam-theme.css` and `dist/loam-theme.json`, through this package's subpaths.
  */
-export { type CheckReport, checkTheme, compareContract, compareLayoutDefaults } from './check.js';
+export {
+	type CheckReport,
+	checkTheme,
+	compareContract,
+	compareLayoutDefaults,
+	compareNodeIds,
+} from './check.js';
 export { composite, contrastRatio, parseColor, type Rgba } from './contrast.js';
 export {
 	type BrokenReference,

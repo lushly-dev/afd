@@ -55,8 +55,7 @@ const HIGH_CONTRAST = ['high-contrast'] as const;
 
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	// Text on surfaces.
-	...on(['color.text.primary', 'color.text.secondary'], SURFACES, 'text'),
-	...on(['color.text.muted'], OPEN_SURFACES, 'text'),
+	...on(['color.text.primary', 'color.text.secondary', 'color.text.muted'], SURFACES, 'text'),
 	// Action text on action backgrounds, in every state.
 	...['primary', 'secondary', 'danger'].flatMap((name) =>
 		on([`color.action.${name}.text`], action(name), 'text')
