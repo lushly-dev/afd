@@ -2,7 +2,7 @@
 
 Status: recorded on 2026-11-01 from one verdict session, session 6. The incumbent and the candidate ran on one quiet host and one frozen snapshot per consumer, both on the incumbent's own headless Chromium, with the same recorded fonts. Every build and load budget passes.
 
-Against the [baseline policy](../../../../foundations/specimen/experiments/inputs/baseline-policy.json), Specimen passes active peak memory and both latency guardrails as the policy defines them. It also passes CPU per verified case for Lushly. It **fails CPU per verified case for FAST-AF and post-close footprint for both consumers**, in its in-process default and in its isolated worker. Workstream 0's exit therefore does not pass as declared. The proposal's response is either to revise the architecture or limits, or to keep the existing harness. That needs the owner's [decision](#decision-needed).
+Against the [baseline policy](../../../../foundations/specimen/experiments/inputs/baseline-policy.json), Specimen passes active peak memory and both latency guardrails, as the policy defines them. It also passes CPU per verified case for Lushly, when every successful render counts as a case. It **fails CPU per verified case for FAST-AF and post-close footprint for both consumers**, in its in-process default and in its isolated worker. Workstream 0's exit therefore does not pass as declared. The proposal's response is either to revise the architecture or limits, or to keep the existing harness. That needs the owner's [decision](#decision-needed).
 
 ## Conditions
 
@@ -18,7 +18,7 @@ Against the [baseline policy](../../../../foundations/specimen/experiments/input
 
 ## What each side ran
 
-Per consumer, `run-resources.mjs` ran a nested ABBA of six jobs: incumbent, in-process candidate, isolated candidate, isolated candidate, in-process candidate, incumbent. Each job took the policy's five cold and five warm samples.
+Per consumer, the pair driver `run-t04-pairs.mjs` ran a nested ABBA of six jobs, each under `run-resources.mjs`: incumbent, in-process candidate, isolated candidate, isolated candidate, in-process candidate, incumbent. Each job took the policy's five cold and five warm samples.
 
 | | Incumbent | Candidate |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Per consumer, `run-resources.mjs` ran a nested ABBA of six jobs: incumbent, in-p
 | Warm sample | An immediate rerun of the selection | A render in the bench primed by the asserted captures |
 | Verified cases per job | Every passing story test: 190 for FAST-AF, 80 for Lushly | Every successful render: 20 and 18. Only 9 and 7 of these are asserted captures; the rest check for console errors |
 | Checks that add work | Storybook rendering, plays with Testing Library input, axe on every story (`a11y.test: 'error'`), Vitest's reporter | Structured DOM, ARIA, layout, style and live-state capture, with Playwright input; no plays, no axe |
-| Outside the job | Nothing | Copying the wrapper project (done by the driver) |
+| Outside the job | The snapshot readback (done by the driver) | Copying the wrapper project and the snapshot readback (done by the driver) |
 
 The two sides do different checks. The incumbent spreads each process start across its whole selection, while each candidate cold sample is a process start for one case. Every story and every case passed in every sample.
 
@@ -54,8 +54,12 @@ Repetitions agree within 1% on CPU and 7% on peak footprint, inside the policy's
 
 **What the verdicts depend on.** Two definitions decide the pass/fail picture:
 
-- **Latency is per sample, as the policy defines it.** An incumbent sample is a run of 8 or 19 stories, and a candidate sample is one render. Per story, the incumbent's cold run is 590 ms (Lushly) and 123 ms (FAST-AF), against the candidate's 580 and 565 ms. Its warm run is 548 and 118 ms, against 210 and 166 ms. Per case, FAST-AF would therefore fail the 1.25 guardrail: cold at 4.6× and warm at 1.4×. Lushly stays within it.
-- **Every successful render counts as a verified case.** Counting only the candidate's asserted captures (9 and 7 per job) gives 1.01 and 1.41 core-seconds per case. That is 3.1× the incumbent for FAST-AF and 1.29× for Lushly, so both would fail.
+- **Latency is per sample, as the policy defines it.** An incumbent sample is a run of 8 or 19 stories, and a candidate sample is one render. Per story, the incumbent's cold run takes 590 ms (Lushly) and 123 ms (FAST-AF), against the candidate's 580 ms in-process and 660 ms isolated (Lushly), and 565 ms and 638 ms (FAST-AF). Its warm run takes 548 and 118 ms, against 210/191 ms and 166/166 ms. Per case, FAST-AF would fail the 1.25 guardrail: cold at 4.6× in-process and 5.2× isolated, and warm at 1.41× in both modes. Lushly stays within it.
+- **Every successful render counts as a verified case.** Counting only the candidate's asserted captures (9 and 7 per job) gives these core-seconds per case:
+  - FAST-AF: 1.01 in-process and 1.19 isolated, or 3.1× and 3.7× the incumbent.
+  - Lushly: 1.41 and 1.67, or 1.29× and 1.52× the incumbent.
+
+  On that definition, Lushly's CPU result fails as well as FAST-AF's.
 
 ## Where the cost goes
 
@@ -64,11 +68,11 @@ Per-process attribution assigns each process's CPU to the phase in which the pro
 | Session 6, per process | FAST-AF | Lushly |
 | --- | --- | --- |
 | Incumbent warm run, per story | 0.28 s | 0.91 s |
-| Incumbent cold run, per story | 0.34 s (6.45 s per run) | 1.20 s (9.6 s per run) |
-| In-process candidate outside cold samples, per render (job process plus renders; upper value includes the unattributed CPU) | 0.26–0.33 s | 0.34–0.39 s |
-| Candidate cold sample: a fresh process for one case | 0.84 s | 0.95 s |
+| Incumbent cold run, per story | 0.33–0.34 s (6.3–6.5 s per run) | 1.20 s (9.6 s per run) |
+| In-process candidate outside cold samples, per render (job process plus renders; upper value includes the unattributed CPU) | 0.26–0.33 s | 0.34–0.40 s |
+| Candidate cold sample: a fresh process for one case (in-process / isolated) | 0.84 / 0.96–0.97 s | 0.95 / 1.06–1.07 s |
 
-- **Lushly:** the candidate costs less, cold or warm.
+- **Lushly:** the candidate costs less, cold or warm, per render.
 - **FAST-AF:** outside the cold samples, the candidate's per-render cost is not clearly different from the incumbent's warm per-story cost. Its failure comes from the five cold samples. Each pays for a Node process, a Vite server and a browser to render one case, while an incumbent cold run spreads that start over 19 stories. FAST-AF's stories are also cheap, about a third of Lushly's per story.
 - **Post-close memory is a real difference.** Each harness starts at its own baseline: 23 MiB for the incumbent's, and 34 MiB for the candidate's, which imports the Specimen API and fixtures. After every bench or Vitest process has closed, the incumbent's has grown by 7–9 MiB. The isolated candidate's coordinator has grown by 16–18 MiB. The in-process candidate keeps 287–330 MiB more, because a closed in-process bench does not unload Vite, Playwright or the runtime, which is a documented limit. The candidate fails both on the policy's absolute footprint and on growth from baseline.
 - **Peak memory strongly favours the candidate.** The incumbent's Storybook and Vitest path peaked at 1,686–1,994 MiB. In a headed smoke run it exceeded the original 2 GiB limit, so incumbent jobs ran under a 4 GiB limit.
@@ -101,11 +105,11 @@ Each case actually loaded 141,130 (FAST-AF) and 138,490 (Lushly) bytes of JavaSc
 | 5 | `f71d22d8` | Headed | Fastest-of-three probe; in band, but invalid as a verdict (below) |
 | 6 | `94756d59` | Headless | Attached, single-run probes, every probe in band; the verdict session |
 
-Sessions 1–5 are kept as evidence but superseded, for two reasons. First, Vitest is headless only under CI, so they ran the incumbent in headed Chrome for Testing. That brought a GPU process, serialized test files (ignoring Lushly's `maxWorkers: 2`) and opened the UI. Second, the candidate's harness copied the wrapper project inside the measured job, which raised the candidate's post-close footprint by up to about 90 MiB. Session 6 fixes both, and moves both sides' snapshot readbacks outside the jobs. Sessions 1–5 ran from `lush/specimens-t04-pairs-sessions-1-5`.
+Sessions 1–5 are kept as evidence but superseded, for two reasons. First, Vitest is headless only under CI, so they ran the incumbent in headed Chrome for Testing. That serialized test files (ignoring Lushly's `maxWorkers: 2`), opened the UI, and added a GPU process to Lushly's runs. Second, the candidate's harness copied the wrapper project inside the measured job, which raised its post-close footprint by up to about 90 MiB. That copy and the snapshot readbacks inside the jobs also added 6–14% to the candidate's CPU. Session 6 fixes both and moves both sides' readbacks outside the jobs. As a result its candidate figures are lower than sessions 1–5's: CPU by 6–14%, and isolated post-close from 135–140 to 50–52 MiB. The verdict pattern is unchanged. Sessions 1–5 ran from `lush/specimens-t04-pairs-sessions-1-5`.
 
-- **Slow probes came with the headed incumbent.** In sessions 3–5, 10 of 40 probe readings in incumbent jobs were 0.66–0.68 s, against none of 80 in candidate jobs. In the detached sessions all 16 incumbent-job probes were slow and all 16 candidate-job probes were normal. With the incumbent headless, session 6 had none. The headed browser's processes are the likely cause, but this was not isolated, and the detached effect was not retested headless. Incumbent job CPU differed by only about 1.5% between slow-probe and normal-probe sessions.
+- **Slow probes came with the headed incumbent.** In sessions 3–5, 10 of 40 probe readings in incumbent jobs were 0.655–0.674 s, against none of 80 in candidate jobs. In the detached sessions all 16 incumbent-job probes were slow and all 32 candidate-job probes were normal. With the incumbent headless, session 6 had none. The headed browser's processes are the likely cause, but this was not isolated, and the detached effect was not retested headless. Incumbent job CPU differed by only about 1.5% between slow-probe and normal-probe sessions.
 - **The probe revision was withdrawn.** A fastest-of-three probe was briefly adopted, on the theory of random efficiency-core placement. The incumbent-only pattern contradicts that theory, so session 6 used the policy's single-run probe.
-- **Another session's work held the gate.** Agents on `random` ran Lushly browser tests and then a worktree cleanup. Sessions 1 and 2 waited 45 and 69 minutes for a quiet window; session 6 waited 24.
+- **Another session's work held the gate.** Agents on `random` ran Lushly browser tests and then a worktree cleanup. Sessions 1 and 2 waited 45 and 69 minutes for a quiet window, sessions 3–5 about 10, and session 6 24. Session 6's kept gate samples show no other session's processes, so they do not confirm what kept it busy.
 
 ## Policy revisions
 
@@ -116,7 +120,7 @@ The policy allows revisions before the T04 comparison runs, with the reason reco
 | `hostCondition`, owner-confirmed: a pair counts only when every probe is ≤ 1.10× the session's quietest | Round 1, #558 | T02's cross-session evidence ([record](cpu-attribution-validation.md)) |
 | `limits.incumbentFamilyFootprintBytes`: 4 GiB for incumbent representative jobs | Before session 1 | A headed smoke run of the incumbent's own path reached 2.0 GB (FAST-AF) and exceeded 2 GiB (Lushly). At 2 GiB the limit would have stopped the baseline itself. The peak remains an outcome |
 
-The fastest-of-three probe was a third revision. It was made after sessions 1–4 had computed (held) ratios and a one-sample diagnostic run had computed verdicts, and it has been withdrawn.
+The fastest-of-three probe was a third revision. It came after session 3 had produced valid Lushly verdicts (CPU per case passing, post-close failing), after sessions 1–4 had computed held ratios, and after a one-sample diagnostic run had computed verdicts. It has been withdrawn. The policy's probe text now says "one run before and one after every job", which clarifies the original rule without changing it.
 
 ## Workstream 0 exit
 
@@ -127,7 +131,7 @@ The fastest-of-three probe was a third revision. It was made after sessions 1–
 | Cross-driver viewport probe | Passes ([T03](driver-context-validation.md)) |
 | Build budgets | Pass, with prototypes for the helper and axe categories |
 | Whole-process CPU and memory baseline and host headroom | Recorded (above; admission, gate and settle receipts are in each job) |
-| Predeclared tolerances | **Do not pass**: CPU per verified case (FAST-AF) and post-close footprint (both consumers, both modes). The latency passes depend on the per-sample definition |
+| Predeclared tolerances | **Do not pass**: CPU per verified case (FAST-AF) and post-close footprint (both consumers, both modes). Lushly's CPU pass depends on counting every render as a case, and the latency passes depend on the per-sample definition |
 
 ## Decision needed
 
@@ -135,7 +139,7 @@ The proposal's [risk table](../../proposed/specimens/specimens.proposal.md#remai
 
 1. **Change the architecture for retained memory, then remeasure under the unchanged criteria.** The isolated worker already brings post-close growth to 16–18 MiB, against the incumbent's 7–9 MiB. Making it the default for long-lived hosts, or directing agents to the one-shot CLI, and then trimming the coordinator might close the gap. Neither has been measured.
 2. **Define CPU per case and latency for matched job shapes, then measure again.** On the policy's definitions, FAST-AF fails CPU per case; per case it would also fail latency, and counting only asserted captures would fail Lushly's CPU as well. Changing a definition after seeing these results must not rescue a verdict. Any new definition would apply prospectively to both sides and need a fresh measurement: single-case invocations against suite-scale warm runs, or retained stories through the T05 adapter, so the case sets are the same.
-3. **Accept the measured trade-off and revise the tolerances.** The candidate's gains are 63–74% lower peak memory, much lower per-sample latency, and lower CPU for Lushly. Its costs are more memory retained after close, and more CPU per case on FAST-AF's cheap stories.
+3. **Accept the measured trade-off and revise the tolerances.** The candidate's gains are 63–74% lower peak memory, much lower per-sample latency, and lower CPU for Lushly when every render counts as a case. Its costs are more memory retained after close, and more CPU per case on FAST-AF's cheap stories (and, on the asserted-capture count, on Lushly's too).
 4. **Stop at workstream 0.** Keep Storybook, and keep Specimen's observation tooling as an addition.
 
 These are the owner's choices. Option 1 is the only one that keeps today's criteria. Options 2 and 3 change what success means and need explicit approval.
@@ -160,7 +164,7 @@ The evidence is local and ignored, under `test-results/specimens-t04-20261031/` 
 
 ## Limits
 
-- One host and one verdict session, with two repetitions per cell. The superseded sessions agree on the candidate's figures but measured a different incumbent.
+- One host and one verdict session, with two repetitions per cell. The superseded sessions measured a headed incumbent and a heavier candidate harness; they share the verdict pattern, not the figures.
 - The representative selections are four components per consumer, not the retained suites. The checks differ: the incumbent runs axe and plays, which the candidate does not.
 - The budget prototypes are not delivered integrations.
 - Attributed CPU is sampled and a lower bound.
