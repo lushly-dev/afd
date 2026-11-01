@@ -3668,9 +3668,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "5c1df21ffc4e1d78b66041333e8a7d7d793303540dce51e479e94e65d4b82101",
+      "current_import_sha256": "157a3c8797dfb1158b89403e39d9daec4dd5658a3f498b89e586168f8e2b2b65",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR",
       "candidate": {
         "path": null,
         "sha256": null,
