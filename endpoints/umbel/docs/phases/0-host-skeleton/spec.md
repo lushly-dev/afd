@@ -54,7 +54,7 @@
   the pull request. Amendments it needed: see
   [Amendments from step 2](#amendments-from-step-2).
 - **Done:** step 3, the registry and the CLI
-  ([#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM)), on 2026-11-01: as the
+  ([#573](https://github.com/lushly-dev/afd/pull/573)), on 2026-11-01: as the
   plan's table lists it, except what [Amendments from step 3](#amendments-from-step-3)
   records. Checks: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D
   warnings`, the library-only clippy leg, `cargo test --locked` and `cargo
