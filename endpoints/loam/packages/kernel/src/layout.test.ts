@@ -136,3 +136,26 @@ describe('undo patches', () => {
 		});
 	});
 });
+
+describe('own keys only', () => {
+	it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+		'refuses %s as a part or a field without touching globals',
+		(key) => {
+			const state = createDefaultLayout();
+			const asPart = validateLayoutPatch(state, JSON.parse(`{"${key}":{"keys":1}}`));
+			const asField = validateLayoutPatch(state, JSON.parse(`{"sidebar":{"${key}":1}}`));
+			expect(asPart.valid).toBe(false);
+			expect(asField.valid).toBe(false);
+			expect(typeof Object.keys).toBe('function');
+			expect(typeof ({} as Record<string, unknown>).toString).toBe('function');
+		}
+	);
+
+	it('needs every field of a replacement to be defined', () => {
+		const result = validateLayoutState({
+			...createDefaultLayout(),
+			sidebar: { open: undefined, width: 260 },
+		});
+		expect(result.valid ? undefined : result.error.details?.field).toBe('sidebar.open');
+	});
+});

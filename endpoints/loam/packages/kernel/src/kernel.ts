@@ -49,9 +49,12 @@ export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze(['palette-s
  * `palette-search` (so `auth-*` is journaled and replayable), and `input.password` removed from
  * `auth-sign-in` entries. The clock and random tape stay on.
  */
-export function kernelJournalOptions(): JournalMiddlewareOptions {
+export function kernelJournalOptions(
+	onError: (error: Error) => void = reportKernelError
+): JournalMiddlewareOptions {
 	return {
 		recordFailures: true,
+		onError,
 		filter: (command) => !UNJOURNALED_COMMANDS.includes(command),
 		redact: redactJournalRecord,
 	};
@@ -115,7 +118,7 @@ function checkNames(commands: readonly ZodCommandDefinition[]): void {
 				code: 'COMMAND_NAME_DUPLICATE',
 				message: `Command name '${command.name}' is registered twice`,
 				suggestion: 'Give each command its own name; the shell commands are in SHELL_COMMAND_NAMES',
-				details: { name: command.name },
+				details: { name: command.name, reason: 'Each command needs its own name' },
 			});
 		}
 		seen.add(command.name);
@@ -137,7 +140,11 @@ function seqTrackingSink(sink: JournalSink, seqs: Map<string, number>): JournalS
 	};
 }
 
-function reportListenerError(error: unknown): void {
+/**
+ * Report an error that must not change a call's result (a throwing listener, a failed journal
+ * append) through the host's `reportError`, which a page shows as an `error` event.
+ */
+function reportKernelError(error: unknown): void {
 	const report = (globalThis as { reportError?: (error: unknown) => void }).reportError;
 	report?.(error);
 }
@@ -238,7 +245,7 @@ export async function createKernelParts(options: KernelOptionsV0): Promise<Kerne
 			try {
 				listener(event);
 			} catch (error) {
-				reportListenerError(error);
+				reportKernelError(error);
 			}
 		}
 		return result;
@@ -257,6 +264,9 @@ export async function createKernelParts(options: KernelOptionsV0): Promise<Kerne
 		agent: {
 			call: (name, input, callOptions) => run('agent', name, input, callOptions),
 			listCommands: () => summarize(registries.agent),
+		},
+		async flush() {
+			if (!disposed) await viewState.flush();
 		},
 		async dispose() {
 			if (disposed) return;

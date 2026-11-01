@@ -20,6 +20,11 @@ export interface LoamKernelV0 {
 	listCommands(): CommandSummaryV0[];
 	subscribe(listener: (event: KernelEventV0) => void): () => void;
 	readonly agent: Pick<LoamKernelV0, 'call' | 'listCommands'>;
+	/**
+	 * Write pending view-state persistence now, without waiting for the debounce. The chrome
+	 * calls it on `pagehide` and `visibilitychange` to hidden (5.2; added by step 5, 6.7).
+	 */
+	flush(): Promise<void>;
 	dispose(): Promise<void>;
 }
 

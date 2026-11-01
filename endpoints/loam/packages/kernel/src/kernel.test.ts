@@ -489,3 +489,99 @@ describe('boot and persistence', () => {
 		expect(entry?.traceId).toMatch(/^loam-[0-9a-z]+-1$/);
 	});
 });
+
+describe('review findings', () => {
+	it.each([
+		[{ constructor: { keys: 1 } }, false],
+		[{ sidebar: { toString: 'x' } }, false],
+		[{ sidebar: { hasOwnProperty: 3 } }, false],
+		[{ ...createDefaultLayout(), constructor: { keys: 1 } }, true],
+		[{ ...createDefaultLayout(), sidebar: { open: true, width: 300, valueOf: 1 } }, true],
+	])(
+		'refuses inherited and unknown keys through view-state-set: %j (replace %s)',
+		async (state, replace) => {
+			const { kernel: k } = await kernel();
+			const keys = Object.keys;
+			const result = await k.agent.call('view-state-set', { id: 'loam.layout', state, replace });
+			expect(result.error?.code).toBe('VALIDATION_ERROR');
+			expect(Object.keys).toBe(keys);
+			expect(({} as Record<string, unknown>).toString).toBe(Object.prototype.toString);
+			expect((await k.call('layout-get')).data).toEqual(createDefaultLayout());
+		}
+	);
+
+	it('drops __proto__ in the input schema, so it changes nothing', async () => {
+		const { kernel: k } = await kernel();
+		const state = JSON.parse('{"__proto__":{"toString":7}}');
+		expect((await k.agent.call('view-state-set', { id: 'loam.layout', state })).success).toBe(true);
+		expect(({} as Record<string, unknown>).toString).toBe(Object.prototype.toString);
+		expect((await k.call('layout-get')).data).toEqual(createDefaultLayout());
+	});
+
+	it('refuses inherited keys for the appearance as a validation error', async () => {
+		const { kernel: k } = await kernel();
+		const result = await k.agent.call('view-state-set', {
+			id: 'loam.appearance',
+			state: { constructor: 'dark' },
+		});
+		expect(result.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			details: { field: 'constructor' },
+		});
+	});
+
+	it('skips undefined optional fields in process', async () => {
+		const { kernel: k } = await kernel();
+		const result = await k.call<LayoutStateV0>('layout-set', {
+			sidebar: { width: undefined, open: false },
+		});
+		expect(result.data?.sidebar).toEqual({ open: false, width: 260 });
+	});
+
+	it('gives concurrent calls on both interfaces distinct seqs', async () => {
+		const { kernel: k } = await kernel();
+		const events: KernelEventV0[] = [];
+		k.subscribe((event) => events.push(event));
+		await Promise.all(
+			Array.from({ length: 20 }, (_, i) =>
+				(i % 2 === 0 ? k : k.agent).call('layout-set', { panel: { height: 200 + i } })
+			)
+		);
+		expect(events.map((event) => event.seq).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual(
+			Array.from({ length: 20 }, (_, i) => i + 1)
+		);
+	});
+
+	it('reports a failed journal append and leaves the result and the event without seq', async () => {
+		const reportError = vi.fn();
+		vi.stubGlobal('reportError', reportError);
+		try {
+			const failing = {
+				append: async () => {
+					throw Object.assign(new Error('locked'), { code: 'JOURNAL_LOCKED' });
+				},
+				read: async () => [],
+			};
+			const { kernel: k } = await kernel({ journal: failing as never });
+			const events: KernelEventV0[] = [];
+			k.subscribe((event) => events.push(event));
+			expect((await k.call('layout-get')).success).toBe(true);
+			expect(events[0]?.seq).toBeUndefined();
+			expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ message: 'locked' }));
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('flushes pending persistence before the debounce ends', async () => {
+		const store = new MemoryAdapter();
+		const { kernel: k } = await kernel({ store });
+		await k.call('layout-set', { sidebar: { width: 333 } });
+		expect((await store.list('settings')).total).toBe(0);
+		await k.flush();
+		const { data } = await store.list<{ id: string; value: LayoutStateV0 }>('settings');
+		expect(data.find((record) => record.id === 'loam.layout')?.value.sidebar.width).toBe(333);
+		await k.dispose();
+		await k.flush();
+	});
+});

@@ -92,7 +92,9 @@ export function validateAppearancePatch(
 	const next: AppearanceStateV0 = { ...state };
 	const given = patch as Record<string, unknown>;
 	for (const [key, value] of Object.entries(given)) {
-		const allowed = FIELDS[key as keyof AppearanceStateV0];
+		if (value === undefined) continue;
+		// Own keys only: an inherited name such as `constructor` is an unknown field.
+		const allowed = Object.hasOwn(FIELDS, key) ? FIELDS[key as keyof AppearanceStateV0] : undefined;
 		if (!allowed) {
 			return refuse(key, `Unknown appearance field "${key}"`, 'Use only theme and density');
 		}
@@ -107,7 +109,7 @@ export function validateAppearancePatch(
 	}
 	if (complete) {
 		for (const key of Object.keys(FIELDS)) {
-			if (!Object.hasOwn(given, key)) {
+			if (!Object.hasOwn(given, key) || given[key] === undefined) {
 				return refuse(
 					key,
 					`A complete appearance needs ${key}`,

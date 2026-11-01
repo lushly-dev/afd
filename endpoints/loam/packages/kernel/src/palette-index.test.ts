@@ -129,3 +129,14 @@ describe('SHELL_KEYBINDINGS_V0', () => {
 		expect(keybindingFor('layout-get')).toBeUndefined();
 	});
 });
+
+describe('non-ASCII text', () => {
+	it('indexes a character whose lower case is longer, with offsets into the original', () => {
+		const index = createPaletteIndex([
+			{ name: 'city-open', title: 'İstanbul İzmir', description: 'Open a city' },
+		]);
+		const [item] = index.search('zmir');
+		expect(item).toMatchObject({ name: 'city-open', field: 'title', matches: [[10, 14]] });
+		expect(index.search('İst')[0]?.matches).toEqual([[0, 3]]);
+	});
+});

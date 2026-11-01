@@ -164,6 +164,12 @@ function checkField(field: string, rule: FieldRule, value: unknown): LayoutValid
 				{ min: rule.min, ...(rule.max !== undefined ? { max: rule.max } : {}), value }
 			);
 		}
+		default:
+			return invalid(
+				field,
+				`Unknown layout field "${field}"`,
+				'Use only the fields layout-get returns'
+			);
 	}
 }
 
@@ -182,6 +188,7 @@ export function validateLayoutPatch(state: LayoutStateV0, patch: unknown): Layou
 	}
 	const next = cloneLayout(state);
 	for (const [key, value] of Object.entries(patch)) {
+		if (value === undefined) continue;
 		if (key === 'version') {
 			if (value !== 0) {
 				return invalid(
@@ -192,7 +199,8 @@ export function validateLayoutPatch(state: LayoutStateV0, patch: unknown): Layou
 			}
 			continue;
 		}
-		const rules = RULES[key as keyof typeof RULES];
+		// Own keys only: an inherited name such as `constructor` is an unknown field.
+		const rules = Object.hasOwn(RULES, key) ? RULES[key as keyof typeof RULES] : undefined;
 		if (!rules) {
 			return invalid(key, `Unknown layout field "${key}"`, `Use only ${PARTS.join(', ')}`);
 		}
@@ -205,8 +213,10 @@ export function validateLayoutPatch(state: LayoutStateV0, patch: unknown): Layou
 		}
 		const target = next[key as keyof typeof RULES] as Record<string, unknown>;
 		for (const [name, fieldValue] of Object.entries(value)) {
+			// An absent optional field, as a spread of optional values leaves it.
+			if (fieldValue === undefined) continue;
 			const field = `${key}.${name}`;
-			const rule = rules[name];
+			const rule = Object.hasOwn(rules, name) ? rules[name] : undefined;
 			if (!rule) {
 				return invalid(
 					field,
@@ -246,7 +256,7 @@ export function validateLayoutState(value: unknown): LayoutValidation {
 	for (const part of PARTS) {
 		const fields = value[part];
 		for (const name of Object.keys(RULES[part])) {
-			if (!isRecord(fields) || !Object.hasOwn(fields, name)) {
+			if (!isRecord(fields) || !Object.hasOwn(fields, name) || fields[name] === undefined) {
 				return invalid(
 					`${part}.${name}`,
 					`A complete layout state needs ${part}.${name}`,

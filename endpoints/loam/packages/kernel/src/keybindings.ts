@@ -17,14 +17,19 @@ export interface ShellKeybindingV0 {
 	focus?: 'next' | 'previous';
 }
 
-export const SHELL_KEYBINDINGS_V0: readonly ShellKeybindingV0[] = Object.freeze([
+const BINDINGS: ShellKeybindingV0[] = [
 	{ chord: 'Mod+K', command: 'palette-open' },
 	{ chord: 'Mod+B', command: 'layout-set', toggle: 'sidebar' },
 	{ chord: 'Mod+Alt+B', command: 'layout-set', toggle: 'inspector' },
 	{ chord: 'Mod+J', command: 'layout-set', toggle: 'panel' },
 	{ chord: 'F6', command: null, focus: 'next' },
 	{ chord: 'Shift+F6', command: null, focus: 'previous' },
-] satisfies ShellKeybindingV0[]);
+];
+
+/** The reserved chords, frozen with every entry. */
+export const SHELL_KEYBINDINGS_V0: readonly Readonly<ShellKeybindingV0>[] = Object.freeze(
+	BINDINGS.map((binding) => Object.freeze(binding))
+);
 
 /**
  * The chord that runs `command` as the palette lists it, with no input of its own. A toggle

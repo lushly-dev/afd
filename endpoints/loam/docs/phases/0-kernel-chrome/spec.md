@@ -18,6 +18,9 @@
   emulates media in its native host rather than through Playwright.
   Step 2 recorded its decisions in sections 2.1, 2.2, 2.3 and 2.7, each
   under "Decided by step 2".
+  Step 5 ([#638](https://github.com/lushly-dev/afd/pull/638)) added [section 6.7](#67-decided-while-implementing-step-5),
+  `flush()` in 6.2, and the kernel bundle measurement in
+  [section 8.1](#81-bundle-budget).
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -801,6 +804,7 @@ export interface LoamKernelV0 {
 	listCommands(): CommandSummaryV0[];
 	subscribe(listener: (event: KernelEventV0) => void): () => void;
 	readonly agent: Pick<LoamKernelV0, 'call' | 'listCommands'>;
+	flush(): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -849,6 +853,9 @@ export function createKernel(options: KernelOptionsV0): Promise<LoamKernelV0>;
   and `view-state-set`/`view-state-replace` on `loam.layout`, re-reads
   `appearance-get` after `appearance-set`, and re-reads `auth-session-get`
   after `auth-*`. It holds no layout state of its own.
+- **`flush`.** It writes pending view-state persistence at once; the chrome
+  calls it on `pagehide` and `visibilitychange` to hidden (5.2). Added by
+  step 5 (6.7).
 - **`environment`.** The browser host passes `window.matchMedia`;
   tests and replay pass a fixed table.
 - **`commands`.** Extra definitions registered beside the shell's. Phase 0
@@ -992,7 +999,7 @@ consistent with them (amended 2026-11-01):
   Step 7 records its committed fixture from `SESSION_50`.
 - **Names.** Name refusal also refuses a name given twice, with
   `COMMAND_NAME_DUPLICATE`, before `createDirectRegistry` would throw a
-  plain `Error`. The error's `details` are `{ name, reason }`.
+  plain `Error`. Both refusals carry `details` `{ name, reason }`.
 - **Exposure and auth.** Only the shell's commands get
   `{ palette: true, agent: true, mcp: false, cli: false }`; a command in
   `options.commands` keeps its own `expose`. The auth middleware's
@@ -1005,7 +1012,10 @@ consistent with them (amended 2026-11-01):
   shared validator first and returns its `VALIDATION_ERROR` as the result,
   which is journaled. The handlers' `set` and `replace` still validate and
   throw `LoamKernelError`, for callers of the registry itself. A
-  replacement must be a complete state. `appearance-set` and the
+  replacement must be a complete state. The validators look fields up as
+  own keys only, so an inherited name such as `constructor` or `toString` is
+  an unknown field and refused, and they skip a field whose value is
+  `undefined`, as a spread of optional values leaves it. `appearance-set` and the
   `loam.appearance` handler share `validateAppearancePatch` the same way.
 - **Schema and handler.** `layout-set`'s input schema is strict and typed
   (unknown keys and `version` are schema failures, which change nothing and
@@ -1015,7 +1025,16 @@ consistent with them (amended 2026-11-01):
 - **`seq` in events.** The kernel gives every call a trace ID,
   `loam-<boot clock in base 36>-<n>`, and reads the `seq` the sink assigned
   to that trace ID; the journal middleware exposes no other link between a
-  call and its entry.
+  call and its entry. A failed append (a lost writer lock, a full quota)
+  leaves the event without `seq` and goes to the host's `reportError`
+  through the journal middleware's `onError`; the call's result is
+  unchanged.
+- **`flush`.** Section 5.2 has the chrome call `flush()` on `pagehide`, so
+  `LoamKernelV0` gains `flush()` (6.2); it does nothing after `dispose()`.
+- **The `system` theme.** The kernel resolves `system` at each
+  `appearance-get` and emits no event when the media change; the chrome
+  listens through `environment.onChange` and re-reads `appearance-get`, so
+  it still holds no appearance state of its own.
 - **Replay.** Each entry runs on the registry of the interface it was
   recorded on. `MockAuthAdapter` derives the session and user ids from
   `Date.now()`, so they count as the session's timestamps:
@@ -1024,23 +1043,28 @@ consistent with them (amended 2026-11-01):
   and `data.user.id`. A journal that does not start at `seq` 1 rejects with
   `LoamKernelError` `REPLAY_START_INVALID`; a divergence rejects with
   `REPLAY_DIVERGED`, whose `details` carry the report and the first
-  difference. An empty journal replays to the defaults.
+  difference. An empty journal replays to the defaults. The Mock session
+  ends with the page and replay does not, so a browser journal spanning a
+  reload while signed in diverges at the next `auth-*` entry; E2's fixture
+  is one session, and real identity arrives in phase 3.
 - **Journal diff.** `diffJournals` also ignores `metadata.traceId` and the
   Mock session's ids, and takes extra `ignore` paths. `firstDifference`
   has an optional `path`, and its `field` is `'length'` when one journal is
   longer; `counts` is `{ a, b, same, different }`.
 - **Palette index.** Whitespace in a query is ignored and case does not
-  matter. A field's score is its weight times the query length plus the
-  bonuses: 1 per matched character that directly follows the previous one,
-  2 per matched character at a word start (after a non-alphanumeric
-  character, or a camel-case capital). The first occurrence of the query's
-  first character and up to 16 word starts are tried. Equal fields prefer
+  matter; a character whose lower case is longer (a dotted capital I) is
+  kept as it is, so offsets stay offsets into the original text. A field's
+  score is its weight × (the query length + the bonuses): 1 per matched
+  character that directly follows the previous one, 2 per matched character
+  at a word start (after a non-alphanumeric character, or a camel-case
+  capital). At most 16 starts are tried: the first occurrence of the
+  query's first character, then later occurrences at word starts. Equal fields prefer
   name, then title, then description. `matches` are half-open
   `[start, end)` ranges. An empty query lists every entry by name with
   score 0. On the 5,000-entry reference workspace, Node 26 on a loaded
   10-core Mac measured a p95 of about 2.5 ms per query (A1's budget is
   8 ms in Chromium; step 7 measures it there).
-- **Keybindings.** `SHELL_KEYBINDINGS_V0` is a frozen list of
+- **Keybindings.** `SHELL_KEYBINDINGS_V0` is a frozen list of frozen
   `{ chord, command, toggle?, focus? }`. `listCommands` gives a command a
   `keybinding` only for a chord that runs it with no input of its own
   (`Mod+K` for `palette-open`); the toggle chords compute `layout-set`'s

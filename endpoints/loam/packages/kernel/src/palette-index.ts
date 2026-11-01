@@ -73,8 +73,23 @@ function isUpper(char: string): boolean {
 	return char !== char.toLowerCase() && char === char.toUpperCase();
 }
 
-function indexField(field: PaletteField, text: string): IndexedField {
+/**
+ * `text` in lower case, one code unit for one, so offsets into it are offsets into `text`. A
+ * character whose lower case is longer (\u0130, a dotted capital I) is kept as it is.
+ */
+function lowerCase(text: string): string {
 	const lower = text.toLowerCase();
+	if (lower.length === text.length) return lower;
+	let out = '';
+	for (const char of text) {
+		const folded = char.toLowerCase();
+		out += folded.length === char.length ? folded : char;
+	}
+	return out;
+}
+
+function indexField(field: PaletteField, text: string): IndexedField {
+	const lower = lowerCase(text);
 	const wordStart = new Uint8Array(lower.length);
 	for (let i = 0; i < lower.length; i++) {
 		const previous = i === 0 ? -1 : lower.charCodeAt(i - 1);
@@ -195,7 +210,7 @@ export function createPaletteIndex(entries: readonly PaletteEntry[]): PaletteInd
 		size: indexed.length,
 		search(query: string, limit = DEFAULT_LIMIT): PaletteItem[] {
 			const max = Math.max(0, Math.floor(limit));
-			const needle = query.toLowerCase().replace(/\s+/g, '');
+			const needle = lowerCase(query).replace(/\s+/g, '');
 			if (needle.length === 0) {
 				return indexed
 					.map(({ entry }) => item(entry, 0, 'name', []))
