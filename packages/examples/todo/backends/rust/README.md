@@ -81,6 +81,7 @@ schema is advertised by `tools/list` and enforced before the handler runs
 | Browser origins | the README's dev frontends: `localhost` and `127.0.0.1` on ports 3000, 5173 and 5174 | `ALLOWED_ORIGINS` adds exact origins; `*` and `null` are refused |
 | `Host` names | `localhost`, `127.0.0.1`, `[::1]` and `HOST` | `ALLOWED_HOSTS` adds names |
 | Request body | 1 MiB | `MAX_BODY_BYTES` |
+| Tool list | `grouped`: one `todo` tool whose actions are the commands | `TOOL_STRATEGY=individual` lists one tool per command (a host that mounts the backend renames tools one by one); both strategies call every command by its own name |
 
 - The `Host` check blocks DNS rebinding: a page on `attacker.example` that
   re-points its DNS to 127.0.0.1 still sends `Host: attacker.example`.

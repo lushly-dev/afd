@@ -461,6 +461,47 @@ fn refuses_wildcard_null_and_url_origins() {
 }
 
 #[test]
+fn the_tool_strategy_is_grouped_unless_individual_is_asked_for() {
+    assert_eq!(config(&[]).strategy, ToolStrategy::Grouped);
+    assert_eq!(
+        config(&[("TOOL_STRATEGY", "individual")]).strategy,
+        ToolStrategy::Individual
+    );
+    assert!(
+        ServerConfig::from_env(|name| (name == "TOOL_STRATEGY").then(|| "lazy".to_string()))
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn the_individual_strategy_lists_one_tool_per_command() {
+    let mut registry = CommandRegistry::new();
+    let tools = register_commands(&mut registry, &Arc::new(TodoStore::default()))
+        .expect("commands register");
+    let state = AppState {
+        mcp: mcp_server(registry, &tools)
+            .expect("tools serialize")
+            .with_tool_strategy(ToolStrategy::Individual),
+        policy: config(&[]).policy,
+    };
+    let reply = rpc(
+        router(Arc::new(state), 1024 * 1024).expect("router builds"),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+    )
+    .await;
+    let names: Vec<&str> = reply.body["result"]["tools"]
+        .as_array()
+        .expect("tools array")
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    for name in ["todo-create", "todo-get", "todo-clear", "todo-toggle-batch"] {
+        assert!(names.contains(&name), "{name} is listed: {names:?}");
+    }
+    assert!(!names.contains(&"todo"), "no grouped tool: {names:?}");
+}
+
+#[test]
 fn parses_host_headers() {
     assert_eq!(hostname("LocalHost:3100").as_deref(), Some("localhost"));
     assert_eq!(hostname("[::1]:3100").as_deref(), Some("[::1]"));

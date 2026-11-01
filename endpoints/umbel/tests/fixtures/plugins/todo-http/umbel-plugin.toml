@@ -1,0 +1,64 @@
+# The Rust todo backend, mounted over Streamable HTTP by the stock `umbel` binary (specification
+# section 13, exit run 4). The instance supplies `url` and `required = true`; `bearer = "none"`
+# because the backend takes no token. The backend's tool names already start with `todo-`, so the
+# commands keep their names. The effects are the compiled plugin's.
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "todo"
+title = "Todo (mounted)"
+version = "0.1.0"
+description = "The Rust todo backend, mounted over Streamable HTTP."
+kind = "mounted"
+domains = ["todo"]
+
+[mount]
+prefix = "todo"
+transport = "http"
+bearer = "none"
+
+[[mount.tools]]
+tool = "todo-get"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "todo-list"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "todo-stats"
+effects = ["inspect"]
+
+[[mount.tools]]
+tool = "todo-create"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-update"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-toggle"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-delete"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-clear"
+effects = ["plugin-state"]
+confirm_prompt = "Delete these todos? This cannot be undone."
+
+[[mount.tools]]
+tool = "todo-create-batch"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-delete-batch"
+effects = ["plugin-state"]
+
+[[mount.tools]]
+tool = "todo-toggle-batch"
+effects = ["plugin-state"]

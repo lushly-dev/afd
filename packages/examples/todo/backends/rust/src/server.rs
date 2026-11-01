@@ -13,7 +13,7 @@
 //! otherwise.
 
 use crate::commands::Tool;
-use afd::server::{ConfirmationMode, HttpOptions, McpServer};
+use afd::server::{ConfirmationMode, HttpOptions, McpServer, ToolStrategy};
 use afd::CommandRegistry;
 use axum::{
     extract::{DefaultBodyLimit, Request, State},
@@ -131,6 +131,9 @@ pub struct ServerConfig {
     /// Confirmation enforcement (`CONFIRMATIONS`: `off`, `enforce` or `require-human`; default
     /// `off`).
     pub confirmations: ConfirmationMode,
+    /// How `tools/list` presents the commands (`TOOL_STRATEGY`: `grouped` or `individual`;
+    /// default `grouped`). Every strategy routes every command by its own name.
+    pub strategy: ToolStrategy,
 }
 
 impl ServerConfig {
@@ -202,11 +205,22 @@ impl ServerConfig {
             }
         };
 
+        let strategy = match var("TOOL_STRATEGY").as_deref().map(str::trim) {
+            None | Some("grouped") => ToolStrategy::Grouped,
+            Some("individual") => ToolStrategy::Individual,
+            Some(other) => {
+                return Err(format!(
+                    "TOOL_STRATEGY must be grouped or individual, got \"{other}\""
+                ))
+            }
+        };
+
         Ok(Self {
             host,
             port,
             max_body_bytes,
             confirmations,
+            strategy,
             policy: HttpPolicy {
                 allowed_origins,
                 allowed_hosts,

@@ -1,0 +1,31 @@
+{
+	"properties": {
+		"completed": {
+			"description": "New completion status",
+			"type": "boolean"
+		},
+		"description": {
+			"description": "Optional details",
+			"maxLength": 1000,
+			"type": "string"
+		},
+		"id": {
+			"description": "Todo ID",
+			"minLength": 1,
+			"type": "string"
+		},
+		"priority": {
+			"description": "New priority",
+			"enum": ["low", "medium", "high"],
+			"type": "string"
+		},
+		"title": {
+			"description": "Todo title",
+			"maxLength": 200,
+			"minLength": 1,
+			"type": "string"
+		}
+	},
+	"required": ["id"],
+	"type": "object"
+}

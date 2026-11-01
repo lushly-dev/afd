@@ -1,0 +1,9 @@
+{
+	"properties": {
+		"all": {
+			"description": "If true, clear all todos regardless of status",
+			"type": "boolean"
+		}
+	},
+	"type": "object"
+}

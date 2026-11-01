@@ -1,0 +1,100 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "todo"
+title = "Todo"
+version = "0.1.0"
+description = "The todo example as a compiled plugin: eleven commands over an in-memory store, the conformance fixture."
+kind = "compiled"
+domains = ["todo"]
+
+[[commands]]
+name = "todo-create"
+description = "Create a new todo item"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-create.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-list"
+description = "List todos with optional filtering and pagination"
+effects = ["inspect"]
+input_schema = "schemas/todo-list.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-get"
+description = "Get a single todo by ID"
+effects = ["inspect"]
+input_schema = "schemas/todo-get.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-update"
+description = "Update a todo's title, description, priority or status"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-update.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-toggle"
+description = "Toggle a todo's completion status"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-toggle.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-delete"
+description = "Delete a todo"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-delete.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-clear"
+description = "Clear completed todos (or all if specified)"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-clear.input.json"
+category = "todo"
+version = "1.0.0"
+confirm_prompt = "Delete these todos? This cannot be undone."
+destructive = true
+
+[[commands]]
+name = "todo-stats"
+description = "Get todo statistics"
+effects = ["inspect"]
+input_schema = "schemas/todo-stats.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-create-batch"
+description = "Create multiple todos at once with partial failure support"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-create-batch.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-delete-batch"
+description = "Delete multiple todos at once"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-delete-batch.input.json"
+category = "todo"
+version = "1.0.0"
+
+[[commands]]
+name = "todo-toggle-batch"
+description = "Toggle completion status of multiple todos, or set all to a specific state"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-toggle-batch.input.json"
+category = "todo"
+version = "1.0.0"

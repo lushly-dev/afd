@@ -1,0 +1,39 @@
+[package]
+name = "umbel-plugin-todo"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel todo plugin: the todo example as a compiled plugin, the conformance fixture"
+repository = "https://github.com/lushly-dev/afd"
+
+[[bin]]
+name = "umbel-todo"
+path = "src/bin/umbel-todo.rs"
+
+[dependencies]
+# The todo example's library (specification section 10.5): the eleven commands and the store,
+# without the backend's axum server.
+todo-backend-rust = { path = "../../../../packages/examples/todo/backends/rust", default-features = false }
+# The reference plugin joins `umbel-todo`'s catalog, so one binary can serve both for the external
+# clients' checks (`afd validate --surface`); it loads only when a workspace enables it.
+umbel-plugin-hello = { path = "../hello" }
+# The command line (`umbel::cli::run`) and the compiled-plugin contract; no loader, so no wasmtime.
+umbel = { path = "../..", default-features = false, features = ["cli"] }
+umbel-sdk = { path = "../../sdk" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+serde_json = "1"
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "1"
+umbel = { path = "../..", default-features = false, features = ["testkit"] }
+
+[lints]
+workspace = true

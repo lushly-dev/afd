@@ -1,0 +1,11 @@
+{
+	"properties": {
+		"id": {
+			"description": "Todo ID",
+			"minLength": 1,
+			"type": "string"
+		}
+	},
+	"required": ["id"],
+	"type": "object"
+}
