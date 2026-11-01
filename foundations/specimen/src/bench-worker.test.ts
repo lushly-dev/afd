@@ -188,25 +188,38 @@ it('closes its runtime after IPC is lost', async () => {
 	expectExited(child.pid);
 });
 
+function processTable() {
+	return execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' })
+		.split('\n')
+		.flatMap((line) => {
+			const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+			return match
+				? [{ pid: Number(match[1]), parent: Number(match[2]), command: match[3] ?? '' }]
+				: [];
+		});
+}
+/** The native host the worker started, and Chromium under it. */
+function ownedHost(worker: number) {
+	const processes = processTable();
+	const host = processes.find(
+		(entry) => entry.parent === worker && entry.command.includes('specimen-host')
+	);
+	if (!host) throw new Error('No native host owned by the test worker');
+	return { host, processes };
+}
+
 it.skipIf(process.platform === 'win32')(
-	'reaps a stopped browser before closing a failed bench',
+	'bounds a render in a stopped browser and reaps it on close',
 	async () => {
 		const bench = await create(await fixture());
 		await bench.render({ id: 'probe' });
 		const child = worker();
-		const processes = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' })
-			.split('\n')
-			.flatMap((line) => {
-				const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
-				return match
-					? [{ pid: Number(match[1]), parent: Number(match[2]), command: match[3] ?? '' }]
-					: [];
-			});
+		const { host, processes } = ownedHost(child.pid ?? 0);
 		const browser = processes.find(
-			(entry) => entry.parent === child.pid && entry.command.includes('--remote-debugging-pipe')
+			(entry) => entry.parent === host.pid && entry.command.includes('--remote-debugging-pipe')
 		);
-		if (!browser) throw new Error('No browser owned by the test worker');
-		const owned = new Set([browser.pid]);
+		if (!browser) throw new Error('No browser owned by the native host');
+		const owned = new Set([host.pid, browser.pid]);
 		for (let changed = true; changed; ) {
 			changed = false;
 			for (const entry of processes) {
@@ -216,14 +229,13 @@ it.skipIf(process.platform === 'win32')(
 				}
 			}
 		}
-		const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
 		process.kill(browser.pid, 'SIGSTOP');
 		try {
-			await expect(bench.render({ id: 'probe', timeoutMs: 50 })).rejects.toThrow(
-				/worker.*deadline/
-			);
-			await exited;
-			// Do not close the bench first: a second signal must not be needed to reap Chrome.
+			// The render's own deadline covers a browser that stops answering.
+			await expect(bench.render({ id: 'probe', timeoutMs: 50 })).rejects.toThrow(/deadline/);
+			// Close reaps the stopped browser without a second signal.
+			await bench.close();
+			expectExited(child.pid);
 			await vi.waitFor(
 				() => {
 					for (const pid of owned) expectExited(pid);
@@ -275,13 +287,13 @@ exit 1
 		const parent = Number(
 			execFileSync('ps', ['-p', String(pid), '-o', 'ppid='], { encoding: 'utf8' }).trim()
 		);
-		expect(parent).toBe(child.pid);
+		expect(parent).toBe(ownedHost(child.pid ?? 0).host.pid);
 		const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
 		try {
 			child.disconnect();
 			await rejected;
 			await exited;
-			// The worker must reap the entire launch group without a public close call.
+			// The worker's host must reap the entire launch group without a public close call.
 			await vi.waitFor(
 				() => {
 					expectExited(pid);

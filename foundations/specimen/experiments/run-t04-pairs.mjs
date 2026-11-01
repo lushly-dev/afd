@@ -76,6 +76,14 @@ const study = {
 	afd: { revision: git('rev-parse', 'HEAD'), status: git('status', '--porcelain=v1') },
 	driverSha256: sha256File(import.meta.filename),
 	dist: directoryDigest(join(afd, 'foundations/specimen/dist')),
+	// The native host the candidate renders with: SPECIMEN_HOST_BINARY or the package's build.
+	nativeHost: (() => {
+		const path = resolve(
+			process.env.SPECIMEN_HOST_BINARY ??
+				join(afd, 'foundations/specimen/host/target/release/specimen-host')
+		);
+		return { path, sha256: existsSync(path) ? sha256File(path) : null };
+	})(),
 	samples: Number(samples),
 	policy: { hostCondition: policy.hostCondition, tolerances: policy.tolerances },
 	consumers: {},

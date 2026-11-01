@@ -1,8 +1,8 @@
 import { resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
-import { captureRequestSchema } from './schema.js';
 import type { BenchOptions, CaptureRequest, Observation, SpecimenEntry } from './types.js';
+import { parseCaptureRequest } from './validate.js';
 
 export interface SpecimenBench {
 	list(): SpecimenEntry[];
@@ -57,7 +57,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		},
 		async render(rawRequest) {
 			const snapshot = ensureOpen();
-			const request = captureRequestSchema.parse(rawRequest);
+			const request = parseCaptureRequest(rawRequest);
 			if (!snapshot.config.specimens.some((entry) => entry.id === request.id))
 				throw new Error(`Specimen not found: ${request.id}`);
 			// Resolve context here too: invalid requests never start a runtime.

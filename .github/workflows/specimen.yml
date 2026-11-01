@@ -29,10 +29,34 @@ permissions:
   contents: read
 
 jobs:
+  host:
+    name: Specimen native host (format, clippy, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: foundations/specimen/host
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: foundations/specimen/host
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
   browser-and-consumers:
     name: Specimen Chromium suite and packed consumers
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -43,6 +67,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - name: Install Rust toolchain
+        working-directory: foundations/specimen/host
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: foundations/specimen/host
+      - name: Native host release build
+        run: pnpm -F @lushly-dev/specimen build:host
       - name: Full native suite (unit, resource, process-worker and Chromium)
         run: pnpm -F @lushly-dev/specimen test:browser
       - name: Integration and endpoint suites

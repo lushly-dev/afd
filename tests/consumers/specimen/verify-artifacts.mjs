@@ -28,6 +28,15 @@ const artifacts = join(consumers, 'artifacts');
 await mkdir(artifacts, { recursive: true });
 await mkdir(output, { recursive: true });
 const fixtures = join(repository, 'foundations/specimen/fixtures');
+// Packaging prebuilt native hosts is publication work; packed consumers use the built one.
+process.env.SPECIMEN_HOST_BINARY ??= join(
+	repository,
+	'foundations/specimen/host/target/release/specimen-host'
+);
+assert(
+	existsSync(process.env.SPECIMEN_HOST_BINARY),
+	'build the Specimen host first: cargo build --release --locked in foundations/specimen/host'
+);
 const tsc = join(repository, 'node_modules/typescript/bin/tsc');
 const typeRoots = join(repository, 'node_modules/@types');
 const sources = [
@@ -189,7 +198,7 @@ import * as schema from '@lushly-dev/specimen/schema';
 assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION', 'createSpecimenBench', 'diffObservations', 'normalizeDom']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
 assert.deepEqual(Object.keys(schema).sort(), ['buildOutputSchema', 'captureRequestSchema', 'contextSchema', 'observationSchema']);
-assert.equal(CAPTURE_VERSION, '0.1');
+assert.equal(CAPTURE_VERSION, '0.2');
 assert.equal(NORMALIZATION_VERSION, '0.1');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);

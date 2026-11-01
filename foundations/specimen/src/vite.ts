@@ -110,7 +110,8 @@ export async function startBenchServer(
 			// Captures must retain their document even if dependency discovery or a
 			// source edit requests a reload. Interactive benches retain live updates.
 			hmr: options.automation ? false : undefined,
-			fs: { allow: [root, config.root, dirname(runtime)] },
+			// The runtime's directory and its parent, which holds the lazily loaded normalizer.
+			fs: { allow: [root, config.root, dirname(dirname(runtime))] },
 		},
 	});
 	try {

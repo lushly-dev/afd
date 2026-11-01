@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { diffObservations } from './diff.js';
 import { normalizeDom } from './normalize.js';
-import type { ElementObservation, Observation } from './types.js';
+import { CAPTURE_VERSION, type ElementObservation, type Observation } from './types.js';
 
 function element(): ElementObservation {
 	return {
@@ -23,7 +23,7 @@ function capture(): Observation {
 	};
 	return {
 		manifest: {
-			captureVersion: '0.1',
+			captureVersion: CAPTURE_VERSION,
 			normalizationVersion: '0.1',
 			specimenId: 'baseline',
 			checkpoint: 'mount',

@@ -1,0 +1,32 @@
+[package]
+name = "specimen-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+description = "Native Specimen host: bundles cases with Rolldown, serves them and drives Chromium over CDP"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "specimen-host"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+futures = "0.3"
+libc = "0.2"
+oxc = "=0.156.0"
+rolldown = "=1.2.16"
+rolldown_common = "=1.2.16"
+rolldown_plugin = "=1.2.16"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = true

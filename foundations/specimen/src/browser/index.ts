@@ -1,6 +1,7 @@
 import type { MountHandle, SpecimenContext, SpecimenModule } from '../types.js';
 import { captureDocument, contextMismatches, openElements } from './capture.js';
 import { installInstrumentation } from './instrumentation.js';
+import { locate } from './locate.js';
 import { validateSpecimen } from './validate.js';
 
 export { installPage } from './page.js';
@@ -170,6 +171,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (requested)
 				observation.limitations.push(...contextMismatches(requested, observation.viewport));
 			return observation;
+		},
+		locate(selector) {
+			return locate(mountRoot, selector);
+		},
+		async normalize(html) {
+			// Loaded on first use, so the bench page's shell does not carry the HTML parser.
+			const { normalizeDom } = await import('../normalize.js');
+			return normalizeDom(html);
 		},
 		dispose,
 	};

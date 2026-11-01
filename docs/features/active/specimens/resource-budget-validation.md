@@ -144,6 +144,8 @@ The proposal's [risk table](../../proposed/specimens/specimens.proposal.md#remai
 
 These are the owner's choices. Option 1 is the only one that keeps today's criteria. Options 2 and 3 change what success means and need explicit approval.
 
+**Decision, 2026-10-31:** the owner chose option 1, as rounds of optimization under the unchanged criteria, with Rust welcome where it gives the better outcome. The rounds and their measurements are in the [T04 optimization record](t04-optimization.md). This record's verdict stands until a new paired verdict session replaces it.
+
 ## Evidence
 
 The evidence is local and ignored, under `test-results/specimens-t04-20261031/` in the recording worktree: `random/pairs-6` (the verdict session), `random/budgets-6`, `random/pairs-1` to `random/pairs-5`, `random/diagnostics`, `random/manifests` and `fonts/`. The snapshots and the measurement checkout are on `random` under `~/.cache/afd-specimens/`.
