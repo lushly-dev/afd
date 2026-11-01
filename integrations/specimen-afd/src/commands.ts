@@ -12,6 +12,8 @@ import {
 	captureRequestSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
+	migrateRequestSchema,
+	migrationReportSchema,
 	observationSchema,
 	runRequestSchema,
 	storyRunSchema,
@@ -30,6 +32,8 @@ import type {
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
+	MigrateRequest,
+	MigrationReport,
 	Observation,
 	RunRequest,
 	SpecimenEntry,
@@ -117,6 +121,7 @@ export interface SpecimenCommandBench {
 	render(request: CaptureRequest): Promise<Observation>;
 	run(request: RunRequest): Promise<StoryRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
+	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
 }
 
@@ -247,6 +252,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Use specimen-list to check the id, then validate it; a failing plugin or module load is reported here.'
 			),
 	});
+	const migrate = defineCommand({
+		...common,
+		name: 'specimen-migrate',
+		description:
+			'Preview, or apply, the codemod over retained story files: the component each can name, the metadata kept and the manual tasks left',
+		mutation: true,
+		input: migrateRequestSchema,
+		output: migrationReportSchema,
+		handler: async (input) =>
+			result(
+				() => bench.migrate(input),
+				migrationReportSchema,
+				'SPECIMEN_MIGRATE_FAILED',
+				'Preview without apply first; check the stories specifiers and the manifest path in the configuration.'
+			),
+	});
 	const diff = createDiffCommand();
 	const build = defineCommand({
 		...common,
@@ -263,7 +284,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
-	return [list, render, diff, build, validate, runStory, inspect] as const;
+	return [list, render, diff, build, validate, runStory, inspect, migrate] as const;
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -286,7 +307,8 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build, validate, runStory, inspect] = createSpecimenCommands(bench);
+	const [list, render, diff, build, validate, runStory, inspect, migrate] =
+		createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
 			return execute(list, input);
@@ -302,11 +324,13 @@ export async function executeSpecimenCommand(
 			return execute(runStory, input);
 		case 'specimen-inspect':
 			return execute(inspect, input);
+		case 'specimen-migrate':
+			return execute(migrate, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
-				suggestion: 'Use specimen list, validate, inspect, render, run, diff, or build.',
+				suggestion: 'Use specimen list, validate, inspect, render, run, migrate, diff, or build.',
 			});
 	}
 }

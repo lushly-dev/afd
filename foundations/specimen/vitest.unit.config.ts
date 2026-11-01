@@ -10,6 +10,7 @@ export const browserSuites = [
 	'src/compat.test.ts',
 	'src/compat-run.test.ts',
 	'src/plugins.test.ts',
+	'src/migrate.test.ts',
 	'src/drivers.test.ts',
 	'src/feasibility.test.ts',
 	'src/lifecycle.test.ts',

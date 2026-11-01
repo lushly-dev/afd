@@ -121,13 +121,15 @@ pub struct Index {
 const DEFAULT_TAGS: [&str; 3] = ["dev", "test", "manifest"];
 
 /// Babel does not represent parentheses; oxc keeps them.
-fn bare<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
+pub(super) fn bare<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
     expression.without_parentheses()
 }
 
 /// A meta node as `CsfFile` accepts it: an object, `{...} as T`, `{...} satisfies T`, or
 /// `{...} satisfies M as T`.
-fn meta_object<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e ObjectExpression<'a>> {
+pub(super) fn meta_object<'e, 'a>(
+    expression: &'e Expression<'a>,
+) -> Option<&'e ObjectExpression<'a>> {
     match bare(expression) {
         Expression::ObjectExpression(object) => Some(object),
         Expression::TSAsExpression(outer) => match bare(&outer.expression) {
@@ -159,7 +161,10 @@ fn story_node<'e, 'a>(init: &'e Expression<'a>) -> &'e Expression<'a> {
 }
 
 /// `findVarInitialization`: the initializer of a top-level, possibly exported, `var`/`let`/`const`.
-fn var_initialization<'p, 'a>(name: &str, program: &'p Program<'a>) -> Option<&'p Expression<'a>> {
+pub(super) fn var_initialization<'p, 'a>(
+    name: &str,
+    program: &'p Program<'a>,
+) -> Option<&'p Expression<'a>> {
     for statement in &program.body {
         let declaration = match statement {
             Statement::ExportDeclaration(export) => &export.declaration,
@@ -185,7 +190,7 @@ fn var_initialization<'p, 'a>(name: &str, program: &'p Program<'a>) -> Option<&'
 }
 
 /// An object literal's identifier-keyed members, as `CsfFile` records annotations.
-fn identifier_members<'e, 'a>(
+pub(super) fn identifier_members<'e, 'a>(
     object: &'e ObjectExpression<'a>,
 ) -> Vec<(&'e str, Option<&'e Expression<'a>>)> {
     object
@@ -820,7 +825,12 @@ fn entries<'p, 'a>(
 
 /// Files under `directory` whose path relative to it matches `pattern`, skipping
 /// `node_modules` and dot-directories as Storybook's glob does.
-fn walk(directory: &Path, relative: &str, pattern: &str, found: &mut Vec<(PathBuf, String)>) {
+pub(super) fn walk(
+    directory: &Path,
+    relative: &str,
+    pattern: &str,
+    found: &mut Vec<(PathBuf, String)>,
+) {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return;
     };
@@ -844,7 +854,7 @@ fn walk(directory: &Path, relative: &str, pattern: &str, found: &mut Vec<(PathBu
 }
 
 /// `./`-prefixed, `/`-separated path of `path` relative to `root`; `None` outside it.
-fn import_path(root: &Path, path: &Path) -> Option<String> {
+pub(super) fn import_path(root: &Path, path: &Path) -> Option<String> {
     let relative = path.strip_prefix(root).ok()?;
     let parts: Vec<String> = relative
         .components()

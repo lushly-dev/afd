@@ -139,6 +139,34 @@ export interface CaptureRequest {
 	screenshot?: string;
 	timeoutMs?: number;
 }
+/** The codemod's request: which story files, and whether to write the proposals. */
+export interface MigrateRequest {
+	/** Import paths, such as `./src/button.stories.ts`; every discovered story file when absent. */
+	files?: string[];
+	/** Write the proposed edits. The default is a preview that writes nothing. */
+	apply?: boolean;
+}
+/** The codemod's file-by-file report. */
+export interface MigrationReport {
+	mode: 'preview' | 'apply';
+	files: {
+		importPath: string;
+		component: {
+			status: 'present' | 'proposed' | 'manual';
+			tag?: string;
+			reason: string;
+			candidates: string[];
+		};
+		/** Meta fields kept exactly as written. */
+		retained: string[];
+		imports: { source: string; names: string[]; typeOnly: boolean; reason: string }[];
+		manual: string[];
+		diff?: string;
+		applied: boolean;
+	}[];
+	problems: string[];
+	summary: { files: number; present: number; proposed: number; manual: number; applied: number };
+}
 /** Inspection takes an id and, optionally, the context a render would request. */
 export type InspectRequest = Pick<CaptureRequest, 'id' | 'context' | 'timeoutMs'>;
 /** What inspection reports about one specimen or retained story, before any capture. */

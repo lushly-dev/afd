@@ -24,6 +24,12 @@ function harness() {
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
 		]),
 		validate: vi.fn(() => ({ valid: true, scope: 'static' as const, checked: 1, issues: [] })),
+		migrate: vi.fn(async (request) => ({
+			mode: (request?.apply ? 'apply' : 'preview') as 'apply' | 'preview',
+			files: [],
+			problems: [],
+			summary: { files: 0, present: 0, proposed: 0, manual: 0, applied: 0 },
+		})),
 		inspect: vi.fn(async (request) => ({
 			id: request.id,
 			component: 'plain-button',
@@ -80,6 +86,23 @@ function harness() {
 }
 
 describe('specimen CLI', () => {
+	it('dispatches migrate as a preview unless --apply is given', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'migrate'], h.io)).toBe(0);
+		expect(h.bench.migrate).toHaveBeenLastCalledWith({});
+		expect(
+			await runCli(
+				['--root', root, 'migrate', '--files', './a.stories.ts,./b.stories.ts', '--apply'],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.migrate).toHaveBeenLastCalledWith({
+			files: ['./a.stories.ts', './b.stories.ts'],
+			apply: true,
+		});
+		expect(await runCli(['--root', root, 'migrate', 'extra'], h.io)).toBe(1);
+	});
 	it('dispatches inspect with context options only', async () => {
 		const h = harness();
 		const root = await directory();

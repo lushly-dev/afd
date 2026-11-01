@@ -68,6 +68,12 @@ function bench(): SpecimenCommandBench {
 					: [],
 		})),
 		render: vi.fn(async () => observation()),
+		migrate: vi.fn(async (request) => ({
+			mode: (request?.apply ? 'apply' : 'preview') as 'apply' | 'preview',
+			files: [],
+			problems: [],
+			summary: { files: 0, present: 0, proposed: 0, manual: 0, applied: 0 },
+		})),
 		inspect: vi.fn(async (request) => ({
 			id: request.id,
 			component: 'plain-button',
@@ -120,6 +126,7 @@ describe('specimen commands', () => {
 			'specimen-validate',
 			'specimen-run',
 			'specimen-inspect',
+			'specimen-migrate',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -141,6 +148,22 @@ describe('specimen commands', () => {
 		const all = await executeSpecimenCommand(instance, 'specimen-validate', {});
 		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
 		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('previews the codemod by default and applies it only when asked', async () => {
+		const instance = bench();
+		const preview = await executeSpecimenCommand(instance, 'specimen-migrate', {});
+		expect(preview.data).toMatchObject({ mode: 'preview' });
+		const applied = await executeSpecimenCommand(instance, 'specimen-migrate', {
+			files: ['./src/a.stories.ts'],
+			apply: true,
+		});
+		expect(applied.data).toMatchObject({ mode: 'apply' });
+		expect(instance.migrate).toHaveBeenLastCalledWith({
+			files: ['./src/a.stories.ts'],
+			apply: true,
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-migrate', { files: [] });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('inspects a specimen and validates the report against the inspect schema', async () => {

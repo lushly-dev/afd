@@ -3,6 +3,8 @@ import { basename, dirname, resolve } from 'node:path';
 import { HostProcess } from './host.js';
 import type {
 	BenchConfig,
+	MigrateRequest,
+	MigrationReport,
 	SpecimenEntry,
 	StoriesSpecifier,
 	StoryIdentity,
@@ -276,4 +278,35 @@ export function validateDiscovery(
 		checked: entries.length,
 		issues,
 	};
+}
+
+/**
+ * The preview-first codemod over the configuration's story files, in a short-lived host:
+ * it proposes a meta `component` only when the manifest makes it unambiguous, keeps every
+ * existing field, and writes files only when `apply` is set.
+ */
+export async function migrateStories(
+	root: string,
+	base: string,
+	config: BenchConfig,
+	request: MigrateRequest
+): Promise<MigrationReport> {
+	const specifiers = (config.stories ?? []).map((entry) => normalizeSpecifier(entry, base));
+	const host = new HostProcess();
+	try {
+		return (await host.request(
+			'migrate',
+			{
+				root,
+				base,
+				stories: specifiers,
+				manifest: config.manifest ?? null,
+				files: request.files ?? null,
+				apply: request.apply === true,
+			},
+			INDEX_TIMEOUT
+		)) as MigrationReport;
+	} finally {
+		await host.close();
+	}
 }

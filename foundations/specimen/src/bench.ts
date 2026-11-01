@@ -1,12 +1,14 @@
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
-import { validateDiscovery } from './stories.js';
+import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	BenchOptions,
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
+	MigrateRequest,
+	MigrationReport,
 	Observation,
 	RunRequest,
 	SpecimenEntry,
@@ -46,6 +48,12 @@ export interface SpecimenBench {
 	 * its component's schema, from the manifest and the plugins' schema sources.
 	 */
 	inspect(request: InspectRequest): Promise<InspectResult>;
+	/**
+	 * The preview-first codemod over the configured story files: a file-by-file report of the
+	 * component it can name, the metadata it keeps and the manual tasks left. Writes only with
+	 * `apply: true`, and never removes metadata.
+	 */
+	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -168,6 +176,12 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.inspect(request));
+		},
+		async migrate(request = {}) {
+			const snapshot = ensureOpen();
+			if (!snapshot.config.stories)
+				throw new Error('The codemod migrates retained stories; this configuration names none.');
+			return migrateStories(snapshot.root, dirname(snapshot.file), snapshot.config, request);
 		},
 		async build(outDir) {
 			ensureDiscovered();

@@ -7,6 +7,8 @@
 //! - `{"id", "op": "render", "entry", "context", "checkpoint", "timeoutMs", "screenshot"}`
 //! - `{"id", "op": "index", "root", "base", "stories": [{directory, files, titlePrefix}], "preview"}`
 //!   reads story files statically and replies with their Storybook identities; it needs no `open`.
+//! - `{"id", "op": "migrate", "root", "base", "stories", "manifest", "files", "apply"}` is the
+//!   preview-first codemod over the same files; it writes only with `apply`.
 //! - `{"id", "op": "close"}` waits for accepted renders, stops Chromium and exits.
 //!
 //! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes"}}`.
@@ -214,6 +216,32 @@ async fn main() -> Result<()> {
                             failure(&id, anyhow!("Invalid index request: {error}").into())
                         }
                     };
+                    let _ = replies.send(reply);
+                });
+            }
+            Some("migrate") => {
+                let replies = replies.clone();
+                work.spawn(async move {
+                    let reply =
+                        match serde_json::from_value::<csf::migrate::MigrateRequest>(message) {
+                            Ok(request) => {
+                                match tokio::task::spawn_blocking(move || {
+                                    csf::migrate::migrate(&request)
+                                })
+                                .await
+                                {
+                                    Ok(migration) => {
+                                        json!({ "id": id, "ok": true, "result": migration })
+                                    }
+                                    Err(error) => {
+                                        failure(&id, anyhow!("Migration failed: {error}").into())
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                failure(&id, anyhow!("Invalid migrate request: {error}").into())
+                            }
+                        };
                     let _ = replies.send(reply);
                 });
             }

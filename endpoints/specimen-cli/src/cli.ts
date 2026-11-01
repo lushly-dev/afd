@@ -43,8 +43,9 @@ const valueOptions = new Set([
 	'allow-context',
 	'id',
 	'file',
+	'files',
 ]);
-const flagOptions = new Set(['require-visual']);
+const flagOptions = new Set(['require-visual', 'apply']);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -81,6 +82,7 @@ function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
 		list: new Set(['root', 'config', 'output']),
 		validate: new Set(['root', 'config', 'output', 'id', 'file']),
+		migrate: new Set(['root', 'config', 'output', 'files', 'apply']),
 		render: new Set([
 			'root',
 			'config',
@@ -127,7 +129,11 @@ function validateOptions(parsed: ParsedArguments): void {
 			throw new Error(`Option --${option} does not apply to ${parsed.action}`);
 	}
 	const expected =
-		parsed.action === 'list' || parsed.action === 'validate' ? 0 : parsed.action === 'diff' ? 2 : 1;
+		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate'
+			? 0
+			: parsed.action === 'diff'
+				? 2
+				: 1;
 	if (parsed.positionals.length !== expected)
 		throw new Error(
 			`${parsed.action} expects ${expected} positional argument${expected === 1 ? '' : 's'}`
@@ -180,6 +186,13 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			});
 			if (parsed.action === 'list')
 				result = await executeSpecimenCommand(bench, 'specimen-list', {});
+			else if (parsed.action === 'migrate')
+				result = await executeSpecimenCommand(bench, 'specimen-migrate', {
+					...(parsed.options.has('files')
+						? { files: (parsed.options.get('files') ?? '').split(',').filter(Boolean) }
+						: {}),
+					...(parsed.flags.has('apply') ? { apply: true } : {}),
+				});
 			else if (parsed.action === 'validate')
 				result = await executeSpecimenCommand(bench, 'specimen-validate', {
 					...(parsed.options.has('id') ? { id: parsed.options.get('id') } : {}),
@@ -237,7 +250,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, migrate [--files A,B] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {
