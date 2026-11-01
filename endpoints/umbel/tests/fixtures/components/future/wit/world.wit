@@ -1,0 +1,10 @@
+package umbel:plugin@2.0.0;
+
+/// A world this host does not serve: major version 2.
+interface command {
+  execute: func(name: string, input: string) -> string;
+}
+
+world plugin {
+  export command;
+}

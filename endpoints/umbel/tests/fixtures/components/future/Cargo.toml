@@ -1,0 +1,28 @@
+[package]
+name = "umbel-fixture-future"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "Test component: exports umbel:plugin/command@2.0.0, a world this host does not serve"
+repository = "https://github.com/lushly-dev/afd"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.63"
+
+# The workspace lints, with one scoped exception: wit-bindgen's generated glue uses `unsafe`
+# (exported symbols, the canonical ABI), so `unsafe_code` is `deny` here, not `forbid`, and the
+# glue is wrapped in `#[allow(unsafe_code)]`. Hand-written `unsafe` stays refused.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

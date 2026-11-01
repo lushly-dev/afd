@@ -9,8 +9,8 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-# Later steps add "tests/fixtures/components/*" and "plugins/todo".
-members = [".", "sdk", "plugins/hello"]
+# Step 6 adds "plugins/todo".
+members = [".", "sdk", "plugins/hello", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -23,9 +23,12 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [features]
-default = ["cli", "mounted"]
+default = ["cli", "component", "mounted"]
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
+# The WebAssembly component loader (specification section 6.2): wasmtime 48 and its WASI 0.2
+# implementation, which is `wasmtime-wasi`'s `p2` feature and nothing else.
+component = ["dep:rand", "dep:wasmtime", "dep:wasmtime-wasi"]
 # `umbel::testkit`: `TestHost` and its MCP drivers, for plugin crates' tests and the host's own
 # (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
 # need `http` and `http-body-util` to speak to the router in process.
@@ -73,6 +76,14 @@ tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
+# Optional: the `component` feature, the WebAssembly component loader (specification section 6.2).
+# wasmtime stays on its 48 long-term line (D39). The WASI 0.2 implementation is `wasmtime-wasi`'s
+# `p2` feature and nothing else (no `p1`, no `p3`); `p2` enables `wasmtime/async`. `rand` is only
+# for the `TryRng` trait the virtualized random source implements.
+rand = { version = "0.10", default-features = false, optional = true }
+wasmtime = { version = "48.0.8", optional = true, default-features = false, features = ["runtime", "cranelift", "component-model", "std", "parallel-compilation"] }
+wasmtime-wasi = { version = "48.0.8", optional = true, default-features = false, features = ["p2"] }
+
 # Optional: the `mounted` feature. `reqwest` is named for its client builder (a private root
 # certificate, no redirects) and `sse-stream` for the SSE types the bounded HTTP client returns.
 futures = { version = "0.3", optional = true }
@@ -104,6 +115,23 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
+
+# Cranelift and wasmtime dominate test time when unoptimized, and the tests compile components.
+# The test profile inherits these from dev. (The component loader, specification section 1.)
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+[profile.dev.package.regalloc2]
+opt-level = 2
+[profile.dev.package.wasmparser]
+opt-level = 2
+[profile.dev.package.wasmtime]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
 
 [lints]
 workspace = true

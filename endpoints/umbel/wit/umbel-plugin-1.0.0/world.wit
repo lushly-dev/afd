@@ -42,14 +42,14 @@ interface log {
 /// Grant `packs`. Read the call's space's effective copy of one of this plugin's packs.
 interface packs {
   use types.{host-error};
-  list: func(pack: string) -> result<list<string>, host-error>;
+  %list: func(pack: string) -> result<list<string>, host-error>;
   read: func(pack: string, path: string) -> result<list<u8>, host-error>;
 }
 
 /// Grant `events`. Read one space's event log by cursor, as event-list returns it.
 interface events {
   use types.{json, host-error};
-  list: func(space: option<string>, after: option<string>, limit: u32) -> result<json, host-error>;
+  %list: func(space: option<string>, after: option<string>, limit: u32) -> result<json, host-error>;
 }
 
 /// Grant `clock`. The command context's clock, in epoch milliseconds; recorded on the tape.

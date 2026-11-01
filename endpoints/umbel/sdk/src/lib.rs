@@ -4,6 +4,9 @@
 //! (`umbel::plugins::sdk`), and later steps build it as a WebAssembly component and as a
 //! mounted MCP server. The crate does not depend on the host crate.
 //!
+//! With the `component` feature, [`export_component!`] builds the plugin as a WebAssembly
+//! component for `wasm32-wasip2` (the host side is in the `umbel` crate's component loader).
+//!
 //! A handler receives the validated input and a [`Cx`], the handle to the host services its
 //! plugin was granted, and answers an [`Outcome`], an AFD `CommandResult` as JSON.
 //!
@@ -32,9 +35,11 @@
 //! let assets: &[Asset] = Echo.assets();
 //! assert!(assets.is_empty());
 //! ```
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "component"), forbid(unsafe_code))]
 
 mod assets;
+#[cfg(feature = "component")]
+pub mod component;
 mod cx;
 #[cfg(feature = "mounted")]
 mod mounted;
