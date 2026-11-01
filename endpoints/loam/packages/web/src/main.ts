@@ -3,6 +3,8 @@
  * with Loam's theme, and the "open in another tab" notice when the journal's writer lock is held.
  */
 
+// First, before any module that parses with Zod loads.
+import './zod-jitless.js';
 import { mountShell, renderNotice } from '@lushly-dev/loam-chrome';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';

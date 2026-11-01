@@ -108,6 +108,12 @@ const styles = css`
 		--violet-dialog-radius: var(--radius-lg);
 		--violet-dialog-backdrop: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
 	}
+	violet-dialog::part(header) {
+		padding-block: var(--space-stack-sm);
+		padding-inline: var(--space-layout-sm);
+		font-size: var(--type-label-sm-size);
+		line-height: var(--type-label-sm-line);
+	}
 	.search {
 		padding: var(--space-layout-sm);
 		border-block-end: 1px solid var(--color-border-subtle);
@@ -117,13 +123,16 @@ const styles = css`
 		inline-size: 100%;
 		min-block-size: var(--size-target-comfortable);
 		padding-inline: var(--size-space-md);
-		border: 1px solid var(--color-field-border-hover);
+		border: 1px solid var(--color-field-border);
 		border-radius: var(--radius-md);
 		background: var(--color-field-background);
 		color: var(--color-field-text);
 		font: inherit;
 		font-size: var(--type-title-sm-size);
 		line-height: var(--type-title-sm-line);
+	}
+	.field:hover {
+		border-color: var(--color-field-border-hover);
 	}
 	.field::placeholder {
 		color: var(--color-field-placeholder);

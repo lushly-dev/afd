@@ -55,7 +55,7 @@ describe('the browser host kernel', () => {
 		const indexedDB = new IDBFactory();
 		const locks = fakeLocks();
 		const first = await createHostKernel({ environment, indexedDB, locks });
-		const second = await createHostKernel({ environment, indexedDB, locks });
+		const second = await createHostKernel({ environment, indexedDB, locks, lockPatienceMs: 250 });
 		expect(second.kind).toBe('locked');
 		if (second.kind === 'locked') expect(second.error.code).toBe('JOURNAL_LOCKED');
 		if (first.kind === 'ready') {

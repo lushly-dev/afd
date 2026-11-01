@@ -8,6 +8,7 @@ import {
 	createFixedEnvironment,
 	createReferenceWorkspace,
 	createSeededRandom,
+	createTestKernel,
 	diffJournals,
 	recordSession,
 	replayKernel,
@@ -63,6 +64,29 @@ describe('E2: a replayed journal reproduces the layout', () => {
 		const replayed = await replayKernel(recorded.entries);
 		expect(replayed.report.diverged).toBe(false);
 		expect(replayed.appearance.resolved).toBe('light');
+	});
+
+	it('keeps the replayed kernel when asked, for a chrome to render', async () => {
+		const recorded = await recordSession(SESSION_50);
+		const { kernel, layout } = await replayKernel(recorded.entries, { keep: true });
+		expect(kernel).toBeDefined();
+		const live = await kernel?.call('layout-get');
+		expect(live?.data).toEqual(layout);
+		await kernel?.dispose();
+		const { kernel: none } = await replayKernel(recorded.entries);
+		expect(none).toBeUndefined();
+	});
+
+	it('creates a memory test kernel that journals its calls', async () => {
+		const { kernel, journal } = await createTestKernel();
+		await kernel.call('layout-set', { panel: { open: true } });
+		const info = await kernel.call<{ host: string; store: string }>('shell-info-get');
+		expect(info.data).toMatchObject({ host: 'test', store: 'memory' });
+		expect((await journal.read()).map((entry) => entry.command)).toEqual([
+			'layout-set',
+			'shell-info-get',
+		]);
+		await kernel.dispose();
 	});
 
 	it('replays an empty journal to the defaults', async () => {

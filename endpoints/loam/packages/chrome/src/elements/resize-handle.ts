@@ -252,11 +252,14 @@ export class LoamResizeHandle extends FASTElement {
 	}
 }
 
-const numberAttribute = { converter: { toView: String, fromView: (v: unknown) => Number(v) || 0 } };
-attr(numberAttribute)(LoamResizeHandle.prototype, 'value');
-attr(numberAttribute)(LoamResizeHandle.prototype, 'min');
-attr(numberAttribute)(LoamResizeHandle.prototype, 'max');
-attr(numberAttribute)(LoamResizeHandle.prototype, 'preset');
+// FAST's attr() records the property on its configuration, so each attribute needs its own.
+const numberAttribute = () => ({
+	converter: { toView: String, fromView: (v: unknown) => Number(v) || 0 },
+});
+attr(numberAttribute())(LoamResizeHandle.prototype, 'value');
+attr(numberAttribute())(LoamResizeHandle.prototype, 'min');
+attr(numberAttribute())(LoamResizeHandle.prototype, 'max');
+attr(numberAttribute())(LoamResizeHandle.prototype, 'preset');
 attr(LoamResizeHandle.prototype, 'label');
 attr(LoamResizeHandle.prototype, 'growth');
 

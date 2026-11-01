@@ -1,0 +1,124 @@
+{
+	"specimens": [
+		{
+			"id": "shell",
+			"title": "Loam/Chrome/Shell",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Shell"
+		},
+		{
+			"id": "shell-compact-density",
+			"title": "Loam/Chrome/ShellCompactDensity",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ShellCompactDensity"
+		},
+		{
+			"id": "shell-palette",
+			"title": "Loam/Chrome/ShellPalette",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ShellPalette"
+		},
+		{
+			"id": "titlebar",
+			"title": "Loam/Chrome/Titlebar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Titlebar"
+		},
+		{
+			"id": "titlebar-signed-in",
+			"title": "Loam/Chrome/TitlebarSignedIn",
+			"module": "./chrome.specimens.ts",
+			"exportName": "TitlebarSignedIn"
+		},
+		{
+			"id": "rail",
+			"title": "Loam/Chrome/Rail",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Rail"
+		},
+		{
+			"id": "tabbar",
+			"title": "Loam/Chrome/Tabbar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Tabbar"
+		},
+		{
+			"id": "sidebar",
+			"title": "Loam/Chrome/Sidebar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Sidebar"
+		},
+		{
+			"id": "inspector",
+			"title": "Loam/Chrome/Inspector",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Inspector"
+		},
+		{
+			"id": "inspector-overlay",
+			"title": "Loam/Chrome/InspectorOverlay",
+			"module": "./chrome.specimens.ts",
+			"exportName": "InspectorOverlay"
+		},
+		{
+			"id": "main",
+			"title": "Loam/Chrome/Main",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Main"
+		},
+		{
+			"id": "main-not-found",
+			"title": "Loam/Chrome/MainNotFound",
+			"module": "./chrome.specimens.ts",
+			"exportName": "MainNotFound"
+		},
+		{
+			"id": "panel",
+			"title": "Loam/Chrome/Panel",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Panel"
+		},
+		{
+			"id": "statusbar",
+			"title": "Loam/Chrome/Statusbar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Statusbar"
+		},
+		{
+			"id": "resize-handle",
+			"title": "Loam/Chrome/ResizeHandle",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ResizeHandle"
+		},
+		{
+			"id": "empty-state",
+			"title": "Loam/Chrome/EmptyState",
+			"module": "./chrome.specimens.ts",
+			"exportName": "EmptyState"
+		},
+		{
+			"id": "status-item",
+			"title": "Loam/Chrome/StatusItem",
+			"module": "./chrome.specimens.ts",
+			"exportName": "StatusItem"
+		},
+		{
+			"id": "notice",
+			"title": "Loam/Chrome/Notice",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Notice"
+		},
+		{
+			"id": "session-live",
+			"title": "Loam/Session/SessionLive",
+			"module": "./session.specimens.ts",
+			"exportName": "SessionLive"
+		},
+		{
+			"id": "session-replay",
+			"title": "Loam/Session/SessionReplay",
+			"module": "./session.specimens.ts",
+			"exportName": "SessionReplay"
+		}
+	]
+}

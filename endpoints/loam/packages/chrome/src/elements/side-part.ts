@@ -8,6 +8,7 @@
 import { attr, css, FASTElement, html, ref } from '@lushly-dev/fast-element';
 import type { SideMode } from '../layout-class.js';
 import { deepActiveElement, dispatchAction } from './events.js';
+import { trapTab } from './focus.js';
 import { registerChromeIcons } from './icons.js';
 import { partHeader, partHost, quietButton } from './styles.js';
 
@@ -34,6 +35,7 @@ const template = html<LoamSidePart>`
 		${ref('drawer')}
 		aria-label="${(x) => x.heading}"
 		@cancel="${(x, c) => x.handleCancel(c.event)}"
+		@keydown="${(x, c) => x.handleDrawerKeydown(c.event as KeyboardEvent)}"
 		@click="${(x, c) => x.handleDrawerClick(c.event as MouseEvent)}"
 	></dialog>
 `;
@@ -166,7 +168,9 @@ export class LoamSidePart extends FASTElement {
 	}
 
 	modeChanged(): void {
-		this.#sync();
+		// The shell sets `mode` and `hidden` in one update; open the drawer once both are in, since a
+		// dialog inside a hidden part cannot take focus.
+		queueMicrotask(() => this.#sync());
 	}
 
 	headingChanged(): void {
@@ -175,6 +179,11 @@ export class LoamSidePart extends FASTElement {
 
 	requestClose(): void {
 		dispatchAction(this, { action: 'close', part: this.shellPart });
+	}
+
+	handleDrawerKeydown(event: KeyboardEvent): boolean {
+		trapTab(event, this.drawer);
+		return true;
 	}
 
 	handleCancel(event: Event): void {
@@ -199,7 +208,7 @@ export class LoamSidePart extends FASTElement {
 	#sync(): void {
 		if (!this.$fastController?.isConnected || !this.frame || !this.drawer) return;
 		if (this.mode === 'drawer') {
-			if (this.drawer.open) return;
+			if (this.drawer.open || this.hidden) return;
 			this.#opener = deepActiveElement(this.ownerDocument);
 			this.drawer.append(this.frame);
 			this.drawer.showModal();

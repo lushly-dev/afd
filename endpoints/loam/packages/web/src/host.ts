@@ -11,6 +11,7 @@ import {
 	type IndexedDbJournalSinkOptions,
 } from '@lushly-dev/afd-core/journal-indexeddb';
 import { createKernel, type KernelEnvironmentV0, type LoamKernelV0 } from '@lushly-dev/loam-kernel';
+
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 
 /** The databases the browser host owns (6.4, 6.6). */
@@ -41,7 +42,15 @@ export interface HostKernelOptions {
 	indexedDB?: IDBFactory;
 	/** The Web Locks API, for tests; the platform's by default. */
 	locks?: IndexedDbJournalSinkOptions['locks'];
+	/**
+	 * How long to keep asking for a writer lock that is held, in milliseconds, before deciding
+	 * another tab has it. A reload's previous document can still hold it for a moment while it
+	 * unloads. Default 1,000.
+	 */
+	lockPatienceMs?: number;
 }
+
+const LOCK_RETRY_MS = 100;
 
 export type HostKernel =
 	| { kind: 'ready'; kernel: LoamKernelV0; journal: IndexedDbJournalSink }
@@ -54,14 +63,19 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		...(options.indexedDB ? { indexedDB: options.indexedDB } : {}),
 		...(options.locks ? { locks: options.locks } : {}),
 	});
-	try {
-		await journal.lock();
-	} catch (error) {
-		if (error instanceof IndexedDbJournalError && error.code === 'JOURNAL_LOCKED') {
-			await journal.close();
-			return { kind: 'locked', error };
+	const deadline = Date.now() + (options.lockPatienceMs ?? 1_000);
+	for (;;) {
+		try {
+			await journal.lock();
+			break;
+		} catch (error) {
+			if (!(error instanceof IndexedDbJournalError) || error.code !== 'JOURNAL_LOCKED') throw error;
+			if (Date.now() >= deadline) {
+				await journal.close();
+				return { kind: 'locked', error };
+			}
+			await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
 		}
-		throw error;
 	}
 	const kernel = await createKernel({
 		store: new IndexedDbAdapter({

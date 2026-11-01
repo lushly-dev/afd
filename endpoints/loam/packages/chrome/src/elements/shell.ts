@@ -77,7 +77,7 @@ const template = html<LoamShell>`
 		></loam-notice>`
 	)}
 	${when(
-		(x) => x.failure === null,
+		(x) => x.failure === null && x.booted,
 		html<LoamShell>`
 			<loam-titlebar
 				data-part="titlebar"
@@ -291,6 +291,8 @@ export class LoamShell extends FASTElement {
 	declare route: RouteV0;
 	declare panelMax: number;
 	declare failure: ShellFailure | null;
+	/** True once the first appearance, layout and session reads are in, so parts render themed. */
+	declare booted: boolean;
 	declare palette: LoamPalette;
 	declare sidebarHandle: LoamResizeHandle;
 	declare inspectorHandle: LoamResizeHandle;
@@ -323,6 +325,7 @@ export class LoamShell extends FASTElement {
 		this.route = 'home';
 		this.panelMax = LAYOUT_DEFAULTS_V0.panel.default;
 		this.failure = null;
+		this.booted = false;
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.home = new URL('./', globalThis.document?.baseURI ?? 'http://localhost/').pathname;
 	}
@@ -418,11 +421,15 @@ export class LoamShell extends FASTElement {
 		this.#router = createRouter(view, (route) => {
 			this.route = route;
 		});
-		whenIdle(view, () => void this.preparePalette());
 
 		const entries = (await this.journal?.read()) ?? [];
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
-		await Promise.all([this.#readLayout(), this.#readAppearance(), this.#readSession()]);
+		// Appearance first, so the parts render in their theme with no transition from light.
+		await this.#readAppearance();
+		await Promise.all([this.#readLayout(), this.#readSession()]);
+		this.booted = true;
+		this.#present();
+		whenIdle(view, () => void this.preparePalette());
 	}
 
 	#listen(target: EventTarget, type: string, listener: (event: Event) => void): void {
@@ -613,7 +620,8 @@ export class LoamShell extends FASTElement {
 	}
 
 	#onResize(event: Event, commit: boolean): void {
-		const handle = event.target as LoamResizeHandle;
+		// The listener is on the host, so the target is retargeted to it; the handle is first on the path.
+		const handle = event.composedPath()[0] as LoamResizeHandle;
 		const part = handle.dataset.resizes as 'sidebar' | 'inspector' | 'panel' | undefined;
 		const { value } = (event as CustomEvent<ResizeDetail>).detail;
 		if (!part) return;
@@ -730,5 +738,6 @@ observable(LoamShell.prototype, 'lastSeq');
 observable(LoamShell.prototype, 'route');
 observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
+observable(LoamShell.prototype, 'booted');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;
