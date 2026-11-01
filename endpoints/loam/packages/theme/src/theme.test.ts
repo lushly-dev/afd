@@ -195,13 +195,7 @@ describe('exports', () => {
 		expect(json.contractVersion).toBe(1);
 		expect(Object.keys(json.nodes)).toEqual(NODE_IDS);
 		const dark = json.nodes['loam/dark'] as { id: string; value: string }[];
-		expect(dark).toContainEqual({
-			id: 'color.action.secondary.text',
-			value: '#F5EFE3',
-			resolvedAt: 'loam/dark',
-		});
-		const contrast = json.nodes['loam/high-contrast'] as { id: string; resolvedAt: string }[];
-		expect(contrast.find((token) => token.id === 'color.field.text')?.resolvedAt).toBe('loam');
+		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#F5EFE3' });
 		expect(dark.some((token) => token.id.startsWith('ref.'))).toBe(false);
 		expect(outputs.files['contract.json']).toBe(readFileSync(contractUrl, 'utf8'));
 	});

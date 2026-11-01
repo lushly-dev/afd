@@ -373,9 +373,7 @@ rebuilds the outputs in memory and compares the committed files
 (`contract/tokens.json` and the component token export of 2.4); `dist/` is
 build output and is never compared.
 
-Decided by step 2 (2026-11-01): `loam-theme.json`'s tokens also carry
-`resolvedAt`, the node that set the token's own value, because the runtime's
-`Token` requires it. The compact block is one rule per theme,
+Decided by step 2 (2026-11-01): the compact block is one rule per theme,
 `[data-loam-theme="<theme>"][data-loam-density="compact"]`, each holding the
 compact node's diff against its theme. Properties are in id order. The three
 files are also the package's `./loam-theme.css`, `./loam-theme.json` and
