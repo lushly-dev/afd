@@ -1,0 +1,16 @@
+{
+	"properties": {
+		"ids": {
+			"description": "Todo IDs (1 to 100)",
+			"items": {
+				"minLength": 1,
+				"type": "string"
+			},
+			"maxItems": 100,
+			"minItems": 1,
+			"type": "array"
+		}
+	},
+	"required": ["ids"],
+	"type": "object"
+}

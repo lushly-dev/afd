@@ -9,8 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-# Step 6 adds "plugins/todo".
-members = [".", "sdk", "plugins/hello", "tests/fixtures/components/*"]
+members = [".", "sdk", "plugins/hello", "plugins/todo", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -11,7 +13,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { ConformanceRunner, wireProblems } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BACKENDS = ['ts', 'py', 'rs', 'cpp'] as const;
+const BACKENDS = ['ts', 'py', 'rs', 'cpp', 'umbel', 'umbel-mounted'] as const;
 type Backend = (typeof BACKENDS)[number];
 
 /**
@@ -54,14 +56,19 @@ function freePort(): Promise<number> {
 }
 
 /** Poll `url` until it answers 200, the process exits, or the timeout passes. */
-async function waitForHealth(url: string, child: ChildProcess, timeoutMs: number): Promise<void> {
+async function waitForHealth(
+	url: string,
+	child: ChildProcess,
+	timeoutMs: number,
+	headers?: Record<string, string>
+): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (child.exitCode !== null) {
 			throw new Error(`The backend exited with code ${child.exitCode} before it was ready`);
 		}
 		try {
-			if ((await fetch(url)).ok) return;
+			if ((await fetch(url, { headers })).ok) return;
 		} catch {
 			// Not listening yet.
 		}
@@ -70,13 +77,26 @@ async function waitForHealth(url: string, child: ChildProcess, timeoutMs: number
 	throw new Error(`The backend did not answer ${url} within ${timeoutMs / 1000}s`);
 }
 
-/**
- * The Rust backend speaks MCP over HTTP rather than stdio: start it on a free
- * port and connect with the Streamable HTTP client transport.
- */
-async function startRustBackend(
+/** A started backend: how to reach it, and how to stop everything the runner started for it. */
+interface Started {
+	transport: Transport;
+	stop(): Promise<void>;
+}
+
+/** Kill `child` and wait until it is gone (a process already gone is fine). */
+async function kill(child: ChildProcess): Promise<void> {
+	if (child.exitCode !== null || child.signalCode !== null) return;
+	const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+	child.kill();
+	const forced = setTimeout(() => child.kill('SIGKILL'), 5000);
+	await exited;
+	clearTimeout(forced);
+}
+
+/** Start the Rust backend on a free port and wait until it is healthy. */
+async function spawnRustServer(
 	extraEnv: Record<string, string>
-): Promise<{ transport: Transport; child: ChildProcess }> {
+): Promise<{ base: string; child: ChildProcess }> {
 	const port = await freePort();
 	const manifest = path.join(__dirname, '../backends/rust/Cargo.toml');
 	const child = spawn(
@@ -92,17 +112,129 @@ async function startRustBackend(
 		// Generous: the first run may still compile the crate.
 		await waitForHealth(`${base}/health`, child, 300_000);
 	} catch (error) {
-		child.kill();
+		await kill(child);
 		throw error;
 	}
-	return { transport: new StreamableHTTPClientTransport(new URL(`${base}/mcp`)), child };
+	return { base, child };
+}
+
+/**
+ * The Rust backend speaks MCP over HTTP rather than stdio: start it on a free
+ * port and connect with the Streamable HTTP client transport.
+ */
+async function startRustBackend(extraEnv: Record<string, string>): Promise<Started> {
+	const { base, child } = await spawnRustServer(extraEnv);
+	return {
+		transport: new StreamableHTTPClientTransport(new URL(`${base}/mcp`)),
+		stop: () => kill(child),
+	};
+}
+
+/** Where cargo puts Umbel's binaries (`endpoints/umbel` is its own workspace). */
+function umbelBinary(name: string): string {
+	const target =
+		process.env.CARGO_TARGET_DIR ?? path.join(__dirname, '../../../../endpoints/umbel/target');
+	return path.join(
+		path.resolve(target),
+		'debug',
+		process.platform === 'win32' ? `${name}.exe` : name
+	);
+}
+
+/** The committed plugin directory that mounts the Rust backend over HTTP (exit run 4). */
+const MOUNT_FIXTURE = path.join(
+	__dirname,
+	'../../../../endpoints/umbel/tests/fixtures/plugins/todo-http'
+);
+
+/**
+ * Umbel serves the todo commands over Streamable HTTP behind a bearer token:
+ *
+ * - `umbel`: `umbel-todo`, the `umbel` command line with the todo plugin compiled in;
+ * - `umbel-mounted`: the stock `umbel` binary with no plugin compiled in, which mounts the Rust
+ *   backend over HTTP from `plugins/todo` in the workspace.
+ *
+ * Each connection gets a fresh workspace in the system temporary directory and a fresh process.
+ */
+async function startUmbel(
+	target: 'umbel' | 'umbel-mounted',
+	extraEnv: Record<string, string>
+): Promise<Started> {
+	const confirmations = extraEnv.CONFIRMATIONS === 'enforce' ? 'enforce' : 'off';
+	const workspace = await mkdtemp(path.join(tmpdir(), 'umbel-todo-conformance-'));
+	const cleanups: Array<() => Promise<void>> = [
+		() => rm(workspace, { recursive: true, force: true }),
+	];
+	const stop = async () => {
+		for (const cleanup of cleanups.reverse()) await cleanup();
+	};
+	try {
+		const port = await freePort();
+		let plugin = '';
+		if (target === 'umbel-mounted') {
+			// The mount renames tools one by one, so the backend lists one tool per command.
+			const backend = await spawnRustServer({ TOOL_STRATEGY: 'individual' });
+			cleanups.push(() => kill(backend.child));
+			await mkdir(path.join(workspace, 'plugins'));
+			await cp(MOUNT_FIXTURE, path.join(workspace, 'plugins/todo'), { recursive: true });
+			plugin = `\n[plugins.todo]\nsource = "plugins/todo"\nurl = "${backend.base}/mcp"\nrequired = true\n`;
+		}
+		await writeFile(
+			path.join(workspace, 'umbel.toml'),
+			`config_version = 2\n\n[plugins]\nenabled = ["todo"]\n${plugin}\n[mcp]\nconfirmations = "${confirmations}"\n\n[http]\nbind = "127.0.0.1:${port}"\n`
+		);
+		const child = spawn(
+			umbelBinary(target === 'umbel' ? 'umbel-todo' : 'umbel'),
+			['--workspace', workspace, 'serve', '--http', '--print-token'],
+			{ env: process.env, stdio: ['ignore', 'pipe', 'inherit'] }
+		);
+		cleanups.push(() => kill(child));
+		const token = await readToken(child);
+		const headers = { Authorization: `Bearer ${token}` };
+		await waitForHealth(`http://127.0.0.1:${port}/health`, child, 300_000, headers);
+		return {
+			transport: new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+				requestInit: { headers },
+			}),
+			stop,
+		};
+	} catch (error) {
+		await stop();
+		throw error;
+	}
+}
+
+/** The bearer token `--print-token` writes as the first line of stdout; the rest is drained. */
+function readToken(child: ChildProcess): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const stdout = child.stdout;
+		if (!stdout) {
+			reject(new Error('The Umbel process has no stdout'));
+			return;
+		}
+		let buffer = '';
+		let found = false;
+		stdout.setEncoding('utf8');
+		stdout.on('data', (chunk: string) => {
+			if (found) return;
+			buffer += chunk;
+			const end = buffer.indexOf('\n');
+			if (end >= 0) {
+				found = true;
+				resolve(buffer.slice(0, end).trim());
+			}
+		});
+		child.once('exit', (code) =>
+			reject(new Error(`Umbel exited with code ${code} before it printed its token`))
+		);
+	});
 }
 
 /** Start `target` (stdio, or HTTP for Rust) with `extraEnv` added to its environment. */
-async function startBackend(
-	target: Backend,
-	extraEnv: Record<string, string>
-): Promise<{ transport: Transport; child?: ChildProcess }> {
+async function startBackend(target: Backend, extraEnv: Record<string, string>): Promise<Started> {
+	if (target === 'umbel' || target === 'umbel-mounted') {
+		return startUmbel(target, extraEnv);
+	}
 	const env = { ...process.env, ...extraEnv, TODO_STORE_TYPE: 'memory' } as Record<string, string>;
 	if (target === 'ts') {
 		return {
@@ -111,6 +243,7 @@ async function startBackend(
 				args: [path.join(__dirname, '../backends/typescript/dist/server.js')],
 				env: { ...env, PORT: '3101' },
 			}),
+			stop: async () => {},
 		};
 	}
 	if (target === 'py') {
@@ -120,6 +253,7 @@ async function startBackend(
 				args: ['run', '--project', path.join(__dirname, '../backends/python'), 'todo-server'],
 				env,
 			}),
+			stop: async () => {},
 		};
 	}
 	if (target === 'cpp') {
@@ -130,6 +264,7 @@ async function startBackend(
 				command: path.join(__dirname, '../backends/cpp/build/release', executable),
 				env,
 			}),
+			stop: async () => {},
 		};
 	}
 	return startRustBackend(extraEnv);
@@ -141,7 +276,6 @@ type ConfirmationClient = (typeof CONFIRMATION_CLIENTS)[number];
 
 interface Session {
 	client: Client;
-	child?: ChildProcess;
 	close(): Promise<void>;
 }
 
@@ -151,7 +285,7 @@ async function connect(
 	extraEnv: Record<string, string>,
 	answer?: Exclude<ConfirmationClient, 'acknowledge'>
 ): Promise<Session> {
-	const { transport, child } = await startBackend(target, extraEnv);
+	const { transport, stop } = await startBackend(target, extraEnv);
 	const client = new Client(
 		{ name: 'conformance-runner', version: '1.0.0' },
 		{
@@ -169,7 +303,7 @@ async function connect(
 	try {
 		await client.connect(transport);
 	} catch (error) {
-		child?.kill();
+		await stop();
 		throw error;
 	}
 	console.log(
@@ -177,10 +311,9 @@ async function connect(
 	);
 	return {
 		client,
-		child,
 		async close() {
 			await client.close();
-			child?.kill();
+			await stop();
 		},
 	};
 }

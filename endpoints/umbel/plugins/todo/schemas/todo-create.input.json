@@ -1,0 +1,23 @@
+{
+	"properties": {
+		"description": {
+			"description": "Optional details",
+			"maxLength": 1000,
+			"type": "string"
+		},
+		"priority": {
+			"default": "medium",
+			"description": "Priority (default: medium)",
+			"enum": ["low", "medium", "high"],
+			"type": "string"
+		},
+		"title": {
+			"description": "Todo title",
+			"maxLength": 200,
+			"minLength": 1,
+			"type": "string"
+		}
+	},
+	"required": ["title"],
+	"type": "object"
+}

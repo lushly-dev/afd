@@ -1,0 +1,43 @@
+{
+	"properties": {
+		"completed": {
+			"description": "Filter by completion status",
+			"type": "boolean"
+		},
+		"limit": {
+			"default": 20,
+			"description": "Page size (1 to 100)",
+			"maximum": 100,
+			"minimum": 1,
+			"type": "integer"
+		},
+		"offset": {
+			"default": 0,
+			"description": "Todos to skip",
+			"minimum": 0,
+			"type": "integer"
+		},
+		"priority": {
+			"description": "Filter by priority",
+			"enum": ["low", "medium", "high"],
+			"type": "string"
+		},
+		"search": {
+			"description": "Search in title and description",
+			"type": "string"
+		},
+		"sortBy": {
+			"default": "createdAt",
+			"description": "Sort field",
+			"enum": ["createdAt", "updatedAt", "priority", "title"],
+			"type": "string"
+		},
+		"sortOrder": {
+			"default": "desc",
+			"description": "Sort direction",
+			"enum": ["asc", "desc"],
+			"type": "string"
+		}
+	},
+	"type": "object"
+}
