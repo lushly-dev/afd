@@ -28,6 +28,11 @@ on:
       # The format job also checks the C++ todo backend.
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
+  # The macOS, Windows, TSan, packaging, benchmark, fuzz and Emscripten legs run daily and on
+  # demand rather than on every pull request and push.
+  schedule:
+    - cron: '41 7 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -71,35 +76,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: linux-gcc
-            os: ubuntu-latest
-            preset: release
-            cxx: g++
-          - name: linux-clang-sanitize
-            os: ubuntu-latest
-            preset: asan
-            cxx: clang++
-          - name: linux-clang-tsan
-            os: ubuntu-latest
-            preset: tsan
-            cxx: clang++
-          - name: noexcept-nortti
-            os: ubuntu-latest
-            preset: noexcept-nortti
-            cxx: clang++
-          - name: macos
-            os: macos-latest
-            preset: release
-            cxx: clang++
-          - name: windows-msvc
-            os: windows-latest
-            preset: release
-            cxx: ''
-          - name: windows-clang-cl
-            os: windows-latest
-            preset: release
-            cxx: ''
+        # Pull requests and pushes build GCC, Clang with ASan+UBSan and the no-exceptions/no-RTTI
+        # unity build; the daily and manual runs add TSan, macOS, MSVC and clang-cl.
+        include: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[
+            {"name": "linux-gcc", "os": "ubuntu-latest", "preset": "release", "cxx": "g++"},
+            {"name": "linux-clang-sanitize", "os": "ubuntu-latest", "preset": "asan", "cxx": "clang++"},
+            {"name": "noexcept-nortti", "os": "ubuntu-latest", "preset": "noexcept-nortti", "cxx": "clang++"},
+            {"name": "linux-clang-tsan", "os": "ubuntu-latest", "preset": "tsan", "cxx": "clang++"},
+            {"name": "macos", "os": "macos-latest", "preset": "release", "cxx": "clang++"},
+            {"name": "windows-msvc", "os": "windows-latest", "preset": "release", "cxx": ""},
+            {"name": "windows-clang-cl", "os": "windows-latest", "preset": "release", "cxx": ""}
+          ]' || '[
+            {"name": "linux-gcc", "os": "ubuntu-latest", "preset": "release", "cxx": "g++"},
+            {"name": "linux-clang-sanitize", "os": "ubuntu-latest", "preset": "asan", "cxx": "clang++"},
+            {"name": "noexcept-nortti", "os": "ubuntu-latest", "preset": "noexcept-nortti", "cxx": "clang++"}
+          ]') }}
 
     defaults:
       run:
@@ -151,6 +143,7 @@ jobs:
 
   package:
     name: C++ (package, ${{ matrix.os }})
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -192,6 +185,7 @@ jobs:
   # are too noisy to gate on, so the numbers are uploaded for comparison across runs.
   benchmarks:
     name: C++ (benchmarks)
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -234,6 +228,7 @@ jobs:
 
   fuzz:
     name: C++ (fuzz smoke)
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -265,6 +260,7 @@ jobs:
 
   emscripten:
     name: C++ (emscripten)
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

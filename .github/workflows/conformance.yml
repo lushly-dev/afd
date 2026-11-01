@@ -29,6 +29,7 @@ on:
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,8 +40,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    # Each backend's job runs only when its inputs change: the Rust and C++ jobs need their crate or library, their backend, the shared spec or harness; the TypeScript and Python job needs the AFD packages its backend builds on, python/ or the example. Manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      todo: ${{ steps.todo.outputs.run }}
+      rust: ${{ steps.rust.outputs.run }}
+      cpp: ${{ steps.cpp.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: todo
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --path python/ --path .github/workflows/conformance.yml
+      - id: rust
+        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml
+      - id: cpp
+        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml
+
   todo:
     name: Todo conformance (TypeScript + Python)
+    needs: scope
+    if: needs.scope.outputs.todo == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -121,6 +148,8 @@ jobs:
 
   todo-rust:
     name: Todo conformance (Rust)
+    needs: scope
+    if: needs.scope.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -193,6 +222,8 @@ jobs:
 
   todo-cpp:
     name: Todo conformance (C++)
+    needs: scope
+    if: needs.scope.outputs.cpp == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
