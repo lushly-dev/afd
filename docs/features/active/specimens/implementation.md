@@ -3,7 +3,7 @@
 | Field | Current value |
 | --- | --- |
 | State | Active native implementation; complete workstream 0 acceptance remains open |
-| Last reconciled | 2026-11-01, main `8001fc74` including [#517](https://github.com/lushly-dev/afd/pull/517), T01 ([#521](https://github.com/lushly-dev/afd/pull/521)), T02 ([#525](https://github.com/lushly-dev/afd/pull/525)) and T03 ([#536](https://github.com/lushly-dev/afd/pull/536)) and T04 round 1 ([#558](https://github.com/lushly-dev/afd/pull/558)); T04 measurements on branch `lush/specimens-t04-pairs` |
+| Last reconciled | 2026-11-01, main `67434086` including [#517](https://github.com/lushly-dev/afd/pull/517), T01 ([#521](https://github.com/lushly-dev/afd/pull/521)), T02 ([#525](https://github.com/lushly-dev/afd/pull/525)) T03 ([#536](https://github.com/lushly-dev/afd/pull/536)), T04 round 1 ([#558](https://github.com/lushly-dev/afd/pull/558)), the T04 measurements ([#584](https://github.com/lushly-dev/afd/pull/584)) and the T04 optimization rounds ([#616](https://github.com/lushly-dev/afd/pull/616)) |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
 | Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
