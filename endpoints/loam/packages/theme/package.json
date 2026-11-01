@@ -27,6 +27,7 @@
 		"test": "vitest run",
 		"theme:build": "tsc && node scripts/theme.mjs build",
 		"theme:check": "tsc && node scripts/theme.mjs check",
+		"theme:export-components": "tsc && node scripts/theme.mjs export-components",
 		"lint:tokens": "node scripts/lint-tokens.mjs \"src/**/*.ts\" \"src/**/*.css\""
 	},
 	"dependencies": {

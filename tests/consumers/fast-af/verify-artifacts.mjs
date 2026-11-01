@@ -226,6 +226,7 @@ for (const asset of [
 	'tokens/master-semantic.tokens.jsonc',
 	'tokens/theme-presets.jsonc',
 	'tokens/raw-palette.proposal.jsonc',
+	'tokens/violet-theme.export.json',
 	'package.json',
 ]) {
 	const bytes = await readFile(resolveFrom.resolve(`${componentName}/${asset}`));

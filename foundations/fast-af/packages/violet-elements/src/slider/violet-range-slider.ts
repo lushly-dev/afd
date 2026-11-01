@@ -13,8 +13,8 @@ const styles = css`
     :host {
         display: grid;
 
-        --_selection-fill: color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #DFE8E0));
-        --_rail-background: var(--color-border-strong, rgba(28, 26, 13, 0.35));
+        --_selection-fill: color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf));
+        --_rail-background: var(--color-border-strong, rgba(28, 26, 13, 0.48));
         --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
         --_shadow-floating: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         --_radius-full: var(--radius-round, 9999px);

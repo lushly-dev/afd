@@ -439,16 +439,16 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 0.9rem;
         padding: 1.5rem;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         border-radius: 18px;
-        background: var(--color-surface-card, #ffffff);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(16, 24, 40, 0.08));
+        background: var(--color-surface-card, #faf9f5);
+        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
       }
 
       .hero {
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.9), transparent 28%),
-          linear-gradient(180deg, var(--color-surface-card, #ffffff) 0%, var(--color-surface-page, #f7f7f5) 100%);
+          linear-gradient(180deg, var(--color-surface-card, #faf9f5) 0%, var(--color-surface-page, #fffefa) 100%);
       }
 
       .eyebrow {
@@ -500,8 +500,8 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.8rem;
         padding: 1rem;
         border-radius: 14px;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
       }
 
       .token-grid {
@@ -515,14 +515,14 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.55rem;
         padding: 0.9rem;
         border-radius: 12px;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-page, #f7f7f5);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-page, #fffefa);
       }
 
       .swatch {
         block-size: 3.25rem;
         border-radius: 10px;
-        border: 1px solid var(--color-border-strong, #a7afbb);
+        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .token-header {
@@ -548,18 +548,18 @@ function renderFoundationsOverview(): HTMLElement {
         width: fit-content;
         padding: 0.18rem 0.5rem;
         border-radius: 999px;
-        background: var(--color-surface-subtle, #f1f1ee);
+        background: var(--color-surface-subtle, #f0efe6);
         color: var(--color-text-secondary, #414651);
         font-size: 0.78rem;
       }
 
       .status-chip[data-status="done"] {
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
         color: var(--color-text-primary, #18181b);
       }
 
       .status-chip[data-status="next"] {
-        border: 1px solid var(--color-border-strong, #a7afbb);
+        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .component-list,
@@ -597,8 +597,8 @@ function renderFoundationsOverview(): HTMLElement {
           <p class="eyebrow">Current Registry</p>
           <h2>Foundational tokens, grouped by role</h2>
           <p class="section-copy">
-            These cards are driven from the master semantic registry, not a hand-maintained
-            preview list. That makes Storybook part of the token authoring loop.
+            These cards are driven from the component token export of Loam's Violet themes
+            (tokens/violet-theme.export.json), not a hand-maintained preview list.
           </p>
         </div>
         <div class="token-groups"></div>
@@ -695,12 +695,10 @@ function renderFoundationsOverview(): HTMLElement {
           </div>
           <div class="token-tags">${token.metadata.tier}</div>
         </div>
-        <p class="token-description">${token.metadata.description}</p>
-        <div class="token-description"><strong>Intent:</strong> ${
-          token.usage.intent
-        }</div>
-        <div class="token-description"><strong>Why distinct:</strong> ${
-          token.usage.whyDistinct
+        <p class="token-description">${token.metadata.cssProperty}</p>
+        <div class="token-description"><strong>Dark:</strong> ${token.presets.dark}</div>
+        <div class="token-description"><strong>High contrast:</strong> ${
+          token.presets["high-contrast"]
         }</div>
       `;
 
@@ -744,7 +742,7 @@ function renderAppliedSystem(): HTMLElement {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
         color: var(--color-text-primary, #18181b);
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-        background: var(--color-surface-page, #f7f7f5);
+        background: var(--color-surface-page, #fffefa);
       }
 
       .system {
@@ -759,11 +757,11 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.75rem;
         padding: 1.5rem;
         border-radius: 20px;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.92), transparent 26%),
-          linear-gradient(180deg, var(--color-surface-card, #ffffff) 0%, var(--color-surface-page, #f7f7f5) 100%);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(16, 24, 40, 0.08));
+          linear-gradient(180deg, var(--color-surface-card, #faf9f5) 0%, var(--color-surface-page, #fffefa) 100%);
+        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
       }
 
       .eyebrow,
@@ -807,9 +805,9 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.85rem;
         padding: 1rem;
         border-radius: 18px;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(16, 24, 40, 0.08));
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
+        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
       }
 
       .preview-bar {
@@ -826,26 +824,26 @@ function renderAppliedSystem(): HTMLElement {
       .tab-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
         align-items: center;
       }
 
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
         min-block-size: 2.5rem;
         padding: 0 1rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border-radius: var(--radius-md, 4px);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
         color: var(--color-text-primary, #18181b);
         font: inherit;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dce8ff);
-        border-color: var(--color-border-strong, #a7afbb);
+        background: var(--color-surface-selected, #ddeadf);
+        border-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .field {
@@ -857,9 +855,9 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: min(100%, 22rem);
         min-block-size: 2.75rem;
         padding: 0 0.95rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-page, #f7f7f5);
+        border-radius: var(--radius-md, 4px);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-page, #fffefa);
         color: var(--color-text-primary, #18181b);
         font: inherit;
       }
@@ -867,11 +865,11 @@ function renderAppliedSystem(): HTMLElement {
       .choice {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
       }
 
       .choice input {
-        accent-color: var(--color-focus-ring, #2563eb);
+        accent-color: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
       }
 
       .switch {
@@ -879,8 +877,8 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 3rem;
         block-size: 1.75rem;
         border-radius: 999px;
-        background: var(--color-surface-selected, #dce8ff);
-        border: 1px solid var(--color-border-strong, #a7afbb);
+        background: var(--color-surface-selected, #ddeadf);
+        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .switch::after {
@@ -891,29 +889,29 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 1.3rem;
         block-size: 1.3rem;
         border-radius: 50%;
-        background: var(--color-surface-card, #ffffff);
-        box-shadow: var(--shadow-card, 0 1px 2px rgba(16, 24, 40, 0.08));
+        background: var(--color-surface-card, #faf9f5);
+        box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
       }
 
       .tab-row {
         padding-block-end: 0.3rem;
-        border-block-end: 1px solid var(--color-border-subtle, #d4d8df);
+        border-block-end: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
       }
 
       .tab {
         padding: 0.6rem 0.85rem;
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--radius-md, 4px);
         color: var(--color-text-secondary, #414651);
       }
 
       .tab.active {
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
         color: var(--color-text-primary, #18181b);
       }
 
       .slider {
         inline-size: min(100%, 20rem);
-        accent-color: var(--color-focus-ring, #2563eb);
+        accent-color: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
       }
 
       .card h3 {
@@ -922,8 +920,8 @@ function renderAppliedSystem(): HTMLElement {
 
       .menu {
         max-inline-size: 20rem;
-        background: var(--color-surface-floating, #ffffff);
-        box-shadow: var(--shadow-floating, 0 12px 40px rgba(16, 24, 40, 0.16));
+        background: var(--color-surface-floating, #f0efe6);
+        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
       }
 
       .menu-list {
@@ -935,13 +933,13 @@ function renderAppliedSystem(): HTMLElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--space-inline-md, 12px);
+        gap: var(--space-inline-md, 8px);
         padding: 0.7rem 0.8rem;
         border-radius: 12px;
       }
 
       .menu-item.active {
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
       }
 
       .grid-frame {
@@ -1301,8 +1299,8 @@ function renderRadiusLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #ffffff);
+        border-radius: var(--radius-md, 4px);
+        background: var(--color-surface-card, #faf9f5);
       }
 
       .preview-note {
@@ -1314,28 +1312,28 @@ function renderRadiusLab(): HTMLElement {
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
         min-block-size: 2.15rem;
         padding: 0 0.8rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border-radius: var(--radius-md, 4px);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
         color: var(--color-text-primary, #18181b);
         font: 0.86rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dce8ff);
-        border-color: var(--color-border-strong, #a7afbb);
+        background: var(--color-surface-selected, #ddeadf);
+        border-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .preview-field {
         inline-size: 8rem;
         min-block-size: 2rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 6px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border-radius: var(--radius-sm, 2px);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
         color: var(--color-text-primary, #18181b);
         font: inherit;
       }
@@ -1343,7 +1341,7 @@ function renderRadiusLab(): HTMLElement {
       .chip-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
       }
 
       .chip {
@@ -1352,15 +1350,15 @@ function renderRadiusLab(): HTMLElement {
         justify-content: center;
         min-block-size: 1.8rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 6px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-page, #f7f7f5);
+        border-radius: var(--radius-sm, 2px);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-page, #fffefa);
         font-size: 0.82rem;
       }
 
       .pill-chip {
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
       }
 
       .round-button {
@@ -1370,8 +1368,8 @@ function renderRadiusLab(): HTMLElement {
         inline-size: 1.9rem;
         block-size: 1.9rem;
         border-radius: var(--radius-round, 9999px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-selected, #dce8ff);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-selected, #ddeadf);
         color: var(--color-text-primary, #18181b);
         font: 600 0.74rem/1 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
@@ -1397,21 +1395,21 @@ function renderRadiusLab(): HTMLElement {
       .shape-panel,
       .shape-menu {
         padding: 0.85rem;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
       }
 
       .shape-card {
-        border-radius: var(--radius-lg, 16px);
+        border-radius: var(--radius-lg, 6px);
       }
 
       .shape-panel {
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--radius-md, 4px);
       }
 
       .shape-menu {
-        border-radius: var(--radius-lg, 16px);
-        box-shadow: var(--shadow-floating, 0 12px 40px rgba(16, 24, 40, 0.16));
+        border-radius: var(--radius-lg, 6px);
+        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
       }
 
       .surface-stack {
@@ -1559,7 +1557,7 @@ function renderRadiusLab(): HTMLElement {
       <div class="token-main">
         <div class="token-copy">
           <div class="token-id">${token.id}</div>
-          <div class="token-help">${token.usage.intent}</div>
+          <div class="token-help">${token.metadata.cssProperty}</div>
         </div>
         <div class="tool-input-wrap">
           <input
@@ -1568,7 +1566,7 @@ function renderRadiusLab(): HTMLElement {
             type="text"
             value="${String(token.value)}"
             data-token-id="${token.id}"
-            title="${token.usage.intent}"
+            title="${token.metadata.cssProperty}"
           />
         </div>
       </div>
@@ -1630,12 +1628,12 @@ function renderSpacingLab(): HTMLElement {
   );
 
   const getReferencedRampId = (tokenId: string): string => {
+    // The export holds resolved values, so a semantic spacing token maps to the ramp step with
+    // the same light value.
     const token = spacingSemanticTokens.find((entry) => entry.id === tokenId);
-    if (token && typeof token.value === "object" && token.value !== null && "ref" in token.value) {
-      return token.value.ref;
-    }
+    const rampToken = spacingRampTokens.find((entry) => String(entry.value) === String(token?.value));
 
-    return tokenId;
+    return rampToken?.id ?? tokenId;
   };
 
   const getResolvedSpacingValue = (tokenId: string, currentRampValues: Map<string, string>): string => {
@@ -1848,7 +1846,7 @@ function renderSpacingLab(): HTMLElement {
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #f7f7f5);
+        background: var(--color-surface-page, #fffefa);
       }
 
       .button {
@@ -1858,14 +1856,14 @@ function renderSpacingLab(): HTMLElement {
         min-block-size: 2rem;
         padding: 0 0.75rem;
         border-radius: var(--radius-md, 4px);
-        border: 1px solid var(--color-border-subtle, #d4d8df);
-        background: var(--color-surface-card, #ffffff);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
+        background: var(--color-surface-card, #faf9f5);
         color: var(--color-text-primary, #18181b);
         font: 0.84rem/1.2 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
       }
 
       .inline-row-sm,
@@ -1875,11 +1873,11 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .inline-row-sm {
-        gap: var(--space-inline-sm, 8px);
+        gap: var(--space-inline-sm, 4px);
       }
 
       .inline-row-md {
-        gap: var(--space-inline-md, 12px);
+        gap: var(--space-inline-md, 8px);
       }
 
       .stack-xs,
@@ -1900,7 +1898,7 @@ function renderSpacingLab(): HTMLElement {
         padding: 0.85rem;
         border: 1px solid #e2e6ed;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #ffffff);
+        background: var(--color-surface-card, #faf9f5);
       }
 
       .mini-label {
@@ -2057,7 +2055,7 @@ function renderSpacingLab(): HTMLElement {
       <div class="token-main">
         <div class="token-copy">
           <div class="token-id">${token.id}</div>
-          <div class="token-help">${token.usage.intent}</div>
+          <div class="token-help">${token.metadata.cssProperty}</div>
         </div>
         <div class="tool-input-wrap">
           <input
@@ -2066,7 +2064,7 @@ function renderSpacingLab(): HTMLElement {
             type="text"
             value="${getResolvedSpacingValue(token.id, currentRampValues)}"
             data-token-id="${token.id}"
-            title="${token.usage.intent}"
+            title="${token.metadata.cssProperty}"
           />
         </div>
       </div>
@@ -2323,7 +2321,7 @@ function renderDensityLab(): HTMLElement {
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #f7f7f5);
+        background: var(--color-surface-page, #fffefa);
       }
 
       .density-row {
@@ -2543,7 +2541,7 @@ function renderDensityLab(): HTMLElement {
       <div class="token-main">
         <div class="token-copy">
           <div class="token-id">${token.id}</div>
-          <div class="token-help">${token.usage.intent}</div>
+          <div class="token-help">${token.metadata.cssProperty}</div>
         </div>
         <div class="tool-input-wrap">
           <input
@@ -2552,7 +2550,7 @@ function renderDensityLab(): HTMLElement {
             type="text"
             value="${currentValues.get(token.id) ?? String(token.value)}"
             data-token-id="${token.id}"
-            title="${token.usage.intent}"
+            title="${token.metadata.cssProperty}"
           />
         </div>
       </div>
@@ -3080,7 +3078,7 @@ dtm: 78</p>
         <div class="token-main">
           <div class="token-copy">
             <div class="token-id">${token.id}</div>
-            <div class="token-help">${token.usage.intent}</div>
+            <div class="token-help">${token.metadata.cssProperty}</div>
           </div>
           <div class="tool-input-wrap">
             <input
@@ -3089,7 +3087,7 @@ dtm: 78</p>
               type="text"
               value="${currentValues.get(token.id) ?? String(token.value)}"
               data-token-id="${token.id}"
-              title="${token.usage.intent}"
+              title="${token.metadata.cssProperty}"
             />
           </div>
         </div>
@@ -3376,7 +3374,7 @@ function renderSurfaceLab(): HTMLElement {
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-page, #f7f7f5);
+        background: var(--color-surface-page, #fffefa);
       }
 
       .surface-card {
@@ -3385,7 +3383,7 @@ function renderSurfaceLab(): HTMLElement {
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-card, #ffffff);
+        background: var(--color-surface-card, #faf9f5);
       }
 
       .surface-subtle {
@@ -3393,7 +3391,7 @@ function renderSurfaceLab(): HTMLElement {
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-subtle, #f1f1ee);
+        background: var(--color-surface-subtle, #f0efe6);
       }
 
       .surface-selected {
@@ -3401,7 +3399,7 @@ function renderSurfaceLab(): HTMLElement {
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-selected, #dce8ff);
+        background: var(--color-surface-selected, #ddeadf);
       }
 
       .surface-floating {
@@ -3410,8 +3408,8 @@ function renderSurfaceLab(): HTMLElement {
         padding: 0.85rem;
         border-radius: var(--radius-lg, 6px);
         border: 1px solid #e2e6ed;
-        background: var(--color-surface-floating, #ffffff);
-        box-shadow: var(--shadow-floating, 0 12px 24px rgba(16, 24, 40, 0.16));
+        background: var(--color-surface-floating, #f0efe6);
+        box-shadow: var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08));
         max-inline-size: 18rem;
       }
 
@@ -3548,7 +3546,7 @@ function renderSurfaceLab(): HTMLElement {
       <div class="token-main">
         <div class="token-copy">
           <div class="token-id">${token.id}</div>
-          <div class="token-help">${token.usage.intent}</div>
+          <div class="token-help">${token.metadata.cssProperty}</div>
         </div>
         <div class="tool-input-wrap">
           <div class="surface-swatch" data-swatch-id="${token.id}" style="background:${String(token.value)}"></div>
@@ -3558,7 +3556,7 @@ function renderSurfaceLab(): HTMLElement {
             type="text"
             value="${String(token.value)}"
             data-token-id="${token.id}"
-            title="${token.usage.intent}"
+            title="${token.metadata.cssProperty}"
           />
         </div>
       </div>
@@ -3856,7 +3854,7 @@ function renderTextAndStructureLab(): HTMLElement {
       }
 
       .text-card {
-        border: 1px solid var(--color-border-subtle, #d4d8df);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
       }
 
       .text-heading {
@@ -3886,7 +3884,7 @@ function renderTextAndStructureLab(): HTMLElement {
         font-family: var(--font-family-body);
         font-size: var(--type-caption-xs-size, 11px);
         line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #6b7280);
+        color: var(--color-text-muted, #616775);
       }
 
       .eyebrow {
@@ -3911,30 +3909,30 @@ function renderTextAndStructureLab(): HTMLElement {
       }
 
       .rule-subtle {
-        background: var(--color-border-subtle, #d4d8df);
+        background: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
       }
 
       .rule-strong {
-        background: var(--color-border-strong, #a7afbb);
+        background: var(--color-border-strong, rgba(28, 26, 13, 0.48));
       }
 
       .selected-row {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
-        border: 1px solid var(--color-border-strong, #a7afbb);
+        border: 1px solid var(--color-border-strong, rgba(28, 26, 13, 0.48));
         border-radius: var(--radius-md, 4px);
-        background: var(--color-surface-selected, #dfe8e0);
+        background: var(--color-surface-selected, #ddeadf);
       }
 
       .focused-field {
         display: grid;
         gap: var(--space-stack-xs, 4px);
         padding: 0.7rem 0.75rem;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         border-radius: var(--radius-md, 4px);
         background: var(--color-surface-card, #faf9f5);
-        box-shadow: 0 0 0 2px var(--color-focus-ring, #2563eb);
+        box-shadow: 0 0 0 2px var(--color-focus-ring, rgba(24, 24, 27, 0.5));
       }
 
       .pill {
@@ -3942,7 +3940,7 @@ function renderTextAndStructureLab(): HTMLElement {
         align-items: center;
         align-self: start;
         padding: 0.2rem 0.45rem;
-        border: 1px solid var(--color-border-subtle, #d4d8df);
+        border: 1px solid var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         border-radius: var(--radius-round, 9999px);
         background: var(--color-surface-subtle, #f0efe6);
         color: var(--color-text-secondary, #414651);
@@ -4090,7 +4088,7 @@ function renderTextAndStructureLab(): HTMLElement {
         <div class="token-main">
           <div class="token-copy">
             <div class="token-id">${token.id}</div>
-            <div class="token-help">${token.usage.intent}</div>
+            <div class="token-help">${token.metadata.cssProperty}</div>
           </div>
           <div class="token-swatch" data-swatch-id="${token.id}" style="background:${tokenValueToCssValue(token.value)};"></div>
           <div class="tool-input-wrap">
@@ -4100,7 +4098,7 @@ function renderTextAndStructureLab(): HTMLElement {
               type="text"
               value="${currentValues.get(token.id) ?? String(token.value)}"
               data-token-id="${token.id}"
-              title="${token.usage.intent}"
+              title="${token.metadata.cssProperty}"
             />
           </div>
         </div>
@@ -4432,7 +4430,7 @@ function renderElevationLab(): HTMLElement {
         font-family: var(--font-family-body);
         font-size: var(--type-caption-xs-size, 11px);
         line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #6b7280);
+        color: var(--color-text-muted, #616775);
       }
 
       .control-strip {
@@ -4609,7 +4607,7 @@ function renderElevationLab(): HTMLElement {
       <div class="token-main">
         <div class="token-copy">
           <div class="token-id">${token.id}</div>
-          <div class="token-help">${token.usage.intent}</div>
+          <div class="token-help">${token.metadata.cssProperty}</div>
         </div>
         <div class="tool-input-wrap">
           <input
@@ -4618,7 +4616,7 @@ function renderElevationLab(): HTMLElement {
             type="text"
             value="${currentValues.get(token.id) ?? String(token.value)}"
             data-token-id="${token.id}"
-            title="${token.usage.intent}"
+            title="${token.metadata.cssProperty}"
           />
         </div>
       </div>
@@ -4914,11 +4912,11 @@ function renderMotionLab(): HTMLElement {
         font-size: var(--type-body-md-size, 14px);
         line-height: var(--type-body-md-line, 20px);
         transition:
-          transform var(--duration-fast, 120ms) var(--easing-standard, ease),
-          box-shadow var(--duration-base, 180ms) var(--easing-standard, ease),
-          background-color var(--duration-fast, 120ms) var(--easing-standard, ease),
-          border-color var(--duration-fast, 120ms) var(--easing-standard, ease),
-          color var(--duration-fast, 120ms) var(--easing-standard, ease);
+          transform var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          box-shadow var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          background-color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          border-color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .motion-button.primary {
@@ -4953,9 +4951,9 @@ function renderMotionLab(): HTMLElement {
         border: 1px solid var(--color-field-border);
         background: var(--color-field-background);
         transition:
-          box-shadow var(--duration-base, 180ms) var(--easing-standard, ease),
-          border-color var(--duration-base, 180ms) var(--easing-standard, ease),
-          transform var(--duration-fast, 120ms) var(--easing-standard, ease);
+          box-shadow var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          border-color var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          transform var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .focus-field.is-active {
@@ -4992,7 +4990,7 @@ function renderMotionLab(): HTMLElement {
       }
 
       .menu-shell.is-active {
-        animation: menu-enter var(--duration-slow, 280ms) var(--easing-emphasized, ease) forwards;
+        animation: menu-enter var(--duration-slow, 280ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
       }
 
       .menu-item {
@@ -5027,9 +5025,9 @@ function renderMotionLab(): HTMLElement {
         background: color-mix(in srgb, var(--color-surface-card) 92%, white);
         border-bottom: 1px solid rgba(28, 26, 13, 0.06);
         transition:
-          transform var(--duration-base, 180ms) var(--easing-emphasized, ease),
-          box-shadow var(--duration-base, 180ms) var(--easing-emphasized, ease),
-          background-color var(--duration-base, 180ms) var(--easing-standard, ease);
+          transform var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+          box-shadow var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+          background-color var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .scroll-shell.is-bumped .scroll-bar {
@@ -5055,7 +5053,7 @@ function renderMotionLab(): HTMLElement {
         font-family: var(--font-family-body);
         font-size: var(--type-caption-xs-size, 11px);
         line-height: var(--type-caption-xs-line, 14px);
-        color: var(--color-text-muted, #6b7280);
+        color: var(--color-text-muted, #616775);
       }
 
       @keyframes menu-enter {
@@ -5240,7 +5238,7 @@ function renderMotionLab(): HTMLElement {
         <div class="token-main">
           <div class="token-copy">
             <div class="token-id">${token.id}</div>
-            <div class="token-help">${token.usage.intent}</div>
+            <div class="token-help">${token.metadata.cssProperty}</div>
           </div>
           <div class="tool-input-wrap">
             <input
@@ -5249,7 +5247,7 @@ function renderMotionLab(): HTMLElement {
               type="text"
               value="${currentValues.get(token.id) ?? String(token.value)}"
               data-token-id="${token.id}"
-              title="${token.usage.intent}"
+              title="${token.metadata.cssProperty}"
             />
           </div>
         </div>
@@ -5780,7 +5778,7 @@ function renderActionAndStateLab(): HTMLElement {
         <div class="token-main">
           <div class="token-copy">
             <div class="token-id">${token.id}</div>
-            <div class="token-help">${token.usage.intent}</div>
+            <div class="token-help">${token.metadata.cssProperty}</div>
           </div>
           <div class="token-swatch" data-swatch-id="${token.id}" style="background:${tokenValueToCssValue(token.value)};"></div>
           <div class="tool-input-wrap">
@@ -5790,7 +5788,7 @@ function renderActionAndStateLab(): HTMLElement {
               type="text"
               value="${currentValues.get(token.id) ?? String(token.value)}"
               data-token-id="${token.id}"
-              title="${token.usage.intent}"
+              title="${token.metadata.cssProperty}"
             />
           </div>
         </div>
@@ -6236,7 +6234,7 @@ function renderFormInputLab(): HTMLElement {
         <div class="token-main">
           <div class="token-copy">
             <div class="token-id">${token.id}</div>
-            <div class="token-help">${token.usage.intent}</div>
+            <div class="token-help">${token.metadata.cssProperty}</div>
           </div>
           <div class="token-swatch" data-swatch-id="${token.id}" style="background:${typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value)};"></div>
           <div class="tool-input-wrap">
@@ -6246,7 +6244,7 @@ function renderFormInputLab(): HTMLElement {
               type="text"
               value="${currentValues.get(token.id) ?? (typeof token.value === "string" ? token.value : tokenValueToCssValue(token.value))}"
               data-token-id="${token.id}"
-              title="${token.usage.intent}"
+              title="${token.metadata.cssProperty}"
             />
           </div>
         </div>

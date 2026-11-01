@@ -25,6 +25,7 @@
   [design document](../../design.md), which holds the visual rules step 7
   follows, and decided the resting field border (see
   [Follow-ups](#follow-ups)).
+  Step 3 recorded its decisions in section 2.4, under "Decided by step 3".
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -454,6 +455,46 @@ not something the components load.
   its root. Nothing in `violet-elements` changes for it. Only Loam's export
   is committed in the package, because Loam's light theme is the baked-in
   default (D38).
+
+Decided by step 3 (2026-11-01):
+
+- **The export's shape.** Each preset is the theme node (`loam/<theme>`, at
+  comfortable density) with every component id, in code-point order, as
+  resolved `{ id, value }` tokens; compact density is not exported. It is
+  written as the repository writes JSON (tabs, final newline), and
+  `theme:check` compares it byte for byte, naming each token that differs.
+- **Resolved values in the generated presets.** Because the export holds
+  resolved values, the generated presets no longer chain aliases through
+  `var()` (`--color-field-background` is `#FFFEFA`, not
+  `var(--color-surface-page)`), and every preset still declares all 108
+  properties. Rendering is unchanged, but a page that overrides a base
+  property no longer moves its aliases; no consumer in the repository does.
+  The generator refuses an export whose `contractVersion` is not 1 or whose
+  presets do not all have the light preset's ids.
+- **The scan.** It reads every `.ts` file under `violet-elements/src`,
+  stories and specs included, and skips a fallback that holds another
+  `var()` or a template interpolation, since that is not a literal.
+  Normalization also collapses runs of whitespace, so a fallback that wraps
+  onto two lines compares as one. It found 655 literal fallbacks of
+  component ids in 39 files; 183 of them, in 26 files, differed from the
+  light value, and step 3 rewrote them. Most predate the registry's values
+  (`#d4d8df` borders, `#ffffff` cards, `8px` medium radii, `ease`); they
+  showed only where no theme stylesheet is installed.
+  `theme:export-components --fallbacks` rewrites mismatches to the
+  normalized light value. `checkTheme` runs the component checks only when
+  given the export and source paths, which `theme:check` always passes; the
+  unit tests use temporary fixtures, so `theme`'s tests read nothing outside
+  the package.
+- **`token-registry.ts`** keeps its exported names and signatures, so the
+  custom-elements manifest changes only where it records style defaults
+  (which carry the rewritten fallbacks). The export has no prose, so each
+  token takes its category and tier from its family, as in the retired
+  registry, and carries its value in each preset. The foundations story shows
+  the custom property and the dark and high-contrast values where it showed
+  the registry's descriptions, and maps a semantic spacing token to the ramp
+  step with the same light value, since the export has no references.
+- **The packed consumer** (`tests/consumers/fast-af/verify-artifacts.mjs`)
+  also hashes the packed `tokens/violet-theme.export.json`.
 
 ### 2.5 The design document and its skill (D26)
 

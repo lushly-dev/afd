@@ -74,7 +74,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);
         --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #6b7280);
+        --_text-muted: var(--color-text-muted, #616775);
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_danger-border: var(--color-field-border-invalid, rgba(220, 38, 38, 0.34));
@@ -155,7 +155,7 @@ export const violetSurfaceTokenDefaults: ElementStyles = css`
         --_surface-hover: var(--color-action-secondary-hover, #e7e4d8);
         --_text-primary: var(--color-text-primary, #18181b);
         --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #6b7280);
+        --_text-muted: var(--color-text-muted, #616775);
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));

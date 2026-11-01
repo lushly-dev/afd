@@ -11,13 +11,13 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #DFE8E0);
+        --_selection-background: var(--color-control-selected-background, #ddeadf);
         --_selection-text: var(--color-control-selected-foreground, #244635);
         --_selection-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
         --_surface-card: var(--color-surface-card, #faf9f5);
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.35));
+        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
         --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
-        --_thumb-resting: var(--color-text-muted, #6b7280);
+        --_thumb-resting: var(--color-text-muted, #616775);
         --_radius-full: var(--radius-round, 9999px);
         --_size-font-md: var(--size-font-md, 14px);
         --_track-block-size: clamp(20px, calc(var(--_target-size) - 10px), 24px);

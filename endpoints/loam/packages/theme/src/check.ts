@@ -10,9 +10,12 @@
  *   development dependency. Until step 5 of the phase 0 specification adds that constant, it is
  *   undefined and the comparison is skipped with a note.
  *
- * The component token export of 2.4 joins the comparison with step 3, which commits it.
+ * - With the component paths (2.4), the committed `violet-elements` export must equal the one
+ *   the tree gives, byte for byte, and every literal fallback of a component id in
+ *   `violet-elements/src` must equal its light value after normalization.
  */
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
+import { type ComponentExport, lightValuesByProperty, scanFallbacks } from './components.js';
 import { buildOutputs, type Contract, type ResolvedTree, type ThemeOutputs } from './outputs.js';
 import { LAYOUT_DEFAULT_TOKENS, NODE_IDS } from './tree/index.js';
 
@@ -93,16 +96,104 @@ export function compareNodeIds(resolved: ResolvedTree, contract: Contract): stri
 	return errors;
 }
 
+const EXPORT_FIX =
+	'run `pnpm -F @lushly-dev/loam-theme theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build`, and record both files in foundations/fast-af/provenance/adaptations.json';
+
+/** Every difference between the committed component export and the tree's. */
+export function compareComponentExport(committedText: string, built: ThemeOutputs): string[] {
+	if (committedText === built.componentExportJson) return [];
+	let committed: Partial<ComponentExport>;
+	try {
+		committed = JSON.parse(committedText);
+	} catch (error) {
+		return [`violet-theme.export.json is not JSON (${(error as Error).message}); ${EXPORT_FIX}`];
+	}
+	const errors: string[] = [];
+	const expected = built.componentExport;
+	if (
+		committed.contractVersion !== expected.contractVersion ||
+		committed.source !== expected.source
+	)
+		errors.push(
+			`violet-theme.export.json has contractVersion ${String(committed.contractVersion)} and source ${String(committed.source)}, the tree ${expected.contractVersion} and ${expected.source}`
+		);
+	for (const [theme, tokens] of Object.entries(expected.presets)) {
+		const listed = new Map(
+			(committed.presets?.[theme as keyof ComponentExport['presets']] ?? []).map((token) => [
+				token.id,
+				token.value,
+			])
+		);
+		for (const { id, value } of tokens)
+			if (listed.get(id) !== value)
+				errors.push(
+					`violet-theme.export.json has ${id} ${JSON.stringify(listed.get(id))} in ${theme}, the tree ${JSON.stringify(value)}`
+				);
+		for (const id of listed.keys())
+			if (!tokens.some((token) => token.id === id))
+				errors.push(`violet-theme.export.json has ${id} in ${theme}, which is not a component id`);
+	}
+	if (errors.length === 0)
+		errors.push('violet-theme.export.json has the right content but not the generated formatting');
+	errors.push(`To update the export, ${EXPORT_FIX}`);
+	return errors;
+}
+
+/** The component export and the fallback source of `violet-elements` (2.4). */
+export interface ComponentPaths {
+	/** `tokens/violet-theme.export.json`. */
+	exportPath: URL;
+	/** `src/`, whose `.ts` files are scanned for `var(--<component id>, <literal>)`. */
+	sourceDirectory: URL;
+}
+
+/** Every `.ts` file under `directory`, as paths relative to it, in code-point order. */
+export async function sourceFiles(directory: URL): Promise<{ path: string; text: string }[]> {
+	const paths = (await readdir(directory, { recursive: true }))
+		.filter((path) => path.endsWith('.ts'))
+		.map((path) => path.split('\\').join('/'))
+		.sort();
+	return Promise.all(
+		paths.map(async (path) => ({ path, text: await readFile(new URL(path, directory), 'utf8') }))
+	);
+}
+
+async function checkComponents(built: ThemeOutputs, paths: ComponentPaths): Promise<string[]> {
+	const errors: string[] = [];
+	try {
+		errors.push(...compareComponentExport(await readFile(paths.exportPath, 'utf8'), built));
+	} catch (error) {
+		errors.push(
+			`violet-theme.export.json cannot be read: ${(error as Error).message}; ${EXPORT_FIX}`
+		);
+	}
+	const mismatches = scanFallbacks(
+		await sourceFiles(paths.sourceDirectory),
+		lightValuesByProperty(built.componentExport, built.contract)
+	);
+	for (const mismatch of mismatches)
+		errors.push(
+			`violet-elements/src/${mismatch.path}:${mismatch.line}: var(${mismatch.property}, ${mismatch.literal}) differs from the light value ${mismatch.expected}`
+		);
+	if (mismatches.length > 0)
+		errors.push(
+			`${mismatches.length} fallbacks differ from the light theme; run \`pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks\` to rewrite them, and record every edited file in foundations/fast-af/provenance/adaptations.json`
+		);
+	return errors;
+}
+
 export interface CheckOptions {
 	/** Outputs already built; built here when absent. */
 	outputs?: ThemeOutputs;
 	/** The kernel's `LAYOUT_DEFAULTS_V0`; missing is an error. */
 	layoutDefaults?: unknown;
+	/** `violet-elements`' export and source; the component checks are skipped when absent. */
+	components?: ComponentPaths;
 }
 
 export async function checkTheme(
 	contractPath: URL,
-	{ outputs, layoutDefaults }: CheckOptions = {}
+	{ outputs, layoutDefaults, components }: CheckOptions = {}
 ): Promise<CheckReport> {
 	const built = outputs ?? (await buildOutputs());
 	const errors: string[] = built.resolved.brokenReferences.map(
@@ -133,6 +224,12 @@ export async function checkTheme(
 			'LAYOUT_DEFAULTS_V0 is missing: @lushly-dev/loam-kernel must export it from its root (section 5.2 of the phase 0 specification); build the kernel first'
 		);
 	else errors.push(...compareLayoutDefaults(built.resolved, layoutDefaults));
+
+	if (components === undefined)
+		notes.push(
+			'Skipped the component export and the fallback scan: no violet-elements paths given (theme:check gives them)'
+		);
+	else errors.push(...(await checkComponents(built, components)));
 
 	return { errors, notes };
 }

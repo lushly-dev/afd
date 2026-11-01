@@ -1,21 +1,12 @@
-import registryText from "../../tokens/master-semantic.tokens.jsonc?raw";
-
-type TokenUsage = {
-  intent: string;
-  allowedIn: string[];
-  avoid: string[];
-  whyDistinct: string;
-};
+// The token values come from Loam's Violet themes, as a committed export of the component ids per
+// theme (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). The retired
+// master-semantic registry is no longer read; categories and tiers follow its families.
+import exportText from "../../tokens/violet-theme.export.json?raw";
 
 type TokenMetadata = {
   category: string;
   tier: string;
-  status: string;
-  description: string;
-  owner?: string;
-  platforms?: string[];
-  cssProperty?: string;
-  tags?: string[];
+  cssProperty: string;
 };
 
 type TokenReferenceValue = {
@@ -25,15 +16,26 @@ type TokenReferenceValue = {
 
 export type VioletTokenValue = string | number | TokenReferenceValue;
 
+type VioletThemeExportToken = { id: string; value: string };
+
+type VioletThemeExport = {
+  contractVersion: number;
+  source: string;
+  presets: Record<string, VioletThemeExportToken[]>;
+};
+
 export type VioletRegistryToken = {
   id: string;
+  /** The light value, which is also every component's literal fallback. */
   value: VioletTokenValue;
+  /** The value in each preset of the export: light, dark and high-contrast. */
+  presets: Record<string, string>;
   metadata: TokenMetadata;
-  usage: TokenUsage;
 };
 
 export type VioletTokenRegistry = {
-  registryVersion: string;
+  contractVersion: number;
+  source: string;
   package: string;
   description: string;
   tokens: VioletRegistryToken[];
@@ -46,18 +48,70 @@ export type VioletTokenGroup = {
   tokens: VioletRegistryToken[];
 };
 
-function parseJsonc(text: string): VioletTokenRegistry {
-  const withoutBlockComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
-  const withoutLineComments = withoutBlockComments.replace(
-    /(^|[^:\\])\/\/.*$/gm,
-    "$1"
-  );
-  const withoutTrailingCommas = withoutLineComments.replace(
-    /,(\s*[}\]])/g,
-    "$1"
-  );
+/** Family prefixes in the retired registry's order, with its category and tier for each. */
+const families: ReadonlyArray<[prefix: string, category: string, tier: string]> = [
+  ["color.surface.", "color", "semantic"],
+  ["color.text.", "color", "semantic"],
+  ["color.border.", "color", "semantic"],
+  ["color.focus.", "color", "semantic"],
+  ["color.control.", "color", "semantic"],
+  ["color.action.", "color", "semantic"],
+  ["color.state.", "color", "semantic"],
+  ["color.field.", "color", "semantic"],
+  ["size.font.", "typography", "global"],
+  ["size.line.", "typography", "global"],
+  ["weight.", "typography", "global"],
+  ["type.", "typography", "semantic"],
+  ["size.target.", "sizing", "global"],
+  ["size.space.", "spacing", "global"],
+  ["space.", "spacing", "semantic"],
+  ["radius.", "radius", "semantic"],
+  ["shadow.", "shadow", "semantic"],
+  ["z-index.", "layer", "semantic"],
+  ["duration.", "motion", "semantic"],
+  ["easing.", "motion", "semantic"],
+];
 
-  return JSON.parse(withoutTrailingCommas) as VioletTokenRegistry;
+function familyIndex(tokenId: string): number {
+  const index = families.findIndex(([prefix]) => tokenId.startsWith(prefix));
+  return index < 0 ? families.length : index;
+}
+
+function readRegistry(text: string): VioletTokenRegistry {
+  const themeExport = JSON.parse(text) as VioletThemeExport;
+  const light = themeExport.presets.light ?? [];
+  const tokens = light
+    .map(({ id, value }, order) => {
+      const family = families[familyIndex(id)];
+      return {
+        order,
+        token: {
+          id,
+          value,
+          presets: Object.fromEntries(
+            Object.entries(themeExport.presets).map(([preset, presetTokens]) => [
+              preset,
+              presetTokens.find(token => token.id === id)?.value ?? value,
+            ]),
+          ),
+          metadata: {
+            category: family?.[1] ?? id.split(".")[0] ?? "",
+            tier: family?.[2] ?? "semantic",
+            cssProperty: tokenIdToCssVar(id),
+          },
+        },
+      };
+    })
+    .sort((left, right) => familyIndex(left.token.id) - familyIndex(right.token.id) || left.order - right.order)
+    .map(({ token }) => token);
+
+  return {
+    contractVersion: themeExport.contractVersion,
+    source: themeExport.source,
+    package: "@lushly-dev/violet-elements",
+    description: `Component tokens from the ${themeExport.source} Violet themes (tokens/violet-theme.export.json).`,
+    tokens,
+  };
 }
 
 function titleCase(segment: string): string {
@@ -142,7 +196,7 @@ const groupDescriptions = new Map<string, string>([
   ["motion", "Durations and easing curves that keep interface motion coherent and calm."],
 ]);
 
-export const violetTokenRegistry = parseJsonc(registryText);
+export const violetTokenRegistry = readRegistry(exportText);
 
 export const violetTokenGroups: VioletTokenGroup[] = Array.from(
   violetTokenRegistry.tokens.reduce((map, token) => {
