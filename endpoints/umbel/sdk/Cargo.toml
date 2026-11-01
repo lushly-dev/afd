@@ -8,9 +8,10 @@ license = "MIT"
 description = "AFD Umbel plugin SDK: the portable plugin API, one source for every plugin kind"
 repository = "https://github.com/lushly-dev/afd"
 
-# The `component` feature arrives with the component loader.
-
 [features]
+# `export_component!`: the same plugin as a WebAssembly component for `wasm32-wasip2`
+# (specification section 5). Needs `wit-bindgen`; no host crate, no Tokio.
+component = ["dep:wit-bindgen"]
 # `serve_mounted`: the same plugin as a stdio MCP server (specification section 5). Needs the
 # `afd` crate and Tokio; the default build and the component build stay free of both.
 mounted = ["dep:afd", "dep:async-trait", "dep:tokio", "dep:toml"]
@@ -18,6 +19,9 @@ mounted = ["dep:afd", "dep:async-trait", "dep:tokio", "dep:toml"]
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Optional: the `component` feature.
+wit-bindgen = { version = "0.63", optional = true }
 
 # Optional: the `mounted` feature.
 afd = { path = "../../../packages/rust", default-features = false, features = ["server"], optional = true }
@@ -29,5 +33,16 @@ toml = { version = "1", optional = true }
 # The wire-format tests compare `Outcome` with `afd::CommandResult` round trips.
 afd = { path = "../../../packages/rust", default-features = false }
 
-[lints]
-workspace = true
+# The workspace lints, with one scoped exception (specification section 1): under `component`
+# wit-bindgen's generated glue uses `unsafe` (the canonical ABI), so `unsafe_code` is `deny`, not
+# `forbid`, and the glue is wrapped in `#[allow(unsafe_code)]`. Without the feature the source
+# forbids `unsafe_code` itself. Hand-written `unsafe` stays refused.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

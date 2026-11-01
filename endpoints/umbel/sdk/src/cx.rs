@@ -151,7 +151,16 @@ impl HostServices for NoServices {
 /// not declared or was denied.
 pub struct Cx {
     call: CallContext,
-    services: Box<dyn HostServices>,
+    services: Services,
+}
+
+/// Where a handle's services come from. A component calls its imports directly (never through a
+/// trait object), so an interface the plugin never uses is not imported by the component and the
+/// manifest need not declare its grant.
+enum Services {
+    Dyn(Box<dyn HostServices>),
+    #[cfg(feature = "component")]
+    Component,
 }
 
 impl fmt::Debug for Cx {
@@ -165,7 +174,16 @@ impl Cx {
     pub fn new(call: CallContext, services: impl HostServices + 'static) -> Self {
         Self {
             call,
-            services: Box::new(services),
+            services: Services::Dyn(Box::new(services)),
+        }
+    }
+
+    /// A handle over the component's imports (the `component` feature).
+    #[cfg(feature = "component")]
+    pub(crate) fn component(call: CallContext) -> Self {
+        Self {
+            call,
+            services: Services::Component,
         }
     }
 
@@ -184,12 +202,20 @@ impl Cx {
     /// # Errors
     /// [`HostError::NotGranted`].
     pub fn config(&self) -> Result<Value, HostError> {
-        self.services.config()
+        match &self.services {
+            Services::Dyn(services) => services.config(),
+            #[cfg(feature = "component")]
+            Services::Component => crate::component::config(),
+        }
     }
 
     /// Grant `log`; a no-op without the grant.
     pub fn log(&self, level: Level, message: &str) {
-        self.services.log(level, message);
+        match &self.services {
+            Services::Dyn(services) => services.log(level, message),
+            #[cfg(feature = "component")]
+            Services::Component => crate::component::log(level, message),
+        }
     }
 
     /// Grant `packs`: one file of one of the plugin's packs.
@@ -197,7 +223,11 @@ impl Cx {
     /// # Errors
     /// See [`HostServices::pack_read`].
     pub fn pack_read(&self, pack: &str, path: &str) -> Result<Vec<u8>, HostError> {
-        self.services.pack_read(pack, path)
+        match &self.services {
+            Services::Dyn(services) => services.pack_read(pack, path),
+            #[cfg(feature = "component")]
+            Services::Component => crate::component::pack_read(pack, path),
+        }
     }
 
     /// Grant `packs`: the files of one of the plugin's packs.
@@ -205,7 +235,11 @@ impl Cx {
     /// # Errors
     /// See [`HostServices::pack_list`].
     pub fn pack_list(&self, pack: &str) -> Result<Vec<String>, HostError> {
-        self.services.pack_list(pack)
+        match &self.services {
+            Services::Dyn(services) => services.pack_list(pack),
+            #[cfg(feature = "component")]
+            Services::Component => crate::component::pack_list(pack),
+        }
     }
 
     /// Grant `events`.
@@ -218,7 +252,11 @@ impl Cx {
         after: Option<&str>,
         limit: u32,
     ) -> Result<Value, HostError> {
-        self.services.events(space, after, limit)
+        match &self.services {
+            Services::Dyn(services) => services.events(space, after, limit),
+            #[cfg(feature = "component")]
+            Services::Component => crate::component::events(space, after, limit),
+        }
     }
 
     /// Grant `clock`: epoch milliseconds from the command context's clock.
@@ -226,7 +264,11 @@ impl Cx {
     /// # Errors
     /// [`HostError::NotGranted`].
     pub fn now_ms(&self) -> Result<i64, HostError> {
-        self.services.now_ms()
+        match &self.services {
+            Services::Dyn(services) => services.now_ms(),
+            #[cfg(feature = "component")]
+            Services::Component => Ok(crate::component::now_ms()),
+        }
     }
 
     /// Grant `random`: the command context's random source, in `[0, 1)`.
@@ -234,7 +276,11 @@ impl Cx {
     /// # Errors
     /// [`HostError::NotGranted`].
     pub fn random(&self) -> Result<f64, HostError> {
-        self.services.random()
+        match &self.services {
+            Services::Dyn(services) => services.random(),
+            #[cfg(feature = "component")]
+            Services::Component => Ok(crate::component::random()),
+        }
     }
 }
 

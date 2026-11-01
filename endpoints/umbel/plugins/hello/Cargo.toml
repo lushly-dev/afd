@@ -8,7 +8,14 @@ license = "MIT"
 description = "AFD Umbel hello plugin: one command, one pack and one skill, the reference plugin"
 repository = "https://github.com/lushly-dev/afd"
 
+[lib]
+# A component is a cdylib; everything else links the rlib.
+crate-type = ["cdylib", "rlib"]
+
 [features]
+# hello as a WebAssembly component: `cargo build --locked --release --target wasm32-wasip2
+# -p umbel-plugin-hello --features component` (specification section 10.5).
+component = ["umbel-sdk/component"]
 # The `hello-mcp` binary: hello served as a stdio MCP server (specification section 10.5).
 mounted = ["umbel-sdk/mounted", "dep:tokio"]
 
@@ -32,5 +39,15 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 toml = "1"
 umbel = { path = "../..", default-features = false, features = ["testkit"] }
 
-[lints]
-workspace = true
+# The workspace lints, with one scoped exception (specification section 1): under `component`
+# `export_component!` expands wit-bindgen's glue in this crate, and it uses `unsafe`, so
+# `unsafe_code` is `deny`, not `forbid`; the glue is wrapped in `#[allow(unsafe_code)]`.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

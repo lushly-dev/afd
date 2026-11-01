@@ -1,9 +1,9 @@
 //! The hello plugin: one command, one pack and one skill, written once against `umbel-sdk`.
 //!
 //! [`plugin`] is the SDK value; `umbel::plugins::sdk(umbel_plugin_hello::plugin())` links it into
-//! a host as `compiled:hello`. The same source builds as a component and as a mounted server in
-//! the steps that add those loaders.
-#![forbid(unsafe_code)]
+//! a host as `compiled:hello`. The same source builds as a component (`--features component`,
+//! target `wasm32-wasip2`) and as a mounted server (`hello-mcp`).
+#![cfg_attr(not(feature = "component"), forbid(unsafe_code))]
 
 use serde_json::{Value, json};
 use umbel_sdk::{Asset, Cx, HostError, Level, Outcome, Plugin, failure, success};
@@ -80,3 +80,7 @@ fn greet(input: &Value, cx: &Cx) -> Outcome {
     let space = cx.call().space.clone().unwrap_or_default();
     success(json!({ "greeting": format!("{salutation}, {name}!"), "space": space, "at": at }))
 }
+
+// The component build: the exports of `umbel:plugin/plugin@1.0.0`, routed to `Hello`.
+#[cfg(feature = "component")]
+umbel_sdk::export_component!(Hello);

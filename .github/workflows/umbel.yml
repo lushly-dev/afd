@@ -22,6 +22,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Every test binary links wasmtime; keep their debug information small enough for the
+  # hosted runners' disks.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
@@ -31,7 +34,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: endpoints/umbel
@@ -53,8 +56,18 @@ jobs:
         run: cargo clippy --locked -p umbel --lib --no-default-features -- -D warnings
       - name: Clippy (library only, mounted loader)
         run: cargo clippy --locked -p umbel --lib --no-default-features --features mounted -- -D warnings
+      - name: Clippy (library only, component loader)
+        run: cargo clippy --locked -p umbel --lib --no-default-features --features component -- -D warnings
       - name: Clippy (mounted SDK and hello-mcp)
         run: cargo clippy --locked -p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets -- -D warnings
+      # The components are built for WASI 0.2, so they are linted for that target too (the host
+      # target lints them above as plain crates; wit-bindgen stubs the imports there).
+      - name: Clippy (components, wasm32-wasip2)
+        run: cargo clippy --locked --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component -- -D warnings
+      # The component-loader tests read hello and the fixture components from
+      # target/wasm32-wasip2/release/; no .wasm file is committed.
+      - name: Build the components
+        run: cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component
       # A host test cannot use another crate's CARGO_BIN_EXE_*: the mounted-loader tests find
       # hello-mcp in the target directory, next to the test binaries.
       - name: Build hello-mcp
@@ -65,7 +78,7 @@ jobs:
   msrv:
     name: Umbel (MSRV 1.97)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: endpoints/umbel

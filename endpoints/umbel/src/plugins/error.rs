@@ -228,6 +228,82 @@ impl PluginError {
         error
     }
 
+    /// `PLUGIN_LIMIT_EXCEEDED` for a component call: a per-call limit of section 6.2 stopped it.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn component_limit(
+        instance: &str,
+        limit: &'static str,
+        problem: impl fmt::Display,
+    ) -> Self {
+        let mut error = Self::new(
+            codes::PLUGIN_LIMIT_EXCEEDED,
+            format!("plugins.{instance}: {problem}"),
+            format!(
+                "Raise plugins.{instance}.limits.{limit} within the host cap, or reduce the input."
+            ),
+        );
+        error.limit = Some(limit);
+        error
+    }
+
+    /// `PLUGIN_IMPORT_DENIED`: a component imports something no grant allows. `grant` is the
+    /// grant that would allow it, when there is one.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn import_denied(instance: &str, import: &str, grant: Option<&str>) -> Self {
+        let (why, suggestion) = match grant {
+            Some(grant) => (
+                format!(
+                    "needs the grant `{grant}`, which the instance does not hold (it is not declared in the manifest, or the instance denies it)"
+                ),
+                format!(
+                    "Declare the grant {grant} in umbel-plugin.toml, or rebuild without {import}."
+                ),
+            ),
+            None => (
+                "is not provided to components: no grant allows it".to_owned(),
+                format!("Rebuild the component without {import}."),
+            ),
+        };
+        Self::new(
+            codes::PLUGIN_IMPORT_DENIED,
+            format!("plugins.{instance}: the component imports `{import}`, which {why}"),
+            suggestion,
+        )
+    }
+
+    /// `PLUGIN_PROTOCOL_UNSUPPORTED` for a component built against a world this host does not
+    /// serve.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn world_unsupported(instance: &str, problem: impl fmt::Display) -> Self {
+        Self::new(
+            codes::PLUGIN_PROTOCOL_UNSUPPORTED,
+            format!("plugins.{instance}: {problem}"),
+            "This umbel serves manifest 1, protocol 1 and umbel:plugin@1.x; rebuild the plugin against them or upgrade umbel.".to_owned(),
+        )
+    }
+
+    /// `PLUGIN_TRAPPED`: a component trapped during a call.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn trapped(instance: &str, problem: impl fmt::Display) -> Self {
+        Self::new(
+            codes::PLUGIN_TRAPPED,
+            format!("plugins.{instance}: the component trapped: {problem}"),
+            "The plugin failed; report it to its author with the trace id.".to_owned(),
+        )
+    }
+
+    /// `PLUGIN_RESULT_INVALID`: a component returned something that is not a `CommandResult`.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn result_invalid(instance: &str, problem: impl fmt::Display) -> Self {
+        Self::new(
+            codes::PLUGIN_RESULT_INVALID,
+            format!(
+                "plugins.{instance}: the component returned something that is not a CommandResult: {problem}"
+            ),
+            "The plugin failed; report it to its author with the trace id.".to_owned(),
+        )
+    }
+
     /// `PLUGIN_KIND_UNAVAILABLE`: this build has no loader for the plugin's kind.
     pub(crate) fn kind_unavailable(instance: &str, kind: impl fmt::Display) -> Self {
         Self::new(

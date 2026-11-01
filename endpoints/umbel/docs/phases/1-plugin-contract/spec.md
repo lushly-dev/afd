@@ -103,8 +103,12 @@
 - **Step 5 done 2026-11-01** ([#613](https://github.com/lushly-dev/afd/pull/613)): the mounted loader, as the step 5 row of
   the [plan](#14-implementation-plan) lists it. The amendments are in
   [Amendments from step 5](#amendments-from-step-5).
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3 and 5.
-- **Not done:** the Umbel steps 4 and 6 to 8 of the
+- **Step 4 done 2026-11-01** ([#620](https://github.com/lushly-dev/afd/pull/620)): the component loader, as the step 4
+  row of the [plan](#14-implementation-plan) lists it. The amendments are in
+  [Amendments from step 4](#amendments-from-step-4); the one that matters most
+  is that the normative WIT file did not parse (`list` is a WIT keyword).
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3, 4 and 5.
+- **Not done:** the Umbel steps 6 to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -562,14 +566,14 @@ interface log {
 /// Grant `packs`. Read the call's space's effective copy of one of this plugin's packs.
 interface packs {
   use types.{host-error};
-  list: func(pack: string) -> result<list<string>, host-error>;
+  %list: func(pack: string) -> result<list<string>, host-error>;
   read: func(pack: string, path: string) -> result<list<u8>, host-error>;
 }
 
 /// Grant `events`. Read one space's event log by cursor, as event-list returns it.
 interface events {
   use types.{json, host-error};
-  list: func(space: option<string>, after: option<string>, limit: u32) -> result<json, host-error>;
+  %list: func(space: option<string>, after: option<string>, limit: u32) -> result<json, host-error>;
 }
 
 /// Grant `clock`. The command context's clock, in epoch milliseconds; recorded on the tape.
@@ -639,6 +643,24 @@ Rules:
   for `HashMap`'s seed), so `plugin new` declares the `clock` and `random`
   grants in a component's manifest; step 4 records the hello component's
   exact import list in this section.
+
+  **Recorded by step 4** (2026-11-01, built with Rust 1.98.0 for
+  `wasm32-wasip2`, WASI interfaces at 0.2.9, which the host's WASI 0.2
+  implementation serves by semantic-version matching;
+  `plugin_component.rs` pins the list). hello imports, besides the shared
+  `umbel:plugin/types@1.0.0` (types only, no grant): `umbel:plugin/config`,
+  `log`, `packs` and `clock` at 1.0.0 (one grant each);
+  `wasi:clocks/monotonic-clock` (grant `clock`); and, with no grant,
+  `wasi:cli/{environment,exit,stdin,stdout,stderr,terminal-input,terminal-output,terminal-stdin,terminal-stdout,terminal-stderr}`
+  and `wasi:io/{error,poll,streams}`. It imports **no** `wasi:random` and no
+  `wasi:clocks/wall-clock`, no `wasi:filesystem` and no `umbel:plugin/random`
+  or `events`: the standard library imports only what a component uses. A
+  component that builds a `HashMap` (any `RandomState`) additionally imports
+  `wasi:random/insecure-seed`, one that reads `SystemTime` imports
+  `wasi:clocks/wall-clock`, and one that touches `std::fs` imports
+  `wasi:filesystem/{types,preopens}` (linked, with no directory). So the
+  `random` grant hello declares is not needed by its current code; it stays in
+  the shared grant list of the three manifests as the specification says.
 - **Time and randomness come only from the command context** (architecture
   section 8). There is no other source: the WASI clocks and random
   interfaces are the context's, so the journal's tape restores them on replay
@@ -1929,7 +1951,7 @@ binary (a
 | 2a | Loader core and compiled plugins | The load sequence of section 6, `CompiledPlugin`, `with_compiled` (through `cli::run`'s existing `configure` hook), `Services` and the grant gates, per-space enablement and the plugin gate (with the provenance rule), the host's own set of space commands, `plugin-list`, `plugin-show` ("trusted, not sandboxed"), the new `workspace-show` fields; `umbel-sdk` without its features, with `assets()`; `umbel-plugin-hello` as a compiled plugin; the `testkit` feature with phase 0's drivers moved into it and its fixed clock | `plugin_compiled.rs`, `grants.rs`, `plugin_spaces.rs`, `plugin_conflicts.rs`, `plugin_commands.rs`, `testkit.rs`, the sealed-host cases of `doctor_plugins.rs`, hello's own tests | L |
 | 2b | Packs, suggestions, contexts, pipelines | Packs and per-space overrides, first-class suggestions, contexts with `build_server` moved before `install_middleware`, pipelines as data with the confirmation union | `packs.rs`, `first_class_plugins.rs`, `contexts_pipelines.rs` | M |
 | 3 | Skills on three paths | Skills validation, `with_skills` and resources on the host's server, `skill-list`, `skill-export`, origin `_meta` on plugin tools | `skills.rs` | M |
-| 4 | Component loader | wasmtime 48 and wasmtime-wasi `p2`, the shared `Engine`, the linker with the world and virtualized WASI 0.2 (stdout and stderr always linked), the world read from export and import versions, imports against grants, limits, per-call stores, the SDK's `component` feature and `export_component!` with the scoped `unsafe_code` exception, hello as a component, the fixture components, `umbel.yml`'s wasm build, the test-profile optimization, `timeout-minutes`, `rust-toolchain.toml`'s target and the AGENTS.md row; verify the hello component's import list and record it in section 4 | `plugin_component.rs`, `component_limits.rs`, `component_replay.rs` | L |
+| 4 | Component loader (done 2026-11-01) | wasmtime 48 and wasmtime-wasi `p2`, the shared `Engine`, the linker with the world and virtualized WASI 0.2 (stdout and stderr always linked), the world read from export and import versions, imports against grants, limits, per-call stores, the SDK's `component` feature and `export_component!` with the scoped `unsafe_code` exception, hello as a component, the fixture components, `umbel.yml`'s wasm build, the test-profile optimization, `timeout-minutes`, `rust-toolchain.toml`'s target and the AGENTS.md row; verify the hello component's import list and record it in section 4 | `plugin_component.rs`, `component_limits.rs`, `component_replay.rs` | L |
 | 5 | Mounted loader | rmcp's client over stdio and HTTP with rustls, `url` and `bearer_env` from the instance, renaming with instance prefixes, overrides and `bind_space`, advertised and validation schemas, the load-time description scan, result mapping, the transport-level result limit, stamps, respawn, `kill_on_drop`, the SDK's `mounted` feature with built-in `Cx` defaults, and `hello-mcp` built by `umbel.yml` | `plugin_mounted.rs`, `mount_naming.rs` | L |
 | 6 | The todo plugin and the conformance job | `umbel-plugin-todo` and `umbel-todo` over the todo library, and `plugins/todo` added to the workspace members; `--backend umbel`, `--backend umbel-mounted` and `test:conformance:umbel` in the todo example; the `todo-http` fixture; the `conformance` job (suites, the stock binary's mounted run, scenarios, `afd validate --surface`) and the `plugin-isolation` job in `umbel.yml`; inventory and `architecture.json` rows for the new crates. **Changes nothing under `endpoints/umbel/src/`, `wit/` or `schemas/`**, which `plugin-isolation` checks | `plugins/todo/tests/todo.rs`; the `conformance` and `plugin-isolation` jobs | M |
 | 7 | `plugin new` and `plugin check` | Templates, `plugin-new`, `plugin-check` with its internal temporary host and `spawn=true`, the README's "Write a plugin" section | `plugin_scaffold.rs` | M |
@@ -2073,6 +2095,42 @@ use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 | 8.1 | The gate keeps `dev.umbel/provenance` fields a command may supply | For a mounted result it keeps none | A mounted server is outside the host |
 | 8.4, 8.5, 6 | A mounted instance's declarations are not mentioned beyond its tools | A mounted manifest may ship packs, contexts, pipelines and skills; a tool is a first-class suggestion when its `[[mount.tools]]` override says `first_class = true`; a pipeline over mounted commands is checked against the effects the load gave the tools (the manifest has no `[[commands]]` for a mounted plugin); a pipeline or context name that collides with a mounted command is `PLUGIN_CONFLICT` | Step 2b merged while step 5 was open; the two had to meet in the loader |
 | Shared vectors | Ported rule "pinned by test vectors shared with `packages/testing`" | `packages/testing/src/surface/injection-vectors.json`, read by `surface.test.ts` and `tests/mount_naming.rs`. The TypeScript `<<SYS` alternative only matches after a word character (`\b`); the vectors record that | One file keeps both implementations honest |
+
+## Amendments from step 4
+
+Facts the review could not check offline, checked on 2026-11-01 against crates.io
+and the wasmtime 48 sources and documents (the release-48.0.0 tag):
+the latest 48 release is 48.0.8 (2026-10-29), its MSRV is **1.95** (below the
+crate's 1.97, so D39 stands with no MSRV change); `wasmtime-wasi` 48.0.8 has the
+features `p1` (default), `p2` (`wasmtime/component-model`, `wasmtime/async`),
+`p3` (`component-model-async`, opt-in) and `default = [p1, p2]`, so
+`default-features = false, features = ["p2"]` is exactly the WASI 0.2
+implementation and nothing else; in `docs/stability-tiers.md` the
+`component-model` proposal, the WASI proposals `wasi-io`, `wasi-clocks`,
+`wasi-random`, `wasi-filesystem`, `wasi-sockets` and `wasi-http`, the Cranelift
+compiler and the Rust embedding API are **Tier 1**, and nothing the loader uses
+is Tier 2 or 3 (fuel, epoch interruption and `ResourceLimiter` are core embedding
+API, not tiered features; `component-model-async` is not enabled).
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 4, `wit/` | `%list` written `list: func(...)` in `packs` and `events` | `%list: func(...)`, in the file and in the specification's copy | `list` is a WIT keyword: the file step 1 committed does not parse (`wit-bindgen`: "expected `type`, `resource` or `func`, found keyword `list`"). The test that pins the file to the specification's text still holds |
+| 1, 6.2 | One `Engine` per `Host`, with a thread that ticks its epoch | One `Engine` and one `Linker` per **process**, built on first use, with one epoch thread (10 ms) for the process's life; compiled components are cached by the SHA-256 of their bytes (at most 64, then emptied) | Compiled components belong to the engine that compiled them, so a per-host engine could not be shared by tests, which is what the CI cost measures need; the linker does not depend on the instance. Nothing in a host depends on the engine being its own |
+| 1 | `wasmtime` features `runtime, cranelift, component-model, std, parallel-compilation` and `wasmtime-wasi` `p2` | The same, plus direct dependencies on `wasmtime-wasi-io` 48 (the `wasi:io` interfaces `wasmtime-wasi` builds on, linked through it), `rand` 0.10 without features (only its `TryRng` trait, for the context-backed random source) and `bytes` (the output stream's buffer type); all optional, behind `component`. `Config::async_support` is a no-op in 48 (async is always available), and `p2` enables `wasmtime/async` | The step 4 note said it would trim the list to the smallest set that builds; no feature could be dropped |
+| 1 | The `--exclude 'umbel-fixture-*'` on every host-target step | Not needed: the fixture crates, and hello's `cdylib`, build and lint cleanly on the host target (wit-bindgen emits stubs there). `umbel.yml` additionally lints them for `wasm32-wasip2` and builds them release before the tests | One workspace command covers everything; the wasm lint is the one that matters for them |
+| 1 | Four fixture crates for "the trap, panic, loop, allocation, log and import cases" | Four crates: `umbel-fixture-behaviors` (one command per behaviour: echo, trap, panic, exit, loop, alloc, output, sleep, clock, clock-loop, random, env, fs, bad, big, forge; no `umbel:plugin` import), `umbel-fixture-imports` (one command per host interface), `umbel-fixture-sockets` (opens a socket) and `umbel-fixture-future` (exports `umbel:plugin/command@2.0.0` from a world of its own, `package umbel:plugin@2.0.0`) | A behaviour that needs no import shares one component; the cases decided by imports and by the export version need components of their own |
+| 1, 5 | `export_component!` generates `wit_bindgen::generate!` inside the plugin crate | The bindings are generated once inside `umbel-sdk` (`component::bindings`, from `../wit/umbel-plugin-1.0.0`, with `pub_export_macro` and `default_bindings_module`), and the macro only expands the `Guest` implementation and the export glue, so `generate!`'s relative `path` is the SDK's own. The plugin expression is evaluated by a function in the caller's scope. `umbel-sdk` and the plugin crates set `unsafe_code = "deny"`; `umbel-sdk` forbids it in source unless `component` is on, and hello does the same | `generate!` resolves `path` against the crate being compiled; this keeps the WIT file in one place. The `deny` exception is exactly the specification's |
+| 5 | `Cx` calls the services through a trait object | `Cx` has a second backend for components that calls the generated imports directly (`Cx::component`), so an interface a plugin never calls is not imported and its grant need not be declared | A vtable names every method, and every import with it: hello would have imported `umbel:plugin/events` and been refused without the `events` grant |
+| 6.2 | The call runs under `spawn_blocking` | Also: the call drives wasmtime's async API (`instantiate_async`, `call_async`) with `Handle::block_on` on the blocking thread, wrapped in `tokio::time::timeout(timeout_ms)` as well as the epoch deadline (`timeout_ms / 10` ticks plus one). The epoch stops a component that computes; the timeout stops one that waits in the host (`wasi:io/poll` on a monotonic subscription sleeps in real time, which the virtual clock does not shorten). Either is `PLUGIN_LIMIT_EXCEEDED` with `details.limit = "timeout"` | A `thread::sleep(60s)` would otherwise hold a blocking thread for a minute whatever `timeout_ms` says |
+| 6.2 | `StoreLimits` stops a runaway allocation | A wrapper over `StoreLimits` records which limit refused a growth, so a component that then aborts (Rust's allocation failure is an `unreachable` trap) is `PLUGIN_LIMIT_EXCEEDED` with `details.limit = "memory"` (or `"table"`), not `PLUGIN_TRAPPED`. A core out-of-fuel trap is `fuel` and an epoch interruption is `timeout`. Backtraces are off, so a trap's message is the trap's own (`` wasm trap: wasm `unreachable` instruction executed ``), with no frame names | The error should name the limit, and a backtrace would tell the caller about the plugin's internals |
+| 6.2 | Component larger than 32 MiB is `PLUGIN_LIMIT_EXCEEDED` | Unchanged from step 1: the manifest check refuses it as `PLUGIN_MANIFEST_INVALID` naming `component.path`, before any load | The size is a manifest rule; the loader never sees a larger file |
+| 4 | Monotonic time is "nanoseconds since the call's first clock read" | As written (milliseconds from the context, times 1 000 000). The wall clock's resolution is 1 ms. The `insecure-seed` (128 bits, four reads of the random source) is drawn when the call starts, because the WASI context takes it as a value; only for a component that imports `wasi:random/insecure-seed` and only when the `random` grant is held. A single WASI random request may ask for at most 64 KiB (16 384 tape reads), else the call traps | The tape stays small and the seed's reads are on it, in order, so replay restores them |
+| 4 | `exit` "ends the call as a trap" | `wasi:cli/exit` carries success or failure, not a code (the code form is unstable), so `exit(3)` is reported as `exit(1)` in the `PLUGIN_TRAPPED` message | The interface the standard library calls |
+| 4 | WASI interfaces are linked, `wasi:sockets` and `wasi:http` are refused by the import check | They are also **not linked**: the linker has the six `umbel:plugin` interfaces and the WASI 0.2 clocks, random, cli, io and filesystem interfaces only, so a component that imports a socket cannot be instantiated even if the import check were bypassed. A host import called for a grant that is not held traps the call, the same second lock | Two locks on the network, not one |
+| 4 | WASI versions | The check accepts WASI interfaces at 0.2.x only (hello and the fixtures are at 0.2.9, served by the host's 0.2 implementation); any other version is `PLUGIN_PROTOCOL_UNSUPPORTED` naming WASI 0.3. A `umbel:plugin` import with a minor version newer than 1.0 is `PLUGIN_PROTOCOL_UNSUPPORTED` too | Matches D38 |
+| 10.5 | The test copies `manifests/component.toml`, `hello.wasm`, `packs/` and `skills/` | Also the crate's `schemas/`, which the manifest names (`input_schema`, `returns`, `config.schema`). `manifests/component.toml` is committed whole beside the other two and differs from `compiled.toml` in `kind` and the `[component]` table. hello's crate type is `["cdylib", "rlib"]` and its `component` feature enables `umbel-sdk/component` | The manifest's paths must resolve |
+| 13 | `component_limits.rs` has a `table` case | The `table` limit is covered by a unit test of the limiter; no Rust component grows a table past 20 000 elements without a `call_indirect`-heavy fixture. Stdout and stderr share the `log` grant's per-call budget (64 KiB) and are logged line by line (a line over 8 KiB in pieces) at `info` and `warn` with `source="wasi"` and the instance id | The cases the toolchain can build |
+| 1 | CI | `rust-toolchain.toml` names `targets = ["wasm32-wasip2"]`; `umbel.yml` adds the component-only library clippy leg, the `wasm32-wasip2` lint of the components, the components' release build before the tests, timeouts of 45 and 30 minutes, and `CARGO_PROFILE_DEV_DEBUG=line-tables-only` for the job (a fresh build has some 45 test binaries that each link wasmtime; with full debug information on Linux that would not fit a hosted runner's disk). The test profile optimizes `cranelift-codegen`, `cranelift-frontend`, `regalloc2`, `wasmparser`, `wasmtime`, `wasmtime-internal-cranelift` and `wasmtime-environ` at level 2 | The measures of section 1, with the disk one added |
 
 ## Follow-ups
 

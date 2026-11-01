@@ -166,6 +166,33 @@ struct SdkHandler<P: umbel_sdk::Plugin> {
     services: Services,
 }
 
+/// The call context a plugin receives (WIT `call-context`): the command, the trace id, the
+/// resolved space for a command with a `space` input, and a summary of the actor. Never a
+/// credential or a token.
+pub(super) fn call_context(
+    name: &str,
+    has_space: bool,
+    services: &super::grants::CallServices,
+    context: &CommandContext,
+) -> CallContext {
+    let actor = context.actor.clone();
+    CallContext {
+        command: name.to_owned(),
+        trace_id: context.trace_id.clone().unwrap_or_default(),
+        space: has_space.then(|| services.space().as_str().to_owned()),
+        actor_kind: actor
+            .as_ref()
+            .map(|actor| as_text(&actor.kind))
+            .unwrap_or_default(),
+        actor_id: actor.as_ref().and_then(|actor| actor.id.clone()),
+        on_behalf_of: actor.and_then(|actor| actor.on_behalf_of),
+        interface: context
+            .interface
+            .map(|interface| interface.as_str().to_owned())
+            .unwrap_or_default(),
+    }
+}
+
 fn as_text<T: serde::Serialize>(value: &T) -> String {
     match serde_json::to_value(value) {
         Ok(Value::String(text)) => text,
@@ -177,22 +204,7 @@ fn as_text<T: serde::Serialize>(value: &T) -> String {
 impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let services = self.services.call(&input, &context);
-        let actor = context.actor.clone();
-        let call = CallContext {
-            command: self.name.clone(),
-            trace_id: context.trace_id.clone().unwrap_or_default(),
-            space: self.has_space.then(|| services.space().as_str().to_owned()),
-            actor_kind: actor
-                .as_ref()
-                .map(|actor| as_text(&actor.kind))
-                .unwrap_or_default(),
-            actor_id: actor.as_ref().and_then(|actor| actor.id.clone()),
-            on_behalf_of: actor.and_then(|actor| actor.on_behalf_of),
-            interface: context
-                .interface
-                .map(|interface| interface.as_str().to_owned())
-                .unwrap_or_default(),
-        };
+        let call = call_context(&self.name, self.has_space, &services, &context);
         let plugin = Arc::clone(&self.plugin);
         let name = self.name.clone();
         let joined = tokio::task::spawn_blocking(move || {

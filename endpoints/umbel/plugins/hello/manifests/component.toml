@@ -1,0 +1,56 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "hello"
+title = "Hello"
+version = "0.1.0"
+description = "One command, one pack, one skill: the reference plugin."
+kind = "component"
+domains = ["hello"]
+
+[component]
+path = "hello.wasm"
+
+[[grants]]
+name = "config"
+reason = "Reads default_name, the name hello-greet greets when none is given."
+
+[[grants]]
+name = "packs"
+reason = "Reads the salutation from the greetings pack."
+
+[[grants]]
+name = "clock"
+reason = "Stamps the greeting with the command context's clock."
+
+[[grants]]
+name = "random"
+reason = "A component's standard library seeds its hash maps from it; declared so every build of the plugin has one grant list."
+
+[[grants]]
+name = "log"
+reason = "Notes which salutation it used."
+
+[[commands]]
+name = "hello-greet"
+description = "Greet someone, in a space, with the pack's salutation."
+effects = ["inspect"]
+input_schema = "schemas/hello-greet.input.json"
+returns = "schemas/hello-greet.output.json"
+category = "hello"
+tags = ["example"]
+version = "1.0.0"
+first_class = true
+examples = [{ title = "Greet Ada", input = { name = "Ada" } }]
+
+[[packs]]
+id = "greetings"
+path = "packs/greetings"
+
+[[skills]]
+name = "hello-guide"
+path = "skills/hello-guide"
+
+[config]
+schema = "schemas/config.schema.json"

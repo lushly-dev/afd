@@ -7,6 +7,8 @@
 //! mounted kinds arrive in the steps that follow.
 
 mod compiled;
+#[cfg(feature = "component")]
+mod component;
 mod config;
 mod doctor;
 mod error;
