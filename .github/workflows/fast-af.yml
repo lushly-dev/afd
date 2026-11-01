@@ -17,6 +17,10 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/fast-af.yml'
+  # fast-element's Firefox and WebKit suites run daily and on demand; pull requests and pushes
+  # run its Playwright suites on Chromium.
+  schedule:
+    - cron: '11 8 * * *'
   workflow_dispatch:
 
 permissions:
@@ -56,7 +60,7 @@ jobs:
         run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path .github/workflows/fast-af.yml
 
   runtime:
-    name: fast-element build, migration rules and three-browser suites
+    name: fast-element build, migration rules and browser suites
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
@@ -74,9 +78,21 @@ jobs:
         run: pnpm -F @lushly-dev/fast-element build
       - name: Build leaves tracked sources and API reports unchanged
         run: git diff --exit-code -- foundations/fast-af && test -z "$(git status --porcelain -- foundations/fast-af)"
-      - run: pnpm -F @lushly-dev/fast-element exec playwright install --with-deps chromium firefox webkit
-      - name: Upstream test:ci (docs, API reports, exports, types, migration rules, Playwright)
+      - name: Install Playwright browsers
+        run: >-
+          pnpm -F @lushly-dev/fast-element exec playwright install --with-deps
+          ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chromium firefox webkit' || 'chromium' }}
+      - name: Upstream test:ci (docs, API reports, exports, types, migration rules, Playwright on three browsers)
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: pnpm -F @lushly-dev/fast-element test:ci
+      - name: Upstream test:ci checks, with the Playwright suites on Chromium
+        if: ${{ !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        working-directory: foundations/fast-af/packages/element/packages/fast-element
+        # test:ci with test:chromium in place of test:playwright.
+        run: |
+          for script in doc:path-exports:check doc:ci doc:exports:ci test:exports test:types test:migration-rules test:chromium; do
+            pnpm run "$script"
+          done
 
   components:
     name: violet-elements Chromium suite, generated artifacts and packed consumers

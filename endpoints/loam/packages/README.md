@@ -8,7 +8,7 @@ quarantined: `private: true`, no release route, and gated by `pnpm check` and
 | Directory | Package | Responsibility |
 | --- | --- | --- |
 | `theme/` | `@lushly-dev/loam-theme` | Loam's Violet tree (light, dark, high contrast, each with compact density), its exports, the token contract and the token-only lint; see [its README](theme/README.md) |
-| `kernel/` | `@lushly-dev/loam-kernel` | The registries, kernel interface version 0, the shell commands, the layout model, the journal and replay; no DOM dependency |
+| `kernel/` | `@lushly-dev/loam-kernel` | The registries, kernel interface version 0, the shell commands, the layout model, the palette index and the journal options; replay, the journal diff and the reference workspace at `/testing`; no DOM dependency |
 | `chrome/` | `@lushly-dev/loam-chrome` | The shell parts as FAST-AF elements, the palette, keyboard and the responsive rules |
 | `web/` | `@lushly-dev/loam-web` | The browser host: the static shell built with Vite, its Chromium suite and its budget |
 

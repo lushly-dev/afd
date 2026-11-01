@@ -40,7 +40,8 @@ export const SUITES = [
 	{
 		workflow: 'fast-af.yml',
 		tools: ['chromium'],
-		remote: 'fast-element on Firefox and WebKit, and its upstream test:ci documentation checks',
+		remote:
+			'fast-element on Firefox and WebKit (daily), and its upstream test:ci documentation checks',
 		steps: [
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element build' },
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element test:chromium' },
@@ -179,29 +180,58 @@ export const SUITES = [
 		workflow: 'umbel.yml',
 		tools: ['cargo'],
 		remote:
-			'Linux, the per-feature and wasm32-wasip2 clippy legs, MSRV 1.97, Umbel conformance and plugin isolation',
+			'Linux, the per-feature and wasm32-wasip2 clippy legs, MSRV 1.97 (daily) and plugin isolation',
 		steps: [
-			{ cwd: 'endpoints/umbel', run: 'cargo fmt --all --check' },
+			{ gate: 'host', cwd: 'endpoints/umbel', run: 'cargo fmt --all --check' },
 			{
+				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo clippy --locked --workspace --all-targets -- -D warnings',
+				run: 'cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings',
 			},
 			{
+				gate: 'host',
 				cwd: 'endpoints/umbel',
 				run: 'cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component',
 			},
 			{
+				gate: 'host',
 				cwd: 'endpoints/umbel',
 				run: 'cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp',
 			},
-			{ cwd: 'endpoints/umbel', run: 'cargo test --locked --workspace' },
+			{
+				gate: 'host',
+				cwd: 'endpoints/umbel',
+				run: 'cargo test --locked --workspace --exclude umbel-store-embedded',
+			},
+			{
+				gate: 'host',
+				cwd: 'endpoints/umbel',
+				run: 'cargo clippy --locked -p umbel-store -p umbel-store-embedded --all-targets -- -D warnings',
+			},
+			{
+				gate: 'host',
+				cwd: 'endpoints/umbel',
+				run: 'cargo test --locked -p umbel-store -p umbel-store-embedded',
+			},
+			// The conformance job runs for every trigger, including todo example and CLI changes.
+			{ run: 'pnpm -F "@lushly-dev/afd-cli..." build' },
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel' },
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel --mode modern' },
+			{
+				run: 'pnpm --filter @afd/example-todo test:conformance:umbel --suite confirmations --mode modern',
+			},
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted' },
+			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern' },
+			{
+				run: 'bash endpoints/umbel/tests/scripts/external-clients.sh endpoints/umbel/target/debug/umbel-todo packages/cli/dist/bin.js packages/examples/todo/scenarios',
+			},
 		],
 	},
 	{
 		workflow: 'cpp.yml',
 		tools: ['cmake'],
 		remote:
-			'clang-format, the sanitizer, no-exceptions, Windows, MSVC, Emscripten, packaging and fuzz legs',
+			'clang-format, the sanitizer and no-exceptions legs; daily: TSan, Windows, MSVC, Emscripten, packaging, benchmarks and fuzz',
 		steps: [
 			{ cwd: 'packages/cpp', run: 'cmake --preset dev' },
 			{ cwd: 'packages/cpp', run: 'cmake --build --preset dev' },
@@ -213,14 +243,18 @@ export const SUITES = [
 		tools: ['uv', 'cargo', 'cmake'],
 		remote: 'the Rust backend clippy and the C++ backend unit tests',
 		steps: [
-			{ run: 'pnpm build' },
-			{ cwd: 'packages/examples/todo/backends/python', run: 'uv sync --locked' },
-			{ cwd: 'packages/examples/todo/backends/python', run: 'uv run --locked pytest -q' },
-			{ cwd: 'packages/examples/todo/backends/rust', run: 'cargo test --locked' },
-			{ run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
-			{ run: 'pnpm --dir packages/examples/todo test:conformance:py' },
-			{ run: 'pnpm --dir packages/examples/todo test:conformance:rs' },
-			{ run: 'pnpm --dir packages/examples/todo test:conformance:cpp' },
+			{ gate: 'todo', run: 'pnpm build' },
+			{ gate: 'todo', cwd: 'packages/examples/todo/backends/python', run: 'uv sync --locked' },
+			{
+				gate: 'todo',
+				cwd: 'packages/examples/todo/backends/python',
+				run: 'uv run --locked pytest -q',
+			},
+			{ gate: 'rust', cwd: 'packages/examples/todo/backends/rust', run: 'cargo test --locked' },
+			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
+			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:py' },
+			{ gate: 'rust', run: 'pnpm --dir packages/examples/todo test:conformance:rs' },
+			{ gate: 'cpp', run: 'pnpm --dir packages/examples/todo test:conformance:cpp' },
 		],
 	},
 ];

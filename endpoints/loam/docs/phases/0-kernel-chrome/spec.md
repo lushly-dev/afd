@@ -18,6 +18,13 @@
   emulates media in its native host rather than through Playwright.
   Step 2 recorded its decisions in sections 2.1, 2.2, 2.3 and 2.7, each
   under "Decided by step 2".
+  Step 5 ([#638](https://github.com/lushly-dev/afd/pull/638)) added [section 6.7](#67-decided-while-implementing-step-5),
+  `flush()` in 6.2, and the kernel bundle measurement in
+  [section 8.1](#81-bundle-budget).
+  Step 4 wrote the
+  [design document](../../design.md), which holds the visual rules step 7
+  follows, and decided the resting field border (see
+  [Follow-ups](#follow-ups)).
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -285,10 +292,10 @@ Decided by step 2 (2026-11-01):
   each of the constant's numbers to its shell id (`LAYOUT_DEFAULT_TOKENS`)
   and compares every node with the kernel's export, which
   `theme/scripts/theme.mjs` reads: the kernel is a development dependency,
-  and the boundary check refuses it in `src/`. Until step 5 adds the
-  constant, `theme:check` prints a note and skips that comparison, and
-  `theme`'s `test` compares the tree with the numbers of 5.2 instead. Step 5
-  removes the skip, so a missing export then fails.
+  and the boundary check refuses it in `src/`, so `theme`'s `test` compares
+  the tree with the numbers of 5.2 instead. Until step 5 added the constant,
+  `theme:check` printed a note and skipped that comparison; step 5 removed
+  the skip, so a missing export now fails `theme:check`.
 
 ### 2.2 Loam's Violet tree
 
@@ -322,7 +329,7 @@ Decided by step 2 (2026-11-01):
   scan carries them into the components:
   - `color.text.muted` in light, `#6b7280` to `#616775`: 4.19:1 on
     `color.surface.subtle` (and on the read-only field) becomes 4.91:1, and
-    4.24:1 on `color.surface.selected` (muted cells of selected rows) becomes
+    3.89:1 on `color.surface.selected` (muted cells of selected rows) becomes
     4.56:1;
   - `color.border.strong`, the boundary of checkboxes, radios, switches and
     sliders, from `rgba(28, 26, 13, 0.35)` to `0.48` in light and from
@@ -346,7 +353,9 @@ Decided by step 2 (2026-11-01):
   the secondary-action, selected-control and state borders, which sit beside
   text or a fill), button fills, which their labels identify, or the resting
   field border to 3:1 (WCAG 1.4.11), so they keep today's values. High
-  contrast holds all of them to 3:1.
+  contrast holds all of them to 3:1. Step 4 decided that the resting field
+  border must meet 3:1 after all; the change is a follow-up (see
+  [Follow-ups](#follow-ups)).
 - **High contrast** is a light scheme on neutral colors: white surfaces with
   `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
   `#595959` subtle borders, a black focus ring, a black primary action, and
@@ -801,6 +810,7 @@ export interface LoamKernelV0 {
 	listCommands(): CommandSummaryV0[];
 	subscribe(listener: (event: KernelEventV0) => void): () => void;
 	readonly agent: Pick<LoamKernelV0, 'call' | 'listCommands'>;
+	flush(): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -849,6 +859,9 @@ export function createKernel(options: KernelOptionsV0): Promise<LoamKernelV0>;
   and `view-state-set`/`view-state-replace` on `loam.layout`, re-reads
   `appearance-get` after `appearance-set`, and re-reads `auth-session-get`
   after `auth-*`. It holds no layout state of its own.
+- **`flush`.** It writes pending view-state persistence at once; the chrome
+  calls it on `pagehide` and `visibilitychange` to hidden (5.2). Added by
+  step 5 (6.7).
 - **`environment`.** The browser host passes `window.matchMedia`;
   tests and replay pass a fixed table.
 - **`commands`.** Extra definitions registered beside the shell's. Phase 0
@@ -979,6 +992,97 @@ Mutations declare `mutation: true` and return an `undoCommand` with
   `JOURNAL_LOCKED` renders a full-page notice, "Loam is open in another
   tab", and does not create a kernel.
 
+### 6.7 Decided while implementing step 5
+
+Step 5 settled what sections 5 and 6 left open, as the options most
+consistent with them (amended 2026-11-01):
+
+- **The test kit is a subpath.** `replayKernel`, `diffJournals`,
+  `createReferenceWorkspace`, `recordSession`, `createFixedEnvironment` and
+  `SESSION_50`, the scripted 50-call session of E2, are exported from
+  `@lushly-dev/loam-kernel/testing`, so `MemoryAdapter`,
+  `MemoryJournalSink` and `MockAuthAdapter` stay out of the root's graph.
+  Step 7 records its committed fixture from `SESSION_50`.
+- **Names.** Name refusal also refuses a name given twice, with
+  `COMMAND_NAME_DUPLICATE`, before `createDirectRegistry` would throw a
+  plain `Error`. Both refusals carry `details` `{ name, reason }`.
+- **Exposure and auth.** Only the shell's commands get
+  `{ palette: true, agent: true, mcp: false, cli: false }`; a command in
+  `options.commands` keeps its own `expose`. The auth middleware's
+  `exclude` lists every registered name, `options.commands` included, so
+  nothing is refused signed out.
+- **Refusals as results.** A view-state handler can only refuse by
+  throwing, which the engine returns as a generic
+  `COMMAND_EXECUTION_ERROR` outside devMode. So the kernel wraps
+  `view-state-set`: for `loam.layout` and `loam.appearance` it runs the
+  shared validator first and returns its `VALIDATION_ERROR` as the result,
+  which is journaled. The handlers' `set` and `replace` still validate and
+  throw `LoamKernelError`, for callers of the registry itself. A
+  replacement must be a complete state. The validators look fields up as
+  own keys only, so an inherited name such as `constructor` or `toString` is
+  an unknown field and refused, and they skip a field whose value is
+  `undefined`, as a spread of optional values leaves it. `appearance-set` and the
+  `loam.appearance` handler share `validateAppearancePatch` the same way.
+- **Schema and handler.** `layout-set`'s input schema is strict and typed
+  (unknown keys and `version` are schema failures, which change nothing and
+  are not journaled); integers and ranges are checked in the handler.
+- **Hydration.** A persisted record the validator refuses is ignored and
+  its defaults kept, so one bad record cannot stop the other from loading.
+- **`seq` in events.** The kernel gives every call a trace ID,
+  `loam-<boot clock in base 36>-<n>`, and reads the `seq` the sink assigned
+  to that trace ID; the journal middleware exposes no other link between a
+  call and its entry. A failed append (a lost writer lock, a full quota)
+  leaves the event without `seq` and goes to the host's `reportError`
+  through the journal middleware's `onError`; the call's result is
+  unchanged.
+- **`flush`.** Section 5.2 has the chrome call `flush()` on `pagehide`, so
+  `LoamKernelV0` gains `flush()` (6.2); it does nothing after `dispose()`.
+- **The `system` theme.** The kernel resolves `system` at each
+  `appearance-get` and emits no event when the media change; the chrome
+  listens through `environment.onChange` and re-reads `appearance-get`, so
+  it still holds no appearance state of its own.
+- **Replay.** Each entry runs on the registry of the interface it was
+  recorded on. `MockAuthAdapter` derives the session and user ids from
+  `Date.now()`, so they count as the session's timestamps:
+  `REPLAY_IGNORE` is `metadata.executionTimeMs`, `data.resolved`,
+  `data.host`, `data.store`, `data.session.id`, `data.session.expiresAt`
+  and `data.user.id`. A journal that does not start at `seq` 1 rejects with
+  `LoamKernelError` `REPLAY_START_INVALID`; a divergence rejects with
+  `REPLAY_DIVERGED`, whose `details` carry the report and the first
+  difference. An empty journal replays to the defaults. The Mock session
+  ends with the page and replay does not, so a browser journal spanning a
+  reload while signed in diverges at the next `auth-*` entry; E2's fixture
+  is one session, and real identity arrives in phase 3.
+- **Journal diff.** `diffJournals` also ignores `metadata.traceId` and the
+  Mock session's ids, and takes extra `ignore` paths. `firstDifference`
+  has an optional `path`, and its `field` is `'length'` when one journal is
+  longer; `counts` is `{ a, b, same, different }`.
+- **Palette index.** Whitespace in a query is ignored and case does not
+  matter; a character whose lower case is longer (a dotted capital I) is
+  kept as it is, so offsets stay offsets into the original text. A field's
+  score is its weight × (the query length + the bonuses): 1 per matched
+  character that directly follows the previous one, 2 per matched character
+  at a word start (after a non-alphanumeric character, or a camel-case
+  capital). At most 16 starts are tried: the first occurrence of the
+  query's first character, then later occurrences at word starts. Equal fields prefer
+  name, then title, then description. `matches` are half-open
+  `[start, end)` ranges. An empty query lists every entry by name with
+  score 0. On the 5,000-entry reference workspace, Node 26 on a loaded
+  10-core Mac measured a p95 of about 2.5 ms per query (A1's budget is
+  8 ms in Chromium; step 7 measures it there).
+- **Keybindings.** `SHELL_KEYBINDINGS_V0` is a frozen list of frozen
+  `{ chord, command, toggle?, focus? }`. `listCommands` gives a command a
+  `keybinding` only for a chord that runs it with no input of its own
+  (`Mod+K` for `palette-open`); the toggle chords compute `layout-set`'s
+  input, so `layout-set` has none.
+- **`needsInput`** is also true for a union input every branch of which
+  has a required property (`auth-sign-in`).
+- **Disposal.** After `dispose()`, calls return `KERNEL_DISPOSED`.
+- **The reference workspace** returns `{ commands, queries, calls }`:
+  `size` command summaries, 200 queries (a quarter matching nothing) and
+  `size` mixed shell calls, every one journaled, which `recordSession` runs
+  on a test kernel for A2 and A3.
+
 ## 7. The chrome
 
 - **The shell element.** `loam-shell` hosts the parts in a CSS grid.
@@ -1057,6 +1161,17 @@ The ceilings assume the deep imports of section 7. Step 7 records the
 measured values in this specification's amendments. When a measurement is
 under 70% of its ceiling, the ceiling is lowered to the measured value plus
 10%. Raising a ceiling needs an amendment with the reason.
+
+Measured by step 5 (2026-11-01), `dist/index.js` bundled by esbuild 0.27
+for the browser, minified: 520,541 bytes, of which the kernel's own code is
+about 16 KB, the AFD packages about 50 KB and Zod 4.6.7 about 454 KB.
+Zod's root entry, which `afd-server`, `afd-view-state` and `afd-auth`
+import, re-exports every locale (about 264 KB) and esbuild keeps them; Zod
+without its locales is still about 190 KB. The kernel row's ceiling
+therefore cannot hold, and the page's JavaScript ceilings are at risk too.
+Step 7 owns the `budget` script and decides, by amendment with the
+measurements, between a locale-free Zod entry in the build, measuring the
+Vite (Rollup) output, which tree-shakes more, and raising the ceilings.
 
 ### 8.2 The accelerator admission rule (D37)
 
@@ -1260,4 +1375,7 @@ returned 18 findings. Each is addressed in the text above:
 | 2026-11-01 | Phase 0 specification | Specimen running axe itself, so the chrome's checks need no second harness | Open; not needed for phase 0 |
 | 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |
-| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Open |
+| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Decided 2026-11-01 by step 4: it must meet 3:1, because nothing else identifies the field (its background is the page surface). The exact values are in the [design document's history](../../design.md#history): `color.field.border` aliases `color.border.strong` in light and dark (3.06:1 or more), `color.field.border.hover` becomes `rgba(28, 26, 13, 0.64)` and `rgba(255, 248, 235, 0.52)` in dark, `color.field.border.invalid` aliases `color.state.danger.text`, high contrast keeps today's values, `pairs.ts` holds the resting and invalid borders in every theme, and the eight field components draw their resting border from `color.field.border` instead of `color.border.subtle`. Open: one pull request for the theme and the components, with or after step 3 |
+| 2026-11-01 | Phase 0 step 5 | The kernel's esbuild browser bundle is 520,541 bytes against the 150,000-byte ceiling of 8.1, almost all Zod (section 8.1); step 7 decides how the budget holds before it adds `budget` | Open; step 7 |
+| 2026-11-01 | Phase 0 step 4 | WCAG 2.2's 2.5.7 asks for a single-pointer alternative to dragging a resize handle; section 7 gives the handle keyboard steps only, which do not count. Step 7 decides the pointer alternative and records it in the design document | Open |
+| 2026-11-01 | Phase 0 step 4 | Contract version 2 candidates: a font-family id (the chrome declares the shared components' stack until then) and a focus-width id that components outside the chrome can read (`shell.size.focus` is chrome-only) | Open; not needed for phase 0 |
