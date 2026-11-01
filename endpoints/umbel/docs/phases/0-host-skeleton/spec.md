@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (steps 0 to 2 done). Written and revised
+- **State:** approved, implementation in progress (steps 0 to 3 done). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -53,7 +53,14 @@
   --locked --all-targets`, run locally, then `umbel.yml` and `pnpm check` on
   the pull request. Amendments it needed: see
   [Amendments from step 2](#amendments-from-step-2).
-- **Not done:** steps 3 to 6 of the [plan](#11-implementation-plan); the exit
+- **Done:** step 3, the registry and the CLI
+  ([#573](https://github.com/lushly-dev/afd/pull/573)), on 2026-11-01: as the
+  plan's table lists it, except what [Amendments from step 3](#amendments-from-step-3)
+  records. Checks: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D
+  warnings`, the library-only clippy leg, `cargo test --locked` and `cargo
+  +1.97.0 check --locked --all-targets`, run locally, then `umbel.yml` and
+  `pnpm check` on the pull request.
+- **Not done:** steps 4 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -177,6 +184,7 @@ required-features = ["cli"]
 
 [dependencies]
 afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
+async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"], optional = true }
@@ -241,6 +249,8 @@ Rules:
 | `Host::mcp_server() -> McpServer` | The configured MCP server (section 4) |
 | `Host::http_router() -> axum::Router` | `/mcp` (or `http.path`) and `/health`, behind the bearer layer (section 4) |
 | `Host::cli_client() -> DirectClient` | What the CLI projection calls through, with the CLI interface (section 4) |
+| `RESERVED_VERBS`, `SPACE_NOT_FOUND` | The reserved CLI verbs `seal` refuses; the code of an undeclared space |
+| `cli::{run, Environment, Console}` (feature `cli`) | The whole command line as a function: the `umbel` binary calls `run` with the process's terminal; tests call it in process with fixture commands and a scripted `Console` (section 4) |
 | `Host::repair_events() -> Result<RepairReport, HostError>` | The full catch-up of section 6, under the workspace lock; `umbel serve` calls it at start |
 | `Host::workspace() -> &Workspace`, `Workspace`, `Config`, `SpaceId` | Read-only views of the workspace |
 | `Workspace::resolve_space(&self, input: &Value, context: &CommandContext) -> Result<SpaceId, CommandError>` | The one space resolution, used by the space middleware and by every handler (section 5) |
@@ -963,6 +973,10 @@ umbel batch '<afd-batch request JSON>' | <file.json>
 umbel <domain> <action> [json | key=value ...] [--approve] [--yes]   = umbel call <domain>-<action>
 ```
 
+- **Flags.** `--format json|text` goes before the verb; `umbel schema` has its own
+  `--format json|typescript` after it. `--workspace` and `--log` may go anywhere
+  before the command's input; every word after a command name is input, except
+  `--approve` and `--yes`, wherever they are.
 - **Reserved verbs.** `init`, `serve`, `help`, `docs`, `schema`, `call` and
   `batch` are reserved CLI verbs: `seal` refuses a command whose name's first
   segment is one of them (`WORKSPACE_CONFIG_INVALID`), so the projection
@@ -1053,7 +1067,16 @@ repairs.
    and the context and calls `next()`, which takes no arguments: it can
    refuse before the handler or rewrite the result after it, but it cannot
    change the input or the context the handler sees. So:
-   1. **Space** (D26): for a command whose input schema has a `space`
+   1. **Event stamp**: after the handler, sets
+      `result.metadata["dev.umbel/mutation"] = true` on a successful result
+      of a command declared `mutation: true`, other than `event-ack` and
+      `event-rebuild`, and **removes** the key from every other result. On a
+      stamped result of a command with no `space` property it also sets
+      `dev.umbel/space` to the default space. It is outermost, so it runs
+      last on the way out: the space middleware below removes
+      `dev.umbel/space` from a command with no `space` property, and the
+      default space must be written after that removal.
+   2. **Space** (D26): for a command whose input schema has a `space`
       property, calls `Workspace::resolve_space(&input, &context)`, which
       returns `input.space` when given and the default space otherwise, and
       refuses an undeclared one with `SPACE_NOT_FOUND` before the handler
@@ -1062,12 +1085,6 @@ repairs.
       middleware **overwrites** `result.metadata["dev.umbel/space"]` with the
       resolved space. For a command with no `space` property it **removes**
       that key.
-   2. **Event stamp**: after the handler, sets
-      `result.metadata["dev.umbel/mutation"] = true` on a successful result
-      of a command declared `mutation: true`, other than `event-ack` and
-      `event-rebuild`, and **removes** the key from every other result. On a
-      stamped result of a command with no `space` property it also sets
-      `dev.umbel/space` to the default space.
    3. **Approval**: `create_approval_middleware` over `registry.list()` taken
       at this point, with the secret from `state/keys/approval.key`,
       `with_include_token(false)`, the default time to live and single-use
@@ -1377,7 +1394,7 @@ Integration tests, in `endpoints/umbel/tests/`:
 | `workspace.rs` | Discovery order: flag, then `UMBEL_WORKSPACE`, then upward search; the minimal file yields space `main`; each validation rule in section 2 with its key named, including `http.path`, a wildcard in `http.allowed_hosts` and `journal.lock_timeout_ms`; `config_version = 2` is `WORKSPACE_CONFIG_UNSUPPORTED`; reserved keys accepted; a non-loopback `http.bind` and `UMBEL_HTTP_BIND` both refused; precedence of flag over environment over file; a command named `serve-start` registered through the builder fails `seal`; a 16-byte confirmation key fails `seal` with `WORKSPACE_KEY_INVALID` |
 | `doctor.rs` | Every check's pass, warn and fail case from section 2; `doctor::run` reports `mcp.surface` and `cli.verbs` as `skip` and stays healthy; `WORKSPACE_UNHEALTHY` carries the report in `details`; `doctor::run` reports a workspace whose `umbel.toml` does not parse |
 | `schemas.rs` | Each schema file is valid JSON Schema 2020-12; every file in `schemas/examples/` validates against its schema; each reserved field of a version 0 schema is refused by it; the cursor pattern accepts `v0:main:0` and refuses `v0:main:01` and `v1:main:3` |
-| `cli.rs` | Runs the built binary: `init` creates section 2's layout with 0600 keys and refuses an existing workspace; `umbel workspace show` equals `umbel call workspace-show`; JSON output parses as one `CommandResult` with two-space indentation; exit codes 0, 1 (failure, usage, missing workspace) and 2 (`batch` with one failure); an unknown command suggests similar CLI-exposed names and an MCP-only fixture is `COMMAND_NOT_EXPOSED`; `umbel help` lists `event-rebuild` and not the MCP-only fixture; `key=value` parsing; `--format text` strips an escape sequence a fixture returns; `umbel workspace doctor` on a fresh workspace exits 0 |
+| `cli.rs` | Runs the built binary for the cases that need no fixture, and `umbel::cli::run` in process for the cases that register fixtures (the binary has no way to load one; both take the same arguments and print the same output and exit codes): `init` creates section 2's layout with 0600 keys and refuses an existing workspace; `umbel workspace show` equals `umbel call workspace-show`; JSON output parses as one `CommandResult` with two-space indentation; exit codes 0, 1 (failure, usage, missing workspace) and 2 (`batch` with one failure); an unknown command suggests similar CLI-exposed names and an MCP-only fixture is `COMMAND_NOT_EXPOSED`; `umbel help` lists `event-rebuild` and not the MCP-only fixture; `key=value` parsing; `--format text` strips an escape sequence a fixture returns; `umbel workspace doctor` on a fresh workspace exits 0 |
 | `process.rs` | Runs the built binary: `serve --stdio` answers a legacy `initialize` and a modern `tools/list`, and stdout holds only JSON-RPC lines; with that server running, one-shot `umbel event ack` and `umbel event list` calls succeed and the journal holds both processes' entries with contiguous `seq`; `serve --stdio` on a workspace whose `umbel.toml` is invalid writes one failure line to stderr, nothing to stdout, and exits 1; `serve --http --bind 127.0.0.1:0 --print-token` prints the listening line on stderr and the token on stdout, answers `/health` and a modern `tools/list` with the token and 401 without it, and exits 0 on SIGINT (Unix) |
 
 Unit tests sit beside the code for the cursor codec, cursor keys, space id
@@ -1503,6 +1520,37 @@ change the code needed:
 - Discovery is `workspace::discover(flag, env value, cwd)`, a pure function, so
   tests need not change the process environment (setting it is `unsafe` in
   edition 2024, and the crate forbids unsafe code).
+
+## Amendments from step 3
+
+What step 3 settled where the plan left room, and the amendments it made to this
+document (the pull request number is in the status block):
+
+- **Amendments** (made in the step 3 pull request): `async-trait` is a
+  dependency, because `CommandHandler` is an `async_trait` and has no closure
+  form; the middleware order of section 5 swaps the event stamp and the space
+  middleware, because the literal order removed the default space the stamp had
+  just written; `cli::run`, `Environment` and `Console` are public under the
+  `cli` feature, because the binary cannot load a fixture command and the CLI
+  tests need them; `RESERVED_VERBS` and `SPACE_NOT_FOUND` are public; the
+  `cli.rs` row says which cases run the binary.
+- **The event stamp** is in step 3, with the space middleware ("the space and
+  stamp middleware" of the step 3 row): it only writes result metadata, so the
+  cases of `trusted_keys.rs` that read it need no events. Step 4 adds the
+  projection that reads it.
+- **`space-list`** counts the complete lines of each stream file for `events` and
+  `head`, which is exact for a stream the projection writes; step 4 replaces it
+  with the catch-up of section 6.
+- **`seal`** builds and validates the MCP server (`McpServer::validate`, the
+  confirmation key) and discards it; `Host::mcp_server` and the context hook
+  are step 5's. Until the event commands exist, the default first-class set
+  names only the commands that are registered.
+- **`umbel serve`** parses and answers `NOT_IMPLEMENTED` until step 5.
+- **Test files.** The cases of `workspace.rs` and `doctor.rs` that need a
+  sealed host are in `tests/seal.rs` and `tests/doctor_sealed.rs`, so they do
+  not collide with the step 2 cases; the `trusted_keys.rs` cases that need no
+  events are in `tests/trusted_keys.rs`, which step 4 extends. `cli.rs` covers
+  `umbel help` without `event-rebuild`, which step 4 registers.
 
 ## Follow-ups
 

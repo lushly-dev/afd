@@ -23,6 +23,7 @@ required-features = ["cli"]
 
 [dependencies]
 afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
+async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"], optional = true }
