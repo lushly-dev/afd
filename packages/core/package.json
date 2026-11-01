@@ -24,6 +24,10 @@
 			"types": "./dist/direct-approval.d.ts",
 			"import": "./dist/direct-approval.js"
 		},
+		"./internal/direct-allow": {
+			"types": "./dist/direct-allow.d.ts",
+			"import": "./dist/direct-allow.js"
+		},
 		"./commands": {
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"

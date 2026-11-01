@@ -294,12 +294,13 @@ await registry.execute('afd-call', { command: 'invoice-pay', input: { id: 'in-1'
 | `firstClassTools` | — | The hybrid strategy's first-class commands, checked as `createMcpServer` checks them |
 | `bootstrap` | `false` | Register `afd-help`, `afd-docs` and `afd-schema` |
 
-- `registry.listTools({ strategy?, activeContext? })` returns exactly what an
-  MCP server with the same commands, contexts and strategy lists, by calling
-  the server's own tool list, with the server's defaults for `groupByFn`,
-  `advertiseOutputSchema` and `confirmations` (in-process calls are never
-  confirmation-gated). It throws a `TypeError` on a registry built without
-  `tools`, and a `RangeError` for an unknown context.
+- `registry.listTools({ strategy?, activeContext?, allow? })` returns exactly
+  what an MCP server with the same commands, contexts and strategy lists, by
+  calling the server's own tool list, with the server's defaults for
+  `groupByFn`, `advertiseOutputSchema` and `confirmations` (in-process calls are
+  never confirmation-gated). With `allow`, it leaves out the commands and tool
+  names the predicate rejects (see below). It throws a `TypeError` on a
+  registry built without `tools`, and a `RangeError` for an unknown context.
 - `registry.execute` sends meta-tool names, and grouped tool names under the
   grouped strategy, through the server's tool router, and returns the JSON an
   MCP client reads (`afd-batch` a `BatchResult`, `afd-pipe` a
@@ -319,6 +320,34 @@ await registry.execute('afd-call', { command: 'invoice-pay', input: { id: 'in-1'
   serves them; without it, `COMMAND_NOT_FOUND` ends "Check the command name
   against the available commands." and `COMMAND_NOT_IN_CONTEXT` names the
   command's contexts.
+
+#### The `allow` call option
+
+`allow` is a trusted, in-process predicate over names, passed beside
+`activeContext`. It covers the name a call names and every command that call
+runs: the `afd-call` target, each `afd-batch` item, each `afd-pipe` step, a
+grouped tool's action, and a command a handler runs by passing its own context
+to `execute`. A name it rejects, or a predicate that throws, fails with
+`COMMAND_NOT_ALLOWED` (the failure `DirectClient` gives) before anything runs.
+`afd-discover`, `afd-detail` and the bootstrap tools leave refused commands
+out, and so does `listTools({ allow })`.
+
+```typescript
+const allowed = new Set(['afd-call', 'afd-batch', 'note-list']);
+const allow = (name: string) => allowed.has(name);
+
+await registry.execute('afd-call', { command: 'note-list', input: {} }, {}, { allow }); // runs
+await registry.execute('afd-call', { command: 'note-delete', input: { id: 'n1' } }, {}, { allow });
+// → COMMAND_NOT_ALLOWED; so is note-delete as an afd-batch item or an afd-pipe step
+registry.listTools({ allow }); // afd-batch, afd-call, note-list
+```
+
+`DirectClient` passes its own `allow` this way on every call, `pipe()` step and
+approval retry, so allowing a meta-tool or a grouped tool no longer reaches
+commands `allow` refuses. The registry binds the predicate to the call's context
+as an opaque token, so handlers cannot read or replace it, and tool arguments
+cannot carry one. Without `allow`, nothing changes. A grouped tool's own name
+is checked too: allow the group (`note`) to call its permitted actions.
 
 ### Basic Command
 

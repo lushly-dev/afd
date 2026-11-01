@@ -78,7 +78,8 @@ export function createAfdContextListCommand(
 
 		async handler(_input, context) {
 			const activeContext = resolveContextState(context, contextState)?.getActive() ?? null;
-			const configs = getContexts();
+			// A copy: getContexts may return the host's own array, which must keep its order.
+			const configs = [...getContexts()];
 			const contexts: ContextInfo[] = configs
 				.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
 				.map((c) => ({

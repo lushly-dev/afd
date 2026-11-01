@@ -54,7 +54,11 @@ function isToolCallParams(value: unknown): value is ToolCallParams {
  * an `UNKNOWN_TOOL` failure with a suggestion, and a registry that throws gives a
  * `COMMAND_EXECUTION_ERROR` failure (without the exception text). `afd-batch` and `afd-pipe`
  * run through core's `executeBatch()` and `executePipeline()` unless the registry defines
- * commands with those names.
+ * commands with those names or routes them (a registry with a tool surface).
+ *
+ * `tools/list` answers with the registry's `listTools()` when it has a tool surface, so the list
+ * matches what an AFD server with the same commands and strategy offers, and one tool per command
+ * otherwise.
  */
 export class DirectTransport implements Transport {
 	private connected = false;
@@ -195,7 +199,23 @@ export class DirectTransport implements Transport {
 	}
 
 	private handleToolsList(requestId: string | number): McpResponse {
-		const tools: McpTool[] = this.registry.listCommands().map((cmd) => {
+		return { jsonrpc: '2.0', id: requestId, result: { tools: this.listTools() } };
+	}
+
+	/**
+	 * The registry's MCP tool list when it has a tool surface (`listTools`, which
+	 * `createDirectRegistry()` throws a `TypeError` from without one), so `tools/list` names the
+	 * meta-tools and grouped tools `tools/call` routes; otherwise one tool per command.
+	 */
+	private listTools(): McpTool[] {
+		if (this.registry.listTools) {
+			try {
+				return this.registry.listTools();
+			} catch (error) {
+				if (!(error instanceof TypeError)) throw error;
+			}
+		}
+		return this.registry.listCommands().map((cmd) => {
 			const { name, description, inputSchema, ...metadata } = cmd;
 			return {
 				name,
@@ -205,7 +225,6 @@ export class DirectTransport implements Transport {
 				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 			};
 		});
-		return { jsonrpc: '2.0', id: requestId, result: { tools } };
 	}
 
 	private async handleToolCall(

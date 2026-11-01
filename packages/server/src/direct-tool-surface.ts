@@ -17,13 +17,19 @@
  * from its `activeContext` option, so `afd-context-enter` and `afd-context-exit` validate the
  * name, change nothing, and return `persisted: false` with the hint.
  *
+ * The registry's `allow` option narrows the surface per call: the router and engine refuse every
+ * command it rejects, `afd-discover`, `afd-detail` and the bootstrap tools leave them out, and
+ * `listTools` with `allow` lists neither those commands nor the tool names it rejects.
+ *
  * This module is what keeps the router out of the base registry: `direct-registry.ts` imports it
  * only as types. It loads no Node.js built-in, so it runs in a browser too.
  */
 
 import type { CommandContext, ExposeOptions } from '@lushly-dev/afd-core';
 import { isMcpExposed } from '@lushly-dev/afd-core';
+import { directAllows } from '@lushly-dev/afd-core/internal/direct-allow';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
+import { filterAllowed } from './command-allow.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { commandGroup, filterByContext } from './command-routing.js';
 import { contextFieldValues } from './context-fields.js';
@@ -117,7 +123,10 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 			let listed: ZodCommandDefinition[] = [];
 			if (bootstrap) {
 				const describe = (context?: CommandContext) =>
-					filterByContext(listed, resolveContextState(context)?.getActive());
+					filterAllowed(
+						filterByContext(listed, resolveContextState(context)?.getActive()),
+						context
+					);
 				const toolSurface = {
 					toolStrategy: strategy,
 					firstClassTools,
@@ -187,8 +196,18 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 					return result.structuredContent ?? JSON.parse(result.content[0]?.text ?? 'null');
 				},
 
-				listTools(listStrategy = strategy, activeContext) {
-					return getToolsList(listed, listStrategy, undefined, activeContext, { firstClassTools });
+				listTools(listStrategy = strategy, activeContext, allow) {
+					if (!allow) {
+						return getToolsList(listed, listStrategy, undefined, activeContext, {
+							firstClassTools,
+						});
+					}
+					// The commands first, so grouped tools list only the actions allow permits; then the
+					// tool names, which allow checks as DirectClient does.
+					const visible = listed.filter((command) => directAllows(allow, command.name));
+					return getToolsList(visible, listStrategy, undefined, activeContext, {
+						firstClassTools,
+					}).filter((tool) => directAllows(allow, tool.name));
 				},
 			};
 		},

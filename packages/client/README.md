@@ -325,7 +325,9 @@ const result = await client.call('todo-list', {});
 
 An unknown command returns an `UNKNOWN_TOOL` failure whose `suggestion` names the closest
 command, exactly as `DirectClient` does, and a command that throws returns a
-`COMMAND_EXECUTION_ERROR` failure without the exception text.
+`COMMAND_EXECUTION_ERROR` failure without the exception text. `listTools()` returns the
+registry's MCP tool list when it has a tool surface (`createDirectToolSurface()`), so it names
+the meta-tools and grouped tools that `call()` routes, and one tool per command otherwise.
 
 ### DirectClient (Zero Overhead)
 
@@ -388,7 +390,10 @@ can tell it apart from the user.
 
 `allow` narrows what the client may call. Refused commands return a
 `COMMAND_NOT_ALLOWED` failure without reaching the registry, and are left out of
-`listCommands()`, `listCommandNames()`, `hasCommand()` and `listTools()`.
+`listCommands()`, `listCommandNames()`, `hasCommand()` and `listTools()`. The
+client also passes its check to the registry as the `allow` call option, on
+every call, `pipe()` step and approval retry, so a `createDirectRegistry()`
+registry enforces it on every command a call runs (see below).
 
 #### AFD Contexts and Tools
 
@@ -405,10 +410,24 @@ client.listTools({ strategy: 'lazy', activeContext: 'billing' });
 
 `activeContext` reaches the registry as a call option beside the command
 context, so handlers never see it. `listTools()` throws a `TypeError` when the
-registry cannot list tools. `allow` checks tool names: allowing a meta-tool
-(`afd-call`, `afd-batch`, `afd-pipe`) or a grouped tool lets the client reach
-every command the registry exposes through it, so keep a command from in-app
-agents with `expose: { agent: false }` instead.
+registry cannot list tools.
+
+`allow` is enforced per routed command. It checks the tool name a call names
+and, through the registry's `allow` call option, every command that tool runs:
+the `afd-call` target, each `afd-batch` item, each `afd-pipe` step and a grouped
+tool's action. A refused command fails with `COMMAND_NOT_ALLOWED`, and
+`afd-discover`, `afd-detail` and `listTools()` leave it out (a grouped tool
+lists only the actions `allow` permits). Allow a grouped tool by its group
+name, such as `note`. A hand-written registry whose `execute` ignores call
+options gets name checks only.
+
+```typescript
+const allowed = new Set(['afd-call', 'afd-batch', 'afd-pipe', 'note-list']);
+const client = createDirectClient(registry, { allow: (name) => allowed.has(name) });
+
+await client.call('afd-call', { command: 'note-list', input: {} });   // runs
+await client.call('afd-call', { command: 'note-delete', input: {} }); // COMMAND_NOT_ALLOWED
+```
 
 #### Approvals
 
