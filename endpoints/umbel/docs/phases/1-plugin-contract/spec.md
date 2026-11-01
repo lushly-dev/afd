@@ -79,8 +79,12 @@
   `_meta["dev.afd/digest"]` as `sha256:<hex>`, the Skills extension's format,
   so section 8.3 no longer mints `dev.umbel/sha256` (see
   [Amendments from step 0a](#amendments-from-step-0a)).
-- **Done:** this specification, approved and merged; step 0a.
-- **Not done:** step 0b and every Umbel step of the
+- **Step 1 done 2026-11-01** ([#606](https://github.com/lushly-dev/afd/pull/606)):
+  manifest and configuration, as the step 1 row of the
+  [plan](#14-implementation-plan) lists them. One amendment, in
+  [Amendments from step 1](#amendments-from-step-1).
+- **Done:** this specification, approved and merged; steps 0a and 1.
+- **Not done:** step 0b and the Umbel steps 2a to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1967,6 +1971,19 @@ the YAML 1.2 core schema; skill files' MIME types from a fixed suffix table
 which matches section 8.3 for `.md` and the octet-stream default; and
 prefixed tool `_meta` keys need two labels, which `dev.umbel/origin`
 satisfies.
+
+## Amendments from step 1
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 6, 9.1 | The loader (step 2a) makes a configured instance load or fail | Until step 2a, `HostBuilder::seal` refuses a workspace whose `plugins.enabled` is not empty with `WORKSPACE_CONFIG_INVALID` naming `plugins.enabled`; `umbel workspace doctor` still checks the instances' files. Step 2a removes the guard | Phase 0 refused a non-empty `enabled` when the file was read. Version 2 moves that refusal from the file to `seal`, so the doctor and `plugin-check` can read configured instances, while a configured plugin is still never silently ignored |
+
+Two shapes the specification leaves open, fixed here for steps 2a onward:
+`doctor::run_with_catalog` and `run_discovered_with_catalog` take a
+`plugins::CompiledCatalog` (compiled plugin id to embedded manifest text),
+which the CLI's `configure` hook will fill in step 2a; the file-only checks
+use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
+(reported `skip`) when there is no catalog.
 
 ## Follow-ups
 
