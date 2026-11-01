@@ -1653,9 +1653,9 @@
       "path": "foundations/violet/packages/runtime/vitest.config.ts",
       "upstream_path": "packages/runtime/vitest.config.ts",
       "upstream_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
-      "current_import_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "0a33f35452b0421ed023d8d539446d0d89f392ec39eef2521bad00350680f7fc",
+      "classification": "adapted",
+      "reason": "Test workers run with --no-experimental-webstorage: Node 25 and later define a global localStorage that is undefined without --localstorage-file and shadows happy-dom's",
       "candidate": {
         "path": "packages/runtime/vitest.config.ts",
         "sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",

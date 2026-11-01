@@ -41,7 +41,7 @@ Never use bare `git stash` / `git stash pop`; set work aside with a WIP commit.
 
 Read `.nvmrc` and `package.json`'s `engines`/`packageManager`, then check
 `node --version`, `node -p 'process.execPath'`, and `pnpm --version` in the shell
-that will run the work. CI runs Node 22.x and 24.x; `.nvmrc` pins the local
+that will run the work. CI runs Node 22.x and 26.x; `.nvmrc` pins the local
 default. Select the pinned Node with whatever version manager is already
 installed; do not install global packages or assume one tool invocation's runtime
 carries into the next.

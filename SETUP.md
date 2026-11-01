@@ -6,7 +6,7 @@ First-time setup guide for the AFD monorepo. Run these steps once to get a worki
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Node.js | 22.12+ (24 for hosted fixtures) | `node -v` |
+| Node.js | 26 LTS for development (`.nvmrc`); packages support 22.12+, Violet and the hosted fixtures need 24+ | `node -v` |
 | pnpm | 10.30.1 (pinned in `package.json`) | `pnpm -v` |
 | Python | 3.10+ (for Python package and Alfred) | `python --version` |
 | Git | Any recent | `git --version` |

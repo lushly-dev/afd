@@ -4,7 +4,7 @@ AFD (Agent-First Development) is a methodology where AI agents are first-class u
 
 ## Prerequisites
 
-- **Node.js** >= 20.0.0
+- **Node.js** >= 22.12.0 (development and CI use Node 26 LTS, pinned in `.nvmrc`)
 - **pnpm** >= 9.0.0
 - **Python** >= 3.10 (for the Python package and Alfred)
 - **Lefthook** (auto-installed via `pnpm install`)

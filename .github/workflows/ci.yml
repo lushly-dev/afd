@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [22.x, 24.x]
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +39,7 @@ jobs:
       - name: Upload coverage
         # Keep main baselines and failure diagnostics; successful PRs need no archive.
         if: >-
-          ${{ !cancelled() && matrix.node-version == '24.x' &&
+          ${{ !cancelled() && matrix.node-version == '26.x' &&
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') || failure()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
