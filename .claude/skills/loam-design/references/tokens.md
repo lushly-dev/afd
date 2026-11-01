@@ -55,18 +55,19 @@ or `dist/loam-theme.json`.
 | `color.state.warning.background` / `.text` / `.border` | `#FDEBCC` / `#92400E` / `rgba(245, 158, 11, 0.34)` | `rgba(146, 64, 14, 0.38)` / `#F3D6A3` / `rgba(251, 191, 36, 0.28)` | `#FFFFFF` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#FBE2E2` / `#B42318` / `rgba(220, 38, 38, 0.34)` | `rgba(180, 35, 24, 0.38)` / `#F5C7C2` / `rgba(252, 165, 165, 0.24)` | `#FFFFFF` / `#A30000` / `#A30000` |
 
-Field ids are aliases, so they follow the theme:
+Field ids are aliases, so they follow the theme; the hover border is a
+literal one step stronger than the resting border:
 
-| Id | Alias of (today) |
+| Id | Alias of |
 |----|------------------|
 | `color.field.background` | `color.surface.page` |
 | `color.field.background.readonly` | `color.surface.subtle` |
 | `color.field.text` | `color.text.primary` |
 | `color.field.placeholder` | `color.text.muted` |
-| `color.field.border` | `color.border.subtle` (decided to change; see [history.md](history.md)) |
-| `color.field.border.hover` | `color.border.strong` (decided to change) |
+| `color.field.border` | `color.border.strong`; `color.border.subtle` in high contrast (see [history.md](history.md)) |
+| `color.field.border.hover` | `rgba(28, 26, 13, 0.64)`, `rgba(255, 248, 235, 0.52)` in dark, `color.border.strong` in high contrast |
 | `color.field.border.focus` | `color.focus.ring` |
-| `color.field.border.invalid` | `color.state.danger.border` (decided to change) |
+| `color.field.border.invalid` | `color.state.danger.text` |
 | `shell.color.handle.rest` / `.hover` / `.active` | `color.border.subtle` / `color.border.strong` / `color.focus.ring` |
 
 ## Contrast floors
@@ -75,7 +76,7 @@ Field ids are aliases, so they follow the theme:
 |------|-------------|---------------|
 | Text pairs | 4.5:1 | 7:1 |
 | Non-text pairs | 3:1 | 3:1 |
-| Decorative borders, button fills, the resting and invalid field borders | not held | 3:1 |
+| Decorative borders, button fills | not held | 3:1 |
 
 The pairs are listed in `src/pairs.ts`. Translucent colors are measured drawn
 over their background, drawn over `color.surface.page`.

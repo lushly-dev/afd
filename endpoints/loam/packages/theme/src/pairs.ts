@@ -3,11 +3,11 @@
  * in light and dark and 7:1 in high contrast; non-text (boundaries a control needs to be seen,
  * and the focus ring) is 3:1 everywhere.
  *
- * Light and dark do not hold three groups to 3:1, so version 1 keeps today's values for them:
+ * Light and dark do not hold two groups to 3:1, so version 1 keeps today's values for them:
  * decorative borders (`color.border.subtle`, and the secondary-action, selected-control and state
- * borders beside text or a fill), button fills, which their labels identify, and the resting
- * field border (`color.field.border`, 1.2:1 today; a follow-up in the specification). High
- * contrast holds all three to 3:1.
+ * borders beside text or a fill), and button fills, which their labels identify. High contrast
+ * holds both to 3:1. The resting and invalid field borders are a field's only boundary, so every
+ * theme holds them to 3:1 (the design document, 2026-11-01).
  */
 import type { ThemeName } from './tree/index.js';
 
@@ -68,7 +68,11 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 	...on(['color.field.text', 'color.field.placeholder'], FIELD_BACKGROUNDS, 'text'),
 	// Boundaries a control needs to be seen.
 	...on(['color.border.strong'], OPEN_SURFACES, 'non-text'),
-	...on(['color.field.border.hover'], FIELD_BACKGROUNDS, 'non-text'),
+	...on(
+		['color.field.border', 'color.field.border.hover', 'color.field.border.invalid'],
+		FIELD_BACKGROUNDS,
+		'non-text'
+	),
 	...on(
 		['shell.color.handle.hover', 'shell.color.handle.active'],
 		[PAGE, CARD, SUBTLE],
@@ -85,12 +89,6 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		HIGH_CONTRAST
 	),
 	...on(['color.border.subtle', 'shell.color.handle.rest'], SURFACES, 'non-text', HIGH_CONTRAST),
-	...on(
-		['color.field.border', 'color.field.border.invalid'],
-		FIELD_BACKGROUNDS,
-		'non-text',
-		HIGH_CONTRAST
-	),
 	...on(
 		['color.action.secondary.border'],
 		[PAGE, 'color.action.secondary.background'],

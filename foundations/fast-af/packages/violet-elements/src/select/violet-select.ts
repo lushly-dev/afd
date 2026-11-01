@@ -57,7 +57,7 @@ const styles = css`
         inline-size: 100%;
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
-        border: 1px solid var(--_border-subtle);
+        border: 1px solid var(--_field-border);
         border-radius: var(--_radius-md);
         background: var(--_surface-page);
         color: var(--color-text-primary, #18181b);
@@ -74,7 +74,7 @@ const styles = css`
     }
 
     .trigger:hover {
-        border-color: var(--color-field-border-hover, rgba(28, 26, 13, 0.48));
+        border-color: var(--_field-border-hover);
     }
 
     .trigger:focus-visible,

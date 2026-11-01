@@ -1,8 +1,9 @@
 /**
  * The theme overrides (2.2). Dark is `violet-elements`' dark preset, with `color.border.strong`
- * raised to meet 3:1. High contrast is new: neutral surfaces, 7:1 text, 3:1 non-text and focus
- * ring, a 3px focus width and shadows replaced by borders (a spread shadow draws a border without
- * changing layout).
+ * raised to meet 3:1 and the hover field border one step stronger than the resting one. High
+ * contrast is new: neutral surfaces, 7:1 text, 3:1 non-text and focus ring, a 3px focus width
+ * and shadows replaced by borders (a spread shadow draws a border without changing layout); its
+ * field borders keep the values they had before the design document raised light and dark.
  */
 import { ref, type TreeToken } from './types.js';
 
@@ -40,6 +41,7 @@ export const DARK_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.state.danger.background', value: 'rgba(180, 35, 24, 0.38)' },
 	{ id: 'color.state.danger.text', value: c('red.200') },
 	{ id: 'color.state.danger.border', value: 'rgba(252, 165, 165, 0.24)' },
+	{ id: 'color.field.border.hover', value: 'rgba(255, 248, 235, 0.52)' },
 	{ id: 'shadow.control', value: '0 1px 1px rgba(0, 0, 0, 0.24), 0 6px 16px rgba(0, 0, 0, 0.18)' },
 	{ id: 'shadow.card', value: '0 2px 6px rgba(0, 0, 0, 0.28), 0 14px 32px rgba(0, 0, 0, 0.22)' },
 	{
@@ -84,6 +86,8 @@ export const HIGH_CONTRAST_OVERRIDES: readonly TreeToken[] = [
 	{ id: 'color.state.danger.background', value: c('white') },
 	{ id: 'color.state.danger.text', value: c('red.850') },
 	{ id: 'color.state.danger.border', value: c('red.850') },
+	{ id: 'color.field.border', value: ref('color.border.subtle') },
+	{ id: 'color.field.border.hover', value: ref('color.border.strong') },
 	{ id: 'shadow.control', value: '0 0 0 1px #000000' },
 	{ id: 'shadow.card', value: '0 0 0 1px #000000' },
 	{ id: 'shadow.floating', value: '0 0 0 2px #000000' },

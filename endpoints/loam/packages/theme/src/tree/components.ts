@@ -1,9 +1,10 @@
 /**
  * The 108 component ids of the token contract (2.1) with their light values, written on the
  * `loam` node. The ids and order are those of `violet-elements`' registry, `registryVersion`
- * 0.1.0. The values are that registry's light values (2.2), except two raised to meet the
- * contrast floors (see the specification's version 1 values): `color.text.muted` and
- * `color.border.strong`.
+ * 0.1.0. The values are that registry's light values (2.2), except `color.text.muted` and
+ * `color.border.strong`, raised to meet the contrast floors (see the specification's version 1
+ * values), and the field borders the design document changed: resting and invalid to 3:1, hover
+ * one step stronger than rest.
  */
 import { ref, type TreeToken } from './types.js';
 
@@ -58,10 +59,12 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'color.field.background.readonly', value: ref('color.surface.subtle') },
 	{ id: 'color.field.text', value: ref('color.text.primary') },
 	{ id: 'color.field.placeholder', value: ref('color.text.muted') },
-	{ id: 'color.field.border', value: ref('color.border.subtle') },
-	{ id: 'color.field.border.hover', value: ref('color.border.strong') },
+	// The resting and invalid borders are the field's only boundary, so they meet 3:1 (design.md,
+	// 2026-11-01); hover stays one step stronger than rest.
+	{ id: 'color.field.border', value: ref('color.border.strong') },
+	{ id: 'color.field.border.hover', value: 'rgba(28, 26, 13, 0.64)' },
 	{ id: 'color.field.border.focus', value: ref('color.focus.ring') },
-	{ id: 'color.field.border.invalid', value: ref('color.state.danger.border') },
+	{ id: 'color.field.border.invalid', value: ref('color.state.danger.text') },
 	// Type scale.
 	{ id: 'size.font.xs', value: '11px' },
 	{ id: 'size.font.sm', value: '12px' },

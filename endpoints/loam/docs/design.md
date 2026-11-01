@@ -137,8 +137,8 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
 | Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` and `color.field.placeholder` on both field backgrounds | 4.5:1 | 7:1 |
-| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border.hover` on both field backgrounds; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
-| Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; `color.field.border` and `color.field.border.invalid` on both field backgrounds; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
+| Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
+| Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
 `pairs.ts` is the list; a component that relies on a pair it does not hold
 adds the pair there in the same pull request. A translucent color is measured
@@ -151,9 +151,9 @@ drawn over its background, which is drawn over `color.surface.page`.
 - **Button fills** are identified by their labels, so light and dark do not
   hold them to 3:1 against the page.
 - **The resting field border** is the exception decided in this document's
-  [history](#history) on 2026-11-01: it identifies the field, so it must
-  meet 3:1. The theme and component change is a follow-up; until it lands,
-  light and dark fields miss 1.4.11 at rest.
+  [history](#history) on 2026-11-01: it identifies the field, so it meets
+  3:1 in every theme, and so does the invalid border. The theme and the
+  eight field components changed together in [#645](https://github.com/lushly-dev/afd/pull/645).
 - **High contrast** is a light scheme on neutral colors: white surfaces with
   `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
   `#595959` subtle borders, a black focus ring, a black primary action, and
@@ -489,7 +489,6 @@ only what the empty shell uses (spec section 7); none is built yet, and step
 
 | Question | Where it is settled |
 | --- | --- |
-| The resting field border's theme and component change | A follow-up in the specification, with the values in the history below |
 | The single-pointer alternative to dragging a handle (WCAG 2.5.7) | Step 7; a follow-up in the specification |
 | A font-family id, and a focus-width id components outside the chrome can read | Contract version 2; a follow-up in the specification. Phase 0 has no Loam package outside the chrome that draws focus |
 
@@ -526,7 +525,7 @@ only what the empty shell uses (spec section 7); none is built yet, and step
     surfaces, and `shadow.control` is a soft drop shadow (at most 0.09
     alpha in light), not an edge. So the border is
     the field's only boundary. The change, for the theme and the
-    components together:
+    components together (landed in [#645](https://github.com/lushly-dev/afd/pull/645); see below):
     - `color.field.border` becomes an alias of `color.border.strong` on
       `loam`: `rgba(28, 26, 13, 0.48)` in light, 3.15:1 on
       `color.field.background` and 3.06:1 on
@@ -583,3 +582,21 @@ only what the empty shell uses (spec section 7); none is built yet, and step
     rest color becomes `color.border.strong`.
   - **The font family** stays the shared components' stack until the
     contract has an id for it.
+- **2026-11-01. The resting field border ([#645](https://github.com/lushly-dev/afd/pull/645)).** The values
+  decided by step 4 landed, for the theme and the components together.
+  `color.field.border` aliases `color.border.strong` on `loam`,
+  `color.field.border.hover` is `rgba(28, 26, 13, 0.64)` on `loam` and
+  `rgba(255, 248, 235, 0.52)` on `loam/dark`, and
+  `color.field.border.invalid` aliases `color.state.danger.text`;
+  `loam/high-contrast` keeps its values by overriding the resting border with
+  `color.border.subtle` and the hover border with `color.border.strong`.
+  `pairs.ts` holds the resting, hover and invalid borders on both field
+  backgrounds to 3:1 in every theme. The eight field components draw the
+  resting border from `color.field.border` and the hover border from
+  `color.field.border.hover`, through `--_field-border` and
+  `--_field-border-hover` in `violetFieldTokenDefaults`, whose invalid
+  fallback moved to the new light value; the color picker's hex input reads
+  `color.field.border` too, and components that take `--_danger-border`
+  from the field defaults follow the new invalid border (the file upload's
+  invalid drop zone among them). The focus border is unchanged. Recorded in
+  FAST-AF's provenance (D50).

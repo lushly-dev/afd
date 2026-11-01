@@ -85,7 +85,7 @@
 			},
 			{
 				"id": "color.field.border",
-				"value": "rgba(28, 26, 13, 0.10)"
+				"value": "rgba(28, 26, 13, 0.48)"
 			},
 			{
 				"id": "color.field.border.focus",
@@ -93,11 +93,11 @@
 			},
 			{
 				"id": "color.field.border.hover",
-				"value": "rgba(28, 26, 13, 0.48)"
+				"value": "rgba(28, 26, 13, 0.64)"
 			},
 			{
 				"id": "color.field.border.invalid",
-				"value": "rgba(220, 38, 38, 0.34)"
+				"value": "#B42318"
 			},
 			{
 				"id": "color.field.placeholder",
@@ -519,7 +519,7 @@
 			},
 			{
 				"id": "color.field.border",
-				"value": "rgba(255, 248, 235, 0.12)"
+				"value": "rgba(255, 248, 235, 0.37)"
 			},
 			{
 				"id": "color.field.border.focus",
@@ -527,11 +527,11 @@
 			},
 			{
 				"id": "color.field.border.hover",
-				"value": "rgba(255, 248, 235, 0.37)"
+				"value": "rgba(255, 248, 235, 0.52)"
 			},
 			{
 				"id": "color.field.border.invalid",
-				"value": "rgba(252, 165, 165, 0.24)"
+				"value": "#F5C7C2"
 			},
 			{
 				"id": "color.field.placeholder",

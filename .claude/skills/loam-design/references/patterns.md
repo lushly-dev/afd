@@ -235,8 +235,8 @@ widths and heights never transition.
 
 ## A field boundary
 
-Until the field-border follow-up lands, the shared fields draw their resting
-border from `color.border.subtle`. A Loam field reads the field ids:
+The shared fields draw their resting, hover and invalid borders from the field
+ids; a Loam field reads all of them:
 
 ```css
 .frame {

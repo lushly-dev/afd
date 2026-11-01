@@ -93,15 +93,16 @@ never mix two steps, never `weight.light` in the chrome. Density does not change
 ## Color and contrast
 
 - Floors: text 4.5:1 in light and dark, 7:1 in high contrast; non-text 3:1
-  everywhere (`color.border.strong`, the hover field border, the hover and
-  active handles, `color.focus.ring` and the field's focus border).
+  everywhere (`color.border.strong`, the resting, hover and invalid field
+  borders, the hover and active handles, `color.focus.ring` and the field's
+  focus border).
 - Decorative in light and dark: `color.border.subtle` and the
   secondary-action, selected-control and state borders. Never the only
   indicator of a control. Button fills are identified by their labels.
-- **The resting field border must meet 3:1** (decided 2026-11-01): the theme
-  and component change is a follow-up with exact values in
-  [references/history.md](references/history.md). Until it lands, light and
-  dark fields miss WCAG 1.4.11 at rest.
+- **The resting field border meets 3:1** (decided 2026-11-01, landed in
+  #645): it is the field's only boundary. The shared field components draw
+  it from `color.field.border`; values in
+  [references/history.md](references/history.md).
 - Forced colors: system colors only inside `@media (forced-colors: active)`;
   `CanvasText`/`Canvas`, `ButtonText`/`ButtonFace`, `Highlight`/`HighlightText`
   for focus and selection, `GrayText` for disabled. Forced colors removes
