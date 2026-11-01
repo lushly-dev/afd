@@ -41,7 +41,7 @@
   ([#567](https://github.com/lushly-dev/afd/pull/567)), merged as `045b6feb`
   on 2026-10-31 exactly as the [plan](#step-0-the-afd-pull-request) lists it,
   with all nine checks green.
-- **In review:** step 1, the scaffold (STEP1_PR), as the plan's table lists
+- **In review:** step 1, the scaffold ([#570](https://github.com/lushly-dev/afd/pull/570)), as the plan's table lists
   it. Not done until it merges and `umbel.yml` has run green on `main`.
 - **Not done:** steps 2 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
