@@ -132,6 +132,7 @@ impl HostBuilder {
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());
+        let plan_cell: Arc<OnceLock<surfaces::FirstClassPlan>> = Arc::new(OnceLock::new());
         let loaded_cell: Arc<OnceLock<Arc<LoadedPlugins>>> = Arc::new(OnceLock::new());
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
         let catalog = Catalog::new(&self.compiled)?;
@@ -154,6 +155,7 @@ impl HostBuilder {
                 Arc::clone(&workspace),
                 Arc::downgrade(&registry),
                 Arc::clone(&first_class_cell),
+                Arc::clone(&plan_cell),
                 Arc::clone(&loaded_cell),
                 Arc::clone(&compiled_catalog),
             ),
@@ -187,18 +189,26 @@ impl HostBuilder {
             register(&registry, Pending::Plain(command.with_expose(expose)))?;
         }
 
-        let first_class = workspace
-            .config()
-            .mcp
-            .first_class_tools
-            .clone()
-            .unwrap_or_else(|| surfaces::default_first_class_tools(&registry));
+        let plan = surfaces::first_class_plan(
+            workspace.config().mcp.first_class_tools.as_deref(),
+            &registry,
+            &loaded.suggestions,
+        );
+        let first_class = plan.tools.clone();
         let _ = first_class_cell.set(first_class.clone());
+        let _ = plan_cell.set(plan);
 
-        install_middleware(&registry, &workspace, &loaded)?;
-        let server =
-            surfaces::mcp::build_server(&registry, &workspace, &first_class, self.clock.as_ref())?;
+        // The server comes before the middleware: `with_contexts` registers `afd-context-*`
+        // into the registry, and the middleware snapshots the registry (section 8.5).
+        let server = surfaces::mcp::build_server(
+            &registry,
+            &workspace,
+            &first_class,
+            &loaded.contexts,
+            self.clock.as_ref(),
+        )?;
         let server = serve_skills(server, &loaded)?;
+        install_middleware(&registry, &workspace, &loaded)?;
         install_journal(&registry, &workspace, &projector);
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
@@ -288,10 +298,17 @@ fn install_middleware(
             .map(|command| command.name.clone())
             .collect(),
     );
+    // A pipeline's steps are journaled and projected as the calls they are, so the pipeline
+    // itself is not projected as a second event.
     let mutations: HashSet<String> = commands
         .iter()
         .filter(|command| {
-            command.mutation && !middleware::UNPROJECTED_MUTATIONS.contains(&command.name.as_str())
+            command.mutation
+                && !middleware::UNPROJECTED_MUTATIONS.contains(&command.name.as_str())
+                && !loaded
+                    .gate
+                    .get(&command.name)
+                    .is_some_and(|entry| entry.pipeline)
         })
         .map(|command| command.name.clone())
         .collect();

@@ -73,3 +73,21 @@ async fn the_manifest_the_plugin_embeds_validates() {
     assert_eq!(manifest.commands.len(), 1);
     assert!(manifest.commands[0].first_class);
 }
+
+#[tokio::test]
+async fn a_space_override_of_the_pack_changes_the_salutation_in_that_space_only() {
+    let pack = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/casual");
+    let host = TestHost::compiled(sdk(plugin()))
+        .spaces(&["main", "casual"])
+        .pack_override("casual", "greetings", &pack)
+        .boot()
+        .unwrap();
+    let main = host
+        .call("hello-greet", json!({"name": "Ada", "space": "main"}))
+        .await;
+    assert_eq!(main.data.unwrap()["greeting"], "Hello, Ada!");
+    let casual = host
+        .call("hello-greet", json!({"name": "Ada", "space": "casual"}))
+        .await;
+    assert_eq!(casual.data.unwrap()["greeting"], "Hey, Ada!");
+}

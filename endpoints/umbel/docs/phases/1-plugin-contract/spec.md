@@ -88,14 +88,20 @@
   `register_with_schemas` in `packages/rust`, and the Rust todo backend split
   into a library. Seven amendments, in
   [Amendments from step 0b](#amendments-from-step-0b).
-- **Step 2a done 2026-11-01** (PR_URL): the loader core and compiled
-  plugins, as the step 2a row of the [plan](#14-implementation-plan) lists
-  them. The amendments are in [Amendments from step 2a](#amendments-from-step-2a).
+- **Step 2a done 2026-11-01** ([#610](https://github.com/lushly-dev/afd/pull/610)):
+  the loader core and compiled plugins, as the step 2a row of the
+  [plan](#14-implementation-plan) lists them. The amendments are in
+  [Amendments from step 2a](#amendments-from-step-2a).
+- **Step 2b done 2026-11-01** ([#612](https://github.com/lushly-dev/afd/pull/612)):
+  packs with per-space overrides, first-class suggestions, plugin contexts
+  with `build_server` before `install_middleware`, and pipelines as data with
+  the confirmation union, as the step 2b row of the plan lists them. The
+  amendments are in [Amendments from step 2b](#amendments-from-step-2b).
 - **Step 3 done 2026-11-01** ([#611](https://github.com/lushly-dev/afd/pull/611)): skills on three paths and the origin
   `_meta` of plugin tools, as the step 3 row of the [plan](#14-implementation-plan)
   lists them. The amendments are in [Amendments from step 3](#amendments-from-step-3).
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a and 3.
-- **Not done:** the Umbel steps 2b and 4 to 8 of the
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b and 3.
+- **Not done:** the Umbel steps 4 to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2022,6 +2028,22 @@ use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 | 5, 7 | `Services` calls are plain method calls | `Plugin::handle` is synchronous and `Services` `events` reads block on files, so the host's wrapper for an SDK command (`SdkHandler`) runs `handle` under `spawn_blocking` and rethrows a panic with `resume_unwind`, which AFD reports as `COMMAND_EXECUTION_ERROR` | A blocking read on the async runtime stalls other calls, and swallowing a panic would turn it into a plain failure |
 | 6 | `seal` refuses a configured plugin (amended by step 1) | The guard is removed: every configured instance goes through the load sequence. The CLI passes the compiled catalog to the doctor even when `seal` fails, so `workspace doctor` still reports the instance | Step 1 promised the removal; the doctor must explain a failed load |
 | 8.1, 6 step 8 | Origin `_meta["dev.umbel/origin"]` on every plugin tool, registered with the command | Not in step 2a: the step 3 row of the plan owns "origin `_meta` on plugin tools", with the skills that use the same entry. Plugin commands in 2a carry no tool `_meta` of their own | The plan table assigns it to step 3; step 2a registers commands with `register_with_schema` and the gate's stamps |
+
+## Amendments from step 2b
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 6, 8.5 | Each instance is registered as soon as its steps 1 to 7 succeed | Every instance is prepared first (steps 1 to 7), the pipelines are decided against every command that will exist, and only then is anything registered, in `plugins.enabled` order. Registration of a plugin's commands still never leaves part of an instance behind | A pipeline may name another plugin's command, which may be a later instance, and a pipeline whose effects fail must still be able to drop its whole instance |
+| 8.5 | "The command's `effects` must cover its steps' effects (checked at `seal` for steps that name registered commands)" | A pipeline whose steps are all registered but whose `effects` miss one of a step's fails its instance with `PLUGIN_MANIFEST_INVALID` naming `pipelines[i].effects` (`inspect` is covered by any effect); an optional instance is dropped and the rest decided again. A step that is a host mutation (`event-ack`, `event-rebuild`) cannot be covered by any plugin effect, so that pipeline is not registered | The failure is the author's, so it is loud; a missing command is the deployment's, so it is a warning |
+| 8.5 | A step may name another plugin's command | A step may not name a pipeline: pipelines do not nest, so one can never reach itself. Such a pipeline is not registered, with the reason in `plugin-show` and the doctor. Steps naming `afd-*` commands are also unregistered, because the bootstrap commands are added after the plugins load | Cycle detection needs a registry that does not exist yet; the smallest safe rule is no nesting |
+| 8.5 | The union of the steps' prompts, "each prefixed with the step's command name" | As written, with a command named by several steps listed once, and `destructive` when any step is. Prompts are the built definitions' (for a finished definition, the plugin's own) | The union of a repeated step should not repeat its prompt |
+| 8.5 | A pipeline is "registered as a command of the plugin" | Also: its result is `{ "steps": [ { index, command, as?, status, data? } ] }`; a failing step fails the pipeline with the step's own error, plus `details.pipeline`, `details.step` and `details.command`; a pipeline is not a transaction, so earlier steps stay done. The pipeline command is not projected into an event (its steps are, as the calls they are); `effects` still set its `mutation` | Spec was silent on the result; projecting both would write each change twice |
+| 2, 8.5 | A command's `contexts` are "AFD contexts this command belongs to" | Each must be declared in the same manifest's `[[contexts]]`, else `PLUGIN_MANIFEST_INVALID` naming `commands[i].contexts` | An undeclared context would hide the command from every context without saying so |
+| 8.5 | Contexts: names start with a domain so they never collide | The loader also refuses two instances declaring one context name (`PLUGIN_CONFLICT`); the doctor's `mcp.surface` re-check builds its server with no contexts, because the live registry already holds the context commands | Step 7 of the load sequence names contexts; `register_context_commands` refuses a second registration |
+| 8.2 | "The override is read at `seal`" | Validated and counted at `seal`; a plugin's reads open the files when it asks, confined to the pack directory. The plugin's own default pack is validated at load too, for every kind (so a broken default pack fails the instance with `PACK_INVALID`) | Holding up to 64 MiB per pack per space in memory is not worth the guarantee |
+| 8.4 | Suggestions past the cap are dropped and the doctor warns | As written, for the default set only; with the deployer's `mcp.first_class_tools` set, the doctor's `plugins.first_class` passes and says the list wins and which suggestions it did not use | The deployer's list is not a failure to fit |
+| 10.1 | `TestHostBuilder::pack_override(space, pack, dir)` | Copies `dir` to `spaces/<space>/packs/<plugin id>/<pack>/` of the temporary workspace; `replay` repeats it for the fresh host | Same layout the host reads |
+| 8.4 | Mounted overrides can suggest first-class tools | Step 5; the loader's `suggestions` list takes manifest commands only for now | Mounted tools do not exist yet |
 
 ## Amendments from step 3
 

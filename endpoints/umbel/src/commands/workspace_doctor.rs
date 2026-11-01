@@ -6,8 +6,10 @@
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
 use crate::doctor::{self, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
-use crate::plugins::{CompiledCatalog, LoadedPlugins, loaded_check};
-use crate::surfaces;
+use crate::plugins::{
+    CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check,
+};
+use crate::surfaces::{self, FirstClassPlan};
 use crate::workspace::{Located, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult};
 use async_trait::async_trait;
@@ -18,6 +20,7 @@ struct Handler {
     workspace: Arc<Workspace>,
     registry: Weak<CommandRegistry>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    plan: Arc<OnceLock<FirstClassPlan>>,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
 }
@@ -25,7 +28,8 @@ struct Handler {
 impl Handler {
     fn mcp_surface(&self, registry: &Arc<CommandRegistry>) -> Check {
         let first_class = self.first_class.get().cloned().unwrap_or_default();
-        match surfaces::mcp::build_server(registry, &self.workspace, &first_class, None) {
+        // The live registry already has the context commands, so none are passed here.
+        match surfaces::mcp::build_server(registry, &self.workspace, &first_class, &[], None) {
             Ok(_) => Check::pass(
                 "mcp.surface",
                 format!(
@@ -94,6 +98,16 @@ impl CommandHandler for Handler {
                             *check = loaded_check(loaded);
                         }
                     }
+                    "plugins.first_class" => {
+                        if let Some(plan) = self.plan.get() {
+                            *check = first_class_check(plan);
+                        }
+                    }
+                    "plugins.pipelines" => {
+                        if let Some(loaded) = self.loaded.get() {
+                            *check = pipelines_check(loaded);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -107,6 +121,7 @@ pub(crate) fn workspace_doctor(
     workspace: Arc<Workspace>,
     registry: Weak<CommandRegistry>,
     first_class: Arc<OnceLock<Vec<String>>>,
+    plan: Arc<OnceLock<FirstClassPlan>>,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
 ) -> Builtin {
@@ -118,6 +133,7 @@ pub(crate) fn workspace_doctor(
             workspace,
             registry,
             first_class,
+            plan,
             loaded,
             catalog,
         },

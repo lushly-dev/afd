@@ -691,6 +691,18 @@ impl Manifest {
                 ));
             }
         }
+        for (index, command) in self.commands.iter().enumerate() {
+            if let Some(context) = command
+                .contexts
+                .iter()
+                .find(|context| !self.contexts.iter().any(|c| &c.name == *context))
+            {
+                return Err(bad(
+                    &format!("commands[{index}].contexts"),
+                    format!("`{context}` is not declared in this manifest's [[contexts]]"),
+                ));
+            }
+        }
         for (index, pack) in self.packs.iter().enumerate() {
             if self.packs[..index].iter().any(|p| p.id == pack.id) {
                 return Err(bad(

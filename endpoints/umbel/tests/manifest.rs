@@ -591,8 +591,17 @@ fn contexts_start_with_a_domain() {
     let ok = edited(
         "name = \"hello\"\ndescription = \"Greeting",
         "name = \"hello-extra\"\ndescription = \"Greeting",
-    );
+    )
+    .replace("contexts = [\"hello\"]", "contexts = [\"hello-extra\"]");
     parse(&ok).unwrap();
+    // A command may only list contexts the manifest declares.
+    invalid(
+        &edited(
+            "contexts = [\"hello\"]",
+            "contexts = [\"hello-undeclared\"]",
+        ),
+        "commands[0].contexts",
+    );
     invalid(
         &edited("priority = 0", "priority = \"high\""),
         "contexts[0].priority",

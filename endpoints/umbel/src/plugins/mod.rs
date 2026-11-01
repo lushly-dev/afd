@@ -15,11 +15,14 @@ mod grants;
 mod loader;
 mod manifest;
 mod packs;
+mod pipelines;
 mod skills;
 mod source;
 
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
-pub(crate) use doctor::{checks as doctor_checks, loaded_check};
+pub(crate) use doctor::{
+    checks as doctor_checks, first_class_check, loaded_check, pipelines_check,
+};
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
@@ -36,6 +39,7 @@ pub use manifest::{
     PluginInfo, PluginKind, SchemaRef, SkillDecl, Transport,
 };
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
+pub(crate) use pipelines::PipelineState;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};

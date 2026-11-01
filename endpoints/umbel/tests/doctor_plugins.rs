@@ -908,10 +908,11 @@ mod sealed {
         );
         assert!(message.contains("guide (pack, 0 command(s))"), "{message}");
         assert!(message.contains("trusted, not sandboxed"), "{message}");
-        // The file-only checks still run, and the two that wait for packs and pipelines stay skipped.
+        // The file-only checks still run, and the two that wait for the first-class set and the
+        // pipelines are filled in by the sealed host (the sealed cases below cover them).
         assert_eq!(find(&report, "plugins.sources")["status"], "pass");
-        assert_eq!(find(&report, "plugins.first_class")["status"], "skip");
-        assert_eq!(find(&report, "plugins.pipelines")["status"], "skip");
+        assert_eq!(find(&report, "plugins.first_class")["status"], "pass");
+        assert_eq!(find(&report, "plugins.pipelines")["status"], "pass");
     }
 
     #[tokio::test]
