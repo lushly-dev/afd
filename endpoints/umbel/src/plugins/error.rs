@@ -297,7 +297,9 @@ impl PluginError {
     pub(crate) fn result_invalid(instance: &str, problem: impl fmt::Display) -> Self {
         Self::new(
             codes::PLUGIN_RESULT_INVALID,
-            format!("plugins.{instance}: the component returned something that is not a CommandResult: {problem}"),
+            format!(
+                "plugins.{instance}: the component returned something that is not a CommandResult: {problem}"
+            ),
             "The plugin failed; report it to its author with the trace id.".to_owned(),
         )
     }

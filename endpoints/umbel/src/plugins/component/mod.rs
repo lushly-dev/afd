@@ -68,6 +68,8 @@ pub(crate) struct ComponentRuntime {
     shared: &'static engine::Shared,
     pre: InstancePre<CallState>,
     execute: ComponentExportIndex,
+    /// Whether to draw the insecure-random seed from the context's random source at each call.
+    seeds: bool,
     limits: Resolved,
     instance: String,
     services: Services,
@@ -96,7 +98,8 @@ impl ComponentRuntime {
         let bytes = files
             .read(&declared.path)
             .map_err(|problem| PluginError::load_failed(instance, problem))?;
-        let shared = engine::shared().map_err(|problem| PluginError::load_failed(instance, problem))?;
+        let shared =
+            engine::shared().map_err(|problem| PluginError::load_failed(instance, problem))?;
         let component = shared.compile(&bytes).map_err(|problem| {
             PluginError::load_failed(
                 instance,
@@ -115,6 +118,7 @@ impl ComponentRuntime {
             shared,
             pre,
             execute,
+            seeds: analysis.seeds,
             limits: Resolved::new(limits),
             instance: instance.to_owned(),
             services: services.clone(),
@@ -165,5 +169,31 @@ impl CommandHandler for ComponentHandler {
             Ok(result) => result,
             Err(error) => error.into_result(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn limits_default_and_never_pass_the_host_caps() {
+        let defaults = Resolved::new(&Limits::default());
+        assert_eq!(defaults.fuel, 1_000_000_000);
+        assert_eq!(defaults.timeout_ms, 5_000);
+        assert_eq!(defaults.memory_bytes, 64 * 1024 * 1024);
+        assert_eq!(defaults.table_elements, 20_000);
+
+        let asked = Limits {
+            fuel: Some(u64::MAX),
+            timeout_ms: Some(u64::MAX),
+            memory_bytes: Some(u64::MAX),
+            table_elements: Some(u64::MAX),
+        };
+        let capped = Resolved::new(&asked);
+        assert_eq!(capped.fuel, caps::FUEL);
+        assert_eq!(capped.timeout_ms, caps::TIMEOUT_MS);
+        assert_eq!(capped.memory_bytes, caps::MEMORY_BYTES);
+        assert_eq!(capped.table_elements, caps::TABLE_ELEMENTS);
     }
 }

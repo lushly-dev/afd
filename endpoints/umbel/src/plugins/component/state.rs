@@ -224,3 +224,35 @@ impl random::Host for CallState {
             .map_err(|error| wasmtime::Error::msg(error.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_limiter_notes_which_limit_refused_a_growth() {
+        let mut limiter = Limiter::new(1024, 8);
+        assert!(limiter.memory_growing(0, 1024, None).unwrap());
+        assert_eq!(limiter.hit, None);
+        assert!(!limiter.memory_growing(1024, 1025, None).unwrap());
+        assert_eq!(limiter.hit, Some(LimitHit::Memory));
+
+        let mut limiter = Limiter::new(1024, 8);
+        assert!(limiter.table_growing(0, 8, None).unwrap());
+        assert!(!limiter.table_growing(8, 9, None).unwrap());
+        assert_eq!(limiter.hit, Some(LimitHit::Table));
+
+        // A growth the module's own maximum refuses is not the host's limit.
+        let mut limiter = Limiter::new(1024, 8);
+        assert!(!limiter.memory_growing(0, 100, Some(50)).unwrap());
+        assert_eq!(limiter.hit, None);
+    }
+
+    #[test]
+    fn a_store_holds_at_most_a_few_instances_memories_and_tables() {
+        let limiter = Limiter::new(1024, 8);
+        assert_eq!(limiter.instances(), 64);
+        assert_eq!(limiter.memories(), 4);
+        assert_eq!(limiter.tables(), 16);
+    }
+}

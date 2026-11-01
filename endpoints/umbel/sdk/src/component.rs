@@ -34,12 +34,7 @@ use bindings::umbel::plugin::{clock, config, events, log, packs, random, types};
 /// Used by [`export_component!`](crate::export_component); the answer is a `CommandResult` as
 /// JSON text.
 #[doc(hidden)]
-pub fn run(
-    plugin: &impl Plugin,
-    name: &str,
-    input: &str,
-    context: types::CallContext,
-) -> String {
+pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallContext) -> String {
     let call = CallContext {
         command: context.command,
         trace_id: context.trace_id,

@@ -18,6 +18,9 @@ const MAJOR: u64 = 1;
 pub(super) struct Analysis {
     /// The name of the component's `umbel:plugin/command` export, with its version.
     pub(super) command_export: String,
+    /// Whether the component imports `wasi:random/insecure-seed`, which the host can only answer
+    /// from a value drawn when the call starts.
+    pub(super) seeds: bool,
 }
 
 /// An interface name `namespace:package/interface@version`, taken apart.
@@ -114,6 +117,7 @@ pub(super) fn check(
         ));
     };
 
+    let mut seeds = false;
     for (name, _) in ty.imports(engine) {
         let Some(parts) = split(name) else {
             return Err(PluginError::import_denied(instance, name, None));
@@ -150,6 +154,7 @@ pub(super) fn check(
                         ),
                     ));
                 }
+                seeds |= package == "wasi:random" && parts.interface == "insecure-seed";
                 wasi_grant(package, parts.interface)
             }
             _ => None,
@@ -162,7 +167,10 @@ pub(super) fn check(
             Some(_) => {}
         }
     }
-    Ok(Analysis { command_export })
+    Ok(Analysis {
+        command_export,
+        seeds,
+    })
 }
 
 #[cfg(test)]
@@ -186,7 +194,10 @@ mod tests {
     #[test]
     fn only_the_listed_wasi_interfaces_are_provided() {
         assert_eq!(wasi_grant("wasi:clocks", "wall-clock"), Some(Some("clock")));
-        assert_eq!(wasi_grant("wasi:random", "insecure-seed"), Some(Some("random")));
+        assert_eq!(
+            wasi_grant("wasi:random", "insecure-seed"),
+            Some(Some("random"))
+        );
         assert_eq!(wasi_grant("wasi:cli", "stderr"), Some(None));
         assert_eq!(wasi_grant("wasi:sockets", "tcp"), None);
         assert_eq!(wasi_grant("wasi:http", "outgoing-handler"), None);

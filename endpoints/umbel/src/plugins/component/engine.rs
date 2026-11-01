@@ -14,12 +14,12 @@ use std::time::Duration;
 use sha2::{Digest, Sha256};
 use wasmtime::component::{Component, HasData, Linker, ResourceTable};
 use wasmtime::{Config, Engine};
-use wasmtime_wasi::clocks::{WasiClocks, WasiClocksView as _};
+use wasmtime_wasi::WasiView as _;
 use wasmtime_wasi::cli::{WasiCli, WasiCliView as _};
+use wasmtime_wasi::clocks::{WasiClocks, WasiClocksView as _};
 use wasmtime_wasi::filesystem::{WasiFilesystem, WasiFilesystemView as _};
 use wasmtime_wasi::p2::bindings::{cli, clocks, filesystem, random};
 use wasmtime_wasi::random::{WasiRandom, WasiRandomView as _};
-use wasmtime_wasi::WasiView as _;
 
 use super::state::CallState;
 
@@ -53,7 +53,8 @@ impl Shared {
         {
             return Ok(component.clone());
         }
-        let component = Component::new(&self.engine, bytes).map_err(|error| format!("{error:#}"))?;
+        let component =
+            Component::new(&self.engine, bytes).map_err(|error| format!("{error:#}"))?;
         if let Ok(mut cache) = self.cache.lock() {
             if cache.len() >= CACHE_LIMIT {
                 cache.clear();
@@ -71,8 +72,9 @@ fn build() -> Result<Shared, String> {
         .consume_fuel(true)
         .epoch_interruption(true)
         // A trap's message is the trap, with no stack of the plugin's internal frames.
-        .wasm_backtrace(false);
-    let engine = Engine::new(&config).map_err(|error| format!("cannot create the engine: {error:#}"))?;
+        .wasm_backtrace_max_frames(None);
+    let engine =
+        Engine::new(&config).map_err(|error| format!("cannot create the engine: {error:#}"))?;
 
     // The epoch advances every EPOCH_MS for the life of the process; a store's deadline is a
     // number of ticks beyond the epoch it starts in.
@@ -106,15 +108,18 @@ impl HasData for HasTable {
 fn link(linker: &mut Linker<CallState>) -> wasmtime::Result<()> {
     super::state::add_world_to_linker(linker)?;
 
-    wasmtime_wasi_io::bindings::wasi::io::error::add_to_linker::<CallState, HasTable>(linker, |t| {
-        t.ctx().table
-    })?;
-    wasmtime_wasi_io::bindings::wasi::io::poll::add_to_linker::<CallState, HasTable>(linker, |t| {
-        t.ctx().table
-    })?;
-    wasmtime_wasi_io::bindings::wasi::io::streams::add_to_linker::<CallState, HasTable>(linker, |t| {
-        t.ctx().table
-    })?;
+    wasmtime_wasi_io::bindings::wasi::io::error::add_to_linker::<CallState, HasTable>(
+        linker,
+        |t| t.ctx().table,
+    )?;
+    wasmtime_wasi_io::bindings::wasi::io::poll::add_to_linker::<CallState, HasTable>(
+        linker,
+        |t| t.ctx().table,
+    )?;
+    wasmtime_wasi_io::bindings::wasi::io::streams::add_to_linker::<CallState, HasTable>(
+        linker,
+        |t| t.ctx().table,
+    )?;
 
     clocks::wall_clock::add_to_linker::<CallState, WasiClocks>(linker, CallState::clocks)?;
     clocks::monotonic_clock::add_to_linker::<CallState, WasiClocks>(linker, CallState::clocks)?;
@@ -122,7 +127,10 @@ fn link(linker: &mut Linker<CallState>) -> wasmtime::Result<()> {
     random::insecure::add_to_linker::<CallState, WasiRandom>(linker, CallState::random)?;
     random::insecure_seed::add_to_linker::<CallState, WasiRandom>(linker, CallState::random)?;
     // No preopened directory is ever added, so these give a component no file at all.
-    filesystem::preopens::add_to_linker::<CallState, WasiFilesystem>(linker, CallState::filesystem)?;
+    filesystem::preopens::add_to_linker::<CallState, WasiFilesystem>(
+        linker,
+        CallState::filesystem,
+    )?;
     filesystem::types::add_to_linker::<CallState, WasiFilesystem>(linker, CallState::filesystem)?;
     cli::exit::add_to_linker::<CallState, WasiCli>(linker, CallState::cli)?;
     cli::environment::add_to_linker::<CallState, WasiCli>(linker, CallState::cli)?;

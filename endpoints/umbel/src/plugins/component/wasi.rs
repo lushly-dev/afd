@@ -51,13 +51,14 @@ impl HostMonotonicClock for ContextMonotonicClock {
 
     fn now(&self) -> u64 {
         let now = self.context.clock().now();
-        let first = match self
-            .first
-            .compare_exchange(i64::MIN, now, Ordering::Relaxed, Ordering::Relaxed)
-        {
-            Ok(_) => now,
-            Err(first) => first,
-        };
+        let first =
+            match self
+                .first
+                .compare_exchange(i64::MIN, now, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => now,
+                Err(first) => first,
+            };
         u64::try_from(now.saturating_sub(first)).unwrap_or(0) * 1_000_000
     }
 }
@@ -191,7 +192,7 @@ impl Flush {
 }
 
 /// The WASI context of one call and the handle that flushes its output.
-pub(super) fn virtualized(services: &Arc<CallServices>) -> (WasiCtx, Flush) {
+pub(super) fn virtualized(services: &Arc<CallServices>, draw_seed: bool) -> (WasiCtx, Flush) {
     {
         let context = services.command_context();
         let sink = Arc::new(LogSink {
@@ -223,9 +224,9 @@ pub(super) fn virtualized(services: &Arc<CallServices>) -> (WasiCtx, Flush) {
                 context: context.clone(),
             })
             .max_random_size(MAX_RANDOM_BYTES);
-        // The seed is the one value that cannot be read lazily; draw it only when the grant that
-        // lets a component import `wasi:random` is held.
-        let seed = if services.holds("random") {
+        // The seed is the one value that cannot be read lazily; draw it only for a component
+        // that imports it (its standard library's hash maps do), and only when the grant is held.
+        let seed = if draw_seed && services.holds("random") {
             let rng = ContextRng { context };
             (0..4).fold(0u128, |seed, index| {
                 seed | (u128::from(rng.word()) << (32 * index))

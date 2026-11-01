@@ -73,7 +73,7 @@ mod glue {
                     let line = "y".repeat(127);
                     let mut written = 0;
                     while written < bytes {
-                        if written % 2 == 0 {
+                        if (written / 128) % 2 == 0 {
                             println!("{line}");
                         } else {
                             eprintln!("{line}");

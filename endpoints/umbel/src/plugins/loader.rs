@@ -806,13 +806,8 @@ fn prepare(
         Some(plugin) => plugin.commands(services)?,
         #[cfg(feature = "component")]
         None if manifest.plugin.kind == PluginKind::Component => {
-            let runtime = ComponentRuntime::load(
-                &instance.id,
-                manifest,
-                files,
-                &services,
-                &instance.limits,
-            )?;
+            let runtime =
+                ComponentRuntime::load(&instance.id, manifest, files, &services, &instance.limits)?;
             manifest
                 .commands
                 .iter()

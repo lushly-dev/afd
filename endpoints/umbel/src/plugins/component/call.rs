@@ -11,8 +11,8 @@ use wasmtime::{Store, Trap};
 use wasmtime_wasi::I32Exit;
 
 use super::super::PluginError;
-use super::super::grants::CallServices;
 use super::super::compiled::call_context;
+use super::super::grants::CallServices;
 use super::engine::EPOCH_MS;
 use super::state::bindings::umbel::plugin::types::CallContext;
 use super::state::{CallState, LimitHit, Limiter};
@@ -34,7 +34,10 @@ pub(super) async fn run(
         return Err(PluginError::component_limit(
             instance,
             "io",
-            format!("the input is {} bytes; the limit is {MAX_IO_BYTES}", text.len()),
+            format!(
+                "the input is {} bytes; the limit is {MAX_IO_BYTES}",
+                text.len()
+            ),
         ));
     }
     let services = Arc::new(runtime.services.call(&input, &context));
@@ -90,7 +93,7 @@ async fn execute(
 ) -> Result<String, PluginError> {
     let instance = &runtime.instance;
     let limits = runtime.limits;
-    let (wasi, flush) = virtualized(&services);
+    let (wasi, flush) = virtualized(&services, runtime.seeds);
     let state = CallState {
         wasi,
         table: ResourceTable::new(),

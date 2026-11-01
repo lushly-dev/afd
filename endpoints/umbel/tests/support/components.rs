@@ -20,7 +20,9 @@ pub fn wasm(name: &str) -> PathBuf {
         .and_then(Path::parent)
         .and_then(Path::parent)
         .unwrap();
-    let path = target.join("wasm32-wasip2/release").join(format!("{name}.wasm"));
+    let path = target
+        .join("wasm32-wasip2/release")
+        .join(format!("{name}.wasm"));
     assert!(
         path.is_file(),
         "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello --features component -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future`",
@@ -47,7 +49,13 @@ fn copy_tree(from: &Path, to: &Path) {
 
 /// A plugin directory under `parent`: `manifest` as `umbel-plugin.toml` and the component as
 /// `<file>`.
-pub fn component_dir(parent: &Path, name: &str, manifest: &str, wasm_name: &str, file: &str) -> PathBuf {
+pub fn component_dir(
+    parent: &Path,
+    name: &str,
+    manifest: &str,
+    wasm_name: &str,
+    file: &str,
+) -> PathBuf {
     let root = parent.join(name);
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("umbel-plugin.toml"), manifest).unwrap();
@@ -60,7 +68,13 @@ pub fn component_dir(parent: &Path, name: &str, manifest: &str, wasm_name: &str,
 /// skills and schemas.
 pub fn hello_dir(parent: &Path) -> PathBuf {
     let manifest = std::fs::read_to_string(hello_crate().join("manifests/component.toml")).unwrap();
-    let root = component_dir(parent, "hello", &manifest, "umbel_plugin_hello", "hello.wasm");
+    let root = component_dir(
+        parent,
+        "hello",
+        &manifest,
+        "umbel_plugin_hello",
+        "hello.wasm",
+    );
     for tree in ["packs", "skills", "schemas"] {
         copy_tree(&hello_crate().join(tree), &root.join(tree));
     }
@@ -91,10 +105,18 @@ const OPEN_INPUT: &str = "{ type = \"object\", properties = { mib = { type = \"i
 
 /// The manifest of a plugin built from a fixture crate. `commands` are the names after
 /// `<domain>-`, each declared `inspect`; `grants` are declared required; `extra` is appended.
-pub fn fixture_manifest(id: &str, wasm_file: &str, grants: &[&str], commands: &[&str], extra: &str) -> String {
+pub fn fixture_manifest(
+    id: &str,
+    wasm_file: &str,
+    grants: &[&str],
+    commands: &[&str],
+    extra: &str,
+) -> String {
     let grants: String = grants
         .iter()
-        .map(|name| format!("[[grants]]\nname = \"{name}\"\nreason = \"the fixture uses {name}\"\n\n"))
+        .map(|name| {
+            format!("[[grants]]\nname = \"{name}\"\nreason = \"the fixture uses {name}\"\n\n")
+        })
         .collect();
     let commands: String = commands
         .iter()
@@ -113,5 +135,11 @@ pub fn fixture_manifest(id: &str, wasm_file: &str, grants: &[&str], commands: &[
 /// imports need (`clock`, `random`) unless `grants` says otherwise.
 pub fn behaviors_dir(parent: &Path, grants: &[&str]) -> PathBuf {
     let manifest = fixture_manifest("probe", "probe.wasm", grants, BEHAVIORS, "");
-    component_dir(parent, "probe", &manifest, "umbel_fixture_behaviors", "probe.wasm")
+    component_dir(
+        parent,
+        "probe",
+        &manifest,
+        "umbel_fixture_behaviors",
+        "probe.wasm",
+    )
 }

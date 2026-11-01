@@ -16,7 +16,7 @@ use std::path::Path;
 use umbel::HostError;
 use umbel::testkit::{DEFAULT_CLOCK_MS, Era, TestHost};
 
-fn boot(dir: &Path) -> Result<TestHost, HostError> {
+fn boot(dir: impl AsRef<Path>) -> Result<TestHost, HostError> {
     TestHost::directory(dir).boot()
 }
 
@@ -51,7 +51,7 @@ fn data(result: &afd::CommandResult<Value>) -> Value {
 #[tokio::test(flavor = "multi_thread")]
 async fn hello_runs_as_a_component() {
     let dir = tempfile::tempdir().unwrap();
-    let host = boot(&hello_dir(dir.path())).unwrap();
+    let host = boot(hello_dir(dir.path())).unwrap();
     let result = host
         .call("hello-greet", json!({ "name": "Ada", "space": "main" }))
         .await;
@@ -71,11 +71,10 @@ async fn hello_runs_as_a_component() {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_component_and_the_compiled_build_answer_alike() {
     let dir = tempfile::tempdir().unwrap();
-    let component = boot(&hello_dir(dir.path())).unwrap();
-    let compiled =
-        TestHost::compiled(umbel::plugins::sdk(umbel_plugin_hello::plugin()))
-            .boot()
-            .unwrap();
+    let component = boot(hello_dir(dir.path())).unwrap();
+    let compiled = TestHost::compiled(umbel::plugins::sdk(umbel_plugin_hello::plugin()))
+        .boot()
+        .unwrap();
     let input = json!({ "name": "Ada", "space": "main" });
     let one = data(&component.call("hello-greet", input.clone()).await);
     let two = data(&compiled.call("hello-greet", input).await);
@@ -85,7 +84,7 @@ async fn the_component_and_the_compiled_build_answer_alike() {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_component_is_served_over_mcp_in_both_eras_and_by_the_cli() {
     let dir = tempfile::tempdir().unwrap();
-    let host = boot(&hello_dir(dir.path())).unwrap();
+    let host = boot(hello_dir(dir.path())).unwrap();
     for era in [Era::Modern, Era::Legacy] {
         for mut client in [host.mcp(era).await, host.http(era).await] {
             let label = client.label();
@@ -127,7 +126,7 @@ async fn the_components_config_and_pack_come_from_the_host() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_call_outside_the_instances_spaces_is_refused_before_the_component_runs() {
     let dir = tempfile::tempdir().unwrap();
-    let host = TestHost::directory(&hello_dir(dir.path()))
+    let host = TestHost::directory(hello_dir(dir.path()))
         .spaces(&["main", "other"])
         .instance_keys("spaces = [\"main\"]".parse().unwrap())
         .boot()
@@ -146,7 +145,10 @@ fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
     let bytes = std::fs::read(wasm("umbel_plugin_hello")).unwrap();
     let component = wasmtime::component::Component::new(&engine, bytes).unwrap();
     let ty = component.component_type();
-    let mut imports: Vec<String> = ty.imports(&engine).map(|(name, _)| name.to_owned()).collect();
+    let mut imports: Vec<String> = ty
+        .imports(&engine)
+        .map(|(name, _)| name.to_owned())
+        .collect();
     imports.sort();
     let mut expected: Vec<String> = [
         "umbel:plugin/types@1.0.0",
@@ -189,13 +191,20 @@ fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
         names
     };
     expected.sort();
-    assert_eq!(without_version(imports.clone()), without_version(expected), "{imports:?}");
+    assert_eq!(
+        without_version(imports.clone()),
+        without_version(expected),
+        "{imports:?}"
+    );
     for name in &imports {
         if name.starts_with("wasi:") {
             assert!(name.contains("@0.2."), "{name}");
         }
     }
-    let exports: Vec<String> = ty.exports(&engine).map(|(name, _)| name.to_owned()).collect();
+    let exports: Vec<String> = ty
+        .exports(&engine)
+        .map(|(name, _)| name.to_owned())
+        .collect();
     assert_eq!(exports, ["umbel:plugin/command@1.0.0"]);
 }
 
@@ -214,12 +223,21 @@ fn a_component_that_opens_a_socket_is_refused_at_load() {
         &["connect"],
         "",
     );
-    let plugin = component_dir(dir.path(), "net", &manifest, "umbel_fixture_sockets", "net.wasm");
+    let plugin = component_dir(
+        dir.path(),
+        "net",
+        &manifest,
+        "umbel_fixture_sockets",
+        "net.wasm",
+    );
     let error = error_of(boot(&plugin));
     assert_eq!(error.code(), "PLUGIN_IMPORT_DENIED", "{error}");
     assert!(error.message().contains("wasi:sockets/"), "{error}");
     assert!(error.message().contains("no grant allows it"), "{error}");
-    assert!(error.suggestion().contains("Rebuild the component"), "{error}");
+    assert!(
+        error.suggestion().contains("Rebuild the component"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -233,12 +251,24 @@ fn an_import_whose_grant_is_not_declared_is_refused_and_names_the_grant() {
         &["events"],
         "",
     );
-    let plugin = component_dir(dir.path(), "imp", &manifest, "umbel_fixture_imports", "imp.wasm");
+    let plugin = component_dir(
+        dir.path(),
+        "imp",
+        &manifest,
+        "umbel_fixture_imports",
+        "imp.wasm",
+    );
     let error = error_of(boot(&plugin));
     assert_eq!(error.code(), "PLUGIN_IMPORT_DENIED", "{error}");
-    assert!(error.message().contains("umbel:plugin/events@1.0.0"), "{error}");
+    assert!(
+        error.message().contains("umbel:plugin/events@1.0.0"),
+        "{error}"
+    );
     assert!(error.message().contains("`events`"), "{error}");
-    assert!(error.suggestion().contains("Declare the grant events"), "{error}");
+    assert!(
+        error.suggestion().contains("Declare the grant events"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -251,7 +281,13 @@ fn a_denied_grant_refuses_the_import_like_an_undeclared_one() {
         &["events"],
         "",
     );
-    let plugin = component_dir(dir.path(), "imp", &manifest, "umbel_fixture_imports", "imp.wasm");
+    let plugin = component_dir(
+        dir.path(),
+        "imp",
+        &manifest,
+        "umbel_fixture_imports",
+        "imp.wasm",
+    );
     // With every grant held it loads; the deployer denying `events` (an optional grant would be
     // withheld) is the same refusal, so make the grant optional and deny it.
     assert!(boot(&plugin).is_ok());
@@ -288,10 +324,19 @@ fn wasi_clocks_and_random_need_their_grants() {
 fn a_world_with_another_major_version_is_not_served() {
     let dir = tempfile::tempdir().unwrap();
     let manifest = fixture_manifest("fut", "fut.wasm", NO_ARGS, &["run"], "");
-    let plugin = component_dir(dir.path(), "fut", &manifest, "umbel_fixture_future", "fut.wasm");
+    let plugin = component_dir(
+        dir.path(),
+        "fut",
+        &manifest,
+        "umbel_fixture_future",
+        "fut.wasm",
+    );
     let error = error_of(boot(&plugin));
     assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{error}");
-    assert!(error.message().contains("umbel:plugin/command@2.0.0"), "{error}");
+    assert!(
+        error.message().contains("umbel:plugin/command@2.0.0"),
+        "{error}"
+    );
     assert!(error.suggestion().contains("umbel:plugin@1.x"), "{error}");
 }
 
@@ -299,7 +344,13 @@ fn a_world_with_another_major_version_is_not_served() {
 fn a_file_that_is_not_a_component_fails_to_load() {
     let dir = tempfile::tempdir().unwrap();
     let manifest = fixture_manifest("junk", "junk.wasm", NO_ARGS, &["run"], "");
-    let plugin = component_dir(dir.path(), "junk", &manifest, "umbel_fixture_future", "junk.wasm");
+    let plugin = component_dir(
+        dir.path(),
+        "junk",
+        &manifest,
+        "umbel_fixture_future",
+        "junk.wasm",
+    );
     std::fs::write(plugin.join("junk.wasm"), b"not WebAssembly").unwrap();
     let error = error_of(boot(&plugin));
     assert_eq!(error.code(), "PLUGIN_LOAD_FAILED", "{error}");
@@ -324,7 +375,7 @@ fn a_manifest_command_the_component_does_not_serve_still_loads() {
 // ─── the sandbox ────────────────────────────────────────────────────────────────────────────────
 
 fn probe(host_dir: &Path) -> TestHost {
-    boot(&behaviors_dir(host_dir, &["clock", "random"])).unwrap()
+    boot(behaviors_dir(host_dir, &["clock", "random"])).unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -351,13 +402,18 @@ async fn a_component_cannot_read_or_write_a_file() {
     }
     // The component's own working file did not appear anywhere on the host.
     assert!(!host.workspace_dir().join("umbel-probe.txt").exists());
-    assert!(!std::env::current_dir().unwrap().join("umbel-probe.txt").exists());
+    assert!(
+        !std::env::current_dir()
+            .unwrap()
+            .join("umbel-probe.txt")
+            .exists()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn time_and_randomness_come_from_the_command_context() {
     let dir = tempfile::tempdir().unwrap();
-    let host = TestHost::directory(&behaviors_dir(dir.path(), &["clock", "random"]))
+    let host = TestHost::directory(behaviors_dir(dir.path(), &["clock", "random"]))
         .clock(1_700_000_123_456)
         .boot()
         .unwrap();
@@ -393,7 +449,10 @@ async fn a_panic_loads_without_the_log_grant_and_its_message_reaches_the_host_lo
     assert_eq!(code(&result), "PLUGIN_TRAPPED", "{result:?}");
     let seen = logs::lines("probe-panic: the fixture panicked on purpose");
     assert!(!seen.is_empty(), "the panic message was not logged");
-    assert!(seen[0].contains("source=\"wasi\"") || seen[0].contains("source=wasi"), "{seen:?}");
+    assert!(
+        seen[0].contains("source=\"wasi\"") || seen[0].contains("source=wasi"),
+        "{seen:?}"
+    );
     assert!(seen[0].contains("plugin=probe"), "{seen:?}");
     // The next call works.
     assert!(host.call("probe-echo", json!({})).await.success);
@@ -445,9 +504,7 @@ async fn a_forged_result_is_cleaned_by_the_plugin_gate() {
 async fn every_command_of_the_fixture_is_registered_under_its_domain() {
     let dir = tempfile::tempdir().unwrap();
     let host = probe(dir.path());
-    let show = host
-        .call("plugin-show", json!({ "plugin": "probe" }))
-        .await;
+    let show = host.call("plugin-show", json!({ "plugin": "probe" })).await;
     let commands: Vec<String> = data(&show)["commands"]
         .as_array()
         .unwrap()
@@ -455,6 +512,9 @@ async fn every_command_of_the_fixture_is_registered_under_its_domain() {
         .map(|command| command["name"].as_str().unwrap().to_owned())
         .collect();
     for name in BEHAVIORS {
-        assert!(commands.contains(&format!("probe-{name}")), "{name}: {commands:?}");
+        assert!(
+            commands.contains(&format!("probe-{name}")),
+            "{name}: {commands:?}"
+        );
     }
 }
