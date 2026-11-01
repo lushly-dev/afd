@@ -79,23 +79,12 @@
   `_meta["dev.afd/digest"]` as `sha256:<hex>`, the Skills extension's format,
   so section 8.3 no longer mints `dev.umbel/sha256` (see
   [Amendments from step 0a](#amendments-from-step-0a)).
-- **Step 0b done 2026-11-01** (AFD, `packages/rust` and the Rust todo backend;
-  [#PR](https://github.com/lushly-dev/afd/pull/PR)): `McpServer::with_resources`
-  and `with_skills`, `SkillCatalog` and `Skill`, `CommandDefinition::with_tool_meta`,
-  `CommandRegistry::register_with_schemas`, and the todo backend split into a
-  library (`todo_backend_rust::commands(store)`, `TodoStore::new`) and its
-  binary behind the default `server` feature. Verified against `main` at
-  `cdfbbfb7`, rebased on `origin/main` before merge: `rmcp` 3.8.0 routes
-  `skills/list`, `skills/get` and `resources/directory/read` through
-  `ServerHandler::on_custom_request` (so step 0b did not stop and amend 0a),
-  every case of `spec/mcp-resources.json` passes over Streamable HTTP and a
-  stdio-shaped connection in both MCP eras, the 34-case conformance suite
-  passes against the Rust backend in both eras plus confirmations, and
-  `endpoints/umbel` builds and tests against the new `afd`. Its choices and the
-  small amendments to step 0a's text are in
-  [Amendments from step 0b](#amendments-from-step-0b).
-- **Done:** this specification, approved and merged; steps 0a and 0b.
-- **Not done:** every Umbel step of the
+- **Step 1 done 2026-11-01** ([#606](https://github.com/lushly-dev/afd/pull/606)):
+  manifest and configuration, as the step 1 row of the
+  [plan](#14-implementation-plan) lists them. One amendment, in
+  [Amendments from step 1](#amendments-from-step-1).
+- **Done:** this specification, approved and merged; steps 0a and 1.
+- **Not done:** step 0b and the Umbel steps 2a to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1998,6 +1987,19 @@ what Umbel plans:
 | Spec T2 | Reserved prefixes by name | `dev.afd/` and MCP's reserved prefixes are matched without regard to case | A case-insensitive consumer must not see `DEV.AFD/x` as a different namespace |
 | Spec R2 | An absolute URI with a scheme | Also no whitespace or control character | The check the server can make cheaply without a URI parser |
 | Crate | No YAML dependency | `saphyr-parser` 0.3 (optional, `server` feature) | Frontmatter needs a real YAML 1.2 reader whose events let the crate refuse tags, anchors and aliases and resolve plain scalars by the core schema itself |
+
+## Amendments from step 1
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 6, 9.1 | The loader (step 2a) makes a configured instance load or fail | Until step 2a, `HostBuilder::seal` refuses a workspace whose `plugins.enabled` is not empty with `WORKSPACE_CONFIG_INVALID` naming `plugins.enabled`; `umbel workspace doctor` still checks the instances' files. Step 2a removes the guard | Phase 0 refused a non-empty `enabled` when the file was read. Version 2 moves that refusal from the file to `seal`, so the doctor and `plugin-check` can read configured instances, while a configured plugin is still never silently ignored |
+
+Two shapes the specification leaves open, fixed here for steps 2a onward:
+`doctor::run_with_catalog` and `run_discovered_with_catalog` take a
+`plugins::CompiledCatalog` (compiled plugin id to embedded manifest text),
+which the CLI's `configure` hook will fill in step 2a; the file-only checks
+use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
+(reported `skip`) when there is no catalog.
 
 ## Follow-ups
 

@@ -26,9 +26,9 @@
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"@vitest/coverage-v8": "^4.1.11",
+		"@vitest/coverage-v8": "^4.1.12",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.11"
+		"vitest": "^4.1.12"
 	},
 	"peerDependencies": {
 		"@lushly-dev/afd-core": "workspace:^"

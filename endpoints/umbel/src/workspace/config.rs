@@ -1,15 +1,19 @@
-//! `umbel.toml`, version 1: defaults, key scan and validation (specification section 2).
+//! `umbel.toml`, versions 1 and 2: defaults, key scan and validation (phase 0 specification
+//! section 2; phase 1 section 9.1 adds the plugin instances of version 2).
 
 use std::net::SocketAddr;
 use std::path::Path;
 
 use toml::{Table, Value};
 
+use super::PluginsConfig;
 use super::error::WorkspaceError;
+use super::plugins_config::{INSTANCE_KEYS, INSTANCE_RESERVED, LIMITS_KEYS};
 use super::space::SpaceId;
 
-/// The configuration version this build reads.
-pub const CONFIG_VERSION: u32 = 1;
+/// The configuration version this build writes (`umbel init`). It also reads version 1, which
+/// is version 2 with no plugins.
+pub const CONFIG_VERSION: u32 = 2;
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -75,14 +79,6 @@ pub struct SpaceConfig {
     pub id: SpaceId,
     /// The title; the id when the file gives none.
     pub title: String,
-}
-
-/// `[plugins]`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PluginsConfig {
-    /// Must be empty in phase 0.
-    pub enabled: Vec<String>,
 }
 
 /// `[mcp]`.
@@ -155,9 +151,11 @@ pub struct PrincipalConfig {
 }
 
 /// A validated `umbel.toml` with every default filled in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Config {
+    /// The `config_version` the file declared: 1, or 2 with plugin instances.
+    pub version: u32,
     /// The workspace name.
     pub name: String,
     /// The space used when a call names none.
@@ -222,6 +220,7 @@ pub struct KeyScan {
 #[derive(Debug, Clone)]
 pub struct ConfigFile {
     table: Table,
+    version: u32,
 }
 
 impl ConfigFile {
@@ -229,7 +228,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for another version.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 and 2.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -245,23 +244,30 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 1",
+                "is required; set config_version = 2",
             )),
-            Some(Value::Integer(1)) => Ok(Self { table }),
+            Some(Value::Integer(version @ (1 | 2))) => {
+                let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
+                Ok(Self { table, version })
+            }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1",
+                "must be the integer 1 or 2",
             )),
         }
+    }
+
+    /// The `config_version` of the file: 1 or 2.
+    pub fn version(&self) -> u32 {
+        self.version
     }
 
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
         let mut scan = KeyScan::default();
         scan_table(&self.table, "", TOP_KEYS, &[], &mut scan);
-        let sections: [(&str, &[&str], &[&str]); 7] = [
-            ("plugins", PLUGINS_KEYS, &[]),
+        let sections: [(&str, &[&str], &[&str]); 6] = [
             ("mcp", MCP_KEYS, &[]),
             ("http", HTTP_KEYS, &[]),
             ("journal", JOURNAL_KEYS, &[]),
@@ -273,6 +279,9 @@ impl ConfigFile {
             if let Some(Value::Table(table)) = self.table.get(name) {
                 scan_table(table, name, known, reserved, &mut scan);
             }
+        }
+        if let Some(Value::Table(plugins)) = self.table.get("plugins") {
+            self.scan_plugins(plugins, &mut scan);
         }
         if let Some(Value::Table(spaces)) = self.table.get("spaces") {
             for (id, value) in spaces {
@@ -290,6 +299,28 @@ impl ConfigFile {
         scan
     }
 
+    /// `[plugins]`: `enabled`, and in version 2 one table per instance. An instance's `config`
+    /// and `env` hold the deployer's own keys; everything else is closed.
+    fn scan_plugins(&self, plugins: &Table, scan: &mut KeyScan) {
+        if self.version == 1 {
+            scan_table(plugins, "plugins", PLUGINS_KEYS, &[], scan);
+            return;
+        }
+        for (id, value) in plugins {
+            if id == "enabled" {
+                continue;
+            }
+            let Value::Table(instance) = value else {
+                continue;
+            };
+            let prefix = format!("plugins.{id}");
+            scan_table(instance, &prefix, INSTANCE_KEYS, INSTANCE_RESERVED, scan);
+            if let Some(Value::Table(limits)) = instance.get("limits") {
+                scan_table(limits, &format!("{prefix}.limits"), LIMITS_KEYS, &[], scan);
+            }
+        }
+    }
+
     /// Validate every value and fill every default.
     ///
     /// # Errors
@@ -304,6 +335,7 @@ impl ConfigFile {
         let rest = self.rest()?;
         let http = self.http()?;
         Ok(Config {
+            version: self.version,
             name: general.0,
             profile: general.1,
             default_space,
@@ -375,19 +407,6 @@ impl ConfigFile {
             }
         };
         Ok((spaces, default_space))
-    }
-
-    pub(crate) fn plugins(&self) -> Result<PluginsConfig, WorkspaceError> {
-        let enabled = Reader::new(self.section("plugins")?, "plugins")
-            .string_array("enabled")?
-            .unwrap_or_default();
-        if !enabled.is_empty() {
-            return Err(WorkspaceError::config_invalid(
-                "plugins.enabled",
-                "must be empty in phase 0; plugins arrive in phase 1",
-            ));
-        }
-        Ok(PluginsConfig { enabled })
     }
 
     pub(crate) fn http(&self) -> Result<HttpConfig, WorkspaceError> {
@@ -543,7 +562,7 @@ impl ConfigFile {
         })
     }
 
-    fn section(&self, name: &str) -> Result<Option<&Table>, WorkspaceError> {
+    pub(super) fn section(&self, name: &str) -> Result<Option<&Table>, WorkspaceError> {
         match self.table.get(name) {
             None => Ok(None),
             Some(Value::Table(table)) => Ok(Some(table)),
@@ -675,13 +694,13 @@ fn scan_table(table: &Table, prefix: &str, known: &[&str], reserved: &[&str], sc
 }
 
 /// Typed access to one table, naming the dotted key in every error.
-struct Reader<'a> {
+pub(super) struct Reader<'a> {
     table: Option<&'a Table>,
     prefix: &'a str,
 }
 
 impl<'a> Reader<'a> {
-    fn new(table: Option<&'a Table>, prefix: &'a str) -> Self {
+    pub(super) fn new(table: Option<&'a Table>, prefix: &'a str) -> Self {
         Self { table, prefix }
     }
 
@@ -697,7 +716,11 @@ impl<'a> Reader<'a> {
         self.table.and_then(|table| table.get(key))
     }
 
-    fn string(&self, key: &str) -> Result<Option<String>, WorkspaceError> {
+    pub(super) fn table_value(&self, key: &str) -> Option<&'a Value> {
+        self.value(key)
+    }
+
+    pub(super) fn string(&self, key: &str) -> Result<Option<String>, WorkspaceError> {
         match self.value(key) {
             None => Ok(None),
             Some(Value::String(value)) => Ok(Some(value.clone())),
@@ -708,7 +731,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn boolean(&self, key: &str) -> Result<Option<bool>, WorkspaceError> {
+    pub(super) fn boolean(&self, key: &str) -> Result<Option<bool>, WorkspaceError> {
         match self.value(key) {
             None => Ok(None),
             Some(Value::Boolean(value)) => Ok(Some(*value)),
@@ -719,7 +742,12 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn integer(&self, key: &str, min: i64, max: i64) -> Result<Option<u64>, WorkspaceError> {
+    pub(super) fn integer(
+        &self,
+        key: &str,
+        min: i64,
+        max: i64,
+    ) -> Result<Option<u64>, WorkspaceError> {
         match self.value(key) {
             None => Ok(None),
             Some(Value::Integer(value)) if (min..=max).contains(value) => {
@@ -736,7 +764,7 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn string_array(&self, key: &str) -> Result<Option<Vec<String>>, WorkspaceError> {
+    pub(super) fn string_array(&self, key: &str) -> Result<Option<Vec<String>>, WorkspaceError> {
         match self.value(key) {
             None => Ok(None),
             Some(Value::Array(items)) => items

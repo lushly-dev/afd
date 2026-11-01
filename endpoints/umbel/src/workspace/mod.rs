@@ -6,6 +6,7 @@ mod discovery;
 mod error;
 mod keys;
 mod layout;
+mod plugins_config;
 mod space;
 
 use std::fs::{self, OpenOptions};
@@ -17,12 +18,13 @@ use afd::{FileJournalSink, JournalFileLock, JournalLockError};
 
 pub use config::{
     CONFIG_VERSION, Config, ConfigFile, Confirmations, HttpConfig, JournalConfig, KeyScan,
-    LogConfig, LogFormat, McpConfig, Overrides, PluginsConfig, PrincipalConfig, SpaceConfig,
+    LogConfig, LogFormat, McpConfig, Overrides, PrincipalConfig, SpaceConfig,
 };
 pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_process};
 pub use error::{WorkspaceError, codes};
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
 pub use layout::Layout;
+pub use plugins_config::{Limits, PluginInstance, PluginsConfig, caps};
 pub use space::SpaceId;
 
 pub(crate) use keys::{read_key, read_token};
@@ -82,7 +84,7 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 1` and, when given, `name`; `spaces/main/`; `state/` with the keys and a
+    /// `config_version = 2` and, when given, `name`; `spaces/main/`; `state/` with the keys and a
     /// `.gitignore` of `*`.
     ///
     /// # Errors

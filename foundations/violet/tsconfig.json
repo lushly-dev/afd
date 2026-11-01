@@ -23,10 +23,6 @@
 	"files": [],
 	"references": [
 		{ "path": "packages/core" },
-		{ "path": "packages/cli" },
-		{ "path": "packages/server" },
-		{ "path": "packages/api" },
-		{ "path": "packages/runtime" },
-		{ "path": "packages/figma" }
+		{ "path": "packages/runtime" }
 	]
 }

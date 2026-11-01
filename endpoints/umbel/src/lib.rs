@@ -10,6 +10,7 @@
 
 pub mod doctor;
 pub mod events;
+pub mod plugins;
 pub mod principal;
 pub mod provenance;
 pub mod workspace;
@@ -23,6 +24,7 @@ mod surfaces;
 mod versions;
 
 pub use host::{Host, HostBuilder, HostError, RESERVED_VERBS, SPACE_NOT_FOUND};
+pub use plugins::{MANIFEST_VERSION, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD};
 pub use versions::{CURSOR_VERSION, EVENT_VERSION, PRINCIPAL_VERSION, PROVENANCE_VERSION};
 pub use workspace::{CONFIG_VERSION, Config, SpaceId, Workspace};
 
