@@ -4,6 +4,7 @@
  * Provides a function to get all bootstrap commands for an AFD server.
  */
 
+import type { ExposeOptions } from '@lushly-dev/afd-core';
 import { AFD_BOOTSTRAP_COMMAND_NAMES, AFD_CONTEXT_COMMAND_NAMES } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
@@ -24,6 +25,40 @@ export const BOOTSTRAP_COMMAND_NAMES: readonly string[] = AFD_BOOTSTRAP_COMMAND_
 
 /** Names of the context tools registered when `createMcpServer({ contexts })` is set. */
 export const CONTEXT_COMMAND_NAMES: readonly string[] = AFD_CONTEXT_COMMAND_NAMES;
+
+/**
+ * The context tools `createMcpServer({ contexts })` registers: `afd-context-list`,
+ * `afd-context-enter` and `afd-context-exit`, MCP-exposed. `createDirectToolSurface` registers
+ * the same commands, also exposed to the registry's interface, so both list equal tools.
+ *
+ * @param contextState - The state a call uses when none is bound to its context
+ * @param expose - The commands' exposure. Default: `{ mcp: true }`
+ */
+export function createContextCommands(
+	contexts: readonly ContextConfig[],
+	contextState: ContextState,
+	expose: ExposeOptions = { mcp: true }
+): ZodCommandDefinition[] {
+	// A copy per call: afd-context-list sorts what it gets.
+	const getContexts = () => [...contexts];
+	return [
+		defineCommand({
+			...createAfdContextListCommand(getContexts, contextState),
+			input: z.object({}),
+			expose,
+		}),
+		defineCommand({
+			...createAfdContextEnterCommand(getContexts, contextState),
+			input: z.object({ context: z.string().min(1) }),
+			expose,
+		}),
+		defineCommand({
+			...createAfdContextExitCommand(contextState),
+			input: z.object({}),
+			expose,
+		}),
+	];
+}
 
 /**
  * Get all bootstrap commands for an AFD server: afd-help, afd-docs and afd-schema,

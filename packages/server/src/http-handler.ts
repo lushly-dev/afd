@@ -17,7 +17,8 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
-import { type ConfirmationGate, createHttpConfirmationCheck } from './confirmations.js';
+import { createHttpConfirmationCheck } from './confirmation-gate.js';
+import type { ConfirmationGate } from './confirmations.js';
 import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {

@@ -203,7 +203,10 @@ Tauri or Electron webview, or a Node.js host that does not want the MCP SDK)
 imports from `/direct`. It exports everything `/define` does, plus:
 
 - `createDirectRegistry`, with validation, middleware, exposure checks and
-  error sanitization, as `createMcpServer` runs them;
+  error sanitization, as `createMcpServer` runs them, and AFD contexts scoped
+  per call;
+- `createDirectToolSurface`, the MCP tool surface for that registry (see
+  below);
 - `createJournalMiddleware`, `replayJournal` and `MemoryJournalSink`;
 - the middleware with no Node.js builtin in its module graph:
   `composeMiddleware`, `defaultMiddleware`, `createLoggingMiddleware`,
@@ -227,10 +230,93 @@ await registry.execute('panel-open', { id: 'settings' });
 ```
 
 A test bundles `/direct` for the browser, failing on any MCP SDK or Node.js
-builtin, and holds AFD's own code (minified, Zod excluded) to 35 KB for a host
-that imports the registry, the journal and `defineCommand`, and 66 KB for every
-export. The approval middleware still needs Node.js, so it is exported only from
-the root entry for now.
+builtin, and holds AFD's own code (minified, Zod excluded) to 39 KB for a host
+that imports the registry, the journal and `defineCommand`, 74 KB for a host that
+also imports `createDirectToolSurface`, and 104 KB for every export. A host that
+does not import the tool surface does not bundle the tool router. The approval
+middleware still needs Node.js, so it is exported only from the root entry for
+now.
+
+#### Contexts and `activeContext`
+
+`createDirectRegistry(commands, { contexts })` takes the same context
+definitions as `createMcpServer`. The active context is per-call input, as
+`_meta["dev.afd/context"]` is on MCP 2026-07-28, never registry state: a call
+names it in the `activeContext` option, passed beside the command context so a
+handler cannot read or set it.
+
+```typescript
+const registry = createDirectRegistry(commands, {
+  contexts: [{ name: 'billing' }, { name: 'writing' }],
+});
+
+await registry.execute('invoice-pay', { id: 'in-1' }, {}, { activeContext: 'billing' });
+await registry.execute('note-create', { title: 'x' }, {}, { activeContext: 'billing' });
+// → COMMAND_NOT_IN_CONTEXT: note-create declares contexts: ['writing']
+await registry.execute('note-create', { title: 'x' }, {}, { activeContext: 'nope' });
+// → CONTEXT_NOT_FOUND, before anything runs
+```
+
+Without `activeContext` every command is available, as on MCP with no context
+selected. The option covers the commands a call runs through `afd-call`,
+`afd-batch` and `afd-pipe` too. Naming a context on a registry that configures
+none fails with `CONTEXT_NOT_FOUND`. `DirectClient` takes the same option on
+`call()` and `pipe()` (see `@lushly-dev/afd-client`). Contexts scope what an
+agent sees; they are not a security boundary.
+
+#### The tool surface: `createDirectToolSurface`
+
+An in-page agent that should see what an MCP agent sees gets the MCP tool
+surface from the code the MCP server runs: its tool list for every strategy, its
+tool router, the meta-tools (`afd-discover`, `afd-detail`, `afd-call`,
+`afd-batch`, `afd-pipe`), the context tools when `contexts` is set, and, with
+`bootstrap: true`, `afd-help`, `afd-docs` and `afd-schema`.
+
+```typescript
+import { createDirectRegistry, createDirectToolSurface } from '@lushly-dev/afd-server/direct';
+
+const registry = createDirectRegistry(commands, {
+  contexts,
+  tools: createDirectToolSurface({ strategy: 'lazy' }),
+});
+
+registry.listTools();                                   // what an MCP server with these commands lists
+registry.listTools({ strategy: 'grouped', activeContext: 'billing' });
+await registry.execute('afd-discover', {}, {}, { activeContext: 'billing' });
+await registry.execute('afd-call', { command: 'invoice-pay', input: { id: 'in-1' } });
+```
+
+| `createDirectToolSurface` option | Default | Description |
+|--------|---------|-------------|
+| `strategy` | `'individual'` | `'individual'`, `'grouped'`, `'lazy'` or `'hybrid'`: the default for `listTools`, and the strategy grouped tool calls route by |
+| `firstClassTools` | — | The hybrid strategy's first-class commands, checked as `createMcpServer` checks them |
+| `bootstrap` | `false` | Register `afd-help`, `afd-docs` and `afd-schema` |
+
+- `registry.listTools({ strategy?, activeContext? })` returns exactly what an
+  MCP server with the same commands, contexts and strategy lists, by calling
+  the server's own tool list, with the server's defaults for `groupByFn`,
+  `advertiseOutputSchema` and `confirmations` (in-process calls are never
+  confirmation-gated). It throws a `TypeError` on a registry built without
+  `tools`, and a `RangeError` for an unknown context.
+- `registry.execute` sends meta-tool names, and grouped tool names under the
+  grouped strategy, through the server's tool router, and returns the JSON an
+  MCP client reads (`afd-batch` a `BatchResult`, `afd-pipe` a
+  `PipelineResult`). Command names, the context tools and the bootstrap tools
+  run as commands. `hasCommand` answers `true` for the routed tool names.
+- `afd-context-enter` and `afd-context-exit` behave as on the stateless MCP
+  2026-07-28 lane: they validate the name, change nothing, and return
+  `persisted: false` with the hint to send the context on each call. A host
+  that wants a context stack keeps it and passes its top as `activeContext`.
+- Exposure: where the MCP server lists and routes its MCP-exposed commands, the
+  surface uses the commands exposed to the registry's `interface` (`'agent'`
+  by default), and exposes its own tools to that interface. A registry built
+  with `interface: 'mcp'` sees exactly the MCP server's commands.
+- With the surface, a command named like a meta-tool always throws, and like a
+  context or bootstrap tool when those are registered, as on `createMcpServer`.
+  Refusals point to `afd-discover` and the context tools only when the surface
+  serves them; without it, `COMMAND_NOT_FOUND` ends "Check the command name
+  against the available commands." and `COMMAND_NOT_IN_CONTEXT` names the
+  command's contexts.
 
 ### Basic Command
 
@@ -715,6 +801,8 @@ await client.call('todo-create', { title: { nested: true } });
 | `middleware` | `[]` | Middleware, as for `createMcpServer` |
 | `devMode` | `false` | Include exception messages and stacks in failures |
 | `onCommand`, `onError` | — | Hooks, as for `createMcpServer` |
+| `contexts` | — | Contexts, as for `createMcpServer`; a call names its own in the `activeContext` option |
+| `tools` | — | `createDirectToolSurface()`: `listTools`, the meta-tools, the context tools and, optionally, the bootstrap tools |
 
 A command is exposed to the interface when its `expose` flag for it is `true`.
 Flags a command leaves out fall back to `defaultExpose` (`palette` and `agent`
@@ -1112,7 +1200,7 @@ Context state is per client:
 - **2025 clients on `/mcp`** have no session, so they see no active context and `afd-context-enter` returns `SESSION_REQUIRED`, as on `/message` without a session.
 - **HTTP `/message`** keeps one stack per session. `initialize` returns an `Mcp-Session-Id` header, and requests that repeat it share that session's stack; one client entering a context never changes another client's `tools/list` or execution. Requests without the header see no active context, and `afd-context-enter`/`afd-context-exit` return `SESSION_REQUIRED` for them. Sessions expire after `sessionIdleTimeoutMs` of inactivity, and at most `maxSessions` are kept.
 - A stack holds at most 16 contexts (`CONTEXT_DEPTH_EXCEEDED` beyond that), and re-entering the active context is a no-op.
-- In-process `server.execute()` ignores contexts.
+- In-process `server.execute()` ignores contexts. `createDirectRegistry({ contexts })` scopes each call to its `activeContext` option instead (see the `/direct` entry above).
 
 ## Request Context
 

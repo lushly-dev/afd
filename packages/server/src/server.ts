@@ -8,19 +8,12 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
 import { isMcpExposed } from '@lushly-dev/afd-core';
-import { z } from 'zod';
-import {
-	createAfdContextEnterCommand,
-	createAfdContextExitCommand,
-	createAfdContextListCommand,
-	createContextState,
-} from './bootstrap/afd-context.js';
-import { getBootstrapCommands } from './bootstrap/registry.js';
+import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
-import { createConfirmationGate } from './confirmations.js';
+import { createConfirmationGate } from './confirmation-gate.js';
 import { checkContextFields } from './context-fields.js';
-import { resolveContextState } from './context-scope.js';
+import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore } from './http-sessions.js';
@@ -30,7 +23,7 @@ import {
 	type ModernMcpDeps,
 	serveModernStdio,
 } from './mcp-modern.js';
-import { defineCommand, type ZodCommandDefinition } from './schema.js';
+import type { ZodCommandDefinition } from './schema.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
 import { createToolRouter } from './tool-router.js';
@@ -90,25 +83,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	const registeredCommands = [...commands];
 	if (contextState && contexts) {
-		const getContexts = () => [...contexts];
-		const builtins = [
-			defineCommand({
-				...createAfdContextListCommand(getContexts, contextState),
-				input: z.object({}),
-				expose: { mcp: true },
-			}),
-			defineCommand({
-				...createAfdContextEnterCommand(getContexts, contextState),
-				input: z.object({ context: z.string().min(1) }),
-				expose: { mcp: true },
-			}),
-			defineCommand({
-				...createAfdContextExitCommand(contextState),
-				input: z.object({}),
-				expose: { mcp: true },
-			}),
-		];
-		for (const command of builtins) {
+		for (const command of createContextCommands(contexts, contextState)) {
 			if (registeredCommands.some((existing) => existing.name === command.name)) {
 				throw new Error(`Reserved context command name: ${command.name}`);
 			}

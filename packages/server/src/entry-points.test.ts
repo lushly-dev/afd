@@ -3,8 +3,9 @@
  *
  * Bundles an entry that imports only one subpath with esbuild for the
  * browser. The bundle fails if anything in the module graph imports the MCP
- * SDK or a Node.js builtin. `/direct` is also held to a size budget for AFD's
- * own code.
+ * SDK or a Node.js builtin. `/direct` is also held to size budgets for AFD's
+ * own code, and a host that does not import `createDirectToolSurface` must not
+ * bundle the tool router, the tool list or the bootstrap tools.
  */
 
 import { readFileSync } from 'node:fs';
@@ -36,7 +37,10 @@ interface EsbuildPluginBuild {
 
 interface EsbuildResult {
 	errors: EsbuildMessage[];
-	metafile?: { inputs: Record<string, unknown> };
+	metafile?: {
+		inputs: Record<string, unknown>;
+		outputs: Record<string, { inputs: Record<string, { bytesInOutput: number }> }>;
+	};
 	outputFiles?: { contents: Uint8Array }[];
 }
 
@@ -172,21 +176,48 @@ describe('@lushly-dev/afd-server/define', () => {
 	});
 });
 
+const HOST_IMPORTS =
+	'createDirectRegistry, createJournalMiddleware, defineCommand, failure, MemoryJournalSink, success';
+
 /**
  * Size budgets for AFD's own code in `/direct`, minified, with Zod left to the application (any
- * app that defines commands loads it anyway). Measured 2026-10-31 with esbuild 0.27.7: 35.3 KB for
- * a host that imports the registry, the journal and `defineCommand` (32.2 KB before declared
- * context fields, which add 2.3 KB to the registry), and 63.4 KB for every export.
+ * app that defines commands loads it anyway). Measured 2026-10-31 with esbuild 0.27.7, after
+ * part 3 of #527 (contexts and the tool surface in process):
+ *
+ * - 37.3 KB for a host that imports the registry, the journal and `defineCommand` (35.3 KB
+ *   before part 3, whose contexts add 2.0 KB to the registry; 32.2 KB before declared context
+ *   fields). The budget stays 39 KB: the tool surface is not in this bundle.
+ * - 67.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool list,
+ *   the meta-tools, `lazy-tools` and `bootstrap/`.
+ * - 94.4 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool surface
+ *   joined the entry; it is now 104 KB.
  */
 const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
-		imports:
-			'createDirectRegistry, createJournalMiddleware, defineCommand, failure, MemoryJournalSink, success',
+		imports: HOST_IMPORTS,
 		bytes: 39_000,
 	},
-	{ what: 'every export', imports: undefined, bytes: 66_000 },
+	{
+		what: 'a host with the tool surface',
+		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
+		bytes: 74_000,
+	},
+	{ what: 'every export', imports: undefined, bytes: 104_000 },
 ];
+
+/** The modules only the tool surface needs. */
+const TOOL_SURFACE_MODULES =
+	/src\/(tool-router|tools|lazy-tools|meta-tools|direct-tool-surface)\.ts$|src\/bootstrap\//;
+
+/** The source modules that contribute bytes to a bundle, not merely parsed into its graph. */
+function modulesInOutput(result: EsbuildResult): string[] {
+	return Object.values(result.metafile?.outputs ?? {}).flatMap((output) =>
+		Object.entries(output.inputs)
+			.filter(([, input]) => input.bytesInOutput > 0)
+			.map(([path]) => path)
+	);
+}
 describe('@lushly-dev/afd-server/direct', () => {
 	it('declares the subpath with the same conditions as the root export', () => {
 		expect(manifest.exports['./direct']).toEqual({
@@ -197,6 +228,7 @@ describe('@lushly-dev/afd-server/direct', () => {
 
 	it('re-exports the registry, journal and middleware of the root entry, and all of /define', () => {
 		expect(direct.createDirectRegistry).toBe(root.createDirectRegistry);
+		expect(direct.createDirectToolSurface).toBe(root.createDirectToolSurface);
 		expect(direct.createJournalMiddleware).toBe(root.createJournalMiddleware);
 		expect(direct.replayJournal).toBe(root.replayJournal);
 		expect(direct.composeMiddleware).toBe(root.composeMiddleware);
@@ -218,6 +250,35 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(inputs.some((input) => input.endsWith('src/journal-replay.ts'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
 		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
+	});
+
+	it('keeps the tool surface out of a registry that does not ask for it', async () => {
+		const specifier = `${PACKAGE_NAME}/direct`;
+		const bundle = (imports: string) =>
+			bundleForBrowser(specifier, {
+				minify: true,
+				external: ['zod', 'zod/*'],
+				stdin: {
+					contents: `export { ${imports} } from '${specifier}';`,
+					resolveDir: packageRoot,
+					sourcefile: 'browser-entry.js',
+				},
+			});
+
+		const hostBundle = await bundle(HOST_IMPORTS);
+		expect(hostBundle.errors.map((message) => message.text)).toEqual([]);
+		const host = modulesInOutput(hostBundle);
+		expect(host.some((path) => path.endsWith('src/direct-registry.ts'))).toBe(true);
+		expect(host.filter((path) => TOOL_SURFACE_MODULES.test(path))).toEqual([]);
+
+		// The router and the tool list load no Node.js built-in since the confirmation gate moved
+		// out of confirmations.ts, so the surface bundles for the browser too.
+		const surfaceBundle = await bundle(`${HOST_IMPORTS}, createDirectToolSurface`);
+		expect(surfaceBundle.errors.map((message) => message.text)).toEqual([]);
+		const surface = modulesInOutput(surfaceBundle);
+		expect(surface.some((path) => path.endsWith('src/tool-router.ts'))).toBe(true);
+		expect(surface.some((path) => path.endsWith('src/tools.ts'))).toBe(true);
+		expect(surface.filter((path) => /^node:|modelcontextprotocol/.test(path))).toEqual([]);
 	});
 
 	it.each(DIRECT_BUDGETS)('keeps $what within $bytes bytes minified', async (budget) => {

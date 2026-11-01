@@ -62,6 +62,13 @@ In the same pull request:
 
 ## 1.0-rc
 
+In-process context scoping (#527, part 3): TypeScript's `createDirectRegistry` takes the active
+context of each call as a call option, refusing an unknown name with `CONTEXT_NOT_FOUND`
+([`error-codes.md`](./error-codes.md#contexts)), and with `createDirectToolSurface` lists and routes
+the same tools as an MCP server ([`tool-strategies.md`](./tool-strategies.md), H8). Its suggestions
+name `afd-discover` and the context tools only where that surface serves them. No fixture, vector or
+wire field changes.
+
 [`context-fields.md`](./context-fields.md) specifies declared context fields (#528): a host declares
 a field's context name, `_meta` key, schema, `journal` and `required` flags, and AFD validates the
 value before middleware runs, failing an invalid or missing required one with `VALIDATION_ERROR`.

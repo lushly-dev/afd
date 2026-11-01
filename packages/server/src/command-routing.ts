@@ -74,22 +74,41 @@ const MAX_NOT_FOUND_MATCHES = 3;
  *
  * @param commandName - The unknown name (untrusted; never echoed)
  * @param commandNames - Names the caller may call
+ * @param discover - Whether the caller can call `afd-discover`. Without it the suggestion ends
+ *   as Rust's and C++'s do (`spec/error-codes.md`, "Suggestions name only tools the host provides")
  */
-export function notFoundSuggestion(commandName: string, commandNames: string[]): string {
-	const discover = 'Use afd-discover to list all commands.';
+export function notFoundSuggestion(
+	commandName: string,
+	commandNames: string[],
+	discover = true
+): string {
+	const next = discover
+		? 'Use afd-discover to list all commands.'
+		: 'Check the command name against the available commands.';
 	const [best, ...others] = findSimilarTools(commandName, commandNames, MAX_NOT_FOUND_MATCHES);
-	if (best === undefined) return discover;
+	if (best === undefined) return next;
 	const alsoClose = others.length
 		? ` Other close matches: ${others.map((name) => `'${name}'`).join(', ')}.`
 		: '';
-	return `Did you mean '${best}'?${alsoClose} ${discover}`;
+	return `Did you mean '${best}'?${alsoClose} ${next}`;
 }
 
-/** The `COMMAND_NOT_IN_CONTEXT` error for a command outside the active context. */
-export function notInContextError(commandName: string, activeContext: string): CommandError {
+/**
+ * The `COMMAND_NOT_IN_CONTEXT` error for a command outside the active context.
+ *
+ * @param belongsTo - The command's contexts, when the caller cannot call the `afd-context-*`
+ *   tools: the suggestion then names them, as Rust's and C++'s do
+ */
+export function notInContextError(
+	commandName: string,
+	activeContext: string,
+	belongsTo?: readonly string[]
+): CommandError {
 	return {
 		code: 'COMMAND_NOT_IN_CONTEXT',
 		message: `Command '${commandName}' is not available in context '${activeContext}'`,
-		suggestion: 'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+		suggestion: belongsTo
+			? `Switch to a context this command belongs to (${belongsTo.map((name) => `'${name}'`).join(', ')}), or call it with no active context.`
+			: 'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
 	};
 }
