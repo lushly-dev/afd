@@ -8,11 +8,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved by the owner 2026-10-31, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Complete 2026-10-31 in TypeScript, Python, Rust and C++ (#565, #566, #568); approved by the owner the same day, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [`spec/journal.md`](../../../../spec/journal.md), [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) per-request `_meta` |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (journal only) |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), #523 (Rust per-request context hook, merged 2026-10-31), [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) (also changes `spec/`), #431 (no caller-declared actor) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../../active/browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), #523 (Rust per-request context hook, merged 2026-10-31), [Hybrid tool strategy](../../active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) (also changes `spec/`), #431 (no caller-declared actor) |
 
 ## Why
 
@@ -201,7 +201,7 @@ L: a contract change across four languages. The TypeScript reference and
 the spec are M.
 
 Approved order, 2026-10-31: the spec and the TypeScript reference start
-after the [browser-safe direct registry](../browser-direct-registry/proposal.md)'s
+after the [browser-safe direct registry](../../active/browser-direct-registry/proposal.md)'s
 parts 1 and 2, because the in-process delivery lands in the registry that
 part 1 exports. The other languages follow. The spec change lands in its own
 pull request, never alongside the hybrid strategy's, because both edit

@@ -7,7 +7,7 @@ turn behind it, a locale. A host declares each such value as a **context field**
 value and puts it in the command context, so a handler reads it the same way on every surface, and
 the journal records the ones declared safe to keep, so a call that depends on them replays.
 
-Proposal and status: [`docs/features/active/declared-context-fields/`](../docs/features/active/declared-context-fields/proposal.md).
+Proposal and status: [`docs/features/complete/declared-context-fields/`](../docs/features/complete/declared-context-fields/proposal.md).
 
 ## Declaration
 
