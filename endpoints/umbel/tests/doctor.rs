@@ -79,7 +79,7 @@ fn write_events(root: &Path, space: &str, text: &str) {
 }
 
 #[test]
-fn a_fresh_workspace_is_healthy_with_five_skipped_checks() {
+fn a_fresh_workspace_is_healthy_with_eight_skipped_checks() {
     let (_dir, root) = fresh();
     let report = doctor::run(&root);
     assert!(report.healthy());
@@ -92,6 +92,9 @@ fn a_fresh_workspace_is_healthy_with_five_skipped_checks() {
             "config.keys",
             "spaces.valid",
             "collections.roots",
+            "stores.version",
+            "stores.access",
+            "stores.lag",
             "state.writable",
             "state.lock",
             "keys.present",
@@ -112,6 +115,9 @@ fn a_fresh_workspace_is_healthy_with_five_skipped_checks() {
     );
     for check in &report.checks {
         let sealed_only = [
+            "stores.version",
+            "stores.access",
+            "stores.lag",
             "mcp.surface",
             "cli.verbs",
             "plugins.loaded",

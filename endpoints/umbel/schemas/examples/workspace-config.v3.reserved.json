@@ -10,12 +10,6 @@
 	},
 	"plugins": {
 		"enabled": ["hello"],
-		"hello": {
-			"grants": {
-				"http": {
-					"allow": ["example.com"]
-				}
-			}
-		}
+		"hello": {}
 	}
 }

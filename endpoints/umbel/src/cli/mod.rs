@@ -452,8 +452,26 @@ async fn run_command(
             .clone()
             .filter(|_| definition.expose.cli)
     });
+    // `confirm = "require-human"` (phase 2 specification, section 3.4): whatever
+    // `mcp.confirmations` says, only a person at a terminal confirms, and neither `--yes` nor
+    // `--approve` stands in for them.
+    let require_human = host.requires_human(command);
+    if require_human && (flags.yes || flags.approve) {
+        return writers.exit_for(&afd::failure(
+            afd::CommandError::new(
+                afd::error_codes::CONFIRMATION_REQUIRED,
+                format!("'{command}' must be confirmed by a person at a terminal; --yes and --approve do not count"),
+            )
+            .with_suggestion("Run it at a terminal without --yes or --approve, and answer its prompt.")
+            .with_retryable(false),
+        ));
+    }
     if let Some(prompt) = gate {
-        let mode = surfaces::mcp::mode(host.workspace().config().mcp.confirmations);
+        let mode = if require_human {
+            afd::server::ConfirmationMode::RequireHuman
+        } else {
+            surfaces::mcp::mode(host.workspace().config().mcp.confirmations)
+        };
         let console = Arc::clone(&environment.console);
         if let Err(error) = prompt::confirm(mode, command, &prompt, flags.yes, console).await {
             return writers.exit_for(&afd::failure(*error));
@@ -462,10 +480,17 @@ async fn run_command(
     let client = host
         .cli_client()
         .with_on_approval_needed(prompt::approval_hook(
-            flags.approve,
+            flags.approve && !require_human,
             Arc::clone(&environment.console),
         ));
-    let context = host.cli_context();
+    let mut context = host.cli_context();
+    if require_human {
+        // The prompt was answered by a person; the plugin gate refuses the command without it.
+        context.extra.insert(
+            crate::middleware::HUMAN_CONFIRMED_KEY.to_owned(),
+            Value::String(command.to_owned()),
+        );
+    }
     let trace_id = context.trace_id.clone();
     let started = Instant::now();
     let result = client.call(command, input, Some(context)).await;

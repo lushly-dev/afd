@@ -22,7 +22,7 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [features]
-default = ["cli", "component", "mounted"]
+default = ["cli", "component", "mounted", "store-embedded"]
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
 # The WebAssembly component loader (specification section 6.2): wasmtime 48 and its WASI 0.2
@@ -40,6 +40,10 @@ mounted = [
 	"dep:rmcp", "dep:http", "dep:futures", "dep:regex", "dep:reqwest", "dep:sse-stream",
 	"rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest",
 ]
+
+# The embedded reference store (specification section 3.2): SQLite in WAL mode and tantivy. Without
+# it the host links neither, and every store grant answers `PLUGIN_GRANT_UNAVAILABLE`.
+store-embedded = ["dep:umbel-store-embedded"]
 
 [[bin]]
 name = "umbel"
@@ -101,8 +105,9 @@ http-body-util = { version = "0.1", optional = true }
 rmcp = { version = "3.7", optional = true, default-features = false, features = ["server", "transport-io"] }
 tempfile = { version = "3", optional = true }
 umbel-sdk = { path = "sdk" }
-# The store traits and shared types; the embedded backend joins behind a feature in step 4.
+# The store traits and shared types, and (feature `store-embedded`) the embedded backend.
 umbel-store = { path = "store" }
+umbel-store-embedded = { path = "store-embedded", optional = true }
 
 [dev-dependencies]
 bytes = "1"
@@ -119,6 +124,10 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
+# `doctor_stores.rs` damages a store's tables, and `store_commands.rs` opens a backup.
+rusqlite = { version = "0.41", features = ["bundled"] }
+# The store tests build documents and chunks with the conformance suite's own samples.
+umbel-store = { path = "store", features = ["conformance"] }
 
 # Cranelift and wasmtime dominate test time when unoptimized, and the tests compile components.
 # The test profile inherits these from dev. (The component loader, specification section 1.)

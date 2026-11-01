@@ -255,6 +255,10 @@ pub fn inspect_with_catalog(
     let spaces = file.as_ref().map(ConfigFile::spaces);
     checks.push(spaces_valid(spaces.as_ref()));
     checks.push(collections_roots(file.as_ref(), &located.root));
+    // The store checks open the stores, which only a sealed host does.
+    checks.push(Check::skip_sealed("stores.version"));
+    checks.push(Check::skip_sealed("stores.access"));
+    checks.push(Check::skip_sealed("stores.lag"));
     let space_ids: Vec<SpaceId> = match &spaces {
         Some(Ok((spaces, _))) => spaces.iter().map(|space| space.id.clone()).collect(),
         _ => Vec::new(),

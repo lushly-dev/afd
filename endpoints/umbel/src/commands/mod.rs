@@ -13,6 +13,16 @@ mod plugin_show;
 mod skill_export;
 mod skill_list;
 mod space_list;
+#[cfg(feature = "store-embedded")]
+mod store_backup;
+#[cfg(feature = "store-embedded")]
+mod store_check;
+#[cfg(feature = "store-embedded")]
+mod store_common;
+#[cfg(feature = "store-embedded")]
+mod store_doctor;
+#[cfg(feature = "store-embedded")]
+mod store_show;
 mod workspace_doctor;
 mod workspace_show;
 
@@ -29,6 +39,14 @@ pub(crate) use plugin_show::plugin_show;
 pub(crate) use skill_export::skill_export;
 pub(crate) use skill_list::skill_list;
 pub(crate) use space_list::space_list;
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_backup::store_backup;
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_check::store_check;
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_doctor::checks as store_doctor_checks;
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_show::store_show;
 pub(crate) use workspace_doctor::workspace_doctor;
 pub(crate) use workspace_show::workspace_show;
 

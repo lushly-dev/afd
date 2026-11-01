@@ -17,10 +17,20 @@ use afd::CommandContext;
 use serde_json::Value;
 use umbel_sdk::{HostError as ServiceError, HostServices, Level};
 
+use std::collections::BTreeMap;
+
 use super::files::lexical_problem;
+use super::ledger::Ledger;
 use super::packs::{PackCopy, PackSet};
 use crate::events::Projector;
+use crate::store::Hub;
 use crate::workspace::{SpaceId, Workspace};
+use umbel_sdk::{ContentEntry, Reader};
+use umbel_store::{
+    Change, ChunkHit, ContentHash, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
+    Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
+    Page, Record, RecordMeta, Rev, Subgraph,
+};
 
 /// The most pack bytes one call may read (specification section 6.2).
 pub const MAX_PACK_READ_BYTES: u64 = 16 * 1024 * 1024;
@@ -31,14 +41,23 @@ const MAX_EVENTS: u32 = 1000;
 
 /// Grants whose use writes, reaches the network or reads secrets. Enabling an instance is not
 /// consent to them: the instance must list what it allows, under
-/// `[plugins.<id>.grants.<grant>] allow = [...]` (D42, specification section 7.2). Phase 1's
-/// catalog has none; `http` and `secrets`, which will be the first, are refused as unavailable
-/// before this rule applies.
-pub(crate) const ALLOW_REQUIRED: &[&str] = &[];
+/// `[plugins.<id>.grants.<grant>] allow = [...]` (D42, phase 2 specification section 3.3, rule
+/// 1). `http` and `secrets` will join them; they are refused as unavailable before this rule
+/// applies.
+pub(crate) const ALLOW_REQUIRED: &[&str] = super::ALLOW_REQUIRED_GRANTS;
 
 /// Whether `grant` needs a per-instance `allow` list that enabling does not supply.
 pub(crate) fn needs_allow(grant: &str, required: &[&str]) -> bool {
     required.contains(&grant)
+}
+
+/// What the manifest says about one command that the store services need to know.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct CommandPolicy {
+    /// The command has the `store-write` effect: it may use derivation reads.
+    pub(crate) store_write: bool,
+    /// The command is exposed to the CLI alone: it may use `as_reader`.
+    pub(crate) cli_only: bool,
 }
 
 pub(crate) struct Shared {
@@ -51,6 +70,14 @@ pub(crate) struct Shared {
     pub(crate) packs: PackSet,
     pub(crate) workspace: Arc<Workspace>,
     pub(crate) projector: Arc<Projector>,
+    /// The stores of the workspace's spaces.
+    pub(crate) stores: Hub,
+    /// `[plugins.<id>.grants.<grant>] allow`: what each write grant may reach.
+    pub(crate) allow: BTreeMap<String, Vec<String>>,
+    /// The instance's commands by name.
+    pub(crate) commands: BTreeMap<String, CommandPolicy>,
+    /// What calls did to the stores, for the plugin gate.
+    pub(crate) ledger: Arc<Ledger>,
 }
 
 /// The host services granted to one plugin instance. Cheap to clone.
@@ -92,19 +119,50 @@ impl Services {
 
     /// The services of one call, to use in a handler. `input` and `context` are the ones the
     /// handler was called with: the call's space is the input's `space`, else the default
-    /// space, which is what the host resolved before the handler ran.
+    /// space, which is what the host resolved before the handler ran; its spaces are the
+    /// input's `spaces` when it has them.
+    ///
+    /// The command is not known here, so derivation reads and `as_reader` are refused; a
+    /// handler that needs them calls [`Services::call_command`].
     pub fn call(&self, input: &Value, context: &CommandContext) -> CallServices {
-        let space = self
-            .shared
-            .workspace
+        self.build(None, input, context)
+    }
+
+    /// As [`Services::call`] for the manifest command `command`, whose effects and exposure
+    /// decide whether derivation reads and `as_reader` are available.
+    pub fn call_command(
+        &self,
+        command: &str,
+        input: &Value,
+        context: &CommandContext,
+    ) -> CallServices {
+        self.build(Some(command), input, context)
+    }
+
+    fn build(
+        &self,
+        command: Option<&str>,
+        input: &Value,
+        context: &CommandContext,
+    ) -> CallServices {
+        let workspace = &self.shared.workspace;
+        let space = workspace
             .resolve_space(input, context)
-            .unwrap_or_else(|_| self.shared.workspace.default_space().clone());
+            .unwrap_or_else(|_| workspace.default_space().clone());
+        let spaces = workspace
+            .resolve_spaces(input, context)
+            .unwrap_or_else(|_| vec![space.clone()]);
         CallServices {
             shared: Arc::clone(&self.shared),
             context: context.clone(),
             space,
+            spaces,
+            command: command.map(str::to_owned),
+            as_principal: None,
+            read_only: false,
             pack_bytes: AtomicU64::new(0),
             log_bytes: AtomicU64::new(0),
+            content_bytes: AtomicU64::new(0),
         }
     }
 
@@ -130,17 +188,44 @@ fn require(shared: &Shared, grant: &str) -> Result<(), ServiceError> {
 /// The methods block on file reads: call them from a blocking context (`spawn_blocking`), as the
 /// SDK wrapper does, not from an async task's hot path.
 pub struct CallServices {
-    shared: Arc<Shared>,
-    context: CommandContext,
+    pub(super) shared: Arc<Shared>,
+    pub(super) context: CommandContext,
     space: SpaceId,
+    spaces: Vec<SpaceId>,
+    pub(super) command: Option<String>,
+    /// Set by `as_reader`: reads use this principal's filter, and nothing writes.
+    pub(super) as_principal: Option<String>,
+    pub(super) read_only: bool,
     pack_bytes: AtomicU64,
     log_bytes: AtomicU64,
+    pub(super) content_bytes: AtomicU64,
 }
 
 impl CallServices {
     /// The call's resolved space.
     pub fn space(&self) -> &SpaceId {
         &self.space
+    }
+
+    /// The same call seen as `principal`: reads use that principal's filter and nothing writes.
+    pub(super) fn read_only_view(&self, principal: &str) -> CallServices {
+        CallServices {
+            shared: Arc::clone(&self.shared),
+            context: self.context.clone(),
+            space: self.space.clone(),
+            spaces: self.spaces.clone(),
+            command: self.command.clone(),
+            as_principal: Some(principal.to_owned()),
+            read_only: true,
+            pack_bytes: AtomicU64::new(0),
+            log_bytes: AtomicU64::new(0),
+            content_bytes: AtomicU64::new(0),
+        }
+    }
+
+    /// The call's checked spaces: the input's `spaces`, else the one space.
+    pub fn spaces(&self) -> &[SpaceId] {
+        &self.spaces
     }
 
     /// Whether the grant `name` is held (declared and not denied).
@@ -186,7 +271,7 @@ impl CallServices {
         }
     }
 
-    fn require(&self, grant: &str) -> Result<(), ServiceError> {
+    pub(super) fn require(&self, grant: &str) -> Result<(), ServiceError> {
         require(&self.shared, grant)
     }
 
@@ -301,6 +386,175 @@ impl HostServices for CallServices {
     fn random(&self) -> Result<f64, ServiceError> {
         self.require("random")?;
         Ok(self.context.random().next())
+    }
+
+    fn content_list(
+        &self,
+        space: &str,
+        collection: &str,
+        after: Option<&str>,
+        limit: u32,
+    ) -> Result<Page<ContentEntry>, ServiceError> {
+        self.svc_content_list(space, collection, after, limit)
+    }
+
+    fn content_read(
+        &self,
+        space: &str,
+        collection: &str,
+        path: &str,
+    ) -> Result<Vec<u8>, ServiceError> {
+        self.svc_content_read(space, collection, path)
+    }
+
+    fn content_replace(
+        &self,
+        space: &str,
+        collection: &str,
+        path: &str,
+        bytes: &[u8],
+        expect: Expect,
+    ) -> Result<ContentHash, ServiceError> {
+        self.svc_content_replace(space, collection, path, bytes, expect)
+    }
+
+    fn doc_get(&self, space: &str, id: &str) -> Result<Option<Document>, ServiceError> {
+        self.svc_doc_get(space, id)
+    }
+
+    fn doc_list(&self, space: &str, query: &ListQuery) -> Result<Page<DocMeta>, ServiceError> {
+        self.svc_doc_list(space, query)
+    }
+
+    fn doc_changes(
+        &self,
+        space: &str,
+        after: Rev,
+        limit: u32,
+        trace: Option<&str>,
+    ) -> Result<Vec<Change>, ServiceError> {
+        self.svc_doc_changes(space, after, limit, trace)
+    }
+
+    fn doc_put(
+        &self,
+        space: &str,
+        doc: DocumentWrite,
+        expect: Expect,
+    ) -> Result<DocMeta, ServiceError> {
+        self.svc_doc_put(space, doc, expect)
+    }
+
+    fn doc_delete(
+        &self,
+        space: &str,
+        id: &str,
+        expect: Expect,
+        envelope: Envelope,
+    ) -> Result<Rev, ServiceError> {
+        self.svc_doc_delete(space, id, expect, envelope)
+    }
+
+    fn record_get(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<Option<Record>, ServiceError> {
+        self.svc_record_get(space, kind, id)
+    }
+
+    fn record_list(
+        &self,
+        space: &str,
+        kind: &str,
+        after: Option<&str>,
+        limit: u32,
+    ) -> Result<Page<Record>, ServiceError> {
+        self.svc_record_list(space, kind, after, limit)
+    }
+
+    fn record_put(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        body: Value,
+        envelope: Envelope,
+        expect: Expect,
+    ) -> Result<RecordMeta, ServiceError> {
+        self.svc_record_put(space, kind, id, body, envelope, expect)
+    }
+
+    fn index_search(&self, space: &str, query: &IndexQuery) -> Result<Vec<ChunkHit>, ServiceError> {
+        self.svc_index_search(space, query)
+    }
+
+    fn index_chunks(&self, space: &str, doc: &str) -> Result<Vec<IndexChunk>, ServiceError> {
+        self.svc_index_chunks(space, doc)
+    }
+
+    fn index_applied(&self, space: &str) -> Result<Rev, ServiceError> {
+        self.svc_index_applied(space)
+    }
+
+    fn index_writer(&self, space: &str) -> Result<Box<dyn IndexWriterSession>, ServiceError> {
+        self.svc_index_writer(space)
+    }
+
+    fn graph_neighbors(
+        &self,
+        space: &str,
+        node: &str,
+        kinds: &[String],
+        direction: Direction,
+        limit: u32,
+    ) -> Result<Vec<Edge>, ServiceError> {
+        self.svc_graph_neighbors(space, node, kinds, direction, limit)
+    }
+
+    fn graph_nodes(&self, space: &str, ids: &[String]) -> Result<Vec<Node>, ServiceError> {
+        self.svc_graph_nodes(space, ids)
+    }
+
+    fn graph_edges(
+        &self,
+        space: &str,
+        kind: &str,
+        after: Option<&EdgeKey>,
+        limit: u32,
+    ) -> Result<Vec<Edge>, ServiceError> {
+        self.svc_graph_edges(space, kind, after, limit)
+    }
+
+    fn graph_subgraph(&self, space: &str) -> Result<Subgraph, ServiceError> {
+        self.svc_graph_subgraph(space)
+    }
+
+    fn graph_apply(
+        &self,
+        space: &str,
+        batch: GraphBatch,
+        applied: Rev,
+    ) -> Result<(), ServiceError> {
+        self.svc_graph_apply(space, batch, applied)
+    }
+
+    fn derive_changes(
+        &self,
+        space: &str,
+        after: Rev,
+        limit: u32,
+    ) -> Result<Vec<Change>, ServiceError> {
+        self.svc_derive_changes(space, after, limit)
+    }
+
+    fn derive_document(&self, space: &str, id: &str) -> Result<Option<Document>, ServiceError> {
+        self.svc_derive_document(space, id)
+    }
+
+    fn as_reader(&self, principal: &str) -> Result<Reader, ServiceError> {
+        self.svc_as_reader(principal)
     }
 }
 

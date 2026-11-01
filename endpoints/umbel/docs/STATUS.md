@@ -41,7 +41,7 @@ should never have to scan the codebase to learn what is current.
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
-| 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); steps 4 to 10 not done | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643) | Step 4 (host services) |
+| 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); steps 5 to 10 not done | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651) | Step 5 (`umbel-scan`, `umbel-okf` and `sources-filesystem`) |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started | None | None | Phase 2 exit criterion met |
@@ -676,13 +676,58 @@ should never have to scan the codebase to learn what is current.
   on the workspace and each `umbel.yml` leg including the knowledge and wasm
   legs, `cargo test --locked --workspace`, the MSRV checks, `pnpm verify` (the
   repository's `check` and every `umbel.yml` leg a pull request runs).
-- **Not done:** steps 4 to 10 of the
+- **Step 4 done (2026-11-01, [651](https://github.com/lushly-dev/afd/pull/651)):** host services, the first
+  step that lets a plugin reach the stores. The ten grants (`content`,
+  `content_write`, `documents`, `documents_write`, `records`, `records_write`,
+  `index`, `index_write`, `graph`, `graph_write`), held by compiled plugins
+  only, scoped to the call's spaces; the five write grants need
+  `[plugins.<id>.grants.<grant>] allow = [...]` (configuration version 3 and
+  `workspace-config.v3.json`), else `PLUGIN_GRANT_DENIED` at load for a required
+  grant, withheld for an optional one, and `STORE_WRITE_NOT_ALLOWED` for a
+  write outside the entries; reader filters built from the effective
+  principal, `onBehalfOf`, groups and a space's `readers`
+  (`SPACE_NOT_READABLE`, before the handler, for every plugin command and for
+  `event-list` and the `store-*` commands); `spaces` checked like `space`;
+  derivation reads (`derive_changes`, `derive_document`) for a `store-write`
+  command with `index_write` or `graph_write`, and `as_reader` for a
+  CLI-only command called by a human; provenance enforcement
+  (`STORE_PROVENANCE_REQUIRED`; the host overwrites `space`, `plugin`,
+  `agent`, `principal`, `traceId` and `observedAt`); the plugin gate's named
+  allow-list (`dev.umbel/index`, `dev.umbel/trust` only `"content"`), the
+  gate-set `dev.umbel/changes` and `replay: "recorded"` on store-backed
+  results, and `event-list` skipping version 1 events by `access`; the SDK's
+  store methods, `Cx::in_space`, `Reader`, `HostError`'s `Conflict`, `Busy`,
+  `Corrupt` and `Io`, `CallContext.spaces` and `output_budget`,
+  `Outcome::with_sources` and `with_warning_details`; the manifest's
+  `output_budget` wired to `with_output_budget`; `store-show`, `store-check`
+  and `store-backup` and the doctor's `stores.version`, `stores.access` and
+  `stores.lag`; `confirm = "require-human"` on the CLI (a terminal answer
+  only; `--yes` and `--approve` refused; refused on every other surface);
+  `workspace-show`'s `access` and the README's paragraph on access before
+  phase 5. The two step 1 follow-ups for step 4 are done. Fifteen amendments
+  in the specification's [Amendments from step
+  4](phases/2-knowledge/spec.md#amendments-from-step-4). New tests:
+  `store_grants.rs`, `access_filter.rs`, `require_human.rs`,
+  `store_commands.rs`, `doctor_stores.rs`, the rest of `manifest_v2.rs`, and
+  allow-list cases in `config_v3.rs`, `schemas.rs` and the loader's unit tests.
+  The host now links SQLite and tantivy through its default feature
+  `store-embedded`, so the `check` and `msrv` jobs build them too (amendment
+  D15); plugin crates that use `default-features = false` do not. Verified
+  2026-11-01 in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt
+  --all --check`, clippy `-D warnings` on the workspace and on each
+  `umbel.yml` leg (no default features, mounted, component, the SDK and hello
+  with `mounted`, the components for `wasm32-wasip2`, the knowledge crates),
+  the wasm check of `umbel-store`, `cargo test --locked --workspace` (717
+  passed), the MSRV checks (`cargo +1.97.0 check --locked --workspace
+  --all-targets` and the knowledge crates), `pnpm verify`. The sync, status and
+  index outputs of the specification's section 5.5 and 8.7 do not exist yet
+  (steps 5 and 6): the "no restricted id or count" tests cover the store
+  reads, `store-show`, the graph, the change log and `event-list` now, and
+  those commands inherit the reader filter and the gate's `readers` check.
+- **Not done:** steps 5 to 10 of the
   [plan](phases/2-knowledge/spec.md#14-implementation-plan); the exit
-  criterion. TypeScript, Python and C++ output budgets are AFD's follow-up and do not block Umbel. Step 4 owes the host's use of the index (`store-show`'s index counts and `store-check`'s `TantivyIndex::check`, `store-backup` holding the writer and copying `live_files`), the ten grants, the allow lists and `deny` and
-  `grants.<g>.allow` in configuration version 3 (both still as in version 2),
-  the gate setting `dev.umbel/changes`, `event-list` filtering by `access`,
-  the store refusal of an invalid envelope, and the CLI behaviour of
-  `confirm = "require-human"` (the manifest key only parses today).
+  criterion. TypeScript, Python and C++ output budgets are AFD's follow-up and
+  do not block Umbel. Store grants for components wait for WIT world 1.1.0.
 - **Owner decisions (2026-11-01):** recorded in the specification's
   [section 15](phases/2-knowledge/spec.md#15-for-the-owner): access v0
   accepted and tightened (derivation reads compiled-only; filtering exact
@@ -742,10 +787,13 @@ starts.
 | 2026-11-01 | Phase 2 specification revision | Measure chunk sizes against S57 (about 250-token chunks with overlap) with the eval harness once its baseline exists | Open, after phase 2 step 9 |
 | 2026-11-01 | Phase 2 specification | A per-collection option to block, not only flag, content the write scan matches | Open, when a deployer asks |
 | 2026-11-01 | Phase 2 specification | Watching collection roots instead of an explicit `knowledge-refresh` | Open, later |
-| 2026-11-01 | Phase 2 step 1 | `umbel.toml` version 3 keeps `plugins.<id>.deny` and `plugins.<id>.grants.<g>.allow` as version 2 had them (the phase 1 grant names; `grants` reserved), and `workspace-config.v3.json` says the same; step 4 adds the ten grants and the allow lists to both the host and the schema | Open, phase 2 step 4 |
-| 2026-11-01 | Phase 2 step 1 | An event whose command supplied no valid `access` carries `["space"]` and `internal`; the store write that refuses an invalid envelope (`STORE_PROVENANCE_REQUIRED`) is step 4's, so until then a plugin that supplies a mistyped restrictive access set widens its event to the space (the store is not written yet) | Open, phase 2 step 4 |
+| 2026-11-01 | Phase 2 step 1 | `umbel.toml` version 3 keeps `plugins.<id>.deny` and `plugins.<id>.grants.<g>.allow` as version 2 had them (the phase 1 grant names; `grants` reserved), and `workspace-config.v3.json` says the same; step 4 adds the ten grants and the allow lists to both the host and the schema | Done in step 4 ([651](https://github.com/lushly-dev/afd/pull/651)) |
+| 2026-11-01 | Phase 2 step 1 | An event whose command supplied no valid `access` carries `["space"]` and `internal`; the store write that refuses an invalid envelope (`STORE_PROVENANCE_REQUIRED`) is step 4's, so until then a plugin that supplies a mistyped restrictive access set widens its event to the space (the store is not written yet) | Done in step 4 ([651](https://github.com/lushly-dev/afd/pull/651)): the store write is refused; an event whose command supplied no valid `access` still carries `["space"]`, by design |
 | 2026-11-01 | Phase 2 step 3 | The `knowledge` job's timeout is 15 minutes, three times the local 205 s widened for the hosted runners, which had not run it; lower it to three times the slower hosted run when that is under 15 minutes ([specification C14](phases/2-knowledge/spec.md#amendments-from-step-3)) | Open, phase 2 owning agent, after the first hosted runs |
 | 2026-11-01 | Phase 2 step 3 | A snippet is 240 characters; section 8.2's 480 for the detailed form needs a length on `IndexQuery` (C11) | Open, step 6 |
+| 2026-11-01 | Phase 2 step 4 | `store-check` cannot exclude a trace that is "open" (started, not finished) because the journal appends only finished entries; its 60-second rule is the only exclusion, so a handler that runs longer than a minute and whose store changes are older than that can be reported once as a missing journal entry (a warning, never a failure) | Open, accepted ([amendment D10](phases/2-knowledge/spec.md#amendments-from-step-4)) |
+| 2026-11-01 | Phase 2 step 4 | `space-list` and `workspace-show` still list every declared space id and title to any caller; only a space's contents are behind `readers` | Open, phase 5 (when filtering becomes a boundary) |
+| 2026-11-01 | Phase 2 step 4 | The `umbel.yml` `check` and `msrv` jobs now build SQLite and tantivy through the host's default feature; measure their time on the first hosted run and raise or split their timeouts if needed | Open, phase 2 owning agent, after the first hosted run |
 
 ## Session log
 
@@ -790,3 +838,4 @@ starts.
 | 2026-11-01 | Phase 2 step 1 | Shapes and configuration ([632](https://github.com/lushly-dev/afd/pull/632)): the nine schemas of the specification's section 2 with examples (`tests/schemas.rs` extended: closed, every example validates and, for the configuration, manifest, envelope and event, opens in the host; each refusal the host makes is also the schema's); configuration version 3 (`tests/config_v3.rs`: collections, roots inside and outside, symbolic links, overlap, readers, groups, the store, versions 1 and 2 read as 3, `init` writes 3) and the doctor's `collections.roots`; manifest version 2 parsing (`tests/manifest_v2.rs`: the effects with and without their grants, `output_budget` compiled-only, `confirm = "require-human"`, version 1 unchanged); `store` a host domain; envelope and event version 1 projected from the gate's stamp, with version 0 lines read and rebuilt as written (`tests/journal_events.rs`). Eight amendments recorded in the specification ([Amendments from step 1](phases/2-knowledge/spec.md#amendments-from-step-1)). No store, index or plugin code. Two follow-ups for step 4 added |
 | 2026-11-01 | Phase 2 step 2 | Store traits and the SQLite stores ([636](https://github.com/lushly-dev/afd/pull/636)): `umbel-store` (types, `DocumentStore`, `SearchIndex`, `GraphStore`, the conformance suite with its 40-document access fixture, the breakable in-memory fake and `suite_detects.rs`), `umbel-store-embedded` (bundled SQLite in WAL mode, multi-process safe, the checkpoint policy, `fullfsync` on macOS), the `knowledge` CI job, the quarantined inventory rows and `architecture.json` entries. Seven amendments in the specification's "Amendments from step 2". Measured bundled SQLite: 39 s and 106 MB for a fresh `cargo build -p rusqlite` |
 | 2026-11-01 | Phase 2 step 3 | The tantivy index ([643](https://github.com/lushly-dev/afd/pull/643)): `TantivyIndex` in `umbel-store-embedded` (schema 1 with LZ4 named, `en_stem`, the query builder over the `tantivy-query-grammar` AST with its limits and bounded prefixes, the reader clause, writer sessions that never lower `applied`, four-decimal scores, snippets, checksum validation), the cached petgraph form of the readable graph, the suite's `index` group and the two index cases that waited, `run_groups`, and the tests above. Fourteen amendments in the specification, C1 correcting the revision (the grammar marks `prefix` only on a quoted phrase). Measured tantivy cold: 135 of 188 CPU-seconds of an 83 s build, 640 MB target; the `knowledge` job 205 s locally, timeout 45 to 15 minutes |
+| 2026-11-01 | Phase 2 step 4 | Host services ([651](https://github.com/lushly-dev/afd/pull/651)): the ten grants with allow lists and `ALLOW_REQUIRED`, reader filters and `SPACE_NOT_READABLE`, `spaces`, derivation reads and `as_reader`, provenance enforcement, the gate's allow-list, `dev.umbel/changes`, `replay: \"recorded\"`, `event-list` by `access`, the SDK's store methods, `HostError`'s new variants, output budgets wired, the `store-embedded` feature, `store-show`, `store-check`, `store-backup`, the doctor's store checks, `confirm = \"require-human\"` on the CLI, `workspace-show`'s `access` and the README paragraph. Fifteen amendments in the specification. Tests: `store_grants.rs`, `access_filter.rs`, `require_human.rs`, `store_commands.rs`, `doctor_stores.rs` and the rest of `manifest_v2.rs` |
