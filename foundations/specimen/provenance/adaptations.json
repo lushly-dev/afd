@@ -237,11 +237,11 @@
       "upstream_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
       "staged_path": "packages/specimen/experiments/consumer-project.mjs",
       "staged_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
-      "current_import_sha256": "1355747be7f9d523bcbb5bd01c8a8a7e55ec5d324d854d554011102971f2dff0",
+      "current_import_sha256": "50fed7f92f06166ac1890f1841fef403a2f102a6fe48974d728d08578201a08a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/fast-af.fixture.mjs",
@@ -441,11 +441,11 @@
       "upstream_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
       "staged_path": "packages/specimen/experiments/run-consumers.mjs",
       "staged_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
-      "current_import_sha256": "aaf06187c0944659935cb3a41b66e9d06e2f086a43bfa944389672d9397ed664",
+      "current_import_sha256": "331e5e754863c8e08c7a4c438c1a55e65af1dfdba0d3f9188a179e2c45e7b4ff",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-heap-profile.mjs",
@@ -1041,7 +1041,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "87b3ae6b134b35adfc3f117e5967db477bf2f33a4bbf4cf10de779fc7aa7c600",
+      "current_import_sha256": "a5da3b51a4bdb877ba6f5475acb0d588c8adee0be2f4c695e2b883e71a030d91",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1161,7 +1161,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "62e28582063b938adc0cdb06f670068c1c091c70a533cb63cd360246773fc3d1",
+      "current_import_sha256": "67cb3fef1e4bccef2145f633ef165336eb610fc29ee463ca0765300edb6496bd",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1173,7 +1173,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "680c79326e3b7305b7fca4645df6e70cabdbbc2da49b8fef19214c30c445cd64",
+      "current_import_sha256": "be910b66b95bff33b48133bade7a60c1a781caf51af289bbdae21a8ebeed98c4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1353,11 +1353,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "57e451a084753aae9af48577e1d435be274ee6d14731c42a528caa1f09e5bfb5",
+      "current_import_sha256": "e29633dd773b494141c4aec60b5ea1cb370f68dc8977e4e884826483a9921150",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/inputs/font-rewrite.mjs",
@@ -1377,11 +1377,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ccfcb6157a249656233dbd1c93cece438bf983616079914420eaeade6631c8fa",
+      "current_import_sha256": "80340f164dd730cfe6ccdee62b6edf2ba15ee6d3854f7db4a9c66d624f94d025",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/resources/comparison.mjs",
@@ -1389,11 +1389,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "78dd62036b54fad00a88b0aa2c0a940e91f90a2b76532569b0a8e86757832f4a",
+      "current_import_sha256": "2043967a028b741d54c3dafa1028b1871dbce58d3d63dbe02a81cbcde0ac9b35",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/resources/comparison.test.mjs",
@@ -1401,11 +1401,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "175272cf2778f04eb732878be46e5e0275c0af02ff689afd8e9afe33df5eaaa0",
+      "current_import_sha256": "b236ddbe31eb7e74b4701927dd14a51f09f053f022ed15b730dabea53a7e5d54",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/resources/session.mjs",
@@ -1425,11 +1425,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "de21364b6b8c555165f78d087641d4afb92e07b3026acfa851e82915fffb31c1",
+      "current_import_sha256": "229b3339f766b93b6fcefd99b50ec3befb15716fa8115a5519be4bc904a8804f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-t04-pairs.mjs",
@@ -1437,7 +1437,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "e620f6bbaaeee4440cbde3f2209d68a044c2a88bc784295028c8c3bb25dfd5d7",
+      "current_import_sha256": "ea7dc22db1ec919eada38f1eafc829169dbe6cdd932e181ac8a13533e30203ad",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1473,7 +1473,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "1491c26af83951d8ca0ce5d5771ca22cea84cd48dd13d5fb9097d6eb3096656e",
+      "current_import_sha256": "42f1fab3de7722f5053afe33acc3a3fea3d6c1f7705d1bef7f4c4340079f7683",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
