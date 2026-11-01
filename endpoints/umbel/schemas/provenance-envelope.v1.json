@@ -1,0 +1,238 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/provenance-envelope.v1.json",
+	"title": "Umbel provenance envelope, version 1",
+	"description": "Where a record came from, carried on every stored record and every event from phase 2 on (D55). Version 1 adds plugin, sources, generated, contentHash, derivedFrom, access and sensitivity to version 0 and changes principal to the effective principal string. Store writes refuse origin unspecified and a missing access or sensitivity (STORE_PROVENANCE_REQUIRED). Reserved, and refused by version 1: redactions, delegationChain, tenant.",
+	"type": "object",
+	"required": [
+		"version",
+		"origin",
+		"space",
+		"plugin",
+		"agent",
+		"principal",
+		"session",
+		"traceId",
+		"observedAt",
+		"validFrom",
+		"validUntil",
+		"confidence",
+		"authority",
+		"sources",
+		"generated",
+		"contentHash",
+		"derivedFrom",
+		"access",
+		"sensitivity"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"origin": {
+			"enum": ["user-stated", "agent-inferred", "document-derived", "unspecified"]
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"plugin": {
+			"description": "The plugin instance whose command produced the record, filled by the host from the call; null for host built-ins.",
+			"type": ["string", "null"],
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"agent": {
+			"description": "The actor when its kind is agent, service or script; otherwise null.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/actor"
+				}
+			]
+		},
+		"principal": {
+			"description": "The call's effective principal string, such as human:local; null for a call with no actor.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/principal"
+				}
+			]
+		},
+		"session": {
+			"type": ["string", "null"]
+		},
+		"traceId": {
+			"type": ["string", "null"]
+		},
+		"observedAt": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601"
+		},
+		"validFrom": {
+			"type": ["string", "null"],
+			"description": "ISO 8601"
+		},
+		"validUntil": {
+			"type": ["string", "null"],
+			"description": "ISO 8601"
+		},
+		"confidence": {
+			"type": ["number", "null"],
+			"minimum": 0,
+			"maximum": 1
+		},
+		"authority": {
+			"description": "Open in version 1; version 2 closes the set.",
+			"type": ["string", "null"]
+		},
+		"sources": {
+			"description": "The OKF sources list as the record states it, at most 64 entries.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"type": "object",
+						"required": ["resource"],
+						"additionalProperties": false,
+						"properties": {
+							"resource": {
+								"type": "string",
+								"minLength": 1
+							},
+							"id": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"author": {
+								"type": "string"
+							},
+							"last_modified": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"generated": {
+			"description": "OKF's { by, at }; at carries a UTC offset.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["by", "at"],
+					"additionalProperties": false,
+					"properties": {
+						"by": {
+							"type": "string",
+							"minLength": 1
+						},
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+						}
+					}
+				}
+			]
+		},
+		"contentHash": {
+			"description": "sha256:<64 hex> of the record's bytes.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			]
+		},
+		"derivedFrom": {
+			"description": "The records this one was derived from, at most 64.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"type": "object",
+						"required": ["kind", "id", "contentHash"],
+						"additionalProperties": false,
+						"properties": {
+							"kind": {
+								"type": "string",
+								"minLength": 1
+							},
+							"id": {
+								"type": "string",
+								"minLength": 1
+							},
+							"contentHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$"
+							}
+						}
+					}
+				}
+			]
+		},
+		"access": {
+			"description": "An access set: never empty.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"description": "space, group:<id> or principal:<kind>:<id>.",
+				"type": "string",
+				"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+			}
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"]
+		}
+	},
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"principal": {
+			"description": "<kind>:<id>: kind is human, agent, service or script; the id is 1 to 128 characters without a control character.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		}
+	}
+}

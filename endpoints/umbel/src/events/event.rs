@@ -1,7 +1,9 @@
-//! The event, version 0 (`schemas/event.v0.json`): a projection of one journal entry.
+//! The event, versions 0 and 1 (`schemas/event.v0.json`, `schemas/event.v1.json`): a projection
+//! of one journal entry. A new event is version 1 when the host that journaled the call stamped
+//! it so; an older entry projects as version 0, as it was first written.
 
 use super::cursor::Cursor;
-use crate::middleware::{MUTATION_KEY, SPACE_KEY};
+use crate::middleware::{EVENT_VERSION_KEY, MUTATION_KEY, SPACE_KEY};
 use crate::provenance::Envelope;
 use crate::workspace::SpaceId;
 use afd::{Actor, JournalEntry};
@@ -48,11 +50,41 @@ impl RecordRef {
     }
 }
 
+/// The `result.metadata` key the plugin gate sets to the store revisions a call wrote (phase 2
+/// specification, section 3.3 rule 6).
+pub(crate) const CHANGES_KEY: &str = "dev.umbel/changes";
+
+/// The store revisions one call wrote (event version 1): the lowest and highest, and how many.
+/// Other processes may write between them, so `to_rev - from_rev + 1` can exceed `count`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Changes {
+    /// The lowest revision the call wrote.
+    pub from_rev: u64,
+    /// The highest.
+    pub to_rev: u64,
+    /// How many revisions the call wrote.
+    pub count: u64,
+}
+
+impl Changes {
+    fn from_value(value: &Value) -> Option<Self> {
+        let object = value.as_object()?;
+        let number = |name: &str| object.get(name)?.as_u64().filter(|n| *n >= 1);
+        let changes = Self {
+            from_rev: number("fromRev")?,
+            to_rev: number("toRev")?,
+            count: number("count")?,
+        };
+        (changes.from_rev <= changes.to_rev).then_some(changes)
+    }
+}
+
 /// One line of a space's event stream.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
-    /// Always [`EVENT_VERSION`].
+    /// 0 for a line written before event version 1, else [`EVENT_VERSION`].
     pub version: u32,
     /// `<space>:<seq>`, unique in the deployment.
     pub id: String,
@@ -76,13 +108,34 @@ pub struct Event {
     pub actor: Option<Actor>,
     /// The record the command named, or `null`.
     pub record: Option<RecordRef>,
+    /// Version 1: the store revisions the call wrote, when it wrote any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes: Option<Changes>,
     /// Where the record came from.
     pub provenance: Envelope,
 }
 
 impl Event {
-    /// The event for journal entry `entry`, number `seq` of `space`.
+    /// The event for journal entry `entry`, number `seq` of `space`: version 1 for an entry the
+    /// host stamped `dev.umbel/event-version = 1`, version 0 for any other.
     pub fn from_entry(entry: &JournalEntry, space: &SpaceId, seq: u64) -> Self {
+        let extra = entry
+            .result
+            .metadata
+            .as_ref()
+            .map(|metadata| &metadata.extra);
+        // The stamp names the version the journaling host wrote; a version this host does not
+        // know is written as the newest it does.
+        let version = extra
+            .and_then(|extra| extra.get(EVENT_VERSION_KEY))
+            .and_then(Value::as_u64)
+            .map_or(0, |stamped| {
+                u32::try_from(stamped.min(u64::from(EVENT_VERSION))).unwrap_or(0)
+            });
+        let changes = (version >= 1)
+            .then(|| extra.and_then(|extra| extra.get(CHANGES_KEY)))
+            .flatten()
+            .and_then(Changes::from_value);
         let record = entry
             .result
             .metadata
@@ -90,7 +143,7 @@ impl Event {
             .and_then(|metadata| metadata.extra.get(RECORD_KEY))
             .and_then(RecordRef::from_value);
         Self {
-            version: EVENT_VERSION,
+            version,
             id: format!("{space}:{seq}"),
             space: space.to_string(),
             seq,
@@ -101,7 +154,8 @@ impl Event {
             trace_id: entry.trace_id.clone(),
             actor: entry.actor.clone(),
             record,
-            provenance: Envelope::from_entry(entry, space.as_str()),
+            changes,
+            provenance: Envelope::from_entry(entry, space.as_str(), version),
         }
     }
 

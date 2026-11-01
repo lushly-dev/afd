@@ -1,0 +1,112 @@
+{
+	"config_version": 3,
+	"name": "my-team",
+	"default_space": "main",
+	"profile": "team",
+	"spaces": {
+		"main": {
+			"title": "Main",
+			"readers": ["*"],
+			"collections": {
+				"handbook": {
+					"root": "spaces/main/handbook",
+					"kind": "markdown",
+					"include": ["**/*.md"],
+					"exclude": ["drafts/**"],
+					"access": ["space"],
+					"sensitivity": "internal",
+					"default_type": "document",
+					"strict": false,
+					"max_file_bytes": 1048576
+				},
+				"code": {
+					"root": "spaces/main/code",
+					"kind": "code",
+					"include": ["**/*.rs", "**/*.py"],
+					"access": ["group:platform"],
+					"sensitivity": "confidential",
+					"default_type": "code"
+				}
+			}
+		},
+		"research": {
+			"title": "Research",
+			"readers": ["group:platform", "human:ada"],
+			"collections": {
+				"notes": {
+					"root": "spaces/research/notes",
+					"access": ["principal:human:ada", "group:platform"]
+				}
+			}
+		}
+	},
+	"access": {
+		"groups": {
+			"platform": {
+				"members": ["human:ada", "agent:ci"]
+			},
+			"everyone": {
+				"members": ["*"]
+			}
+		}
+	},
+	"plugins": {
+		"enabled": ["hello", "tickets"],
+		"hello": {
+			"source": "compiled:hello",
+			"required": true,
+			"spaces": ["main"],
+			"deny": ["events"],
+			"config": {
+				"default_name": "team"
+			},
+			"limits": {
+				"fuel": 2000000000,
+				"timeout_ms": 2000,
+				"memory_bytes": 33554432,
+				"table_elements": 20000
+			}
+		},
+		"tickets": {
+			"source": "plugins/tickets",
+			"required": false,
+			"prefix": "tickets",
+			"url": "https://tickets.example.com/mcp",
+			"bearer_env": "TICKETS_TOKEN",
+			"connect_timeout_ms": 10000,
+			"timeout_ms": 30000,
+			"max_result_bytes": 1048576,
+			"env": {
+				"TICKETS_REGION": "eu"
+			}
+		}
+	},
+	"mcp": {
+		"first_class_tools": ["workspace-show", "event-list"],
+		"tools_list_ttl_ms": 300000,
+		"confirmations": "enforce",
+		"instructions": ""
+	},
+	"http": {
+		"bind": "127.0.0.1:7410",
+		"path": "/mcp",
+		"allowed_hosts": ["umbel.local:7410"],
+		"allowed_origins": ["https://example.test"],
+		"max_body_bytes": 1048576
+	},
+	"journal": {
+		"record_failures": true,
+		"lock_timeout_ms": 10000
+	},
+	"log": {
+		"level": "info",
+		"format": "text"
+	},
+	"principal": {
+		"local_id": "local",
+		"on_behalf_of": "ada"
+	},
+	"store": {
+		"lock_timeout_ms": 5000
+	}
+}

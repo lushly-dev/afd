@@ -129,8 +129,13 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
             {"id": "ghost", "status": "failed"},
         ])
     );
-    assert_eq!(shown["versions"]["config"], 2);
-    assert_eq!(shown["versions"]["manifest"], 1);
+    assert_eq!(shown["versions"]["config"], 3);
+    assert_eq!(shown["versions"]["manifest"], json!([1, 2]));
+    assert_eq!(shown["versions"]["provenance"], 1);
+    assert_eq!(shown["versions"]["event"], 1);
+    for shape in ["store", "document", "locator", "proposal"] {
+        assert_eq!(shown["versions"][shape], 1, "{shape}");
+    }
     assert_eq!(shown["versions"]["protocol"], 1);
     assert_eq!(shown["versions"]["wit"], "umbel:plugin/plugin@1.0.0");
     assert_eq!(shown["versions"]["pack"], 1);

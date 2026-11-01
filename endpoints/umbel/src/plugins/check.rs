@@ -122,9 +122,10 @@ pub(crate) fn run(path: &Path, spawn: bool, compiled: &[Arc<dyn CompiledPlugin>]
     checked.checks.push(Check::pass(
         "manifest",
         format!(
-            "{id} {} ({}): manifest version 1, protocol 1; {} command(s), {} pack(s), {} skill(s)",
+            "{id} {} ({}): manifest version {}, protocol 1; {} command(s), {} pack(s), {} skill(s)",
             manifest.plugin.version,
             manifest.plugin.kind,
+            manifest.manifest_version,
             manifest.commands.len(),
             manifest.packs.len(),
             manifest.skills.len(),

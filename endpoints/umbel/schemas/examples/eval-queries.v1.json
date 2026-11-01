@@ -1,0 +1,14 @@
+{
+	"version": 1,
+	"id": "q-0042",
+	"kind": "multi-hop",
+	"query": "valtrin osmerid",
+	"spaces": ["alpha"],
+	"principal": "human:eval-reader",
+	"filters": {},
+	"qrels": {
+		"alpha:handbook/topics/t-017": 2,
+		"alpha:handbook/bridges/b-017": 1
+	},
+	"unanswerable": false
+}

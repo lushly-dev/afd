@@ -91,6 +91,7 @@ fn a_fresh_workspace_is_healthy_with_five_skipped_checks() {
             "config.parse",
             "config.keys",
             "spaces.valid",
+            "collections.roots",
             "state.writable",
             "state.lock",
             "keys.present",
@@ -187,11 +188,11 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
 
 #[test]
 fn config_parse_fails_for_another_version_and_names_the_supported_one() {
-    let (_dir, root) = with_config("config_version = 3\n");
+    let (_dir, root) = with_config("config_version = 4\n");
     let report = doctor::run(&root);
     let parse = check(&report, "config.parse");
     assert_eq!(parse.status, CheckStatus::Fail);
-    assert!(parse.message.contains("versions 1 and 2"));
+    assert!(parse.message.contains("versions 1, 2 and 3"));
     assert!(parse.suggestion.is_some());
 }
 

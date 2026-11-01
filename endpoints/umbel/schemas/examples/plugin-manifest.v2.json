@@ -1,0 +1,86 @@
+{
+	"manifest_version": 2,
+	"protocol": 1,
+	"plugin": {
+		"id": "knowledge",
+		"title": "Knowledge",
+		"version": "0.1.0",
+		"description": "Search and curate documents: a manifest version 2 example.",
+		"kind": "compiled",
+		"domains": ["knowledge"],
+		"homepage": "https://afd.dev/umbel",
+		"license": "MIT"
+	},
+	"grants": [
+		{
+			"name": "documents",
+			"required": true,
+			"reason": "Reads documents the caller may read."
+		},
+		{
+			"name": "documents_write",
+			"required": true,
+			"reason": "Stores an approved change."
+		},
+		{
+			"name": "content_write",
+			"required": true,
+			"reason": "Writes the approved file into its collection."
+		}
+	],
+	"commands": [
+		{
+			"name": "knowledge-find",
+			"description": "Find documents.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"minLength": 1
+					},
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"output_budget": {
+				"default_bytes": 16000,
+				"max_bytes": 64000
+			},
+			"approval": "none",
+			"execution_time": "fast"
+		},
+		{
+			"name": "knowledge-approve",
+			"description": "Approve a proposal and apply it. Only a person at a terminal may.",
+			"effects": ["store-write", "workspace-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"proposal": {
+						"type": "string",
+						"minLength": 1
+					},
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": ["proposal"],
+				"additionalProperties": false
+			},
+			"confirm_prompt": "Apply this change?",
+			"confirm": "require-human",
+			"approval": "required",
+			"destructive": false,
+			"expose": {
+				"mcp": false,
+				"agent": false,
+				"cli": true
+			}
+		}
+	]
+}

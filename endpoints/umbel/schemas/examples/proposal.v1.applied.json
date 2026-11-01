@@ -1,0 +1,84 @@
+{
+	"version": 1,
+	"id": "p-fedcba9876543210fedc",
+	"idempotencyKey": "new-page",
+	"changeHash": "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+	"space": "main",
+	"area": "handbook",
+	"state": "applied",
+	"change": {
+		"op": "create",
+		"doc": "handbook/deploy/canary",
+		"baseHash": null,
+		"content": "---\ntype: runbook\n---\nCanary first.\n"
+	},
+	"diff": "--- a/deploy/rollback.md\n+++ b/deploy/rollback.md\n@@ -1,3 +1,4 @@\n type: runbook\n",
+	"rationale": "The release tag procedure changed in October.",
+	"evidence": [
+		{
+			"kind": "url",
+			"ref": "https://example.test/canary"
+		}
+	],
+	"provenance": {
+		"version": 1,
+		"origin": "agent-inferred",
+		"space": "main",
+		"plugin": "knowledge",
+		"agent": {
+			"kind": "agent",
+			"id": "ada"
+		},
+		"principal": "human:ada",
+		"session": "run-17",
+		"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+		"observedAt": "2026-11-02T10:15:00.000Z",
+		"validFrom": "2026-11-01T00:00:00.000Z",
+		"validUntil": null,
+		"confidence": 0.7,
+		"authority": "handbook",
+		"sources": [
+			{
+				"resource": "/handbook/deploy/rollback"
+			}
+		],
+		"generated": null,
+		"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+		"derivedFrom": null,
+		"access": ["space"],
+		"sensitivity": "internal"
+	},
+	"policy": {
+		"area": "handbook",
+		"version": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
+		"rule": "person"
+	},
+	"exception": "self-approval",
+	"proposer": {
+		"actor": {
+			"kind": "human",
+			"id": "ada"
+		},
+		"principal": "human:ada"
+	},
+	"confidence": null,
+	"decision": {
+		"by": {
+			"kind": "human",
+			"id": "ada"
+		},
+		"principal": "human:ada",
+		"at": "2026-11-02T11:00:00.000Z",
+		"reason": "Reviewed.",
+		"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+		"proposerKind": "human"
+	},
+	"result": {
+		"rev": 1850,
+		"contentHash": "sha256:3434343434343434343434343434343434343434343434343434343434343434",
+		"path": "deploy/canary.md"
+	},
+	"flags": ["instruction-like"],
+	"createdAt": "2026-11-02T10:15:00.000Z",
+	"updatedAt": "2026-11-02T11:00:00.000Z"
+}

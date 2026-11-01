@@ -1,0 +1,193 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/document.v1.json",
+	"title": "Umbel document record, version 1",
+	"description": "What put_document stores and knowledge-describe reports (phase 2 section 5.4): one file of a collection as stored, with its identity, normalized frontmatter, access set, sensitivity, flags and provenance envelope.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"space",
+		"collection",
+		"path",
+		"rev",
+		"contentHash",
+		"frontmatter",
+		"type",
+		"title",
+		"description",
+		"tags",
+		"aliases",
+		"owners",
+		"status",
+		"staleAfter",
+		"supersededBy",
+		"verification",
+		"access",
+		"sensitivity",
+		"flags",
+		"size",
+		"lines",
+		"envelope"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "<collection>/<path without .md>; at most 512 bytes.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}/.+$",
+			"maxLength": 512
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"collection": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"path": {
+			"description": "Relative to the collection root, with the extension.",
+			"type": "string",
+			"minLength": 1
+		},
+		"rev": {
+			"description": "The revision of this version.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"contentHash": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"bytes": {
+			"description": "The file's bytes, base64. Absent from knowledge-describe output.",
+			"type": "string",
+			"contentEncoding": "base64"
+		},
+		"frontmatter": {
+			"description": "The parsed mapping as JSON, unknown keys kept; {} without frontmatter.",
+			"type": "object"
+		},
+		"type": {
+			"type": "string",
+			"minLength": 1
+		},
+		"title": {
+			"type": "string"
+		},
+		"description": {
+			"type": ["string", "null"]
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"aliases": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"owners": {
+			"description": "OKF actors, such as human:ada.",
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
+		"status": {
+			"enum": ["draft", "stable", "deprecated"]
+		},
+		"staleAfter": {
+			"type": ["string", "null"],
+			"description": "An absolute datetime with a UTC offset."
+		},
+		"supersededBy": {
+			"type": ["string", "null"]
+		},
+		"verification": {
+			"type": "object",
+			"required": ["tier", "last", "count"],
+			"additionalProperties": false,
+			"properties": {
+				"tier": {
+					"enum": ["unverified", "machine", "human", "owner"]
+				},
+				"last": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"required": ["by", "at"],
+							"additionalProperties": false,
+							"properties": {
+								"by": {
+									"type": "string",
+									"minLength": 1
+								},
+								"at": {
+									"type": "string",
+									"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+								}
+							}
+						}
+					]
+				},
+				"count": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"access": {
+			"description": "An access set: never empty.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"description": "space, group:<id> or principal:<kind>:<id>.",
+				"type": "string",
+				"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+			}
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"]
+		},
+		"flags": {
+			"description": "A sorted subset of the six flags.",
+			"type": "array",
+			"uniqueItems": true,
+			"items": {
+				"enum": [
+					"broken-links",
+					"fields-limited",
+					"hidden-text",
+					"instruction-like",
+					"schema-invalid",
+					"type-defaulted"
+				]
+			}
+		},
+		"size": {
+			"description": "Bytes.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"lines": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"envelope": {
+			"$ref": "provenance-envelope.v1.json"
+		}
+	}
+}

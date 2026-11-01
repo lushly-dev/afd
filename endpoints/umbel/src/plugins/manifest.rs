@@ -1,4 +1,5 @@
-//! `umbel-plugin.toml`, manifest version 1 (specification section 2, D37).
+//! `umbel-plugin.toml`, manifest versions 1 and 2 (specification section 2, D37; phase 2
+//! section 3.4, D54).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -17,7 +18,7 @@ use toml::{Table, Value as Toml};
 use super::error::PluginError;
 use super::files::{DirFiles, PluginFiles, lexical_problem};
 use super::{
-    HOST_DOMAINS, MANIFEST_FILE, MANIFEST_VERSION, PLUGIN_PROTOCOL_VERSION, domain_problem,
+    HOST_DOMAINS, MANIFEST_FILE, MANIFEST_VERSIONS, PLUGIN_PROTOCOL_VERSION, domain_problem,
     is_kebab_id, is_plugin_id, is_semver,
 };
 
@@ -93,6 +94,27 @@ const COMMAND_KEYS: &[&str] = &[
     "examples",
 ];
 const COMMAND_RESERVED: &[(&str, &str)] = &[("scopes", "per-command scopes, phase 5")];
+/// The command keys manifest version 2 adds; version 1 names and refuses them.
+const COMMAND_KEYS_V2: &[(&str, &str)] = &[
+    (
+        "output_budget",
+        "a per-command output budget needs manifest_version = 2",
+    ),
+    (
+        "confirm",
+        "a human-only confirmation needs manifest_version = 2",
+    ),
+];
+const OUTPUT_BUDGET_KEYS: &[&str] = &["default_bytes", "max_bytes"];
+/// The grants that make a `store-write` command meaningful (phase 2 specification, section 3.4).
+const STORE_WRITE_GRANTS: &[&str] = &[
+    "documents_write",
+    "records_write",
+    "index_write",
+    "graph_write",
+];
+/// The grant that makes a `workspace-write` command meaningful.
+const WORKSPACE_WRITE_GRANT: &str = "content_write";
 const EXPOSE_KEYS: &[&str] = &["mcp", "agent", "cli", "palette"];
 const CONTEXT_KEYS: &[&str] = &["name", "description", "triggers", "priority"];
 const PIPELINE_KEYS: &[&str] = &["name", "description", "effects", "input_schema", "steps"];
@@ -181,6 +203,10 @@ pub enum Effect {
     PluginState,
     /// Acts on a system outside the host.
     External,
+    /// Writes through a store write grant (manifest version 2).
+    StoreWrite,
+    /// Writes files outside `state/` through `content_write` (manifest version 2).
+    WorkspaceWrite,
 }
 
 impl Effect {
@@ -189,6 +215,8 @@ impl Effect {
         match self {
             Self::Inspect => "inspect",
             Self::PluginState => "plugin-state",
+            Self::StoreWrite => "store-write",
+            Self::WorkspaceWrite => "workspace-write",
             Self::External => "external",
         }
     }
@@ -327,12 +355,27 @@ pub struct CommandDecl {
     pub destructive: bool,
     /// Whether an approval is required.
     pub approval_required: bool,
+    /// `confirm = "require-human"` (manifest version 2): only a person at a terminal confirms.
+    pub require_human: bool,
+    /// `output_budget` (manifest version 2).
+    pub output_budget: Option<OutputBudget>,
     /// `instant`, `fast`, `slow` or `long-running`.
     pub execution_time: Option<String>,
     /// The plugin's default exposure.
     pub expose: Expose,
     /// `(title, input)` examples.
     pub examples: Vec<(String, Value)>,
+}
+
+/// `output_budget = { default_bytes, max_bytes }` of a command (manifest version 2, section 8.6):
+/// the size its result is fitted to by default, and the most a caller may ask for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OutputBudget {
+    /// Used when the caller asks for nothing.
+    pub default_bytes: u64,
+    /// The most a caller may ask for; at least `default_bytes`.
+    pub max_bytes: u64,
 }
 
 impl CommandDecl {
@@ -480,6 +523,8 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
+    /// The `manifest_version` the file declared: 1 or 2.
+    pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
     /// `[component]`.
@@ -556,18 +601,21 @@ impl Manifest {
                 ),
             )
         })?;
-        let root = Tbl::root(&table, file);
-        root.version("manifest_version", MANIFEST_VERSION)?;
-        root.version("protocol", PLUGIN_PROTOCOL_VERSION)?;
+        let manifest_version =
+            Tbl::root(&table, file, 1).version("manifest_version", MANIFEST_VERSIONS)?;
+        let root = Tbl::root(&table, file, manifest_version);
+        root.version("protocol", &[PLUGIN_PROTOCOL_VERSION])?;
         root.check_keys(TOP_KEYS, TOP_RESERVED)?;
 
         let plugin = plugin_info(&root)?;
+        let grants = grants(&root, plugin.kind)?;
         let manifest = Self {
             file: file.to_owned(),
+            manifest_version,
             component: component(&root, plugin.kind)?,
             mount: mount(&root, &plugin)?,
-            grants: grants(&root, plugin.kind)?,
-            commands: commands(&root, &plugin)?,
+            commands: commands(&root, &plugin, &grants)?,
+            grants,
             contexts: contexts(&root, &plugin)?,
             pipelines: pipelines(&root, &plugin)?,
             packs: packs(&root)?,
@@ -738,14 +786,17 @@ struct Tbl<'a> {
     table: &'a Table,
     path: String,
     file: &'a str,
+    /// The manifest version the file declared.
+    manifest_version: u32,
 }
 
 impl<'a> Tbl<'a> {
-    fn root(table: &'a Table, file: &'a str) -> Self {
+    fn root(table: &'a Table, file: &'a str, manifest_version: u32) -> Self {
         Self {
             table,
             path: String::new(),
             file,
+            manifest_version,
         }
     }
 
@@ -767,7 +818,10 @@ impl<'a> Tbl<'a> {
             if let Some((_, why)) = reserved.iter().find(|(name, _)| name == key) {
                 return Err(self.bad(
                     key,
-                    format!("is reserved ({why}); manifest version 1 does not define it"),
+                    format!(
+                        "is reserved ({why}); manifest version {} does not define it",
+                        self.manifest_version
+                    ),
                 ));
             }
             if !known.contains(&key.as_str()) {
@@ -777,15 +831,40 @@ impl<'a> Tbl<'a> {
         Ok(())
     }
 
-    /// `manifest_version` and `protocol`: required, and exactly `served`.
-    fn version(&self, key: &str, served: u32) -> Result<(), PluginError> {
+    /// `manifest_version` and `protocol`: required, and one of the `served` versions.
+    fn version(&self, key: &str, served: &[u32]) -> Result<u32, PluginError> {
+        let newest = served.iter().copied().max().unwrap_or(1);
         match self.table.get(key) {
-            None => Err(self.bad(key, format!("is required; set {key} = {served}"))),
-            Some(Toml::Integer(value)) if *value == i64::from(served) => Ok(()),
-            Some(Toml::Integer(value)) => {
-                Err(PluginError::protocol_unsupported(self.file, key, value))
+            None => Err(self.bad(key, format!("is required; set {key} = {newest}"))),
+            Some(Toml::Integer(value)) => u32::try_from(*value)
+                .ok()
+                .filter(|value| served.contains(value))
+                .ok_or_else(|| PluginError::protocol_unsupported(self.file, key, value)),
+            Some(_) => Err(self.bad(
+                key,
+                format!(
+                    "must be the integer {}",
+                    served
+                        .iter()
+                        .map(u32::to_string)
+                        .collect::<Vec<_>>()
+                        .join(" or ")
+                ),
+            )),
+        }
+    }
+
+    /// An integer of `min..=max`.
+    fn integer(&self, key: &str, min: i64, max: i64) -> Result<Option<u64>, PluginError> {
+        match self.value(key) {
+            None => Ok(None),
+            Some(Toml::Integer(value)) if (min..=max).contains(value) => {
+                Ok(Some(u64::try_from(*value).unwrap_or_default()))
             }
-            Some(_) => Err(self.bad(key, format!("must be the integer {served}"))),
+            Some(Toml::Integer(_)) => {
+                Err(self.bad(key, format!("must be an integer between {min} and {max}")))
+            }
+            Some(_) => Err(self.bad(key, "must be an integer")),
         }
     }
 
@@ -868,6 +947,7 @@ impl<'a> Tbl<'a> {
                 table,
                 path: self.key(key),
                 file: self.file,
+                manifest_version: self.manifest_version,
             })),
             Some(_) => Err(self.bad(key, "must be a table")),
         }
@@ -884,6 +964,7 @@ impl<'a> Tbl<'a> {
                         table,
                         path: format!("{}[{index}]", self.key(key)),
                         file: self.file,
+                        manifest_version: self.manifest_version,
                     }),
                     _ => Err(self.bad(key, "must be an array of tables")),
                 })
@@ -926,7 +1007,9 @@ impl<'a> Tbl<'a> {
         }
     }
 
-    fn effects(&self, key: &str) -> Result<Option<Vec<Effect>>, PluginError> {
+    /// The effects at `key`. `store` says whether `store-write` and `workspace-write` could ever
+    /// apply here: a mounted tool holds no grants, so it can name neither.
+    fn effects(&self, key: &str, store: bool) -> Result<Option<Vec<Effect>>, PluginError> {
         let Some(names) = self.string_array(key)? else {
             return Ok(None);
         };
@@ -939,23 +1022,29 @@ impl<'a> Tbl<'a> {
                 "inspect" => Effect::Inspect,
                 "plugin-state" => Effect::PluginState,
                 "external" => Effect::External,
-                "store-write" => {
+                "store-write" | "workspace-write" if self.manifest_version < 2 => {
+                    return Err(self.bad(key, format!("`{name}` needs manifest_version = 2")));
+                }
+                "store-write" | "workspace-write" if !store => {
                     return Err(self.bad(
                         key,
-                        "`store-write` is reserved for phase 2, which adds the store grants",
+                        format!(
+                            "`{name}` is not available to a mounted tool: it holds no store or content grant"
+                        ),
                     ));
                 }
-                "workspace-write" => {
-                    return Err(self.bad(
-                        key,
-                        "`workspace-write` is reserved for the host's own commands",
-                    ));
-                }
+                "store-write" => Effect::StoreWrite,
+                "workspace-write" => Effect::WorkspaceWrite,
                 other => {
                     return Err(self.bad(
                         key,
                         format!(
-                            "`{other}` is not an effect; use inspect, plugin-state or external"
+                            "`{other}` is not an effect; use inspect, plugin-state, external{}",
+                            if self.manifest_version >= 2 && store {
+                                ", store-write or workspace-write"
+                            } else {
+                                ""
+                            }
                         ),
                     ));
                 }
@@ -1130,7 +1219,11 @@ fn command_name(table: &Tbl<'_>, plugin: &PluginInfo) -> Result<String, PluginEr
     Ok(name)
 }
 
-fn commands(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<CommandDecl>, PluginError> {
+fn commands(
+    root: &Tbl<'_>,
+    plugin: &PluginInfo,
+    grants: &[GrantDecl],
+) -> Result<Vec<CommandDecl>, PluginError> {
     let tables = root.tables("commands")?;
     if !tables.is_empty() && !matches!(plugin.kind, PluginKind::Compiled | PluginKind::Component) {
         return Err(root.bad(
@@ -1146,11 +1239,32 @@ fn commands(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<CommandDecl>, Plu
             ),
         ));
     }
-    tables.iter().map(|table| command(table, plugin)).collect()
+    tables
+        .iter()
+        .map(|table| command(table, plugin, grants))
+        .collect()
 }
 
-fn command(table: &Tbl<'_>, plugin: &PluginInfo) -> Result<CommandDecl, PluginError> {
-    table.check_keys(COMMAND_KEYS, COMMAND_RESERVED)?;
+fn command(
+    table: &Tbl<'_>,
+    plugin: &PluginInfo,
+    grants: &[GrantDecl],
+) -> Result<CommandDecl, PluginError> {
+    if table.manifest_version >= 2 {
+        let known: Vec<&str> = COMMAND_KEYS
+            .iter()
+            .chain(COMMAND_KEYS_V2.iter().map(|(name, _)| name))
+            .copied()
+            .collect();
+        table.check_keys(&known, COMMAND_RESERVED)?;
+    } else {
+        let reserved: Vec<(&str, &str)> = COMMAND_RESERVED
+            .iter()
+            .chain(COMMAND_KEYS_V2.iter())
+            .copied()
+            .collect();
+        table.check_keys(COMMAND_KEYS, &reserved)?;
+    }
     let input_schema = table
         .schema("input_schema")?
         .ok_or_else(|| table.bad("input_schema", "is required"))?;
@@ -1158,8 +1272,9 @@ fn command(table: &Tbl<'_>, plugin: &PluginInfo) -> Result<CommandDecl, PluginEr
         check_input_schema(schema).map_err(|problem| table.bad("input_schema", problem))?;
     }
     let effects = table
-        .effects("effects")?
+        .effects("effects", true)?
         .ok_or_else(|| table.bad("effects", "is required"))?;
+    check_effect_grants(table, &effects, grants)?;
     let approval = match table.string("approval")?.as_deref() {
         None | Some("none") => false,
         Some("required") => true,
@@ -1189,6 +1304,9 @@ fn command(table: &Tbl<'_>, plugin: &PluginInfo) -> Result<CommandDecl, PluginEr
             ));
         }
     }
+    let expose = expose(table)?;
+    let confirm_prompt = table.optional_text("confirm_prompt", 500)?;
+    let require_human = require_human(table, confirm_prompt.as_deref(), &expose)?;
     Ok(CommandDecl {
         name: command_name(table, plugin)?,
         description: table.text("description", 1, 500)?,
@@ -1200,13 +1318,102 @@ fn command(table: &Tbl<'_>, plugin: &PluginInfo) -> Result<CommandDecl, PluginEr
         version,
         contexts,
         first_class: table.boolean("first_class")?.unwrap_or(false),
-        confirm_prompt: table.optional_text("confirm_prompt", 500)?,
+        confirm_prompt,
         destructive: table.boolean("destructive")?.unwrap_or(false),
         approval_required: approval,
+        require_human,
+        output_budget: output_budget(table, plugin.kind)?,
         execution_time,
-        expose: expose(table)?,
+        expose,
         examples: examples(table)?,
     })
+}
+
+/// `store-write` needs one of the store write grants declared, `workspace-write` needs
+/// `content_write` (phase 2 specification, section 3.4). Declared, not necessarily granted: the
+/// deployer's allow-list and the host's catalog are checked when the plugin loads.
+fn check_effect_grants(
+    table: &Tbl<'_>,
+    effects: &[Effect],
+    grants: &[GrantDecl],
+) -> Result<(), PluginError> {
+    let declared = |name: &str| grants.iter().any(|grant| grant.name == name);
+    if effects.contains(&Effect::StoreWrite)
+        && !STORE_WRITE_GRANTS.iter().any(|name| declared(name))
+    {
+        return Err(table.bad(
+            "effects",
+            format!(
+                "names `store-write`, which needs one of the grants {} declared in [[grants]]",
+                STORE_WRITE_GRANTS.join(", ")
+            ),
+        ));
+    }
+    if effects.contains(&Effect::WorkspaceWrite) && !declared(WORKSPACE_WRITE_GRANT) {
+        return Err(table.bad(
+            "effects",
+            format!(
+                "names `workspace-write`, which needs the grant {WORKSPACE_WRITE_GRANT} declared in [[grants]]"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// `output_budget = { default_bytes, max_bytes }` (manifest version 2). A component plugin's
+/// call context cannot carry a budget in protocol 1, so only a compiled plugin may declare one.
+fn output_budget(table: &Tbl<'_>, kind: PluginKind) -> Result<Option<OutputBudget>, PluginError> {
+    let Some(budget) = table.table("output_budget")? else {
+        return Ok(None);
+    };
+    if kind == PluginKind::Component {
+        return Err(table.bad(
+            "output_budget",
+            "is not available to a component plugin: the umbel:plugin@1.0.0 world's call context cannot carry a budget; it arrives with world umbel:plugin/plugin@1.1.0",
+        ));
+    }
+    budget.check_keys(OUTPUT_BUDGET_KEYS, &[])?;
+    let positive = |key: &str| -> Result<u64, PluginError> {
+        budget
+            .integer(key, 1, i64::MAX)?
+            .ok_or_else(|| budget.bad(key, "is required"))
+    };
+    let default_bytes = positive("default_bytes")?;
+    let max_bytes = positive("max_bytes")?;
+    if default_bytes > max_bytes {
+        return Err(budget.bad("default_bytes", "must not exceed max_bytes"));
+    }
+    Ok(Some(OutputBudget {
+        default_bytes,
+        max_bytes,
+    }))
+}
+
+/// `confirm = "require-human"` (manifest version 2): the only value. It needs `confirm_prompt`
+/// and an exposure to the CLI alone, because every other surface refuses the command.
+fn require_human(
+    table: &Tbl<'_>,
+    confirm_prompt: Option<&str>,
+    expose: &Expose,
+) -> Result<bool, PluginError> {
+    match table.string("confirm")?.as_deref() {
+        None => return Ok(false),
+        Some("require-human") => {}
+        Some(_) => return Err(table.bad("confirm", "must be \"require-human\"")),
+    }
+    if confirm_prompt.is_none() {
+        return Err(table.bad(
+            "confirm",
+            "needs confirm_prompt: the person at the terminal answers it",
+        ));
+    }
+    if expose.mcp || expose.agent || !expose.cli {
+        return Err(table.bad(
+            "confirm",
+            "needs expose = { mcp = false, agent = false, cli = true }: every surface but the CLI refuses a require-human command",
+        ));
+    }
+    Ok(true)
 }
 
 fn expose(table: &Tbl<'_>) -> Result<Expose, PluginError> {
@@ -1339,7 +1546,7 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
                 name: command_name(table, plugin)?,
                 description: table.text("description", 1, 500)?,
                 effects: table
-                    .effects("effects")?
+                    .effects("effects", true)?
                     .ok_or_else(|| table.bad("effects", "is required"))?,
                 input_schema,
                 steps: parsed,
@@ -1522,7 +1729,7 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
         tools.push(MountTool {
             tool,
             name,
-            effects: entry.effects("effects")?,
+            effects: entry.effects("effects", false)?,
             bind_space: entry.boolean("bind_space")?.unwrap_or(false),
             confirm_prompt: entry.optional_text("confirm_prompt", 500)?,
             approval_required: approval,
@@ -1603,12 +1810,12 @@ domains = ["hello"]
     #[test]
     fn effects_follow_the_catalog() {
         let table: Table = "e = [\"inspect\", \"external\"]".parse().unwrap();
-        let tbl = Tbl::root(&table, "f");
-        assert!(tbl.effects("e").is_err());
+        let tbl = Tbl::root(&table, "f", 1);
+        assert!(tbl.effects("e", true).is_err());
         let table: Table = "e = [\"external\", \"plugin-state\"]".parse().unwrap();
-        let tbl = Tbl::root(&table, "f");
+        let tbl = Tbl::root(&table, "f", 1);
         assert_eq!(
-            tbl.effects("e").unwrap().unwrap(),
+            tbl.effects("e", true).unwrap().unwrap(),
             [Effect::External, Effect::PluginState]
         );
     }

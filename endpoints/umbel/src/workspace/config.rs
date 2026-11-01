@@ -1,5 +1,6 @@
-//! `umbel.toml`, versions 1 and 2: defaults, key scan and validation (phase 0 specification
-//! section 2; phase 1 section 9.1 adds the plugin instances of version 2).
+//! `umbel.toml`, versions 1, 2 and 3: defaults, key scan and validation (phase 0 specification
+//! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
+//! adds the collections, readers, access groups and store of version 3).
 
 use std::net::SocketAddr;
 use std::path::Path;
@@ -7,13 +8,14 @@ use std::path::Path;
 use toml::{Table, Value};
 
 use super::PluginsConfig;
+use super::access::{AccessToken, ReaderEntry, check_member, is_group_id};
 use super::error::WorkspaceError;
 use super::plugins_config::{INSTANCE_KEYS, INSTANCE_RESERVED, LIMITS_KEYS};
 use super::space::SpaceId;
 
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
-/// is version 2 with no plugins.
-pub const CONFIG_VERSION: u32 = 2;
+/// is version 2 with no plugins, and version 2, which is version 3 with no collections.
+pub const CONFIG_VERSION: u32 = 3;
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -29,8 +31,37 @@ const TOP_KEYS: &[&str] = &[
     "log",
     "principal",
 ];
+/// Top-level tables that exist only from version 3.
+const TOP_KEYS_V3: &[&str] = &["access", "store"];
 const SPACE_KEYS: &[&str] = &["title"];
+const SPACE_KEYS_V3: &[&str] = &["title", "readers", "collections"];
 const SPACE_RESERVED: &[&str] = &["content_roots", "backend"];
+const SPACE_RESERVED_V3: &[&str] = &["backend"];
+const COLLECTION_KEYS: &[&str] = &[
+    "root",
+    "kind",
+    "include",
+    "exclude",
+    "access",
+    "sensitivity",
+    "default_type",
+    "strict",
+    "max_file_bytes",
+];
+const ACCESS_KEYS: &[&str] = &["groups"];
+const GROUP_KEYS: &[&str] = &["members"];
+const STORE_KEYS: &[&str] = &["lock_timeout_ms"];
+
+/// A collection's default `max_file_bytes` (1 MiB) and its cap (16 MiB).
+pub const DEFAULT_MAX_FILE_BYTES: u64 = 1_048_576;
+const MAX_FILE_BYTES_CAP: u64 = 16_777_216;
+/// The default `store.lock_timeout_ms`.
+pub const DEFAULT_STORE_LOCK_TIMEOUT_MS: u64 = 5_000;
+const MARKDOWN_INCLUDE: &[&str] = &["**/*.md"];
+const CODE_INCLUDE: &[&str] = &[
+    "**/*.rs", "**/*.py", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mjs",
+];
+const SENSITIVITIES: &[&str] = &["public", "internal", "confidential", "restricted"];
 const PLUGINS_KEYS: &[&str] = &["enabled"];
 const MCP_KEYS: &[&str] = &[
     "first_class_tools",
@@ -71,6 +102,52 @@ pub enum LogFormat {
     Json,
 }
 
+/// What a collection holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionKind {
+    /// Markdown documents with frontmatter (the default).
+    Markdown,
+    /// Source files.
+    Code,
+}
+
+impl CollectionKind {
+    /// The configuration spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Markdown => "markdown",
+            Self::Code => "code",
+        }
+    }
+}
+
+/// One collection of a space (`[spaces.<id>.collections.<cid>]`, D52): a content root and the
+/// defaults of the documents under it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CollectionConfig {
+    /// The collection id.
+    pub id: String,
+    /// The root as written: relative to the workspace, resolving inside it.
+    pub root: String,
+    /// Markdown or code.
+    pub kind: CollectionKind,
+    /// Globset patterns of the files to read; the kind's default when the file gives none.
+    pub include: Vec<String>,
+    /// Globset patterns of the files to skip.
+    pub exclude: Vec<String>,
+    /// The default access set of the collection's documents (tokens, section 6).
+    pub access: Vec<String>,
+    /// The default sensitivity of its documents.
+    pub sensitivity: String,
+    /// The type of a file without frontmatter or without `type`.
+    pub default_type: String,
+    /// Whether a file whose frontmatter fails the schema is skipped.
+    pub strict: bool,
+    /// The largest file read, in bytes.
+    pub max_file_bytes: u64,
+}
+
 /// One declared space.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -79,6 +156,36 @@ pub struct SpaceConfig {
     pub id: SpaceId,
     /// The title; the id when the file gives none.
     pub title: String,
+    /// Who may read the space: `*`, a principal string or `group:<id>`. `["*"]` by default.
+    pub readers: Vec<String>,
+    /// The space's collections, in configuration order; none in versions 1 and 2.
+    pub collections: Vec<CollectionConfig>,
+}
+
+/// `[access.groups.<id>]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AccessGroup {
+    /// The group id.
+    pub id: String,
+    /// Principal strings, or `*`.
+    pub members: Vec<String>,
+}
+
+/// `[access]`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AccessConfig {
+    /// The groups, in configuration order.
+    pub groups: Vec<AccessGroup>,
+}
+
+/// `[store]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StoreConfig {
+    /// SQLite's busy timeout and the wait for tantivy's writer.
+    pub lock_timeout_ms: u64,
 }
 
 /// `[mcp]`.
@@ -154,7 +261,8 @@ pub struct PrincipalConfig {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Config {
-    /// The `config_version` the file declared: 1, or 2 with plugin instances.
+    /// The `config_version` the file declared: 1, 2 with plugin instances, or 3 with
+    /// collections, access groups and a store.
     pub version: u32,
     /// The workspace name.
     pub name: String,
@@ -176,6 +284,10 @@ pub struct Config {
     pub log: LogConfig,
     /// `[principal]`.
     pub principal: PrincipalConfig,
+    /// `[access]`.
+    pub access: AccessConfig,
+    /// `[store]`.
+    pub store: StoreConfig,
 }
 
 /// Values that override the file: flags first, then environment variables.
@@ -228,7 +340,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 and 2.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1, 2 and 3.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -244,21 +356,21 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 2",
+                "is required; set config_version = 3",
             )),
-            Some(Value::Integer(version @ (1 | 2))) => {
+            Some(Value::Integer(version @ (1..=3))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1 or 2",
+                "must be the integer 1, 2 or 3",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1 or 2.
+    /// The `config_version` of the file: 1, 2 or 3.
     pub fn version(&self) -> u32 {
         self.version
     }
@@ -266,8 +378,14 @@ impl ConfigFile {
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
         let mut scan = KeyScan::default();
-        scan_table(&self.table, "", TOP_KEYS, &[], &mut scan);
-        let sections: [(&str, &[&str], &[&str]); 6] = [
+        let v3 = self.version == 3;
+        let top: Vec<&str> = TOP_KEYS
+            .iter()
+            .chain(TOP_KEYS_V3.iter().filter(|_| v3))
+            .copied()
+            .collect();
+        scan_table(&self.table, "", &top, &[], &mut scan);
+        let mut sections: Vec<(&str, &[&str], &[&str])> = vec![
             ("mcp", MCP_KEYS, &[]),
             ("http", HTTP_KEYS, &[]),
             ("journal", JOURNAL_KEYS, &[]),
@@ -275,24 +393,57 @@ impl ConfigFile {
             ("log", LOG_KEYS, &[]),
             ("principal", PRINCIPAL_KEYS, &[]),
         ];
+        if v3 {
+            sections.push(("access", ACCESS_KEYS, &[]));
+            sections.push(("store", STORE_KEYS, &[]));
+        }
         for (name, known, reserved) in sections {
             if let Some(Value::Table(table)) = self.table.get(name) {
                 scan_table(table, name, known, reserved, &mut scan);
+            }
+        }
+        if v3
+            && let Some(Value::Table(access)) = self.table.get("access")
+            && let Some(Value::Table(groups)) = access.get("groups")
+        {
+            for (id, value) in groups {
+                if let Value::Table(table) = value {
+                    scan_table(
+                        table,
+                        &format!("access.groups.{id}"),
+                        GROUP_KEYS,
+                        &[],
+                        &mut scan,
+                    );
+                }
             }
         }
         if let Some(Value::Table(plugins)) = self.table.get("plugins") {
             self.scan_plugins(plugins, &mut scan);
         }
         if let Some(Value::Table(spaces)) = self.table.get("spaces") {
+            let (known, reserved) = if v3 {
+                (SPACE_KEYS_V3, SPACE_RESERVED_V3)
+            } else {
+                (SPACE_KEYS, SPACE_RESERVED)
+            };
             for (id, value) in spaces {
                 if let Value::Table(table) = value {
-                    scan_table(
-                        table,
-                        &format!("spaces.{id}"),
-                        SPACE_KEYS,
-                        SPACE_RESERVED,
-                        &mut scan,
-                    );
+                    let prefix = format!("spaces.{id}");
+                    scan_table(table, &prefix, known, reserved, &mut scan);
+                    if v3 && let Some(Value::Table(collections)) = table.get("collections") {
+                        for (cid, collection) in collections {
+                            if let Value::Table(collection) = collection {
+                                scan_table(
+                                    collection,
+                                    &format!("{prefix}.collections.{cid}"),
+                                    COLLECTION_KEYS,
+                                    &[],
+                                    &mut scan,
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -327,13 +478,22 @@ impl ConfigFile {
     /// `WORKSPACE_CONFIG_INVALID` naming the first key that breaks a rule.
     pub fn into_config(self, root: &Path) -> Result<Config, WorkspaceError> {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
-            return Err(WorkspaceError::config_invalid(&key, "is not a known key"));
+            return Err(WorkspaceError::config_invalid(
+                &key,
+                if self.version == 3 && key.ends_with(".content_roots") {
+                    "was replaced by collections in configuration version 3; declare [spaces.<id>.collections.<cid>] with a root"
+                } else {
+                    "is not a known key"
+                },
+            ));
         }
         let general = self.general(root)?;
         let (spaces, default_space) = self.spaces()?;
         let plugins = self.plugins()?;
         let rest = self.rest()?;
         let http = self.http()?;
+        check_declared_groups(&spaces, &rest.access)?;
+        check_collection_roots(&spaces, root)?;
         Ok(Config {
             version: self.version,
             name: general.0,
@@ -346,14 +506,37 @@ impl ConfigFile {
             journal: rest.journal,
             log: rest.log,
             principal: rest.principal,
+            access: rest.access,
+            store: rest.store,
         })
     }
 
     /// Every rule outside `[spaces]`, `[http]` and `[plugins]`, which the doctor checks apart.
+    /// The groups that readers and access sets name are checked against `[access.groups]` when
+    /// the spaces themselves are valid.
     pub(crate) fn validate_rest(&self, root: &Path) -> Result<(), WorkspaceError> {
         self.general(root)?;
-        self.rest()?;
+        let rest = self.rest()?;
+        if let Ok((spaces, _)) = self.spaces() {
+            check_declared_groups(&spaces, &rest.access)?;
+        }
         Ok(())
+    }
+
+    /// The collections of every space, in configuration order.
+    pub(crate) fn collections(&self) -> Result<Vec<(SpaceId, CollectionConfig)>, WorkspaceError> {
+        Ok(self
+            .spaces()?
+            .0
+            .into_iter()
+            .flat_map(|space| {
+                let id = space.id;
+                space
+                    .collections
+                    .into_iter()
+                    .map(move |collection| (id.clone(), collection))
+            })
+            .collect())
     }
 
     pub(crate) fn spaces(&self) -> Result<(Vec<SpaceConfig>, SpaceId), WorkspaceError> {
@@ -368,12 +551,15 @@ impl ConfigFile {
                     let Value::Table(entry) = value else {
                         return Err(WorkspaceError::config_invalid(&key, "must be a table"));
                     };
-                    let title = Reader::new(Some(entry), &key)
-                        .string("title")?
-                        .unwrap_or_else(|| id.clone());
+                    let reader = Reader::new(Some(entry), &key);
+                    let title = reader.string("title")?.unwrap_or_else(|| id.clone());
+                    let readers = space_readers(&reader, &key)?;
+                    let collections = self.space_collections(entry, &key)?;
                     spaces.push(SpaceConfig {
                         id: space_id,
                         title,
+                        readers,
+                        collections,
                     });
                 }
             }
@@ -384,6 +570,8 @@ impl ConfigFile {
                 id: SpaceId::parse(SpaceId::MAIN)
                     .map_err(|p| WorkspaceError::config_invalid("spaces", p))?,
                 title: SpaceId::MAIN.to_owned(),
+                readers: vec!["*".to_owned()],
+                collections: Vec::new(),
             });
         }
         let default_space = match Reader::new(Some(&self.table), "").string("default_space")? {
@@ -551,6 +739,12 @@ impl ConfigFile {
                 "must not be empty",
             ));
         }
+        let store = Reader::new(self.section("store")?, "store");
+        let store = StoreConfig {
+            lock_timeout_ms: store
+                .integer("lock_timeout_ms", 100, 600_000)?
+                .unwrap_or(DEFAULT_STORE_LOCK_TIMEOUT_MS),
+        };
         Ok(Rest {
             mcp,
             journal,
@@ -559,7 +753,101 @@ impl ConfigFile {
                 local_id,
                 on_behalf_of,
             },
+            access: self.access()?,
+            store,
         })
+    }
+
+    /// `[access.groups]`.
+    fn access(&self) -> Result<AccessConfig, WorkspaceError> {
+        let Some(access) = self.section("access")? else {
+            return Ok(AccessConfig::default());
+        };
+        let groups = match access.get("groups") {
+            None => return Ok(AccessConfig::default()),
+            Some(Value::Table(groups)) => groups,
+            Some(_) => {
+                return Err(WorkspaceError::config_invalid(
+                    "access.groups",
+                    "must be a table",
+                ));
+            }
+        };
+        let mut parsed = Vec::new();
+        for (id, value) in groups {
+            let key = format!("access.groups.{id}");
+            if !is_group_id(id) {
+                return Err(WorkspaceError::config_invalid(
+                    &key,
+                    "must have an id matching ^[a-z][a-z0-9-]{0,62}$",
+                ));
+            }
+            let Value::Table(table) = value else {
+                return Err(WorkspaceError::config_invalid(&key, "must be a table"));
+            };
+            let members = Reader::new(Some(table), &key)
+                .string_array("members")?
+                .ok_or_else(|| {
+                    WorkspaceError::config_invalid(&format!("{key}.members"), "is required")
+                })?;
+            for member in &members {
+                check_member(member).map_err(|problem| {
+                    WorkspaceError::config_invalid(&format!("{key}.members"), problem)
+                })?;
+            }
+            parsed.push(AccessGroup {
+                id: id.clone(),
+                members,
+            });
+        }
+        Ok(AccessConfig { groups: parsed })
+    }
+
+    /// `[spaces.<id>.collections.<cid>]` of the space table `entry`.
+    fn space_collections(
+        &self,
+        entry: &Table,
+        space_key: &str,
+    ) -> Result<Vec<CollectionConfig>, WorkspaceError> {
+        let key = format!("{space_key}.collections");
+        let table = match entry.get("collections") {
+            None => return Ok(Vec::new()),
+            Some(Value::Table(table)) if self.version == 3 => table,
+            Some(Value::Table(_)) => {
+                return Err(WorkspaceError::config_invalid(
+                    &key,
+                    "needs config_version = 3",
+                ));
+            }
+            Some(_) => return Err(WorkspaceError::config_invalid(&key, "must be a table")),
+        };
+        let mut collections: Vec<CollectionConfig> = Vec::new();
+        for (id, value) in table {
+            let key = format!("{key}.{id}");
+            if !is_group_id(id) {
+                return Err(WorkspaceError::config_invalid(
+                    &key,
+                    "must have an id matching ^[a-z][a-z0-9-]{0,62}$",
+                ));
+            }
+            let Value::Table(table) = value else {
+                return Err(WorkspaceError::config_invalid(&key, "must be a table"));
+            };
+            let collection = collection(id, table, &key)?;
+            for other in &collections {
+                if roots_overlap(&other.root, &collection.root) {
+                    return Err(WorkspaceError::config_invalid(
+                        &format!("{key}.root"),
+                        format!(
+                            "`{}` overlaps the root `{}` of collection `{}`; roots of one space must not overlap",
+                            collection.root, other.root, other.id
+                        ),
+                    ));
+                }
+            }
+            collections.push(collection);
+        }
+        Ok(collections)
     }
 
     pub(super) fn section(&self, name: &str) -> Result<Option<&Table>, WorkspaceError> {
@@ -576,6 +864,289 @@ struct Rest {
     journal: JournalConfig,
     log: LogConfig,
     principal: PrincipalConfig,
+    access: AccessConfig,
+    store: StoreConfig,
+}
+
+/// `readers` of the space table behind `reader`: `["*"]` by default.
+fn space_readers(reader: &Reader<'_>, key: &str) -> Result<Vec<String>, WorkspaceError> {
+    let readers = reader
+        .string_array("readers")?
+        .unwrap_or_else(|| vec!["*".to_owned()]);
+    let key = format!("{key}.readers");
+    if readers.is_empty() {
+        return Err(WorkspaceError::config_invalid(&key, "must not be empty"));
+    }
+    for entry in &readers {
+        ReaderEntry::parse(entry)
+            .map_err(|problem| WorkspaceError::config_invalid(&key, problem))?;
+    }
+    Ok(readers)
+}
+
+fn collection(id: &str, table: &Table, key: &str) -> Result<CollectionConfig, WorkspaceError> {
+    let reader = Reader::new(Some(table), key);
+    let at = |name: &str| format!("{key}.{name}");
+    let root = reader
+        .string("root")?
+        .ok_or_else(|| WorkspaceError::config_invalid(&at("root"), "is required"))?;
+    check_root(&root).map_err(|problem| WorkspaceError::config_invalid(&at("root"), problem))?;
+    let kind = match reader.string("kind")?.as_deref() {
+        None | Some("markdown") => CollectionKind::Markdown,
+        Some("code") => CollectionKind::Code,
+        Some(_) => {
+            return Err(WorkspaceError::config_invalid(
+                &at("kind"),
+                "must be \"markdown\" or \"code\"",
+            ));
+        }
+    };
+    let globs = |name: &str| -> Result<Option<Vec<String>>, WorkspaceError> {
+        let Some(patterns) = reader.string_array(name)? else {
+            return Ok(None);
+        };
+        for pattern in &patterns {
+            check_glob(pattern)
+                .map_err(|problem| WorkspaceError::config_invalid(&at(name), problem))?;
+        }
+        Ok(Some(patterns))
+    };
+    let include = match globs("include")? {
+        Some(patterns) if patterns.is_empty() => {
+            return Err(WorkspaceError::config_invalid(
+                &at("include"),
+                "must hold at least one pattern",
+            ));
+        }
+        Some(patterns) => patterns,
+        None => match kind {
+            CollectionKind::Markdown => MARKDOWN_INCLUDE,
+            CollectionKind::Code => CODE_INCLUDE,
+        }
+        .iter()
+        .map(|pattern| (*pattern).to_owned())
+        .collect(),
+    };
+    let exclude = globs("exclude")?.unwrap_or_default();
+    let access = reader
+        .string_array("access")?
+        .unwrap_or_else(|| vec!["space".to_owned()]);
+    if access.is_empty() {
+        return Err(WorkspaceError::config_invalid(
+            &at("access"),
+            "must not be empty",
+        ));
+    }
+    for token in &access {
+        AccessToken::parse(token)
+            .map_err(|problem| WorkspaceError::config_invalid(&at("access"), problem))?;
+    }
+    let sensitivity = reader
+        .string("sensitivity")?
+        .unwrap_or_else(|| "internal".to_owned());
+    if !SENSITIVITIES.contains(&sensitivity.as_str()) {
+        return Err(WorkspaceError::config_invalid(
+            &at("sensitivity"),
+            "must be \"public\", \"internal\", \"confidential\" or \"restricted\"",
+        ));
+    }
+    let default_type = reader.string("default_type")?.unwrap_or_else(|| {
+        match kind {
+            CollectionKind::Markdown => "document",
+            CollectionKind::Code => "code",
+        }
+        .to_owned()
+    });
+    if !(1..=128).contains(&default_type.chars().count())
+        || default_type.chars().any(char::is_control)
+    {
+        return Err(WorkspaceError::config_invalid(
+            &at("default_type"),
+            "must be 1 to 128 characters without control characters",
+        ));
+    }
+    Ok(CollectionConfig {
+        id: id.to_owned(),
+        root,
+        kind,
+        include,
+        exclude,
+        access,
+        sensitivity,
+        default_type,
+        strict: reader.boolean("strict")?.unwrap_or(false),
+        max_file_bytes: reader
+            .integer(
+                "max_file_bytes",
+                1,
+                i64::try_from(MAX_FILE_BYTES_CAP).unwrap_or(i64::MAX),
+            )?
+            .unwrap_or(DEFAULT_MAX_FILE_BYTES),
+    })
+}
+
+/// A collection root, lexically: relative, with `/` separators, no `..`, and below the workspace
+/// root and outside `state/`.
+fn check_root(root: &str) -> Result<(), String> {
+    if root.is_empty() || root.chars().any(char::is_control) {
+        return Err("must be a non-empty path without control characters".to_owned());
+    }
+    if root.starts_with('/')
+        || root.contains('\\')
+        || Path::new(root).is_absolute()
+        || root.contains(':')
+    {
+        return Err(format!(
+            "`{root}` must be relative to the workspace and use / separators"
+        ));
+    }
+    if root.split('/').any(|segment| segment == "..") {
+        return Err(format!("`{root}` must not hold a .. segment"));
+    }
+    let parts = root_parts(root);
+    match parts.first() {
+        None => Err(format!(
+            "`{root}` is the workspace itself; name a directory below it"
+        )),
+        Some(&"state") => Err(format!("`{root}` is under state/, which the host owns")),
+        Some(_) => Ok(()),
+    }
+}
+
+/// The path segments of a root without `.` and empty ones.
+fn root_parts(root: &str) -> Vec<&str> {
+    root.split('/')
+        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .collect()
+}
+
+/// Whether one root is, or is inside, the other, compared by segment.
+fn roots_overlap(a: &str, b: &str) -> bool {
+    let (a, b) = (root_parts(a), root_parts(b));
+    let shorter = a.len().min(b.len());
+    a[..shorter] == b[..shorter]
+}
+
+/// A glob pattern, structurally: syntax is the plugin's (globset) to judge.
+fn check_glob(pattern: &str) -> Result<(), String> {
+    if pattern.is_empty() || pattern.chars().count() > 512 || pattern.chars().any(char::is_control)
+    {
+        return Err("entries must be 1 to 512 characters without control characters".to_owned());
+    }
+    if pattern.starts_with('/') || pattern.split('/').any(|segment| segment == "..") {
+        return Err(format!(
+            "entry `{pattern}` must be relative to the collection root and hold no .. segment"
+        ));
+    }
+    Ok(())
+}
+
+/// Every group that `readers` or a collection's access set names must be declared.
+fn check_declared_groups(
+    spaces: &[SpaceConfig],
+    access: &AccessConfig,
+) -> Result<(), WorkspaceError> {
+    let declared = |id: &str| access.groups.iter().any(|group| group.id == id);
+    for space in spaces {
+        let key = format!("spaces.{}", space.id);
+        for entry in &space.readers {
+            if let Ok(ReaderEntry::Group(id)) = ReaderEntry::parse(entry)
+                && !declared(&id)
+            {
+                return Err(WorkspaceError::config_invalid(
+                    &format!("{key}.readers"),
+                    format!("names group `{id}`, which no [access.groups.{id}] table declares"),
+                ));
+            }
+        }
+        for collection in &space.collections {
+            for token in &collection.access {
+                if let Ok(AccessToken::Group(id)) = AccessToken::parse(token)
+                    && !declared(&id)
+                {
+                    return Err(WorkspaceError::config_invalid(
+                        &format!("{key}.collections.{}.access", collection.id),
+                        format!("names group `{id}`, which no [access.groups.{id}] table declares"),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What is wrong with a collection root on disk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RootProblem {
+    /// The path does not exist or cannot be resolved.
+    Missing,
+    /// It resolves to something that is not a directory.
+    NotADirectory,
+    /// It resolves outside the workspace.
+    Outside,
+}
+
+/// Resolve `root` under the workspace `workspace` and check it: it exists, is a directory, and
+/// its canonical path is inside the canonical workspace. The root itself may be a symbolic link
+/// to a directory inside the workspace. Returns the canonical path.
+pub(crate) fn resolve_root(
+    workspace: &Path,
+    root: &str,
+) -> Result<std::path::PathBuf, RootProblem> {
+    let Ok(base) = workspace.canonicalize() else {
+        return Err(RootProblem::Missing);
+    };
+    let resolved = workspace
+        .join(root)
+        .canonicalize()
+        .map_err(|_| RootProblem::Missing)?;
+    if !resolved.starts_with(&base) || resolved == base {
+        return Err(RootProblem::Outside);
+    }
+    if !resolved.is_dir() {
+        return Err(RootProblem::NotADirectory);
+    }
+    Ok(resolved)
+}
+
+/// At open: a root that exists must resolve inside the workspace (a symbolic link must not lead
+/// out of it) and must not overlap another root of its space once resolved. A root that does not
+/// exist yet is the doctor's to report (`collections.roots`).
+fn check_collection_roots(spaces: &[SpaceConfig], workspace: &Path) -> Result<(), WorkspaceError> {
+    for space in spaces {
+        let mut resolved: Vec<(&str, std::path::PathBuf)> = Vec::new();
+        for collection in &space.collections {
+            let key = format!("spaces.{}.collections.{}.root", space.id, collection.id);
+            match resolve_root(workspace, &collection.root) {
+                Ok(path) => {
+                    if let Some((other, _)) = resolved
+                        .iter()
+                        .find(|(_, other)| path.starts_with(other) || other.starts_with(&path))
+                    {
+                        return Err(WorkspaceError::config_invalid(
+                            &key,
+                            format!(
+                                "`{}` resolves to a directory that overlaps collection `{other}`; roots of one space must not overlap",
+                                collection.root
+                            ),
+                        ));
+                    }
+                    resolved.push((&collection.id, path));
+                }
+                Err(RootProblem::Outside) => {
+                    return Err(WorkspaceError::config_invalid(
+                        &key,
+                        format!(
+                            "`{}` resolves outside the workspace; a root, and the symbolic links on its way, must stay inside it",
+                            collection.root
+                        ),
+                    ));
+                }
+                Err(RootProblem::Missing | RootProblem::NotADirectory) => {}
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Config {

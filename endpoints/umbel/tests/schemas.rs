@@ -1,5 +1,5 @@
-//! The nine versioned schema files under `schemas/` (phase 0 specification sections 7 and 10;
-//! phase 1 sections 2, 8.2 and 9.1) and the WIT world.
+//! The versioned schema files under `schemas/` (phase 0 specification sections 7 and 10; phase 1
+//! sections 2, 8.2 and 9.1; phase 2 section 2) and the WIT world.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::BTreeMap;
@@ -8,19 +8,30 @@ use std::path::{Path, PathBuf};
 
 use jsonschema::{Retrieve, Uri, Validator};
 use serde_json::{Value, json};
+use umbel::events::Event;
 use umbel::plugins::{Manifest, PackManifest};
+use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 9] = [
+const STEMS: [&str; 18] = [
     "workspace-config.v1",
     "workspace-config.v2",
+    "workspace-config.v3",
     "plugin-manifest.v1",
+    "plugin-manifest.v2",
     "pack-manifest.v1",
     "principal.v0",
     "provenance-envelope.v0",
+    "provenance-envelope.v1",
     "event.v0",
+    "event.v1",
     "cursor.v0",
     "cursor-file.v0",
+    "document.v1",
+    "locator.v1",
+    "proposal.v1",
+    "eval-queries.v1",
+    "eval-report.v1",
 ];
 
 fn schemas_dir() -> PathBuf {
@@ -521,4 +532,521 @@ fn the_wit_world_is_the_files_the_specification_prints() {
     let start = spec.find("```wit\n").unwrap() + "```wit\n".len();
     let end = start + spec[start..].find("```").unwrap();
     assert_eq!(&spec[start..end], wit);
+}
+
+// ── Phase 2 (section 2) ────────────────────────────────────────────────────────────────────────
+
+fn example(stem: &str, case: &str) -> Value {
+    let name = if case.is_empty() {
+        format!("{stem}.json")
+    } else {
+        format!("{stem}.{case}.json")
+    };
+    read(&schemas_dir().join("examples").join(name))
+}
+
+/// `instance` with `edit` applied.
+fn edited(instance: &Value, edit: impl FnOnce(&mut Value)) -> Value {
+    let mut copy = instance.clone();
+    edit(&mut copy);
+    copy
+}
+
+fn assert_refuses(validator: &Validator, label: &str, instances: &[Value]) {
+    for instance in instances {
+        assert!(!validator.is_valid(instance), "{label} accepted {instance}");
+    }
+}
+
+#[test]
+fn the_version_3_config_schema_refuses_what_the_host_refuses() {
+    let validator = validator("workspace-config.v3");
+    let space = |body: Value| json!({ "config_version": 3, "spaces": { "main": body } });
+    let collection = |body: Value| space(json!({ "collections": { "handbook": body } }));
+    let ok = [
+        json!({ "config_version": 3 }),
+        space(json!({ "readers": ["*"] })),
+        space(json!({ "readers": ["human:ada", "group:platform", "agent:a:b"] })),
+        collection(json!({ "root": "spaces/main/handbook" })),
+        collection(json!({ "root": "a", "max_file_bytes": 16_777_216 })),
+        json!({ "config_version": 3, "access": { "groups": { "x": { "members": ["*", "agent:ci"] } } } }),
+        json!({ "config_version": 3, "store": { "lock_timeout_ms": 100 } }),
+        space(json!({ "backend": "embedded" })),
+    ];
+    for instance in ok {
+        assert!(validator.is_valid(&instance), "{instance}");
+    }
+    let bad = [
+        json!({ "config_version": 2 }),
+        json!({ "config_version": 4 }),
+        json!({ "config_version": 3, "unknown": 1 }),
+        space(json!({ "content_roots": ["notes"] })),
+        space(json!({ "readers": [] })),
+        space(json!({ "readers": ["ada"] })),
+        space(json!({ "readers": ["space"] })),
+        space(json!({ "readers": ["group:Bad"] })),
+        space(json!({ "bogus": 1 })),
+        space(json!({ "collections": { "Bad": { "root": "a" } } })),
+        collection(json!({})),
+        collection(json!({ "root": "/abs" })),
+        collection(json!({ "root": "../x" })),
+        collection(json!({ "root": "a/../b" })),
+        collection(json!({ "root": "a\\b" })),
+        collection(json!({ "root": "a", "kind": "pdf" })),
+        collection(json!({ "root": "a", "include": [""] })),
+        collection(json!({ "root": "a", "access": [] })),
+        collection(json!({ "root": "a", "access": ["everyone"] })),
+        collection(json!({ "root": "a", "access": ["principal:robot:x"] })),
+        collection(json!({ "root": "a", "sensitivity": "secret" })),
+        collection(json!({ "root": "a", "default_type": "" })),
+        collection(json!({ "root": "a", "strict": "yes" })),
+        collection(json!({ "root": "a", "max_file_bytes": 0 })),
+        collection(json!({ "root": "a", "max_file_bytes": 16_777_217 })),
+        collection(json!({ "root": "a", "bogus": 1 })),
+        json!({ "config_version": 3, "access": { "bogus": 1 } }),
+        json!({ "config_version": 3, "access": { "groups": { "Bad": { "members": [] } } } }),
+        json!({ "config_version": 3, "access": { "groups": { "x": {} } } }),
+        json!({ "config_version": 3, "access": { "groups": { "x": { "members": ["group:y"] } } } }),
+        json!({ "config_version": 3, "access": { "groups": { "x": { "members": ["ada"] } } } }),
+        json!({ "config_version": 3, "store": { "lock_timeout_ms": 99 } }),
+        json!({ "config_version": 3, "store": { "lock_timeout_ms": 600_001 } }),
+        json!({ "config_version": 3, "store": { "bogus": 1 } }),
+        json!({ "config_version": 3, "profile": "org" }),
+        json!({ "config_version": 3, "plugins": { "enabled": ["x"], "x": { "prefix": "store" } } }),
+    ];
+    assert_refuses(&validator, "workspace-config.v3", &bad);
+}
+
+#[test]
+fn the_version_3_config_examples_open_in_the_host_too() {
+    let validator = validator("workspace-config.v3");
+    let found = examples("workspace-config.v3");
+    assert_eq!(found.len(), 3, "minimal, full and reserved");
+    for (name, example) in found {
+        assert!(validator.is_valid(&example), "{name}");
+        ConfigFile::parse(&as_toml(&example))
+            .and_then(|file| file.into_config(Path::new("/w/example")))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+    // The older schemas still describe the older files and refuse version 3's keys.
+    let v2 = validator_for_config_v2();
+    assert!(!v2.is_valid(&example("workspace-config.v3", "full")));
+}
+
+fn validator_for_config_v2() -> Validator {
+    validator("workspace-config.v2")
+}
+
+#[test]
+fn the_version_2_manifest_schema_refuses_what_the_host_refuses() {
+    let validator = validator("plugin-manifest.v2");
+    let base = example("plugin-manifest.v2", "");
+    assert!(validator.is_valid(&base));
+    let with = |edit: &dyn Fn(&mut Value)| edited(&base, |m| edit(m));
+    assert_refuses(
+        &validator,
+        "plugin-manifest.v2",
+        &[
+            with(&|m| m["manifest_version"] = json!(1)),
+            with(&|m| m["manifest_version"] = json!(3)),
+            with(&|m| m["protocol"] = json!(2)),
+            with(&|m| m["commands"][0]["effects"] = json!(["inspect", "store-write"])),
+            with(&|m| m["commands"][0]["effects"] = json!(["destroy"])),
+            // The grants the effects need.
+            with(&|m| m["grants"] = json!([{ "name": "documents", "reason": "x" }])),
+            with(&|m| m["grants"] = json!([{ "name": "clock", "reason": "x" }])),
+            with(&|m| m["grants"] = json!([{ "name": "documents_write", "reason": "x" }])),
+            // output_budget.
+            with(&|m| m["commands"][0]["output_budget"] = json!({ "default_bytes": 1 })),
+            with(&|m| {
+                m["commands"][0]["output_budget"] = json!({ "default_bytes": 0, "max_bytes": 1 })
+            }),
+            with(&|m| {
+                m["commands"][0]["output_budget"] =
+                    json!({ "default_bytes": 1, "max_bytes": 2, "x": 1 })
+            }),
+            // confirm.
+            with(&|m| m["commands"][1]["confirm"] = json!("always")),
+            with(&|m| {
+                m["commands"][1]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("confirm_prompt");
+            }),
+            with(&|m| m["commands"][1]["expose"]["mcp"] = json!(true)),
+            with(&|m| m["commands"][1]["expose"]["agent"] = json!(true)),
+            with(&|m| m["commands"][1]["expose"]["cli"] = json!(false)),
+            with(&|m| {
+                m["commands"][1].as_object_mut().unwrap().remove("expose");
+            }),
+            // A host domain.
+            with(&|m| m["plugin"]["domains"] = json!(["store"])),
+        ],
+    );
+    // A component plugin may not declare an output budget in protocol 1.
+    let mut component = example("plugin-manifest.v1", "component");
+    component["manifest_version"] = json!(2);
+    assert!(validator.is_valid(&component));
+    component["commands"][0]["output_budget"] = json!({ "default_bytes": 1, "max_bytes": 2 });
+    assert!(!validator.is_valid(&component));
+    // A mounted tool holds no grants, so neither new effect fits it.
+    let mut mounted = example("plugin-manifest.v1", "mounted");
+    mounted["manifest_version"] = json!(2);
+    assert!(validator.is_valid(&mounted));
+    mounted["mount"]["tools"] = json!([{ "tool": "a", "effects": ["store-write"] }]);
+    assert!(!validator.is_valid(&mounted));
+    // Version 1 files stay version 1: the version 1 schema refuses what version 2 adds.
+    let v1 = self::validator("plugin-manifest.v1");
+    assert!(!v1.is_valid(&base));
+    assert!(v1.is_valid(&example("plugin-manifest.v1", "")));
+}
+
+#[test]
+fn the_version_2_manifest_examples_are_manifests_to_the_host_too() {
+    let validator = validator("plugin-manifest.v2");
+    let found = examples("plugin-manifest.v2");
+    assert_eq!(
+        found.len(),
+        2,
+        "a compiled plugin that writes, and a component"
+    );
+    for (name, example) in found {
+        assert!(validator.is_valid(&example), "{name}");
+        let manifest =
+            Manifest::parse(&as_toml(&example), &name).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(manifest.manifest_version, 2, "{name}");
+    }
+    let manifest = Manifest::parse(&as_toml(&example("plugin-manifest.v2", "")), "x").unwrap();
+    assert!(manifest.commands.iter().any(|c| c.require_human));
+    assert!(manifest.commands.iter().any(|c| c.output_budget.is_some()));
+}
+
+#[test]
+fn version_1_provenance_refuses_the_still_reserved_fields_and_needs_every_field() {
+    let validator = validator("provenance-envelope.v1");
+    let base = example("provenance-envelope.v1", "");
+    assert!(validator.is_valid(&base));
+    for field in ["redactions", "delegationChain", "tenant", "bogus"] {
+        assert!(
+            !validator.is_valid(&edited(&base, |e| e[field] = json!("x"))),
+            "version 1 accepted {field}"
+        );
+    }
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !validator.is_valid(&edited(&base, |e| {
+                e.as_object_mut().unwrap().remove(field);
+            })),
+            "version 1 accepted a missing {field}"
+        );
+    }
+    assert_refuses(
+        &validator,
+        "provenance-envelope.v1",
+        &[
+            edited(&base, |e| e["version"] = json!(0)),
+            edited(&base, |e| e["access"] = json!([])),
+            edited(&base, |e| e["access"] = json!(["everyone"])),
+            edited(&base, |e| e["access"] = json!(["space", "space"])),
+            edited(&base, |e| e["sensitivity"] = json!("secret")),
+            edited(&base, |e| e["sensitivity"] = json!(null)),
+            edited(&base, |e| e["contentHash"] = json!("sha256:00")),
+            edited(&base, |e| e["contentHash"] = json!("md5:abc")),
+            edited(&base, |e| e["principal"] = json!("ada")),
+            edited(&base, |e| e["principal"] = json!("robot:x")),
+            edited(&base, |e| e["plugin"] = json!("Bad")),
+            edited(&base, |e| {
+                e["sources"] = json!([{ "title": "no resource" }])
+            }),
+            edited(&base, |e| {
+                e["sources"] = json!([{ "resource": "/a", "url": "https://x" }])
+            }),
+            edited(&base, |e| {
+                e["generated"] = json!({ "by": "human:ada", "at": "2026-10-30T09:00:00" })
+            }),
+            edited(&base, |e| e["generated"] = json!({ "by": "human:ada" })),
+            edited(&base, |e| {
+                e["derivedFrom"] = json!([{ "kind": "proposal", "id": "p-1" }])
+            }),
+            edited(&base, |e| e["confidence"] = json!(1.5)),
+        ],
+    );
+    let many: Vec<Value> = (0..65)
+        .map(|n| json!({ "resource": format!("/{n}") }))
+        .collect();
+    assert!(!validator.is_valid(&edited(&base, |e| e["sources"] = Value::Array(many))));
+    // Every access token form is accepted.
+    for tokens in [
+        json!(["space"]),
+        json!(["group:platform"]),
+        json!(["principal:human:ada", "principal:agent:a:b"]),
+    ] {
+        assert!(
+            validator.is_valid(&edited(&base, |e| e["access"] = tokens.clone())),
+            "{tokens}"
+        );
+    }
+    // The other examples: an agent's, and the bare one.
+    for case in ["agent", "unspecified"] {
+        assert!(
+            validator.is_valid(&example("provenance-envelope.v1", case)),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn version_0_and_version_1_events_sit_side_by_side() {
+    let v0 = validator("event.v0");
+    let v1 = validator("event.v1");
+    for case in ["", "minimal"] {
+        let old = example("event.v0", case);
+        let new = example("event.v1", case);
+        assert!(v0.is_valid(&old) && !v1.is_valid(&old), "event v0 {case}");
+        assert!(v1.is_valid(&new) && !v0.is_valid(&new), "event v1 {case}");
+    }
+    let new = example("event.v1", "");
+    assert_refuses(
+        &v1,
+        "event.v1",
+        &[
+            // A version 1 event carries an envelope version 1, and the reverse is refused.
+            edited(&new, |e| {
+                e["provenance"] = example("provenance-envelope.v0", "")
+            }),
+            edited(&new, |e| e["provenance"]["tenant"] = json!("t")),
+            edited(&new, |e| e["changes"] = json!({ "fromRev": 1, "toRev": 2 })),
+            edited(&new, |e| {
+                e["changes"] = json!({ "fromRev": 0, "toRev": 2, "count": 1 })
+            }),
+            edited(&new, |e| {
+                e["changes"] = json!({ "fromRev": 1, "toRev": 2, "count": 1, "x": 1 })
+            }),
+        ],
+    );
+    assert!(v1.is_valid(&edited(&new, |e| {
+        e.as_object_mut().unwrap().remove("changes");
+    })));
+    let old = example("event.v0", "");
+    assert!(!v0.is_valid(&edited(&old, |e| e["changes"] =
+        json!({ "fromRev": 1, "toRev": 1, "count": 1 }))));
+}
+
+#[test]
+fn the_host_reads_and_writes_the_examples_it_documents() {
+    // Round trip through the host's types: nothing is added, dropped or renamed.
+    for case in ["", "agent", "unspecified"] {
+        let value = example("provenance-envelope.v1", case);
+        let envelope: Envelope = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(envelope.version, 1);
+        assert_eq!(
+            serde_json::to_value(&envelope).unwrap(),
+            value,
+            "envelope v1 {case}"
+        );
+    }
+    for case in ["", "unspecified"] {
+        let value = example("provenance-envelope.v0", case);
+        let envelope: Envelope = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(envelope.version, 0);
+        assert_eq!(
+            serde_json::to_value(&envelope).unwrap(),
+            value,
+            "envelope v0 {case}"
+        );
+    }
+    for stem in ["event.v0", "event.v1"] {
+        for case in ["", "minimal"] {
+            let value = example(stem, case);
+            let event: Event = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(&event).unwrap(),
+                value,
+                "{stem} {case}"
+            );
+        }
+    }
+    let event: Event = serde_json::from_value(example("event.v1", "")).unwrap();
+    assert_eq!(event.changes.unwrap().count, 38);
+}
+
+#[test]
+fn the_document_locator_and_proposal_schemas_refuse_what_the_specification_refuses() {
+    let document = validator("document.v1");
+    let base = example("document.v1", "");
+    assert!(document.is_valid(&base));
+    assert!(document.is_valid(&example("document.v1", "code")));
+    for field in base.as_object().unwrap().keys() {
+        let required = document.is_valid(&edited(&base, |d| {
+            d.as_object_mut().unwrap().remove(field);
+        }));
+        assert!(!required, "document.v1 accepted a missing {field}");
+    }
+    assert_refuses(
+        &document,
+        "document.v1",
+        &[
+            edited(&base, |d| d["version"] = json!(2)),
+            edited(&base, |d| d["id"] = json!("no-slash")),
+            edited(&base, |d| d["status"] = json!("archived")),
+            edited(&base, |d| d["verification"]["tier"] = json!("admin")),
+            edited(&base, |d| {
+                d["verification"]["last"] = json!({ "by": "human:ada" })
+            }),
+            edited(&base, |d| d["flags"] = json!(["spooky"])),
+            edited(&base, |d| {
+                d["flags"] = json!(["hidden-text", "hidden-text"])
+            }),
+            edited(&base, |d| d["access"] = json!([])),
+            edited(&base, |d| d["envelope"]["version"] = json!(0)),
+            edited(&base, |d| d["bogus"] = json!(1)),
+            edited(&base, |d| d["size"] = json!(-1)),
+        ],
+    );
+
+    let locator = validator("locator.v1");
+    let base = example("locator.v1", "");
+    assert!(locator.is_valid(&base));
+    assert_refuses(
+        &locator,
+        "locator.v1",
+        &[
+            edited(&base, |l| l["version"] = json!(2)),
+            edited(&base, |l| l["lines"] = json!({ "start": 0, "end": 3 })),
+            edited(&base, |l| l["lines"] = json!({ "start": 1 })),
+            edited(&base, |l| l["indexVersion"] = json!("main@1842")),
+            edited(&base, |l| l["indexVersion"] = json!("1842/1")),
+            edited(&base, |l| l["contentHash"] = json!("9f2c")),
+            edited(&base, |l| {
+                l.as_object_mut().unwrap().remove("headingPath");
+            }),
+            edited(&base, |l| l["bogus"] = json!(1)),
+        ],
+    );
+
+    let proposal = validator("proposal.v1");
+    let base = example("proposal.v1", "");
+    assert!(proposal.is_valid(&base));
+    assert!(proposal.is_valid(&example("proposal.v1", "applied")));
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !proposal.is_valid(&edited(&base, |p| {
+                p.as_object_mut().unwrap().remove(field);
+            })),
+            "proposal.v1 accepted a missing {field}"
+        );
+    }
+    let evidence: Vec<Value> = (0..33)
+        .map(|n| json!({ "kind": "text", "ref": format!("e{n}") }))
+        .collect();
+    assert_refuses(
+        &proposal,
+        "proposal.v1",
+        &[
+            edited(&base, |p| p["id"] = json!("p-xyz")),
+            edited(&base, |p| p["state"] = json!("merged")),
+            edited(&base, |p| p["change"]["op"] = json!("delete")),
+            // create has no base hash, every other op has one, and update/create carry content.
+            edited(&base, |p| p["change"]["baseHash"] = json!(null)),
+            edited(&base, |p| {
+                p["change"].as_object_mut().unwrap().remove("content");
+            }),
+            edited(&base, |p| p["rationale"] = json!("")),
+            edited(&base, |p| p["rationale"] = json!("x".repeat(4001))),
+            edited(&base, |p| p["evidence"] = json!([])),
+            edited(&base, |p| p["evidence"] = Value::Array(evidence.clone())),
+            edited(&base, |p| p["evidence"][0]["kind"] = json!("rumour")),
+            edited(&base, |p| {
+                p["evidence"][0]["excerpt"] = json!("x".repeat(1001))
+            }),
+            edited(&base, |p| p["policy"]["rule"] = json!("curator")),
+            edited(&base, |p| p["exception"] = json!("override")),
+            edited(&base, |p| p["confidence"] = json!(2)),
+            edited(&base, |p| p["proposer"]["principal"] = json!("ada")),
+            edited(&base, |p| {
+                p["decision"] = json!({ "by": { "kind": "human" } })
+            }),
+            edited(&base, |p| p["result"] = json!({ "rev": 1 })),
+            edited(&base, |p| p["provenance"]["version"] = json!(0)),
+        ],
+    );
+    let create = example("proposal.v1", "applied");
+    assert!(
+        !proposal.is_valid(&edited(&create, |p| p["change"]["baseHash"] =
+            json!("sha256:".to_owned() + &"0".repeat(64))))
+    );
+}
+
+#[test]
+fn the_eval_schemas_refuse_what_the_specification_refuses() {
+    let queries = validator("eval-queries.v1");
+    let base = example("eval-queries.v1", "");
+    assert!(queries.is_valid(&base));
+    assert!(queries.is_valid(&example("eval-queries.v1", "unanswerable")));
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !queries.is_valid(&edited(&base, |q| {
+                q.as_object_mut().unwrap().remove(field);
+            })),
+            "eval-queries.v1 accepted a missing {field}"
+        );
+    }
+    assert_refuses(
+        &queries,
+        "eval-queries.v1",
+        &[
+            edited(&base, |q| q["id"] = json!("q-1")),
+            edited(&base, |q| q["kind"] = json!("fuzzy")),
+            edited(&base, |q| q["query"] = json!("")),
+            edited(&base, |q| q["spaces"] = json!([])),
+            edited(&base, |q| q["spaces"] = json!(["alpha", "alpha"])),
+            edited(&base, |q| q["principal"] = json!("eval-reader")),
+            edited(&base, |q| q["filters"] = json!({ "bogus": 1 })),
+            edited(&base, |q| q["qrels"] = json!({ "no-space-prefix": 2 })),
+            edited(&base, |q| q["qrels"] = json!({ "alpha:handbook/x": 3 })),
+            edited(&base, |q| q["qrels"] = json!({ "alpha:handbook/x": 0 })),
+            // Unanswerable means no qrels, and only that kind is unanswerable.
+            edited(&base, |q| q["unanswerable"] = json!(true)),
+            edited(&base, |q| {
+                q["kind"] = json!("unanswerable");
+                q["unanswerable"] = json!(true);
+            }),
+            edited(&base, |q| q["kind"] = json!("unanswerable")),
+        ],
+    );
+
+    let report = validator("eval-report.v1");
+    let base = example("eval-report.v1", "");
+    assert!(report.is_valid(&base));
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !report.is_valid(&edited(&base, |r| {
+                r.as_object_mut().unwrap().remove(field);
+            })),
+            "eval-report.v1 accepted a missing {field}"
+        );
+    }
+    assert_refuses(
+        &report,
+        "eval-report.v1",
+        &[
+            edited(&base, |r| r["k"] = json!(0)),
+            edited(&base, |r| r["leaks"] = json!(-1)),
+            edited(&base, |r| r["metrics"]["overall"] = json!({})),
+            edited(&base, |r| {
+                r["metrics"]["overall"]["on"]["recall"] = json!(1.2)
+            }),
+            edited(&base, |r| {
+                r["metrics"]["byKind"] = json!({ "permission": {} })
+            }),
+            edited(&base, |r| r["unanswerable"]["emptyRate"] = json!(2)),
+            edited(&base, |r| r["results"][0]["kind"] = json!("fuzzy")),
+            edited(&base, |r| r["results"][0]["runs"] = json!({ "both": [] })),
+            edited(&base, |r| {
+                r["results"][0]["runs"]["on"][0] = json!({ "space": "alpha" })
+            }),
+            edited(&base, |r| r["corpusDigest"] = json!("abc")),
+            edited(&base, |r| r["bogus"] = json!(1)),
+        ],
+    );
 }

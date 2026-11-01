@@ -1,0 +1,21 @@
+{
+	"version": 1,
+	"origin": "unspecified",
+	"space": "main",
+	"plugin": null,
+	"agent": null,
+	"principal": null,
+	"session": null,
+	"traceId": null,
+	"observedAt": "2026-11-02T10:15:00.000Z",
+	"validFrom": null,
+	"validUntil": null,
+	"confidence": null,
+	"authority": null,
+	"sources": null,
+	"generated": null,
+	"contentHash": null,
+	"derivedFrom": null,
+	"access": ["space"],
+	"sensitivity": "internal"
+}

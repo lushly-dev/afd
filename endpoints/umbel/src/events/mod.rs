@@ -13,7 +13,7 @@ mod stream;
 
 pub use cursor::Cursor;
 pub use error::INVALID_CURSOR;
-pub use event::{EVENT_VERSION, Event, RECORD_KEY, RecordRef};
+pub use event::{Changes, EVENT_VERSION, Event, RECORD_KEY, RecordRef};
 pub use projector::{RepairReport, RepairedSpace};
 
 pub(crate) use error::{EventsError, invalid_cursor};

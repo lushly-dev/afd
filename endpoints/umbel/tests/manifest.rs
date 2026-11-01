@@ -196,7 +196,7 @@ fn another_manifest_version_or_protocol_is_unsupported_and_names_what_is_served(
     for (key, text) in [
         (
             "manifest_version",
-            edited("manifest_version = 1", "manifest_version = 2"),
+            edited("manifest_version = 1", "manifest_version = 3"),
         ),
         ("protocol", edited("protocol = 1", "protocol = 2")),
         ("protocol", edited("protocol = 1", "protocol = 0")),
@@ -205,13 +205,19 @@ fn another_manifest_version_or_protocol_is_unsupported_and_names_what_is_served(
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{key}");
         assert!(error.message().contains(key), "{error}");
         assert!(
-            error.message().contains("manifest 1, protocol 1"),
+            error
+                .message()
+                .contains("manifest versions 1 and 2, protocol 1"),
             "{error}"
         );
-        assert!(error.suggestion().contains("manifest 1, protocol 1"));
+        assert!(
+            error
+                .suggestion()
+                .contains("manifest versions 1 and 2, protocol 1")
+        );
     }
     // A newer manifest may have keys this host cannot know: the version is judged first.
-    let future = "manifest_version = 2\nprotocol = 1\nsomething_new = true\n";
+    let future = "manifest_version = 3\nprotocol = 1\nsomething_new = true\n";
     assert_eq!(
         parse(future).unwrap_err().code(),
         "PLUGIN_PROTOCOL_UNSUPPORTED"
@@ -426,8 +432,8 @@ fn effects_come_from_the_catalog() {
     for (effects, why) in [
         ("[]", "at least one"),
         ("[\"destroy\"]", "not an effect"),
-        ("[\"store-write\"]", "reserved for phase 2"),
-        ("[\"workspace-write\"]", "host's own commands"),
+        ("[\"store-write\"]", "needs manifest_version = 2"),
+        ("[\"workspace-write\"]", "needs manifest_version = 2"),
         ("[\"inspect\", \"external\"]", "alone"),
         ("[\"external\", \"external\"]", "twice"),
         ("\"inspect\"", "array of strings"),

@@ -330,7 +330,9 @@ pub fn schema_validator(stem: &str) -> Validator {
     let siblings = [
         "principal.v0",
         "provenance-envelope.v0",
+        "provenance-envelope.v1",
         "event.v0",
+        "event.v1",
         "cursor.v0",
         "cursor-file.v0",
     ]

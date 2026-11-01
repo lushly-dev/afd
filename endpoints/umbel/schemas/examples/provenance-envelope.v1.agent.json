@@ -1,0 +1,36 @@
+{
+	"version": 1,
+	"origin": "agent-inferred",
+	"space": "main",
+	"plugin": "knowledge",
+	"agent": {
+		"kind": "agent",
+		"id": "ada"
+	},
+	"principal": "human:ada",
+	"session": "run-17",
+	"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"observedAt": "2026-11-02T10:15:00.000Z",
+	"validFrom": "2026-11-01T00:00:00.000Z",
+	"validUntil": null,
+	"confidence": 0.7,
+	"authority": "handbook",
+	"sources": [
+		{
+			"resource": "/handbook/deploy/rollback",
+			"title": "Rolling back",
+			"last_modified": "2026-10-30T09:00:00+00:00"
+		}
+	],
+	"generated": null,
+	"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+	"derivedFrom": [
+		{
+			"kind": "proposal",
+			"id": "p-0123456789abcdef0123",
+			"contentHash": "sha256:abababababababababababababababababababababababababababababababab"
+		}
+	],
+	"access": ["group:platform", "principal:human:ada"],
+	"sensitivity": "confidential"
+}

@@ -1,0 +1,67 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/locator.v1.json",
+	"title": "Umbel locator, version 1",
+	"description": "The stable address of a hit (D61): space, document, chunk, line range, content hash and index version. The locator string is umbel:<space>/<doc>#L<start>-L<end>@<first 12 hex of the content hash>, accepted by knowledge-open; it stays valid while the document's content hash is the same.",
+	"type": "object",
+	"required": [
+		"version",
+		"space",
+		"doc",
+		"chunk",
+		"lines",
+		"headingPath",
+		"contentHash",
+		"indexVersion"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"chunk": {
+			"description": "The chunk's ordinal in the document.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"lines": {
+			"type": "object",
+			"required": ["start", "end"],
+			"additionalProperties": false,
+			"properties": {
+				"start": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"end": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"headingPath": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"contentHash": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"indexVersion": {
+			"description": "<space>@<applied rev>/<index schema>.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}@[0-9]+/[0-9]+$"
+		}
+	}
+}

@@ -1,0 +1,108 @@
+{
+	"version": 1,
+	"k": 10,
+	"spaces": ["alpha", "beta"],
+	"corpusDigest": "sha256:5656565656565656565656565656565656565656565656565656565656565656",
+	"indexApplied": {
+		"alpha": 1042,
+		"beta": 401
+	},
+	"rankingDigest": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+	"hostVersion": "0.1.0",
+	"queries": {
+		"total": 220,
+		"answerable": 185,
+		"unanswerable": 15,
+		"permission": 20,
+		"skipped": 0
+	},
+	"metrics": {
+		"overall": {
+			"on": {
+				"queries": 185,
+				"recall": 0.9135,
+				"ndcg": 0.7842,
+				"mrr": 0.8611
+			},
+			"off": {
+				"queries": 185,
+				"recall": 0.8822,
+				"ndcg": 0.7611,
+				"mrr": 0.8503
+			}
+		},
+		"byKind": {
+			"exact": {
+				"on": {
+					"queries": 80,
+					"recall": 0.9135,
+					"ndcg": 0.7842,
+					"mrr": 0.8611
+				},
+				"off": {
+					"queries": 80,
+					"recall": 0.8822,
+					"ndcg": 0.7611,
+					"mrr": 0.8503
+				}
+			},
+			"multi-hop": {
+				"on": {
+					"queries": 20,
+					"recall": 0.9135,
+					"ndcg": 0.7842,
+					"mrr": 0.8611
+				},
+				"off": {
+					"queries": 20,
+					"recall": 0.8822,
+					"ndcg": 0.7611,
+					"mrr": 0.8503
+				}
+			}
+		}
+	},
+	"unanswerable": {
+		"emptyRate": 1.0,
+		"meanTopScore": null
+	},
+	"leaks": 0,
+	"latency": {
+		"p50Ms": 3.2,
+		"p95Ms": 11.8
+	},
+	"results": [
+		{
+			"id": "q-0042",
+			"kind": "multi-hop",
+			"skipped": false,
+			"runs": {
+				"on": [
+					{
+						"space": "alpha",
+						"doc": "handbook/topics/t-017",
+						"score": 12.4031
+					},
+					{
+						"space": "alpha",
+						"doc": "handbook/bridges/b-017",
+						"score": 9.1177
+					}
+				],
+				"off": [
+					{
+						"space": "alpha",
+						"doc": "handbook/bridges/b-017",
+						"score": 9.1177
+					}
+				]
+			}
+		},
+		{
+			"id": "q-0099",
+			"kind": "cross-space",
+			"skipped": true,
+			"runs": {}
+		}
+	]
+}
