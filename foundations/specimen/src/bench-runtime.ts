@@ -22,6 +22,8 @@ function coverage(
 ): Completeness {
 	return { status, scope, reasons };
 }
+/** Bundling, Chromium's startup (bounded at 10 s) and two seconds of cleanup, beyond a deadline. */
+const HOST_GRACE = 30_000;
 /** What the native host returns for one render. */
 interface HostRender {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
@@ -58,15 +60,19 @@ export async function createInProcessBench(
 			const executable = options.executablePath ?? chromiumExecutable();
 			const process = new HostProcess();
 			try {
-				const opened = (await process.request('open', {
-					root: config.root,
-					runtime: browserRuntimePath(),
-					modules: Object.entries(config.modules),
-					entries: config.config.specimens,
-					defaults: defaultContext,
-					executable,
-					work: tmpdir(),
-				})) as { browserPid: number };
+				const opened = (await process.request(
+					'open',
+					{
+						root: config.root,
+						runtime: browserRuntimePath(),
+						modules: Object.entries(config.modules),
+						entries: config.config.specimens,
+						defaults: defaultContext,
+						executable,
+						work: tmpdir(),
+					},
+					HOST_GRACE
+				)) as { browserPid: number };
 				process.browserGroup = opened.browserPid;
 				return process;
 			} catch (error) {
@@ -110,13 +116,18 @@ export async function createInProcessBench(
 						trace,
 						'host-render',
 						() =>
-							runtime.request('render', {
-								entry,
-								context,
-								checkpoint: request.checkpoint,
-								timeoutMs: request.timeoutMs,
-								screenshot,
-							}) as Promise<HostRender>
+							runtime.request(
+								'render',
+								{
+									entry,
+									context,
+									checkpoint: request.checkpoint,
+									timeoutMs: request.timeoutMs,
+									screenshot,
+								},
+								// The host bounds the render itself; this covers a host that stops answering.
+								request.timeoutMs + HOST_GRACE
+							) as Promise<HostRender>
 					),
 					traced(trace, 'provenance', () =>
 						Promise.all([sourceState(config.root), dependencyIdentity(config.root)])

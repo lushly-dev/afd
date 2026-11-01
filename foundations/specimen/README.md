@@ -97,9 +97,11 @@ The static preview applies the theme attribute, CSS `color-scheme`, `lang`, cont
 
 Rendering runs in `specimen-host`, a Rust binary in [`host/`](host). It bundles the bench page and each case with Rolldown, serves every bundle generation from memory on 127.0.0.1 (each render under its own path, so the source digest names exactly the files that render loaded), and drives Chromium's headless shell over CDP through `--remote-debugging-pipe`. Pages get the environment Playwright 1.64 gives them: the same launch switches, default font families and context emulation. A changed source file rebuilds the bundle before the next render.
 
+The bundle follows Vite's import forms: `.css` imports inject a style element, `?inline` CSS and `?raw` files import as strings, `?url` imports resolve to the file's served path, and a stylesheet's relative `@import`s and `url()`s resolve against the stylesheet. Other import queries are rejected. A module that fails to bundle fails only the specimens that use it, and fixing it rebuilds the bench. Selector targets are CSS selectors; Playwright's own selector syntax (`text=`, `>>`, `:has-text()` and the like) is rejected.
+
 Build it with `pnpm -F @lushly-dev/specimen build:host` (rustup installs the pinned Rust 1.98.0). The bench looks for `host/target/release/specimen-host` beside the package, or `SPECIMEN_HOST_BINARY`, and for Playwright's installed headless shell unless `executablePath` is given. The host supports macOS and Linux; Windows is not supported yet. Packaging prebuilt hosts is publication work and has not been done.
 
-The host owns Chromium's process group. Each render is bounded by its deadline, from context creation to capture, with disposal bounded by at most one second more. Close waits for accepted renders, then stops the browser group, and losing the host's owner stops it at once.
+The host owns Chromium's process group. Each render is bounded by its deadline, from context creation to capture; disposal and closing the context are each bounded by at most one second more. Bundling and Chromium's startup, which is bounded at 10 seconds, come before the deadline, as the earlier runtime's bundle step and browser launch did. Close waits for accepted renders, then stops the browser group, and losing the host's owner stops it at once. Chromium inherits only its CDP pipe, so if the host itself is killed the browser sees the pipe close and exits; the bench also kills the browser group when the host exits unexpectedly, and fails a request the host does not answer in time.
 
 ## Validation
 

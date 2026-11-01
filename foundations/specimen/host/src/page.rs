@@ -35,41 +35,137 @@ pub struct Viewport {
 }
 
 pub const FRAME: &str = "new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))";
-/// Actionability for click and hover (Playwright's visible, enabled, stable and hit-target
-/// checks) and fill's editable check. Returns `"ok"`, a reason to retry, or throws.
-const ACTIONABLE: &str = r#"async function (kind, x, y) {
+/// Helpers from Playwright's injected script, prefixed to the functions run on a target.
+const HELPERS: &str = r#"
+    const tagName = (element) => typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
+    const parentOrHost = (element) => element.parentElement || (element.parentNode && element.parentNode.nodeType === 11 && element.parentNode.host) || null;
+    const retarget = (node, behavior) => {
+        let element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        if (!element) return null;
+        if (behavior === 'none') return element;
+        if (!element.matches('input, textarea, select') && !element.isContentEditable)
+            element = element.closest('button, [role=button], [role=checkbox], [role=radio]') || element;
+        if (behavior === 'follow-label' && !element.matches('a, input, textarea, button, select, [role=link], [role=button], [role=checkbox], [role=switch], [role=radio]') && !element.isContentEditable) {
+            const label = element.closest('label');
+            if (label && label.control) element = label.control;
+        }
+        return element;
+    };
+    const visibleText = (node) => {
+        const range = node.ownerDocument.createRange();
+        range.selectNode(node);
+        const rect = range.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    };
+    const visible = (element) => {
+        const style = getComputedStyle(element);
+        if (style.display === 'contents') {
+            for (let child = element.firstChild; child; child = child.nextSibling) {
+                if (child.nodeType === 1 && visible(child)) return true;
+                if (child.nodeType === 3 && visibleText(child)) return true;
+            }
+            return false;
+        }
+        if (!element.checkVisibility() || style.visibility !== 'visible') return false;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    };
+    const disabledRoles = ['application', 'button', 'composite', 'gridcell', 'group', 'input', 'link', 'menuitem', 'scrollbar', 'separator', 'tab', 'checkbox', 'columnheader', 'combobox', 'grid', 'listbox', 'menu', 'menubar', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'radiogroup', 'row', 'rowheader', 'searchbox', 'select', 'slider', 'spinbutton', 'switch', 'tablist', 'textbox', 'toolbar', 'tree', 'treegrid', 'treeitem'];
+    const ariaDisabledInChain = (element) => {
+        const value = (element.getAttribute('aria-disabled') || '').toLowerCase();
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        const parent = parentOrHost(element);
+        return parent ? ariaDisabledInChain(parent) : false;
+    };
+    const nativelyDisabled = (element) => {
+        if (!['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'OPTION', 'OPTGROUP'].includes(tagName(element))) return false;
+        if (element.hasAttribute('disabled')) return true;
+        if (tagName(element) === 'OPTION' && element.closest('OPTGROUP[DISABLED]')) return true;
+        const fieldset = element.closest('FIELDSET[DISABLED]');
+        if (!fieldset) return false;
+        const legend = fieldset.querySelector(':scope > LEGEND');
+        return !legend || !legend.contains(element);
+    };
+    const disabled = (element, role) => nativelyDisabled(element) || (disabledRoles.includes(role) && ariaDisabledInChain(element));
+    const readonlyRoles = ['checkbox', 'combobox', 'grid', 'gridcell', 'listbox', 'radiogroup', 'slider', 'spinbutton', 'textbox', 'columnheader', 'rowheader', 'searchbox', 'switch', 'treegrid'];
+    const readonly = (element, role) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName(element))) return element.hasAttribute('readonly');
+        if (readonlyRoles.includes(role)) return element.getAttribute('aria-readonly') === 'true';
+        if (element.isContentEditable) return false;
+        return 'error';
+    };
+"#;
+/// Returns the element Playwright checks `enabled` and `editable` on.
+const FOLLOW_LABEL: &str = "function () { HELPERS; return retarget(this, 'follow-label'); }";
+/// Playwright's `checkElementStates`: `"ok"`, the first missing state, or a thrown error.
+/// `role` is the ARIA role of the follow-label target.
+const STATES: &str = r#"async function (states, role) {
+    HELPERS;
     if (!this.isConnected) throw new Error('Element is not attached to the DOM');
-    const style = getComputedStyle(this);
-    const box = this.getBoundingClientRect();
-    if (style.visibility !== 'visible' || box.width <= 0 || box.height <= 0) return 'element is not visible';
-    if (kind !== 'hover') {
-        const disabled = this.matches(':disabled') || this.getAttribute('aria-disabled') === 'true';
-        if (disabled) return 'element is not enabled';
+    if (states.includes('stable')) {
+        const element = retarget(this, 'no-follow-label');
+        const rect = () => { const box = element.getBoundingClientRect(); return [box.top, box.left, box.width, box.height].join(); };
+        const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(rect())));
+        if ((await frame()) !== (await frame())) return 'stable';
     }
-    if (kind === 'fill' && (this.readOnly || this.getAttribute('aria-readonly') === 'true')) return 'element is not editable';
-    const next = await new Promise((resolve) => requestAnimationFrame(() => resolve(this.getBoundingClientRect())));
-    if (next.x !== box.x || next.y !== box.y || next.width !== box.width || next.height !== box.height) return 'element is not stable';
-    if (kind === 'fill') return 'ok';
-    let hit = document.elementFromPoint(x, y);
-    while (hit && hit.shadowRoot) {
-        const inner = hit.shadowRoot.elementFromPoint(x, y);
-        if (!inner || inner === hit) break;
+    for (const state of states) {
+        if (state === 'stable') continue;
+        const element = retarget(this, state === 'visible' ? 'none' : 'follow-label');
+        if (!element || !element.isConnected) throw new Error('Element is not attached to the DOM');
+        if (state === 'visible' && !visible(element)) return 'visible';
+        if (state === 'enabled' && disabled(element, role)) return 'enabled';
+        if (state === 'editable') {
+            const value = readonly(element, role);
+            if (value === 'error') throw new Error('Element is not an <input>, <textarea>, <select> or [contenteditable] and does not have a role allowing [aria-readonly]');
+            if (disabled(element, role) || value) return 'editable';
+        }
+    }
+    return 'ok';
+}"#;
+/// Playwright's `expectHitTarget`: whether the element under the point is the target or inside
+/// it, across shadow roots and slots.
+const HIT_TARGET: &str = r#"function (x, y) {
+    HELPERS;
+    const enclosingRoot = (element) => { let node = element; while (node.parentNode) node = node.parentNode; return node.nodeType === 11 || node.nodeType === 9 ? node : undefined; };
+    const roots = [];
+    for (let parent = this; parent; ) {
+        const root = enclosingRoot(parent);
+        if (!root) break;
+        roots.push(root);
+        if (root.nodeType === 9) break;
+        parent = root.host;
+    }
+    let hit;
+    for (let index = roots.length - 1; index >= 0; index--) {
+        const root = roots[index];
+        const elements = root.elementsFromPoint(x, y);
+        const single = root.elementFromPoint(x, y);
+        if (single && elements[0] && parentOrHost(single) === elements[0] && getComputedStyle(single).display === 'contents') elements.unshift(single);
+        if (elements[0] && elements[1] === single && roots.slice(index).some((candidate) => candidate.host === elements[0])) elements.shift();
+        const inner = elements[0];
+        if (!inner) break;
         hit = inner;
+        if (index && inner !== roots[index - 1].host) break;
     }
-    for (let node = hit; node; node = node.assignedSlot || node.parentElement || (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null))
-        if (node === this) return 'ok';
-    return hit ? `${hit.localName} intercepts pointer events` : 'element is outside the viewport';
+    while (hit && hit !== this) hit = hit.assignedSlot || parentOrHost(hit);
+    return hit === this;
 }"#;
 /// Playwright's fill: set the value of value-typed inputs, otherwise select the text for input.
 const FILL: &str = r#"function (value) {
-    let element = this;
-    if (element instanceof HTMLLabelElement && element.control) element = element.control;
-    if (element instanceof HTMLInputElement) {
+    HELPERS;
+    const element = retarget(this, 'follow-label');
+    if (!element) throw new Error('Element is not attached to the DOM');
+    if (tagName(element) === 'INPUT') {
         const type = element.type.toLowerCase();
         const set = ['color', 'date', 'time', 'datetime-local', 'month', 'range', 'week'];
         const typed = ['', 'email', 'number', 'password', 'search', 'tel', 'text', 'url'];
         if (!set.includes(type) && !typed.includes(type)) throw new Error(`Input of type "${type}" cannot be filled`);
-        if (type === 'number' && Number.isNaN(Number(value.trim()))) throw new Error('Cannot type text into input[type=number]');
+        if (type === 'number') {
+            value = value.trim();
+            if (Number.isNaN(Number(value))) throw new Error('Cannot type text into input[type=number]');
+        }
+        if (type === 'color') value = value.toLowerCase();
         if (set.includes(type)) {
             value = value.trim();
             element.focus();
@@ -83,7 +179,7 @@ const FILL: &str = r#"function (value) {
         element.focus();
         return 'needsinput';
     }
-    if (element instanceof HTMLTextAreaElement) {
+    if (tagName(element) === 'TEXTAREA') {
         element.selectionStart = 0;
         element.selectionEnd = element.value.length;
         element.focus();
@@ -132,17 +228,51 @@ impl Page<'_> {
             .unwrap_or(Value::Null))
     }
 
-    async fn call(&self, object: &str, function: &str, args: Value) -> Result<Value> {
+    /// Call a function with `this` bound to the object, its `HELPERS;` replaced by the helpers.
+    async fn call_on(
+        &self,
+        object: &str,
+        function: &str,
+        args: Value,
+        by_value: bool,
+    ) -> Result<Value> {
+        let function = function.replacen("HELPERS;", HELPERS, 1);
         let result = self
             .send(
                 "Runtime.callFunctionOn",
-                json!({ "objectId": object, "functionDeclaration": function, "arguments": args, "returnByValue": true, "awaitPromise": true }),
+                json!({ "objectId": object, "functionDeclaration": function, "arguments": args, "returnByValue": by_value, "awaitPromise": true }),
             )
             .await?;
-        Ok(Self::checked(result)?
+        Self::checked(result)
+    }
+
+    async fn call(&self, object: &str, function: &str, args: Value) -> Result<Value> {
+        Ok(self
+            .call_on(object, function, args, true)
+            .await?
             .pointer("/result/value")
             .cloned()
             .unwrap_or(Value::Null))
+    }
+
+    /// The ARIA role Chromium computes for an element: its accessibility tree's, with `image`
+    /// written as ARIA's `img`.
+    async fn role(&self, object: &str) -> Result<String> {
+        let tree = self
+            .send(
+                "Accessibility.getPartialAXTree",
+                json!({ "objectId": object, "fetchRelatives": false }),
+            )
+            .await?;
+        let role = tree
+            .pointer("/nodes/0/role/value")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        Ok(if role == "image" {
+            "img".into()
+        } else {
+            role.to_string()
+        })
     }
 
     pub async fn root_backend_id(&self) -> Result<i64> {
@@ -198,13 +328,29 @@ impl Page<'_> {
                     .map(String::from),
             )
         } else {
-            let role = target.get("role").and_then(Value::as_str).unwrap_or("");
+            // Chromium names ARIA's `img` role `image`. Names compare as Playwright's role
+            // engine compares them, after whitespace normalization.
+            let role = target
+                .get("role")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let role = if role == "img" {
+                "image".to_string()
+            } else {
+                role
+            };
+            let wanted = target
+                .get("name")
+                .and_then(Value::as_str)
+                .map(normalize_name);
             let root = self.root_backend_id().await?;
-            let mut query = json!({ "backendNodeId": root, "role": role });
-            if let Some(accessible) = target.get("name").and_then(Value::as_str) {
-                query["accessibleName"] = Value::String(accessible.to_string());
-            }
-            let found = self.send("Accessibility.queryAXTree", query).await?;
+            let found = self
+                .send(
+                    "Accessibility.queryAXTree",
+                    json!({ "backendNodeId": root, "role": role }),
+                )
+                .await?;
             let nodes: Vec<Value> = found
                 .get("nodes")
                 .and_then(Value::as_array)
@@ -218,6 +364,15 @@ impl Page<'_> {
                         .unwrap_or(false)
                 })
                 .filter(|node| node.get("backendDOMNodeId").and_then(Value::as_i64) != Some(root))
+                .filter(|node| {
+                    wanted.as_ref().is_none_or(|wanted| {
+                        let name = node
+                            .pointer("/name/value")
+                            .and_then(Value::as_str)
+                            .unwrap_or("");
+                        normalize_name(name) == *wanted
+                    })
+                })
                 .collect();
             let object = match nodes.first().and_then(|node| node.get("backendDOMNodeId")) {
                 Some(backend) => self
@@ -236,58 +391,114 @@ impl Page<'_> {
         }
     }
 
-    /// The point Playwright clicks: the center of the element's first content quad.
+    /// The point Playwright clicks: the middle of the element's first content quad that keeps
+    /// an area after clipping to the viewport.
     async fn point(&self, object: &str) -> Result<Option<(f64, f64)>> {
-        let _ = self
-            .send("DOM.scrollIntoViewIfNeeded", json!({ "objectId": object }))
-            .await;
         let quads = self
             .send("DOM.getContentQuads", json!({ "objectId": object }))
             .await?;
+        let viewport = self
+            .evaluate("({ width: innerWidth, height: innerHeight })")
+            .await?;
+        let limit = |key: &str| viewport.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+        let (width, height) = (limit("width"), limit("height"));
         let quad = quads
             .get("quads")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
             .filter_map(|quad| {
-                let points: Vec<f64> = quad.as_array()?.iter().filter_map(Value::as_f64).collect();
-                let area = ((points[0] * points[3] - points[2] * points[1])
-                    + (points[2] * points[5] - points[4] * points[3])
-                    + (points[4] * points[7] - points[6] * points[5])
-                    + (points[6] * points[1] - points[0] * points[7]))
-                    .abs()
-                    / 2.0;
-                (points.len() == 8 && area > 0.99).then_some(points)
+                let values: Vec<f64> = quad.as_array()?.iter().filter_map(Value::as_f64).collect();
+                if values.len() != 8 {
+                    return None;
+                }
+                let points: Vec<(f64, f64)> = values
+                    .chunks(2)
+                    .map(|point| (point[0].clamp(0.0, width), point[1].clamp(0.0, height)))
+                    .collect();
+                let area = (0..4)
+                    .map(|index| {
+                        let (a, b) = (points[index], points[(index + 1) % 4]);
+                        (a.0 * b.1 - b.0 * a.1) / 2.0
+                    })
+                    .sum::<f64>()
+                    .abs();
+                (area > 0.99).then_some(points)
             })
             .next();
         Ok(quad.map(|points| {
             (
-                (points[0] + points[2] + points[4] + points[6]) / 4.0,
-                (points[1] + points[3] + points[5] + points[7]) / 4.0,
+                points.iter().map(|point| point.0).sum::<f64>() / 4.0,
+                points.iter().map(|point| point.1).sum::<f64>() / 4.0,
             )
         }))
     }
 
-    /// Wait, with Playwright's retry intervals, until the element can receive the action.
-    async fn actionable(&self, object: &str, kind: &str) -> Result<(f64, f64)> {
-        // Retried until the render deadline, which bounds every action.
+    /// Wait, with Playwright's retry intervals, until the element has the action's states
+    /// (and, for pointer actions, receives the pointer). Bounded by the render deadline.
+    async fn actionable(
+        &self,
+        name: &str,
+        target: &Value,
+        kind: &str,
+    ) -> Result<(String, Option<(f64, f64)>)> {
+        let states: &[&str] = match kind {
+            "click" => &["visible", "enabled", "stable"],
+            "hover" => &["visible", "stable"],
+            _ => &["visible", "enabled", "editable"],
+        };
+        let mut object = self.target(name, target).await?;
         for attempt in 0.. {
-            if let Some((x, y)) = self.point(object).await? {
-                let verdict = self
-                    .call(
-                        object,
-                        ACTIONABLE,
-                        json!([{ "value": kind }, { "value": x }, { "value": y }]),
-                    )
-                    .await?;
-                if verdict.as_str() == Some("ok") {
-                    return Ok((x, y));
-                }
+            if attempt > 0 {
+                sleep(Duration::from_millis(
+                    RETRIES[(attempt - 1).min(RETRIES.len() - 1)],
+                ))
+                .await;
             }
-            sleep(Duration::from_millis(
-                RETRIES[attempt.min(RETRIES.len() - 1)],
-            ))
-            .await;
+            let labelled = self
+                .call_on(&object, FOLLOW_LABEL, json!([]), false)
+                .await?
+                .pointer("/result/objectId")
+                .and_then(Value::as_str)
+                .map(String::from);
+            let role = match &labelled {
+                Some(labelled) => self.role(labelled).await?,
+                None => String::new(),
+            };
+            let verdict = match self
+                .call(
+                    &object,
+                    STATES,
+                    json!([{ "value": states }, { "value": role }]),
+                )
+                .await
+            {
+                Ok(verdict) => verdict,
+                // Playwright resolves the target again when it was replaced.
+                Err(error) if format!("{error:#}").contains("not attached") => {
+                    object = self.target(name, target).await?;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if verdict.as_str() != Some("ok") {
+                continue;
+            }
+            if kind == "fill" {
+                return Ok((object, None));
+            }
+            let _ = self
+                .send("DOM.scrollIntoViewIfNeeded", json!({ "objectId": object }))
+                .await;
+            let Some((x, y)) = self.point(&object).await? else {
+                continue;
+            };
+            let hit = self
+                .call(&object, HIT_TARGET, json!([{ "value": x }, { "value": y }]))
+                .await?;
+            if hit.as_bool() == Some(true) {
+                return Ok((object, Some((x, y))));
+            }
         }
         unreachable!()
     }
@@ -322,10 +533,10 @@ impl Page<'_> {
         let target = targets
             .get(name)
             .ok_or_else(|| anyhow!("Scenario action refers to an undeclared target"))?;
-        let object = self.target(name, target).await?;
         match kind {
             "click" | "hover" => {
-                let (x, y) = self.actionable(&object, kind).await?;
+                let (_, point) = self.actionable(name, target, kind).await?;
+                let (x, y) = point.unwrap_or_default();
                 self.mouse("mouseMoved", x, y).await?;
                 if kind == "click" {
                     self.mouse("mousePressed", x, y).await?;
@@ -333,11 +544,12 @@ impl Page<'_> {
                 }
             }
             "focus" => {
+                let object = self.target(name, target).await?;
                 self.call(&object, "function () { this.focus(); }", json!([]))
                     .await?;
             }
             _ => {
-                self.actionable(&object, "fill").await?;
+                let (object, _) = self.actionable(name, target, "fill").await?;
                 let value = action.get("value").and_then(Value::as_str).unwrap_or("");
                 let state = self
                     .call(&object, FILL, json!([{ "value": value }]))
@@ -447,4 +659,14 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
     )
     .await?;
     Ok(viewport)
+}
+
+/// Playwright's `normalizeWhiteSpace`: no zero-width spaces or soft hyphens, trimmed, inner
+/// whitespace collapsed to one space.
+fn normalize_name(name: &str) -> String {
+    let stripped: String = name
+        .chars()
+        .filter(|c| !matches!(c, '\u{200b}' | '\u{ad}'))
+        .collect();
+    stripped.split_whitespace().collect::<Vec<_>>().join(" ")
 }

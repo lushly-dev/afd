@@ -2,7 +2,59 @@
 
 use crate::cdp::Event;
 use serde_json::Value;
-use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::UnboundedReceiver;
+
+/// `String(value)` for a JavaScript number.
+fn js_number(value: f64) -> String {
+    if value == 0.0 {
+        return "0".into();
+    }
+    if !value.is_finite() {
+        return if value.is_nan() {
+            "NaN".into()
+        } else if value > 0.0 {
+            "Infinity".into()
+        } else {
+            "-Infinity".into()
+        };
+    }
+    // Shortest round-trip digits and exponent, laid out by Number.prototype.toString's rules.
+    let scientific = format!("{:e}", value.abs());
+    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
+    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    let (k, n) = (
+        digits.len() as i64,
+        exponent.parse::<i64>().unwrap_or(0) + 1,
+    );
+    let sign = if value < 0.0 { "-" } else { "" };
+    let body = if k <= n && n <= 21 {
+        format!("{digits}{}", "0".repeat((n - k) as usize))
+    } else if 0 < n && n <= 21 {
+        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
+    } else if -6 < n && n <= 0 {
+        format!("0.{}{digits}", "0".repeat((-n) as usize))
+    } else {
+        let power = n - 1;
+        let exponent = format!("e{}{}", if power < 0 { "-" } else { "+" }, power.abs());
+        if k == 1 {
+            format!("{digits}{exponent}")
+        } else {
+            format!("{}.{}{exponent}", &digits[..1], &digits[1..])
+        }
+    };
+    format!("{sign}{body}")
+}
+
+/// `String(value)` for a JSON value from the protocol.
+fn js_string(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Number(number) => number
+            .as_f64()
+            .map_or_else(|| number.to_string(), js_number),
+        other => other.to_string(),
+    }
+}
 
 /// An exception's message and name, as Playwright reports page errors: the description up
 /// to its stack.
@@ -12,14 +64,7 @@ pub fn exception_text(details: &Value) -> String {
             .get("description")
             .and_then(Value::as_str)
             .map(String::from)
-            .unwrap_or_else(|| {
-                exception
-                    .get("value")
-                    .map_or("undefined".into(), |value| match value {
-                        Value::String(text) => text.clone(),
-                        other => other.to_string(),
-                    })
-            }),
+            .unwrap_or_else(|| exception.get("value").map_or("undefined".into(), js_string)),
         None => details
             .get("text")
             .and_then(Value::as_str)
@@ -34,12 +79,17 @@ pub fn exception_text(details: &Value) -> String {
     lines[..stack].join("\n")
 }
 
-/// The message of a page error without its `Name: ` prefix.
+/// The message of a page error without its `Name: ` prefix: Playwright drops the text up to
+/// the first colon and the character after it, when there is one.
 fn error_message(details: &Value) -> String {
     let text = exception_text(details);
-    match text.find(':') {
-        Some(index) if index + 2 <= text.len() => text[index + 2..].to_string(),
-        _ => text,
+    let Some(colon) = text.find(':') else {
+        return text;
+    };
+    let mut rest = text[colon + 1..].chars();
+    match rest.next() {
+        Some(_) => rest.as_str().to_string(),
+        None => text,
     }
 }
 
@@ -49,10 +99,7 @@ fn preview(argument: &Value) -> String {
         return "undefined".into();
     }
     if let Some(value) = argument.get("value") {
-        return match value {
-            Value::String(text) => text.clone(),
-            other => other.to_string(),
-        };
+        return js_string(value);
     }
     if let Some(value) = argument.get("unserializableValue").and_then(Value::as_str) {
         return value.into();
@@ -114,73 +161,110 @@ pub struct Messages {
     pub warnings: Vec<String>,
 }
 
-/// Console errors and warnings, log entries and uncaught page errors, as Playwright reports them.
-pub fn collect(mut events: tokio::sync::mpsc::UnboundedReceiver<Event>) -> Arc<Mutex<Messages>> {
-    let messages: Arc<Mutex<Messages>> = Arc::default();
-    let sink = messages.clone();
-    tokio::spawn(async move {
-        while let Some(event) = events.recv().await {
-            let (kind, text) = match event.method.as_str() {
-                "Runtime.consoleAPICalled" => {
-                    if event
-                        .params
-                        .get("executionContextId")
-                        .and_then(Value::as_i64)
-                        == Some(0)
-                    {
-                        continue;
-                    }
-                    let text = event
-                        .params
-                        .get("args")
-                        .and_then(Value::as_array)
-                        .map(|args| args.iter().map(preview).collect::<Vec<_>>().join(" "))
-                        .unwrap_or_default();
-                    (
-                        event
-                            .params
-                            .get("type")
-                            .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string(),
-                        text,
-                    )
-                }
-                "Log.entryAdded" => {
-                    let entry = event.params.get("entry").cloned().unwrap_or(Value::Null);
-                    if entry.get("source").and_then(Value::as_str) == Some("worker") {
-                        continue;
-                    }
-                    (
-                        entry
-                            .get("level")
-                            .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string(),
-                        entry
-                            .get("text")
-                            .and_then(Value::as_str)
-                            .unwrap_or("")
-                            .to_string(),
-                    )
-                }
-                "Runtime.exceptionThrown" => {
-                    let details = event
-                        .params
-                        .get("exceptionDetails")
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                    ("pageerror".to_string(), error_message(&details))
-                }
-                _ => continue,
-            };
-            let mut messages = sink.lock().unwrap();
-            match kind.as_str() {
-                "error" | "pageerror" => messages.errors.push(text),
-                "warning" => messages.warnings.push(text),
-                _ => {}
-            }
+/// Console errors and warnings, log entries and uncaught page errors, as Playwright reports
+/// them. Events are read in the render's own task: everything the browser sent before a reply
+/// the render has awaited is already queued here, so taking the messages loses none.
+pub struct Collector {
+    events: UnboundedReceiver<Event>,
+    messages: Messages,
+}
+
+impl Collector {
+    pub fn new(events: UnboundedReceiver<Event>) -> Collector {
+        Collector {
+            events,
+            messages: Messages::default(),
         }
-    });
-    messages
+    }
+
+    pub fn take(&mut self) -> Messages {
+        while let Ok(event) = self.events.try_recv() {
+            self.record(&event);
+        }
+        std::mem::take(&mut self.messages)
+    }
+
+    fn record(&mut self, event: &Event) {
+        let (kind, text) = match event.method.as_str() {
+            "Runtime.consoleAPICalled" => {
+                if event
+                    .params
+                    .get("executionContextId")
+                    .and_then(Value::as_i64)
+                    == Some(0)
+                {
+                    return;
+                }
+                let text = event
+                    .params
+                    .get("args")
+                    .and_then(Value::as_array)
+                    .map(|args| args.iter().map(preview).collect::<Vec<_>>().join(" "))
+                    .unwrap_or_default();
+                (
+                    event
+                        .params
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
+                    text,
+                )
+            }
+            "Log.entryAdded" => {
+                let entry = event.params.get("entry").unwrap_or(&Value::Null);
+                if entry.get("source").and_then(Value::as_str) == Some("worker") {
+                    return;
+                }
+                (
+                    entry.get("level").and_then(Value::as_str).unwrap_or(""),
+                    entry
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                )
+            }
+            "Runtime.exceptionThrown" => (
+                "pageerror",
+                error_message(event.params.get("exceptionDetails").unwrap_or(&Value::Null)),
+            ),
+            _ => return,
+        };
+        match kind {
+            "error" | "pageerror" => self.messages.errors.push(text),
+            "warning" => self.messages.warnings.push(text),
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{error_message, js_number};
+    use serde_json::json;
+
+    #[test]
+    fn formats_numbers_as_javascript_does() {
+        for (value, text) in [
+            (1.0, "1"),
+            (-2.5, "-2.5"),
+            (1e21, "1e+21"),
+            (1.5e21, "1.5e+21"),
+            (123456789012345680000.0, "123456789012345680000"),
+            (0.000001, "0.000001"),
+            (1e-7, "1e-7"),
+            (0.1, "0.1"),
+        ] {
+            assert_eq!(js_number(value), text);
+        }
+    }
+
+    #[test]
+    fn splits_error_names_by_character() {
+        let error = |text: &str| json!({ "exception": { "description": text } });
+        assert_eq!(error_message(&error("Error: boom\n    at x")), "boom");
+        assert_eq!(error_message(&error("a:é")), "");
+        assert_eq!(error_message(&error("a:")), "a:");
+        assert_eq!(error_message(&error("no colon")), "no colon");
+    }
 }

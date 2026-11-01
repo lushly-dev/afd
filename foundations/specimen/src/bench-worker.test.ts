@@ -375,3 +375,21 @@ it('reports unsupported worker paths and transports nested disposal errors', () 
 	expect(String(error.errors[0])).toContain('render-marker');
 	expect(String(error.errors[1])).toContain('cleanup-marker');
 });
+
+it.skipIf(process.platform === 'win32')(
+	'stops Chromium when its native host is killed',
+	async () => {
+		const bench = await createSpecimenBench({ root: await fixture() });
+		benches.push(bench);
+		await bench.render({ id: 'probe' });
+		const { host, processes } = ownedHost(process.pid);
+		const browser = processes.find(
+			(entry) => entry.parent === host.pid && entry.command.includes('--remote-debugging-pipe')
+		);
+		if (!browser) throw new Error('No browser owned by the native host');
+		// Only the CDP pipe ties Chromium to its host: losing it must end the browser.
+		process.kill(host.pid, 'SIGKILL');
+		await vi.waitFor(() => expectExited(browser.pid), { timeout: 5000 });
+		await expect(bench.render({ id: 'probe' })).rejects.toThrow(/host exited/);
+	}
+);

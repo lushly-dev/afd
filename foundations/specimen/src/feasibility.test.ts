@@ -321,6 +321,71 @@ export const Stream = {
 		}
 	});
 
+	it('loads Vite import forms and fails only the specimens whose module cannot bundle', async () => {
+		const project = await realpath(await mkdtemp(join(tmpdir(), 'specimen-imports-')));
+		let importBench: Awaited<ReturnType<typeof createSpecimenBench>> | undefined;
+		try {
+			await writeFile(join(project, 'notes.txt'), 'raw-notes-marker');
+			await writeFile(join(project, 'dot.png'), Buffer.from([137, 80, 78, 71]));
+			await writeFile(join(project, 'theme.css'), '.styled { background: url("./dot.png"); }');
+			await writeFile(join(project, 'inline.css'), '.inline-only { color: red; }');
+			await writeFile(
+				join(project, 'good.js'),
+				`import notes from './notes.txt?raw';
+import inline from './inline.css?inline';
+import './theme.css';
+export const Good = {
+ render() {
+  const element = document.createElement('p');
+  element.className = 'styled';
+  element.textContent = notes + ' ' + (inline.includes('inline-only') ? 'inline-string' : 'missing');
+  // Read once the bench has connected the element.
+  const ready = new Promise((done) => setTimeout(() => { element.dataset.background = getComputedStyle(element).backgroundImage; done(); }, 0));
+  return { element, ready };
+ },
+ targets: { picture: { role: 'img', name: 'Dot' } },
+ scenario: [{ action: { hover: 'picture' } }, { capture: 'hovered' }],
+};`
+			);
+			await writeFile(
+				join(project, 'pictured.js'),
+				`export const Pictured = { render() { const image = document.createElement('img'); image.alt = 'Dot'; image.width = 20; image.height = 20; return image; }, targets: { picture: { role: 'img', name: 'Dot' } }, scenario: [{ action: { hover: 'picture' } }, { capture: 'hovered' }] };`
+			);
+			await writeFile(join(project, 'broken.js'), 'export const Broken = {;');
+			await writeFile(
+				join(project, 'specimen.config.json'),
+				JSON.stringify({
+					specimens: [
+						{ id: 'good', title: 'Good', module: './good.js', exportName: 'Good' },
+						{ id: 'pictured', title: 'Pictured', module: './pictured.js', exportName: 'Pictured' },
+						{ id: 'broken', title: 'Broken', module: './broken.js', exportName: 'Broken' },
+					],
+				})
+			);
+			importBench = await createSpecimenBench({ root: project });
+			const good = await importBench.render({ id: 'good' });
+			expect(good.channels.dom.raw).toContain('raw-notes-marker inline-string');
+			expect(good.channels.dom.raw).toMatch(
+				/data-background="url\(&quot;http:\/\/127\.0\.0\.1:\d+\/r\/[^/]+\/assets\/dot-[0-9a-f]{8}\.png&quot;\)"/
+			);
+			// Role targets name ARIA's `img`, which Chromium calls `image`.
+			const pictured = await importBench.render({ id: 'pictured', checkpoint: 'hovered' });
+			expect(pictured.manifest.checkpoint).toBe('hovered');
+			await expect(importBench.render({ id: 'broken' })).rejects.toThrow(/Bundling failed/);
+			// Fixing the module rebuilds the bench.
+			await writeFile(
+				join(project, 'broken.js'),
+				`export const Broken = { render: () => Object.assign(document.createElement('p'), { textContent: 'fixed-marker' }) };`
+			);
+			expect((await importBench.render({ id: 'broken' })).channels.dom.raw).toContain(
+				'fixed-marker'
+			);
+		} finally {
+			await importBench?.close();
+			await rm(project, { recursive: true, force: true });
+		}
+	});
+
 	it('builds an independently loadable static bench within the shell budget', async () => {
 		const output = join(artifacts, 'static');
 		const result = await bench.build(output);

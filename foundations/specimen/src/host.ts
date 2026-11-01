@@ -104,6 +104,8 @@ export class HostProcess {
 	private sequence = 0;
 	private failure: Error | undefined;
 	private stderr = '';
+	/** Set once the host acknowledged close: it has stopped Chromium itself. */
+	private closedCleanly = false;
 	/** Chromium's process group, reported by `open`: the last-resort cleanup handle. */
 	browserGroup: number | undefined;
 
@@ -119,7 +121,9 @@ export class HostProcess {
 					)
 				);
 				// The host stops Chromium on every exit it controls; this covers one it did not.
-				if (this.browserGroup) {
+				// After a clean close the group is gone and its id may already belong to
+				// another process group, so it is left alone.
+				if (this.browserGroup && !this.closedCleanly) {
 					try {
 						process.kill(-this.browserGroup, 'SIGKILL');
 					} catch {
@@ -161,11 +165,34 @@ export class HostProcess {
 		this.pending.clear();
 	}
 
-	request(op: string, body: Record<string, unknown> = {}): Promise<unknown> {
+	/**
+	 * Send one request. Past `timeoutMs` the host is presumed stuck: every pending request
+	 * fails and the host is killed, which ends Chromium too.
+	 */
+	request(op: string, body: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
 		if (this.failure) return Promise.reject(this.failure);
 		const id = ++this.sequence;
 		return new Promise((resolveReply, reject) => {
-			this.pending.set(id, { resolve: resolveReply, reject });
+			const timer =
+				timeoutMs === undefined
+					? undefined
+					: setTimeout(() => {
+							this.fail(new Error(`Specimen host ${op} deadline exceeded after ${timeoutMs}ms`));
+							this.child.kill('SIGKILL');
+						}, timeoutMs);
+			const settle = () => {
+				if (timer) clearTimeout(timer);
+			};
+			this.pending.set(id, {
+				resolve: (value) => {
+					settle();
+					resolveReply(value);
+				},
+				reject: (error) => {
+					settle();
+					reject(error);
+				},
+			});
 			this.child.stdin?.write(`${JSON.stringify({ id, op, ...body })}\n`);
 		});
 	}
@@ -173,7 +200,12 @@ export class HostProcess {
 	/** Ask the host to finish accepted work and stop Chromium; kill it if it does not exit. */
 	async close(): Promise<void> {
 		if (this.child.exitCode === null && this.child.signalCode === null && !this.failure) {
-			const closed = this.request('close').catch(() => undefined);
+			const closed = this.request('close').then(
+				() => {
+					this.closedCleanly = true;
+				},
+				() => undefined
+			);
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			await Promise.race([
 				closed.then(() => this.exited),

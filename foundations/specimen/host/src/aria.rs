@@ -61,6 +61,18 @@ fn states(node: &Value) -> Vec<String> {
 /// Playwright's rule for when a YAML key or scalar must be quoted to read back as itself.
 fn needs_quotes(text: &str) -> bool {
     let first = text.chars().next();
+    let mut chars = text.chars().peekable();
+    let mut colon_or_newline_then_space = false;
+    let mut space_then_hash = false;
+    while let Some(c) = chars.next() {
+        let next = chars.peek().copied();
+        if matches!(c, ':' | '\n') && next.is_none_or(char::is_whitespace) {
+            colon_or_newline_then_space = true;
+        }
+        if c.is_whitespace() && next == Some('#') {
+            space_then_hash = true;
+        }
+    }
     text.is_empty()
         || text.starts_with(char::is_whitespace)
         || text.ends_with(char::is_whitespace)
@@ -68,29 +80,91 @@ fn needs_quotes(text: &str) -> bool {
             .chars()
             .any(|c| matches!(c as u32, 0x00..=0x08 | 0x0b | 0x0c | 0x0e..=0x1f | 0x7f..=0x9f))
         || text.starts_with('-')
-        || text.contains(": ")
-        || text.ends_with(':')
+        || colon_or_newline_then_space
+        || space_then_hash
         || text.contains(['\n', '\r'])
-        || text
-            .split(char::is_whitespace)
-            .skip(1)
-            .any(|word| word.starts_with('#'))
         || first.is_some_and(|c| "&*],?!>|@\"'#%[".contains(c))
         || text.contains(['{', '}', '`'])
-        || text.parse::<f64>().is_ok()
+        || js_numeric(text)
         || matches!(
             text.to_lowercase().as_str(),
             "y" | "n" | "yes" | "no" | "true" | "false" | "on" | "off" | "null"
         )
 }
 
-/// A scalar value, double-quoted when it needs quotes.
-fn scalar(text: &str) -> String {
-    if needs_quotes(text) {
-        serde_json::to_string(text).unwrap_or_default()
-    } else {
-        text.to_string()
+/// Whether JavaScript's `Number(text)` is a number rather than `NaN`.
+fn js_numeric(text: &str) -> bool {
+    let text = text.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}');
+    if text.is_empty() {
+        return true;
     }
+    for (prefix, radix) in [("0x", 16), ("0o", 8), ("0b", 2)] {
+        let lower = text.get(..2).map(str::to_ascii_lowercase);
+        if lower.as_deref() == Some(prefix) {
+            let digits = &text[2..];
+            return !digits.is_empty() && digits.chars().all(|c| c.is_digit(radix));
+        }
+    }
+    let unsigned = text.strip_prefix(['+', '-']).unwrap_or(text);
+    if unsigned == "Infinity" {
+        return true;
+    }
+    let bytes = unsigned.as_bytes();
+    let (mut index, mut digits) = (0, 0);
+    let digit = |index: usize| bytes.get(index).is_some_and(u8::is_ascii_digit);
+    while digit(index) {
+        index += 1;
+        digits += 1;
+    }
+    if bytes.get(index) == Some(&b'.') {
+        index += 1;
+        while digit(index) {
+            index += 1;
+            digits += 1;
+        }
+    }
+    if digits == 0 {
+        return false;
+    }
+    if matches!(bytes.get(index), Some(b'e' | b'E')) {
+        index += 1;
+        if matches!(bytes.get(index), Some(b'+' | b'-')) {
+            index += 1;
+        }
+        let start = index;
+        while digit(index) {
+            index += 1;
+        }
+        if index == start {
+            return false;
+        }
+    }
+    index == bytes.len()
+}
+
+/// A scalar value, double-quoted with Playwright's escapes when it needs quotes.
+fn scalar(text: &str) -> String {
+    if !needs_quotes(text) {
+        return text.to_string();
+    }
+    let mut quoted = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '\\' => quoted.push_str("\\\\"),
+            '"' => quoted.push_str("\\\""),
+            '\u{8}' => quoted.push_str("\\b"),
+            '\u{c}' => quoted.push_str("\\f"),
+            '\n' => quoted.push_str("\\n"),
+            '\r' => quoted.push_str("\\r"),
+            '\t' => quoted.push_str("\\t"),
+            c if matches!(c as u32, 0x00..=0x1f | 0x7f..=0x9f) => {
+                quoted.push_str(&format!("\\x{:02x}", c as u32));
+            }
+            c => quoted.push(c),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 /// A mapping key, single-quoted when it needs quotes.
@@ -150,7 +224,8 @@ fn collect(nodes: &HashMap<String, Value>, node: &Value, items: &mut Vec<Item>) 
 fn element(nodes: &HashMap<String, Value>, node: &Value, role: &str) -> Vec<String> {
     let name = normalize(&text(node, "name"));
     let mut line = role.to_string();
-    if !name.is_empty() {
+    // Playwright omits names longer than 900 UTF-16 code units.
+    if !name.is_empty() && name.encode_utf16().count() <= 900 {
         line.push(' ');
         line.push_str(&serde_json::to_string(&name).unwrap_or_default());
     }
@@ -283,6 +358,20 @@ mod tests {
             snapshot(&tree, 10),
             "- main:\n  - 'image \"Current plan: Garden\"': GARDEN\n  - paragraph: \"42\""
         );
+    }
+
+    #[test]
+    fn quotes_what_javascript_reads_as_a_number_and_escapes_controls() {
+        use super::scalar;
+        for text in ["0x1F", "0o7", "0b1", "1e3", ".5", "-2", "Infinity", "  "] {
+            assert!(scalar(text).starts_with('"'), "{text}");
+        }
+        for text in ["infinity", "1e", "0x", "abc", "a:b"] {
+            assert_eq!(scalar(text), text);
+        }
+        assert_eq!(scalar("a: b"), "\"a: b\"");
+        assert_eq!(scalar("a\tb #c"), "\"a\\tb #c\"");
+        assert_eq!(scalar("x\u{85}"), "\"x\\x85\"");
     }
 
     #[test]

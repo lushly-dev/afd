@@ -38,16 +38,17 @@ Against session 6's incumbent (FAST-AF 0.323 and Lushly 1.094 core-seconds per c
 
 Rendering moved into `specimen-host`, a Rust binary (`foundations/specimen/host`):
 
-- **Bundling.** Rolldown 1.2.16 bundles the bench page and a lazy chunk per case. `.css` imports inject a style element, as Vite's development server does. Vite's development `define`s and the `development` resolve condition are kept.
+- **Bundling.** Rolldown 1.2.16 bundles the bench page and a lazy chunk per case. Vite's import forms are kept: `.css` imports inject a style element, `?inline` and `?raw` import strings, `?url` resolves to a served file, and a stylesheet's relative `@import`s and `url()`s resolve against it. So are Vite's development `define`s and the `development` resolve condition. A module that fails to bundle fails only its specimens, as under Vite's development server.
 - **Serving.** Generations are held in memory and served on 127.0.0.1 under a per-render path. The host returns `file:digest` for each file a render loaded, for the source digest.
 - **Chromium.** The host drives the headless shell over CDP through `--remote-debugging-pipe`, in its own process group. Pages get what Playwright 1.64 gives them:
   - its launch switches;
   - `Page.setFontFamilies` with its per-platform defaults;
   - device metrics, screen orientation, locale and `Accept-Language` without a user-agent override;
   - focus emulation, and media emulation with the same four features.
-- **Input.** Actions use real input after Playwright's actionability checks. Click and hover wait until the target is visible, enabled, stable for one frame and the element receiving the pointer, with Playwright's retry intervals. Fill follows Playwright's fill. Selector targets match across open shadow roots (`src/browser/locate.ts`, Playwright's CSS semantics). Role targets query Chromium's accessibility tree.
+- **Input.** Actions use real input after Playwright's actionability checks, ported from its injected script: retargeting, visibility, native and ARIA disabled state, readonly state, one-frame stability and the hit-target check across shadow roots and slots. Roles come from Chromium's tree. Click points are clipped to the viewport, and Playwright's retry intervals apply. Fill checks visible, enabled and editable, then follows Playwright's fill. Selector targets are CSS matched across open shadow roots (`src/browser/locate.ts`, Playwright's CSS semantics, with `:scope` as the mount root); Playwright-only selector syntax is rejected. Role targets query Chromium's accessibility tree, with ARIA's `img` mapped to Chromium's `image` and names compared after Playwright's whitespace normalization.
 - **Messages.** Console, log and page-error text follow Playwright's formatting.
-- **Bounds.** Each render is bounded by its deadline from context creation to capture, and disposal by at most a second more. Close waits for accepted renders and then stops the browser group, even one that never finished its handshake. End of input kills the group at once. Node keeps the group id as a last-resort cleanup handle.
+- **Bounds.** Each render is bounded by its deadline from context creation to capture; disposal and closing the context are each bounded by at most a second more. Bundling and Chromium's startup (bounded at 10 seconds) come first, as the Playwright runtime's bundle step and launch did. Close waits for accepted renders and then stops the browser group, even one that never finished its handshake. End of input kills the group at once.
+- **Ownership.** Chromium inherits only its CDP pipe, so a killed host's browser sees the pipe close and exits. The host kills the browser's group before reaping it, so the group id cannot have been reused. Node kills the group only after an unexpected host exit, and fails a request the host does not answer in time.
 
 The Node API keeps its contract and becomes a thin client (`src/host.ts`, `src/bench-runtime.ts`):
 
@@ -69,8 +70,43 @@ The full native suite, the reference driver, the integration and CLI suites and 
 Changes callers can see:
 
 - **Capture version 0.2.** ARIA snapshots now come from Chromium's accessibility tree, in the indented YAML form of Playwright's snapshots. Chromium's own roles and names show through: an unnamed `<form>` is `form`, `img` is `image`, and text-field values follow the name. Version 0.1 captures are rejected by comparison, as any version change is.
-- **Top-level throws.** Oxc's dead-code pass, in Rolldown 1.2.16, removes a declaration that follows an unconditional top-level `throw` but keeps its export, so the module fails to link instead of throwing its own error. The host runs each such `throw` in an arrow function called in its place. A test fixture depends on this behavior.
+- **Top-level throws.** Oxc's dead-code pass, in Rolldown 1.2.16, removes a declaration that follows an unconditional top-level `throw` but keeps its export, so the module fails to link instead of throwing its own error. The host runs each such `throw` in a function called in its place, after a `;` so the call cannot join the previous line, and awaited when the `throw` awaits. A test fixture depends on this behavior.
 - **Build and platform requirements.** Building the host needs Rust (rustup installs the pinned 1.98.0). The host supports macOS and Linux, not Windows. Prebuilt hosts are not packaged.
+
+### Independent review
+
+An independent review of `941a66c2` found defects that are fixed on the branch, each with a regression test where it can be exercised:
+
+- **Ownership.** Chromium inherited every pipe descriptor, so it outlived a killed host. It also could be reaped before its group was killed, and Node killed the group even after a clean close.
+- **Fidelity.** These differed from Playwright:
+  - native disabled state for form-associated custom elements, and `aria-disabled` inheritance and roles;
+  - viewport clipping of click points;
+  - fill's states;
+  - `img` role targets and name normalization;
+  - console events arriving with the last reply;
+  - number and error-name text;
+  - YAML quoting of numeric-looking and C1-control text;
+  - screenshot formats and directories.
+- **Bundling.** `?raw` imports failed, and one broken module failed every specimen. The throw guard could join a previous line or break an `await`, and an edit made during a build went unnoticed.
+- **Protocol.** A lone surrogate dropped a message, sends after the browser exited waited for their timeout, and message scanning was quadratic.
+
+### Preview paired session
+
+This session ran on `random` at `941a66c2`, before the review's fixes, so it is a preview and not the verdict. It took place on 2026-11-01: the quiet gate passed at 08:25 UTC, and 12 jobs (nested ABBA per consumer) finished by 08:36. Every probe was in band, between 0.410 and 0.421 s against a limit of 0.450 s. The host binary's digest is `d0d51d57…`. Ratios are candidate over incumbent, with the in-process and isolated paths given as ranges.
+
+| Criterion | FAST-AF | Lushly (held) |
+| --- | --- | --- |
+| CPU per verified case (≤ 1) | 0.561–0.583, passes | 0.177–0.184 |
+| Active peak footprint (≤ 1) | 0.079–0.088, passes | 0.066–0.073 |
+| Post-close footprint (≤ 1) | 0.997–1.018, passes: no measurable difference | 0.920–0.933 |
+| Cold startup latency (≤ 1.25) | 0.111–0.123, passes | 0.053–0.058 |
+| Warm render latency (≤ 1.25) | 0.051, passes | 0.032 |
+
+- **Lushly is held.** The incumbent's own two peaks differed by 13.26%, beyond the policy's 10% repeatability rule, so no Lushly ratio counts.
+- **Post-close footprint.** Candidate jobs left 30.4–31.5 MiB after close; incumbent jobs left 30.7–33.4 MiB.
+- **Build budgets.** These still pass after the runtime change. The shell is 25,958 and 26,159 bytes against 50,000, and the totals 1,065,598 and 1,184,220 against 1,300,000.
+
+The verdict session runs on the fixed commit.
 
 ### Local diagnostic sessions
 

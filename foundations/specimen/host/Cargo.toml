@@ -16,7 +16,7 @@ anyhow = "1"
 base64 = "0.22"
 futures = "0.3"
 libc = "0.2"
-oxc = "=0.156.0"
+oxc = { version = "=0.156.0", features = ["ast_visit"] }
 rolldown = "=1.2.16"
 rolldown_common = "=1.2.16"
 rolldown_plugin = "=1.2.16"

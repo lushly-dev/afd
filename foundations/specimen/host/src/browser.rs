@@ -6,8 +6,8 @@
 
 use crate::aria;
 use crate::cdp::{self, Cdp};
-use crate::console::{Messages, collect};
-use crate::page::{Page, prepare};
+use crate::console::{Collector, Messages};
+use crate::page::{Page, Viewport, prepare};
 use anyhow::{Result, anyhow};
 use base64::Engine;
 use serde::Deserialize;
@@ -99,6 +99,21 @@ fn switches(user_data: &str) -> Vec<String> {
     args
 }
 
+/// Whether the process has exited, without reaping it: until it is reaped its id, and so its
+/// process group's, cannot be reused by another process.
+fn exited(pid: u32) -> bool {
+    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    let status = unsafe {
+        libc::waitid(
+            libc::P_PID,
+            pid as libc::id_t,
+            &mut info,
+            libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
+        )
+    };
+    status == 0 && unsafe { info.si_pid() } != 0
+}
+
 pub struct Browser {
     cdp: Cdp,
     child: Mutex<Option<Child>>,
@@ -171,12 +186,13 @@ impl Browser {
                 )
                 .await;
                 let deadline = Instant::now() + Duration::from_millis(2000);
-                while !matches!(child.try_wait(), Ok(Some(_))) && Instant::now() < deadline {
+                while !exited(self.pid) && Instant::now() < deadline {
                     sleep(Duration::from_millis(10)).await;
                 }
             }
             // Its own process group: stop the browser if it did not exit, and any descendant
-            // that outlived it.
+            // that outlived it. The browser is not reaped until after this, so its id, which
+            // names the group, cannot have been reused.
             unsafe { libc::killpg(self.pid as i32, libc::SIGKILL) };
             let _ = child.wait();
         }
@@ -184,6 +200,7 @@ impl Browser {
     }
 
     /// Stop the browser group immediately, without waiting: for a host losing its owner.
+    /// The browser has not been reaped, so the group id is still its own.
     pub fn kill(&self) {
         if self.child.lock().unwrap().is_some() {
             unsafe { libc::killpg(self.pid as i32, libc::SIGKILL) };
@@ -233,13 +250,15 @@ const RUNTIME_READY: &str = "new Promise((resolve) => { const check = () => wind
 struct Attempt {
     context: Mutex<Option<Value>>,
     session: Mutex<Option<String>>,
-    messages: Mutex<Option<Arc<Mutex<Messages>>>>,
+    collector: Mutex<Option<Collector>>,
     ready: std::sync::atomic::AtomicBool,
 }
 
 impl Browser {
     /// Render one case in a fresh browser context. Everything from creating the context to
-    /// capture is bounded by the request's deadline, and disposal by at most one second more.
+    /// capture is bounded by the request's deadline. Disposal and closing the context are each
+    /// bounded by at most one second more. Bundling and browser startup come first, with their
+    /// own bounds, as the Playwright runtime's bundle step and launch did.
     pub async fn render(
         &self,
         url: &str,
@@ -282,9 +301,9 @@ impl Browser {
             }
             _ => Ok(()),
         };
-        let messages = attempt.messages.lock().unwrap().take();
-        let Messages { errors, warnings } = messages
-            .map(|messages| std::mem::take(&mut *messages.lock().unwrap()))
+        let collector = attempt.collector.lock().unwrap().take();
+        let Messages { errors, warnings } = collector
+            .map(|mut collector| collector.take())
             .unwrap_or_default();
         if let Some(session) = &session {
             self.cdp.unsubscribe(session);
@@ -354,7 +373,7 @@ impl Browser {
             .ok_or_else(|| anyhow!("Chromium did not attach to the page"))?
             .to_string();
         *attempt.session.lock().unwrap() = Some(session.clone());
-        *attempt.messages.lock().unwrap() = Some(collect(self.cdp.subscribe(&session)));
+        *attempt.collector.lock().unwrap() = Some(Collector::new(self.cdp.subscribe(&session)));
         let page = Page {
             cdp: &self.cdp,
             session,
@@ -389,33 +408,59 @@ impl Browser {
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
         let snapshot = aria::snapshot(&tree, root);
         let screenshot = match &request.screenshot {
-            Some(path) => {
-                let metrics = page.send("Page.getLayoutMetrics", json!({})).await?;
-                let size = |key: &str, fallback: u32| {
-                    metrics
-                        .pointer(&format!("/cssContentSize/{key}"))
-                        .and_then(Value::as_f64)
-                        .unwrap_or(fallback as f64)
-                };
-                let (width, height) = (
-                    size("width", viewport.width),
-                    size("height", viewport.height),
-                );
-                let shot = page
-                    .send(
-                        "Page.captureScreenshot",
-                        json!({ "format": "png", "captureBeyondViewport": true, "clip": { "x": 0, "y": 0, "width": width, "height": height, "scale": 1 } }),
-                    )
-                    .await?;
-                let data = shot.get("data").and_then(Value::as_str).unwrap_or("");
-                std::fs::write(
-                    path,
-                    base64::engine::general_purpose::STANDARD.decode(data)?,
-                )?;
-                Some(path.clone())
-            }
+            Some(path) => Some(screenshot(&page, path, &viewport).await?),
             None => None,
         };
         Ok((captured, snapshot, screenshot))
     }
+}
+
+/// A full-page screenshot as Playwright takes one: the format from the path's extension, the
+/// page size from the document's largest scroll, offset and client extents.
+async fn screenshot(page: &Page<'_>, path: &str, viewport: &Viewport) -> Result<String> {
+    let extension = std::path::Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    let (format, quality) = match extension.as_deref() {
+        Some("png") => ("png", None),
+        Some("jpg" | "jpeg") => ("jpeg", Some(80)),
+        Some("webp") => ("webp", Some(100)),
+        other => {
+            let mime = match other {
+                Some("gif") => "image/gif",
+                Some("bmp") => "image/bmp",
+                Some("svg") => "image/svg+xml",
+                Some("avif") => "image/avif",
+                Some("pdf") => "application/pdf",
+                _ => "null",
+            };
+            return Err(anyhow!("path: unsupported mime type \"{mime}\""));
+        }
+    };
+    let size = page
+        .evaluate("(() => { const body = document.body, root = document.documentElement; return { width: Math.max(body.scrollWidth, root.scrollWidth, body.offsetWidth, root.offsetWidth, body.clientWidth, root.clientWidth), height: Math.max(body.scrollHeight, root.scrollHeight, body.offsetHeight, root.offsetHeight, body.clientHeight, root.clientHeight) }; })()")
+        .await?;
+    let dimension = |key: &str| size.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+    let (width, height) = (dimension("width"), dimension("height"));
+    let fits = width <= viewport.width as f64 && height <= viewport.height as f64;
+    let mut params = json!({
+        "format": format,
+        "clip": { "x": 0, "y": 0, "width": width, "height": height, "scale": 1 },
+        "captureBeyondViewport": !fits,
+    });
+    if let Some(quality) = quality {
+        params["quality"] = json!(quality);
+    }
+    let shot = page.send("Page.captureScreenshot", params).await?;
+    let data = shot.get("data").and_then(Value::as_str).unwrap_or("");
+    let target = std::path::Path::new(path);
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(
+        target,
+        base64::engine::general_purpose::STANDARD.decode(data)?,
+    )?;
+    Ok(path.to_string())
 }

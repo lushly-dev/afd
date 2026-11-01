@@ -119,6 +119,14 @@ async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
     }))
 }
 
+/// The numeric `"id"` of a request line that is not valid JSON, if one can be read.
+fn request_id(line: &str) -> Option<u64> {
+    let start = line.find("\"id\"")? + 4;
+    let rest = line[start..].trim_start().strip_prefix(':')?.trim_start();
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
+}
+
 fn failure(id: &Value, error: RenderFailure) -> Value {
     json!({ "id": id, "ok": false, "error": { "message": error.message, "causes": error.causes } })
 }
@@ -141,7 +149,11 @@ async fn main() -> Result<()> {
     let mut work = tokio::task::JoinSet::new();
     let mut closed = false;
     while let Ok(Some(line)) = lines.next_line().await {
-        let Ok(message) = serde_json::from_str::<Value>(&line) else {
+        let Some(message) = cdp::parse_lossy(line.as_bytes()) else {
+            // Answer what can be answered, so the caller is not left waiting.
+            if let Some(id) = request_id(&line) {
+                let _ = replies.send(failure(&json!(id), anyhow!("Invalid host request").into()));
+            }
             continue;
         };
         let id = message.get("id").cloned().unwrap_or(Value::Null);
