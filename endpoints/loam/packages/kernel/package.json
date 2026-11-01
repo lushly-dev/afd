@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-kernel",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's kernel: registries, shell commands, layout model, journal and replay; no DOM dependency",
+	"description": "Loam's kernel: registries, shell commands, layout model, palette index, journal and replay; no DOM dependency",
 	"license": "MIT",
 	"type": "module",
 	"engines": {
@@ -12,6 +12,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"import": "./dist/testing.js"
 		}
 	},
 	"scripts": {

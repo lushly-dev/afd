@@ -979,6 +979,80 @@ Mutations declare `mutation: true` and return an `undoCommand` with
   `JOURNAL_LOCKED` renders a full-page notice, "Loam is open in another
   tab", and does not create a kernel.
 
+### 6.7 Decided while implementing step 5
+
+Step 5 settled what sections 5 and 6 left open, as the options most
+consistent with them (amended 2026-11-01):
+
+- **The test kit is a subpath.** `replayKernel`, `diffJournals`,
+  `createReferenceWorkspace`, `recordSession`, `createFixedEnvironment` and
+  `SESSION_50`, the scripted 50-call session of E2, are exported from
+  `@lushly-dev/loam-kernel/testing`, so `MemoryAdapter`,
+  `MemoryJournalSink` and `MockAuthAdapter` stay out of the root's graph.
+  Step 7 records its committed fixture from `SESSION_50`.
+- **Names.** Name refusal also refuses a name given twice, with
+  `COMMAND_NAME_DUPLICATE`, before `createDirectRegistry` would throw a
+  plain `Error`. The error's `details` are `{ name, reason }`.
+- **Exposure and auth.** Only the shell's commands get
+  `{ palette: true, agent: true, mcp: false, cli: false }`; a command in
+  `options.commands` keeps its own `expose`. The auth middleware's
+  `exclude` lists every registered name, `options.commands` included, so
+  nothing is refused signed out.
+- **Refusals as results.** A view-state handler can only refuse by
+  throwing, which the engine returns as a generic
+  `COMMAND_EXECUTION_ERROR` outside devMode. So the kernel wraps
+  `view-state-set`: for `loam.layout` and `loam.appearance` it runs the
+  shared validator first and returns its `VALIDATION_ERROR` as the result,
+  which is journaled. The handlers' `set` and `replace` still validate and
+  throw `LoamKernelError`, for callers of the registry itself. A
+  replacement must be a complete state. `appearance-set` and the
+  `loam.appearance` handler share `validateAppearancePatch` the same way.
+- **Schema and handler.** `layout-set`'s input schema is strict and typed
+  (unknown keys and `version` are schema failures, which change nothing and
+  are not journaled); integers and ranges are checked in the handler.
+- **Hydration.** A persisted record the validator refuses is ignored and
+  its defaults kept, so one bad record cannot stop the other from loading.
+- **`seq` in events.** The kernel gives every call a trace ID,
+  `loam-<boot clock in base 36>-<n>`, and reads the `seq` the sink assigned
+  to that trace ID; the journal middleware exposes no other link between a
+  call and its entry.
+- **Replay.** Each entry runs on the registry of the interface it was
+  recorded on. `MockAuthAdapter` derives the session and user ids from
+  `Date.now()`, so they count as the session's timestamps:
+  `REPLAY_IGNORE` is `metadata.executionTimeMs`, `data.resolved`,
+  `data.host`, `data.store`, `data.session.id`, `data.session.expiresAt`
+  and `data.user.id`. A journal that does not start at `seq` 1 rejects with
+  `LoamKernelError` `REPLAY_START_INVALID`; a divergence rejects with
+  `REPLAY_DIVERGED`, whose `details` carry the report and the first
+  difference. An empty journal replays to the defaults.
+- **Journal diff.** `diffJournals` also ignores `metadata.traceId` and the
+  Mock session's ids, and takes extra `ignore` paths. `firstDifference`
+  has an optional `path`, and its `field` is `'length'` when one journal is
+  longer; `counts` is `{ a, b, same, different }`.
+- **Palette index.** Whitespace in a query is ignored and case does not
+  matter. A field's score is its weight times the query length plus the
+  bonuses: 1 per matched character that directly follows the previous one,
+  2 per matched character at a word start (after a non-alphanumeric
+  character, or a camel-case capital). The first occurrence of the query's
+  first character and up to 16 word starts are tried. Equal fields prefer
+  name, then title, then description. `matches` are half-open
+  `[start, end)` ranges. An empty query lists every entry by name with
+  score 0. On the 5,000-entry reference workspace, Node 26 on a loaded
+  10-core Mac measured a p95 of about 2.5 ms per query (A1's budget is
+  8 ms in Chromium; step 7 measures it there).
+- **Keybindings.** `SHELL_KEYBINDINGS_V0` is a frozen list of
+  `{ chord, command, toggle?, focus? }`. `listCommands` gives a command a
+  `keybinding` only for a chord that runs it with no input of its own
+  (`Mod+K` for `palette-open`); the toggle chords compute `layout-set`'s
+  input, so `layout-set` has none.
+- **`needsInput`** is also true for a union input every branch of which
+  has a required property (`auth-sign-in`).
+- **Disposal.** After `dispose()`, calls return `KERNEL_DISPOSED`.
+- **The reference workspace** returns `{ commands, queries, calls }`:
+  `size` command summaries, 200 queries (a quarter matching nothing) and
+  `size` mixed shell calls, every one journaled, which `recordSession` runs
+  on a test kernel for A2 and A3.
+
 ## 7. The chrome
 
 - **The shell element.** `loam-shell` hosts the parts in a CSS grid.
@@ -1057,6 +1131,17 @@ The ceilings assume the deep imports of section 7. Step 7 records the
 measured values in this specification's amendments. When a measurement is
 under 70% of its ceiling, the ceiling is lowered to the measured value plus
 10%. Raising a ceiling needs an amendment with the reason.
+
+Measured by step 5 (2026-11-01), `dist/index.js` bundled by esbuild 0.27
+for the browser, minified: 520,541 bytes, of which the kernel's own code is
+about 16 KB, the AFD packages about 50 KB and Zod 4.6.7 about 454 KB.
+Zod's root entry, which `afd-server`, `afd-view-state` and `afd-auth`
+import, re-exports every locale (about 264 KB) and esbuild keeps them; Zod
+without its locales is still about 190 KB. The kernel row's ceiling
+therefore cannot hold, and the page's JavaScript ceilings are at risk too.
+Step 7 owns the `budget` script and decides, by amendment with the
+measurements, between a locale-free Zod entry in the build, measuring the
+Vite (Rollup) output, which tree-shakes more, and raising the ceilings.
 
 ### 8.2 The accelerator admission rule (D37)
 
@@ -1261,3 +1346,4 @@ returned 18 findings. Each is addressed in the text above:
 | 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |
 | 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Open |
+| 2026-11-01 | Phase 0 step 5 | The kernel's esbuild browser bundle is 520,541 bytes against the 150,000-byte ceiling of 8.1, almost all Zod (section 8.1); step 7 decides how the budget holds before it adds `budget` | Open; step 7 |
