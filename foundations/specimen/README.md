@@ -1,6 +1,6 @@
 # Specimens
 
-Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-render`, `specimen-run`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
@@ -74,6 +74,21 @@ Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on
 5. Run the accessibility check with axe-core 4.13.0 over the body, under the story's `parameters.a11y` policy.
 
 A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
+
+## Plugins and inspection
+
+`"plugins": ["./specimen.plugins.ts"]` names page modules whose default export is a plugin, or an array of them. Declare one with `definePlugin`; each plugin may implement any of four points:
+
+- **Schema source:** `schema(tag, schema)` enriches what core reads from `"manifest"`, a custom elements manifest. Knowledge no source has stays in the schema's `unknown` list.
+- **Context provider:** `themes` names presets a native specimen's `theme` context applies.
+- **Token map:** `tokens` holds public variable names to token ids, and private aliases to public variables. `composeTokenMaps` composes and validates them together: versions, owners, conflicting ids, unresolved aliases and cycles.
+- **Command runner:** `runners` handles explicit `command` scenario steps by runner id.
+
+Plugins install before any specimen or story module loads. A plugin, runner or theme registered twice is an error, and a step naming a missing runner fails before it runs.
+
+`inspect()` (`specimen-inspect`, `specimen inspect ID`) resolves an entry without capturing it. It reports the args, the context, a retained story's composed annotations, the plugins installed, and the component's schema from the manifest and the plugins. A component no source describes is reported as a limitation.
+
+`@lushly-dev/specimen-fast-af` is FAST-AF's plugin.
 
 ## Build a review page
 

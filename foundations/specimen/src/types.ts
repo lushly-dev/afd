@@ -1,4 +1,6 @@
-/** Public feasibility contracts; compatibility/plugins are later workstreams. */
+import type { ComponentSchema } from './plugin.js';
+
+/** Public contracts: native specimens, retained stories and their plugins. */
 export const CAPTURE_VERSION = '0.2' as const;
 export const NORMALIZATION_VERSION = '0.1' as const;
 
@@ -26,6 +28,11 @@ export type ScenarioStep =
 				| { focus: string }
 				| { hover: string }
 				| { fill: string; value: string };
+	  }
+	| {
+			id?: string;
+			/** An explicit command through a named plugin runner, on a declared target. */
+			command: { runner: string; name: string; target: string; input?: unknown };
 	  }
 	| { capture: string };
 export interface MountHandle {
@@ -90,6 +97,10 @@ export interface BenchConfig {
 	 * `include` defaults to `['test']`; `skip` reports a story skipped without running it.
 	 */
 	test?: { include?: string[]; exclude?: string[]; skip?: string[] };
+	/** Plugin modules, relative to the configuration: each default-exports a plugin or an array of them. */
+	plugins?: string[];
+	/** The custom elements manifest core reads component schemas from, relative to the configuration. */
+	manifest?: string;
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */
@@ -127,6 +138,35 @@ export interface CaptureRequest {
 	checkpoint?: string;
 	screenshot?: string;
 	timeoutMs?: number;
+}
+/** Inspection takes an id and, optionally, the context a render would request. */
+export type InspectRequest = Pick<CaptureRequest, 'id' | 'context' | 'timeoutMs'>;
+/** What inspection reports about one specimen or retained story, before any capture. */
+export interface InspectResult {
+	id: string;
+	/** The component the entry describes, when it names one. */
+	component: string | null;
+	/** Core's schema enriched by the plugins; `null` when no source describes the component. */
+	schema: ComponentSchema | null;
+	/** The resolved args, with functions and nodes described rather than serialized. */
+	args: Record<string, unknown>;
+	/** The context a render would use. */
+	context: SpecimenContext;
+	/** A retained story's composed annotations. */
+	story?: {
+		name: string;
+		tags: string[];
+		globals: Record<string, unknown>;
+		parameters: Record<string, unknown>;
+		play: boolean;
+		decorators: number;
+		render: 'story' | 'meta' | 'project' | 'default';
+		unsupported: string[];
+	};
+	/** Requested context that the entry does not get, and other limits of what was resolved. */
+	limitations: string[];
+	/** The plugins installed, by id, with the runners and themes they register. */
+	plugins: { id: string; runners: string[]; themes: string[]; tokens: string | null }[];
 }
 /** A retained story's run: like a capture request, always at the after-run checkpoint. */
 export type RunRequest = Omit<CaptureRequest, 'checkpoint'>;
@@ -240,6 +280,15 @@ export interface BrowserRuntime {
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
 	/** Run the mounted retained story's play and accessibility check. */
 	run(): Promise<StoryOutcome>;
+	/** Resolve an entry without rendering it: args, context and the component's enriched schema. */
+	inspect(
+		entry: SpecimenEntry,
+		requested: Partial<SpecimenContext>,
+		defaults: SpecimenContext,
+		manifestSchema: ComponentSchema | null
+	): Promise<InspectResult>;
+	/** Run a command through a plugin's named runner. */
+	command(element: Element, runner: string, name: string, input: unknown): Promise<unknown>;
 	capture(): BrowserObservation;
 	/** Elements under the mount root matching a selector target, across open shadow roots. */
 	locate(selector: string): Element[];

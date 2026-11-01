@@ -167,7 +167,14 @@ function testTags(value: unknown): NonNullable<BenchConfig['test']> {
 }
 
 export function parseConfig(value: unknown): BenchConfig {
-	const fields = record(value, 'configuration', ['specimens', 'stories', 'preview', 'test']);
+	const fields = record(value, 'configuration', [
+		'specimens',
+		'stories',
+		'preview',
+		'test',
+		'plugins',
+		'manifest',
+	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
 	if (fields.preview !== undefined && fields.stories === undefined)
@@ -181,5 +188,15 @@ export function parseConfig(value: unknown): BenchConfig {
 			? {}
 			: { preview: text(fields.preview, 'configuration.preview') }),
 		...(fields.test === undefined ? {} : { test: testTags(fields.test) }),
+		...(fields.plugins === undefined
+			? {}
+			: {
+					plugins: Array.isArray(fields.plugins)
+						? fields.plugins.map((item, index) => text(item, `configuration.plugins[${index}]`))
+						: fail('configuration.plugins', 'expected an array of module paths'),
+				}),
+		...(fields.manifest === undefined
+			? {}
+			: { manifest: text(fields.manifest, 'configuration.manifest') }),
 	};
 }

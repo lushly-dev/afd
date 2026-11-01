@@ -114,6 +114,23 @@ describe('CSF compatibility discovery agrees with Storybook', () => {
 				themeMedia: 'browser-default',
 			});
 			expect(rendered.channels.dom.raw).toContain('<plain-button>');
+			// Inspection resolves the story without capturing it.
+			const inspected = await bench.inspect({ id: 'fixtures-cases--precedence' });
+			expect(inspected).toMatchObject({
+				component: 'plain-button',
+				schema: null,
+				args: { label: 'Meta label', tone: 'loud' },
+				context: { viewport: { width: 1200, height: 900 }, themeMedia: 'browser-default' },
+				story: {
+					name: 'Precedence',
+					decorators: 3,
+					render: 'default',
+					play: true,
+					unsupported: [],
+					parameters: { fixture: { level: 'story', keep: true }, a11y: { test: 'error' } },
+				},
+				limitations: [expect.stringContaining('No schema source describes plain-button')],
+			});
 		} finally {
 			await bench.close();
 		}

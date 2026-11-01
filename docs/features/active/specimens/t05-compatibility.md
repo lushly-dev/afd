@@ -3,7 +3,8 @@
 **State, 2026-11-01:** in progress.
 
 - Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
-- Step 2, running retained stories, is implemented on branch `lush/specimens-t05-runtime`.
+- Step 2, running retained stories, is done and merged in [#642](https://github.com/lushly-dev/afd/pull/642).
+- Step 3, the plugin points, the FAST-AF plugin and inspection, is implemented on branch `lush/specimens-t05-plugins`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -188,6 +189,61 @@ The host now bundles stories and the preview. Imported source modules always run
 
 The story runtime loads lazily, so native pages and the static shell do not carry it.
 
+## Step 3: plugins and inspection
+
+### The four plugin points
+
+A plugin is a page module's default export: one plugin or an array of them. The configuration names those modules in `plugins`. The bench bundles them, installs them in order before any specimen or story module loads, and records what each declares (`src/plugin.ts`, `src/browser/plugins.ts`).
+
+| Point | Contract | Core's part |
+| --- | --- | --- |
+| Schema source | `schema(tag, schema)` returns an enriched schema: properties with type, attribute, default and finite `values`; attributes; slots; events; CSS properties; commands. | Core reads the configuration's `manifest`, a custom elements manifest. A finite partition comes only from a literal union or `boolean`. A manifest describes no commands, so `commands` stays in `unknown` until a source fills it. |
+| Context provider | `themes` names presets a native specimen's `theme` context applies; a preset may return a disposer. | Viewport, container, locale, media and the lifecycle. A retained story's theme stays with its project's decorators. |
+| Token map | `tokens`: an owner id, a version, public variable names to token ids, and private aliases to public variables. | `composeTokenMaps` validates every map together. It requires versions and unique owners, rejects one public name with two ids, and reports alias chains that end nowhere or cycle. An unresolved alias is kept and reported, never dropped. |
+| Command runner | `runners`: a named runner with `run(element, name, input)` and, optionally, the commands it offers. | Native scenarios gain explicit `command` steps naming a runner, a command and a declared target. The host resolves the target as it does for actions, and the page calls the runner. |
+
+Runner ids are unique across plugins, and so are theme names and plugin ids: a second registration fails, never chosen silently. A step naming a runner no plugin registers fails before the scenario runs, and the error lists the runners that exist. DOM actions remain built-in steps, not a command runner.
+
+A plain custom element exercises all four points (`fixtures/plugins/`). Its plugin adds the element's commands to its schema, provides a `dark` theme, declares a token map with an alias, and registers a `fixture` runner. `src/plugins.test.ts` covers each point through the bench, along with a missing runner and a runner id registered twice.
+
+### The FAST-AF plugin
+
+`@lushly-dev/specimen-fast-af` (`integrations/specimen-fast-af`) is a new unit: private, quarantined and recorded in the release inventory. It peers on `@lushly-dev/specimen` and `@lushly-dev/fast-element`, and the native core still depends on neither.
+
+- **Schema:** it enables FAST's Definition Schema when created. Every FAST element defined after the plugins install records its definition, and the plugin merges that into core's schema. The manifest's statements stay; the definition adds properties and their finite values, slots, events, CSS properties and `@command` commands.
+- **Runner:** `fast-af` calls an element's `@command` method by command id, and an unknown id fails with the ids the element declares.
+- **Themes:** it turns a FAST-AF theme module into named themes. A module shaped as violet-elements' theme exports qualifies: presets, `apply` and `install`.
+- **Tokens:** FAST-AF's private alias registry is passed through as a token map.
+
+Its bench suite (`test:browser`) runs on a FAST element defined without decorator syntax. Inspection reports the element's schema from the Definition Schema, with its `@command` command. A command step presses it through the `fast-af` runner. A `dark` preset from a fixture theme module changes its computed color.
+
+### Inspection
+
+`bench.inspect({ id, context? })`, the AFD command `specimen-inspect` and `specimen inspect ID` resolve an entry without capturing it. Each reports:
+- the resolved args, with functions and nodes described rather than serialized;
+- the context a render would use;
+- for a retained story, its composed annotations: name, tags, globals, parameters, play, decorator count, render source and unsupported features;
+- the plugins installed, with their runners, themes and token maps;
+- the component's schema from the manifest and the plugins.
+
+A component no source describes is a limitation. Inspection settles what static validation deferred: a factory-built story's values are those its module produces.
+
+### Budgets
+
+The static build accounts every bench chunk under the proposal's categories, each against its own ceiling (`src/vite.ts`). Before this step, every chunk with page-runtime code counted as shell. That pushed the shell over its budget once the retained-story runtime, loaded only by stories, became its own chunk. The native fixtures' build now reports:
+
+| Category | Contents | Bytes | Ceiling |
+| --- | --- | --- | --- |
+| Shell | The entry and its static imports: listing, mounting, capture and the plugin registry | 38,674 | 50,000 |
+| Interaction support | The retained-story runtime: composition, render, play and the check, loaded by stories only | 12,420 | 600,000 |
+| Accessibility | axe-core 4.13.0, loaded when a story runs its check | 586,666 | 650,000 |
+| Capture | The lazy DOM normalizer, Specimen's code and parse5 | 154,389 | Counts toward the total |
+| Total bench JavaScript | | 792,149 | 1,300,000 |
+
+A story's play helpers, such as `storybook/test`, are the consumer's own imports during the overlap and count as consumer code.
+
+The capture normalizer has been bench code counted as consumer code since T04 moved normalization into the page. It is now counted toward the total. It has no category of its own, and T04's recorded shell figure did not include it (G06).
+
 ## Storybook behaviour the next steps reproduce
 
 These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime design. A reference with file locations is kept with the local evidence (`test-results/specimens-t05-compat/storybook-semantics.md`, ignored).
@@ -202,10 +258,7 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 ## Remaining steps
 
 1. ~~Discovery, identity and static validation.~~ Merged in #634.
-2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Implemented on branch.
-3. **Plugins and inspection.**
-   - The four plugin contracts exercised: schema source, context provider, token map and command runner.
-   - The FAST-AF theme and schema plugin.
-   - `inspect`, with the resolved args and context of a story.
+2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Merged in #642.
+3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Implemented on branch.
 4. **The preview-first codemod** (`specimen-migrate`), with a file-by-file report.
-5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.
+5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. FAST-AF's own components, with the FAST-AF plugin, are the plugin points' first consumer. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.

@@ -194,6 +194,26 @@ function scenario(value: unknown, availableTargets: Record<string, Target>): Sce
 			captures.add(capture);
 			return { capture };
 		}
+		if (Object.hasOwn(step, 'command')) {
+			fields(step, new Set(['id', 'command']), path);
+			const id = optionalText(step.id, `${path}.id`);
+			if (id && ids.has(id)) throw new Error(`Duplicate scenario step id '${id}'.`);
+			if (id) ids.add(id);
+			const command = record(step.command, `${path}.command`);
+			fields(command, new Set(['runner', 'name', 'target', 'input']), `${path}.command`);
+			const target = text(command.target, `${path}.command.target`);
+			if (!Object.hasOwn(availableTargets, target))
+				throw new Error(`${path}.command.target refers to undeclared target '${target}'.`);
+			return {
+				...(id === undefined ? {} : { id }),
+				command: {
+					runner: text(command.runner, `${path}.command.runner`),
+					name: text(command.name, `${path}.command.name`),
+					target,
+					...(command.input === undefined ? {} : { input: command.input }),
+				},
+			};
+		}
 		fields(step, new Set(['id', 'action']), path);
 		const id = optionalText(step.id, `${path}.id`);
 		if (id && ids.has(id)) throw new Error(`Duplicate scenario step id '${id}'.`);

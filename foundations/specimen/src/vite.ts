@@ -7,6 +7,15 @@ import { bundled, defaultContext, type LoadedConfig } from './config.js';
 
 const ENTRY = '/__specimen_entry__.js';
 const SHELL_BUDGET = 50_000;
+/** The proposal's category ceilings, in minified UTF-8 JavaScript bytes. */
+const TOTAL_BUDGET = 1_300_000;
+const CATEGORY_BUDGETS = {
+	shell: SHELL_BUDGET,
+	interaction: 600_000,
+	accessibility: 650_000,
+	// The lazy capture normalizer has no category of its own; it counts toward the total.
+	capture: TOTAL_BUDGET,
+} as const;
 const html =
 	'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Specimens</title></head><body><main id="specimen-root"></main><script type="module" src="/__specimen_entry__.js"></script></body></html>';
 async function runtimePath(): Promise<string> {
@@ -169,15 +178,28 @@ async function buildStatic(
 	if (Array.isArray(result) || !('output' in result))
 		throw new Error('Unexpected Vite build result');
 	const chunks = result.output.filter((output) => output.type === 'chunk');
+	// The proposal's categories: the shell lists and mounts a plain fixture; retained stories'
+	// runtime is interaction support and axe is the accessibility engine, each loaded only by
+	// the cases that need them and each counted against its own budget, never left out.
+	const runtimeDirectory = dirname(runtime);
+	const lazyRuntime = ['story-runtime', 'csf'].map((name) => join(runtimeDirectory, name));
+	const packageSource = dirname(runtimeDirectory);
+	const categoryOf = (
+		chunk: (typeof chunks)[number]
+	): 'shell' | 'interaction' | 'accessibility' | 'capture' | 'consumer' => {
+		const ids = Object.keys(chunk.modules);
+		if (ids.some((id) => id.includes('/axe-core/'))) return 'accessibility';
+		const owned = ids.filter((id) => id.startsWith(runtimeDirectory));
+		if (owned.length && owned.every((id) => lazyRuntime.some((path) => id.startsWith(path))))
+			return 'interaction';
+		if (chunk.isEntry || owned.length || ids.includes('\0specimen-entry')) return 'shell';
+		// Bench code outside the page runtime, loaded lazily: the capture normalizer.
+		return ids.some((id) => id.startsWith(packageSource)) ? 'capture' : 'consumer';
+	};
+	const categories = new Map(chunks.map((chunk) => [chunk.fileName, categoryOf(chunk)]));
 	const shell = new Set(
 		chunks
-			.filter(
-				(chunk) =>
-					chunk.isEntry ||
-					Object.keys(chunk.modules).some(
-						(id) => id === '\0specimen-entry' || id.startsWith(dirname(runtime))
-					)
-			)
+			.filter((chunk) => categories.get(chunk.fileName) === 'shell')
 			.map((chunk) => chunk.fileName)
 	);
 	let added = true;
@@ -186,14 +208,23 @@ async function buildStatic(
 		for (const chunk of chunks)
 			if (shell.has(chunk.fileName))
 				for (const imported of chunk.imports)
-					if (!shell.has(imported)) {
+					if (!shell.has(imported) && categories.get(imported) === 'consumer') {
 						shell.add(imported);
+						categories.set(imported, 'shell');
 						added = true;
 					}
 	}
-	const shellBytes = chunks
-		.filter((chunk) => shell.has(chunk.fileName))
-		.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0);
+	const bytesOf = (category: string) =>
+		chunks
+			.filter((chunk) => categories.get(chunk.fileName) === category)
+			.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0);
+	const shellBytes = bytesOf('shell');
+	const categoryBytes = {
+		shell: shellBytes,
+		interaction: bytesOf('interaction'),
+		accessibility: bytesOf('accessibility'),
+		capture: bytesOf('capture'),
+	};
 	const files = result.output.map((output) => output.fileName);
 	const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
 	await writeFile(
@@ -201,9 +232,15 @@ async function buildStatic(
 		JSON.stringify(
 			{
 				...report,
+				categories: Object.fromEntries(
+					Object.entries(categoryBytes).map(([category, bytes]) => [
+						category,
+						{ bytes, budget: CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS] },
+					])
+				),
 				chunks: chunks.map((chunk) => ({
 					file: chunk.fileName,
-					category: shell.has(chunk.fileName) ? 'shell' : 'consumer',
+					category: categories.get(chunk.fileName),
 					bytes: Buffer.byteLength(chunk.code),
 				})),
 			},
@@ -213,5 +250,13 @@ async function buildStatic(
 	);
 	if (shellBytes > SHELL_BUDGET)
 		throw new Error(`Bench shell exceeds budget: ${shellBytes} > ${SHELL_BUDGET} bytes`);
+	for (const [category, bytes] of Object.entries(categoryBytes)) {
+		const budget = CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS];
+		if (bytes > budget)
+			throw new Error(`Bench ${category} code exceeds budget: ${bytes} > ${budget} bytes`);
+	}
+	const total = Object.values(categoryBytes).reduce((sum, bytes) => sum + bytes, 0);
+	if (total > TOTAL_BUDGET)
+		throw new Error(`Bench JavaScript exceeds budget: ${total} > ${TOTAL_BUDGET} bytes`);
 	return report;
 }

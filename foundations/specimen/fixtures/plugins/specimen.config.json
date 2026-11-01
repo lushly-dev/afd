@@ -1,0 +1,20 @@
+{
+	"specimens": [
+		{
+			"id": "switch-toggled",
+			"title": "Plugins/Switch",
+			"module": "./switch.specimens.ts",
+			"exportName": "Toggled",
+			"component": "plain-switch"
+		},
+		{
+			"id": "switch-missing-runner",
+			"title": "Plugins/Switch",
+			"module": "./switch.specimens.ts",
+			"exportName": "MissingRunner",
+			"component": "plain-switch"
+		}
+	],
+	"plugins": ["./fixture.plugin.ts"],
+	"manifest": "./custom-elements.json"
+}

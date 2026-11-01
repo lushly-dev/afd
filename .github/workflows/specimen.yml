@@ -6,6 +6,8 @@ on:
     paths:
       - 'foundations/specimen/**'
       - 'integrations/specimen-afd/**'
+      - 'integrations/specimen-fast-af/**'
+      - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'endpoints/specimen-cli/**'
       - 'tests/consumers/specimen/**'
       - 'packages/core/**'
@@ -17,6 +19,8 @@ on:
     paths:
       - 'foundations/specimen/**'
       - 'integrations/specimen-afd/**'
+      - 'integrations/specimen-fast-af/**'
+      - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'endpoints/specimen-cli/**'
       - 'tests/consumers/specimen/**'
       - 'packages/core/**'
@@ -52,7 +56,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
       - id: host
         run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .github/workflows/specimen.yml
 
@@ -96,7 +100,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -F "@lushly-dev/specimen-cli..." build
+      - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
@@ -110,7 +114,9 @@ jobs:
       - name: Full native suite (unit, resource, process-worker and Chromium)
         run: pnpm -F @lushly-dev/specimen test:browser
       - name: Integration and endpoint suites
-        run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-cli test
+        run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-cli -F @lushly-dev/specimen-fast-af test
+      - name: FAST-AF plugin through the bench
+        run: pnpm -F @lushly-dev/specimen-fast-af test:browser
       - name: Packed-artifact consumers outside the workspace
         run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
       - name: Upload consumer receipt

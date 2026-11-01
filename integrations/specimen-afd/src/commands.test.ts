@@ -68,6 +68,21 @@ function bench(): SpecimenCommandBench {
 					: [],
 		})),
 		render: vi.fn(async () => observation()),
+		inspect: vi.fn(async (request) => ({
+			id: request.id,
+			component: 'plain-button',
+			schema: null,
+			args: { label: 'Save' },
+			context: {
+				viewport: { width: 1280, height: 720 },
+				theme: 'light' as const,
+				locale: 'en-US',
+				reducedMotion: 'no-preference' as const,
+				motion: 'natural' as const,
+			},
+			limitations: ['No schema source describes plain-button.'],
+			plugins: [],
+		})),
 		run: vi.fn(async (request) => ({
 			id: request.id,
 			outcome: {
@@ -104,6 +119,7 @@ describe('specimen commands', () => {
 			'specimen-build',
 			'specimen-validate',
 			'specimen-run',
+			'specimen-inspect',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -125,6 +141,17 @@ describe('specimen commands', () => {
 		const all = await executeSpecimenCommand(instance, 'specimen-validate', {});
 		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
 		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('inspects a specimen and validates the report against the inspect schema', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-inspect', { id: 'button' });
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({ id: 'button', component: 'plain-button', schema: null });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-inspect', {
+			id: 'button',
+			screenshot: 'x.png',
+		});
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('runs a retained story and returns its outcome and capture', async () => {

@@ -141,3 +141,75 @@ export const storyRunSchema = z.strictObject({
 	}),
 	observation: observationSchema.nullable(),
 });
+const schemaValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const propertySchema = z.strictObject({
+	name: z.string(),
+	type: z.string().optional(),
+	attribute: z.string().optional(),
+	values: z.array(schemaValue).optional(),
+	default: z.string().optional(),
+	description: z.string().optional(),
+});
+/** A component's schema from the manifest, enriched by plugins' schema sources. */
+export const componentSchemaSchema = z.strictObject({
+	tag: z.string(),
+	sources: z.array(z.string()),
+	properties: z.array(propertySchema),
+	attributes: z.array(propertySchema),
+	slots: z.array(z.strictObject({ name: z.string(), description: z.string().optional() })),
+	events: z.array(
+		z.strictObject({
+			name: z.string(),
+			type: z.string().optional(),
+			description: z.string().optional(),
+		})
+	),
+	cssProperties: z.array(
+		z.strictObject({
+			name: z.string(),
+			default: z.string().optional(),
+			description: z.string().optional(),
+		})
+	),
+	commands: z.array(
+		z.strictObject({
+			id: z.string(),
+			label: z.string().optional(),
+			description: z.string().optional(),
+		})
+	),
+	unknown: z.array(z.string()),
+});
+export const inspectRequestSchema = captureRequestSchema.pick({
+	id: true,
+	context: true,
+	timeoutMs: true,
+});
+export const inspectResultSchema = z.strictObject({
+	id: z.string(),
+	component: z.string().nullable(),
+	schema: componentSchemaSchema.nullable(),
+	args: z.record(z.string(), z.unknown()),
+	context: recordedContextSchema,
+	story: z
+		.strictObject({
+			name: z.string(),
+			tags: z.array(z.string()),
+			globals: z.record(z.string(), z.unknown()),
+			parameters: z.record(z.string(), z.unknown()),
+			play: z.boolean(),
+			decorators: z.number().int().nonnegative(),
+			render: z.enum(['story', 'meta', 'project', 'default']),
+			unsupported: z.array(z.string()),
+		})
+		.optional(),
+	limitations: z.array(z.string()),
+	plugins: z.array(
+		z.strictObject({
+			id: z.string(),
+			runners: z.array(z.string()),
+			themes: z.array(z.string()),
+			tokens: z.string().nullable(),
+		})
+	),
+});

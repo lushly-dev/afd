@@ -1,4 +1,5 @@
 import type {
+	InspectResult,
 	MountHandle,
 	ScenarioStep,
 	SpecimenContext,
@@ -9,6 +10,7 @@ import type {
 import { captureDocument, colorSchemeOf, contextMismatches, openElements } from './capture.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
+import { describe, enrichSchema, type InstalledPlugins, installPlugins } from './plugins.js';
 import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
 import { validateSpecimen } from './validate.js';
 
@@ -61,6 +63,31 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	// A retained story, between resolve, mount and run.
 	let story: { prepared: PreparedStory; mounted?: MountedStory } | undefined;
 	const abort = new AbortController();
+	// Installed once, before any specimen or story module loads.
+	let installed: Promise<InstalledPlugins> | undefined;
+	const plugins = () => {
+		installed ??= installPlugins(loaders);
+		return installed;
+	};
+
+	/** Load a retained story's module and preview after the plugins, and compose it. */
+	async function prepareRetained(
+		entry: SpecimenEntry,
+		requestedContext: Partial<SpecimenContext>
+	): Promise<PreparedStory> {
+		await plugins();
+		const load = loaders[entry.id];
+		if (!load || !entry.story) throw new Error(`No specimen module is registered for ${entry.id}.`);
+		const preview = loaders.$preview;
+		const [module, project] = await Promise.all([load(), preview?.()]);
+		const { prepareStory } = await storyRuntime();
+		return prepareStory(
+			{ id: entry.id, title: entry.title, name: entry.story.name, exportName: entry.exportName },
+			project as StoryModule | undefined,
+			module as StoryModule,
+			requestedContext
+		);
+	}
 	let motion: 'natural' | 'settled' = 'natural';
 	let requested: SpecimenContext | undefined;
 	const disposers: Disposer[] = [];
@@ -163,22 +190,75 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	window.__specimen = {
 		async resolve(entry, requestedContext, defaults) {
 			if (!entry.story) return null;
-			const load = loaders[entry.id];
-			if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
-			const preview = loaders.$preview;
-			const [module, project] = await Promise.all([load(), preview?.()]);
-			const { prepareStory, storyRenderContext } = await storyRuntime();
-			const prepared = prepareStory(
-				{ id: entry.id, title: entry.title, name: entry.story.name, exportName: entry.exportName },
-				project as StoryModule | undefined,
-				module as StoryModule,
-				requestedContext
-			);
+			const prepared = await prepareRetained(entry, requestedContext);
+			const { storyRenderContext } = await storyRuntime();
 			story = { prepared };
 			return {
 				context: storyRenderContext(prepared, requestedContext, defaults),
 				limitations: prepared.mismatches,
 			};
+		},
+		async inspect(entry, requestedContext, defaults, manifestSchema) {
+			const registry = await plugins();
+			const limitations: string[] = [];
+			let component: string | undefined;
+			let args: Record<string, unknown>;
+			let context: SpecimenContext;
+			let composed: InspectResult['story'];
+			if (entry.story) {
+				const prepared = await prepareRetained(entry, requestedContext);
+				const { storyRenderContext } = await storyRuntime();
+				const { composed: annotations } = prepared;
+				component = annotations.component;
+				args = prepared.args;
+				context = storyRenderContext(prepared, requestedContext, defaults);
+				limitations.push(...prepared.mismatches);
+				composed = {
+					name: annotations.name,
+					tags: annotations.tags,
+					globals: describe(annotations.globals) as Record<string, unknown>,
+					parameters: describe(annotations.parameters) as Record<string, unknown>,
+					play: Boolean(annotations.play),
+					decorators: annotations.decorators.length,
+					render: annotations.renderSource,
+					unsupported: prepared.unsupported,
+				};
+			} else {
+				const load = loaders[entry.id];
+				if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
+				const { meta, specimen } = validateSpecimen(await load(), entry.exportName);
+				component = entry.component ?? meta.component;
+				args = { ...meta.args, ...specimen.args };
+				context = { ...defaults, ...requestedContext } as SpecimenContext;
+			}
+			// The module has loaded, so the component's definition is registered for schema sources.
+			const schema = component
+				? await enrichSchema(registry, component, manifestSchema ?? undefined)
+				: undefined;
+			if (component && !schema)
+				limitations.push(
+					`No schema source describes ${component}: its properties, slots and events are unknown.`
+				);
+			return {
+				id: entry.id,
+				component: component ?? null,
+				schema: schema ?? null,
+				args: describe(args) as Record<string, unknown>,
+				context,
+				...(composed ? { story: composed } : {}),
+				limitations,
+				plugins: registry.plugins.map((plugin) => ({
+					id: plugin.id,
+					runners: Object.keys(plugin.runners ?? {}),
+					themes: Object.keys(plugin.themes ?? {}),
+					tokens: plugin.tokens ? `${plugin.tokens.id}@${plugin.tokens.version}` : null,
+				})),
+			};
+		},
+		async command(element, runner, name, input) {
+			const registered = (await plugins()).runners.get(runner);
+			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
+			return registered.runner.run(element, name, input);
 		},
 		async run() {
 			if (!story?.mounted) throw new Error('Mount a retained story before running it.');
@@ -203,8 +283,19 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			}
 			applyContext(context);
 			try {
+				const registry = await plugins();
+				const theme = registry.themes.get(context.theme);
+				if (theme) {
+					const undo = theme.preset({ document, root: mountRoot });
+					if (typeof undo === 'function') disposers.push(undo as Disposer);
+				}
 				const module = await load();
 				const { meta, specimen } = validateSpecimen(module, entry.exportName);
+				for (const step of specimen.scenario ?? [])
+					if ('command' in step && !registry.runners.has(step.command.runner))
+						throw new Error(
+							`Scenario step${step.id ? ` '${step.id}'` : ''} names command runner '${step.command.runner}', which no plugin registers${registry.runners.size ? `; the plugins register ${[...registry.runners.keys()].join(', ')}` : ''}.`
+						);
 				const args = { ...meta.args, ...specimen.args };
 				if (specimen.dispose) disposers.push(specimen.dispose);
 				const render = specimen.render ?? meta.render;

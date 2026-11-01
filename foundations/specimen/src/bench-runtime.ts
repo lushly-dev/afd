@@ -17,6 +17,8 @@ import {
 	type BrowserObservation,
 	CAPTURE_VERSION,
 	type Completeness,
+	type InspectRequest,
+	type InspectResult,
 	NORMALIZATION_VERSION,
 	type Observation,
 	type RunRequest,
@@ -226,6 +228,32 @@ export async function createInProcessBench(
 		async render(rawRequest) {
 			ensureOpen();
 			return (await capture(parseCaptureRequest(rawRequest))).observation;
+		},
+		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
+			ensureOpen();
+			const parsed = parseCaptureRequest(rawRequest);
+			const entry = config.entries.find((item) => item.id === parsed.id);
+			if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
+			const timeoutMs = parsed.timeoutMs ?? 10_000;
+			const provisional = entry.story
+				? resolveContext({ ...parsed.context, themeMedia: 'browser-default' })
+				: resolveContext(parsed.context);
+			const runtime = await ensureHost();
+			const inspected = (await runtime.request(
+				'render',
+				{
+					entry,
+					context: provisional,
+					checkpoint: 'mount',
+					timeoutMs,
+					screenshot: null,
+					requested: parsed.context ?? {},
+					defaults: provisional,
+					inspect: { schema: (entry.component && config.schemas[entry.component]) || null },
+				},
+				timeoutMs + HOST_GRACE
+			)) as HostRender;
+			return inspected.captured as unknown as InspectResult;
 		},
 		async run(rawRequest: RunRequest): Promise<StoryRun> {
 			ensureOpen();
