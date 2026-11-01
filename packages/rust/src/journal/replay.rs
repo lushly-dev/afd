@@ -465,6 +465,10 @@ fn replay_call(
         context.interface = Some(interface);
     }
     context.extra.extend(fields);
+    // The recorded effective budget is the replayed call's ask (`spec/output-budgets.md`, B8).
+    if let Some(budget) = entry.output_budget {
+        context = context.with_output_budget_ask(budget);
+    }
     context.clock = Some(match &clock {
         Some(clock) => Arc::clone(clock) as Arc<dyn Clock>,
         None => Arc::new(fixed_clock(start)),
@@ -482,7 +486,8 @@ fn replay_call(
 /// the recorded one.
 ///
 /// Each call gets the entry's trace ID, actor and interface, its declared context field values
-/// in [`CommandContext::extra`], and a clock and random source that return the values recorded
+/// in [`CommandContext::extra`], the entry's output budget as the call's ask
+/// ([`CommandContext::with_output_budget_ask`]), and a clock and random source that return the values recorded
 /// on its tape. An entry without a tape gets a clock fixed at its `timestamp` and a random
 /// source seeded with `<seed>:<seq>`.
 ///

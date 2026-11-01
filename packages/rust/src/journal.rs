@@ -148,6 +148,10 @@ pub struct JournalEntry {
     /// sorted. Omitted when there are none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_omitted: Option<Vec<String>>,
+    /// The call's effective output budget in bytes (`spec/output-budgets.md`, B8). Omitted when
+    /// the call had none. Replay restores it as the call's ask.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_budget: Option<u64>,
     /// The command result, metadata included.
     pub result: CommandResult<Value>,
     /// Duration of the call through the middleware chain, from `context.clock`.
@@ -170,6 +174,7 @@ pub struct JournalRecord {
     pub context_digest: JournalContextDigest,
     pub context: Option<Map<String, Value>>,
     pub context_omitted: Option<Vec<String>>,
+    pub output_budget: Option<u64>,
     pub result: CommandResult<Value>,
     pub duration_ms: f64,
     pub tape: Option<JournalTape>,
@@ -188,6 +193,7 @@ impl JournalRecord {
             context_digest: self.context_digest,
             context: self.context,
             context_omitted: self.context_omitted,
+            output_budget: self.output_budget,
             result: self.result,
             duration_ms: self.duration_ms,
             tape: self.tape,
@@ -435,8 +441,9 @@ pub fn create_context_digest(context: &CommandContext) -> JournalContextDigest {
 /// The [`JournalContextDigest`] of `context` for an entry that keeps `journaled`.
 ///
 /// The hashed object gains `journaled`'s `context` and `contextOmitted` members, when set, and
-/// the names they hold leave the key list (`spec/journal.md`, "Context digest"). With neither
-/// set it is [`create_context_digest`].
+/// the names they hold leave the key list (`spec/journal.md`, "Context digest"). It also gains
+/// `outputBudget` when the context has an effective output budget
+/// ([`CommandContext::output_budget`]). With none of them set it is [`create_context_digest`].
 pub fn create_context_digest_with_fields(
     context: &CommandContext,
     journaled: &JournalContextFields,
@@ -467,6 +474,11 @@ pub fn create_context_digest_with_fields(
     if let Some(omitted) = &journaled.context_omitted {
         canonical["contextOmitted"] = serde_json::json!(omitted);
     }
+    // The effective output budget (`spec/output-budgets.md`, B8). It is a field of the context,
+    // not a key in `extra`, so it is never among `keys`; a call without one hashes as before.
+    if let Some(budget) = context.output_budget {
+        canonical["outputBudget"] = serde_json::json!(budget);
+    }
     let text = serde_json::to_string(&sort_keys(canonical)).expect("JSON values serialize");
     let digest = Sha256::digest(text.as_bytes());
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
@@ -483,8 +495,13 @@ pub fn create_context_digest_with_fields(
 /// `value` as an entry, when it has the shape of one.
 fn entry_from_value(value: Value) -> Option<JournalEntry> {
     let entry: JournalEntry = serde_json::from_value(value).ok()?;
-    (entry.seq >= 1 && entry.seq <= MAX_SAFE_INTEGER && entry.duration_ms.is_finite())
-        .then_some(entry)
+    (entry.seq >= 1
+        && entry.seq <= MAX_SAFE_INTEGER
+        && entry.duration_ms.is_finite()
+        && entry
+            .output_budget
+            .is_none_or(|budget| (1..=MAX_SAFE_INTEGER).contains(&budget)))
+    .then_some(entry)
 }
 
 /// Whether `value` has the shape of a [`JournalEntry`].

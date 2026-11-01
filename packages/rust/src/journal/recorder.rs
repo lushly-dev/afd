@@ -46,7 +46,8 @@ pub(crate) struct JournalContextState {
 /// digest (a hash plus the interface), the values of the registry's declared context fields
 /// marked `journal: true` (each up to
 /// [`MAX_JOURNAL_CONTEXT_BYTES`](super::MAX_JOURNAL_CONTEXT_BYTES) of canonical JSON; a larger
-/// one is only named), the result, the duration and the tape. No other context value is kept.
+/// one is only named), the call's effective output budget, the result, the duration and the tape.
+/// No other context value is kept.
 /// Appends are awaited, so entries are in call order for sequential calls. A sink error goes
 /// to [`with_on_error`](Self::with_on_error) and never changes the command result.
 /// Commands named `auth-*` are not recorded unless [`with_filter`](Self::with_filter) allows
@@ -196,6 +197,7 @@ impl JournalRecorder {
             actor: context.actor.clone(),
             digest,
             journaled,
+            output_budget: context.output_budget,
             start,
             timing,
             tape,
@@ -241,6 +243,7 @@ impl JournalRecorder {
             context_digest: recording.digest,
             context: recording.journaled.context,
             context_omitted: recording.journaled.context_omitted,
+            output_budget: recording.output_budget,
             result: result.clone(),
             duration_ms,
             tape: (!tape.is_empty()).then_some(tape),
@@ -278,6 +281,7 @@ pub(crate) struct Recording {
     actor: Option<Actor>,
     digest: JournalContextDigest,
     journaled: JournalContextFields,
+    output_budget: Option<u64>,
     start: i64,
     timing: Arc<dyn Clock>,
     tape: Arc<TapeWriter>,

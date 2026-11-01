@@ -65,6 +65,7 @@ fn error_codes_match_the_shared_catalog() {
         error_codes::CONFIRMATION_REQUIRED,
         error_codes::CONFIRMATION_DECLINED,
         error_codes::APPROVAL_REQUIRED,
+        error_codes::OUTPUT_BUDGET_EXCEEDED,
     ];
     assert_eq!(catalog.as_slice(), expected.as_slice());
 }

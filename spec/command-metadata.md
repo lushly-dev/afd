@@ -387,6 +387,6 @@ follows `destructive`, `false` when it is unset.
 | `structuredContent` | Yes | Planned | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Planned |
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
-| `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Planned (Umbel phase 2 step 0b) | Planned |
+| `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
 

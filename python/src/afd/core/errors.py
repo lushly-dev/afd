@@ -159,6 +159,9 @@ class ErrorCodes:
     # Approvals (spec/command-metadata.md, "Approvals")
     APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
 
+    # Output budgets (spec/output-budgets.md, B5)
+    OUTPUT_BUDGET_EXCEEDED = "OUTPUT_BUDGET_EXCEEDED"
+
 
 def create_error(
     code: str,

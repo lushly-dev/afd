@@ -64,6 +64,7 @@ fn record(command: &str) -> JournalRecord {
         },
         context: None,
         context_omitted: None,
+        output_budget: None,
         result: success(json!({})),
         duration_ms: 0.0,
         tape: None,

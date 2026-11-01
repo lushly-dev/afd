@@ -323,6 +323,10 @@ pub mod error_codes {
     /// The command's approval policy requires a human's approval and the call carried no
     /// valid approval token.
     pub const APPROVAL_REQUIRED: &str = "APPROVAL_REQUIRED";
+    /// A command's successful result was larger than the call's output budget
+    /// (`spec/output-budgets.md`, B5): a read fails with it, a mutation keeps its result and
+    /// carries it as a warning's code.
+    pub const OUTPUT_BUDGET_EXCEEDED: &str = "OUTPUT_BUDGET_EXCEEDED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

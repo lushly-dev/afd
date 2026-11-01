@@ -335,6 +335,44 @@ let result = registry.execute(
 `CommandDefinition::execute` calls the handler directly and skips all of these checks; call
 commands through the registry.
 
+### Output budgets (`spec/output-budgets.md`)
+
+```rust
+use afd::{CommandContext, CommandDefinition};
+
+// Declare: 16 KB by default, 64 KB at most. The registry refuses a bad declaration at `register`.
+let search = CommandDefinition::new("doc-search", "Search documents", params, Search)
+    .with_output_budget(16_000, 64_000);
+
+// A handler fits its result to the effective budget, structurally (fewer hits, a cursor):
+//     let budget = context.output_budget(); // Option<u64>: None without a declaration
+
+// Ask per call, in process (over MCP: `_meta["dev.afd/outputBudget"] = { "maxBytes": n }`):
+let context = CommandContext::new().with_output_budget_ask(32_000);
+let result = registry.execute("doc-search", input, Some(context)).await;
+```
+
+Effective budget: `min(ask, max_bytes)`, or `default_bytes`. The check is the innermost link of the
+middleware chain, right after the handler and before `metadata` is stamped, so middleware and the
+journal see the checked result. It measures the canonical JSON of the result without `metadata`
+and only checks successes: an over-budget **read** becomes `OUTPUT_BUDGET_EXCEEDED`
+(`details.limitBytes`, `actualBytes`, `maxBytes`), an over-budget **mutation**
+(`as_mutation()`) keeps its result with a warning of that code, and a result within budget carries
+`metadata["dev.afd/outputBudget"] = { limitBytes, usedBytes }`. Never truncate JSON to fit: return
+fewer items or a smaller window and say how to read on. An invalid ask (0, above 2^53 − 1, not
+`{ "maxBytes": integer }` over MCP) is `VALIDATION_ERROR` even for a command with no declaration.
+Batch items and pipeline steps each take the ask; the journal records `output_budget` and replay
+restores it as the ask. `tests/output_budget.rs` loads `spec/output-budgets.json`.
+
+### Frontmatter (`frontmatter` feature, on with `server`)
+
+`afd::frontmatter::parse(text)` returns `Ok(None)` for a text whose first line is not `---` (no
+frontmatter), `Ok(Some(Frontmatter { fields, body_offset, body_line }))`, or a typed
+`FrontmatterError` (`Unclosed`, `NotAMapping`, `Forbidden`, `TooDeep`, `Syntax`,
+`MoreThanOneDocument`; lines are 1-based in the whole text). YAML 1.2 core schema: `2026-11-01`
+and `yes` stay strings; tags, anchors and aliases are refused. It sets no size cap and strips no
+BOM: cap and clean the input first.
+
 ### Journal and replay
 
 ```rust
@@ -803,6 +841,9 @@ tokio-test = "0.4"
   `--no-default-features --features wasm`.
 - `journal-file` (default): `FileJournalSink` (blocking `std::fs`). Everything else in the journal
   works without it.
+- `frontmatter`: `afd::frontmatter` and `saphyr-parser`; `server` enables it. Use it alone
+  (`default-features = false, features = ["frontmatter"]`) to read frontmatter without the MCP
+  server.
 
 ```rust
 // Check compilation mode
