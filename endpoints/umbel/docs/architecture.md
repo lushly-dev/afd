@@ -167,24 +167,29 @@ may read; isolation between spaces is enforced here, not by plugins.
 | config | The plugin instance's validated configuration | Read-only; phase 1 ([D42](decisions.md)) |
 | log | Lines into the host log, tagged with the instance | Capped per call; never into the journal; phase 1 |
 | packs | The plugin's own packs, the call's space's effective copy | Only its own packs; phase 1 |
-| documents | Read and write the document store | Writes without the provenance envelope are refused |
-| index | Query and update the search index | Queries are filtered by the caller's principal |
-| graph | Query and update the graph | Traversal returns only nodes the caller may read |
+| content, content_write | Read, and atomically replace, files under the space's collection roots | Confined to each root; the write side needs an `allow` list; phase 2 ([D54](decisions.md)) |
+| documents, documents_write | Read and write the document store | Writes without the provenance envelope are refused; the write side needs an `allow` list; phase 2 |
+| records, records_write | Read and write the plugin's own records (proposals, sync state) in the document store | Namespaced by plugin instance; phase 2 |
+| index, index_write | Query and update the search index | Queries are filtered by the caller's principal; the write side needs an `allow` list and may make derivation reads; phase 2 |
+| graph, graph_write | Query and update the graph | Traversal returns only nodes the caller may read; as the index; phase 2 |
 | memory | Read and append memory records | Scoped by the caller's tuple |
 | events | Read the event log by cursor | Events are appended by journaled commands, never through this grant |
 | http | Outbound HTTP to hosts the manifest declares | No caller credentials are attached |
 | secrets | Named deployer secrets | Never the caller's tokens |
 | clock, random | Time and randomness from the command context | Required so the journal can replay a call |
 
-Phase 1 provides config, log, packs, events, clock and random; the others are
-named and refused until their phase. The journal is not a grant: the host
+Phase 1 provides config, log, packs, events, clock and random; phase 2 adds
+the content, document, record, index and graph grants for compiled plugins
+([D54](decisions.md)); the others are named and refused until their phase. The journal is not a grant: the host
 journals every call itself. Enabling a plugin instance consents to its
 declared grants, minus those the deployer denies ([D42](decisions.md)).
 
 Each command also declares its effects and capabilities in the shape of
 Botcore's command policy, so a deployer can see what a plugin may do before
 enabling it. Phase 1 fixes the effects as `inspect`, `plugin-state` and
-`external`, with the grants as the capabilities ([D42](decisions.md)).
+`external`, with the grants as the capabilities ([D42](decisions.md)); phase
+2's manifest version 2 admits `store-write` and `workspace-write` for
+plugins ([D54](decisions.md)).
 
 How a plugin reaches the registry. Every edge goes to the host; there is no
 edge between plugins.
@@ -284,6 +289,9 @@ sequenceDiagram
   2.0.0 ([D38](decisions.md)).
 - **Store traits.** Document store, index, graph, memory store, each with a
   conformance suite; the embedded backend is the reference implementation.
+  Version 1 of the first three, per space and synchronous, with the suite in
+  `umbel-store`, is settled by phase 2 ([D51](decisions.md)); the memory
+  store is phase 3's.
 - **Principal.** Projected onto AFD's command context: the `actor`, with the
   agent and the person it acts for as `onBehalfOf`, and the verified
   `credentials` that MCP Authorization proposes. Umbel's additions travel in
@@ -295,7 +303,9 @@ sequenceDiagram
 - **Provenance envelope.** The one list of fields every stored record carries,
   at least: origin kind (user-stated, agent-inferred, document-derived), the
   principal and agent, the session, validity from and until, observation
-  time, confidence and authority.
+  time, confidence and authority. Version 1, from phase 2, adds the plugin,
+  sources and generated (OKF's), content hash, derived-from, access set and
+  sensitivity ([D55](decisions.md)).
 - **Event and cursor.** Each mutation's event carries at least an id, the
   journal entry it came from, a per-principal cursor, the record reference and
   the provenance envelope; consumers poll, stream or receive signed webhooks.
@@ -374,13 +384,14 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | Commands, results, approvals, journal, MCP server | the `afd` crate with its `server` feature on rmcp | One contract across four languages; stateless MCP implemented | `server` needs Rust 1.88; the crate requires rmcp 3.7, which admits the current 3.8.0, and commits no lock. A phase that needs something new in 3.8 raises the floor |
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
-| Lexical index | tantivy 0.27 | Fielded BM25 with boolean, phrase, field, boost and range syntax, embedded | Rust 1.88 |
-| Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 2 ([D28](decisions.md)); phase 0 stores only files. It must let several host processes open one workspace (for example SQLite in WAL mode, or LMDB), as phase 0's files do ([D29](decisions.md)); no single-writer daemon |
+| Lexical index | tantivy 0.27 | Fielded BM25 with boolean, phrase, field, boost and range syntax, embedded | Rust 1.88; one writer per index across processes through its lock file, which the backend waits on ([D51](decisions.md)) |
+| Embedded storage | SQLite through rusqlite 0.41 with `bundled` (SQLite 3.54.1), in WAL mode with `synchronous=FULL`, one database per space ([D51](decisions.md)) | Single-directory deployments, transactions, no service | Chosen in phase 2 as [D28](decisions.md) required: several host processes open one workspace, many readers and one writer at a time, waiting up to `store.lock_timeout_ms`; no daemon; a local filesystem, as the workspace lock already requires; MSRV 1.89 |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
 | Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |
 | MCP client for mounted plugins | `rmcp`'s client role with its child-process and Streamable HTTP client transports, and its `reqwest` feature for rustls ([D43](decisions.md)) | The `afd` crate has no Rust MCP client | Brings `reqwest` and `rustls` into Umbel's lock |
-| Code structure | tree-sitter | Deterministic symbol graph for repositories | |
+| Code structure | tree-sitter 0.27 with the Rust, Python and TypeScript grammars | Deterministic symbol graph for repositories | Rust 1.90; behind the knowledge crate's `code` feature ([D60](decisions.md)) |
+| Markdown structure | pulldown-cmark 0.13 | Headings, links, blocks and line offsets for chunking and the graph | Frontmatter is read with the `afd` crate's YAML 1.2 core-schema reader, public from phase 2's step 0 |
 | Schemas | JSON Schema 2020-12 through serde and schemars | Matches the MCP revision | |
 | Observability | OpenTelemetry GenAI semantic conventions: tool-execution spans, trace context from request metadata, agent and session baggage carried into stored records | Debuggable inside harness traces | The conventions are in development; the schema is pinned |
 
@@ -437,7 +448,9 @@ material, from loosest to strongest:
   `deprecated` entries stay readable and say what replaced them. The curator
   raises inconsistency proposals rather than choosing silently.
 - Documents are chunked structure-aware; chunks carry title, heading path and
-  metadata as context; hits are presented per document.
+  metadata as context; hits are presented per document. Phase 2 fixes the
+  rules ([D59](decisions.md)) and the container's identity, extension keys and
+  change detection ([D56](decisions.md)).
 - The graph is built deterministically from hierarchy, headings, links, tags,
   owners, timestamps, code symbols and co-citation; model-extracted entities
   are a per-collection opt-in with a budget and their own provenance layer.
@@ -451,7 +464,8 @@ material, from loosest to strongest:
   memory as skills in a pack, always through proposals.
 - Every concept and chunk carries a reference to its source's access control
   and a sensitivity label; derived content whose source the reader cannot
-  open is denied by default.
+  open is denied by default. Phase 2's access tokens, reader filter and
+  space readers are [D53](decisions.md).
 - Proposals, approvals and artifacts are records with idempotency keys and
   content hashes; every mutation appears in the event log.
 - Every hit carries a stable locator: document id, section or line range,
@@ -486,7 +500,9 @@ material, from loosest to strongest:
   `endpoints/umbel/`, independently of the binary and of AFD's contract
   version; the host refuses what it cannot serve and names the upgrade. The
   shapes are closed JSON Schemas in `endpoints/umbel/schemas/`, with reserved
-  fields named in advance ([D36](decisions.md)).
+  fields named in advance ([D36](decisions.md)). Phase 2 adds the document
+  record, the locator, the proposal record and the eval query set and report
+  to that list.
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
@@ -533,15 +549,16 @@ flowchart LR
 | 0. Host skeleton | The empty host serves MCP and CLI from one registry with bootstrap discovery, the journal and its event log, and approvals, from a workspace with defaults | With zero plugins, the host's built-in commands pass the Rust server's protocol tests in both MCP eras, and the workspace doctor reports the workspace | Workspace layout and config schema, including spaces and the default space; CLI envelope; event and cursor shape; version 0 of the principal projection and the provenance envelope, with reserved fields; the Cargo workspace's dependency on `packages/rust`, its MSRV, CI workflow and inventory placement |
 | 1. Plugin contract | Manifest, grants and the host services catalog, the WIT world, three loader kinds, skills on all three delivery paths, plugin new and plugin check, the test kit, the hello plugin | hello loads compiled, as a component and mounted; a second plugin lands with no host change; the 34-case todo conformance suite passes in legacy and modern modes with the todo example loaded as a plugin | Manifest format; WIT world v1 with clock and random; grant semantics; protocol versioning; mounted-tool renaming |
 | 2. Knowledge | Sources from the filesystem, chunking, per-space lexical indexes and structural graphs, search, open, find, metadata, citations as AFD sources, the access field on every document and chunk, the eval harness | A thousand documents indexed across two spaces; no result crosses spaces without an explicit multi-space query; results filtered by principal; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; access field; chunking rules; query syntax; locator format; eval set shape |
-| 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 1; adapter contract; bundle budget rules; hygiene and redaction policy |
-| 4. Curator | Settling window, candidates and conflict sets per space, proposals as decision traces, approvals per area, the verification lifecycle and inconsistency proposals, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | Proposal record; approval policy and the AFD approval on the apply command; settling and re-verification defaults; the optional model configuration |
+| 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 2 (version 1 came with phase 2's stores, [D55](decisions.md)); adapter contract; bundle budget rules; hygiene and redaction policy |
+| 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | The curator's proposal fields on proposal record version 1 (which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
 | 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile |
 | 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 (approved 2026-10-31 under the owner's delegation, after review; merged in #564);
-[phase 1, plugin contract](phases/1-plugin-contract/spec.md) (in review).
+[phase 1, plugin contract](phases/1-plugin-contract/spec.md) (approved, merged in #583);
+[phase 2, knowledge](phases/2-knowledge/spec.md) (in review).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -564,8 +581,9 @@ criterion.
 | A process-shared mode for the Rust `FileJournalSink`, so several host processes append to one journal under one lock ([D29](decisions.md)) | Phase 0 | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request); not started |
 | Interface selection on the Rust `DirectClient`, as TypeScript and Python have ([D34](decisions.md)) | Phase 0 | Step 0 of the phase 0 plan; not started |
 | MCP resources, the Skills extension and per-command tool `_meta` in AFD servers, reconciled with the Skill Knowledge Layer ([D47](decisions.md)) | Phase 1 | Step 0 of the [phase 1 plan](phases/1-plugin-contract/spec.md#step-0-afd-first): the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md), done 2026-11-01 (step 0a); the Rust implementation is step 0b. Shared with Loam, which also needs `ui://` resources for MCP Apps views. Prompts follow when a phase needs them |
-| Output budgets per tool | Phase 2 | New AFD feature proposal |
-| The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 2 | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
+| Output budgets per tool | Phase 2 | Step 0 of the [phase 2 plan](phases/2-knowledge/spec.md#step-0-afd-first-d25-d64): the AFD proposal and `spec/output-budgets.md` (0a), then the Rust implementation (0b) ([D64](decisions.md)); not started |
+| A public frontmatter reader in the `afd` crate | Phase 2 | Step 0b of the phase 2 plan; not started |
+| The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 5 (moved from phase 2 on 2026-11-01: phase 2 needs nothing the journal does not record; usage events and OpenTelemetry export wait for phase 5 and W12) | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
 | The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
@@ -597,8 +615,8 @@ document needs as an amendment.
 | Plugin kind | How a plugin's code runs: `compiled`, `component`, `mounted` or `pack` (no code) |
 | Plugin instance | One entry of `plugins.enabled`: a plugin, its source, configuration and spaces |
 | Plugin protocol version | The manifest version, the WIT world's major version and the grant semantics, as one compatible set |
-| Host domain | A first name segment the host owns and no plugin command may use: `workspace`, `space`, `event`, `plugin`, `skill`, `afd` |
-| Effect | What a command may change, declared per command: `inspect`, `plugin-state` or `external` in phase 1 |
+| Host domain | A first name segment the host owns and no plugin command may use: `workspace`, `space`, `event`, `plugin`, `skill`, `afd`, and from phase 2 `store` |
+| Effect | What a command may change, declared per command: `inspect`, `plugin-state` or `external` in phase 1; plus `store-write` and `workspace-write` from manifest version 2 |
 | Mount | A mounted plugin's connection to its MCP server, and the prefix its tools are renamed under |
 | Pack override | A pack directory in a space that replaces a plugin's default pack of the same id there |
 | Command | AFD's unit of capability, exposed to every surface from one registry |
@@ -612,7 +630,15 @@ document needs as an amendment.
 | Built-in command | A command the host registers itself, such as `workspace-doctor` or `event-list` |
 | Cursor | An opaque, versioned position in one space's event stream; each principal stores its own |
 | Space | An isolated knowledge base inside a deployment; nothing crosses spaces by default |
-| Collection | A content root inside a space; collections in one space share its index and graph |
+| Collection | A content root inside a space; collections in one space share its index and graph. Declared as `[spaces.<id>.collections.<cid>]` from phase 2 |
+| Document | One file of a collection as stored: bytes, frontmatter, identity `<collection>/<path>`, access set, sensitivity, envelope |
+| Chunk | A contiguous, structure-aware part of a document that the index ranks; hits are presented per document |
+| Access set | The access tokens that may read a record; everything derived from a document carries its set |
+| Reader filter | The calling principal's access tokens in one space, built by the host and applied inside every store query |
+| Revision | A space store's increasing change number, shared by documents, records and tombstones |
+| Area | The part of a space's knowledge base one approval policy governs: a collection, optionally narrowed by a document id prefix |
+| Locator | The stable address of a hit: space, document, chunk, line range, content hash and index version |
+| Derivation read | A read that ignores the caller's reader filter, allowed only inside a command that writes the index or graph |
 | Pack | Content a plugin ships by default and an instance overrides |
 | Skill | A guidance document a plugin contributes, in the Agent Skills format |
 | AFD context | A named scope that changes which commands are visible, through `afd-context-*` |
