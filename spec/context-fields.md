@@ -29,7 +29,7 @@ contextFields: [
 | `required` | Default `false`. A call without a value for a required field fails, except a call to one of AFD's own commands (named `afd-*`), so a client can discover the fields before it sends them |
 
 Reserved names are those the command context already uses: `actor`, `approval`, `auth`, `clock`,
-`credentials`, `interface`, `random`, `session`, `signal`, `source`, `timeout`, `traceId`, and any
+`credentials`, `interface`, `outputBudget` ([output budgets](./output-budgets.md#b4-the-handler-fits-its-output)), `random`, `session`, `signal`, `source`, `timeout`, `traceId`, and any
 other key the implementation sets itself (in Python, Rust and C++, their snake_case forms, the
 context's own fields and the keys their routers set).
 
@@ -84,8 +84,11 @@ The meta-tools (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail
 optional `meta` argument, advertised in [`meta-tools.json`](./meta-tools.json), for clients that
 cannot set `_meta` (#466, recorded in [`command-metadata.md`](./command-metadata.md#decisions-on-the-tool-surface-466)):
 
-- Its keys are `dev.afd/context` and the declared fields' `_meta` keys. Other keys are dropped, as
-  undeclared `_meta` keys are. `null`, for `meta` or for a value in either place, is no value.
+- Its keys are `dev.afd/context`, `dev.afd/outputBudget` (an output-budget ask,
+  [B2](./output-budgets.md#b2-the-ask)) and the declared fields' `_meta` keys. Other keys are
+  dropped, as undeclared `_meta` keys are. [`meta-tools.json`](./meta-tools.json)'s description of
+  `meta` names `dev.afd/outputBudget` once every language accepts it. `null`, for `meta` or for a value in either
+  place, is no value.
 - The server removes `meta` from the arguments and applies its keys as if the request had sent
   them in `_meta`, before it reads `_meta`: the context and each field then behave exactly as they
   would from `_meta`, in each era. A value trusted code sets still wins.
