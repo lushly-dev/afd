@@ -38,7 +38,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
 | AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; the manifest proposal (phase 1) and the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest proposal before phase 1; see the phase detail |
-| 0. Kernel, chrome and design foundation | Specification in progress | Phase 0 agent | None yet | Specification written and approved by the owner (D17) |
+| 0. Kernel, chrome and design foundation | Specification approved 2026-11-01; implementation not started | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | Steps 0a (AFD IndexedDB adapter and journal sink) and 1 (scaffold) |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
@@ -112,7 +112,16 @@ should never have to scan the codebase to learn what is current.
   `docs/features` proposal, spec first, before Loam implements against it
   (D15). Scope itself stays a field Loam adds to the command context (D31).
 
-Phases 0 to 8 have no detail yet; add a heading in this shape when one
+### 0. Kernel, chrome and design foundation
+
+- **State:** specification approved by the owner on 2026-11-01;
+  implementation not started. Last verified 2026-11-01 against `main` at `b0782de7`; the
+  evidence is listed in the [specification's status block](phases/0-kernel-chrome/spec.md#status).
+- **Done:** the [specification](phases/0-kernel-chrome/spec.md), proposing
+  D50 to D53.
+- **Not done:** steps 0a to 8 of its implementation plan.
+
+Phases 1 to 8 have no detail yet; add a heading in this shape when one
 starts.
 
 ## Follow-ups not yet issues
@@ -131,9 +140,9 @@ starts.
 | 2026-10-30 | Design session | When packages land, add a `pnpm-workspace.yaml` glob for `endpoints/loam/*` and the units to the release inventory; `architecture.json` lists foundation families only, so it needs nothing (D14, corrected 2026-10-31); units start quarantined | Open |
 | 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W1, W2 and W6 ahead of phase 1 | Open, recurring |
 | 2026-10-30 | Design session | The Lushly support application is specified in Lushly's repository; record here only the generic shell needs it surfaces, as they appear | Open, recurring |
-| 2026-10-31 | Discussion with the owner | Move `violet-elements` onto Violet themes through the runtime in place of its local theme registries (D28), with baked-in defaults and every edit recorded in `foundations/fast-af/provenance/adaptations.json`; coordinate with Lushly's transition to Violet throughout, specified in Lushly's repository; a phase 0 deliverable until an issue owns it | Open |
-| 2026-10-31 | Discussion with the owner | Write the Loam design document and its authoring skill, declared in `skills/exports.json`, before the chrome grows past a skeleton (D26); add the token-only lint and the component checklist to the phase 0 specification | Open |
-| 2026-10-31 | Discussion with the owner | Set the operations and budgets of the accelerator admission rule (D37) in the phase 0 specification | Open; the rule itself is decided |
+| 2026-10-31 | Discussion with the owner | Move `violet-elements` onto Violet themes through the runtime in place of its local theme registries (D28), with baked-in defaults and every edit recorded in `foundations/fast-af/provenance/adaptations.json`; coordinate with Lushly's transition to Violet throughout, specified in Lushly's repository; a phase 0 deliverable until an issue owns it | Specified 2026-11-01 as step 3 of the [phase 0 specification](phases/0-kernel-chrome/spec.md), as data and custom properties rather than through the runtime (D50); open until that step merges |
+| 2026-10-31 | Discussion with the owner | Write the Loam design document and its authoring skill, declared in `skills/exports.json`, before the chrome grows past a skeleton (D26); add the token-only lint and the component checklist to the phase 0 specification | Specified 2026-11-01 in the phase 0 specification (sections 2.5 to 2.7, step 4); open until step 4 merges |
+| 2026-10-31 | Discussion with the owner | Set the operations and budgets of the accelerator admission rule (D37) in the phase 0 specification | Closed 2026-11-01: operations A1 to A5 and their budgets in the phase 0 specification, section 8.2 |
 | 2026-10-31 | Landscape research | Decide O10 to O17, the opportunities the landscape opens | Closed 2026-10-31 as D39 to D46 by the owner |
 | 2026-10-31 | Landscape research | Before the phase 5 specification, verify WebMCP's shipping shape and milestone against chromestatus, which on 2026-10-31 showed the feature as proposed with a trial extension to Chrome 162 requested (W20) | Open |
 | 2026-10-31 | Multiplayer discussion | Choose the CRDT library behind the document store interface in the collaboration specification (W28), and add a two-client journal-replay scenario to the test kit | Open |
@@ -160,3 +169,5 @@ starts.
 | 2026-10-31 | Commit and review | The set opened as [#524](https://github.com/lushly-dev/afd/pull/524). Three independent reviews ran: AFD and repository accuracy, cross-document coherence, external facts. Fixed: four AFD gaps added as prerequisites (browser-safe registry, `_meta` forwarding, journal context fields, contexts in the direct registry) and D31 and D36 corrected; D39 to D45 carried into the architecture's components, interfaces, commands, phases and glossary; Rust-kernel, agent-panel and `trait` leftovers removed; "handoff" renamed "delegation" to avoid AFD's handoff pattern; commands made singular and verb-final (`setting-*`, `event-list`, `document-link-list`, `app-usage-get`); a minimal console moved into phase 1; phase 6's hosted lane gating phases 3 and 5; Health made a native app; facts corrected for Firefox 159 scoped registries, Chrome 148 Prompt API, TanStack AI's harness, the Copilot SDK's GA and BYOK, Tauri 2.12, Grafana, Slack Code, Stack Overflow and others |
 | 2026-10-31 | AFD proposals | The two AFD areas the review found were written as feature proposals with status files, the browser-safe direct registry and declared context fields, filed as #527 and #528, and linked from the prerequisites table |
 | 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |
+| 2026-11-01 | Phase 0 specification | The [phase 0 specification](phases/0-kernel-chrome/spec.md) written: four packages under `endpoints/loam/packages/`, the token contract and Loam's Violet tree, the shared components moved onto a committed Violet export (D50), the design document and the `loam-design` skill, the token-only lint, kernel interface version 0, the phase 0 commands with `appearance` and `palette` (D51), stores version 0 on IndexedDB for browser and desktop (D52), Specimen high contrast (D53), the bundle budget and the accelerator rule's operations and budgets (D37), and the exit tests |
+| 2026-11-01 | Owner's approval | The owner approved the phase 0 specification, deciding D50 to D53, and granted autonomy across phases: commit, merge, fix and approve later specifications without checking in unless a question blocks on the owner. D53's wording aligned with the specification (light scheme plus `prefers-contrast: more`; forced colors tested in Loam's suite) |
