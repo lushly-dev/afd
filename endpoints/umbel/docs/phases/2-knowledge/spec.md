@@ -54,7 +54,7 @@
   against `main` at `e996aad1` (the four languages' engines read, MCP
   2026-07-28 checked, `pnpm check`, the alfred parity tests); see
   [Amendments from step 0a](#amendments-from-step-0a).
-  Step 0b, 2026-11-01 ([#PR_NUMBER](https://github.com/lushly-dev/afd/pull/PR_NUMBER)): the Rust
+  Step 0b, 2026-11-01 ([#633](https://github.com/lushly-dev/afd/pull/633)): the Rust
   implementation in `packages/rust`: `CommandDefinition::with_output_budget`,
   `CommandContext::with_output_budget_ask` and `output_budget()`, the check in
   the innermost link of `CommandRegistry::execute`'s chain, the ask on every
