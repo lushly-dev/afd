@@ -6,7 +6,9 @@
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
 use crate::doctor::{self, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
-use crate::plugins::{CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check};
+use crate::plugins::{
+    CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check,
+};
 use crate::surfaces::{self, FirstClassPlan};
 use crate::workspace::{Located, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult};

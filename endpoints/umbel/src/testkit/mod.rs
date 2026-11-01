@@ -44,6 +44,15 @@ pub struct TestHostBuilder {
     config: toml::Table,
     spaces: Vec<String>,
     clock: i64,
+    overrides: Vec<PackOverride>,
+}
+
+/// A pack directory the workspace holds for one space (D46).
+#[derive(Clone)]
+struct PackOverride {
+    space: String,
+    pack: String,
+    dir: PathBuf,
 }
 
 /// An in-process host and its temporary workspace.
@@ -55,6 +64,7 @@ pub struct TestHost {
     spaces: Vec<String>,
     config: toml::Table,
     clock: i64,
+    overrides: Vec<PackOverride>,
 }
 
 /// What the in-process CLI printed.
@@ -204,6 +214,7 @@ impl TestHost {
             config: self.config.clone(),
             spaces: self.spaces.clone(),
             clock: self.clock,
+            overrides: self.overrides.clone(),
         }
         .boot()?;
         let report = replay_journal(
@@ -226,6 +237,7 @@ impl TestHostBuilder {
             config: toml::Table::new(),
             spaces: vec!["main".to_owned()],
             clock: DEFAULT_CLOCK_MS,
+            overrides: Vec::new(),
         }
     }
 
@@ -241,6 +253,19 @@ impl TestHostBuilder {
     #[must_use]
     pub fn spaces(mut self, ids: &[&str]) -> Self {
         self.spaces = ids.iter().map(|id| (*id).to_owned()).collect();
+        self
+    }
+
+    /// Give `space` its own copy of the plugin's pack `pack`: the directory `dir` is copied to
+    /// `spaces/<space>/packs/<plugin id>/<pack>/` and replaces the plugin's default pack whole in
+    /// that space (D46). The space must be one of [`spaces`](Self::spaces).
+    #[must_use]
+    pub fn pack_override(mut self, space: &str, pack: &str, dir: impl AsRef<Path>) -> Self {
+        self.overrides.push(PackOverride {
+            space: space.to_owned(),
+            pack: pack.to_owned(),
+            dir: dir.as_ref().to_path_buf(),
+        });
         self
     }
 
@@ -299,6 +324,16 @@ impl TestHostBuilder {
         plugins.insert("enabled".into(), vec![id.clone()].into());
         plugins.insert(id.clone(), instance.into());
         config.insert("plugins".into(), plugins.into());
+        for over in &self.overrides {
+            let target = dir
+                .path()
+                .join("spaces")
+                .join(&over.space)
+                .join("packs")
+                .join(&id)
+                .join(&over.pack);
+            copy_dir(&over.dir, &target);
+        }
         let text = toml::to_string(&config).unwrap_or_else(|error| panic!("{error}"));
         std::fs::write(dir.path().join("umbel.toml"), text)
             .unwrap_or_else(|error| panic!("umbel.toml: {error}"));
@@ -316,6 +351,7 @@ impl TestHostBuilder {
             spaces: self.spaces,
             config: self.config,
             clock: self.clock,
+            overrides: self.overrides,
         })
     }
 }

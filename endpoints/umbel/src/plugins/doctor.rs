@@ -22,8 +22,8 @@ use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
 use super::{GRANTS, RESERVED_GRANTS};
 use crate::doctor::{Check, NEEDS_CONFIG};
 use crate::surfaces::FirstClassPlan;
-use afd::server::MAX_FIRST_CLASS_TOOLS;
 use crate::workspace::{ConfigFile, PluginInstance, SpaceId};
+use afd::server::MAX_FIRST_CLASS_TOOLS;
 
 const NEEDS_PLUGIN_CONFIG: &str = "Needs a valid plugin configuration; plugins.config failed.";
 

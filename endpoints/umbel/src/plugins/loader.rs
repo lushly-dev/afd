@@ -192,7 +192,7 @@ struct Prepared {
 
 /// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
 enum Slot {
-    Failed(InstanceReport),
+    Failed(Box<InstanceReport>),
     Ready(Box<Prepared>),
 }
 
@@ -224,7 +224,14 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         let required = instance
             .required
             .unwrap_or(!resolved.manifest.is_http_mount());
-        match prepare(inputs, instance, &resolved, required, &taken, &contexts_taken) {
+        match prepare(
+            inputs,
+            instance,
+            &resolved,
+            required,
+            &taken,
+            &contexts_taken,
+        ) {
             Ok(prepared) => {
                 let owner = format!("plugin instance `{}`", instance.id);
                 for (definition, _) in &prepared.commands {
@@ -248,7 +255,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
     for slot in slots {
         let mut prepared = match slot {
             Slot::Failed(report) => {
-                loaded.instances.push(report);
+                loaded.instances.push(*report);
                 continue;
             }
             Slot::Ready(prepared) => *prepared,
@@ -314,29 +321,29 @@ fn gate_entry(
 /// effects do not cover its steps' fails its instance; when that instance is optional it is
 /// dropped and the rest are decided again, because the commands it held no longer exist.
 fn settle_pipelines(inputs: &Inputs<'_>, slots: &mut [Slot]) -> Result<(), PluginError> {
-    'again: loop {
+    loop {
         let known = known_commands(inputs, slots);
-        for index in 0..slots.len() {
-            let Slot::Ready(prepared) = &slots[index] else {
+        let mut dropped = false;
+        for slot in slots.iter_mut() {
+            let Slot::Ready(prepared) = slot else {
                 continue;
             };
             match pipelines::plan(&prepared.manifest, &known) {
-                Ok(plans) => {
-                    if let Slot::Ready(prepared) = &mut slots[index] {
-                        prepared.report.pipelines = plans;
-                    }
-                }
+                Ok(plans) => prepared.report.pipelines = plans,
                 Err(error) => {
                     if prepared.report.required {
                         return Err(error);
                     }
                     let report = failed_report(&prepared.report, prepared.manifest.clone(), error);
-                    slots[index] = Slot::Failed(report);
-                    continue 'again;
+                    *slot = Slot::Failed(Box::new(report));
+                    dropped = true;
+                    break;
                 }
             }
         }
-        return Ok(());
+        if !dropped {
+            return Ok(());
+        }
     }
 }
 
@@ -404,7 +411,7 @@ fn fail(
     if required {
         return Err(error);
     }
-    Ok(Slot::Failed(InstanceReport {
+    Ok(Slot::Failed(Box::new(InstanceReport {
         id: instance.id.clone(),
         required,
         source: instance
@@ -419,11 +426,15 @@ fn fail(
         contexts: Vec::new(),
         pipelines: Vec::new(),
         status: Status::Failed(error),
-    }))
+    })))
 }
 
 /// The report of an instance that was prepared and then failed.
-fn failed_report(prepared: &InstanceReport, manifest: Manifest, error: PluginError) -> InstanceReport {
+fn failed_report(
+    prepared: &InstanceReport,
+    manifest: Manifest,
+    error: PluginError,
+) -> InstanceReport {
     InstanceReport {
         id: prepared.id.clone(),
         required: prepared.required,
@@ -658,7 +669,13 @@ fn prepare(
         .map(|(command, schema)| {
             (
                 command.name.clone(),
-                gate_entry(&instance.id, manifest.plugin.kind, &space_names, schema, false),
+                gate_entry(
+                    &instance.id,
+                    manifest.plugin.kind,
+                    &space_names,
+                    schema,
+                    false,
+                ),
             )
         })
         .collect();

@@ -596,7 +596,10 @@ fn contexts_start_with_a_domain() {
     parse(&ok).unwrap();
     // A command may only list contexts the manifest declares.
     invalid(
-        &edited("contexts = [\"hello\"]", "contexts = [\"hello-undeclared\"]"),
+        &edited(
+            "contexts = [\"hello\"]",
+            "contexts = [\"hello-undeclared\"]",
+        ),
         "commands[0].contexts",
     );
     invalid(

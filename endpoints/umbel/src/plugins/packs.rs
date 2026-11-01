@@ -159,7 +159,8 @@ pub(crate) fn check_pack_files(
         .map_err(|problem| PluginError::pack_invalid(label, problem))?;
     for name in &names {
         let top = name.split('/').next().unwrap_or(name);
-        let allowed = (name == "pack.toml") || (name.contains('/') && SUBDIRECTORIES.contains(&top));
+        let allowed =
+            (name == "pack.toml") || (name.contains('/') && SUBDIRECTORIES.contains(&top));
         if !allowed {
             return Err(PluginError::pack_invalid(
                 label,
