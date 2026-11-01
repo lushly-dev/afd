@@ -75,13 +75,18 @@ nothing that needs Node.js:
 
 The root entry keeps exporting all of it, so nothing breaks. A test bundles
 `/direct` with esbuild for the browser, as `define.test.ts` does for
-`/define`. It fails on any `node:` import, and on two size budgets for AFD's
-own code, minified with Zod external: 35 KB for a host that imports the
-registry, the journal and `defineCommand` (32.2 KB measured when part 1
-landed), and 66 KB for every export (59.8 KB measured: the middleware, replay
-and the core error catalog account for the difference). Part 3 re-measures
-both; keeping the tool router out of a registry that does not ask for it keeps
-the first budget. The name describes what
+`/define`. It fails on any `node:` import, and on size budgets for AFD's own
+code, minified with Zod external, each set about 10% above what was measured:
+
+| Budget | Part 1 | After parts 2 and 3 and #528 |
+|---|---|---|
+| A host that imports the registry, the journal and `defineCommand` | 35 KB (32.2 KB measured) | 39 KB (37.3 KB: declared context fields add 2.3 KB, part 3's contexts 2.0 KB) |
+| The same host with the approval middleware | Not exported yet | 52 KB (47.2 KB) |
+| The same host with `createDirectToolSurface` | Not exported yet | 74 KB (67.6 KB) |
+| Every export | 66 KB (59.8 KB: the middleware, replay and the core error catalog) | 113 KB (102.6 KB) |
+
+Part 3 re-measures them; keeping the tool router out of a registry that does
+not ask for it keeps the first budget. The name describes what
 the entry is for, not where it runs: a Node host that does not want the MCP
 SDK can use it too.
 

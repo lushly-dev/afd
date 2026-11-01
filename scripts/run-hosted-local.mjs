@@ -40,6 +40,11 @@ const steps = [
 		'packages/local-db',
 		['--test', 'hosted/harness.test.mjs'],
 	],
+	[
+		'Direct registry, journal and WebCrypto approvals in Chromium',
+		'packages/server',
+		['--test', 'browser/direct.chromium.test.mjs'],
+	],
 ];
 
 for (const [name, directory, args] of steps) {
