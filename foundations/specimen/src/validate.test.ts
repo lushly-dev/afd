@@ -36,9 +36,17 @@ const configSchema = z
 			.min(1)
 			.optional(),
 		preview: z.string().min(1).optional(),
+		test: z
+			.strictObject({
+				include: z.array(z.string().min(1)).optional(),
+				exclude: z.array(z.string().min(1)).optional(),
+				skip: z.array(z.string().min(1)).optional(),
+			})
+			.optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
-	.refine((config) => config.preview === undefined || config.stories !== undefined);
+	.refine((config) => config.preview === undefined || config.stories !== undefined)
+	.refine((config) => config.test === undefined || config.stories !== undefined);
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -159,6 +167,12 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], preview: '.storybook/preview.ts' },
 			{ specimens: [entry], stories: ['src'] },
 			{ preview: 'x.ts' },
+			{ stories: ['src'], test: { skip: ['skip-me'] } },
+			{ stories: ['src'], test: { include: ['test'], exclude: [], skip: [] } },
+			{ stories: ['src'], test: { include: [''] } },
+			{ stories: ['src'], test: { skip: 'x' } },
+			{ stories: ['src'], test: { other: [] } },
+			{ specimens: [entry], test: {} },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});

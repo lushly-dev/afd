@@ -15,6 +15,7 @@ const recordedContextSchema = z.strictObject({
 	locale: z.string().min(1),
 	reducedMotion: z.enum(['reduce', 'no-preference']),
 	motion: z.enum(['natural', 'settled']),
+	themeMedia: z.literal('browser-default').optional(),
 });
 /** New requests need a BCP 47 locale; saved captures keep whatever locale they recorded. */
 export const contextSchema = recordedContextSchema.extend({
@@ -112,3 +113,31 @@ export const buildOutputSchema = z
 		files: z.array(z.string()),
 	})
 	.strict();
+/** A retained story's run request: a capture request without a checkpoint, which is `after-run`. */
+export const runRequestSchema = captureRequestSchema.omit({ checkpoint: true });
+export const storyRunSchema = z.strictObject({
+	id: z.string(),
+	outcome: z.strictObject({
+		status: z.enum(['passed', 'failed', 'skipped', 'excluded']),
+		play: z.enum(['ran', 'none']),
+		failures: z.array(
+			z.strictObject({ category: z.enum(['render', 'play', 'a11y']), message: z.string() })
+		),
+		a11y: z.strictObject({
+			status: z.enum(['passed', 'warning', 'failed', 'not-run']),
+			policy: z.enum(['error', 'todo', 'off', 'disabled', 'manual']),
+			reason: z.string().optional(),
+			violations: z.array(
+				z.strictObject({
+					id: z.string(),
+					impact: z.string().nullable(),
+					help: z.string(),
+					targets: z.array(z.string()),
+				})
+			),
+			incomplete: z.number().int().nonnegative(),
+			engine: z.string().optional(),
+		}),
+	}),
+	observation: observationSchema.nullable(),
+});

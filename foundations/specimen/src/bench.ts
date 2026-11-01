@@ -6,7 +6,9 @@ import type {
 	BenchOptions,
 	CaptureRequest,
 	Observation,
+	RunRequest,
 	SpecimenEntry,
+	StoryRun,
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
@@ -32,6 +34,11 @@ export interface SpecimenBench {
 	 */
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
+	/**
+	 * Run a retained story as Storybook's Vitest addon runs it: render, play, then the
+	 * accessibility check under its effective policy. A story that fails to render fails its run.
+	 */
+	run(request: RunRequest): Promise<StoryRun>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -49,7 +56,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	Object.freeze(config);
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
-	type Backend = Pick<SpecimenBench, 'render' | 'build' | 'close'>;
+	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'build' | 'close'>;
 	let backend: Backend | undefined;
 	let closed = false;
 	let closing: Promise<void> | undefined;
@@ -134,6 +141,16 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			// Resolve context here too: invalid requests never start a runtime.
 			resolveContext(request.context);
 			return enqueue((client) => client.render(request));
+		},
+		async run(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parseCaptureRequest(rawRequest);
+			if (request.checkpoint !== undefined)
+				throw new Error('A run always ends at the after-run checkpoint; omit checkpoint.');
+			if (!snapshot.entries.some((entry) => entry.id === request.id))
+				throw new Error(`Specimen not found: ${request.id}`);
+			resolveContext(request.context);
+			return enqueue((client) => client.run(request));
 		},
 		async build(outDir) {
 			ensureDiscovered();

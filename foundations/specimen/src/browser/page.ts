@@ -183,10 +183,13 @@ export async function installPage(
 		const entry = id ? entries.find((item) => item.id === id) : undefined;
 		if (id && !entry) throw new Error(`Unknown specimen: ${id}.`);
 		if (entry && params.get('frame') === '1') {
-			await window.__specimen.mount(entry, {
-				...context,
-				viewport: { width: innerWidth, height: innerHeight },
-			});
+			const frameContext = { ...context, viewport: { width: innerWidth, height: innerHeight } };
+			// A retained story settles its own context; the frame's size stays the preview's.
+			const resolved = await window.__specimen.resolve(entry, frameContext, defaults);
+			await window.__specimen.mount(
+				entry,
+				resolved ? { ...resolved.context, viewport: frameContext.viewport } : frameContext
+			);
 			return;
 		}
 		root.replaceChildren();

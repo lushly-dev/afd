@@ -68,6 +68,22 @@ function bench(): SpecimenCommandBench {
 					: [],
 		})),
 		render: vi.fn(async () => observation()),
+		run: vi.fn(async (request) => ({
+			id: request.id,
+			outcome: {
+				status: 'passed' as const,
+				play: 'ran' as const,
+				failures: [],
+				a11y: {
+					status: 'passed' as const,
+					policy: 'error' as const,
+					violations: [],
+					incomplete: 0,
+					engine: '4.13.0',
+				},
+			},
+			observation: observation(),
+		})),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
 			shellBytes: 1000,
@@ -87,6 +103,7 @@ describe('specimen commands', () => {
 			'specimen-diff',
 			'specimen-build',
 			'specimen-validate',
+			'specimen-run',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -108,6 +125,17 @@ describe('specimen commands', () => {
 		const all = await executeSpecimenCommand(instance, 'specimen-validate', {});
 		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
 		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a retained story and returns its outcome and capture', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-run', { id: 'button' });
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({ id: 'button', outcome: { status: 'passed', play: 'ran' } });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-run', {
+			id: 'button',
+			checkpoint: 'mount',
+		});
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('lists retained stories with their Storybook identity', async () => {

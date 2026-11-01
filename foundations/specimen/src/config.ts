@@ -28,20 +28,20 @@ export interface LoadedConfig {
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
-/**
- * What the page bundles: native specimens. Retained stories are listed and validated; their
- * runtime is the next compatibility step, so their modules are not bundled yet.
- */
-export function renderable(config: LoadedConfig): {
+/** The module id the project annotations (a retained story's preview) are bundled under. */
+export const PREVIEW_MODULE = '$preview';
+
+/** What the page bundles: every entry's module, and the project annotations when stories have them. */
+export function bundled(config: LoadedConfig): {
 	entries: SpecimenEntry[];
 	modules: Record<string, string>;
 } {
-	const entries = config.entries.filter((entry) => !entry.story);
 	return {
-		entries,
-		modules: Object.fromEntries(
-			entries.map((entry) => [entry.id, config.modules[entry.id] as string])
-		),
+		entries: config.entries,
+		modules: {
+			...config.modules,
+			...(config.stories?.preview ? { [PREVIEW_MODULE]: config.stories.preview } : {}),
+		},
 	};
 }
 

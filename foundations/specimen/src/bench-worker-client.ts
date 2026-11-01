@@ -3,11 +3,12 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { SpecimenBench } from './bench.js';
 import type { LoadedConfig } from './config.js';
-import type { CaptureRequest, Observation } from './types.js';
+import type { CaptureRequest, Observation, RunRequest, StoryRun } from './types.js';
 
 type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
+	| { operation: 'run'; request: RunRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
 	| { operation: 'abort' };
@@ -197,6 +198,13 @@ export class BenchWorkerClient {
 			{ operation: 'render', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as Observation;
+	}
+	async run(request: RunRequest): Promise<StoryRun> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'run', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as StoryRun;
 	}
 	async build(outDir: string): ReturnType<SpecimenBench['build']> {
 		await this.ready;
