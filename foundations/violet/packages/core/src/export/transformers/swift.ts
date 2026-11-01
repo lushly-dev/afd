@@ -142,7 +142,7 @@ function toSwiftValue(token: ResolvedToken): string {
 
 	// Colors
 	if (category === 'color' || isHexColor(value)) {
-		return `SwiftUI.Color(hex: "${value}")`;
+		return `SwiftUI.Color(hex: "${escapeSwiftString(String(value))}")`;
 	}
 
 	// Numbers with units
@@ -171,7 +171,23 @@ function toSwiftValue(token: ResolvedToken): string {
 	}
 
 	// Strings
-	return `"${value}"`;
+	return `"${escapeSwiftString(String(value))}"`;
+}
+
+const SWIFT_ESCAPES: Record<string, string> = {
+	'\\': '\\\\',
+	'"': '\\"',
+	'\n': '\\n',
+	'\r': '\\r',
+	'\t': '\\t',
+};
+
+/**
+ * Escape a value for a double-quoted Swift string literal. Escaping `\` also
+ * stops a value from opening a `\(...)` interpolation.
+ */
+function escapeSwiftString(str: string): string {
+	return str.replace(/[\\"\n\r\t]/g, (c) => SWIFT_ESCAPES[c]);
 }
 
 /**
@@ -198,8 +214,8 @@ extension SwiftUI.Color {
             (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
         case 6: // RGB (24-bit)
             (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // RGBA (32-bit), CSS order: alpha last
+            (r, g, b, a) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
         default:
             (a, r, g, b) = (255, 0, 0, 0)
         }

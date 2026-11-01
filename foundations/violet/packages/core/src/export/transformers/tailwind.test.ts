@@ -91,6 +91,18 @@ describe('tailwind transformer', () => {
 		expect(borderRadius.borderRadius).toEqual({ lg: '12px' });
 	});
 
+	it('merges the radius and borderRadius categories into one scale', () => {
+		const extend = extendOf(
+			tailwindTransformer.transform([
+				token('radius.sm', 2),
+				token('borderRadius.lg', 12),
+				token('radius.md', '0.5rem'),
+			]),
+		);
+
+		expect(extend.borderRadius).toEqual({ sm: '2px', md: '0.5rem', lg: '12px' });
+	});
+
 	it('sorts font and typography tokens into size, family, weight and line-height scales', () => {
 		const extend = extendOf(
 			tailwindTransformer.transform([
