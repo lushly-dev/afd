@@ -46,6 +46,8 @@ playwright-report/
 
 # Rust
 Cargo.lock
+# Umbel is a binary: its lock is committed so CI builds what it tested
+!endpoints/umbel/Cargo.lock
 
 # C++ (CMake build trees; see packages/cpp)
 /packages/cpp/build/

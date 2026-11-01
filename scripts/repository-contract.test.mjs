@@ -224,6 +224,58 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
+test('Umbel is a private, route-less endpoint over the afd crate', async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'umbel');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['umbel', 'endpoints/umbel/Cargo.toml', 'rust', true]]
+	);
+	assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+	for (const route of ['crates-tag', 'npm-main'])
+		assert.throws(
+			() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route }),
+			/not admitted|route/,
+			route
+		);
+	const architecture = JSON.parse(read('architecture.json'));
+	const boundary = architecture.units.find(
+		(entry) => entry.manifest === 'endpoints/umbel/Cargo.toml'
+	);
+	assert.equal(boundary.family, 'umbel');
+	assert.equal(boundary.layer, 'endpoint');
+	assert.deepEqual(boundary.publicSurfaces, [
+		'rust-library',
+		'bin:umbel',
+		'umbel serve --stdio',
+		'umbel serve --http',
+		'workspace-config-1',
+		'principal-0',
+		'provenance-envelope-0',
+		'event-0',
+		'cursor-0',
+	]);
+	const manifest = read('endpoints/umbel/Cargo.toml');
+	assert.match(manifest, /^publish = false$/m);
+	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/packages\/rust"/m);
+	assert.match(read('.gitignore'), /^!endpoints\/umbel\/Cargo\.lock$/m);
+	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
+		if (workflow !== 'umbel.yml')
+			assert.doesNotMatch(
+				read(`.github/workflows/${workflow}`),
+				/endpoints\/umbel|unit umbel/,
+				workflow
+			);
+	const umbel = read('.github/workflows/umbel.yml');
+	assert.match(umbel, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(umbel, /publish|upload|id-token|secrets\./);
+});
+
 test('every published package type-checks its tests', () => {
 	const packages = publishedPackageDirectories();
 	assert.ok(packages.includes('packages/core'), 'expected to find the published packages');

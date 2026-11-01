@@ -208,6 +208,22 @@
 			"family": "health",
 			"layer": "endpoint",
 			"configurationDependencies": ["lushly-health"]
+		},
+		{
+			"manifest": "endpoints/umbel/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": [
+				"rust-library",
+				"bin:umbel",
+				"umbel serve --stdio",
+				"umbel serve --http",
+				"workspace-config-1",
+				"principal-0",
+				"provenance-envelope-0",
+				"event-0",
+				"cursor-0"
+			]
 		}
 	],
 	"coverageContract": {
