@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only) and 1 (manifest and configuration) done; step 0b and step 2a next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 1: [#606](https://github.com/lushly-dev/afd/pull/606) | Step 0b (the Rust implementation and the todo library split) and step 2a (loader core and compiled plugins), which needs 1 |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills) and 1 (manifest and configuration) done; step 2a next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#PR](https://github.com/lushly-dev/afd/pull/PR); step 1: [#606](https://github.com/lushly-dev/afd/pull/606) | Step 2a (loader core and compiled plugins), which needs 1 |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -215,7 +215,7 @@ should never have to scan the codebase to learn what is current.
 
 - **State:** specification approved by the owner (D24) and merged in
   [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff` on
-  2026-11-01; steps 0a and 1 done the same day; step 0b and step 2a are next.
+  2026-11-01; steps 0a, 0b and 1 done the same day; step 2a is next.
   Last verified 2026-11-01 against `main` at `a7fc5f05`. (Superseded: "in
   review, revised, not approved", verified at `cdfbbfb7`.)
 - **Done:** the [specification](phases/1-plugin-contract/spec.md), in
@@ -297,8 +297,20 @@ should never have to scan the codebase to learn what is current.
   the specification's "Amendments from step 1": until step 2a, `seal` refuses
   a workspace whose `plugins.enabled` is not empty, as phase 0 did, so a
   configured plugin is never silently ignored.
-- **Not done:** steps 0b, 2a, 2b and 3 to 8; the exit criterion.
-- **Needs the owner:** nothing for step 0b or step 2a. O1 is unchanged.
+- **Done:** step 0b, the AFD Rust implementation ([#PR](https://github.com/lushly-dev/afd/pull/PR)):
+  `McpServer::with_resources` and `with_skills` (resources, the Skills extension, `skills/list`,
+  `skills/get`, optional `resources/directory/read`), `CommandDefinition::with_tool_meta`,
+  `CommandRegistry::register_with_schemas` and `afd::check_meta_entry` in `packages/rust`; the Rust
+  todo backend split into a library (`commands`, `TodoStore`, `register_commands`; the binary needs
+  the default `server` feature). `rmcp` 3.8.0 routes the extension's methods, so the spec stood.
+  Verified in `packages/rust`: fmt, clippy `-D warnings` and tests for default, no-default, `server`
+  and `journal-file-shared`, both wasm checks, `tests/server_resources.rs` running
+  `spec/mcp-resources.json` over HTTP and stdio on both eras; the todo backend with and without
+  default features; todo conformance 34/34 legacy, 34/34 modern, 5/5 confirmations; `cargo test
+  --locked --workspace` in `endpoints/umbel`. Seven amendments are in the specification's
+  "Amendments from step 0b".
+- **Not done:** steps 2a, 2b and 3 to 8; the exit criterion.
+- **Needs the owner:** nothing for step 2a. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
 Phases 2 to 7 have no detail yet; add a heading in this shape when one
@@ -365,3 +377,4 @@ starts.
 | 2026-11-01 | Phase 1 specification revision | Revised the phase 1 specification after the independent review of [#583](https://github.com/lushly-dev/afd/pull/583), each finding checked against the code first: recorded the owner's four trust-model decisions and the coordinator's allow-list rule (section 11, D42, D43); moved a mount's `url` and `bearer_env` to `umbel.toml`; gave pipelines the union of their steps' confirmation prompts; made mounted commands space-less unless `bind_space`; instance prefixes, transport-level result limits, load-time description scans, advertised and validation schemas; `--workspace` CI, `hello-mcp` location, rustls for HTTPS mounts, CI cost measures; restated W17 and D38 (wasmtime 48 is the constraint); split step 2 into 2a and 2b; added exit run 4 (the stock binary mounts the Rust todo backend) and the `plugin-isolation` job. Amended D38, D40, D42, D43, D47, D48, D50 and architecture section 8. Spec in review, not approved |
 | 2026-11-01 | Phase 1 step 0a | Owner approval of the phase 1 specification recorded (merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`). Wrote the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and its status, approved under the owner's delegation, and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) with `spec/mcp-resources.json`; amended `command-metadata.md`, `protocol-conformance.md`, `CHANGELOG.md` and the language parity matrix (Planned); reconciled the Skill Knowledge Layer; amended the phase 1 specification (digest key, step 0a path, status block) and the prerequisites rows of the Umbel and Loam architectures. Documents only |
 | 2026-11-01 | Phase 1 step 1 | Manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): the manifest, source resolution, pack and skill file checks, the three schemas with examples, configuration version 2 and `init`, the doctor's file-only plugin checks (replacing `plugins.none`), the WIT file, the version constants, `[workspace.lints]` and `--workspace` in `umbel.yml`. Resumed from a partial branch left by an agent whose disk filled; reviewed, merged with `main`, and verified (fmt, clippy `-D warnings`, 338 tests, the MSRV check). Amendment: `seal` still refuses an enabled plugin until step 2a |
+| 2026-11-01 | Phase 1 step 0b | Rust MCP resources, the Skills extension, tool `_meta` and `register_with_schemas` in `packages/rust`, and the todo backend library split ([#PR](https://github.com/lushly-dev/afd/pull/PR)); `rmcp` 3.8.0 routed the extension's methods, so no spec stop. Seven spec clarifications (see the specification's "Amendments from step 0b"). New optional dependency `saphyr-parser` |

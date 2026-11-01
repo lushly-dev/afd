@@ -83,8 +83,13 @@
   manifest and configuration, as the step 1 row of the
   [plan](#14-implementation-plan) lists them. One amendment, in
   [Amendments from step 1](#amendments-from-step-1).
-- **Done:** this specification, approved and merged; steps 0a and 1.
-- **Not done:** step 0b and the Umbel steps 2a to 8 of the
+- **Step 0b done 2026-11-01** ([#PR](https://github.com/lushly-dev/afd/pull/PR)):
+  MCP resources, the Skills extension, per-command tool `_meta` and
+  `register_with_schemas` in `packages/rust`, and the Rust todo backend split
+  into a library. Seven amendments, in
+  [Amendments from step 0b](#amendments-from-step-0b).
+- **Done:** this specification, approved and merged; steps 0a, 0b and 1.
+- **Not done:** the Umbel steps 2a to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1881,7 +1886,7 @@ mechanism), covering for every language:
   remain a separate, local convention; Agent Skills served over MCP are this
   proposal's.
 
-**0b. Rust implementation** in `packages/rust`, behind the `server` feature:
+**0b. Rust implementation** (done 2026-11-01) in `packages/rust`, behind the `server` feature:
 `McpServer::with_resources(impl ResourceProvider)`,
 `McpServer::with_skills(SkillCatalog)` (which also serves the skill files as
 resources), `CommandDefinition::with_tool_meta(key, value)` and
