@@ -27,11 +27,11 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519) | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main` |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D67 (D51 to D67 proposed with the phase 2 specification, in review); open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
+| [Decision log](decisions.md) | D1 to D67 (D51 to D67 proposed with the phase 2 specification, in review, amended 2026-11-01 by its revision; D40 and D42 annotated); open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1; W1 to W4, W11, W16 and the store, search, parsing and tree-sitter library rows refreshed 2026-11-01 for phase 2 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
 | [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
-| [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; in review, not approved. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader) | This pull request | 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
+| [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; in review, revised 2026-11-01 after the independent review and the owner's decisions; not approved. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader) | [#625](https://github.com/lushly-dev/afd/pull/625) | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -40,8 +40,8 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Done 2026-11-01: exit criterion met | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
-| 2. Knowledge | Specification written 2026-11-01, in review, not approved; implementation not started | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) (this pull request) | Owner approval of the specification (D24); then step 0a |
+| 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
+| 2. Knowledge | Specification in review, revised 2026-11-01 after the review and the owner's decisions; not approved; implementation not started | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)) | Owner approval of the specification (D24); then step 0a |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started | None | None | Phase 2 exit criterion met |
@@ -510,8 +510,9 @@ should never have to scan the codebase to learn what is current.
     stamped `compiled`; `plugin list` showed hello loaded, "trusted, not
     sandboxed".
   - **Exit run 2 and the workflow:** `plugin-isolation` and every other job of
-    `umbel.yml` ran on the pull request; the workflow runs again on `main` at the
-    merge commit.
+    `umbel.yml` ran on the pull request, and again on `main` at the merge
+    commit `886c3b4d`: [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706),
+    success (checked 2026-11-01).
 - **Not done:** nothing in phase 1. The follow-ups below that name a later
   phase stay open.
 - **Needs the owner:** nothing. O1 is unchanged. Phase 2 needs its
@@ -520,9 +521,10 @@ should never have to scan the codebase to learn what is current.
 
 ### Phase 2. Knowledge
 
-- **State:** specification written 2026-11-01 by the phase 2 owning agent, in
-  review, not approved (D24). Implementation not started. Last verified
-  2026-11-01 against `main` at `1cca6309`.
+- **State:** specification in review, **revised** 2026-11-01 after the
+  independent review and the owner's decisions of the same day; not yet
+  approved (D24). Implementation not started. Last verified 2026-11-01
+  against `main` at `886c3b4d`.
 - **Done:** the [specification](phases/2-knowledge/spec.md): store traits
   version 1 with a conformance suite and the embedded backend on SQLite (WAL)
   and tantivy, shared by several processes (D51, closing D28's choice);
@@ -538,14 +540,26 @@ should never have to scan the codebase to learn what is current.
   (D63); output budgets AFD-first (D64); the eval harness and the lane gate
   (D65); the fail-open journal with store cross-checks (D66); content trust
   (D67). Architecture, decision log and trajectory amendments in the same
-  pull request.
+  pull request. The [revision](phases/2-knowledge/spec.md#revision-2026-11-01)
+  fixed all nine must-fix findings (tantivy query parsing and features,
+  concurrent indexers, co-citation leaks, access holes in sync, index and
+  events, the gate's allow-list, `require-human`, self-approval, the SDK
+  seams), the should-fix items and the nits; no finding was rejected.
 - **Not done:** approval; steps 0a to 10 of the
   [plan](phases/2-knowledge/spec.md#14-implementation-plan); the exit
   criterion.
-- **For the owner:** the nine points of the specification's
-  [section 15](phases/2-knowledge/spec.md#15-for-the-owner), among them
-  derivation reads, access before authentication, flag-not-block ingestion,
-  the fail-open journal, and the proposal record moving into phase 2.
+- **Owner decisions (2026-11-01):** recorded in the specification's
+  [section 15](phases/2-knowledge/spec.md#15-for-the-owner): access v0
+  accepted and tightened (derivation reads compiled-only; filtering exact
+  only for embedders and tests until phase 5; flagged, not blocked;
+  index-building outputs and events filtered to totals plus readable ids);
+  approve and reject require a human at a terminal (`confirm =
+  "require-human"`); self-approval refused only for the same actor; BM25
+  statistics over unreadable chunks accepted for phase 2, with partitioned
+  statistics or coarsened scores a phase 5 prerequisite. The coordinator
+  kept D66's fail-open journal (race fixed), D62's proposals in phase 2
+  (phase 4's exit amended to a curator proposal) and D57's binary.
+- **Needs the owner:** approval of the revised specification.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
 Phases 3 to 7 have no detail yet; add a heading in this shape when one
@@ -589,7 +603,8 @@ starts.
 | 2026-11-01 | Phase 2 specification | Output budgets in TypeScript, Python and C++ after the phase 2 step 0b | Open, AFD |
 | 2026-11-01 | Phase 2 specification | Documents as MCP resources (`kb://`) once a permission-filtered listing exists | Open, after phase 5 |
 | 2026-11-01 | Phase 2 specification | Restore from `store-backup` | Open, phase 6 |
-| 2026-11-01 | Phase 2 specification | Partitioned BM25 statistics per access set | Open, `org` profile work |
+| 2026-11-01 | Phase 2 specification | Partitioned BM25 statistics per access set, or coarsened scores, and an end to hidden-count leaks (scores, revision and `seq` gaps, `store-show`'s head, index-building totals) | Open, **phase 5 prerequisite** (owner decision 2026-11-01); in the architecture's prerequisites table |
+| 2026-11-01 | Phase 2 specification revision | Measure chunk sizes against S57 (about 250-token chunks with overlap) with the eval harness once its baseline exists | Open, after phase 2 step 9 |
 | 2026-11-01 | Phase 2 specification | A per-collection option to block, not only flag, content the write scan matches | Open, when a deployer asks |
 | 2026-11-01 | Phase 2 specification | Watching collection roots instead of an explicit `knowledge-refresh` | Open, later |
 
@@ -630,3 +645,4 @@ starts.
 | 2026-11-01 | Phase 1 step 7 | `plugin new` and `plugin check` ([#623](https://github.com/lushly-dev/afd/pull/623)): the templates for every plugin kind, `plugin-new`, `plugin-check` with its internal temporary host (no `testkit`) and the explicit `spawn=true`, the README's "Write a plugin" section, and `plugin_scaffold.rs`, which builds the compiled and component scaffolds. Ten amendments in the specification's "Amendments from step 7"; the component template declares `packs`, `clock` and `log`, because the Rust component it builds imports no `wasi:random`. |
 | 2026-11-01 | Phase 1 exit | Phase 1 done. Steps 0a to 7 merged in #583 (specification), #606, #608, #610, #611, #612, #613, #620, #622 and #623; step 8 added `tests/hello_three_ways.rs` (hello compiled, as a component and mounted, over MCP stdio and HTTP in both eras and through the CLI, with the fixed clock) and re-ran the exit criterion on `main` at `1cca6309` plus that test: `cargo test --locked --workspace` 550 passed, the todo conformance suite 34/34 against `umbel-todo` (legacy and modern) and against the stock `umbel` mounting the Rust backend (legacy and modern), the confirmations suite 5/5, the Rust backend 34/34 twice and 5/5, `afd validate --surface --strict` 0 errors and 0 warnings, 4 scenarios passed, `plugin check` healthy on each of the four `plugin new` templates, and `workspace doctor` on a fresh workspace with hello enabled 20 of 20 checks passing. Phase 2 is unblocked; its next gate is a specification written and approved (D24). [#624](https://github.com/lushly-dev/afd/pull/624) |
 | 2026-11-01 | Phase 2 specification | Wrote the [phase 2 specification](phases/2-knowledge/spec.md) at the D24 path, in review: store traits and the embedded SQLite and tantivy backend shared by several processes, configuration version 3, access and reader filters, store grants with allow lists and derivation reads, manifest version 2, envelope and event version 1, `sources-filesystem` and the OKF container, the `knowledge` plugin (query syntax, ranking, chunking, locators, the structural graph with tree-sitter symbols, open and find, multi-space fusion), proposals and the verification lifecycle, output budgets AFD-first, the eval harness with a synthetic thousand-document fixture and a gate for optional lanes, security, the exit criterion with every test file, and a plan with step 0 in AFD. D51 to D67; architecture amendments (host services, store traits, envelope, libraries, data, phases 3 and 4 rows, prerequisites with the telemetry middleware moved to phase 5, glossary); trajectory refresh. Nine points for the owner in section 15. Spec in review, not approved |
+| 2026-11-01 | Phase 2 specification revision | Revised the [phase 2 specification](phases/2-knowledge/spec.md#revision-2026-11-01) in [#625](https://github.com/lushly-dev/afd/pull/625), rebased onto `886c3b4d`, after the independent review and the owner's decisions of 2026-11-01. Checked every finding against the code and the tantivy 0.27.0, tantivy-query-grammar 0.27.0, tree-sitter 0.27.1 and tree-sitter-typescript 0.23.2 sources; none rejected. Query parsing through the grammar AST with bounded prefixes; tantivy features and explicit LZ4; indexers serialised by the writer with one-transaction graph batches and no lowering of `applied`; co-citation per citer; totals plus readable ids for sync, status and index, and `event-list` filtered by `access`; the gate's named allow-list; `confirm = "require-human"`; self-approval by actor; SDK method and error tables; plan dependencies, fixture counts, CI job, eval scope. Owner decisions recorded in section 15 and D53, D54, D62 and D67; D40 and D42 annotated; D51, D55, D57 to D60 and D64 to D66 amended; architecture phase 4 exit and prerequisites amended. Cited the phase 1 exit run, `umbel.yml` run 41298630706 on `main` at `886c3b4d`. Spec in review, not approved |
