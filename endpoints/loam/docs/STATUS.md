@@ -37,7 +37,7 @@ should never have to scan the codebase to learn what is current.
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
-| AFD prerequisites | Phase 0 rows done; the phase 2 rows and part of phase 5's done; phase 1, 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608) | TypeScript MCP resources before phase 1; see the phase detail |
+| AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; the manifest proposal (phase 1) and the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest proposal before phase 1; see the phase detail |
 | 0. Kernel, chrome and design foundation | Specification in progress | Phase 0 agent | None yet | Specification written and approved by the owner (D17) |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
@@ -91,12 +91,14 @@ should never have to scan the codebase to learn what is current.
     ([#589](https://github.com/lushly-dev/afd/pull/589)).
   - Loam's kernel refusing badly named commands needs no AFD change: the
     kernel does it (architecture, prerequisites table).
+  - Serving MCP resources, the Skills extension, `ui://` resources with
+    `_meta.ui` and extra tool `_meta` from the TypeScript server, on `/mcp`
+    and stdio in both eras (step 2 of
+    [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/STATUS.md),
+    [#615](https://github.com/lushly-dev/afd/pull/615), merged 2026-11-01
+    as `c80a9b4d`).
 - **Not done:**
-  - Phase 1: serving MCP resources and `ui://` resources from the
-    TypeScript server (step 2 of
-    [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/STATUS.md);
-    the spec and Rust are done, TypeScript started 2026-11-01); the shared
-    plugin manifest proposal.
+  - Phase 1: the shared plugin manifest proposal.
   - Phase 3: the TypeScript token-verification layer, `scopes` and
     `credentials` (MCP Authorization proposal).
   - Phase 5: the `apps` exposure flag (D30); agent, delegation, run and
