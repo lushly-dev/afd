@@ -119,7 +119,9 @@ should never have to scan the codebase to learn what is current.
   evidence is listed in the [specification's status block](phases/0-kernel-chrome/spec.md#status).
 - **Done:** the [specification](phases/0-kernel-chrome/spec.md), proposing
   D50 to D53.
-- **Not done:** steps 0a to 8 of its implementation plan.
+- **Done:** step 6, Specimen's `high-contrast` theme context (D53), merged in
+  [#628](https://github.com/lushly-dev/afd/pull/628).
+- **Not done:** steps 0a to 5, 7 and 8 of its implementation plan.
 
 Phases 1 to 8 have no detail yet; add a heading in this shape when one
 starts.
@@ -171,3 +173,4 @@ starts.
 | 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |
 | 2026-11-01 | Phase 0 specification | The [phase 0 specification](phases/0-kernel-chrome/spec.md) written: four packages under `endpoints/loam/packages/`, the token contract and Loam's Violet tree, the shared components moved onto a committed Violet export (D50), the design document and the `loam-design` skill, the token-only lint, kernel interface version 0, the phase 0 commands with `appearance` and `palette` (D51), stores version 0 on IndexedDB for browser and desktop (D52), Specimen high contrast (D53), the bundle budget and the accelerator rule's operations and budgets (D37), and the exit tests |
 | 2026-11-01 | Owner's approval | The owner approved the phase 0 specification, deciding D50 to D53, and granted autonomy across phases: commit, merge, fix and approve later specifications without checking in unless a question blocks on the owner. D53's wording aligned with the specification (light scheme plus `prefers-contrast: more`; forced colors tested in Loam's suite) |
+| 2026-11-01 | Phase 0 step 6 | Specimen's `high-contrast` theme context (D53) merged in [#628](https://github.com/lushly-dev/afd/pull/628): the light scheme with `prefers-contrast: more`, emulated by the native host over CDP, checked at capture, offered by the static preview and run by all three drivers. Section 4 of the specification amended: since #616 the mapping lives in `host/src/page.rs`, not `bench-runtime.ts` |

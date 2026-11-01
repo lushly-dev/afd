@@ -13,6 +13,10 @@
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
   Approved by the owner on 2026-11-01 (D17). Implementation starts with
   steps 0a and 1.
+  Step 6, Specimen high contrast, merged in
+  [#628](https://github.com/lushly-dev/afd/pull/628); it amended
+  [section 4](#4-specimen-with-high-contrast-d53), because the bench now
+  emulates media in its native host rather than through Playwright.
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -80,9 +84,9 @@
 
   The trajectory rows were re-checked on the same day; see the
   [trajectory refresh](#trajectory-refresh).
-- **Done:** this specification.
-- **Not done:** the owner's approval, then every step of the
-  [implementation plan](#12-implementation-plan).
+- **Done:** this specification and its approval; step 6 of the
+  [implementation plan](#12-implementation-plan) (#628).
+- **Not done:** steps 0a to 5, 7 and 8 of the implementation plan.
 - **Follow-ups:** see [Follow-ups](#follow-ups).
 
 ## What this phase serves
