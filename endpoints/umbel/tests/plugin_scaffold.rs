@@ -523,7 +523,9 @@ async fn a_component_that_imports_more_than_it_declares_fails_the_component_chec
 
 /// A `cargo` command for a scaffolded crate: the repository's own `cargo`, its locked
 /// dependencies (the scaffold has no lock of its own, so the workspace's is copied and cargo runs
-/// offline), the shared target directory, and no `GIT_*` of the hook that may be running us.
+/// offline), the shared target directory, the toolchain that is running this test (the target
+/// directory holds its artifacts; the scaffold's own pin is the same one), and no `GIT_*` of the
+/// hook that may be running us.
 fn cargo(dir: &Path, args: &[&str]) -> std::process::Output {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map_or_else(|| Path::new(umbel_root()).join("target"), PathBuf::from);
@@ -537,8 +539,7 @@ fn cargo(dir: &Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .arg("--offline")
         .current_dir(dir)
-        .env("CARGO_TARGET_DIR", &target)
-        .env_remove("RUSTUP_TOOLCHAIN");
+        .env("CARGO_TARGET_DIR", &target);
     for (name, _) in std::env::vars_os() {
         if name.to_string_lossy().starts_with("GIT_") {
             command.env_remove(name);
