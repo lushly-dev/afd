@@ -411,8 +411,40 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `afd::server::context_hook` docs. The registry's declared context fields reach every
   `tools/call` from `params._meta[field.meta]` on both eras and both transports (a name the context
   hook set wins; undeclared keys are dropped; `tools/list` never varies by them), and
-  `server/discover` lists them under `_meta["dev.afd/context-fields"]`. **The `server` feature
+  `server/discover` lists them under `_meta["dev.afd/context-fields"]`. `with_resources` and
+  `with_skills` serve MCP resources and the Skills extension (below). **The `server` feature
   needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
+
+`with_resources(provider)` and `with_skills(catalog)` serve MCP resources and the Skills extension
+(`spec/mcp-resources.md`). A provider lists `ResourceEntry` values and reads their content; a
+`SkillCatalog` is a checked, fixed set of Agent Skills whose files are served as `skill://`
+resources and through `skills/list` and `skills/get`:
+
+```rust,ignore
+# async fn run() -> Result<(), String> {
+use std::sync::Arc;
+use afd::server::{McpServer, ResourceEntry, Skill, SkillCatalog};
+use afd::CommandRegistry;
+
+let catalog = SkillCatalog::new(vec![Skill::new("hello-greeting")
+    .with_file(
+        "SKILL.md",
+        "---\nname: hello-greeting\ndescription: Greet a person by name.\n---\n\nCall hello-greet.\n",
+    )])?;
+let notes = vec![ResourceEntry::new("file:///notes.txt", "notes")
+    .with_mime_type("text/plain")
+    .with_text("Remember the milk.")];
+McpServer::new(Arc::new(CommandRegistry::new()), "my-app", "1.0.0")
+    .with_resources(notes)
+    .with_skills(catalog)
+    .serve_stdio()
+    .await
+# }
+```
+
+A command may carry extra tool `_meta` (`CommandDefinition::with_tool_meta("dev.umbel/origin", ...)`,
+or the MCP Apps key `ui`), and `CommandRegistry::register_with_schemas(command, validation,
+advertised)` advertises one input schema while validating with another.
 
 Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any
 command. Execution without a deadline remains available. Parallel pipelines and pipeline steps with

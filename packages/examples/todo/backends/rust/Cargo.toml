@@ -6,15 +6,26 @@ rust-version = "1.88"
 publish = false
 description = "Rust backend for the AFD todo example: CLI, shell and MCP over HTTP"
 
+[features]
+default = ["server"]
+# The MCP-over-HTTP server and the binary: axum, tower-http and `afd`'s `server` feature. Without
+# it the crate is the commands and the store only.
+server = ["dep:axum", "dep:tower-http", "afd/server"]
+
+[[bin]]
+name = "todo-backend-rust"
+path = "src/main.rs"
+required-features = ["server"]
+
 [dependencies]
-afd = { path = "../../../../rust", features = ["server"] }
+afd = { path = "../../../../rust" }
 async-trait = "0.1"
-axum = "0.7"
+axum = { version = "0.7", optional = true }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["macros", "net", "rt-multi-thread", "signal"] }
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors"], optional = true }
 uuid = { version = "1.0", features = ["v4"] }
 
 [dev-dependencies]

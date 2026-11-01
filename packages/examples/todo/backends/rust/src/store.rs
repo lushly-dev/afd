@@ -61,6 +61,11 @@ impl Changes {
 }
 
 impl TodoStore {
+    /// An empty store.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     fn read(&self) -> RwLockReadGuard<'_, Inner> {
         self.inner.read().unwrap_or_else(PoisonError::into_inner)
     }
