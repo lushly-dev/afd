@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (steps 0 to 2 done). Written and revised
+- **State:** approved, implementation in progress (steps 0 to 3 done). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -53,7 +53,14 @@
   --locked --all-targets`, run locally, then `umbel.yml` and `pnpm check` on
   the pull request. Amendments it needed: see
   [Amendments from step 2](#amendments-from-step-2).
-- **Not done:** steps 3 to 6 of the [plan](#11-implementation-plan); the exit
+- **Done:** step 3, the registry and the CLI
+  ([#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM)), on 2026-11-01: as the
+  plan's table lists it, except what [Amendments from step 3](#amendments-from-step-3)
+  records. Checks: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D
+  warnings`, the library-only clippy leg, `cargo test --locked` and `cargo
+  +1.97.0 check --locked --all-targets`, run locally, then `umbel.yml` and
+  `pnpm check` on the pull request.
+- **Not done:** steps 4 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
