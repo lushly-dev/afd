@@ -91,8 +91,11 @@
 - **Step 2a done 2026-11-01** (PR_URL): the loader core and compiled
   plugins, as the step 2a row of the [plan](#14-implementation-plan) lists
   them. The amendments are in [Amendments from step 2a](#amendments-from-step-2a).
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1 and 2a.
-- **Not done:** the Umbel steps 2b to 8 of the
+- **Step 3 done 2026-11-01** (PR_URL_3): skills on three paths and the origin
+  `_meta` of plugin tools, as the step 3 row of the [plan](#14-implementation-plan)
+  lists them. The amendments are in [Amendments from step 3](#amendments-from-step-3).
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a and 3.
+- **Not done:** the Umbel steps 2b and 4 to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2019,6 +2022,18 @@ use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 | 5, 7 | `Services` calls are plain method calls | `Plugin::handle` is synchronous and `Services` `events` reads block on files, so the host's wrapper for an SDK command (`SdkHandler`) runs `handle` under `spawn_blocking` and rethrows a panic with `resume_unwind`, which AFD reports as `COMMAND_EXECUTION_ERROR` | A blocking read on the async runtime stalls other calls, and swallowing a panic would turn it into a plain failure |
 | 6 | `seal` refuses a configured plugin (amended by step 1) | The guard is removed: every configured instance goes through the load sequence. The CLI passes the compiled catalog to the doctor even when `seal` fails, so `workspace doctor` still reports the instance | Step 1 promised the removal; the doctor must explain a failed load |
 | 8.1, 6 step 8 | Origin `_meta["dev.umbel/origin"]` on every plugin tool, registered with the command | Not in step 2a: the step 3 row of the plan owns "origin `_meta` on plugin tools", with the skills that use the same entry. Plugin commands in 2a carry no tool `_meta` of their own | The plan table assigns it to step 3; step 2a registers commands with `register_with_schema` and the gate's stamps |
+
+## Amendments from step 3
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 8.3, step 0b | AFD's `SkillCatalog` exposes what the server serves only over MCP | `SkillCatalog::entries()` is public (additive, `packages/rust`) | `skill-list` and `skill-export` report the description, URI, digests and file manifest the server serves; reading them from the catalog keeps one frontmatter parser and one digest, instead of a second YAML reader in Umbel |
+| 8.3 | Skill validation is the manifest's name rule plus file limits | A skill is read through its plugin's files and checked by the same `SkillCatalog::new` the server uses, at load (step 3 of section 6, before any plugin code runs) and by the doctor's `plugins.skills` for directory sources: frontmatter, `name` equal to the directory, a description of 1 to 1 024 characters, AFD's stricter name characters (no `--`, no leading or trailing `-`). A break is `SKILL_INVALID` naming the skill's path. A skill may not ship a file named `.umbel-origin.json` | A skill that loads must be one the host's server can serve; a second set of rules would let the loader accept what the server refuses at `seal` |
+| 6 step 7, 8.3 | A skill name collision is always `PLUGIN_CONFLICT` | A name another instance of the same plugin ships with the same bytes is served once (the "once per plugin" rule of section 6.3, applied to every kind); any other repeat (the same plugin id from another directory with other content) is `PLUGIN_CONFLICT` naming both instances. Different plugin ids can never collide: ids have no hyphen and the manifest requires the id as prefix | Two instances of one pack plugin are a normal configuration and must load; the Skills extension needs every name once |
+| 8.1 | `_meta["dev.umbel/origin"]` on every plugin tool | Done here for compiled plugins (step 2a deferred it to this step): `{ plugin: <instance id>, kind, version, effects }`, set by the host after the plugin's own definition, so a finished `Definition` cannot keep a value of its own for that key (its other prefixed `_meta` keys stay). The mounted-only `tool` and `inputSchema` entries arrive with step 5 | The plan table assigns the origin to step 3; step 5 owns mounted tools |
+| 8.3 | `umbel skill export dir=<path> [skill=<name>]` refuses to overwrite a differing file unless `force=true` | Also all or nothing: when any target differs and `force` is not true, nothing is written (`ALREADY_EXISTS` with `details.differs`); an unchanged file is not rewritten; a target that is a symbolic link, or a directory path component that is one, is refused; an unknown `skill` is `NOT_FOUND` naming the choices. A relative `dir` is relative to the process's working directory. The origin file is deterministic (`umbel_origin: 1`, `skill`, `uri`, `instance`, `plugin`, `version`, and the files with digest and size) and follows the same overwrite rule. `skill-export` joins `event-ack` and `event-rebuild` in the unprojected mutations | A half-written export would leave a harness skill directory that matches neither version |
+| 8.6 | `skill-list`: name, description, instance, URI, digest, file count | Also `plugin` and `version` | The origin file records them; the list should agree |
+| 10.1 | The test kit's drivers send `Mcp-Name` for tools | They also send it for `resources/read` (the URI, R5) | Modern HTTP rejects a `resources/read` without it |
 
 ## Follow-ups
 

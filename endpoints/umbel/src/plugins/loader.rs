@@ -24,6 +24,7 @@ use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
 use super::manifest::{CommandDecl, Manifest, PluginKind};
+use super::skills::{LoadedSkill, read_skill};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
 use super::{GRANTS, HOST_DOMAINS, PluginError, RESERVED_GRANTS};
 use crate::events::Projector;
@@ -92,6 +93,8 @@ pub(crate) struct GateEntry {
 pub(crate) struct LoadedPlugins {
     pub instances: Vec<InstanceReport>,
     pub gate: BTreeMap<String, GateEntry>,
+    /// Every skill of every loaded instance, in `plugins.enabled` order and manifest order.
+    pub skills: Vec<LoadedSkill>,
 }
 
 impl LoadedPlugins {
@@ -166,6 +169,8 @@ struct Prepared {
     report: InstanceReport,
     commands: Vec<(CommandDefinition, Value)>,
     gate: Vec<(String, GateEntry)>,
+    /// The instance's skills that no earlier instance of the same plugin already ships.
+    skills: Vec<LoadedSkill>,
 }
 
 /// Load every instance of `plugins.enabled` and register its commands.
@@ -192,7 +197,14 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         let required = instance
             .required
             .unwrap_or(!resolved.manifest.is_http_mount());
-        match prepare(inputs, instance, &resolved, required, &taken) {
+        match prepare(
+            inputs,
+            instance,
+            &resolved,
+            required,
+            &taken,
+            &loaded.skills,
+        ) {
             Ok(prepared) => {
                 for (definition, schema) in prepared.commands {
                     let name = definition.name.clone();
@@ -208,6 +220,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
                     taken.insert(name, format!("plugin instance `{}`", instance.id));
                 }
                 loaded.gate.extend(prepared.gate);
+                loaded.skills.extend(prepared.skills);
                 loaded.instances.push(prepared.report);
             }
             Err(error) => fail(
@@ -339,6 +352,7 @@ fn prepare(
     resolved: &Resolved,
     required: bool,
     taken: &BTreeMap<String, String>,
+    shipped: &[LoadedSkill],
 ) -> Result<Prepared, PluginError> {
     let manifest = &resolved.manifest;
     let workspace = inputs.workspace;
@@ -391,6 +405,9 @@ fn prepare(
         schemas.push(schema);
     }
 
+    // The skills, read and checked before any plugin code runs (section 8.3).
+    let skills = read_skills(instance, manifest, files)?;
+
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let services = Services::new(Shared {
         instance: instance.id.clone(),
@@ -412,8 +429,10 @@ fn prepare(
         check_name(&command.name, &instance.id, taken)?;
     }
 
+    let skills = check_skill_names(instance, skills, shipped)?;
+
     // 8 (prepared). The definitions; registration itself is the caller's.
-    let definitions = definitions(manifest, &schemas, returns, implementations)?;
+    let definitions = definitions(&instance.id, manifest, &schemas, returns, implementations)?;
     let mut gate = Vec::new();
     for (command, schema) in manifest.commands.iter().zip(&schemas) {
         gate.push((
@@ -445,7 +464,62 @@ fn prepare(
         },
         commands: definitions,
         gate,
+        skills,
     })
+}
+
+/// Read and validate every skill the manifest declares (`SKILL_INVALID`).
+fn read_skills(
+    instance: &PluginInstance,
+    manifest: &Manifest,
+    files: &dyn PluginFiles,
+) -> Result<Vec<LoadedSkill>, PluginError> {
+    manifest
+        .skills
+        .iter()
+        .map(|decl| {
+            let (loaded, entry) = read_skill(files, &decl.name, &decl.path)
+                .map_err(|problem| PluginError::skill_invalid(&decl.path, problem))?;
+            Ok(LoadedSkill {
+                name: decl.name.clone(),
+                instance: instance.id.clone(),
+                plugin: manifest.plugin.id.clone(),
+                version: manifest.plugin.version.clone(),
+                files: loaded,
+                entry,
+            })
+        })
+        .collect()
+}
+
+/// Step 7 for skills. A name is served once: a second instance of one plugin shipping the same
+/// bytes adds nothing, and any other repeat of a name is a conflict naming both owners.
+fn check_skill_names(
+    instance: &PluginInstance,
+    skills: Vec<LoadedSkill>,
+    shipped: &[LoadedSkill],
+) -> Result<Vec<LoadedSkill>, PluginError> {
+    let mut added = Vec::new();
+    for skill in skills {
+        match shipped.iter().find(|other| other.name == skill.name) {
+            None => added.push(skill),
+            Some(other) if other.plugin == skill.plugin && other.same_content(&skill) => {}
+            Some(other) => {
+                return Err(PluginError::conflict(format!(
+                    "plugin instance `{}` ships the skill `{}`, but plugin instance `{}` already ships a skill of that name{}",
+                    instance.id,
+                    skill.name,
+                    other.instance,
+                    if other.plugin == skill.plugin {
+                        " with other content"
+                    } else {
+                        ""
+                    },
+                )));
+            }
+        }
+    }
+    Ok(added)
 }
 
 /// Step 4 (section 7.2): each declared grant is granted, withheld, or fails the load.
@@ -535,6 +609,20 @@ impl CommandHandler for Shared2 {
     }
 }
 
+/// The key of a plugin tool's origin in the tool's `_meta` (section 8.1).
+pub const ORIGIN_KEY: &str = "dev.umbel/origin";
+
+/// `{ plugin, kind, version, effects }`: where a plugin tool comes from. The host sets it from
+/// the manifest; a plugin's own finished definition cannot keep a value of its own for the key.
+fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
+    serde_json::json!({
+        "plugin": instance,
+        "kind": manifest.plugin.kind.as_str(),
+        "version": manifest.plugin.version,
+        "effects": command.effects.iter().map(|effect| effect.as_str()).collect::<Vec<_>>(),
+    })
+}
+
 fn expose(command: &CommandDecl) -> ExposeOptions {
     ExposeOptions::new()
         .with_palette(command.expose.palette)
@@ -553,6 +641,7 @@ fn returns_schema(value: Value) -> JsonSchema {
 /// Match each manifest command with the plugin's implementation of it and build the definition
 /// the registry gets (specification section 6.1).
 fn definitions(
+    instance: &str,
     manifest: &Manifest,
     schemas: &[Value],
     returns: Vec<Option<Value>>,
@@ -657,7 +746,9 @@ fn definitions(
                 *definition
             }
         };
-        let definition = definition.with_expose(expose(command));
+        let definition = definition
+            .with_expose(expose(command))
+            .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
         built.push((definition, schema.clone()));
     }
     Ok(built)

@@ -125,7 +125,7 @@ path = "skills/{id}-guide"
     write(
         root,
         &format!("{dir}/skills/{id}-guide/SKILL.md"),
-        "# guide",
+        &format!("---\nname: {id}-guide\ndescription: When to use {id}.\n---\n# guide\n"),
     );
 }
 

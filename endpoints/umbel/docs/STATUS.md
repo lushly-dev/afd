@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration) and 2a (loader core and compiled plugins) done; steps 2b, 3, 4 and 5 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: PR_URL | Steps 2b and 3 (which need 2a) and 4 and 5 (which need 2a and may run in parallel) |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration), 2a (loader core and compiled plugins) and 3 (skills on three paths) done; steps 2b, 4 and 5 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: PR_URL; step 3: PR_URL_3 | Step 2b (needs 2a) and 4 and 5 (which need 2a and may run in parallel) |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -328,7 +328,26 @@ should never have to scan the codebase to learn what is current.
   Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, the library-only clippy leg, `cargo test --locked --workspace` (396 passed), `cargo +1.97.0 check --locked --workspace --all-targets`; `pnpm check` and `umbel.yml` on the pull request. The earlier session's clippy fix had never compiled, and clippy found three more unused-import and `unwrap_or_default` findings, fixed here. Not in 2a: origin
   `_meta` on plugin tools (step 3). Amendments: the specification's
   "Amendments from step 2a".
-- **Not done:** steps 2b and 3 to 8; the exit criterion.
+- **Done:** step 3, skills on three paths (PR_URL_3): skills validated at load
+  by AFD's own `SkillCatalog` (frontmatter, name equal to the directory,
+  description, `SKILL_INVALID`; the doctor's `plugins.skills` checks the same);
+  every loaded plugin's skills served by the host's MCP server on the Skills
+  extension (`skills/list`, `skills/get`) and as resources (`resources/list`,
+  `resources/read`, with `size` and `_meta["dev.afd/digest"]`), through
+  `McpServer::with_skills`; a skill name served once per plugin and a
+  `PLUGIN_CONFLICT` for the same plugin id with other content; `skill-list`
+  (read-only, everywhere) and `skill-export` (CLI only, all or nothing,
+  `force=true`, the origin file, no write through a symbolic link, unprojected);
+  `_meta["dev.umbel/origin"]` (`plugin`, `kind`, `version`, `effects`) on every
+  plugin tool; `SkillCatalog::entries()` made public in `packages/rust`.
+  Tests: `skills.rs` (18) and the two doctor fixtures that now need real
+  frontmatter. Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --all
+  --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`,
+  the library-only clippy leg, `cargo test --locked --workspace`, `cargo
+  +1.97.0 check --locked --workspace --all-targets`; `pnpm check` and
+  `umbel.yml` on the pull request. Amendments: the specification's
+  "Amendments from step 3".
+- **Not done:** steps 2b and 4 to 8; the exit criterion.
 - **Needs the owner:** nothing for step 2b. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
@@ -398,3 +417,4 @@ starts.
 | 2026-11-01 | Phase 1 step 1 | Manifest and configuration ([#606](https://github.com/lushly-dev/afd/pull/606)): the manifest, source resolution, pack and skill file checks, the three schemas with examples, configuration version 2 and `init`, the doctor's file-only plugin checks (replacing `plugins.none`), the WIT file, the version constants, `[workspace.lints]` and `--workspace` in `umbel.yml`. Resumed from a partial branch left by an agent whose disk filled; reviewed, merged with `main`, and verified (fmt, clippy `-D warnings`, 338 tests, the MSRV check). Amendment: `seal` still refuses an enabled plugin until step 2a |
 | 2026-11-01 | Phase 1 step 0b | Rust MCP resources, the Skills extension, tool `_meta` and `register_with_schemas` in `packages/rust`, and the todo backend library split ([#608](https://github.com/lushly-dev/afd/pull/608)); `rmcp` 3.8.0 routed the extension's methods, so no spec stop. Seven spec clarifications (see the specification's "Amendments from step 0b"). New optional dependency `saphyr-parser` |
 | 2026-11-01 | Phase 1 step 2a | Loader core and compiled plugins (PR_URL): the load sequence, grant gates, plugin gate, `plugin-list` and `plugin-show`, `umbel-sdk`, `umbel-plugin-hello`, the `testkit` feature and its tests. Resumed from a partial branch left by an agent whose disk filled; reviewed against the specification, merged with `main` (step 0b), fixed the clippy findings the earlier session never compiled. Origin `_meta` stays with step 3 (the plan assigns it there). Six amendments in the specification |
+| 2026-11-01 | Phase 1 step 3 | Skills on three paths (PR_URL_3): validation through AFD's `SkillCatalog`, the host's MCP server serving every loaded skill on the Skills extension and as resources, `skill-list`, `skill-export` and the origin `_meta` on plugin tools; `SkillCatalog::entries()` made public in `packages/rust`. Seven amendments in the specification |

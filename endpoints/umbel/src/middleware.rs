@@ -35,8 +35,8 @@ pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
 const HOST_PREFIX: &str = "dev.umbel/";
 
 /// Commands whose successful result is never projected into an event: the cursor the caller
-/// stores and the rebuild of the streams themselves.
-pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &["event-ack", "event-rebuild"];
+/// stores, the rebuild of the streams themselves and the export of skills to a directory.
+pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &["event-ack", "event-rebuild", "skill-export"];
 
 /// Resolves a call's space (`Workspace::resolve_space`).
 pub(crate) type ResolveSpace =
