@@ -84,10 +84,14 @@ jobs:
         run: pnpm -F "./endpoints/loam/packages/*" typecheck
       - name: Unit suites with coverage
         run: pnpm -F "./endpoints/loam/packages/*" test --coverage
-      # Steps 2 and 7 of the phase 0 specification add theme:check, lint:tokens and budget here.
+      - name: Theme contract against the tree
+        run: pnpm -F @lushly-dev/loam-theme theme:check
+      - name: Token-only lint
+        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome lint:tokens
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
       - name: Chromium suite against the built shell
         run: pnpm -F @lushly-dev/loam-web test:browser
+      # Step 7 of the phase 0 specification adds budget here.
       - name: Build leaves tracked files unchanged
         run: test -z "$(git status --porcelain)"
       - name: Upload test results

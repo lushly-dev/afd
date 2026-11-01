@@ -1,0 +1,4 @@
+:host {
+	background: var(--color-surface-page);
+	gap: var(--size-space-sm);
+}

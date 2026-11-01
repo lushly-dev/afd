@@ -1,0 +1,6 @@
+:host {
+	color: #18181b;
+	background: rgb(255 255 255);
+	border-color: oklch(0.5 0.1 20);
+	outline-color: red;
+}

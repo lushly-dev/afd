@@ -1,0 +1,5 @@
+:host {
+	block-size: var(--shell-size-titlebar);
+	--_handle: var(--shell-color-handle-rest);
+	background: var(--_handle);
+}
