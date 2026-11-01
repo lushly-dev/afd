@@ -280,15 +280,19 @@ The file's sections and what a loader checks:
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Declaration and its surfaces (B1) | Planned | Planned | Planned (Umbel phase 2 step 0b) | Planned |
-| The ask over MCP and in process (B2, B3) | Planned | Planned | Planned (step 0b) | Planned (in process; MCP after [#341](https://github.com/lushly-dev/afd/issues/341)) |
-| Effective budget in the context (B4) | Planned | Planned | Planned (step 0b) | Planned |
-| Check, replacement, warning and report (B5, B6) | Planned | Planned | Planned (step 0b) | Planned |
-| Batches and pipelines (B7) | Planned | Planned | Planned (step 0b) | Planned |
-| Journal and replay (B8) | Planned | Planned | Planned (step 0b) | Planned |
-| Loads [`output-budgets.json`](./output-budgets.json) | Planned | Planned | Planned (step 0b) | Planned |
+| Declaration and its surfaces (B1) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
+| The ask over MCP and in process (B2, B3) | Planned | Planned | Yes (step 0b) | Planned (in process; MCP after [#341](https://github.com/lushly-dev/afd/issues/341)) |
+| Effective budget in the context (B4) | Planned | Planned | Yes (step 0b) | Planned |
+| Check, replacement, warning and report (B5, B6) | Planned | Planned | Yes (step 0b) | Planned |
+| Batches and pipelines (B7) | Planned | Planned | Yes (step 0b) | Planned |
+| Journal and replay (B8) | Planned | Planned | Yes (step 0b) | Planned |
+| Loads [`output-budgets.json`](./output-budgets.json) | Planned | Planned | Yes (step 0b) | Planned |
 
-No language implements output budgets today: none has a declaration, an ask, a size check or a
-truncation of command results. The proposal's
+Rust implements output budgets (Umbel phase 2 step 0b): `packages/rust` `src/output_budget.rs`, with
+`tests/output_budget.rs` loading every case of [`output-budgets.json`](./output-budgets.json) in
+process and over Streamable HTTP and stdio in both MCP eras. Its one skipped case is the measure
+case with a lone surrogate, which a Rust string cannot hold. TypeScript, Python and C++ implement
+nothing yet: none has a declaration, an ask, a size check or a truncation of command results. The
+proposal's
 [current behavior](../docs/features/active/output-budgets/output-budgets.proposal.md#how-engines-behave-today)
 records what each does instead.

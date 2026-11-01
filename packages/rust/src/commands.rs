@@ -471,6 +471,14 @@ pub struct CommandContext {
     pub(crate) remote: bool,
     /// How the MCP server lists its tools: read by `afd-help`. Only the MCP server sets it.
     pub(crate) tool_surface: Option<ToolSurface>,
+    /// The caller's output budget ask (`spec/output-budgets.md`, B2) in its `_meta` form,
+    /// `{ "maxBytes": n }`, not yet validated: [`CommandRegistry::execute`] checks it after the
+    /// declared context fields. Set in process by [`CommandContext::with_output_budget_ask`], and
+    /// by the MCP server from `_meta["dev.afd/outputBudget"]`.
+    pub(crate) output_budget_ask: Option<serde_json::Value>,
+    /// The effective output budget (B3, B4): set by [`CommandRegistry::execute`] for the
+    /// middleware and the handler.
+    pub(crate) output_budget: Option<u64>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -488,6 +496,8 @@ impl fmt::Debug for CommandContext {
             .field("journal_state", &self.journal_state)
             .field("context_scope", &self.context_scope)
             .field("tool_surface", &self.tool_surface)
+            .field("output_budget_ask", &self.output_budget_ask)
+            .field("output_budget", &self.output_budget)
             .finish()
     }
 }
@@ -576,6 +586,30 @@ impl CommandContext {
         self.context_scope
             .as_ref()
             .and_then(crate::contexts::ContextScope::active)
+    }
+
+    /// Ask for an output budget of at most `max_bytes` for this call (`spec/output-budgets.md`,
+    /// B2): the in-process form of `_meta["dev.afd/outputBudget"] = { "maxBytes": n }`.
+    ///
+    /// It matters only for a command that declares a budget
+    /// ([`CommandDefinition::with_output_budget`]): its effective budget is then
+    /// `min(max_bytes, maxBytes)`, a larger ask being clamped. [`CommandRegistry::execute`]
+    /// validates the ask like any call's: `max_bytes` must be from 1 to 9007199254740991, or the
+    /// call fails with `VALIDATION_ERROR` before the middleware and the handler run, whether or
+    /// not the command declares a budget. A value set here is trusted code's: the MCP server's
+    /// context hook may set it, and it is never overwritten from `_meta`.
+    pub fn with_output_budget_ask(mut self, max_bytes: u64) -> Self {
+        self.output_budget_ask = Some(crate::output_budget::ask_value(max_bytes));
+        self
+    }
+
+    /// The effective output budget of this call in bytes (B3, B4): the command's declared default
+    /// or the caller's ask clamped to its maximum. `None` for a command without a declaration.
+    /// [`CommandRegistry::execute`] sets it before the middleware and the handler run; a handler
+    /// of a budgeted command should fit its result to it structurally (fewer items, shorter
+    /// excerpts, a window with a way to read on) and never cut a JSON value in the middle.
+    pub fn output_budget(&self) -> Option<u64> {
+        self.output_budget
     }
 
     /// Add a custom context value.
@@ -743,6 +777,10 @@ pub struct CommandDefinition {
     /// ([`check_meta_entry`](crate::check_meta_entry)); the registry refuses anything else when the
     /// command is registered. `None` or empty is omitted.
     pub tool_meta: Option<serde_json::Map<String, serde_json::Value>>,
+
+    /// The declared output budget (`spec/output-budgets.md`, B1), `None` for no budget. Checked
+    /// when the command is registered.
+    pub output_budget: Option<crate::output_budget::OutputBudget>,
 }
 
 impl CommandDefinition {
@@ -777,7 +815,25 @@ impl CommandDefinition {
             undoable: None,
             approval: None,
             tool_meta: None,
+            output_budget: None,
         }
+    }
+
+    /// Declare an output budget (`spec/output-budgets.md`, B1): a result may use `default_bytes`
+    /// unless the caller asks for another budget, and `max_bytes` at most
+    /// ([`CommandContext::with_output_budget_ask`], or `_meta["dev.afd/outputBudget"]` over MCP).
+    ///
+    /// Both must be integers from 1 to 9007199254740991 with `default_bytes <= max_bytes`; the
+    /// registry refuses the command otherwise ([`CommandRegistry::register`]), naming it and the
+    /// field. After the handler, a successful result over its effective budget is replaced by an
+    /// `OUTPUT_BUDGET_EXCEEDED` failure, or, for a [mutation](Self::as_mutation), kept with a
+    /// warning of that code. Nothing truncates structured output.
+    pub fn with_output_budget(mut self, default_bytes: u64, max_bytes: u64) -> Self {
+        self.output_budget = Some(crate::output_budget::OutputBudget::new(
+            default_bytes,
+            max_bytes,
+        ));
+        self
     }
 
     /// Add one extra `_meta` entry to the command's tool (`spec/mcp-resources.md`, T1 and T2): a
@@ -1001,6 +1057,7 @@ impl CommandRegistry {
     pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
+        validate_output_budget(&command)?;
         for parameter in &command.parameters {
             if let Some(schema) = &parameter.schema {
                 crate::validation::validate_schema_definition(
@@ -1041,6 +1098,7 @@ impl CommandRegistry {
         crate::schema_validation::compile(&schema)?;
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
+        validate_output_budget(&command)?;
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
@@ -1087,7 +1145,9 @@ impl CommandRegistry {
 
     /// Export the authoritative MCP tool, including any whole schema registered with it.
     ///
-    /// The tool carries the command's `title` only when it sets one.
+    /// The tool carries the command's `title` only when it sets one, and its `_meta` the approval
+    /// mode, the output budget declaration (`dev.afd/outputBudget`: `{ defaultBytes,
+    /// maxBytes }`) and the extra tool `_meta` entries, each only when set.
     ///
     /// A command with `mutation: true` also carries MCP `annotations`
     /// (`readOnlyHint: false`, `destructiveHint` from `destructive`; `spec/command-metadata.md`). `mutation`
@@ -1111,6 +1171,14 @@ impl CommandRegistry {
                 tool["_meta"] = serde_json::json!({});
             }
             tool["_meta"]["approval"] = serde_json::json!(approval);
+        }
+        // The output budget declaration (`spec/output-budgets.md`, B1).
+        if let Some(budget) = &command.output_budget {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"][crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY] =
+                serde_json::json!(budget);
         }
         // The key rule keeps these from replacing any entry the server sets.
         if let Some(extra) = command.tool_meta.as_ref().filter(|extra| !extra.is_empty()) {
@@ -1249,6 +1317,12 @@ impl CommandRegistry {
     ///    is not valid` or `is required`), with `details.field`,
     ///    `details.meta` and `details.errors`. Commands named `afd-*` do not
     ///    enforce `required`.
+    ///    The output budget ask ([`CommandContext::with_output_budget_ask`]) is
+    ///    validated next, whether or not the command declares a budget: an
+    ///    invalid ask returns `VALIDATION_ERROR` (`details.field` is
+    ///    `outputBudget`, `details.meta` is `dev.afd/outputBudget`). The
+    ///    effective budget ([`CommandContext::output_budget`]) is then set on
+    ///    the context (`spec/output-budgets.md`, B3).
     /// 7. The middleware chain and then the handler run with the validated
     ///    input. With `context.timeout_ms`, a run that outlasts it returns
     ///    `TIMEOUT` (this needs a Tokio runtime with time enabled). A panic in
@@ -1260,6 +1334,14 @@ impl CommandRegistry {
     ///    any failed command. Only unwinding panics are caught: with
     ///    `panic = "abort"`, and on `wasm32-unknown-unknown` (which cannot
     ///    unwind), a panic aborts the process.
+    ///
+    /// The innermost link of the chain checks a successful result against the
+    /// effective output budget right after the handler, before `metadata` is
+    /// stamped (B5, B6): an over-budget read becomes an `OUTPUT_BUDGET_EXCEEDED`
+    /// failure, an over-budget [mutation](CommandDefinition::as_mutation) keeps
+    /// its result with a warning of that code, and a result within budget
+    /// carries `metadata["dev.afd/outputBudget"] = { limitBytes, usedBytes }`.
+    /// A handler's own failure passes unchanged.
     ///
     /// The middleware and the handler always see a `clock` and a `random`
     /// source on the context ([`SYSTEM_CLOCK`] and [`SYSTEM_RANDOM`] unless the
@@ -1356,6 +1438,9 @@ impl CommandRegistry {
         let mut context = context;
         let context_fields = Arc::clone(&read_lock(&self.context_fields));
         if let Err(error) = apply_context_fields(&context_fields, &command.name, &mut context) {
+            return failure(*error);
+        }
+        if let Err(error) = crate::output_budget::apply_output_budget(&command, &mut context) {
             return failure(*error);
         }
 
@@ -1687,7 +1772,13 @@ fn middleware_chain(
             Box::pin(async move {
                 // Only the kind is reported, never the actor's id or label.
                 let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
+                let output_budget = context.output_budget;
                 let mut result = command.execute(input, context).await;
+                // The output budget check (`spec/output-budgets.md`, B5): right after the
+                // handler, before `metadata` is stamped and before any middleware sees it.
+                if let Some(limit) = output_budget {
+                    result = crate::output_budget::check_result(&command, limit, result);
+                }
                 if let Some(actor_kind) = actor_kind {
                     let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
                     metadata.actor_kind = Some(actor_kind);
@@ -1840,6 +1931,17 @@ pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
             properties,
             required,
         },
+    }
+}
+
+/// Refuse a command whose output budget declaration is out of bounds, naming the command and the
+/// field (`spec/output-budgets.md`, B1).
+fn validate_output_budget(command: &CommandDefinition) -> Result<(), String> {
+    match &command.output_budget {
+        Some(budget) => budget
+            .check()
+            .map_err(|reason| format!("Command '{}': {reason}", command.name)),
+        None => Ok(()),
     }
 }
 

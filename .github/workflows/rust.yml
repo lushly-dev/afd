@@ -84,6 +84,14 @@ jobs:
       - name: Test (journal-file-shared feature)
         run: cargo test --features journal-file-shared
 
+      # The frontmatter reader (`afd::frontmatter`) on its own: Umbel's `umbel-okf` depends on the
+      # crate with default features off and `frontmatter` on, without the MCP server.
+      - name: Clippy (frontmatter feature alone)
+        run: cargo clippy --all-targets --no-default-features --features frontmatter -- -D warnings
+
+      - name: Test (frontmatter feature alone)
+        run: cargo test --no-default-features --features frontmatter
+
       # The `wasm` feature targets browsers, where `std::time::Instant::now()` traps.
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown

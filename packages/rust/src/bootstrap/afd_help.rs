@@ -50,6 +50,9 @@ pub struct CommandInfo {
     /// `conditional`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval: Option<crate::ApprovalMode>,
+    /// The declared output budget (`full` format only): `{ defaultBytes, maxBytes }`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_budget: Option<crate::OutputBudget>,
     /// Commands to call first (always listed when set).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires: Option<Vec<String>>,
@@ -167,6 +170,7 @@ impl CommandHandler for AfdHelpHandler {
                 } else {
                     None
                 },
+                output_budget: if is_full { cmd.output_budget } else { None },
                 requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
                 first_class: first_class.contains(&cmd.name).then_some(true),
             };

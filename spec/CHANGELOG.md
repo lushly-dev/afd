@@ -80,8 +80,11 @@ nothing truncates structured output. `command-metadata.md` gains the field, `con
 reserves `outputBudget` and lets `meta` carry the key, `journal.md` gains the optional entry field
 `outputBudget` (an entry without it hashes as before), and `error-codes.md` lists the code as
 specified, joining the catalog with its four constants in the first implementation. It is additive:
-no existing fixture, vector, error code, tool list or result changes, and no language implements it
-yet. Its cases are in `output-budgets.json`, which joins `vectors/` once all four languages load it.
+no existing fixture, vector, tool list or result changes. Rust implements it (Umbel phase 2 step
+0b), and that pull request adds `OUTPUT_BUDGET_EXCEEDED` to the shared catalog,
+`vectors/error-codes.json` (now 46 codes) and the constants in all four languages, a minor contract
+change; TypeScript, Python and C++ implement nothing else yet. Its cases are in
+`output-budgets.json`, which joins `vectors/` once all four languages load it.
 
 [`mcp-resources.md`](./mcp-resources.md) specifies four opt-in additions to AFD MCP servers (Umbel
 decision D47, shared with Loam): MCP resources from a provider, listed in one stable page with the

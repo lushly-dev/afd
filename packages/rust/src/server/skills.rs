@@ -29,7 +29,6 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use super::encoding::sha256_digest;
-use super::frontmatter;
 
 /// The most files one skill may have, the extension's limit.
 pub const MAX_SKILL_FILES: usize = 512;
@@ -407,8 +406,11 @@ fn check_skill(skill: Skill) -> Result<CatalogSkill, String> {
         return Err(fail("has no SKILL.md at its root"));
     };
     let text = std::str::from_utf8(skill_md).map_err(|_| fail("SKILL.md is not valid UTF-8"))?;
-    let frontmatter =
-        frontmatter::parse(text).map_err(|problem| fail(&format!("SKILL.md: {problem}")))?;
+    let frontmatter = match crate::frontmatter::parse(text) {
+        Ok(Some(found)) => found.fields,
+        Ok(None) => return Err(fail("SKILL.md must begin with a line ---")),
+        Err(problem) => return Err(fail(&format!("SKILL.md: {problem}"))),
+    };
     let Some(name) = frontmatter.get("name").and_then(Value::as_str) else {
         return Err(fail("the frontmatter needs a string \"name\""));
     };

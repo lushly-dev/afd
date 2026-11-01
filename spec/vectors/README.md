@@ -32,7 +32,7 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   fails on any file here that a language does not load. Until then it sits in `spec/` next to the
   page it pins: [`tool-strategies.json`](../tool-strategies.json), for the hybrid tool strategy
   ([`tool-strategies.md`](../tool-strategies.md#conformance)), loaded by TypeScript, Python and Rust so far. [`output-budgets.json`](../output-budgets.json), for output budgets
-  ([`output-budgets.md`](../output-budgets.md#conformance)), is loaded by no language yet.
+  ([`output-budgets.md`](../output-budgets.md#conformance)), is loaded by Rust so far (`packages/rust/tests/output_budget.rs`).
 
 ### `pipeline-variables.json`
 

@@ -53,12 +53,30 @@
   [`spec/output-budgets.json`](../../../../../spec/output-budgets.json), verified
   against `main` at `e996aad1` (the four languages' engines read, MCP
   2026-07-28 checked, `pnpm check`, the alfred parity tests); see
-  [Amendments from step 0a](#amendments-from-step-0a). **Step 1, shapes and
+  [Amendments from step 0a](#amendments-from-step-0a).
+  Step 0b, 2026-11-01 ([#633](https://github.com/lushly-dev/afd/pull/633)): the Rust
+  implementation in `packages/rust`: `CommandDefinition::with_output_budget`,
+  `CommandContext::with_output_budget_ask` and `output_budget()`, the check in
+  the innermost link of `CommandRegistry::execute`'s chain, the ask on every
+  MCP route and the meta-tools' `meta`, the journal's `outputBudget`, the
+  declaration on tools, grouped actions, `afd-detail` and `afd-help`;
+  `OUTPUT_BUDGET_EXCEEDED` in the shared catalog and the four constants;
+  `afd::frontmatter` public behind the new `frontmatter` feature (enabled by
+  `server`). Verified in `packages/rust`: fmt; clippy `-D warnings` and tests
+  for default, no-default, `server`, `journal-file-shared` and
+  `frontmatter` alone; both wasm checks and one with `frontmatter`; nightly
+  docs; `tests/output_budget.rs` running every case of
+  `spec/output-budgets.json` in process and over Streamable HTTP and stdio on
+  both eras; the Rust todo backend with `--locked` and the conformance suite
+  against it (legacy, modern, confirmations); `cargo test --locked
+  --workspace` in `endpoints/umbel`; Python's error-code and vector tests;
+  C++'s vectors test; `pnpm check`. See
+  [Amendments from step 0b](#amendments-from-step-0b). **Step 1, shapes and
   configuration**, 2026-11-01, in [632](https://github.com/lushly-dev/afd/pull/632)
   (nine schemas with examples, configuration version 3, manifest version 2
   parsing, envelope and event version 1); see [Amendments from step
   1](#amendments-from-step-1).
-- **Not done:** steps 0b and 2 to 10 of the [plan](#14-implementation-plan);
+- **Not done:** steps 2 to 10 of the [plan](#14-implementation-plan);
   the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2014,6 +2032,22 @@ binding where it and section 14 differ.
 | 14 (0a), the journal | "Records the effective budget" | An optional entry field `outputBudget` (an integer) after `contextOmitted`; it joins the context digest only when present; replay restores it as the ask | Existing journals and the fixture keep their hashes |
 | 14 (0a), `meta-tools.json` | Unstated | Unchanged until every language accepts the key | TypeScript and Rust compare it byte for byte |
 | 14 (0a), streams | Unstated | Streamed chunks are not checked | No phase 2 command streams |
+
+## Amendments from step 0b
+
+Step 0b implemented the spec and section 14's 0b in `packages/rust`. It found no rule to change; these are the details the plan left open or worded loosely, which steps 1 to 10 build on.
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 14 (0b), `DirectClient` call option | "`DirectClient` call option" | `DirectClient::call` takes an `Option<CommandContext>` and passes it through, so the in-process ask is `CommandContext::with_output_budget_ask(max_bytes)` on that context; there is no second option | The context is already the call option in Rust, and the spec's name for it is binding |
+| 14 (0b), `FrontmatterError` | `Forbidden { what, line }` for tags, anchors and aliases | `Forbidden { what, line }` also names a number that is not finite, a mapping key that is not a string and a repeated key; every `line` is 1-based in the whole text (the opening `---` is line 1) and `Syntax.column` is 1-based | Those were three more of the existing reader's refusals; the enum is `#[non_exhaustive]`, so a later variant is not a break |
+| 14 (0b), `Frontmatter` | A struct with three public fields | The same fields, `#[non_exhaustive]`: callers read it and cannot build it | AFD may add a field without breaking Umbel |
+| 5.1, empty and unterminated blocks | Unstated | `---` then `---` is `NotAMapping` (the rules are unchanged: one mapping is required), so an empty block skips the file with `FRONTMATTER_INVALID`; `---` as the last line, with nothing after it, is `Unclosed`; a closing `---` with no line ending gives `body_offset` equal to the text's length and `body_line` one past it. A byte order mark is not stripped: a text that starts with one has no frontmatter, so `umbel-okf` strips it first | Umbel decides what it does with each case in step 5; AFD fixes only what the reader reports |
+| 14 (0b), the journal digest | The budget joins the digest and its context key leaves `keys` | In Rust the effective budget is a field of the context, not a key of `extra`, so it was never among `keys`; the digest gains `"outputBudget"` only when the call has one | Hashes compare only within one implementation; a call without a budget hashes as before |
+| 14 (0b), the journal types | `outputBudget` on the entry | `JournalEntry` and `JournalRecord` gain the public field `output_budget`, which breaks a struct literal of either (the changelog says so). Umbel builds neither | The crate is before 1.0 |
+| 14 (0b), declaration helpers | `with_output_budget` | Also `afd::OutputBudget` with `from_value(&serde_json::Value)`, which checks the manifest form `{ defaultBytes, maxBytes }` and names the field, for Umbel's manifest version 2 loader (step 1 stores the key, step 4 wires it) | The loader holds JSON, not two integers |
+| 14 (0b), where the declaration shows | Tools, grouped actions, `afd-detail`, afd-help (`full`), afd-docs | Done for the first four; `afd-docs` does not report it (the spec allows omitting it there) | The spec's MAY |
+| 14 (0b), the vectors | Every case | Every case but one: the `measure` case with a lone surrogate, which a Rust string cannot hold (serde_json refuses it), so the test skips it and names it | The Rust tests assert the rest, including the escapes |
 
 ## Amendments from step 1
 

@@ -42,6 +42,9 @@
 //!   that name (`spec/context-fields.md`, "Trusted code wins"). The hook does not see these
 //!   values, so it never mistakes one for something verified. To overrule a caller's value, set
 //!   the name yourself (`null` for none). The values are never read from HTTP headers.
+//! - **The output budget ask works the same way.** `_meta["dev.afd/outputBudget"]` becomes the
+//!   call's ask (`spec/output-budgets.md`, B2) unless the hook set one with
+//!   [`CommandContext::with_output_budget_ask`]; the hook does not see the caller's value.
 //! - **Every route.** The hook runs once for the call whatever the tool: a command's own tool, a
 //!   grouped tool, `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` or an
 //!   unknown name. Every batch item and pipeline step runs with its context.
@@ -209,6 +212,15 @@ pub(crate) fn add_declared_fields(
     meta: &Map<String, Value>,
     context: &mut CommandContext,
 ) {
+    // The output budget ask (`spec/output-budgets.md`, B2) is read from the same place, with the
+    // same precedence: an ask the hook set wins. `null` is no ask; an invalid value is kept so
+    // that `CommandRegistry::execute` fails the call, as it does for a declared field.
+    if context.output_budget_ask.is_none() {
+        context.output_budget_ask = meta
+            .get(crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY)
+            .filter(|value| !value.is_null())
+            .cloned();
+    }
     for field in fields {
         if let Some(value) = meta.get(&field.meta) {
             context

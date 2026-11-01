@@ -238,6 +238,23 @@ assert_eq!(request.steps[1].alias, None);
   invalid or missing required value returns `VALIDATION_ERROR` naming the field and its `_meta` key.
   `afd-help` returns the declarations as `contextFields`. Over MCP (the `server` feature), the
   values come from each `tools/call`'s `_meta`.
+- **Output budgets.** `CommandDefinition::with_output_budget(default_bytes, max_bytes)`
+  (`afd::output_budget`, `spec/output-budgets.md`) bounds what a command returns. A caller asks for a
+  different budget per call with `CommandContext::with_output_budget_ask(max_bytes)` in process, or
+  `_meta["dev.afd/outputBudget"] = { "maxBytes": n }` over MCP (or the meta-tools' `meta`
+  argument, per item in `afd-batch` and per step in `afd-pipe`); the effective budget,
+  `min(ask, max_bytes)` or the default, is `context.output_budget()`, and the handler fits its
+  result to it. Right after the handler the registry measures the UTF-8 length of the result's
+  canonical JSON without `metadata`: an over-budget **read** is replaced by an
+  `OUTPUT_BUDGET_EXCEEDED` failure (`details.limitBytes`, `actualBytes`, `maxBytes`, and a
+  suggestion to narrow the request or ask for up to `maxBytes`); an over-budget **mutation** keeps
+  its result with a warning of that code; a result within budget carries
+  `metadata["dev.afd/outputBudget"] = { limitBytes, usedBytes }`. Nothing truncates structured
+  output, a handler's own failure passes unchanged, and streamed chunks are not checked. The
+  declaration is checked when the command is registered, an invalid ask fails the call with
+  `VALIDATION_ERROR`, the declaration reaches the tool's `_meta`, grouped `_meta.actions`,
+  `afd-detail` and `afd-help` (`full`), and the journal records the effective budget as
+  `outputBudget` (replay restores it as the ask).
 - **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
   `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
   and interface, the values of the declared context fields marked `journal: true`, a context hash
@@ -368,6 +385,12 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
   target. Build with `--no-default-features --features wasm`; CI runs
   `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
+- `frontmatter` - `afd::frontmatter::parse`, the YAML frontmatter reader (`saphyr-parser`) that
+  `server` uses for a skill's `SKILL.md`: a first line `---`, one YAML 1.2 core-schema mapping (no
+  tags, anchors or aliases; `2026-11-01` stays a string), a line `---`. It tells **no frontmatter**
+  (`Ok(None)`) from **malformed** frontmatter (a typed `FrontmatterError`), returns the body's byte
+  offset and line, and sets no size cap: cap the input first. It works without the MCP server
+  (`default-features = false, features = ["frontmatter"]`).
 - `journal-file` (default) - `FileJournalSink`, a command journal in a JSON Lines file, through
   blocking `std::fs`. The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
   every build, WebAssembly included.

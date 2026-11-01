@@ -45,10 +45,18 @@
 //! tool result naming the field). They never change `tools/list`. `server/discover` lists them
 //! under `_meta["dev.afd/context-fields"]`, and `afd-help` returns them as `contextFields`.
 //!
+//! A call's output budget ask (`spec/output-budgets.md`, B2) arrives the same way, in
+//! `params._meta["dev.afd/outputBudget"]` as `{ "maxBytes": n }`, with the same precedence (an ask
+//! the context hook set with [`CommandContext::with_output_budget_ask`] wins) and the same
+//! `VALIDATION_ERROR` for an invalid one, for every command the call runs, each batch item and
+//! each pipeline step. A command's declared budget is listed on its tool's
+//! `_meta["dev.afd/outputBudget"]`, in grouped `_meta.actions` and in `afd-detail`; an ask never
+//! changes `tools/list`.
+//!
 //! For clients that cannot set `_meta`, the five meta-tools take an optional `meta` argument
-//! (`spec/context-fields.md`, "Clients that cannot set `_meta`"): its `dev.afd/context` and
-//! declared field keys count as `_meta` for the whole call, the context hook, the active context
-//! and the fields alike. Other keys are dropped; a key also in `_meta` with a different value, or
+//! (`spec/context-fields.md`, "Clients that cannot set `_meta`"): its `dev.afd/context`,
+//! `dev.afd/outputBudget` and declared field keys count as `_meta` for the whole call, the
+//! context hook, the active context and the fields alike. Other keys are dropped; a key also in `_meta` with a different value, or
 //! a `meta` that is not an object, is a `VALIDATION_ERROR` tool result.
 //!
 //! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
@@ -105,7 +113,6 @@ pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 pub mod confirmations;
 pub mod context_hook;
 mod encoding;
-mod frontmatter;
 mod meta_argument;
 pub mod meta_tools;
 mod panic_guard;

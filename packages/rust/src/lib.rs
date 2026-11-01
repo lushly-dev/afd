@@ -41,6 +41,8 @@
 //!   provides the runtime)
 //! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`), measuring
 //!   durations with `web-time`
+//! - `frontmatter`: [`frontmatter`], the YAML 1.2 core-schema frontmatter reader (`saphyr-parser`);
+//!   `server` enables it
 //! - `journal-file` (default): [`FileJournalSink`], a command journal in a
 //!   JSON Lines file (`std::fs`)
 //! - `journal-file-shared`: `FileJournalSink::shared`, several sinks and processes appending to
@@ -74,11 +76,15 @@ pub mod connectors;
 pub mod context_fields;
 pub mod contexts;
 pub mod errors;
+#[cfg(feature = "frontmatter")]
+#[cfg_attr(docsrs, doc(cfg(feature = "frontmatter")))]
+pub mod frontmatter;
 pub mod handoff;
 pub mod journal;
 pub mod mcp;
 mod meta_keys;
 pub mod metadata;
+pub mod output_budget;
 pub mod pipeline;
 pub mod result;
 mod schema_legacy;
@@ -161,6 +167,7 @@ pub use commands::{
 };
 
 pub use meta_keys::{check_meta_entry, MCP_APPS_META_KEY};
+pub use output_budget::{OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES};
 
 pub use contexts::{
     get_context_commands, register_context_commands, ContextConfig, ContextStack,

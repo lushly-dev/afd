@@ -115,6 +115,7 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
         afd::error_codes::CONFIRMATION_REQUIRED,
         afd::error_codes::CONFIRMATION_DECLINED,
         afd::error_codes::APPROVAL_REQUIRED,
+        afd::error_codes::OUTPUT_BUDGET_EXCEEDED,
     };
     const afd::Json vectors = load_vectors("error-codes.json");
     CHECK(catalog == vectors.at("codes").get<std::vector<std::string>>());

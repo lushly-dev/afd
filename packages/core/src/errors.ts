@@ -164,6 +164,9 @@ export const ErrorCodes = {
 
 	// Approvals (spec/command-metadata.md, "Approvals")
 	APPROVAL_REQUIRED: 'APPROVAL_REQUIRED',
+
+	// Output budgets (spec/output-budgets.md, B5)
+	OUTPUT_BUDGET_EXCEEDED: 'OUTPUT_BUDGET_EXCEEDED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

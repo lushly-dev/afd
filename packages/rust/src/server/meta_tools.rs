@@ -575,6 +575,10 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
         "approval",
         approval_mode(command.approval.as_ref()).map(|value| json!(value)),
     );
+    optional(
+        "outputBudget",
+        command.output_budget.as_ref().map(|budget| json!(budget)),
+    );
     optional("handoff", command.handoff.then_some(Value::Bool(true)));
     optional(
         "handoffProtocol",

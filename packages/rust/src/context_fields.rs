@@ -138,6 +138,9 @@ const RESERVED_NAMES: &[&str] = &[
     "direct_approval",
     "remote",
     "tool_surface",
+    "outputBudget",
+    "output_budget",
+    "output_budget_ask",
 ];
 
 /// The prefix of AFD's own command names, which do not enforce required fields.
