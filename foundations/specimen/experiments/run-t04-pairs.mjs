@@ -205,7 +205,9 @@ for (const [index, job] of plan.entries()) {
 		const name = `${String(index + 1).padStart(2, '0')}-${job.consumer}-${job.path}-a${attempt}`;
 		// Let the previous job's processes finish exiting before this job's first probe: a
 		// probe taken while an incumbent's browser and Vitest workers shut down reads as contention.
-		const settle = await waitForQuiet(settlePolicy, { timeoutSeconds: 300 });
+		const settle = args.includes('--skip-quiet')
+			? { quiet: true, reasons: [], samples: [], skipped: true }
+			: await waitForQuiet(settlePolicy, { timeoutSeconds: 300 });
 		const directory = join(out, name);
 		mkdirSync(directory);
 		if (!settle.quiet) {
