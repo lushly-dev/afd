@@ -1,0 +1,56 @@
+[package]
+name = "umbel"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
+repository = "https://github.com/lushly-dev/afd"
+
+[workspace]
+members = ["."]
+
+[features]
+default = ["cli"]
+# The `umbel` binary's argument parser. Embedders use default-features = false.
+cli = ["dep:clap"]
+
+[[bin]]
+name = "umbel"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[dependencies]
+afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive"], optional = true }
+getrandom = ">=0.3, <0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+toml = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+
+[dev-dependencies]
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+jsonschema = "0.60"
+# The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
+rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

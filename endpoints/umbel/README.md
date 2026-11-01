@@ -14,11 +14,13 @@ point and none depends on another. That is the architecture.
 
 ## Status
 
-Proposed, documentation only. No crate, package or release exists yet. When
-code lands, this area holds the Cargo workspace beside these documents,
-following Botcore's layout under `endpoints/`, and its units start
-quarantined under the [platform migration](../../docs/features/active/platform-monorepo/)
-rules.
+Phase 0, the host skeleton, is being built step by step from its
+[specification](docs/phases/0-host-skeleton/spec.md). The Cargo package
+(`umbel`, a library and a binary) is a scaffold: the binary answers
+`--version` and nothing else yet. Nothing is released or published; the crate
+is `publish = false` and its release unit is quarantined with no route under
+the [platform migration](../../docs/features/active/platform-monorepo/) rules.
+[STATUS.md](docs/STATUS.md) says which steps are done.
 
 ## Documents
 

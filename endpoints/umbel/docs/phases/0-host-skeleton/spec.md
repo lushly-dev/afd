@@ -9,7 +9,8 @@
 
 ## Status
 
-- **State:** approved, implementation in progress. Written and revised
+- **State:** approved, implementation in progress (step 0 done, step 1 in
+  review). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -36,10 +37,13 @@
 - **Done:** this specification; the architecture amendments and decisions
   [D28 to D36](../../decisions.md) it needs, with their 2026-10-31
   amendments, in [#564](https://github.com/lushly-dev/afd/pull/564).
-- **In review:** step 0, the AFD pull request ([#567](https://github.com/lushly-dev/afd/pull/567)), implemented
-  2026-10-31 exactly as the [plan](#step-0-the-afd-pull-request) lists it.
-  Not done until it merges.
-- **Not done:** steps 1 to 6 of the [plan](#11-implementation-plan); the exit
+- **Done:** step 0, the AFD pull request
+  ([#567](https://github.com/lushly-dev/afd/pull/567)), merged as `045b6feb`
+  on 2026-10-31 exactly as the [plan](#step-0-the-afd-pull-request) lists it,
+  with all nine checks green.
+- **In review:** step 1, the scaffold (STEP1_PR), as the plan's table lists
+  it. Not done until it merges and `umbel.yml` has run green on `main`.
+- **Not done:** steps 2 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).

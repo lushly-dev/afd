@@ -509,6 +509,27 @@
 					"private": true
 				}
 			]
+		},
+		{
+			"id": "umbel",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "045b6febd8b3c8cf643a4d6dc556242ce9d38273",
+			"authority": "none: new endpoint authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

@@ -1,0 +1,76 @@
+name: Umbel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/umbel/**'
+      - '!endpoints/umbel/docs/**'
+      # Umbel depends on the afd crate by path.
+      - 'packages/rust/**'
+      - '.github/workflows/umbel.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/umbel/**'
+      - '!endpoints/umbel/docs/**'
+      - 'packages/rust/**'
+      - '.github/workflows/umbel.yml'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Umbel (fmt, clippy, test)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: endpoints/umbel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (library only, no default features)
+        run: cargo clippy --locked --lib --no-default-features -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
+  msrv:
+    name: Umbel (MSRV 1.97)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: endpoints/umbel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust 1.97
+        run: rustup toolchain install 1.97.0 --profile minimal
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+          key: msrv
+      - name: Check
+        run: cargo +1.97.0 check --locked --all-targets
