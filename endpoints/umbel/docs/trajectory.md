@@ -80,12 +80,14 @@ seam for it without implementing a draft.
 | W14 | EU AI Act high-risk obligations | Moved to 2027-12-02 by the 2026 omnibus | 2027-12 | Reconstructable logs suffice until then |
 | W15 | Claude Code channels and 2026-07-28 | Channel servers must negotiate 2025-11-25 or earlier; channels are a research preview | Unknown | Keep the SDK's 2025-11-25 compatibility for push paths |
 | W16 | Skills over MCP client support | Extension beta; partial support in ChatGPT only, none in Claude, Claude Code, Cursor or VS Code | Unknown | Resources and harness exports stay required delivery paths |
+| W17 | WASI 0.3 and the Rust `wasm32-wasip3` target | Added 2026-11-01: WASI 0.3.0 ratified 2026-06-11 (0.3.2 on 2026-10-13); wasmtime supports it by default since 46.0.0; `wasm32-wasip3` is Tier 3 on Rust 1.99 and Tier 2 from 1.100 | Rust 1.100 on stable, then the repository's pinned toolchain | WIT world 2.0.0 with async exports ([D38](decisions.md)) |
 
 ## Refreshes
 
 | Date | For | Rows | What changed |
 | --- | --- | --- | --- |
 | 2026-10-31 | [Phase 0 specification](phases/0-host-skeleton/spec.md#trajectory-refresh) | W1, W2, W5, W6, W12, W15 and the `rmcp` library row | Nothing that changes the design. W1: roadmap unchanged since 2026-08-22, next revision 2027-03-30. W2: SEP-3415 still open, review required, last updated 2026-10-31. W5: SEP-1932 and SEP-1933 still open; the Agent Identity working group is still forming. W6: still a roadmap item with no SEP. W12: no release or tag yet. W15: channels still a research preview, and Claude Code still does not register a channel server that negotiates 2026-07-28. `rmcp` 3.8.0 was published on 2026-10-26 and is what the `afd` crate's 3.7 requirement resolves |
+| 2026-11-01 | [Phase 1 specification](phases/1-plugin-contract/spec.md#trajectory-refresh) | W1, W2, W15, W16, the new W17, and the wasmtime, wit-bindgen and `rmcp` library rows | W1 and W2 unchanged (next revision 2027-03-30, subject to confirmation; SEP-3415 still open, last updated 2026-10-31). W16: SEP-2640 is Final; full client support only in MCPJam and mcpc, partial in ChatGPT, fast-agent and the MCP Inspector, none in Claude, Claude Code, Cursor or VS Code. W17 added: WIT world 1 targets WASI 0.2 (D38). wasmtime 50.0.1 on 2026-10-29 with 48.0.8 and 36.0.20; 48 and 36 are the long-term lines, so Umbel takes 48 (D39). wit-bindgen 0.63.0; `cargo-component` being deprecated. `rmcp` 3.8.0 has the client transports the mounted loader needs (D43) |
 
 ## Deliberately not chased
 

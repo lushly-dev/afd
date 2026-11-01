@@ -27,9 +27,10 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519) | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main` |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D36; open decisions O1 and O3 to O5; O2 closed as D27 on 2026-10-31 | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
-| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
+| [Decision log](decisions.md) | D1 to D50; open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, in review | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
+| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
+| [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; in review, not approved (D24). Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need | This pull request, open | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -38,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Not started; unblocked | None | None | Specification written and approved (D24); decides O3 |
+| 1. Plugin contract | Specification in review (2026-11-01); implementation not started | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md), in review | The owner's approval (D24), including the four trust-model points of its section 11; then step 0a |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -210,8 +211,30 @@ should never have to scan the codebase to learn what is current.
 - **Follow-ups:** the open rows of the specification's follow-ups table,
   mirrored below.
 
-Phases 1 to 7 have no detail yet; add a heading in this shape when one
-starts. Phase 1 is next.
+### Phase 1. Plugin contract
+
+- **State:** specification in review, not approved (D24). Written
+  2026-11-01. Last verified 2026-11-01 against `main` at `393d30aa`.
+- **Done:** the [specification](phases/1-plugin-contract/spec.md), in
+  review: the manifest `umbel-plugin.toml` version 1 (D37) and the WIT world
+  `umbel:plugin/plugin@1.0.0` on WASI 0.2 (D38), which close O3; wasmtime's 48
+  long-term line (D39); plugin protocol version 1 (D40); workspace
+  configuration version 2 with plugin instances (D41); the phase 1 grants and
+  effects (D42); the mounted loader on `rmcp`'s client (D43); per-space
+  enablement (D44); first-class suggestions (D45); packs (D46); skills on
+  three paths with an AFD step 0 (D47); the SDK and plugin crates (D48); the
+  test kit and AFD's own tools in CI (D49); failure isolation (D50). The
+  architecture, decision log and trajectory amendments are in the same pull
+  request.
+- **Not done:** approval; every step of the plan (0a, 0b, 1 to 8); the exit
+  criterion.
+- **Needs the owner:** the four trust-model points of the specification's
+  section 11 (compiled plugins trusted; a mounted stdio server runs as the
+  host's user; enabling consents to grants; `bearer_env`). O1 is unchanged.
+- **Follow-ups:** the specification's follow-ups table, mirrored below.
+
+Phases 2 to 7 have no detail yet; add a heading in this shape when one
+starts.
 
 ## Follow-ups not yet issues
 
@@ -235,9 +258,15 @@ starts. Phase 1 is next.
 | 2026-10-31 | Phase 0 review | The phase 2 embedded store must support several processes on one workspace (for example SQLite in WAL mode, or LMDB), so D29's model survives; no single-writer daemon (D28) | Open, phase 2 specification |
 | 2026-10-31 | Phase 0 review | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line without replacing them | Open, AFD, if wanted |
 | 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix (key permissions, file locks, signals) | Open, phase 7 |
-| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open, phase 1 |
+| 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open; specified 2026-11-01 as the `conformance` job of the [phase 1 plan](phases/1-plugin-contract/spec.md#14-implementation-plan), step 6 (D49) |
 | 2026-11-01 | Step 4 | For the step 5 agent: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs`, and `Host::repair_events` at the start of `umbel serve` | Done 2026-11-01 in [#575](https://github.com/lushly-dev/afd/pull/575) |
 | 2026-11-01 | Phase 0 step 4 | AFD's Rust schema validation has no `pattern` keyword, so a schema using it is refused at registration and the handler checks the `consumer` pattern itself (spec "Amendments from step 4"); decide whether AFD adds `pattern` across languages (see `spec/validation.md`) | Open |
+| 2026-11-01 | Phase 1 specification | The owner's decision on the four trust-model points of the specification's section 11 | Open, owner's decision, before step 2 merges |
+| 2026-11-01 | Phase 1 specification | A precompiled component cache; wasmtime's `Component::deserialize` is `unsafe`, which the crate forbids | Open, phase 7 or when startup cost is measured |
+| 2026-11-01 | Phase 1 specification | A mount's tool snapshot under `state/`, so one-shot CLI calls do not spawn every mounted server | Open, a later phase |
+| 2026-11-01 | Phase 1 specification | WIT world 2.0.0 on WASI 0.3 when `wasm32-wasip3` is Tier 2 on the pinned toolchain (W17) | Open |
+| 2026-11-01 | Phase 1 specification | MCP prompts in AFD servers, after the resources and Skills proposal of step 0a | Open, AFD |
+| 2026-11-01 | Phase 1 specification | The `http` and `secrets` grants, and moving the mounted loader's `bearer_env` under `secrets` | Open, the first plugin that needs outbound calls |
 
 ## Session log
 
@@ -262,3 +291,4 @@ starts. Phase 1 is next.
 | 2026-11-01 | Phase 0 step 4 | Journal and events: the projecting sink, the pending marker and catch-up, `repair_events`, event and provenance version 0, cursors and consumers, `event-list`, `event-ack`, `event-rebuild`, and the multi-process tests, in [#574](https://github.com/lushly-dev/afd/pull/574). Amendments recorded in the specification's "Amendments from step 4" |
 | 2026-11-01 | Phase 0 step 5 | Implemented the MCP surfaces in `endpoints/umbel/` ([#575](https://github.com/lushly-dev/afd/pull/575)): `src/surfaces/http.rs` (the exact-path service and the bearer layer), the context hook in `src/principal.rs`, `Host::mcp_server` and `Host::http_router`, `src/cli/serve.rs` (`umbel serve --stdio` and `--http`) and the binary's exit handling; tests `protocol_http.rs`, `protocol_stdio.rs`, `hybrid_surface.rs`, `context_hook.rs`, `approvals.rs`, `confirmations.rs`, `process.rs`, the MCP cases of `trusted_keys.rs` and the drivers in `tests/support/`. Rebased onto step 4: the MCP cases of `journal_events.rs`, `trusted_keys.rs` and `process.rs` are in, and `umbel serve` calls `Host::repair_events`. Found and fixed: a held `stdout` lock blocked the stdio transport's writer, and the runtime waited for an uncancellable stdin read at exit. Spec amended ("Amendments from step 5"); marked step 5 done. |
 | 2026-11-01 | Phase 0 exit | Phase 0 done. Steps 0 to 5 merged in #567, #570, #572, #573, #574 and #575; step 6 added the README's build and run sections and re-ran the exit criterion on `main` at `8001fc74`: 261 tests passed, `umbel workspace doctor` on a fresh workspace healthy with 13 checks passing, `umbel.yml` green. Phase 1 is unblocked. [#580](https://github.com/lushly-dev/afd/pull/580) |
+| 2026-11-01 | Phase 1 specification | Wrote the [phase 1 specification](phases/1-plugin-contract/spec.md) at the D24 path, in review: manifest, WIT world, protocol version, configuration version 2, grants and effects, the compiled, component and mounted loaders, packs, skills on three paths, AFD contexts and pipelines, the SDK, test kit, `plugin new` and `plugin check`, security with four trust-model points for the owner, the exit criterion with every test file, and a plan with an AFD step 0 (resources, the Skills extension, tool `_meta`, the todo library split). Closed O3 as D37 and D38; D39 to D50; architecture amendments (host services, manifest, WIT world, packs, the sandbox and MCP client rows, versioning, prerequisites, glossary) and the trajectory refresh with the new W17. Spec in review, not approved |
