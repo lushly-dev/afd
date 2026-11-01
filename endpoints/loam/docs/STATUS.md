@@ -134,7 +134,11 @@ should never have to scan the codebase to learn what is current.
     The four packages build with empty sources; `loam.yml` runs build,
     typecheck, units and a Chromium boot test under the CSP. Steps 2 and 7
     add `theme:check`, `lint:tokens` and `budget` to it.
-  - 2, theme: not started.
+  - 2, theme: merged in [#635](https://github.com/lushly-dev/afd/pull/635).
+    Loam's Violet tree (three themes, each with compact density), the
+    committed token contract, `theme:build` and `theme:check`, contrast floors
+    per theme, and the `loam-lint-tokens` lint with its corpus; `loam.yml`
+    runs `theme:check` and `lint:tokens`.
   - 3, components onto Violet themes: not started.
   - 4, design document and skill: not started.
   - 5, kernel: not started.
@@ -198,3 +202,4 @@ starts.
 | 2026-11-01 | Phase 0 step 1 | The scaffold: four private, quarantined packages under `endpoints/loam/packages/`, the workspace glob, four release-inventory entries, `loam.yml`, `AGENTS.md` rows and a repository contract test. Steps 0a, 0b and 6 started in parallel. The phase 0 block now has one line per step |
 | 2026-11-01 | Phase 0 step 0b | [#627](https://github.com/lushly-dev/afd/pull/627) merged: `VioletRuntime` applies a preloaded source with no token server (`switchNode` takes a new source, `ThemeManager` themes carry one), and `useSystemPreference` chooses a high-contrast theme under `prefers-contrast: more` or `forced-colors: active`. Four details the specification left open were decided and recorded in its section 3: the either/or config union, an optional `resolvedAt`, no cache with a source, and `Theme.source` |
 | 2026-11-01 | Phase 0 step 0a | [#629](https://github.com/lushly-dev/afd/pull/629): `IndexedDbAdapter`, the exported adapter contract suite and `IndexedDbJournalSink` with its writer lock, parity rows, READMEs, skills and a minor changeset for local-db and afd-core. The spec's section 3 and 6.6 gained `lock()`, `close()`, `IndexedDbJournalError` and its codes (`JOURNAL_LOCKED`, `JOURNAL_LOCK_UNAVAILABLE`, `JOURNAL_CLOSED`, storage errors), and the contract suite's `vitest` peer dependency. An independent review's lock-race findings were fixed before merge |
+| 2026-11-01 | Phase 0 step 2 | The theme in [#635](https://github.com/lushly-dev/afd/pull/635): `@lushly-dev/loam-theme` builds Loam's Violet tree (`loam`, `loam/{light,dark,high-contrast}`, each with `compact`), commits `contract/tokens.json` (127 ids), writes `loam-theme.css`, `loam-theme.json` and `contract.json`, checks the contract and contrast floors, and ships the token-only lint. Light and dark start from `violet-elements`' values, with `color.text.muted` and `color.border.strong` raised to meet the floors; decisions are recorded under "Decided by step 2" in the specification, with one follow-up (the resting field border's contrast). The `LAYOUT_DEFAULTS_V0` comparison is skipped until step 5 exports it. Verified with `pnpm check`, the `loam.yml` sequence and the pre-push hook on 2026-11-01 |
