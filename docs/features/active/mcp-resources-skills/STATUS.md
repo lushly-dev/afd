@@ -19,7 +19,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   direction with the Umbel phase 1 specification (D47, [#583](https://github.com/lushly-dev/afd/pull/583),
   merged as `880779ff`). Step 0 (`spec/`) is written in the pull request that adds this file
   (Umbel phase 1 step 0a); Rust implements it as of Umbel phase 1 step 0b and TypeScript as of step 2
-  (`packages/server`, PR_LINK); Python and C++ not yet.
+  (`packages/server`, [#615](https://github.com/lushly-dev/afd/pull/615)); Python and C++ not yet.
 - **Last verified:** 2026-11-01 against `main` at `880779ff`. Current behavior read from
   `packages/server/src` (`mcp-modern.ts`, `http-handler.ts`, `tools.ts`, `lazy-tools.ts`,
   `schema.ts`, `execution.ts`), `packages/core/src/command-metadata.ts`, `python/src/afd/server`
@@ -40,7 +40,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (every case of `spec/mcp-resources.json` over Streamable HTTP and stdio in both eras) and
   `tests/server_tool_meta.rs`. `rmcp` 3.8.0 routes `skills/list`, `skills/get` and
   `resources/directory/read` through `on_custom_request`, so the spec stood.
-  Step 2, TypeScript, is written in PR_LINK (merge pending when this was written): `resources`
+  Step 2, TypeScript, is written in [#615](https://github.com/lushly-dev/afd/pull/615) (merge pending when this was written): `resources`
   and `skills` options on `createMcpServer` and `createMcpHandler`, `toolMeta` and
   `advertisedInputSchema` on `defineCommand`, verified 2026-11-01 by `packages/server`'s
   `resources.test.ts`, `tool-meta.test.ts`, `skills.test.ts` and `frontmatter.test.ts` (every case of
@@ -56,7 +56,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | --- | --- | --- | --- |
 | 0. `spec/` | Done (#588) | New [`spec/mcp-resources.md`](../../../../spec/mcp-resources.md) and [`spec/mcp-resources.json`](../../../../spec/mcp-resources.json); amendments to `command-metadata.md`, `protocol-conformance.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merge |
 | 1. Rust | Done | [#608](https://github.com/lushly-dev/afd/pull/608): `packages/rust` `server` feature (`src/server/resources.rs`, `skills.rs`, `frontmatter.rs`), `src/meta_keys.rs`, `CommandRegistry::register_with_schemas`; `tests/server_resources.rs`, `tests/server_tool_meta.rs`; CHANGELOG, parity rows, `afd-rust` skill. Spec clarifications in the Umbel phase 1 specification's "Amendments from step 0b" | Umbel steps 3, 5 and 6 may now build on it |
-| 2. TypeScript | Done (PR_LINK; verified 2026-11-01) | `packages/server`: `src/resources.ts`, `skills.ts`, `frontmatter.ts`, `meta-keys.ts`, wiring in `mcp-modern.ts`/`server.ts`; `defineCommand({ toolMeta, advertisedInputSchema })`, core `commandToolMeta`; tests `resources.test.ts` (all of `mcp-resources.json`, HTTP and stdio, both eras), `tool-meta.test.ts`, `skills.test.ts`, `frontmatter.test.ts`; README, `afd-typescript` skill, parity rows, spec status tables, minor changeset. `/direct` stays within its budgets (+0.3 KB) | Loam phase 1 may now build on it |
+| 2. TypeScript | Done ([#615](https://github.com/lushly-dev/afd/pull/615); verified 2026-11-01) | `packages/server`: `src/resources.ts`, `skills.ts`, `frontmatter.ts`, `meta-keys.ts`, wiring in `mcp-modern.ts`/`server.ts`; `defineCommand({ toolMeta, advertisedInputSchema })`, core `commandToolMeta`; tests `resources.test.ts` (all of `mcp-resources.json`, HTTP and stdio, both eras), `tool-meta.test.ts`, `skills.test.ts`, `frontmatter.test.ts`; README, `afd-typescript` skill, parity rows, spec status tables, minor changeset. `/direct` stays within its budgets (+0.3 KB) | Loam phase 1 may now build on it |
 | 3. Python | Not started | None | Step 0 merged |
 | 4. C++ | Not started | None | Step 0 and parity D2 ([#341](https://github.com/lushly-dev/afd/issues/341)) merged |
 | 5. Vectors, conformance rows, skills | Not started | None | Steps 1 to 4 |
