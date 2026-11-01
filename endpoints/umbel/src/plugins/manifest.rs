@@ -155,7 +155,7 @@ impl PluginKind {
         }
     }
 
-    fn parse(text: &str) -> Option<Self> {
+    pub(crate) fn parse(text: &str) -> Option<Self> {
         Some(match text {
             "compiled" => Self::Compiled,
             "component" => Self::Component,

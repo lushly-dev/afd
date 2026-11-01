@@ -1,0 +1,25 @@
+# {{title}}
+
+An Umbel component plugin: the same Rust source runs in the host's tests as a compiled plugin and
+ships as a WebAssembly component, which the host runs sandboxed. It has one command,
+`{{id}}-hello`, one pack, `starter`, and one skill, `{{id}}-guide`.
+
+```sh
+cargo test                                                  # through the test kit, as compiled
+cargo build --release --target wasm32-wasip2 --features component
+cp target/wasm32-wasip2/release/{{lib}}.wasm {{id}}.wasm
+umbel plugin check path=.                                   # compiles it and checks its imports
+```
+
+`Cargo.toml` names two path or git dependencies, `umbel-sdk` and `umbel`. Point them at your
+checkout of `endpoints/umbel` if you work from one.
+
+To deploy, copy this directory without `target/` to `plugins/{{id}}/` in a workspace and set
+`plugins.enabled = ["{{id}}"]` in `umbel.toml`.
+
+A component imports a host service only when its code calls it, and the host refuses an import its
+manifest has no grant for. This one imports `packs`, `clock` and `log`, which the manifest declares.
+Rust's standard library also imports `wasi:random` when a program seeds a hash map; the check then
+names the `random` grant to add. Never use random bytes for keys or tokens: the journal records them.
+Two manifests describe one plugin: `umbel-plugin.toml` for the
+component and `manifests/compiled.toml` for the test build. Keep them alike.

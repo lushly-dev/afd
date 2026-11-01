@@ -1,0 +1,80 @@
+//! {{title}}: an Umbel plugin written against `umbel-sdk`, built as a WebAssembly component.
+//!
+//! [`plugin`] is the SDK value. With the `component` feature the crate exports the WIT world
+//! `umbel:plugin/plugin@1.0.0`; the tests link the same plugin into a host as `compiled:{{id}}`
+//! with `manifests/compiled.toml`, the manifest of that build. Keep the two manifests alike: they
+//! differ in `kind` and the `[component]` table.
+//!
+//! A component keeps no state between calls, and reads time and randomness only through [`Cx`].
+//! Never use random bytes for secrets: the journal records them.
+#![cfg_attr(not(feature = "component"), forbid(unsafe_code))]
+
+use serde_json::{Value, json};
+use umbel_sdk::{Asset, Cx, HostError, Level, Outcome, Plugin, failure, success};
+
+/// The manifest of the compiled build, which the tests use.
+pub const COMPILED_MANIFEST: &str = include_str!("../manifests/compiled.toml");
+
+/// The {{title}} plugin.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct {{type}};
+
+/// The {{title}} plugin as an SDK value.
+pub fn plugin() -> {{type}} {
+    {{type}}
+}
+
+impl Plugin for {{type}} {
+    fn manifest(&self) -> &'static str {
+        COMPILED_MANIFEST
+    }
+
+    fn assets(&self) -> &'static [Asset] {
+        umbel_sdk::embedded_assets!()
+    }
+
+    fn handle(&self, name: &str, input: Value, cx: &mut Cx) -> Outcome {
+        match name {
+            "{{id}}-hello" => hello(&input, cx),
+            other => failure(
+                "COMMAND_NOT_FOUND",
+                &format!("the {{id}} plugin has no command `{other}`"),
+                "Call {{id}}-hello.",
+            ),
+        }
+    }
+}
+
+fn unavailable(error: &HostError) -> Outcome {
+    failure(
+        "{{upper}}_UNAVAILABLE",
+        &error.to_string(),
+        "Enable the plugin with every grant its manifest declares, and do not deny any.",
+    )
+}
+
+fn hello(input: &Value, cx: &Cx) -> Outcome {
+    let name = input
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("world");
+    let salutation = match cx.pack_read("starter", "data/greeting.txt") {
+        Ok(bytes) => String::from_utf8_lossy(&bytes)
+            .lines()
+            .next()
+            .unwrap_or("Hello")
+            .trim()
+            .to_owned(),
+        Err(error) => return unavailable(&error),
+    };
+    let at_ms = match cx.now_ms() {
+        Ok(millis) => millis,
+        Err(error) => return unavailable(&error),
+    };
+    cx.log(Level::Info, &format!("greeting {name} with {salutation}"));
+    success(json!({ "greeting": format!("{salutation}, {name}!"), "at_ms": at_ms }))
+}
+
+// The component build: the exports of `umbel:plugin/plugin@1.0.0`, routed to the plugin.
+#[cfg(feature = "component")]
+umbel_sdk::export_component!({{type}});

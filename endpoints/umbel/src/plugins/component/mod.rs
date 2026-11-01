@@ -63,6 +63,41 @@ impl Resolved {
     }
 }
 
+/// `plugin-check`'s component check: read and compile the manifest's component and check its
+/// imports against the grants the manifest declares, as `seal` does, without linking it.
+///
+/// # Errors
+/// The errors of [`ComponentRuntime::load`] that precede linking.
+pub(crate) fn check(
+    instance: &str,
+    manifest: &Manifest,
+    files: &dyn PluginFiles,
+) -> Result<(), PluginError> {
+    let Some(declared) = &manifest.component else {
+        return Err(PluginError::load_failed(
+            instance,
+            "the manifest declares no [component] table",
+        ));
+    };
+    let bytes = files
+        .read(&declared.path)
+        .map_err(|problem| PluginError::load_failed(instance, problem))?;
+    let shared = engine::shared().map_err(|problem| PluginError::load_failed(instance, problem))?;
+    let component = shared.compile(&bytes).map_err(|problem| {
+        PluginError::load_failed(
+            instance,
+            format!("`{}` is not a loadable component: {problem}", declared.path),
+        )
+    })?;
+    analyze::check(instance, &shared.engine, &component, |grant| {
+        manifest
+            .grants
+            .iter()
+            .any(|declared| declared.name == grant)
+    })
+    .map(|_| ())
+}
+
 /// A component compiled, checked and linked at `seal`, ready to be instantiated per call.
 pub(crate) struct ComponentRuntime {
     shared: &'static engine::Shared,

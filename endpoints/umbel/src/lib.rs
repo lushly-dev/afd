@@ -22,6 +22,7 @@ mod host;
 mod logging;
 mod middleware;
 mod surfaces;
+mod templates;
 mod versions;
 
 #[cfg(feature = "testkit")]

@@ -97,6 +97,11 @@ impl Check {
     pub(crate) fn skip(id: &str, message: &str) -> Self {
         Self::new(id, CheckStatus::Skip, message, None)
     }
+
+    /// A check that could not run here, with what to do to run it.
+    pub(crate) fn skip_with(id: &str, message: &str, suggestion: &str) -> Self {
+        Self::new(id, CheckStatus::Skip, message, Some(suggestion))
+    }
 }
 
 /// The doctor's report. Build more checks into `checks` to extend it.

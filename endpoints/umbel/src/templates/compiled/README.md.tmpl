@@ -1,0 +1,20 @@
+# {{title}}
+
+An Umbel compiled plugin: a Rust crate linked into a host binary. It has one command,
+`{{id}}-hello`, one pack, `starter`, and one skill, `{{id}}-guide`.
+
+```sh
+cargo test                      # the plugin through the test kit
+umbel plugin check path=.       # the manifest, grants, schemas, packs and skills
+```
+
+`Cargo.toml` names two path or git dependencies, `umbel-sdk` and `umbel`. Point them at your
+checkout of `endpoints/umbel` if you work from one.
+
+To run it, link it into a binary: call `umbel::cli::run` with a `configure` hook that adds
+`umbel::plugins::sdk({{lib}}::plugin())` through `HostBuilder::with_compiled`, then enable it in
+`umbel.toml` with `plugins.enabled = ["{{id}}"]` and `plugins.{{id}}.source = "compiled:{{id}}"`.
+
+A compiled plugin runs with the host's own permissions. The grants in `umbel-plugin.toml` say what
+it uses; they do not sandbox it. Build it as a component (`umbel plugin new kind=component`) when
+it must run untrusted.

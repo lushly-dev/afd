@@ -1,0 +1,72 @@
+//! {{title}}: an Umbel plugin written against `umbel-sdk`.
+//!
+//! [`plugin`] is the SDK value; `umbel::plugins::sdk({{lib}}::plugin())` links it into a host as
+//! `compiled:{{id}}`. A compiled plugin runs inside the host binary with the host's own
+//! permissions: its grants are a declaration, not a sandbox.
+#![forbid(unsafe_code)]
+
+use serde_json::{Value, json};
+use umbel_sdk::{Asset, Cx, HostError, Level, Outcome, Plugin, failure, success};
+
+/// The plugin's manifest.
+pub const MANIFEST: &str = include_str!("../umbel-plugin.toml");
+
+/// The {{title}} plugin.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct {{type}};
+
+/// The {{title}} plugin as an SDK value.
+pub fn plugin() -> {{type}} {
+    {{type}}
+}
+
+impl Plugin for {{type}} {
+    fn manifest(&self) -> &'static str {
+        MANIFEST
+    }
+
+    fn assets(&self) -> &'static [Asset] {
+        umbel_sdk::embedded_assets!()
+    }
+
+    fn handle(&self, name: &str, input: Value, cx: &mut Cx) -> Outcome {
+        match name {
+            "{{id}}-hello" => hello(&input, cx),
+            other => failure(
+                "COMMAND_NOT_FOUND",
+                &format!("the {{id}} plugin has no command `{other}`"),
+                "Call {{id}}-hello.",
+            ),
+        }
+    }
+}
+
+fn unavailable(error: &HostError) -> Outcome {
+    failure(
+        "{{upper}}_UNAVAILABLE",
+        &error.to_string(),
+        "Enable the plugin with every grant its manifest declares, and do not deny any.",
+    )
+}
+
+fn hello(input: &Value, cx: &Cx) -> Outcome {
+    let name = input
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("world");
+    let salutation = match cx.pack_read("starter", "data/greeting.txt") {
+        Ok(bytes) => String::from_utf8_lossy(&bytes)
+            .lines()
+            .next()
+            .unwrap_or("Hello")
+            .trim()
+            .to_owned(),
+        Err(error) => return unavailable(&error),
+    };
+    let at_ms = match cx.now_ms() {
+        Ok(millis) => millis,
+        Err(error) => return unavailable(&error),
+    };
+    cx.log(Level::Info, &format!("greeting {name} with {salutation}"));
+    success(json!({ "greeting": format!("{salutation}, {name}!"), "at_ms": at_ms }))
+}

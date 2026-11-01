@@ -1,0 +1,29 @@
+[package]
+name = "{{crate}}"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+description = "{{title}}, an Umbel compiled plugin"
+
+[dependencies]
+serde_json = "1"
+umbel-sdk = {{umbel_sdk}}
+
+[build-dependencies]
+umbel-sdk = {{umbel_sdk}}
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The test kit: an in-process host with only this plugin.
+umbel = {{umbel}}
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

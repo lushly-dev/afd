@@ -1,0 +1,25 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "{{id}}"
+title = "{{title}}"
+version = "0.1.0"
+description = "An MCP server mounted as an Umbel plugin."
+kind = "mounted"
+domains = ["{{id}}"]
+
+[mount]
+# Every tool the server lists becomes a command named <prefix>-<tool>.
+prefix = "{{id}}"
+transport = "stdio"
+# The command line the host starts, from this directory. The child sees only PATH and `env`.
+command = ["bin/{{id}}-mcp"]
+
+# A tool's effects default to `external`: a mutation that writes an event. Say what each tool really
+# does, so the host projects only what changes something:
+#
+# [[mount.tools]]
+# tool = "greet"
+# effects = ["inspect"]
+# first_class = true
