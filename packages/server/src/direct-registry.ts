@@ -23,6 +23,7 @@ import type {
 	BatchResult,
 	Clock,
 	CommandContext,
+	CommandError,
 	CommandMiddleware,
 	CommandResult,
 	ExposeOptions,
@@ -164,6 +165,18 @@ export interface DirectToolBinding {
 	routes(name: string): boolean;
 	/** Route one tool call; the result is the JSON an MCP client reads. */
 	callTool(name: string, input: unknown, context: CommandContext): Promise<unknown>;
+	/**
+	 * Apply a meta-tool's `meta` argument (`meta-argument.ts`) to an in-process call, where the
+	 * `activeContext` option and the declared fields' values on the context stand for `_meta`.
+	 */
+	liftMetaArgument(
+		name: string,
+		input: unknown,
+		context: CommandContext,
+		activeContext: string | undefined
+	):
+		| { ok: true; input: unknown; context: CommandContext; activeContext: string | undefined }
+		| { ok: false; error: CommandError };
 	/** The tool list of an MCP server with the same commands, contexts and strategy. */
 	listTools(strategy: ToolStrategy | undefined, activeContext: string | null): McpToolDefinition[];
 }
@@ -364,7 +377,12 @@ export function createDirectRegistry(
 			context: CommandContext = {},
 			callOptions: DirectExecuteOptions = {}
 		): Promise<CommandResult<T>> {
-			const { activeContext } = callOptions;
+			let { activeContext } = callOptions;
+			if (tools && !exposed.has(name) && tools.routes(name)) {
+				const lifted = tools.liftMetaArgument(name, input, context, activeContext);
+				if (!lifted.ok) return failure(lifted.error);
+				({ input, context, activeContext } = lifted);
+			}
 			if (activeContext !== undefined && !contextNames.has(activeContext)) {
 				return failure({
 					code: 'CONTEXT_NOT_FOUND',

@@ -46,10 +46,18 @@ const confirmNames = z
 		'Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)'
 	);
 
+/** The `meta` argument (`meta-argument.ts`): `_meta` values for clients that cannot set `_meta`. */
+const metaArgument = z.unknown().optional().meta({
+	type: 'object',
+	description:
+		"Request values for clients that cannot set _meta: dev.afd/context and the server's declared context fields' _meta keys, applied as if sent in _meta",
+});
+
 export const callArgsSchema = z.object({
 	command: z.string().min(1).describe('Command name to invoke'),
 	input: commandInput("Command input (validated against the command's own schema at runtime)"),
 	confirm: confirmFlag,
+	meta: metaArgument,
 });
 
 export const batchArgsSchema = z.object({
@@ -76,6 +84,7 @@ export const batchArgsSchema = z.object({
 		.optional()
 		.describe('Batch execution options'),
 	confirm: confirmNames,
+	meta: metaArgument,
 });
 
 export const pipeArgsSchema = z.object({
@@ -115,6 +124,7 @@ export const pipeArgsSchema = z.object({
 		.optional()
 		.describe('Pipeline execution options'),
 	confirm: confirmNames,
+	meta: metaArgument,
 });
 
 export const discoverArgsSchema = z.object({
@@ -130,6 +140,7 @@ export const discoverArgsSchema = z.object({
 	includeMutation: z.boolean().optional().describe('Include mutation classification'),
 	limit: z.number().optional().describe('Max results (1-200, default 50)'),
 	offset: z.number().optional().describe('Results to skip for pagination'),
+	meta: metaArgument,
 });
 
 export const detailArgsSchema = z.object({
@@ -140,6 +151,7 @@ export const detailArgsSchema = z.object({
 		.describe(
 			'Command name or names (exact match, kebab-case). String or array of strings (max 10).'
 		),
+	meta: metaArgument,
 });
 
 export type DiscoverInput = z.infer<typeof discoverArgsSchema>;

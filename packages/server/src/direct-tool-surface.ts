@@ -26,8 +26,15 @@ import { isMcpExposed } from '@lushly-dev/afd-core';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { commandGroup, filterByContext } from './command-routing.js';
+import { contextFieldValues } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
 import type { DirectToolBinding, DirectToolHost, DirectToolSurface } from './direct-registry.js';
+import {
+	CONTEXT_META_KEY,
+	inProcessMeta,
+	liftMetaArgument,
+	metaArgumentKeys,
+} from './meta-argument.js';
 import { META_TOOL_NAMES } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ToolStrategy } from './server-types.js';
@@ -98,6 +105,7 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 
 		attach(host: DirectToolHost): DirectToolBinding {
 			assertValidCommandNames(host.commands, { bootstrap, contexts: host.contexts.length > 0 });
+			const metaKeys = metaArgumentKeys(host.contextFields);
 			const expose = { mcp: true, [host.interface]: true } as ExposeOptions;
 			const builtins: ZodCommandDefinition[] = [];
 			if (host.contexts.length > 0) {
@@ -148,6 +156,30 @@ export function createDirectToolSurface(options: DirectToolSurfaceOptions = {}):
 
 				routes(name) {
 					return META_TOOL_NAMES.includes(name) || (groups.has(name) && !names.has(name));
+				},
+
+				liftMetaArgument(name, input, context, activeContext) {
+					const lifted = liftMetaArgument(
+						name,
+						input,
+						inProcessMeta(host.contextFields, context, activeContext),
+						metaKeys
+					);
+					if (!lifted.ok) return lifted;
+					const meta = lifted.meta as Record<string, unknown>;
+					const requested = meta[CONTEXT_META_KEY];
+					return {
+						ok: true,
+						input: lifted.args,
+						// Values the caller set on the context are trusted code's, and win.
+						context: { ...contextFieldValues(host.contextFields, meta), ...context },
+						activeContext:
+							requested === undefined
+								? activeContext
+								: typeof requested === 'string'
+									? requested
+									: JSON.stringify(requested),
+					};
 				},
 
 				async callTool(name, input, context) {

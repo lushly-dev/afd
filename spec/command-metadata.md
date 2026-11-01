@@ -301,7 +301,8 @@ Phase 5 of the MCP 2026-07-28 plan deferred three items. The owner decided them 
    ([`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)), applied as if sent
    in `_meta`, for clients that cannot set `_meta`. Only `dev.afd/context` has an effect on
    `afd-discover` and `afd-detail`. A key sent both ways must agree, or the call fails with
-   `VALIDATION_ERROR`. Status: tracked in #466 until implemented.
+   `VALIDATION_ERROR`. [`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)
+   gives the rules; TypeScript, Python and Rust implement it (C++ has no MCP server).
 3. **`x-mcp-header: "Afd-Command"` on `afd-call.command`: not adopted.** A server that declares it
    makes clients mirror the value into an `Mcp-Param-Afd-Command` header and rejects a call whose
    header is missing or differs, so a client without support could no longer use `afd-call`; client

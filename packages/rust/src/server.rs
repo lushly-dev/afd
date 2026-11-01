@@ -45,6 +45,12 @@
 //! tool result naming the field). They never change `tools/list`. `server/discover` lists them
 //! under `_meta["dev.afd/context-fields"]`, and `afd-help` returns them as `contextFields`.
 //!
+//! For clients that cannot set `_meta`, the five meta-tools take an optional `meta` argument
+//! (`spec/context-fields.md`, "Clients that cannot set `_meta`"): its `dev.afd/context` and
+//! declared field keys count as `_meta` for the whole call, the context hook, the active context
+//! and the fields alike. Other keys are dropped; a key also in `_meta` with a different value, or
+//! a `meta` that is not an object, is a `VALIDATION_ERROR` tool result.
+//!
 //! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
 //!
 //! A panicking command handler is a `COMMAND_EXECUTION_ERROR` result on every route (the
@@ -93,6 +99,7 @@ pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
 pub mod confirmations;
 pub mod context_hook;
+mod meta_argument;
 pub mod meta_tools;
 mod panic_guard;
 mod router;

@@ -116,7 +116,7 @@ const emptyPipelineResult = {
  * Wrap a result as MCP tool content. The JSON is compact: the text is read by an
  * agent, and indentation only adds tokens.
  */
-function resultContent(data: unknown, isError: boolean): ToolCallResult {
+export function resultContent(data: unknown, isError: boolean): ToolCallResult {
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],
 		...(data !== null && typeof data === 'object' && { structuredContent: data }),

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Active: accepted 2026-10-25 with every recommendation (D1–D9). Phase 0 complete 2026-10-25 ([findings](#phase-0-findings)); D1, D2, D4 and D5 confirmed, one new decision (D10) raised, now resolved by the [confirmations proposal](../mcp-confirmations/mcp-confirmations.proposal.md). Phases 1–7 merged (#391–#396, #407). Follow-ups: #465 (structured results in Python, Rust and C++), #466 (`title`, meta-tool `context`, `x-mcp-header`), #469 (open questions 4–6 and 8). Phase 8 waits on #469. |
+| Status | Active: accepted 2026-10-25 with every recommendation (D1–D9). Phase 0 complete 2026-10-25 ([findings](#phase-0-findings)); D1, D2, D4 and D5 confirmed, one new decision (D10) raised, now resolved by the [confirmations proposal](../mcp-confirmations/mcp-confirmations.proposal.md). Phases 1–7 merged (#391–#396, #407). Follow-ups: #465 (structured results in Python, Rust and C++), #466 (decided 2026-10-31 in `spec/command-metadata.md`: `title` merged in #585, the meta-tool `meta` argument in its follow-up, `x-mcp-header` not adopted), #469 (open questions 4–6 and 8). Phase 8 waits on #469. |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28), [key changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Cloudflare: The next generation of MCP](https://blog.cloudflare.com/mcp-v2/) |
 | Packages | `packages/server`, `packages/client`, `packages/core`, `packages/testing`, `packages/cli`, `python/`, `packages/rust` (D1 server feature), `packages/cpp` (D2 stdio target), `packages/examples/todo`, `spec/` |
