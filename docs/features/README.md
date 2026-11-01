@@ -25,12 +25,12 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 | [Hybrid Tool Strategy](./active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Approved 2026-10-31; requested by Umbel (D27); status in [STATUS.md](./active/hybrid-tool-strategy/STATUS.md) |
 | [Browser-Safe Direct Registry](./active/browser-direct-registry/proposal.md) | A `/direct` entry point that runs the validating registry, journal, approvals (on WebCrypto) and AFD contexts in a browser or webview. Approved 2026-10-31; status in [STATUS.md](./active/browser-direct-registry/STATUS.md) |
-| [Declared Context Fields](./active/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, with the journal recording the ones declared safe so dependent calls replay. Approved 2026-10-31; status in [STATUS.md](./active/declared-context-fields/STATUS.md) |
 
 ## Complete Features
 
 | Feature | Description |
 |---------|-------------|
+| [Declared Context Fields](./complete/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, validated on every surface, listed by `server/discover` and `afd-help`, and kept by the journal when declared safe; in TypeScript, Python, Rust and C++. Completed 2026-10-31; status in [STATUS.md](./complete/declared-context-fields/STATUS.md) |
 | [AFD Bot (Alfred)](./complete/afd-bot/) | Deterministic repo quality agent with lint, parity, and quality commands |
 | [AFD PyPI Publishing](./complete/afd-pypi-publishing/) | Python package publishing to PyPI |
 | [Auth Adapter](./complete/auth-adapter/) | Provider-agnostic authentication adapter for AFD servers |
