@@ -19,7 +19,11 @@
 				"additionalProperties": false,
 				"properties": {
 					"title": { "type": "string", "minLength": 1 },
-					"content_roots": { "description": "Reserved (phase 2).", "type": "array", "items": { "type": "string" } },
+					"content_roots": {
+						"description": "Reserved (phase 2).",
+						"type": "array",
+						"items": { "type": "string" }
+					},
 					"backend": { "description": "Reserved (phase 6).", "type": "string" }
 				}
 			}
@@ -28,7 +32,11 @@
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
-				"enabled": { "description": "Must be empty in phase 0; the loader is phase 1.", "type": "array", "maxItems": 0 }
+				"enabled": {
+					"description": "Must be empty in phase 0; the loader is phase 1.",
+					"type": "array",
+					"maxItems": 0
+				}
 			}
 		},
 		"mcp": {
@@ -50,7 +58,11 @@
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
-				"bind": { "description": "A loopback socket address.", "type": "string", "pattern": "^(127(\\.[0-9]{1,3}){3}|\\[::1\\]):[0-9]{1,5}$" },
+				"bind": {
+					"description": "A loopback socket address.",
+					"type": "string",
+					"pattern": "^(127(\\.[0-9]{1,3}){3}|\\[::1\\]):[0-9]{1,5}$"
+				},
 				"path": {
 					"description": "Starts with /, is not / and not /health, and has no query, fragment or .. segment.",
 					"type": "string",
