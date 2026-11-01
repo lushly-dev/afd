@@ -39,8 +39,8 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration), 2a (loader core and compiled plugins) 2b (packs, suggestions, contexts, pipelines), 3 (skills on three paths), 4 (component loader), 5 (mounted loader) 6 (todo plugin and conformance job) and 7 (`plugin new` and `plugin check`) done; step 8 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623) | Step 8 (needs 6 and 7, both done) |
-| 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
+| 1. Plugin contract | Done 2026-11-01: exit criterion met | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
+| 2. Knowledge | Not started; unblocked 2026-11-01 (phase 1 exit criterion met) | None | None | Specification written and approved (D24) |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started | None | None | Phase 2 exit criterion met |
@@ -213,11 +213,13 @@ should never have to scan the codebase to learn what is current.
 
 ### Phase 1. Plugin contract
 
-- **State:** specification approved by the owner (D24) and merged in
-  [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff` on
-  2026-11-01; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done the same day; step 8 is next.
-  Last verified 2026-11-01 against `main` at `f820783a`. (Superseded: "in
-  review, revised, not approved", verified at `cdfbbfb7`.)
+- **State:** done 2026-11-01; the exit criterion is met. Specification
+  approved by the owner (D24) and merged in
+  [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a,
+  0b, 1, 2a, 2b, 3, 4, 5, 6, 7 and 8 done the same day. Last verified
+  2026-11-01 against `main` at `1cca6309` plus step 8's test. (Superseded:
+  "step 8 is next", verified at `f820783a`; before that "in review, revised,
+  not approved", verified at `cdfbbfb7`.)
 - **Done:** the [specification](phases/1-plugin-contract/spec.md), in
   review: the manifest `umbel-plugin.toml` version 1 (D37) and the WIT world
   `umbel:plugin/plugin@1.0.0` on WASI 0.2 (D38), which close O3; wasmtime's 48
@@ -455,8 +457,64 @@ should never have to scan the codebase to learn what is current.
   `cargo test --locked --workspace`, `cargo +1.97.0 check --locked --workspace --all-targets`;
   `pnpm check` and `umbel.yml` on the pull request. Amendments: the specification's "Amendments
   from step 7".
-- **Not done:** step 8; the exit criterion.
-- **Needs the owner:** nothing. O1 is unchanged.
+- **Done:** step 8, the exit ([#624](https://github.com/lushly-dev/afd/pull/624)):
+  `endpoints/umbel/tests/hello_three_ways.rs`, and the exit criterion re-run
+  on `main` at `1cca6309` plus that test. `umbel.yml` needed no change: it
+  already builds the hello component and `hello-mcp` before `cargo test
+  --workspace`, and runs the `conformance` and `plugin-isolation` jobs. Evidence,
+  all 2026-11-01 on macOS with `CARGO_TARGET_DIR` shared:
+  - **Run 1, hello three ways:** `hello_three_ways.rs` loads hello as
+    `compiled:hello`, as the component built from the same crate and mounted
+    through `hello-mcp` with `manifests/mounted.toml`, each in its own
+    workspace with the test kit's fixed clock, and calls `hello-greet` with
+    `{ "name": "Ada", "space": "main" }` over MCP (stdio and HTTP, both eras)
+    and through the CLI: five surfaces per build. The compiled and component
+    `data` are equal, `at` included (`2026-01-01T00:00:00.000Z`); the mounted
+    `data` equals them without `at`, which is the mounted server's own clock,
+    and carries `dev.umbel/replay = "recorded"`, `dev.umbel/trust =
+    "external"` and `dev.umbel/plugin = { id: "hello", kind: "mounted" }`;
+    `event-list` then shows no event and head `v0:main:0` in all three
+    workspaces. It passed on the first run.
+  - **`cargo test --locked --workspace`** in `endpoints/umbel`: 550 passed, 0
+    failed, 1 ignored (a doc-test) across 55 test runs, after `cargo fmt
+    --all --check` and `cargo clippy --locked --workspace --all-targets -- -D
+    warnings` were clean, with the components (`cargo build --locked --release
+    --target wasm32-wasip2 ...`) and `hello-mcp` built first as `umbel.yml`
+    does.
+  - **Run 3, todo conformance against `umbel-todo`:** `pnpm --filter
+    @afd/example-todo test:conformance:umbel` 34/34 (legacy), `... --mode
+    modern` 34/34, `... --suite confirmations --mode modern` 5/5.
+  - **Run 4, the stock `umbel` mounting the Rust backend:** `pnpm --filter
+    @afd/example-todo test:conformance:umbel-mounted` 34/34 and `... --mode
+    modern` 34/34.
+  - **The Rust backend itself:** `pnpm --dir packages/examples/todo
+    test:conformance:rs` 34/34, `... --mode modern` 34/34, `... --suite
+    confirmations --mode modern` 5/5.
+  - **AFD's own clients:** `bash endpoints/umbel/tests/scripts/external-clients.sh
+    <umbel-todo> packages/cli/dist/bin.js packages/examples/todo/scenarios`
+    exited 0: `afd validate --surface --strict` against `umbel-todo` with
+    hello and todo enabled, 0 errors and 0 warnings (18 info, with the three
+    suppressed rules of the follow-up below), and `afd scenario run` 4
+    scenarios passed, 0 failed.
+  - **`plugin check` on each `plugin new` template**, with the stock `umbel`
+    binary in a fresh workspace (the component scaffold built for
+    `wasm32-wasip2` and copied where its manifest says): `compiled`, `component`,
+    `mounted` and `pack` each exit 0 and `healthy: true`, no check failed
+    (`compiled`: `component` and `boot` skip; `component`: `component` and
+    `boot` pass; `mounted`: `schemas` and `boot` skip; `pack`: `boot` pass;
+    `surface` skip in all four).
+  - **CLI and doctor smoke:** `umbel-todo init`, `plugins.enabled = ["hello"]`,
+    then `workspace doctor` exited 0 with `healthy: true` and all 20 checks
+    `pass`; `hello greet name=Ada` answered `Hello, Ada!` for the space `main`
+    stamped `compiled`; `plugin list` showed hello loaded, "trusted, not
+    sandboxed".
+  - **Exit run 2 and the workflow:** `plugin-isolation` and every other job of
+    `umbel.yml` ran on the pull request; the workflow runs again on `main` at the
+    merge commit.
+- **Not done:** nothing in phase 1. The follow-ups below that name a later
+  phase stay open.
+- **Needs the owner:** nothing. O1 is unchanged. Phase 2 needs its
+  specification written and approved (D24) before it starts.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
 Phases 2 to 7 have no detail yet; add a heading in this shape when one
@@ -495,7 +553,7 @@ starts.
 | 2026-11-01 | Phase 1 specification | WIT world 2.0.0 on WASI 0.3 when a wasmtime long-term line supports the async component model (about 60), or the owner decides to leave the long-term line (W17, restated after review) | Open |
 | 2026-11-01 | Phase 1 specification | MCP prompts in AFD servers, after the resources and Skills proposal of step 0a | Open, AFD; recorded as the next step of the [proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#implementation-plan) on 2026-11-01 |
 | 2026-11-01 | Phase 1 specification | The `http` and `secrets` grants, each with a required per-instance `allow` list, and moving an HTTP mount's `bearer_env` under `secrets` | Open, the first plugin that needs outbound calls; `secrets` by phase 5 |
-| 2026-11-01 | Phase 1 step 6 | Remove the three `--suppress` rules from `tests/scripts/external-clients.sh`: Umbel's built-in command descriptions need an action verb and 20 characters, `event-list`'s schema is complex, and the todo example's overlap and complexity warnings need a decision | Open, step 8 or a later phase |
+| 2026-11-01 | Phase 1 step 6 | Remove the three `--suppress` rules from `tests/scripts/external-clients.sh`: Umbel's built-in command descriptions need an action verb and 20 characters, `event-list`'s schema is complex, and the todo example's overlap and complexity warnings need a decision | Open, a later phase: step 8 changes nothing under `src/`, where the descriptions and `event-list` live |
 
 ## Session log
 
@@ -532,3 +590,4 @@ starts.
 | 2026-11-01 | Phase 1 step 4 | Component loader ([#620](https://github.com/lushly-dev/afd/pull/620)): wasmtime 48.0.8 and `wasmtime-wasi` `p2` (facts checked against crates.io and the 48 tier table), the process-wide engine and linker, world identification from versions, the import check against grants, virtualized WASI 0.2 with the tape-backed clock and random, limits and their errors, the SDK's `component` feature, hello as a component, four fixture components, CI changes. The WIT file committed in step 1 did not parse (`list` is a keyword) and was corrected to `%list`. Seventeen spec amendments. Resumed in a worktree with about 13 GB free: a Rust build of wasmtime plus some 45 test binaries that each link it took the shared target directory to 14 GB, so no further Rust build ran after the full test and MSRV runs |
 | 2026-11-01 | Phase 1 step 6 | Todo plugin and conformance job ([#622](https://github.com/lushly-dev/afd/pull/622)): `umbel-plugin-todo`, `umbel-todo`, the runner's `umbel` and `umbel-mounted` backends, the `todo-http` fixture, the Rust backend's `TOOL_STRATEGY`, `external-clients.sh`, and the `conformance` and `plugin-isolation` jobs. Amendments recorded in the specification's "Amendments from step 6" |
 | 2026-11-01 | Phase 1 step 7 | `plugin new` and `plugin check` ([#623](https://github.com/lushly-dev/afd/pull/623)): the templates for every plugin kind, `plugin-new`, `plugin-check` with its internal temporary host (no `testkit`) and the explicit `spawn=true`, the README's "Write a plugin" section, and `plugin_scaffold.rs`, which builds the compiled and component scaffolds. Ten amendments in the specification's "Amendments from step 7"; the component template declares `packs`, `clock` and `log`, because the Rust component it builds imports no `wasi:random`. |
+| 2026-11-01 | Phase 1 exit | Phase 1 done. Steps 0a to 7 merged in #583 (specification), #606, #608, #610, #611, #612, #613, #620, #622 and #623; step 8 added `tests/hello_three_ways.rs` (hello compiled, as a component and mounted, over MCP stdio and HTTP in both eras and through the CLI, with the fixed clock) and re-ran the exit criterion on `main` at `1cca6309` plus that test: `cargo test --locked --workspace` 550 passed, the todo conformance suite 34/34 against `umbel-todo` (legacy and modern) and against the stock `umbel` mounting the Rust backend (legacy and modern), the confirmations suite 5/5, the Rust backend 34/34 twice and 5/5, `afd validate --surface --strict` 0 errors and 0 warnings, 4 scenarios passed, `plugin check` healthy on each of the four `plugin new` templates, and `workspace doctor` on a fresh workspace with hello enabled 20 of 20 checks passing. Phase 2 is unblocked; its next gate is a specification written and approved (D24). [#624](https://github.com/lushly-dev/afd/pull/624) |
