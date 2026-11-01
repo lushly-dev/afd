@@ -5,6 +5,9 @@ export default defineConfig({
 		globals: false,
 		environment: 'happy-dom',
 		include: ['src/**/*.test.ts'],
+		// Node 25+ defines a global localStorage that is undefined without --localstorage-file,
+		// and it shadows happy-dom's; turn Node's Web Storage off in the test workers.
+		execArgv: ['--no-experimental-webstorage'],
 		coverage: {
 			provider: 'v8',
 			include: ['src/**/*.ts'],

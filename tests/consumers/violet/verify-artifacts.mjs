@@ -25,7 +25,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -326,7 +326,8 @@ const http = createServer(async (request, response) => {
 		return;
 	}
 	const target = normalize(join(violetRoot, path));
-	if (!target.startsWith(violetRoot) || !existsSync(target)) {
+	// A directory, such as the root a browser may request, is not a served file.
+	if (!target.startsWith(violetRoot) || !existsSync(target) || !statSync(target).isFile()) {
 		response.writeHead(404).end();
 		return;
 	}

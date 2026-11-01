@@ -14,7 +14,7 @@ The repeatable package/dependency update process lives in
 
 ## Credential-free local gate
 
-Use Node 24 (the SQLite fixtures use `node:sqlite`), the repository's pinned pnpm,
+Use Node 24 or newer (the SQLite fixtures use `node:sqlite`; `.nvmrc` pins 26), the repository's pinned pnpm,
 OpenSSL and Playwright's matching Chromium:
 
 ```sh
