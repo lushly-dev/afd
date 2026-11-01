@@ -117,11 +117,11 @@
       "upstream_sha256": null,
       "staged_path": "endpoints/specimen-cli/package.json",
       "staged_sha256": "620992fb4973b1bcc84d96ba3c5f0a9d6f9186b164533ffb3a031156b9efc779",
-      "current_import_sha256": "620992fb4973b1bcc84d96ba3c5f0a9d6f9186b164533ffb3a031156b9efc779",
+      "current_import_sha256": "7605df5a1dbbcdcbb6ad7e235a5d0c5373a17c15742273de36c59e85e9fc7790",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy"
     },
     {
       "path": "endpoints/specimen-cli/src/bin.ts",
@@ -513,11 +513,11 @@
       "upstream_sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
-      "current_import_sha256": "1cb4aaccce3a2efdf1e2299fa84e9b7f4ca70b2ffd598e3e0b7b8b53889756af",
+      "current_import_sha256": "5ca8e1d516f48854a63d0502fbfa60030c6ca67c4c4c476285d3fadc3f232c9a",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
-      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy"
     },
     {
       "path": "foundations/specimen/src/bench-runtime.ts",
@@ -861,11 +861,11 @@
       "upstream_sha256": null,
       "staged_path": "integrations/specimen-afd/package.json",
       "staged_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
-      "current_import_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
+      "current_import_sha256": "56c0d097efe28328557b30f348586887a66bebfb83bc6f1575a57c786af25405",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy"
     },
     {
       "path": "integrations/specimen-afd/src/commands.test.ts",
