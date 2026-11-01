@@ -60,15 +60,34 @@ Drift between local and remote gates is a bug — the `check` group is the singl
 Lefthook and `pnpm check` do not cover Python (`python/`), Rust (`packages/rust/`) or alfred. Their gates are the path-filtered `python.yml`, `rust.yml` and `alfred.yml` workflows; run those workflows' commands locally when you change that code.
 </rules>
 
+### Affected-Package Scoping
+
+<rules>
+Build, typecheck and test run only for the workspace packages a change affects, in `pnpm check`, the pre-commit typecheck, pre-push and `ci.yml` alike. `scripts/affected.mjs` decides the scope from the diff against the merge base with `origin/main` (`AFD_BASE` overrides it): the packages that own changed files, files outside a package under the same unit root (`foundations/violet/tsconfig.json` reaches both Violet packages), `spec/**` for core, server and CLI, and `pnpm-lock.yaml` by importer, plus every dependent. Builds add the scope's dependencies.
+Root `package.json`, `tsconfig.json`, `pnpm-workspace.yaml`, `.nvmrc`, `.npmrc`, `lefthook.yml`, `ci.yml`, the scope scripts themselves, and lockfile settings, overrides or root-importer changes select the whole workspace. So does `pnpm check:all` (or `AFD_SCOPE=all`), the release job before publication, and the daily scheduled CI run.
+Lint and the repository-wide checks always run whole; they take seconds. The release-tooling suites in `pnpm test:tooling` run only when `scripts/`, workflows, `.changeset/`, `.release/`, the root manifest, `.nvmrc` or the lockfile change.
+`pnpm affected` prints the scope and why each package is in it. When a package test reads a file outside its package, add it to `EXTRA_INPUTS` in `scripts/affected/scope.mjs`, or the scope will miss it.
+The browser workflows (FAST-AF, Violet, Specimen, Health dashboard) keep their path filters and add an `Affected units` job (`node scripts/affected.mjs gate`), so a lockfile change that leaves their dependencies alone skips their suites.
+</rules>
+
+### Local First
+
+<rules>
+Remote runner minutes are billed; verify on this machine and let remote CI confirm. Run `pnpm verify` before pushing: `pnpm check`, then the local suites of every path-filtered workflow the change triggers, selected by the workflow's own `pull_request.paths` and `Affected units` gates. `pnpm verify --list` prints the plan and what stays remote-only.
+Every pull-request workflow needs an entry in `scripts/affected/suites.mjs`, and each of its gates must bind a local step; `scripts/affected.test.mjs` fails otherwise.
+Pull-request workflows cancel a run a newer push supersedes. `ci.yml` runs only the `.nvmrc` Node version on pull requests and pushes; the daily and manual runs add the older supported versions.
+</rules>
+
 ### 2. Three Enforcement Layers
 
 | Layer | When | Speed | What |
 |-------|------|-------|------|
-| **Pre-commit** | `git commit` | ~8s | Lint staged files, portability, file-size, typecheck |
-| **Pre-push** | `git push` | ~25s | Full lint, test, typecheck, portability, file-size, orphan-files, versions |
-| **On-demand** (`pnpm check`) | Before release / manual | ~25s | Same as pre-push + build + test:coverage |
+| **Pre-commit** | `git commit` | ~8s | Lint staged files, portability, file-size, typecheck of the staged files' packages and dependents |
+| **Pre-push** | `git push` | seconds to ~3 min | Full lint; test and typecheck of affected packages; portability, file-size, orphan-files, versions, boundaries, skills, tooling tests |
+| **On-demand** (`pnpm check`) | Before a PR / manual | seconds to ~4 min | Same as pre-push + build + test:coverage, over affected packages; `pnpm check:all` for the whole workspace |
+| **On-demand** (`pnpm verify`) | Before every push | `pnpm check` + the triggered workflows' suites | Everything remote CI would run for the change that this machine can run |
 
-Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything `ci.yml` would catch.
+Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything `ci.yml` would catch for the same change.
 
 ### 3. Language Dispatch Is Automatic
 

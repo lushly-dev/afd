@@ -30,9 +30,35 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  scope:
+    # Triggered by a shared input such as pnpm-lock.yaml, the suites below run only when the
+    # change reaches their packages (scripts/affected.mjs). Manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.run.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: run
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-core --package @lushly-dev/violet-runtime --package @lushly-dev/violet-afd --package @lushly-dev/violet-cli --package @lushly-dev/violet-server --path tests/consumers/violet/ --path .github/workflows/violet.yml
+
   suites-and-consumers:
     name: Violet full suites, upstream lint and packed consumers
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -73,6 +99,8 @@ jobs:
 
   stores:
     name: Postgres and Neon driver store legs
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:

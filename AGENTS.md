@@ -20,7 +20,10 @@ from application LLM selection in `integrate-llms`.
 | `pnpm lint` | Biome lint check |
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | TypeScript type checking |
-| `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) — mirrors `ci.yml` exactly |
+| `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) over the packages your change affects — mirrors `ci.yml` exactly |
+| `pnpm check:all` | The same gate over the whole workspace (release, scheduled CI) |
+| `pnpm affected` | Show which workspace packages the change since `origin/main` affects, and why |
+| `pnpm verify` | `pnpm check`, then locally every path-filtered workflow the change would trigger (`--list` shows the plan, `--keep-going` runs past failures) |
 | `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 26, OpenSSL and Chromium) |
 | `pnpm test:specimen` | Specimen full Chromium suite and packed-artifact consumers outside the workspace (Node 26, Chromium) |
 | `pnpm test:fast-af` | FAST-AF runtime and component Chromium suites and packed-artifact consumers outside the workspace (Node 26, Chromium) |
@@ -88,14 +91,18 @@ endpoints/loam/             # AFD Loam — application shell; four private, quar
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 
+**Verify locally, not on remote CI.** Remote runner minutes are billed, so the dev loop runs on this machine: `pnpm verify` runs `pnpm check` and then, for each path-filtered workflow the change triggers (read from its `pull_request.paths` and `Affected units` gates), the same suites locally (`scripts/affected/suites.mjs`; it needs Chromium, `uv`, `cargo` or `cmake` as the plan requires). Pass it before pushing, so remote CI confirms a green result instead of finding failures one push at a time. It prints what stays remote-only: other operating systems, Node and Python versions, Firefox and WebKit, sanitizers. Each pull-request workflow cancels its run when a newer push supersedes it, and `ci.yml` tests only the `.nvmrc` Node version on pull requests and pushes; its daily and manual runs add Node 22 and 24.
+
+**Only affected packages are built and tested.** `scripts/affected.mjs` diffs against the merge base with `origin/main` (`AFD_BASE` in CI) and selects the packages owning changed files, their dependents, and, for `pnpm-lock.yaml`, the importers whose resolved dependencies changed; builds add the scope's dependencies. Root manifests and configs (`package.json`, `tsconfig.json`, `pnpm-workspace.yaml`, `.nvmrc`, `lefthook.yml`, `ci.yml`), lockfile settings or root-importer changes, and the scope scripts select the whole workspace. A Violet-only change builds and tests only Violet. Lint and the repository-wide checks always run whole. A package test that reads a file outside its package must be declared in `EXTRA_INPUTS` (`scripts/affected/scope.mjs`). See the [run-dev-checks skill](.claude/skills/run-dev-checks/).
+
 Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred, Health (`endpoints/health/`), Umbel (`endpoints/umbel/`), Specimen's Chromium suite (`pnpm check` runs only its browser-free subset), FAST-AF's browser suites (`pnpm check` builds both packages and runs only fast-element's browser-free test), the Health dashboard's Chromium suite (`pnpm check` builds it and runs its browser-free units), Loam's Chromium suite (`pnpm check` builds the four packages and runs their browser-free units) or Violet's store suites, upstream lint and consumers (`pnpm check` builds the five Violet packages and runs their store-free suites). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
 
 | Layer | When | What |
 |-------|------|------|
-| **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck |
-| **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files, versions, tooling-tests |
-| **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files, versions, tooling-tests |
-| **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
+| **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck of the staged files' packages and dependents |
+| **Pre-push** (lefthook) | `git push` | Full lint; affected test and typecheck; portability, file-size, orphan-files, versions, boundaries, skills, tooling-tests |
+| **Quality gate** (`pnpm check`) | On-demand | lint → affected build → typecheck → test:coverage + portability, file-size, orphan-files, versions, boundaries, skills, tooling-tests (release-tooling suites only when `scripts/`, workflows, `.changeset/`, `.release/`, the root manifest or lockfile change) |
+| **CI** (`ci.yml`) | Push to main / PR on the `.nvmrc` Node; daily and manual runs check the whole workspace on Node 22, 24 and 26 | Same as quality gate — safety net for skipped hooks |
 | **Python** (`python.yml`) | Push to main / PR touching `python/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
 | **C++** (`cpp.yml`) | Push to main / PR touching `packages/cpp/**`, `spec/wire`, `spec/vectors`, the todo spec or the C++ todo backend | clang-format (pinned); GCC; Clang with ASan+UBSan and with TSan; no-exceptions/no-RTTI unity build with the macro-hygiene check; macOS; MSVC; Emscripten with tests under Node; 60 s libFuzzer run per fuzz target |
@@ -110,10 +117,12 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **Specimen** (`specimen.yml`) | Push to main / PR touching the three Specimen units, `tests/consumers/specimen`, `packages/core`, `packages/server` or the lockfile | Node 26, Chromium; full native suite (`test:browser`), integration/CLI suites, packed-artifact consumers (native-only, integration present/absent/unavailable, missing/incompatible peers) |
 | **Umbel** (`umbel.yml`) | Push to main / PR touching `endpoints/umbel/**` (not its `docs/`), `packages/rust/**` or the workflow | Rust 1.98.0 on Linux and macOS (45-minute limit; wasmtime is heavy, so the test profile optimizes it): `cargo fmt --all --check`, clippy `-D warnings` on the workspace (all targets, the library with no default features and with each loader, the mounted SDK and `hello-mcp`, and the components for `wasm32-wasip2`), the hello and fixture components built for `wasm32-wasip2` (no `.wasm` file is committed) and `hello-mcp` built, then `cargo test --locked --workspace`; an MSRV 1.97 `cargo check --locked --workspace --all-targets` (30 minutes; it compiles wasmtime too); `contents: read` only, no publish route; the unit is quarantined and `publish = false` |
 | **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 26, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
-| **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
+| **Release** (GitHub Actions) | Push to main | Changesets opens a version PR, or `pnpm check:all` runs before an approved npm publication |
 
 **Key rules:**
-- Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
+- Always run `pnpm verify` (at least `pnpm check`) before pushing — it catches locally what `ci.yml` and the path-filtered workflows would catch for the same change
+- A new pull-request workflow needs a local entry in `scripts/affected/suites.mjs`; the tooling tests fail until it has one
+- The FAST-AF, Violet, Specimen, Health dashboard and Loam workflows open with an `Affected units` job (`node scripts/affected.mjs gate`), so a lockfile or AFD core change runs their suites only when it reaches their packages; FAST-AF gates its fast-element and violet-elements jobs separately
 - The pre-push `test` step does not install or build, and packages import each other's `dist`: after pulling `main` run `pnpm install`, and after changing a package another one imports run `pnpm build` (or `pnpm check`), before `git push`, or the hook fails on stale output
 - Changed FAST-AF? `pnpm check` builds it and runs only fast-element's browser-free test; also run `pnpm test:fast-af` (Chromium required). Edits to imported files, including API reports the build rewrites, must update `foundations/fast-af/provenance/adaptations.json`, or the tooling tests fail. Do not run upstream `check:v3` scopes or sync upstream.
 - Changed a Violet unit? `pnpm check` runs only the store-free suites; also run `pnpm test:violet` (Chromium required) and each package's `lint` (upstream Biome 1.9; the root Biome config skips these directories). Edits to imported Violet files must update `foundations/violet/provenance/adaptations.json`, or the tooling tests fail.
@@ -130,7 +139,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 - npm version PRs record `.release/npm-intent.json`; guarded artifact planning/publication validates that intent. Never run raw `changeset publish` on the complete workspace.
 - Shared skills are authored in Botcore's bundled source; `skills/exports.json` declares AFD projections and local overrides. Run `pnpm check:skills` or `pnpm skills:sync`; do not hand-edit generated projections. `.codex/skills` remains the mirror symlink.
 - Bootstrap Alfred with `cd alfred && uv sync --frozen --all-extras --dev`; local uv sources select AFD/Botcore without publishing them. From the repository root, use `uv run --project alfred alfred --workspace . catalog` and select a target/profile explicitly for operations.
-- Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check` and publishes
+- Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check:all` and publishes
 - Agent release flow: `pnpm changeset` → commit the changeset file → merge through the normal PR workflow
 
 ## Skill Index

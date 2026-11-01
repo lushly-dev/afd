@@ -39,6 +39,11 @@ env:
   # Digest from the official llvm/llvm-project llvmorg-22.1.8 release asset metadata.
   LLVM_WINDOWS_SHA256: '16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c'
 
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   format:
     name: C++ (clang-format)
