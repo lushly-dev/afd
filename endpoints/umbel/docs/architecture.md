@@ -522,7 +522,7 @@ flowchart LR
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
-(proposed 2026-10-31, revised after review the same day).
+(approved 2026-10-31 under the owner's delegation, after review; merged in #564).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it

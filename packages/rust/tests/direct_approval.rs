@@ -26,6 +26,11 @@ struct Fixture {
 }
 
 fn fixture() -> Fixture {
+    fixture_with(|_, _| {})
+}
+
+/// `fixture` with more commands, registered before the approval middleware reads the list.
+fn fixture_with(more: impl FnOnce(&CommandRegistry, &Arc<AtomicUsize>)) -> Fixture {
     let registry = Arc::new(CommandRegistry::new());
     let runs = Arc::new(AtomicUsize::new(0));
     registry
@@ -39,6 +44,7 @@ fn fixture() -> Fixture {
             .with_approval(ApprovalPolicy::Required),
         )
         .unwrap();
+    more(&registry, &runs);
     let tokens = Arc::new(Mutex::new(Vec::new()));
     let collected = Arc::clone(&tokens);
     let clock = fixed_clock(1_793_016_000_000);
@@ -250,4 +256,112 @@ async fn blocking_hook_cannot_authorize_after_deadline() {
         .await;
     assert_eq!(result.error.unwrap().code, error_codes::TIMEOUT);
     assert_eq!(f.runs.load(Ordering::SeqCst), 0);
+}
+
+/// `item-delete` (approval required, exposed to the agent by default) plus a CLI-only
+/// `item-purge`, a CLI-only `item-wipe` that also needs approval, and an agent-only `item-peek`.
+fn interface_fixture() -> Fixture {
+    fixture_with(|registry, runs| {
+        let command = |name: &str, expose: ExposeOptions| {
+            CommandDefinition::new(
+                name,
+                name,
+                vec![CommandParameter::required_number("id", "ID")],
+                Counting(Arc::clone(runs)),
+            )
+            .with_expose(expose)
+        };
+        let cli_only = ExposeOptions::new().with_agent(false).with_cli(true);
+        registry
+            .register(command("item-purge", cli_only.clone()))
+            .unwrap();
+        registry
+            .register(command("item-wipe", cli_only).with_approval(ApprovalPolicy::Required))
+            .unwrap();
+        registry
+            .register(command("item-peek", ExposeOptions::new().with_cli(false)))
+            .unwrap();
+    })
+}
+#[tokio::test]
+async fn the_agent_interface_is_the_default() {
+    let f = interface_fixture();
+    let client = DirectClient::new(Arc::clone(&f.registry));
+    let purge = client.call("item-purge", json!({"id":1}), None).await;
+    assert_eq!(purge.error.unwrap().code, error_codes::COMMAND_NOT_EXPOSED);
+    assert!(
+        client
+            .call("item-peek", json!({"id":1}), None)
+            .await
+            .success
+    );
+}
+
+#[tokio::test]
+async fn the_cli_interface_runs_cli_commands_only() {
+    let f = interface_fixture();
+    let client = DirectClient::new(Arc::clone(&f.registry)).with_interface(CommandInterface::Cli);
+    assert!(
+        client
+            .call("item-purge", json!({"id":1}), None)
+            .await
+            .success
+    );
+    let peek = client.call("item-peek", json!({"id":1}), None).await;
+    assert_eq!(peek.error.unwrap().code, error_codes::COMMAND_NOT_EXPOSED);
+    assert_eq!(f.runs.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn the_caller_context_cannot_change_the_interface() {
+    let f = interface_fixture();
+    let client = DirectClient::new(Arc::clone(&f.registry)).with_interface(CommandInterface::Cli);
+    let context = CommandContext::new().with_interface(CommandInterface::Agent);
+    let peek = client
+        .call("item-peek", json!({"id":1}), Some(context))
+        .await;
+    assert_eq!(peek.error.unwrap().code, error_codes::COMMAND_NOT_EXPOSED);
+}
+
+#[tokio::test]
+async fn unknown_name_suggestions_name_only_commands_of_the_interface() {
+    let f = interface_fixture();
+    let client = DirectClient::new(Arc::clone(&f.registry)).with_interface(CommandInterface::Cli);
+    let error = client
+        .call("item-peeks", json!({"id":1}), None)
+        .await
+        .error
+        .unwrap();
+    assert_eq!(error.code, error_codes::COMMAND_NOT_FOUND);
+    let suggestion = error.suggestion.unwrap();
+    assert!(!suggestion.contains("item-peek'"), "{suggestion}");
+    assert!(!suggestion.contains("item-delete"), "{suggestion}");
+    // The same name from the agent interface suggests the agent command.
+    let agent = DirectClient::new(Arc::clone(&f.registry));
+    let error = agent
+        .call("item-peeks", json!({"id":1}), None)
+        .await
+        .error
+        .unwrap();
+    assert!(error.suggestion.unwrap().contains("'item-peek'"));
+}
+
+#[tokio::test]
+async fn the_approval_hook_runs_once_on_the_cli_interface() {
+    let f = interface_fixture();
+    let decisions = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&decisions);
+    let client = DirectClient::new(Arc::clone(&f.registry))
+        .with_interface(CommandInterface::Cli)
+        .with_on_approval_needed(Arc::new(move |request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(request.command, "item-wipe");
+            Box::pin(async { Ok(true) })
+        }));
+    let result = client.call("item-wipe", json!({"id":1}), None).await;
+    assert_eq!(result.data, Some(json!({"id":1})));
+    assert_eq!(decisions.load(Ordering::SeqCst), 1);
+    assert_eq!(f.runs.load(Ordering::SeqCst), 1);
+    // The token went to the host's observer, never to the caller.
+    assert_eq!(f.tokens.lock().unwrap().len(), 1);
 }

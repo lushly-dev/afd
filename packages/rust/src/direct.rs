@@ -92,6 +92,7 @@ fn public_result(mut result: CommandResult<Value>) -> CommandResult<Value> {
 pub struct DirectClient {
     registry: Arc<CommandRegistry>,
     on_approval_needed: Option<DirectApprovalHook>,
+    interface: CommandInterface,
 }
 
 impl DirectClient {
@@ -99,7 +100,19 @@ impl DirectClient {
         Self {
             registry,
             on_approval_needed: None,
+            interface: CommandInterface::Agent,
         }
+    }
+
+    /// The interface every call runs as. Default: `CommandInterface::Agent`.
+    ///
+    /// The interface decides which commands a call may run and which an unknown name's
+    /// suggestions list, as `expose` declares them (`CommandInterface::Cli` runs a CLI-only
+    /// command that an agent cannot reach). The caller's context cannot override it. The
+    /// approval exchange is the same on every interface.
+    pub fn with_interface(mut self, interface: CommandInterface) -> Self {
+        self.interface = interface;
+        self
     }
 
     pub fn with_on_approval_needed(mut self, hook: DirectApprovalHook) -> Self {
@@ -129,7 +142,7 @@ impl DirectClient {
         let _dispose = Dispose(Arc::clone(&state));
         context.approval = None;
         context.direct_approval = Some(Arc::clone(&state));
-        context.interface = Some(CommandInterface::Agent);
+        context.interface = Some(self.interface);
         context
             .actor
             .get_or_insert_with(|| Actor::new(ActorKind::Human));

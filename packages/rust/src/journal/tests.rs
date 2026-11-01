@@ -395,6 +395,202 @@ mod file_sink {
     }
 }
 
+#[cfg(feature = "journal-file-shared")]
+mod shared_sink {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    fn temp_dir() -> PathBuf {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("afd-journal-shared-{}-{n}", std::process::id()))
+    }
+
+    fn sink_in(dir: &std::path::Path) -> FileJournalSink {
+        FileJournalSink::shared(dir.join("state/journal.jsonl"), dir.join("state/lock"))
+    }
+
+    fn seqs_in(path: &std::path::Path) -> Vec<u64> {
+        let text = std::fs::read_to_string(path).unwrap();
+        parse_journal(&text)
+            .unwrap()
+            .iter()
+            .map(|e| e.seq)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn creates_the_files_and_continues_after_reopening() {
+        let dir = temp_dir();
+        let sink = sink_in(&dir);
+        assert_eq!(sink.read(JournalRange::all()).await.unwrap(), []);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 1);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 2);
+        assert!(dir.join("state/lock").exists());
+
+        assert_eq!(sink_in(&dir).append(record()).await.unwrap().seq, 3);
+        let text = std::fs::read_to_string(dir.join("state/journal.jsonl")).unwrap();
+        assert_eq!(text.lines().count(), 3);
+        assert!(text.ends_with('\n'));
+        // The lines are the ones a sink made with `new` writes and reads.
+        let plain = FileJournalSink::new(dir.join("state/journal.jsonl"));
+        assert_eq!(plain.append(record()).await.unwrap().seq, 4);
+        assert_eq!(
+            sink_in(&dir).read(JournalRange::all()).await.unwrap().len(),
+            4
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn another_sinks_append_is_seen_without_a_cache() {
+        let dir = temp_dir();
+        let (a, b) = (sink_in(&dir), sink_in(&dir));
+        assert_eq!(a.append(record()).await.unwrap().seq, 1);
+        assert_eq!(b.append(record()).await.unwrap().seq, 2);
+        assert_eq!(a.append(record()).await.unwrap().seq, 3);
+        assert_eq!(seqs_in(&dir.join("state/journal.jsonl")), [1, 2, 3]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_torn_last_line_is_removed_by_the_next_append() {
+        let dir = temp_dir();
+        let path = dir.join("state/journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let first = serialize_journal_entry(&entry(1));
+        std::fs::write(&path, format!("{first}\n{{\"seq\":2,\"times")).unwrap();
+
+        let sink = sink_in(&dir);
+        assert_eq!(sink.read(JournalRange::all()).await.unwrap(), [entry(1)]);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 2);
+        assert_eq!(seqs_in(&path), [1, 2]);
+        assert!(!std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("\"seq\":2,\"times\n"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_last_line_cut_inside_a_character_is_torn() {
+        let dir = temp_dir();
+        let path = dir.join("state/journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut bytes = format!("{}\n", serialize_journal_entry(&entry(1))).into_bytes();
+        let mut cafe = entry(2);
+        cafe.input = json!({"title": "Café"});
+        let line = serialize_journal_entry(&cafe);
+        let cut = line.find('é').unwrap() + 1; // inside the two-byte é
+        bytes.extend_from_slice(&line.as_bytes()[..cut]);
+        std::fs::write(&path, bytes).unwrap();
+
+        assert_eq!(sink_in(&dir).append(record()).await.unwrap().seq, 2);
+        assert_eq!(seqs_in(&path), [1, 2]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_complete_last_line_without_newline_is_kept() {
+        let dir = temp_dir();
+        let path = dir.join("state/journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, serialize_journal_entry(&entry(5))).unwrap();
+
+        assert_eq!(sink_in(&dir).append(record()).await.unwrap().seq, 6);
+        assert_eq!(seqs_in(&path), [5, 6]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap().lines().count(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_lone_torn_line_leaves_an_empty_journal() {
+        let dir = temp_dir();
+        let path = dir.join("state/journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{\"seq\":1,\"tim").unwrap();
+
+        assert_eq!(sink_in(&dir).append(record()).await.unwrap().seq, 1);
+        assert_eq!(seqs_in(&path), [1]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_long_last_line_is_found_across_chunks() {
+        let dir = temp_dir();
+        let path = dir.join("state/journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut long = entry(7);
+        long.input = json!({"text": "x".repeat(40_000)});
+        std::fs::write(
+            &path,
+            format!(
+                "{}\n{}\n",
+                serialize_journal_entry(&entry(6)),
+                serialize_journal_entry(&long)
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(sink_in(&dir).append(record()).await.unwrap().seq, 8);
+        assert_eq!(seqs_in(&path), [6, 7, 8]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_held_lock_times_out_and_a_sink_made_with_new_has_none() {
+        let dir = temp_dir();
+        let sink = sink_in(&dir).with_lock_timeout(Duration::from_millis(50));
+        let held = sink.lock().unwrap();
+        assert_eq!(held.path(), dir.join("state/lock"));
+        match sink.lock() {
+            Err(JournalLockError::Timeout { waited_ms }) => assert!(waited_ms >= 50),
+            other => panic!("expected a timeout, got {other:?}"),
+        }
+        drop(held);
+        assert!(sink.lock().is_ok());
+
+        let plain = FileJournalSink::new(dir.join("plain.jsonl"));
+        assert!(matches!(plain.lock(), Err(JournalLockError::Io(_))));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn append_fails_while_the_lock_is_held() {
+        let dir = temp_dir();
+        let sink = sink_in(&dir).with_lock_timeout(Duration::from_millis(30));
+        let held = sink.lock().unwrap();
+        let error = sink.append(record()).await.unwrap_err();
+        assert!(error.contains("not acquired within"), "{error}");
+        drop(held);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn append_locked_refuses_another_sinks_lock() {
+        let (one, two) = (temp_dir(), temp_dir());
+        let (a, b) = (sink_in(&one), sink_in(&two));
+        let lock = b.lock().unwrap();
+        let error = a.append_locked(&lock, record()).unwrap_err();
+        assert!(
+            error.contains(&*one.join("state/lock").to_string_lossy()),
+            "{error}"
+        );
+        assert!(
+            error.contains(&*two.join("state/lock").to_string_lossy()),
+            "{error}"
+        );
+        assert!(!one.join("state/journal.jsonl").exists());
+        let lock = a.lock().unwrap();
+        assert_eq!(a.append_locked(&lock, record()).unwrap().seq, 1);
+        assert_eq!(a.append_locked(&lock, record()).unwrap().seq, 2);
+        let _ = std::fs::remove_dir_all(&one);
+        let _ = std::fs::remove_dir_all(&two);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // RECORDER
 // ═══════════════════════════════════════════════════════════════════════════════

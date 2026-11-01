@@ -4,7 +4,8 @@ version = "0.2.1"
 edition = "2021"
 # The minimum supported Rust version: 1.81 lacks `Option::is_none_or`. With dependencies resolved
 # for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.82.0 check` passes for
-# every feature set except `server`, whose `rmcp` dependency needs Rust 1.88. Clippy's
+# every feature set except `server`, whose `rmcp` dependency needs Rust 1.88, and
+# `journal-file-shared`, whose file locks (`std::fs::File::lock`) need Rust 1.89. Clippy's
 # `incompatible_msrv` lint flags std APIs newer than this.
 rust-version = "1.82"
 description = "Agent-First Development - Core types and utilities for Rust"
@@ -25,6 +26,9 @@ native = ["dep:tokio"]
 wasm = ["dep:web-time", "getrandom?/wasm_js"]
 # `FileJournalSink`: a command journal in a JSON Lines file, through blocking `std::fs`.
 journal-file = []
+# `FileJournalSink::shared`: several sinks and processes append to one journal file under an
+# exclusive OS file lock (`std::fs::File::lock` and `try_lock`). Needs Rust 1.89.
+journal-file-shared = ["journal-file"]
 # The approval middleware (`create_approval_middleware`): HMAC-SHA256 tokens and OS-random nonces.
 # `serde_json/float_roundtrip` parses floats exactly as JavaScript does, so canonical input JSON
 # (and so a token's input digest) matches TypeScript's.
