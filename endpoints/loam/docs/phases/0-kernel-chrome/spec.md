@@ -16,6 +16,8 @@
   ([#628](https://github.com/lushly-dev/afd/pull/628)) amended
   [section 4](#4-specimen-with-high-contrast-d53), because the bench now
   emulates media in its native host rather than through Playwright.
+  Step 2 recorded its decisions in sections 2.1, 2.2, 2.3 and 2.7, each
+  under "Decided by step 2".
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -262,6 +264,32 @@ custom properties with literal fallbacks. The contract keeps those names.
   `theme:check` fails on an id in the tree that is missing from the
   contract, or the reverse.
 
+Decided by step 2 (2026-11-01):
+
+- **The contract file's shape** is `{ "contractVersion": 1, "tokens": {
+  "<id>": { "property", "type", "kind" } } }`, ids in code-point order, with
+  `kind` `component` or `shell`. `theme:check --write` regenerates it; review
+  the diff.
+- **Types.** A `type.*` id aliases a size or a weight, so it takes that
+  type (`dimension` or `fontWeight`); `z-index.*` is `number`. No version 1
+  id has a composite `typography` value, so the type is reserved.
+- **Compact** leaves `shell.size.statusbar`, `size.target.compact` and
+  `size.space.xs` as they are, because they are already at their floors
+  (24px, 24px, 2px). It sets `size.target.natural` 28px,
+  `size.target.comfortable` 32px, the title bar 32px, the rail 40px and the
+  tab bar 48px, and steps the spacing down (`size.space.sm` 2px, `.md` 6px,
+  `.lg` 8px, `.xl` 16px, and `space.{inline,stack}.*` with them).
+  `space.layout.*` reads the primitives directly, so compact does not change
+  it.
+- **`LAYOUT_DEFAULTS_V0` before the kernel has it.** The theme package maps
+  each of the constant's numbers to its shell id (`LAYOUT_DEFAULT_TOKENS`)
+  and compares every node with the kernel's export, which
+  `theme/scripts/theme.mjs` reads: the kernel is a development dependency,
+  and the boundary check refuses it in `src/`. Until step 5 adds the
+  constant, `theme:check` prints a note and skips that comparison, and
+  `theme`'s `test` compares the tree with the numbers of 5.2 instead. Step 5
+  removes the skip, so a missing export then fails.
+
 ### 2.2 Loam's Violet tree
 
 Source: `endpoints/loam/packages/theme/src/tree/`, TypeScript modules that
@@ -287,6 +315,48 @@ API, at build time in Node only.
   - every token resolves without a broken reference;
   - the resolved id set, less `ref.*`, equals the contract.
 
+Decided by step 2 (2026-11-01):
+
+- **Two version 1 values differ from today's.** Today's values miss the
+  floors in two places, so version 1 raises them, and step 3's fallback
+  scan carries them into the components:
+  - `color.text.muted` in light, `#6b7280` to `#616775`: 4.19:1 on
+    `color.surface.subtle` (and on the read-only field) becomes 4.91:1, and
+    4.24:1 on `color.surface.selected` (muted cells of selected rows) becomes
+    4.56:1;
+  - `color.border.strong`, the boundary of checkboxes, radios, switches and
+    sliders, from `rgba(28, 26, 13, 0.35)` to `0.48` in light and from
+    `rgba(255, 248, 235, 0.26)` to `0.37` in dark: 2.2:1 becomes 3:1 or more
+    on every surface.
+
+  The aliases of the two follow them: `color.field.placeholder`,
+  `color.field.border.hover` and `shell.color.handle.hover`.
+- **The pairs** are listed in `theme/src/pairs.ts`; step 4's design document
+  adopts them. In every theme:
+  - text: primary, secondary and muted text on the five surfaces, each
+    action's text on its background, hover and pressed
+    colors, state text on its background and on page and card, the selected
+    control's foreground on its background, and field text and placeholder
+    on both field backgrounds;
+  - non-text: `color.border.strong` on page, card, subtle and floating, the
+    hover field border, the hover and active handle colors, and the focus
+    ring (and the field's focus border) on every surface.
+
+  Light and dark do not hold decorative borders (`color.border.subtle` and
+  the secondary-action, selected-control and state borders, which sit beside
+  text or a fill), button fills, which their labels identify, or the resting
+  field border to 3:1 (WCAG 1.4.11), so they keep today's values. High
+  contrast holds all of them to 3:1.
+- **High contrast** is a light scheme on neutral colors: white surfaces with
+  `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
+  `#595959` subtle borders, a black focus ring, a black primary action, and
+  danger, success and warning keeping their hue at 7:1 on white. Its
+  shadows are spread shadows (`0 0 0 1px #000000`, 2px for floating), which
+  draw a border without changing layout.
+- **Primitives** are the solid colors of all three themes
+  (`ref.color.<family>.<step>`) and the spacing scale (`ref.space.<px>`).
+  Translucent colors and shadows stay literal on their semantic ids.
+
 ### 2.3 Exports
 
 `theme:build` resolves each node with `resolveTokens`, drops `ref.*`, and
@@ -304,6 +374,16 @@ diff. Violet's own exports are not used for these files. `theme:check`
 rebuilds the outputs in memory and compares the committed files
 (`contract/tokens.json` and the component token export of 2.4); `dist/` is
 build output and is never compared.
+
+Decided by step 2 (2026-11-01): the compact block is one rule per theme,
+`[data-loam-theme="<theme>"][data-loam-density="compact"]`, each holding the
+compact node's diff against its theme. Properties are in id order. The three
+files are also the package's `./loam-theme.css`, `./loam-theme.json` and
+`./contract.json` exports, and `build` writes them after `tsc`, so the
+workspace build produces them. `theme:check` also fails when any node
+resolves to an id the contract lacks, because Violet takes an override of an
+unknown id as an add. It compares the component token export from step 3,
+which adds `theme:export-components` with the file.
 
 ### 2.4 The shared components onto Violet themes (D50, revising D28)
 
@@ -442,6 +522,33 @@ reads CSS from `.css` files and from `css` tagged templates in `.ts` files.
 `theme`'s `test` runs the lint over a fixture corpus with one passing and
 one failing case per rule. The chrome's sources must pass from the first
 commit.
+
+Decided by step 2 (2026-11-01):
+
+- **The linted package** is the `package.json` in the working directory: its
+  `name` decides whether `shell.*` is allowed, and
+  `loamLintTokens.stateProperties` lists its state properties. The chrome's
+  manifest lists the three of section 7, and step 7's test checks that its
+  `STATE_PROPERTIES` constant equals that list.
+- **A private alias** is sound when declared from a contract id, from a state
+  property, or from another sound alias; declared more than once, it is sound
+  when any declaration is. Outside the chrome, an alias of a shell id is not
+  sound.
+- **Setting is reading.** Declaring a `--ref-*` property fails as a primitive,
+  and declaring a `--shell-*` property outside the chrome as a shell token.
+- **Fragments.** Declarations outside any block, as in `css.partial`, are
+  linted too.
+- **What it does not check:** selectors and at-rule preludes, string and
+  `url()` contents, and the values of `${…}` interpolations, which are
+  blanked. A `css` template nested in an interpolation is linted on its own.
+- **Lengths:** zero in any unit and `±1px` pass. Time, angle and resolution
+  units are not lengths.
+- **System colors** include the deprecated ones except `Background`, which as
+  a value is usually the property name; `@media not (forced-colors: active)`
+  does not count as forced colors.
+- **Globs** that match no file fail, so a mistyped glob cannot pass.
+- **The corpus** is `theme/fixtures/lint-tokens/`, which the root Biome
+  configuration skips.
 
 ## 3. Units of work in AFD and the foundations first (D15)
 
@@ -1153,3 +1260,4 @@ returned 18 findings. Each is addressed in the text above:
 | 2026-11-01 | Phase 0 specification | Specimen running axe itself, so the chrome's checks need no second harness | Open; not needed for phase 0 |
 | 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |
+| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Open |

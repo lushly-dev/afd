@@ -1,0 +1,12 @@
+:host {
+	--_inset: var(--size-space-md);
+	--_double-inset: calc(var(--_inset) * 2);
+	--_track: var(--size-target-natural);
+	padding: var(--_double-inset);
+	grid-template-columns: var(--_sidebar-width) 1fr var(--_inspector-width);
+	grid-template-rows: 1fr var(--_panel-height) var(--_track);
+}
+
+:host([collapsed]) {
+	--_track: 0;
+}

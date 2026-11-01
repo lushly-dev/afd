@@ -18,7 +18,15 @@
 		"build": "tsc",
 		"clean": "rimraf dist coverage",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
-		"test": "vitest run"
+		"test": "vitest run",
+		"lint:tokens": "loam-lint-tokens \"src/**/*.ts\" \"src/**/*.css\""
+	},
+	"loamLintTokens": {
+		"stateProperties": [
+			"--_sidebar-width",
+			"--_inspector-width",
+			"--_panel-height"
+		]
 	},
 	"dependencies": {
 		"@lushly-dev/fast-element": "workspace:*",
