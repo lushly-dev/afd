@@ -18,6 +18,7 @@ CONTEXT_TOOL_ORDER = ("afd-context-list", "afd-context-enter", "afd-context-exit
 
 BatchToolSchema = {
     "name": "afd-batch",
+    "title": "Run commands in a batch",
     "description": "Execute multiple commands in a single batch request with partial success semantics",
     "inputSchema": {
         "type": "object",
@@ -50,6 +51,7 @@ BatchToolSchema = {
 
 PipeToolSchema = {
     "name": "afd-pipe",
+    "title": "Run a command pipeline",
     "description": "Execute a pipeline of chained commands where earlier outputs can feed later steps",
     "inputSchema": {
         "type": "object",
@@ -89,6 +91,7 @@ PipeToolSchema = {
 
 CallToolSchema = {
     "name": "afd-call",
+    "title": "Call a command",
     "description": "Invoke any command by name with runtime input validation",
     "inputSchema": {
         "type": "object",
@@ -102,6 +105,7 @@ CallToolSchema = {
 
 DiscoverToolSchema = {
     "name": "afd-discover",
+    "title": "Discover commands",
     "description": "List available commands with optional filtering by category, tag, or search text",
     "inputSchema": {
         "type": "object",
@@ -123,6 +127,7 @@ DiscoverToolSchema = {
 
 DetailToolSchema = {
     "name": "afd-detail",
+    "title": "Describe commands",
     "description": "Get detailed input/output schema and metadata for one or more commands",
     "inputSchema": {
         "type": "object",

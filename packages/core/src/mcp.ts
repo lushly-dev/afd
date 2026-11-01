@@ -104,6 +104,9 @@ export interface McpTool {
 	/** Tool name */
 	name: string;
 
+	/** Display label: the command's `title`, or a meta-tool's fixed title. */
+	title?: string;
+
 	/** Tool description */
 	description?: string;
 

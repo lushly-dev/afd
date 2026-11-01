@@ -668,6 +668,11 @@ pub struct CommandDefinition {
     /// Human-readable description.
     pub description: String,
 
+    /// A short human-readable label (`spec/command-metadata.md`, "Tool titles"): the MCP tool
+    /// `title` of the command's own tool, and reported by `afd-detail` and `afd-help` (`full`).
+    /// Display text, so never in `_meta`. `None` is unset; nothing is derived from the name.
+    pub title: Option<String>,
+
     /// Category for grouping related commands.
     pub category: Option<String>,
 
@@ -745,6 +750,7 @@ impl CommandDefinition {
         Self {
             name: name.into(),
             description: description.into(),
+            title: None,
             category: None,
             parameters,
             returns: None,
@@ -765,6 +771,12 @@ impl CommandDefinition {
             undoable: None,
             approval: None,
         }
+    }
+
+    /// Set the display label, reported as the MCP tool `title`.
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
     }
 
     /// Set the category.
@@ -1008,6 +1020,8 @@ impl CommandRegistry {
     }
 
     /// Export the authoritative MCP tool, including any whole schema registered with it.
+    ///
+    /// The tool carries the command's `title` only when it sets one.
     ///
     /// A command with `mutation: true` also carries MCP `annotations`
     /// (`readOnlyHint: false`, `destructiveHint` from `destructive`; `spec/command-metadata.md`). `mutation`
@@ -1663,6 +1677,9 @@ where
 #[serde(rename_all = "camelCase")]
 pub struct McpTool {
     pub name: String,
+    /// Display label (`spec/command-metadata.md`, "Tool titles"), only when the command sets one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub description: String,
     pub input_schema: McpInputSchema,
 }
@@ -1737,6 +1754,7 @@ pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
 
     McpTool {
         name: command.name.clone(),
+        title: command.title.clone(),
         description: command.description.clone(),
         input_schema: McpInputSchema {
             schema_type: "object".to_string(),

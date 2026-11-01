@@ -90,6 +90,8 @@ TEST_CASE("notifications get no reply; ping and tools/list do") {
     CHECK(tools.size() == 11);
     CHECK(tools[0].contains("inputSchema"));
     for (const auto& tool : tools) {
+        // No todo command sets a title, and none is derived from the name.
+        CHECK_FALSE(tool.contains("title"));
         if (tool["name"] == "todo-list") {
             CHECK_FALSE(tool.contains("annotations"));
         }
@@ -220,4 +222,34 @@ TEST_CASE("tools/list reports _meta.approval; tools/call never takes approval fr
     // No `reason`: the call carried no evidence at all, not a rejected token.
     CHECK_FALSE(error["details"].contains("reason"));
     CHECK(*runs == 0);
+}
+
+TEST_CASE("tools/list reports a command's title at the top level, only when set") {
+    const auto ok = [](const afd::Json&, afd::CommandContext&) { return afd::success(nullptr); };
+    afd::CommandRegistry registry;
+    REQUIRE(!registry.register_command({.name = "note-create",
+                                        .description = "Create a note",
+                                        .title = "Create a note",
+                                        .handler = ok,
+                                        .mutation = true,
+                                        .expose = {.mcp = true}}));
+    REQUIRE(!registry.register_command({.name = "note-list",
+                                        .description = "List notes",
+                                        .handler = ok,
+                                        .expose = {.mcp = true}}));
+
+    const auto tools = afd::Json::parse(*todo::handle_message(
+        registry, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})"))["result"]["tools"];
+    REQUIRE(tools.size() == 2);
+    for (const auto& tool : tools) {
+        if (tool["name"] == "note-create") {
+            CHECK(tool["title"] == "Create a note");
+            // Not in annotations (the top-level title takes precedence) and not in _meta.
+            CHECK_FALSE(tool["annotations"].contains("title"));
+            CHECK_FALSE(tool.contains("_meta"));
+        } else {
+            CHECK(tool["name"] == "note-list");
+            CHECK_FALSE(tool.contains("title"));
+        }
+    }
 }

@@ -30,6 +30,9 @@ fn default_format() -> String {
 #[serde(rename_all = "camelCase")]
 pub struct CommandInfo {
     pub name: String,
+    /// The display label when set (`full` format only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
@@ -152,6 +155,7 @@ impl CommandHandler for AfdHelpHandler {
         for cmd in &commands {
             let info = CommandInfo {
                 name: cmd.name.clone(),
+                title: if is_full { cmd.title.clone() } else { None },
                 description: cmd.description.clone(),
                 category: if is_full { cmd.category.clone() } else { None },
                 tags: if is_full { cmd.tags.clone() } else { None },

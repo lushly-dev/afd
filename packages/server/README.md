@@ -328,6 +328,7 @@ import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 
 const createUser = defineCommand({
   name: 'user-create',
+  title: 'Create user', // optional display label: the MCP tool title
   description: 'Create a new user',
   category: 'users',
   mutation: true,

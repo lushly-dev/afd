@@ -32,6 +32,7 @@ class CommandInfo(WireModel):
     """Information about a single command."""
 
     name: str
+    title: Optional[str] = None
     description: str
     category: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -108,6 +109,7 @@ async def _afd_help_handler(
         )
 
         if input.format == "full":
+            info.title = command.title
             info.category = command.category
             info.tags = command.tags
             info.mutation = command.mutation

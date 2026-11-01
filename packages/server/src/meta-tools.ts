@@ -220,6 +220,8 @@ export type GroupedToolAction = CommandToolMeta & {
 /** An MCP tool as listed by `tools/list`. */
 export type McpToolDefinition = {
 	name: string;
+	/** Display label (`spec/command-metadata.md`, "Tool titles"); never derived from the name. */
+	title?: string;
 	description: string;
 	inputSchema: ToolInputSchema;
 	/** MCP annotations derived from `mutation`/`destructive` (individual command tools only). */
@@ -229,37 +231,47 @@ export type McpToolDefinition = {
 	_meta?: CommandToolMeta & { actions?: GroupedToolAction[] };
 };
 
-function metaTool(name: string, description: string, schema: z.ZodType): McpToolDefinition {
+function metaTool(
+	name: string,
+	title: string,
+	description: string,
+	schema: z.ZodType
+): McpToolDefinition {
 	const { type: _type, ...rest } = zodToJsonSchema(schema, { io: 'input' });
-	return { name, description, inputSchema: { type: 'object', ...rest } };
+	return { name, title, description, inputSchema: { type: 'object', ...rest } };
 }
 
 export const callTool = metaTool(
 	'afd-call',
+	'Call a command',
 	'Invoke any command by name with runtime input validation. Works in all server strategies.',
 	callArgsSchema
 );
 
 export const batchTool = metaTool(
 	'afd-batch',
+	'Run commands in a batch',
 	'Execute multiple commands in a single batch request with partial success semantics',
 	batchArgsSchema
 );
 
 export const pipeTool = metaTool(
 	'afd-pipe',
+	'Run a command pipeline',
 	'Execute a pipeline of chained commands where the output of one becomes the input of the next',
 	pipeArgsSchema
 );
 
 export const discoverTool = metaTool(
 	'afd-discover',
+	'Discover commands',
 	'List available commands with optional filtering by category, tag, or search text. Returns compact summaries.',
 	discoverArgsSchema
 );
 
 export const detailTool = metaTool(
 	'afd-detail',
+	'Describe commands',
 	'Get the full input schema and metadata for one or more commands by name.',
 	detailArgsSchema
 );

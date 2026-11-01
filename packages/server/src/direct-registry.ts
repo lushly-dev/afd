@@ -173,6 +173,8 @@ export interface DirectToolBinding {
  */
 export interface DirectRegistryCommand {
 	name: string;
+	/** Display label, when the command sets one. */
+	title?: string;
 	description: string;
 	category?: string;
 	mutation?: boolean;
@@ -422,6 +424,7 @@ export function createDirectRegistry(
 		listCommands(): DirectRegistryCommand[] {
 			return [...exposed.values()].map((command) => ({
 				name: command.name,
+				...(command.title !== undefined && { title: command.title }),
 				description: command.description,
 				category: command.category,
 				mutation: command.mutation,

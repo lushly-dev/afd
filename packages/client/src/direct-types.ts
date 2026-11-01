@@ -222,6 +222,8 @@ export interface DirectRegistry {
 	listCommands(): Array<
 		NonNullable<McpTool['_meta']> & {
 			name: string;
+			/** Display label, when the command sets one. */
+			title?: string;
 			description: string;
 			/** JSON Schema advertised by validating registries; optional for legacy registries. */
 			inputSchema?: JsonSchema;
