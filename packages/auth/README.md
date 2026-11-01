@@ -181,7 +181,7 @@ Each run uses ephemeral loopback ports and synthetic accounts. Teardown closes
 browser contexts, provider connections and servers and clears provider memory,
 including after failed assertions. Session cookies and tokens are never written to
 an evidence file. Startup, test and CI deadlines bound the run. The path-filtered
-`Auth browser integration` workflow runs the same suite on Node 24 with a pinned
+`Auth browser integration` workflow runs the same suite on Node 26 with a pinned
 Playwright version and its matching Chromium. It is separate from `pnpm check`,
 so the TypeScript gate does not require a downloaded browser binary.
 
@@ -198,7 +198,7 @@ callback, Secure cookies and restart persistence without a hosted account. The
 deployable backend functions; its local checks do not execute a Convex deployment.
 
 After installing Chromium, run `pnpm test:hosted:local` from the repository root
-on Node 24. It also runs the durable REST/view-state lifecycle. Separate opt-in
+on Node 24 or newer (`.nvmrc` pins 26). It also runs the durable REST/view-state lifecycle. Separate opt-in
 commands `test:hosted:better-auth` and `test:hosted:convex` require the fixture's
 explicit disposable-service configuration and fail preflight when it is missing.
 See the [hosted verification handoff](../../docs/operations/hosted-verification.md)

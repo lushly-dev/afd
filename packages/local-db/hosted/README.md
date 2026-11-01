@@ -7,8 +7,8 @@ runtime supported by AFD.
 
 ## Local lifecycle
 
-The local runner needs Node 24 because the fixture uses the built-in `node:sqlite` module. Select a
-Node 24 runtime, build the actual adapters, then run the lifecycle:
+The local runner needs Node 24 or newer because the fixture uses the built-in `node:sqlite` module. Select a
+Node 24+ runtime (`.nvmrc` pins 26), build the actual adapters, then run the lifecycle:
 
 ```sh
 pnpm -F @lushly-dev/local-db build
