@@ -17,11 +17,14 @@ point and none depends on another. That is the architecture.
 Phase 0, the host skeleton, is done: the empty host serves MCP over stdio and
 Streamable HTTP and a CLI from one registry, with a workspace, the journal and
 its per-space event log, approvals and confirmations, and no plugins. Phase 1,
-the plugin contract, has its
-[specification](docs/phases/1-plugin-contract/spec.md) approved and is being
-built; the host loads compiled, component and mounted plugins and scaffolds and
-checks them with `plugin new` and `plugin check`. Nothing is released or published; the crate is
-`publish = false` and its release unit is quarantined with no route under the
+the plugin contract, is done too (its
+[specification](docs/phases/1-plugin-contract/spec.md) is met): the host loads
+compiled, component and mounted plugins, serves their packs and skills, and
+scaffolds and checks them with `plugin new` and `plugin check`; the hello
+plugin answers alike built all three ways, and the todo example's conformance
+suite passes against it. Phase 2, knowledge, is next and needs its
+specification written and approved first. Nothing is released or published; the
+crate is `publish = false` and its release unit is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
 [STATUS.md](docs/STATUS.md) says exactly what is done.
 

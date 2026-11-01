@@ -9,12 +9,13 @@
 
 ## Status
 
-- **State:** specification in review, revised, not approved. Written
-  2026-11-01 by the phase 1 owning agent, after phase 0's exit criterion was
-  met on `main` at `8001fc74` (recorded by [#580](https://github.com/lushly-dev/afd/pull/580)).
-  It closes open decision O3 as [D37 and D38](../../decisions.md) and adds
-  D39 to D50; the architecture amendments they need are in the same pull
-  request. Approval is the owner's (D24).
+- **State:** done 2026-11-01; the exit criterion is met (see the step 8
+  entry below). Written 2026-11-01 by the phase 1 owning agent, after phase 0's
+  exit criterion was met on `main` at `8001fc74` (recorded by
+  [#580](https://github.com/lushly-dev/afd/pull/580)). It closes open decision
+  O3 as [D37 and D38](../../decisions.md) and adds D39 to D50; the architecture
+  amendments they need are in the same pull request. Approval was the owner's
+  (D24). (Superseded: "specification in review, revised, not approved".)
 - **Revised 2026-11-01** after the independent review of
   [#583](https://github.com/lushly-dev/afd/pull/583): the owner decided the
   four trust-model points (recorded in [section 11](#11-security), D42 and
@@ -114,9 +115,15 @@
   `plugin-new` takes `umbel_path` (the SDK is not published, so a scaffold must name where it is)
   and that the component template declares the grants its imports really need, which are
   `packs`, `clock` and `log` and not `random`.
-- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7.
-- **Not done:** the Umbel step 8 of the
-  [plan](#14-implementation-plan); the exit criterion.
+- **Step 8 done 2026-11-01**: `tests/hello_three_ways.rs`, and the exit
+  criterion re-run on `main` plus that test. Evidence is in
+  [STATUS.md](../../STATUS.md#phase-1-plugin-contract). Nothing in the
+  specification changed; the test and `umbel.yml` needed no amendment (the
+  workflow already builds the hello component and `hello-mcp` before
+  `cargo test --workspace`).
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6, 7 and 8.
+- **Not done:** nothing in phase 1. The open rows of
+  [Follow-ups](#follow-ups) belong to later phases.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
@@ -1962,7 +1969,7 @@ binary (a
 | 5 | Mounted loader | rmcp's client over stdio and HTTP with rustls, `url` and `bearer_env` from the instance, renaming with instance prefixes, overrides and `bind_space`, advertised and validation schemas, the load-time description scan, result mapping, the transport-level result limit, stamps, respawn, `kill_on_drop`, the SDK's `mounted` feature with built-in `Cx` defaults, and `hello-mcp` built by `umbel.yml` | `plugin_mounted.rs`, `mount_naming.rs` | L |
 | 6 | The todo plugin and the conformance job | `umbel-plugin-todo` and `umbel-todo` over the todo library, and `plugins/todo` added to the workspace members; `--backend umbel`, `--backend umbel-mounted` and `test:conformance:umbel` in the todo example; the `todo-http` fixture; the `conformance` job (suites, the stock binary's mounted run, scenarios, `afd validate --surface`) and the `plugin-isolation` job in `umbel.yml`; inventory and `architecture.json` rows for the new crates. **Changes nothing under `endpoints/umbel/src/`, `wit/` or `schemas/`**, which `plugin-isolation` checks | `plugins/todo/tests/todo.rs`; the `conformance` and `plugin-isolation` jobs | M |
 | 7 | `plugin new` and `plugin check` (done 2026-11-01) | Templates, `plugin-new`, `plugin-check` with its internal temporary host and `spawn=true`, the README's "Write a plugin" section | `plugin_scaffold.rs` | M |
-| 8 | Exit | `hello_three_ways.rs`; STATUS.md marks phase 1 done with the run's evidence; the exit criterion re-run on `main` | `hello_three_ways.rs` | S |
+| 8 | Exit (done 2026-11-01) | `hello_three_ways.rs`; STATUS.md marks phase 1 done with the run's evidence; the exit criterion re-run on `main` | `hello_three_ways.rs` | S |
 
 Order: 0a, then 0b. Step 1 needs only 0a merged (it writes no server code).
 Step 2a needs 1; 2b needs 2a. Step 3 needs 0b and 2a. Steps 4 and 5 need 2a
@@ -2180,4 +2187,4 @@ manifest's `PluginKind` is parsed crate-wide, and the writer of the one-plugin `
 | 2026-11-01 | WIT world 2.0.0 on WASI 0.3 once a wasmtime long-term line supports the async component model (about 60, around 2027-08), or the owner decides to leave the long-term line (watch row W17; restated 2026-11-01: the runtime, not `wasm32-wasip3`, is the constraint) | Owner of the phase that needs async components |
 | 2026-11-01 | MCP prompts in AFD servers, the step after step 0a's proposal, when a phase needs workflows as prompts | AFD |
 | 2026-11-01 | The `http` and `secrets` grants, each with its required per-instance `allow` list, and moving the instance's `bearer_env` under `secrets` | The first plugin that needs outbound calls; `secrets` by phase 5 |
-| 2026-11-01 | Remove the three `--suppress` rules from `tests/scripts/external-clients.sh`: give Umbel's built-in commands descriptions with an action verb and 20 characters, and reduce `event-list`'s schema complexity (`src/`, which step 6 may not change); the todo example's overlap and complexity warnings need a decision in the shared suite | The phase 1 exit step (8), or a later phase |
+| 2026-11-01 | Remove the three `--suppress` rules from `tests/scripts/external-clients.sh`: give Umbel's built-in commands descriptions with an action verb and 20 characters, and reduce `event-list`'s schema complexity (`src/`, which step 6 may not change); the todo example's overlap and complexity warnings need a decision in the shared suite | Not done in step 8 (it changes no `src/`); a later phase |
