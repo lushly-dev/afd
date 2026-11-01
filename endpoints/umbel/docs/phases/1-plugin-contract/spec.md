@@ -83,7 +83,7 @@
   manifest and configuration, as the step 1 row of the
   [plan](#14-implementation-plan) lists them. One amendment, in
   [Amendments from step 1](#amendments-from-step-1).
-- **Step 0b done 2026-11-01** ([#PR](https://github.com/lushly-dev/afd/pull/PR)):
+- **Step 0b done 2026-11-01** ([#608](https://github.com/lushly-dev/afd/pull/608)):
   MCP resources, the Skills extension, per-command tool `_meta` and
   `register_with_schemas` in `packages/rust`, and the Rust todo backend split
   into a library. Seven amendments, in

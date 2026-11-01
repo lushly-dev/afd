@@ -33,7 +33,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (2026-01-26). The digests in `spec/mcp-resources.json` were recomputed with Node's `crypto` from
   the file's own bytes.
 - **Done:** step 0 (`spec/`, merged as #588) and step 1, Rust (Umbel phase 1 step 0b,
-  [#PR](https://github.com/lushly-dev/afd/pull/PR)): `McpServer::with_resources`, `with_skills`,
+  [#608](https://github.com/lushly-dev/afd/pull/608)): `McpServer::with_resources`, `with_skills`,
   `SkillCatalog::with_directory_read`, `CommandDefinition::with_tool_meta` and
   `CommandRegistry::register_with_schemas` in `packages/rust`, with `tests/server_resources.rs`
   (every case of `spec/mcp-resources.json` over Streamable HTTP and stdio in both eras) and
@@ -47,7 +47,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Step | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 0. `spec/` | Done (#588) | New [`spec/mcp-resources.md`](../../../../spec/mcp-resources.md) and [`spec/mcp-resources.json`](../../../../spec/mcp-resources.json); amendments to `command-metadata.md`, `protocol-conformance.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merge |
-| 1. Rust | Done | [#PR](https://github.com/lushly-dev/afd/pull/PR): `packages/rust` `server` feature (`src/server/resources.rs`, `skills.rs`, `frontmatter.rs`), `src/meta_keys.rs`, `CommandRegistry::register_with_schemas`; `tests/server_resources.rs`, `tests/server_tool_meta.rs`; CHANGELOG, parity rows, `afd-rust` skill. Spec clarifications in the Umbel phase 1 specification's "Amendments from step 0b" | Umbel steps 3, 5 and 6 may now build on it |
+| 1. Rust | Done | [#608](https://github.com/lushly-dev/afd/pull/608): `packages/rust` `server` feature (`src/server/resources.rs`, `skills.rs`, `frontmatter.rs`), `src/meta_keys.rs`, `CommandRegistry::register_with_schemas`; `tests/server_resources.rs`, `tests/server_tool_meta.rs`; CHANGELOG, parity rows, `afd-rust` skill. Spec clarifications in the Umbel phase 1 specification's "Amendments from step 0b" | Umbel steps 3, 5 and 6 may now build on it |
 | 2. TypeScript | Not started | None | Step 0 merged. Loam phase 1 waits on it |
 | 3. Python | Not started | None | Step 0 merged |
 | 4. C++ | Not started | None | Step 0 and parity D2 ([#341](https://github.com/lushly-dev/afd/issues/341)) merged |
