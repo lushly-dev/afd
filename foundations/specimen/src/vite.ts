@@ -35,10 +35,18 @@ export interface BenchServer {
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
 }
-export async function startBenchServer(
-	config: LoadedConfig,
-	options: { automation?: boolean } = {}
-): Promise<BenchServer> {
+/** The bench page and its virtual entry, shared by the dev server and both builds. */
+export interface BenchSite {
+	root: string;
+	runtime: string;
+	plugin: Plugin;
+	build(
+		outDir: string
+	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
+	dispose(): Promise<void>;
+}
+
+export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite> {
 	const root = await realpath(await mkdtemp(join(tmpdir(), 'afd-specimen-')));
 	const runtime = await runtimePath();
 	await writeFile(join(root, 'index.html'), html);
@@ -52,6 +60,21 @@ export async function startBenchServer(
 			if (id === '\0specimen-entry') return entrySource(config, runtime);
 		},
 	};
+	return {
+		root,
+		runtime,
+		plugin,
+		build: (outDir) => buildStatic(root, runtime, plugin, outDir),
+		dispose: () => rm(root, { recursive: true, force: true }),
+	};
+}
+
+export async function startBenchServer(
+	config: LoadedConfig,
+	options: { automation?: boolean } = {}
+): Promise<BenchServer> {
+	const site = await prepareBenchSite(config);
+	const { root, runtime, plugin } = site;
 	const cachedDevMaps: Plugin = {
 		name: 'afd-specimen-cached-dev-maps',
 		apply: 'serve',
@@ -87,7 +110,8 @@ export async function startBenchServer(
 			// Captures must retain their document even if dependency discovery or a
 			// source edit requests a reload. Interactive benches retain live updates.
 			hmr: options.automation ? false : undefined,
-			fs: { allow: [root, config.root, dirname(runtime)] },
+			// The runtime's directory and its parent, which holds the lazily loaded normalizer.
+			fs: { allow: [root, config.root, dirname(dirname(runtime))] },
 		},
 	});
 	try {
@@ -112,75 +136,81 @@ export async function startBenchServer(
 				await rm(root, { recursive: true, force: true });
 			}
 		},
-		async build(outDir) {
-			const directory = resolve(outDir);
-			await mkdir(directory, { recursive: true });
-			if ((await readdir(directory)).length)
-				throw new Error('Build output directory must be empty');
-			const result = await build({
-				configFile: false,
-				root,
-				plugins: [plugin],
-				logLevel: 'silent',
-				mode: 'development',
-				build: {
-					outDir: directory,
-					emptyOutDir: false,
-					minify: true,
-					manifest: true,
-					rolldownOptions: {
-						input: { index: join(root, 'index.html'), specimen: join(root, 'specimen.html') },
-					},
-				},
-			});
-			if (Array.isArray(result) || !('output' in result))
-				throw new Error('Unexpected Vite build result');
-			const chunks = result.output.filter((output) => output.type === 'chunk');
-			const shell = new Set(
-				chunks
-					.filter(
-						(chunk) =>
-							chunk.isEntry ||
-							Object.keys(chunk.modules).some(
-								(id) => id === '\0specimen-entry' || id.startsWith(dirname(runtime))
-							)
-					)
-					.map((chunk) => chunk.fileName)
-			);
-			let added = true;
-			while (added) {
-				added = false;
-				for (const chunk of chunks)
-					if (shell.has(chunk.fileName))
-						for (const imported of chunk.imports)
-							if (!shell.has(imported)) {
-								shell.add(imported);
-								added = true;
-							}
-			}
-			const shellBytes = chunks
-				.filter((chunk) => shell.has(chunk.fileName))
-				.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0);
-			const files = result.output.map((output) => output.fileName);
-			const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
-			await writeFile(
-				join(directory, 'specimen-build.json'),
-				JSON.stringify(
-					{
-						...report,
-						chunks: chunks.map((chunk) => ({
-							file: chunk.fileName,
-							category: shell.has(chunk.fileName) ? 'shell' : 'consumer',
-							bytes: Buffer.byteLength(chunk.code),
-						})),
-					},
-					null,
-					2
-				)
-			);
-			if (shellBytes > SHELL_BUDGET)
-				throw new Error(`Bench shell exceeds budget: ${shellBytes} > ${SHELL_BUDGET} bytes`);
-			return report;
-		},
+		build: site.build,
 	};
+}
+
+async function buildStatic(
+	root: string,
+	runtime: string,
+	plugin: Plugin,
+	outDir: string
+): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
+	const directory = resolve(outDir);
+	await mkdir(directory, { recursive: true });
+	if ((await readdir(directory)).length) throw new Error('Build output directory must be empty');
+	const result = await build({
+		configFile: false,
+		root,
+		plugins: [plugin],
+		logLevel: 'silent',
+		mode: 'development',
+		build: {
+			outDir: directory,
+			emptyOutDir: false,
+			minify: true,
+			manifest: true,
+			rolldownOptions: {
+				input: { index: join(root, 'index.html'), specimen: join(root, 'specimen.html') },
+			},
+		},
+	});
+	if (Array.isArray(result) || !('output' in result))
+		throw new Error('Unexpected Vite build result');
+	const chunks = result.output.filter((output) => output.type === 'chunk');
+	const shell = new Set(
+		chunks
+			.filter(
+				(chunk) =>
+					chunk.isEntry ||
+					Object.keys(chunk.modules).some(
+						(id) => id === '\0specimen-entry' || id.startsWith(dirname(runtime))
+					)
+			)
+			.map((chunk) => chunk.fileName)
+	);
+	let added = true;
+	while (added) {
+		added = false;
+		for (const chunk of chunks)
+			if (shell.has(chunk.fileName))
+				for (const imported of chunk.imports)
+					if (!shell.has(imported)) {
+						shell.add(imported);
+						added = true;
+					}
+	}
+	const shellBytes = chunks
+		.filter((chunk) => shell.has(chunk.fileName))
+		.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0);
+	const files = result.output.map((output) => output.fileName);
+	const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
+	await writeFile(
+		join(directory, 'specimen-build.json'),
+		JSON.stringify(
+			{
+				...report,
+				chunks: chunks.map((chunk) => ({
+					file: chunk.fileName,
+					category: shell.has(chunk.fileName) ? 'shell' : 'consumer',
+					bytes: Buffer.byteLength(chunk.code),
+				})),
+			},
+			null,
+			2
+		)
+	);
+	if (shellBytes > SHELL_BUDGET)
+		throw new Error(`Bench shell exceeds budget: ${shellBytes} > ${SHELL_BUDGET} bytes`);
+	return report;
 }

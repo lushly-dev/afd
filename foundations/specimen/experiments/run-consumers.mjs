@@ -264,6 +264,10 @@ for (const descriptor of descriptors) {
 				'cold-process',
 				() =>
 					execFile(process.execPath, [
+						// Diagnostic CPU profiles of each cold process, when requested.
+						...(process.env.SPECIMEN_COLD_CPU_PROFILE_DIR
+							? ['--cpu-prof', '--cpu-prof-dir', process.env.SPECIMEN_COLD_CPU_PROFILE_DIR]
+							: []),
 						join(import.meta.dirname, 'cold-sample.mjs'),
 						apiPath,
 						root,

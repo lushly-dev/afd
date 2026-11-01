@@ -1,5 +1,5 @@
 /** Public feasibility contracts; compatibility/plugins are later workstreams. */
-export const CAPTURE_VERSION = '0.1' as const;
+export const CAPTURE_VERSION = '0.2' as const;
 export const NORMALIZATION_VERSION = '0.1' as const;
 
 export interface SpecimenContext {
@@ -143,6 +143,10 @@ export interface BrowserRuntime {
 		context: SpecimenContext
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
 	capture(): BrowserObservation;
+	/** Elements under the mount root matching a selector target, across open shadow roots. */
+	locate(selector: string): Element[];
+	/** `normalizeDom` run in the page, so the caller's process does not parse captures. */
+	normalize(html: string): Promise<string>;
 	dispose(): Promise<void>;
 }
 declare global {

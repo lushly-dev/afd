@@ -26,7 +26,8 @@
 		"clean": "rimraf dist *.tsbuildinfo",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run --config vitest.unit.config.ts",
-		"test:browser": "vitest run && vitest run --config vitest.reference.config.ts"
+		"build:host": "cd host && cargo build --release --locked",
+		"test:browser": "pnpm run build:host && vitest run && vitest run --config vitest.reference.config.ts"
 	},
 	"engines": {
 		"node": ">=22.12.0"

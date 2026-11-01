@@ -16,6 +16,7 @@ import { gitEnvironment, prepareConsumerProject, readGitState } from './consumer
 import fastAf from './fast-af.fixture.mjs';
 import { startFontServer } from './inputs/remote-fonts.mjs';
 import lushly from './lushly.fixture.mjs';
+import { attributeJobDirectory } from './resources/attribution.mjs';
 import { compare } from './resources/comparison.mjs';
 import { probeBand } from './resources/pairs.mjs';
 import { quietPolicy, waitForQuiet } from './resources/quiet.mjs';
@@ -75,6 +76,14 @@ const study = {
 	afd: { revision: git('rev-parse', 'HEAD'), status: git('status', '--porcelain=v1') },
 	driverSha256: sha256File(import.meta.filename),
 	dist: directoryDigest(join(afd, 'foundations/specimen/dist')),
+	// The native host the candidate renders with: SPECIMEN_HOST_BINARY or the package's build.
+	nativeHost: (() => {
+		const path = resolve(
+			process.env.SPECIMEN_HOST_BINARY ??
+				join(afd, 'foundations/specimen/host/target/release/specimen-host')
+		);
+		return { path, sha256: existsSync(path) ? sha256File(path) : null };
+	})(),
 	samples: Number(samples),
 	policy: { hostCondition: policy.hostCondition, tolerances: policy.tolerances },
 	consumers: {},
@@ -188,7 +197,9 @@ const readJson = (file) => {
 };
 // Nested ABBA: the incumbent outside, the candidate's in-process default and its opt-in
 // isolated worker inside, so both candidate modes sit between the same incumbent jobs.
-const paths = [
+// `--paths candidate,candidate-isolated` runs an ABBA of only those paths: optimization
+// rounds measure the candidate alone and compare with a paired session's incumbent.
+const allPaths = [
 	'incumbent',
 	'candidate',
 	'candidate-isolated',
@@ -196,6 +207,10 @@ const paths = [
 	'candidate',
 	'incumbent',
 ];
+const selectedPaths = option('--paths')?.split(',');
+const paths = selectedPaths ? [...selectedPaths, ...[...selectedPaths].reverse()] : allPaths;
+if (paths.some((path) => !allPaths.includes(path)))
+	throw new Error('--paths takes incumbent, candidate and candidate-isolated');
 const plan = consumers.flatMap((consumer) => paths.map((path) => ({ consumer, path })));
 const settlePolicy = quietPolicy({ windowSeconds: 20, intervalSeconds: 10 });
 for (const [index, job] of plan.entries()) {
@@ -246,6 +261,10 @@ for (const [index, job] of plan.entries()) {
 						SPECIMEN_PREPARED_ROOT: prepared,
 						SPECIMEN_BENCH_EXECUTABLE: details.browser.executable,
 						SPECIMEN_COLD_PROCESS: '1',
+						// Diagnostic only: step traces add CDP calls, so verdict sessions leave them off.
+						...(args.includes('--trace')
+							? { SPECIMEN_BENCH_TRACE: join(directory, 'trace.jsonl') }
+							: {}),
 					}),
 		};
 		const run = await runJob(
@@ -309,6 +328,7 @@ for (const [index, job] of plan.entries()) {
 			// Candidate captures record the browser they ran on; process names show both sides'.
 			browserVersions: captureBrowsers(join(directory, job.consumer, 'probe', job.consumer)),
 			browserProcesses: browserProcesses(join(directory, job.consumer, 'processes.jsonl')),
+			attribution: attributeJobDirectory(directory, job.consumer),
 			fonts: {
 				stylesheets: fontsAfter.stylesheets - fontsBefore.stylesheets,
 				files: fontsAfter.fonts - fontsBefore.fonts,

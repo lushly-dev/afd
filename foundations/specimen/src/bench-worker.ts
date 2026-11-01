@@ -35,8 +35,7 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 		if (closing || !process.connected) throw new Error('Specimen worker owner disconnected');
 		bench = await createInProcessBench(
 			{ root: message.config.root, executablePath: message.executablePath },
-			message.config,
-			{ ownedProcess: true }
+			message.config
 		);
 		return null;
 	}

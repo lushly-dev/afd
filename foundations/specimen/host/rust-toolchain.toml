@@ -1,0 +1,6 @@
+# The repository's pinned toolchain (packages/rust/rust-toolchain.toml); the host's minimum,
+# `rust-version`, is 1.97, which its Rolldown dependency requires.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

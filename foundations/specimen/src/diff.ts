@@ -1,4 +1,5 @@
-import { normalizeDom, normalizeElements } from './normalize.js';
+import { normalizeDom } from './normalize.js';
+import { normalizeElements } from './normalize-ids.js';
 import {
 	CAPTURE_VERSION,
 	type ChannelDifference,
@@ -169,6 +170,28 @@ function compareElements(
 	}
 }
 
+// Comparison derives normalized DOM from raw DOM every time, never from a capture's stored
+// value. Normalization is a pure function of raw, so recent results are reused: comparing one
+// baseline against many captures parses it once, and repeated comparison does not drive the
+// parser into the optimizing compilers.
+const NORMALIZED_LIMIT = 32;
+const normalizedCache = new Map<string, string>();
+function normalizedDom(raw: string): string {
+	const cached = normalizedCache.get(raw);
+	if (cached !== undefined) {
+		normalizedCache.delete(raw);
+		normalizedCache.set(raw, cached);
+		return cached;
+	}
+	const normalized = normalizeDom(raw);
+	normalizedCache.set(raw, normalized);
+	if (normalizedCache.size > NORMALIZED_LIMIT) {
+		const oldest = normalizedCache.keys().next().value;
+		if (oldest !== undefined) normalizedCache.delete(oldest);
+	}
+	return normalized;
+}
+
 /**
  * Compare the default structured scope. Token/event capture is not part of this
  * feasibility comparator; missing structural evidence can never mean unchanged.
@@ -181,8 +204,8 @@ export function diffObservations(
 ): ObservationDiff {
 	validateCompatibility(left, right, options);
 	const differences: ChannelDifference[] = [];
-	const leftDom = normalizeDom(left.channels.dom.raw);
-	const rightDom = normalizeDom(right.channels.dom.raw);
+	const leftDom = normalizedDom(left.channels.dom.raw);
+	const rightDom = normalizedDom(right.channels.dom.raw);
 	if (leftDom !== rightDom) differences.push({ channel: 'dom', left: leftDom, right: rightDom });
 	if (left.channels.a11y.snapshot !== right.channels.a11y.snapshot) {
 		differences.push({

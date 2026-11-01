@@ -14,7 +14,7 @@ This plan describes the next implementation work. The status ledger owns current
 
 | Unit | Responsibility | Implemented boundary |
 | --- | --- | --- |
-| [`@lushly-dev/specimen`](../../../../foundations/specimen/README.md), `foundations/specimen` | Native metadata/config, bench lifecycle, observations, diff/normalization, Vite/static tooling and schemas | No AFD, FAST-AF or Violet package dependency or peer; lazy in-process runtime by default, opt-in owned worker |
+| [`@lushly-dev/specimen`](../../../../foundations/specimen/README.md), `foundations/specimen` | Native metadata/config, bench lifecycle, observations, diff/normalization, the native host (`host/`, Rust: Rolldown bundling, in-memory serving, Chromium over CDP), Vite static tooling and schemas | No AFD, FAST-AF or Violet package dependency or peer; rendering runs in the native host, outside the caller's process; opt-in owned worker |
 | [`@lushly-dev/specimen-afd`](../../../../integrations/specimen-afd/README.md), `integrations/specimen-afd` | AFD definitions and validated `CommandResult` adapters over the native operations | list/render/diff/build; composable into an MCP host; not an application-command scenario runner |
 | [`@lushly-dev/specimen-cli`](../../../../endpoints/specimen-cli/README.md), `endpoints/specimen-cli` | The `specimen` JSON binary and embedding API | Same four commands through the integration; stdout envelope and exit status contract |
 
@@ -26,12 +26,13 @@ flowchart LR
     CLI[JSON CLI endpoint] --> Bindings[Optional AFD command bindings]
     MCP[MCP host composition] --> Bindings
     Bindings --> Core
-    Core --> Browser[Fresh Chromium context per render]
+    Core --> Host[Native host: bundle, serve, CDP]
+    Host --> Browser[Fresh Chromium context per render]
     Core --> Static[Static index and lazy case chunks]
     Core --> Worker[Opt-in owned runtime worker]
 ```
 
-The worker is an execution choice for the same lifecycle, not a second observation contract. Metadata/listing do not initialize Vite/Playwright. Close drains accepted operations and releases the chosen backend; a closed in-process bench does not unload Node's imported runtime modules.
+The worker is an execution choice for the same lifecycle, not a second observation contract. Metadata/listing do not start the host. Rendering loads neither Vite nor Playwright into the caller's process; `build()` loads Vite. Close drains accepted operations, ends the host and its browser and releases the chosen backend; a closed in-process bench does not unload Node's imported modules.
 
 | Surface | Available now | Remaining proposal behavior |
 | --- | --- | --- |
@@ -53,7 +54,7 @@ T02 [found host contention the best-supported explanation for the CPU increase](
 
 T03 [compared what each driver gives a specimen](driver-context-validation.md). The bench, the static preview and a reference driver in Vitest browser mode agree on viewport, `innerWidth`, width queries, units, container and theme in three contexts. The static preview cannot emulate media preferences or `navigator.language`; it labels them, and so does every capture taken there. Isolation and failure ownership are tested per driver. Genuine `TrustedHTML` is now readable, so FAST-AF and Lushly pilot captures report complete DOM. The remaining provenance fields are defined, and the owner chose the font and browser condition T04 applies.
 
-T04 [measured the representative incumbent and every budget](resource-budget-validation.md). On one quiet host, both runners used the incumbent's headless Chromium and the same recorded fonts. Specimen used 63–74% less peak memory and passed the per-sample latency guardrails. It used less CPU per verified case for Lushly (when every render counts as a case) but more for FAST-AF, where each candidate cold sample starts a process for one case. In both modes it kept more memory after close. Every build budget passes, with prototypes for the helper and axe categories. The predeclared tolerances do not pass as declared. The proposal's stop-or-revise decision is the owner's, and T05 waits for it.
+T04 [measured the representative incumbent and every budget](resource-budget-validation.md). On one quiet host, both runners used the incumbent's headless Chromium and the same recorded fonts. Specimen used 63–74% less peak memory and passed the per-sample latency guardrails. It used less CPU per verified case for Lushly (when every render counts as a case) but more for FAST-AF, where each candidate cold sample starts a process for one case. In both modes it kept more memory after close. Every build budget passes, with prototypes for the helper and axe categories. The predeclared tolerances do not pass as declared. The owner chose to revise the architecture and remeasure under the unchanged criteria (option 1). With rendering in a native Rust host, a new paired [verdict session](t04-optimization.md#verdict-session) passes every criterion for both consumers, so T04's gate passes as declared, and T05 is next.
 
 The last native code change (#517) passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
 
