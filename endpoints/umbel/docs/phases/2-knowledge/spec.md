@@ -76,7 +76,7 @@
   (nine schemas with examples, configuration version 3, manifest version 2
   parsing, envelope and event version 1); see [Amendments from step
   1](#amendments-from-step-1). **Step 2, store traits and the SQLite stores**,
-  2026-11-01, in PR_STEP2: `umbel-store` (the types, the three traits, the
+  2026-11-01, in [636](https://github.com/lushly-dev/afd/pull/636): `umbel-store` (the types, the three traits, the
   conformance suite with its access fixture, a deliberately breakable
   in-memory fake and `suite_detects.rs`) and `umbel-store-embedded`
   (documents, records, the change log and the graph on bundled SQLite in WAL
@@ -2074,7 +2074,7 @@ Everything else is built as written.
 
 ## Amendments from step 2
 
-Step 2 (PR_STEP2) read this specification against rusqlite 0.41 and SQLite and made these
+Step 2 ([636](https://github.com/lushly-dev/afd/pull/636)) read this specification against rusqlite 0.41 and SQLite and made these
 smallest-correct changes. Everything else is built as written; the conformance suite's groups
 `documents`, `records`, `changes`, `envelope`, `access`, `graph`, `concurrency` and `durability`
 run against the SQLite backend, and the index cases wait for step 3.
