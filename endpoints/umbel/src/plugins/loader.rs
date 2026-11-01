@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use afd::{
     ApprovalPolicy, CommandContext, CommandDefinition, CommandExample, CommandHandler,
-    CommandRegistry, CommandResult, ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType,
-    is_afd_builtin_name,
+    CommandRegistry, CommandResult, ContextConfig, ExecutionTime, ExposeOptions, JsonSchema,
+    JsonSchemaType, is_afd_builtin_name,
 };
 use async_trait::async_trait;
 use serde_json::Value;
@@ -23,7 +23,9 @@ use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
-use super::manifest::{CommandDecl, Manifest, PluginKind};
+use super::manifest::{CommandDecl, Effect, Manifest, PluginKind};
+use super::packs::{PackSet, PackState};
+use super::pipelines::{self, Known, PipelinePlan, PipelineState};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
 use super::{GRANTS, HOST_DOMAINS, PluginError, RESERVED_GRANTS};
 use crate::events::Projector;
@@ -65,6 +67,12 @@ pub(crate) struct InstanceReport {
     pub grants: Vec<GrantReport>,
     /// The commands registered, in manifest order.
     pub commands: Vec<String>,
+    /// Each pack with how every one of the instance's spaces is served (D46).
+    pub packs: Vec<(String, Vec<PackState>)>,
+    /// The AFD contexts the instance contributed.
+    pub contexts: Vec<String>,
+    /// Each pipeline and whether it was registered (section 8.5).
+    pub pipelines: Vec<PipelinePlan>,
     pub status: Status,
 }
 
@@ -85,6 +93,9 @@ pub(crate) struct GateEntry {
     /// from this knowledge, not from the schema alone (a mounted tool's own `space` argument is
     /// not Umbel's).
     pub space_command: bool,
+    /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
+    /// they are, so the pipeline itself is not projected as a second event.
+    pub pipeline: bool,
 }
 
 /// Every instance of the workspace and the plugin commands the host registered.
@@ -92,6 +103,11 @@ pub(crate) struct GateEntry {
 pub(crate) struct LoadedPlugins {
     pub instances: Vec<InstanceReport>,
     pub gate: BTreeMap<String, GateEntry>,
+    /// The AFD contexts the loaded instances contribute, in instance order (section 8.5).
+    pub contexts: Vec<ContextConfig>,
+    /// The commands whose manifest says `first_class = true` and that MCP exposes, in instance
+    /// order and manifest order (section 8.4, D45).
+    pub suggestions: Vec<String>,
 }
 
 impl LoadedPlugins {
@@ -149,7 +165,7 @@ pub(crate) fn embedded_id(text: &str) -> Result<String, PluginError> {
 pub(crate) struct Inputs<'a> {
     pub workspace: &'a Arc<Workspace>,
     pub projector: &'a Arc<Projector>,
-    pub registry: &'a CommandRegistry,
+    pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
 }
 
@@ -161,79 +177,234 @@ struct Resolved {
     source: String,
 }
 
-/// An instance past step 7, ready to register.
+/// An instance past step 7, ready to register once its pipelines are decided.
 struct Prepared {
     report: InstanceReport,
+    manifest: Manifest,
     commands: Vec<(CommandDefinition, Value)>,
     gate: Vec<(String, GateEntry)>,
+    /// The input schema of each manifest pipeline, in manifest order.
+    pipeline_schemas: Vec<Value>,
+    contexts: Vec<ContextConfig>,
+    suggestions: Vec<String>,
+    spaces: Vec<String>,
+}
+
+/// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
+enum Slot {
+    Failed(InstanceReport),
+    Ready(Box<Prepared>),
 }
 
 /// Load every instance of `plugins.enabled` and register its commands.
 ///
+/// Every instance is prepared first, then the pipelines are decided against every command that
+/// will exist (section 8.5), and only then is anything registered.
+///
 /// # Errors
 /// The error of the first required instance that fails; nothing of it is registered.
 pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
-    let mut loaded = LoadedPlugins::default();
     let mut taken: BTreeMap<String, String> = inputs
         .registry
         .list()
         .iter()
         .map(|command| (command.name.clone(), "the host".to_owned()))
         .collect();
+    let mut contexts_taken: BTreeMap<String, String> = BTreeMap::new();
+    let mut slots: Vec<Slot> = Vec::new();
     for instance in &inputs.workspace.config().plugins.instances {
         let resolved = match resolve(inputs, instance) {
             Ok(resolved) => resolved,
             Err((error, http_mount)) => {
                 let required = instance.required.unwrap_or(!http_mount);
-                fail(&mut loaded, instance, required, None, error)?;
+                slots.push(fail(instance, required, None, error)?);
                 continue;
             }
         };
         let required = instance
             .required
             .unwrap_or(!resolved.manifest.is_http_mount());
-        match prepare(inputs, instance, &resolved, required, &taken) {
+        match prepare(inputs, instance, &resolved, required, &taken, &contexts_taken) {
             Ok(prepared) => {
-                for (definition, schema) in prepared.commands {
-                    let name = definition.name.clone();
-                    inputs
-                        .registry
-                        .register_with_schema(definition, schema)
-                        .map_err(|message| {
-                            PluginError::load_failed(
-                                &instance.id,
-                                format!("cannot register `{name}`: {message}"),
-                            )
-                        })?;
-                    taken.insert(name, format!("plugin instance `{}`", instance.id));
+                let owner = format!("plugin instance `{}`", instance.id);
+                for (definition, _) in &prepared.commands {
+                    taken.insert(definition.name.clone(), owner.clone());
                 }
-                loaded.gate.extend(prepared.gate);
-                loaded.instances.push(prepared.report);
+                for pipeline in &prepared.manifest.pipelines {
+                    taken.insert(pipeline.name.clone(), owner.clone());
+                }
+                for context in &prepared.contexts {
+                    contexts_taken.insert(context.name.clone(), owner.clone());
+                }
+                slots.push(Slot::Ready(Box::new(prepared)));
             }
-            Err(error) => fail(
-                &mut loaded,
-                instance,
-                required,
-                Some(resolved.manifest),
-                error,
-            )?,
+            Err(error) => slots.push(fail(instance, required, Some(resolved.manifest), error)?),
         }
+    }
+    settle_pipelines(inputs, &mut slots)?;
+
+    let mut loaded = LoadedPlugins::default();
+    let weak = Arc::downgrade(inputs.registry);
+    for slot in slots {
+        let mut prepared = match slot {
+            Slot::Failed(report) => {
+                loaded.instances.push(report);
+                continue;
+            }
+            Slot::Ready(prepared) => *prepared,
+        };
+        let id = prepared.report.id.clone();
+        let register = |definition: CommandDefinition, schema: Value| {
+            let name = definition.name.clone();
+            inputs
+                .registry
+                .register_with_schema(definition, schema)
+                .map_err(|message| {
+                    PluginError::load_failed(&id, format!("cannot register `{name}`: {message}"))
+                })
+        };
+        for (definition, schema) in std::mem::take(&mut prepared.commands) {
+            register(definition, schema)?;
+        }
+        let kind = prepared.manifest.plugin.kind;
+        for ((decl, plan), schema) in prepared
+            .manifest
+            .pipelines
+            .iter()
+            .zip(&prepared.report.pipelines)
+            .zip(&prepared.pipeline_schemas)
+        {
+            if plan.state != PipelineState::Registered {
+                continue;
+            }
+            register(
+                pipelines::definition(decl, plan, weak.clone()),
+                schema.clone(),
+            )?;
+            prepared.gate.push((
+                decl.name.clone(),
+                gate_entry(&id, kind, &prepared.spaces, schema, true),
+            ));
+        }
+        loaded.gate.extend(prepared.gate);
+        loaded.contexts.extend(prepared.contexts);
+        loaded.suggestions.extend(prepared.suggestions);
+        loaded.instances.push(prepared.report);
     }
     Ok(loaded)
 }
 
+fn gate_entry(
+    instance: &str,
+    kind: PluginKind,
+    spaces: &[String],
+    schema: &Value,
+    pipeline: bool,
+) -> GateEntry {
+    GateEntry {
+        instance: instance.to_owned(),
+        kind,
+        spaces: spaces.to_vec(),
+        space_command: has_space_property(schema),
+        pipeline,
+    }
+}
+
+/// Decide every pipeline against the commands that will exist (section 8.5). A pipeline whose
+/// effects do not cover its steps' fails its instance; when that instance is optional it is
+/// dropped and the rest are decided again, because the commands it held no longer exist.
+fn settle_pipelines(inputs: &Inputs<'_>, slots: &mut [Slot]) -> Result<(), PluginError> {
+    'again: loop {
+        let known = known_commands(inputs, slots);
+        for index in 0..slots.len() {
+            let Slot::Ready(prepared) = &slots[index] else {
+                continue;
+            };
+            match pipelines::plan(&prepared.manifest, &known) {
+                Ok(plans) => {
+                    if let Slot::Ready(prepared) = &mut slots[index] {
+                        prepared.report.pipelines = plans;
+                    }
+                }
+                Err(error) => {
+                    if prepared.report.required {
+                        return Err(error);
+                    }
+                    let report = failed_report(&prepared.report, prepared.manifest.clone(), error);
+                    slots[index] = Slot::Failed(report);
+                    continue 'again;
+                }
+            }
+        }
+        return Ok(());
+    }
+}
+
+/// Every command a pipeline step may name: the host's, and every prepared instance's.
+fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known> {
+    let mut known: BTreeMap<String, Known> = inputs
+        .registry
+        .list()
+        .iter()
+        .map(|command| {
+            (
+                command.name.clone(),
+                Known {
+                    effects: (!command.mutation).then(|| vec![Effect::Inspect]),
+                    confirm_prompt: command.confirm_prompt.clone(),
+                    destructive: command.destructive.unwrap_or(false),
+                    pipeline: false,
+                },
+            )
+        })
+        .collect();
+    for slot in slots {
+        let Slot::Ready(prepared) = slot else {
+            continue;
+        };
+        for (definition, _) in &prepared.commands {
+            let effects = prepared
+                .manifest
+                .commands
+                .iter()
+                .find(|command| command.name == definition.name)
+                .map(|command| command.effects.clone());
+            known.insert(
+                definition.name.clone(),
+                Known {
+                    effects,
+                    confirm_prompt: definition.confirm_prompt.clone(),
+                    destructive: definition.destructive.unwrap_or(false),
+                    pipeline: false,
+                },
+            );
+        }
+        for pipeline in &prepared.manifest.pipelines {
+            known.insert(
+                pipeline.name.clone(),
+                Known {
+                    effects: Some(pipeline.effects.clone()),
+                    confirm_prompt: None,
+                    destructive: false,
+                    pipeline: true,
+                },
+            );
+        }
+    }
+    known
+}
+
 /// A required instance's failure stops the host; an optional one is recorded and skipped.
 fn fail(
-    loaded: &mut LoadedPlugins,
     instance: &PluginInstance,
     required: bool,
     manifest: Option<Manifest>,
     error: PluginError,
-) -> Result<(), PluginError> {
+) -> Result<Slot, PluginError> {
     if required {
         return Err(error);
     }
-    loaded.instances.push(InstanceReport {
+    Ok(Slot::Failed(InstanceReport {
         id: instance.id.clone(),
         required,
         source: instance
@@ -244,9 +415,28 @@ fn fail(
         manifest,
         grants: Vec::new(),
         commands: Vec::new(),
+        packs: Vec::new(),
+        contexts: Vec::new(),
+        pipelines: Vec::new(),
         status: Status::Failed(error),
-    });
-    Ok(())
+    }))
+}
+
+/// The report of an instance that was prepared and then failed.
+fn failed_report(prepared: &InstanceReport, manifest: Manifest, error: PluginError) -> InstanceReport {
+    InstanceReport {
+        id: prepared.id.clone(),
+        required: prepared.required,
+        source: prepared.source.clone(),
+        spaces: Vec::new(),
+        manifest: Some(manifest),
+        grants: Vec::new(),
+        commands: Vec::new(),
+        packs: Vec::new(),
+        contexts: Vec::new(),
+        pipelines: Vec::new(),
+        status: Status::Failed(error),
+    }
 }
 
 /// Steps 1 and 2: resolve the source, read and validate the manifest and the instance's keys
@@ -339,6 +529,7 @@ fn prepare(
     resolved: &Resolved,
     required: bool,
     taken: &BTreeMap<String, String>,
+    contexts_taken: &BTreeMap<String, String>,
 ) -> Result<Prepared, PluginError> {
     let manifest = &resolved.manifest;
     let workspace = inputs.workspace;
@@ -390,6 +581,38 @@ fn prepare(
         }
         schemas.push(schema);
     }
+    let mut pipeline_schemas: Vec<Value> = Vec::new();
+    for (index, pipeline) in manifest.pipelines.iter().enumerate() {
+        let schema = pipeline.input_schema.load(files).map_err(|problem| {
+            PluginError::manifest_invalid(
+                &manifest.file,
+                &format!("pipelines[{index}].input_schema"),
+                problem,
+            )
+        })?;
+        if !has_space_property(&schema) && !spaces.contains(workspace.default_space()) {
+            return Err(PluginError::config_invalid(
+                &instance.id,
+                "spaces",
+                format!(
+                    "must include the default space `{}`: the pipeline `{}` has no space input",
+                    workspace.default_space(),
+                    pipeline.name
+                ),
+            ));
+        }
+        pipeline_schemas.push(schema);
+    }
+
+    // 5b. The packs: the plugin's defaults and the spaces' overrides, read now (D46).
+    let packs = PackSet::load(
+        &workspace.layout().spaces_dir(),
+        &manifest.plugin.id,
+        &manifest.packs,
+        &resolved.files,
+        &spaces,
+    )?;
+    let pack_states = packs.states();
 
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let services = Services::new(Shared {
@@ -397,8 +620,7 @@ fn prepare(
         granted,
         config: configuration,
         spaces: spaces.clone(),
-        packs: manifest.packs.clone(),
-        files: Arc::clone(&resolved.files),
+        packs,
         workspace: Arc::clone(workspace),
         projector: Arc::clone(inputs.projector),
     });
@@ -411,40 +633,75 @@ fn prepare(
     for command in &manifest.commands {
         check_name(&command.name, &instance.id, taken)?;
     }
+    for pipeline in &manifest.pipelines {
+        check_name(&pipeline.name, &instance.id, taken)?;
+    }
+    for context in &manifest.contexts {
+        if let Some(owner) = contexts_taken.get(&context.name) {
+            return Err(PluginError::conflict(format!(
+                "plugin instance `{}` declares the context `{}`, but it is already taken by {owner}",
+                instance.id, context.name
+            )));
+        }
+    }
 
     // 8 (prepared). The definitions; registration itself is the caller's.
     let definitions = definitions(manifest, &schemas, returns, implementations)?;
-    let mut gate = Vec::new();
-    for (command, schema) in manifest.commands.iter().zip(&schemas) {
-        gate.push((
-            command.name.clone(),
-            GateEntry {
-                instance: instance.id.clone(),
-                kind: manifest.plugin.kind,
-                spaces: spaces
-                    .iter()
-                    .map(|space| space.as_str().to_owned())
-                    .collect(),
-                space_command: has_space_property(schema),
-            },
-        ));
-    }
+    let space_names: Vec<String> = spaces
+        .iter()
+        .map(|space| space.as_str().to_owned())
+        .collect();
+    let gate = manifest
+        .commands
+        .iter()
+        .zip(&schemas)
+        .map(|(command, schema)| {
+            (
+                command.name.clone(),
+                gate_entry(&instance.id, manifest.plugin.kind, &space_names, schema, false),
+            )
+        })
+        .collect();
+    let contexts = manifest
+        .contexts
+        .iter()
+        .map(|context| {
+            let mut config = ContextConfig::new(&context.name)
+                .with_description(&context.description)
+                .with_priority(context.priority);
+            if !context.triggers.is_empty() {
+                config = config.with_triggers(context.triggers.clone());
+            }
+            config
+        })
+        .collect();
+    let suggestions = manifest
+        .commands
+        .iter()
+        .filter(|command| command.first_class && command.expose.mcp)
+        .map(|command| command.name.clone())
+        .collect();
     Ok(Prepared {
         report: InstanceReport {
             id: instance.id.clone(),
             required,
             source: resolved.source.clone(),
-            spaces: spaces
-                .iter()
-                .map(|space| space.as_str().to_owned())
-                .collect(),
+            spaces: space_names.clone(),
             manifest: Some(manifest.clone()),
             grants,
             commands: manifest.commands.iter().map(|c| c.name.clone()).collect(),
+            packs: pack_states,
+            contexts: manifest.contexts.iter().map(|c| c.name.clone()).collect(),
+            pipelines: Vec::new(),
             status: Status::Loaded,
         },
+        manifest: manifest.clone(),
         commands: definitions,
         gate,
+        pipeline_schemas,
+        contexts,
+        suggestions,
+        spaces: space_names,
     })
 }
 

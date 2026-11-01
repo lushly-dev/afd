@@ -17,8 +17,8 @@ use afd::CommandContext;
 use serde_json::Value;
 use umbel_sdk::{HostError as ServiceError, HostServices, Level};
 
-use super::files::{PluginFiles, lexical_problem};
-use super::manifest::PackDecl;
+use super::files::lexical_problem;
+use super::packs::{PackCopy, PackSet};
 use crate::events::Projector;
 use crate::workspace::{SpaceId, Workspace};
 
@@ -47,8 +47,8 @@ pub(crate) struct Shared {
     pub(crate) config: Value,
     /// The spaces the instance is enabled for.
     pub(crate) spaces: Vec<SpaceId>,
-    pub(crate) packs: Vec<PackDecl>,
-    pub(crate) files: Arc<dyn PluginFiles + Send + Sync>,
+    /// The plugin's packs with each space's override (D46).
+    pub(crate) packs: PackSet,
     pub(crate) workspace: Arc<Workspace>,
     pub(crate) projector: Arc<Projector>,
 }
@@ -147,22 +147,15 @@ impl CallServices {
         require(&self.shared, grant)
     }
 
-    fn pack(&self, id: &str) -> Result<&PackDecl, ServiceError> {
-        self.shared
-            .packs
-            .iter()
-            .find(|pack| pack.id == id)
-            .ok_or_else(|| {
-                ServiceError::NotFound(format!(
-                    "the plugin declares no pack `{id}`; its packs are: {}",
-                    self.shared
-                        .packs
-                        .iter()
-                        .map(|pack| pack.id.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ))
-            })
+    /// The call's space's effective copy of the pack `id`: the space's override, else the
+    /// plugin's default.
+    fn pack(&self, id: &str) -> Result<&PackCopy, ServiceError> {
+        self.shared.packs.effective(id, &self.space).ok_or_else(|| {
+            ServiceError::NotFound(format!(
+                "the plugin declares no pack `{id}`; its packs are: {}",
+                self.shared.packs.ids().collect::<Vec<_>>().join(", ")
+            ))
+        })
     }
 }
 
@@ -200,23 +193,18 @@ impl HostServices for CallServices {
 
     fn pack_list(&self, pack: &str) -> Result<Vec<String>, ServiceError> {
         self.require("packs")?;
-        let decl = self.pack(pack)?;
-        self.shared
-            .files
-            .list(&decl.path)
-            .map_err(ServiceError::NotFound)
+        self.pack(pack)?.list().map_err(ServiceError::NotFound)
     }
 
     fn pack_read(&self, pack: &str, path: &str) -> Result<Vec<u8>, ServiceError> {
         self.require("packs")?;
-        let decl = self.pack(pack)?;
+        let copy = self.pack(pack)?;
         if let Some(problem) = lexical_problem(path) {
             return Err(ServiceError::Invalid(format!(
                 "the path `{path}` {problem}: it must stay inside the pack"
             )));
         }
-        let full = format!("{}/{path}", decl.path.trim_end_matches('/'));
-        let size = self.shared.files.len(&full).map_err(|_| {
+        let size = copy.len(path).map_err(|_| {
             ServiceError::NotFound(format!("the pack `{pack}` has no file `{path}`"))
         })?;
         let total = self.pack_bytes.fetch_add(size, Ordering::Relaxed) + size;
@@ -225,10 +213,7 @@ impl HostServices for CallServices {
                 "a call may read at most {MAX_PACK_READ_BYTES} bytes of pack files"
             )));
         }
-        self.shared
-            .files
-            .read(&full)
-            .map_err(ServiceError::NotFound)
+        copy.read(path).map_err(ServiceError::NotFound)
     }
 
     fn events(

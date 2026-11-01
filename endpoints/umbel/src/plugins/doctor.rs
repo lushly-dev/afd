@@ -16,10 +16,13 @@ use super::files::DirFiles;
 use super::loader::{LoadedPlugins, Status, TRUST_NOTE};
 use super::manifest::{Bearer, Manifest, PluginKind, Transport};
 use super::packs::check_pack;
+use super::pipelines::PipelineState;
 use super::skills::check_skill;
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
 use super::{GRANTS, RESERVED_GRANTS};
 use crate::doctor::{Check, NEEDS_CONFIG};
+use crate::surfaces::FirstClassPlan;
+use afd::server::MAX_FIRST_CLASS_TOOLS;
 use crate::workspace::{ConfigFile, PluginInstance, SpaceId};
 
 const NEEDS_PLUGIN_CONFIG: &str = "Needs a valid plugin configuration; plugins.config failed.";
@@ -131,6 +134,69 @@ pub(crate) fn loaded_check(loaded: &LoadedPlugins) -> Check {
             "Fix the failing optional instance, or run umbel plugin show plugin=<id>.",
         )
     }
+}
+
+/// `plugins.first_class` on a sealed host (section 9.2): the plugins' suggestions fit the cap.
+pub(crate) fn first_class_check(plan: &FirstClassPlan) -> Check {
+    if plan.explicit {
+        let message = if plan.suggested.is_empty() {
+            "mcp.first_class_tools is set; no plugin suggests a first-class tool".to_owned()
+        } else {
+            format!(
+                "mcp.first_class_tools is set and wins; the plugins' suggestions ({}) are not used",
+                plan.suggested.join(", ")
+            )
+        };
+        return Check::pass("plugins.first_class", message);
+    }
+    if plan.dropped.is_empty() {
+        return Check::pass(
+            "plugins.first_class",
+            format!(
+                "{} plugin suggestion(s) fit the first-class set ({})",
+                plan.suggested.len(),
+                plan.tools.join(", ")
+            ),
+        );
+    }
+    Check::warn(
+        "plugins.first_class",
+        format!(
+            "the cap of {} first-class tools dropped {} suggestion(s): {}",
+            MAX_FIRST_CLASS_TOOLS,
+            plan.dropped.len(),
+            plan.dropped.join(", ")
+        ),
+        "Set mcp.first_class_tools to choose the set, or ask the plugin to suggest fewer.",
+    )
+}
+
+/// `plugins.pipelines` on a sealed host (section 9.2): every pipeline is registered.
+pub(crate) fn pipelines_check(loaded: &LoadedPlugins) -> Check {
+    let mut registered = 0;
+    let mut skipped = Vec::new();
+    for instance in &loaded.instances {
+        for plan in &instance.pipelines {
+            match &plan.state {
+                PipelineState::Registered => registered += 1,
+                PipelineState::Skipped(reason) => skipped.push(format!(
+                    "{}: `{}` is not registered: {reason}",
+                    instance.id, plan.name
+                )),
+            }
+        }
+    }
+    if skipped.is_empty() {
+        return Check::pass(
+            "plugins.pipelines",
+            format!("{registered} pipeline(s) registered"),
+        );
+    }
+    Check::warn(
+        "plugins.pipelines",
+        skipped.join("; "),
+        "Enable the plugin that provides the missing command, or fix the pipeline's steps.",
+    )
 }
 
 /// The eight plugin checks, in order.

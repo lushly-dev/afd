@@ -3,7 +3,7 @@
 use super::plugin_list::summary;
 use super::{Builtin, expose_everywhere_but_the_palette, returns_object, validation_error};
 use crate::plugins::{
-    GrantReport, InstanceReport, LoadedPlugins, Manifest, PluginKind, TRUST_NOTE,
+    GrantReport, InstanceReport, LoadedPlugins, Manifest, PipelineState, PluginKind, TRUST_NOTE,
 };
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
 use async_trait::async_trait;
@@ -53,6 +53,71 @@ fn grant_item(grant: &GrantReport) -> Value {
         item.insert("note".into(), json!(note));
     }
     Value::Object(item)
+}
+
+/// Each pack with, per space of the instance, whether the plugin's default or the space's
+/// override serves it (D46).
+fn packs(instance: &InstanceReport, manifest: &Manifest) -> Value {
+    Value::Array(
+        manifest
+            .packs
+            .iter()
+            .map(|pack| {
+                let spaces: Vec<Value> = instance
+                    .packs
+                    .iter()
+                    .find(|(id, _)| *id == pack.id)
+                    .map(|(_, states)| {
+                        states
+                            .iter()
+                            .map(|state| {
+                                json!({
+                                    "space": state.space,
+                                    "source": state.origin.as_str(),
+                                    "version": state.version,
+                                    "files": state.files,
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                json!({ "id": pack.id, "path": pack.path, "spaces": spaces })
+            })
+            .collect(),
+    )
+}
+
+/// Each pipeline and whether it was registered; a pipeline that was not names the reason.
+fn pipelines(instance: &InstanceReport, manifest: &Manifest) -> Value {
+    Value::Array(
+        manifest
+            .pipelines
+            .iter()
+            .map(|pipeline| {
+                let effects: Vec<&str> = pipeline.effects.iter().map(|e| e.as_str()).collect();
+                let mut item = json!({
+                    "name": pipeline.name,
+                    "description": pipeline.description,
+                    "effects": effects,
+                    "steps": pipeline.steps.iter().map(|step| step.command.clone()).collect::<Vec<_>>(),
+                });
+                match instance
+                    .pipelines
+                    .iter()
+                    .find(|plan| plan.name == pipeline.name)
+                    .map(|plan| &plan.state)
+                {
+                    Some(PipelineState::Registered) => item["state"] = json!("registered"),
+                    Some(PipelineState::Skipped(reason)) => {
+                        item["state"] = json!("not-registered");
+                        item["reason"] = json!(reason);
+                    }
+                    None => item["state"] = json!("not-loaded"),
+                }
+                item
+            })
+            .collect(),
+    )
 }
 
 fn show(instance: &InstanceReport) -> Value {
@@ -108,16 +173,23 @@ fn show(instance: &InstanceReport) -> Value {
         })
         .collect();
     data.insert("commands".into(), Value::Array(commands));
+    data.insert("packs".into(), packs(instance, manifest));
     data.insert(
-        "packs".into(),
+        "contexts".into(),
         json!(
             manifest
-                .packs
+                .contexts
                 .iter()
-                .map(|pack| json!({ "id": pack.id, "path": pack.path }))
+                .map(|context| json!({
+                    "name": context.name,
+                    "description": context.description,
+                    "triggers": context.triggers,
+                    "priority": context.priority,
+                }))
                 .collect::<Vec<_>>()
         ),
     );
+    data.insert("pipelines".into(), pipelines(instance, manifest));
     data.insert(
         "skills".into(),
         json!(
@@ -159,13 +231,13 @@ impl CommandHandler for Handler {
 pub(crate) fn plugin_show(loaded: Arc<OnceLock<Arc<LoadedPlugins>>>) -> Builtin {
     let definition = CommandDefinition::new(
         "plugin-show",
-        "One plugin instance in full: its manifest summary, grants and reasons, commands with effects, packs and skills",
+        "One plugin instance in full: its manifest summary, grants and reasons, commands with effects, packs per space, contexts, pipelines and skills",
         vec![],
         Handler { loaded },
     )
     .with_category("plugins")
     .with_returns(returns_object(
-        "instance, plugin, grants (trust, items), commands, packs and skills",
+        "instance, plugin, grants (trust, items), commands, packs (per space), contexts, pipelines and skills",
     ))
     .with_expose(expose_everywhere_but_the_palette());
     Builtin {
