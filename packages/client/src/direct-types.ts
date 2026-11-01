@@ -56,10 +56,12 @@ export interface DirectClientOptions {
 	 * checks. Pair it with `createDirectRegistry()` from `@lushly-dev/afd-server`,
 	 * which validates input and honours `expose.agent`.
 	 *
-	 * With a registry tool surface, `allow` checks tool names too, and `listTools()` leaves out
-	 * the tools it refuses. A meta-tool (`afd-call`, `afd-batch`, `afd-pipe`) or a grouped tool
-	 * reaches every command the registry exposes, so allow one only when the client may call all
-	 * of them; keep a command from in-app agents with `expose: { agent: false }`.
+	 * The client also passes it to the registry as the `allow` call option, on every attempt and
+	 * every `pipe()` step. With a registry tool surface, `allow` checks tool names, and
+	 * `createDirectRegistry()` checks it again on every command a tool runs: the `afd-call` target,
+	 * each `afd-batch` item, each `afd-pipe` step and a grouped tool's action. A refused command
+	 * fails with `COMMAND_NOT_ALLOWED`, and `afd-discover`, `afd-detail` and `listTools()` leave
+	 * it out. A hand-written registry whose `execute` ignores call options checks names only.
 	 */
 	allow?: (commandName: string) => boolean;
 
@@ -176,6 +178,13 @@ export interface DirectCallContext {
 export interface DirectExecuteOptions {
 	/** The AFD context the call runs in; see {@link DirectCallContext.activeContext}. */
 	activeContext?: string;
+
+	/**
+	 * The client's `allow` check, as a trusted in-process predicate (a throw denies), set only
+	 * when the client has `allow`. A registry applies it to every command the call runs, including
+	 * those a meta-tool or grouped tool reaches, and refuses the rest with `COMMAND_NOT_ALLOWED`.
+	 */
+	allow?: (command: string) => boolean;
 }
 
 /** Options of `DirectRegistry.listTools` and `DirectClient.listTools`. */
@@ -200,8 +209,9 @@ export interface DirectRegistry {
 	 * @param name - Command name
 	 * @param input - Command input
 	 * @param context - Optional command context for tracing/cancellation
-	 * @param options - Call options passed beside the context: the active AFD context. A registry
-	 *   that does not scope by context may ignore them
+	 * @param options - Call options passed beside the context: the active AFD context and the
+	 *   client's `allow` check. A registry that does not scope by context or route tools may
+	 *   ignore them
 	 * @returns Command result
 	 */
 	execute<T>(
@@ -238,9 +248,10 @@ export interface DirectRegistry {
 
 	/**
 	 * The MCP tools an AFD server with the same commands would list (optional).
-	 * `createDirectRegistry(commands, { tools: createDirectToolSurface() })` provides it.
+	 * `createDirectRegistry(commands, { tools: createDirectToolSurface() })` provides it. With
+	 * `allow`, it leaves out the commands and tool names the predicate rejects.
 	 */
-	listTools?(options?: DirectListToolsOptions): McpTool[];
+	listTools?(options?: DirectListToolsOptions & Pick<DirectExecuteOptions, 'allow'>): McpTool[];
 
 	/**
 	 * Get command definition for validation (optional).

@@ -65,7 +65,8 @@ Nothing in the proposal's "Done when" list. The open follow-ups below are tracke
   contexts, as Rust and C++ do.
 - **`allow` filters tools by name**, as `call()` checks it. Allowing a meta-tool or a grouped tool
   lets a `DirectClient` reach every command the registry exposes through it; the docs say to hide
-  commands with `expose: { agent: false }` instead.
+  commands with `expose: { agent: false }` instead. Superseded by #577: `allow` is now enforced on
+  every command a routed tool runs.
 
 ## Follow-ups not yet issues
 
@@ -73,7 +74,7 @@ Nothing in the proposal's "Done when" list. The open follow-ups below are tracke
 |---|---|---|---|
 | 2026-10-31 | Proposal | Remove the stale comment in `packages/server/src/define.ts` that says the core root re-exports the process-spawning connectors; the core root now bundles for the browser | Done in part 1: the comment and the matching test comment now say why `/define` keeps to the narrow core subpaths |
 | 2026-10-31 | Proposal | Decide the three open questions before part 1's specification | Done 2026-10-31; see the proposal's "Decisions" |
-| 2026-10-31 | Part 3 | DirectClient `allow` checks tool names only: a client that allows `afd-call`, `afd-batch`, `afd-pipe` or a grouped tool reaches every command the registry exposes. Enforce `allow` per routed command (an `allow` call option checked inside the registry) | Open |
+| 2026-10-31 | Part 3 | DirectClient `allow` checks tool names only: a client that allows `afd-call`, `afd-batch`, `afd-pipe` or a grouped tool reaches every command the registry exposes. Enforce `allow` per routed command (an `allow` call option checked inside the registry) | Done in #577: the registry's `allow` call option, which `DirectClient` passes on every call, `pipe()` step and approval retry, refuses each command a call runs with `COMMAND_NOT_ALLOWED`, and `afd-discover`, `afd-detail`, the bootstrap tools and `listTools` leave refused commands out |
 
 ## Session log
 
@@ -87,3 +88,4 @@ Nothing in the proposal's "Done when" list. The open follow-ups below are tracke
 | 2026-10-31 | Part 2 | Approvals moved to WebCrypto with no public API change, exported from `/direct`, a third size budget, a Chromium test of registry, journal, approval and replay, and the threat model in the README and skills; stops at green for the owner's review |
 | 2026-10-31 | Part 3 | `confirmations.ts` split so the router and tool list are Node-free; contexts and the per-call `activeContext` option in `createDirectRegistry`; `createDirectToolSurface` injected as `tools`, with `listTools`, meta-tool routing and stateless context tools; `DirectClient` `activeContext` and `listTools`; a shared test against `createMcpHandler` for every strategy and context; a third size budget and a check that a host without the surface bundles no router module. The implemented option name is `activeContext` (the proposal's example was `{ context: 'billing' }`); see "Interpretations in part 3" |
 | 2026-11-01 | Completion | Part 2 merged after the owner's review; moved to `docs/features/complete/` and #527 closed. Open follow-ups are filed as issues |
+| 2026-11-01 | #577 | `allow` enforced per routed command: an `allow` call option on `createDirectRegistry` (carried on the call's context as an opaque token, checked by the engine and router for the `afd-call` target, batch items, pipeline steps, grouped actions and handler re-entry; a grouped tool resolves its action among the permitted commands, and a group with none is refused), passed by `DirectClient`; discovery, detail, bootstrap tools and `listTools({ allow })` filtered; one refusal shared through `@lushly-dev/afd-core/internal/direct-allow`. Also `afd-context-list` sorts a copy and `DirectTransport` lists `tools/list` from `listTools()`. Browser bundles: 38.1, 48.0, 68.6 and 103.7 KB, budgets unchanged; stops at green for the owner's security review |

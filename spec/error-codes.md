@@ -171,7 +171,7 @@ engines emitted without a constant; then the 2 confirmation codes and the approv
 | --- | --- | --- | --- |
 | `COMMAND_NOT_EXPOSED` | The command exists but is not exposed to the interface an in-process caller named; see [D4](#unknown-and-unexposed-commands-d4) | No | Core executors (registry), server engine (`createDirectRegistry`) |
 | `COMMAND_NOT_IN_CONTEXT` | The command exists but is outside the active context | No | Server engine, router; the C++ and Python registries |
-| `COMMAND_NOT_ALLOWED` | The DirectClient's `allow` predicate or list excludes the command | No | DirectClient |
+| `COMMAND_NOT_ALLOWED` | The DirectClient's `allow` predicate or list excludes the command, or (TypeScript) the `allow` call option of `createDirectRegistry` excludes a command the call runs, including one reached through `afd-call`, `afd-batch`, `afd-pipe` or a grouped tool whose every action it excludes (a grouped tool resolves its action among the permitted commands, so an excluded action alone is `COMMAND_NOT_FOUND`) | No | DirectClient; server engine and router (`createDirectRegistry`) |
 | `UNKNOWN_TOOL` | The DirectClient's registry has no such command it can call; see [D4](#unknown-and-unexposed-commands-d4) | No | DirectClient |
 | `AMBIGUOUS_ACTION` | A grouped tool's `action` matches more than one command in the group | No | Router |
 | `INVALID_GROUPED_CALL` | A grouped tool was called without an `action` | No | Router |

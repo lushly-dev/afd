@@ -103,6 +103,14 @@ const client = new DirectClient(registry, {
 // listCommands(), listCommandNames() and hasCommand().
 ```
 
+The client also passes its check to the registry as the `allow` call option
+(beside `activeContext`), on every call, `pipe()` step and approval retry.
+`createDirectRegistry()` enforces it on every command the call runs, so a
+routed tool cannot reach a refused command (see the tool surface below). A
+hand-written registry whose `execute` ignores call options gets name checks
+only. Used without a client, the registry takes the same option:
+`registry.execute(name, input, context, { allow })`.
+
 ### AFD Contexts and the MCP Tool Surface
 
 Give the registry `contexts` (as on `createMcpServer`) and, for an agent that
@@ -135,9 +143,16 @@ await client.call('invoice-pay', { id: 'in-1' }, { activeContext: 'billing' });
 - **Exposure is the registry's interface** (`'agent'` by default), where the
   MCP server uses `expose.mcp`. Use `interface: 'mcp'` for the server's exact
   surface.
-- **`allow` checks tool names.** Allowing `afd-call`, `afd-batch`, `afd-pipe` or
-  a grouped tool reaches every command the registry exposes; hide commands with
-  `expose: { agent: false }`, not with `allow`.
+- **`allow` is enforced per routed command.** It checks the tool name, then the
+  registry checks every command that tool runs: the `afd-call` target, each
+  `afd-batch` item, each `afd-pipe` step, a grouped tool's action, and a
+  command a handler runs by passing its own context to `execute`. Refusals are
+  `COMMAND_NOT_ALLOWED`; `afd-discover`, `afd-detail`, the bootstrap tools and
+  `listTools()` leave refused commands out. Allow a grouped tool by its group
+  name (`note`). A grouped tool sees only its permitted actions: a refused
+  action is `COMMAND_NOT_FOUND` and cannot make another ambiguous, and a group
+  with none permitted is `COMMAND_NOT_ALLOWED`. The predicate rides on the context as an opaque token:
+  handlers cannot read or replace it, and tool arguments cannot carry one.
 - Without `tools`, `registry.listTools()` throws a `TypeError`, and the tool
   router is not bundled: a browser host pays for it only when it asks.
 

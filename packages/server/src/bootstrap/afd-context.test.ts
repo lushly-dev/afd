@@ -109,6 +109,21 @@ describe('createAfdContextListCommand', () => {
 		expect(result.data?.contexts[2]?.name).toBe('settings');
 	});
 
+	it('sorts a copy, leaving the array it is given in the host’s order', async () => {
+		const contexts = makeContexts().reverse();
+		const before = contexts.map((c) => c.name);
+		const cmd = createAfdContextListCommand(() => contexts, createContextState());
+		const result = await cmd.handler({});
+
+		expect(result.data?.contexts.map((c) => c.name)).toEqual([
+			'document-editing',
+			'print',
+			'settings',
+		]);
+		expect(contexts.map((c) => c.name)).toEqual(before);
+		expect(before).toEqual(['settings', 'print', 'document-editing']);
+	});
+
 	it('shows active context as null when none active', async () => {
 		const contexts = makeContexts();
 		const state = createContextState();
