@@ -54,7 +54,7 @@
   against `main` at `e996aad1` (the four languages' engines read, MCP
   2026-07-28 checked, `pnpm check`, the alfred parity tests); see
   [Amendments from step 0a](#amendments-from-step-0a). **Step 1, shapes and
-  configuration**, 2026-11-01, in [PR_STEP1](https://github.com/lushly-dev/afd/pull/PR_STEP1)
+  configuration**, 2026-11-01, in [632](https://github.com/lushly-dev/afd/pull/632)
   (nine schemas with examples, configuration version 3, manifest version 2
   parsing, envelope and event version 1); see [Amendments from step
   1](#amendments-from-step-1).
@@ -2017,7 +2017,7 @@ binding where it and section 14 differ.
 
 ## Amendments from step 1
 
-Step 1 ([PR_STEP1](https://github.com/lushly-dev/afd/pull/PR_STEP1)) read this
+Step 1 ([632](https://github.com/lushly-dev/afd/pull/632)) read this
 specification against the code and made these smallest-correct changes.
 Everything else is built as written.
 
