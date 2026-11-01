@@ -481,7 +481,10 @@ impl McpServer {
         {
             return Ok(content_item(uri, Some(file.mime_type), &file.bytes, None));
         }
-        let Some(provider) = &self.inner.resources else {
+        // The `skill://` scheme is the catalog's alone (R2): a provider is never asked for it.
+        let skill_scheme =
+            scheme_of(uri).is_some_and(|scheme| scheme.eq_ignore_ascii_case("skill"));
+        let Some(provider) = self.inner.resources.as_ref().filter(|_| !skill_scheme) else {
             return Err(not_found(uri));
         };
         let entries = self.provider_entries()?;

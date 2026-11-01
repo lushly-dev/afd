@@ -796,6 +796,23 @@ async fn provider_entries_come_before_skill_files() {
 }
 
 #[tokio::test]
+async fn an_unlisted_skill_uri_is_not_found_and_never_reaches_the_provider() {
+    let provider = Provider::new();
+    let reads = Arc::clone(&provider.reads);
+    let mut client =
+        Client::connect(case_server().with_resources(provider), Lane::HttpModern).await;
+    for uri in [
+        "skill://hello-greeting/missing.md",
+        "SKILL://other/SKILL.md",
+    ] {
+        let response = client.call("resources/read", json!({ "uri": uri })).await;
+        let (code, data) = error_of(&response);
+        assert_eq!((code, data["uri"].clone()), (-32602, json!(uri)));
+    }
+    assert_eq!(reads.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn resources_read_runs_no_command_and_skips_the_context_hook() {
     use std::sync::atomic::AtomicBool;
     let hooked = Arc::new(AtomicBool::new(false));
