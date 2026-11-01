@@ -313,16 +313,17 @@ fn the_first_class_tools_are_kept_when_valid() {
 
 #[test]
 fn another_config_version_is_unsupported_and_names_the_supported_one() {
-    for text in ["config_version = 2\n", "config_version = 0\n"] {
+    for text in ["config_version = 3\n", "config_version = 0\n"] {
         let error = open(text).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
         assert_eq!(
             error.suggestion(),
-            "This umbel reads configuration version 1; upgrade umbel or migrate umbel.toml."
+            "This umbel reads configuration versions 1 and 2; upgrade umbel or migrate umbel.toml."
         );
     }
     invalid("name = \"x\"\n", "config_version");
     invalid("config_version = \"1\"\n", "config_version");
+    invalid("config_version = 2.5\n", "config_version");
     let error = open("config_version = [\n").unwrap_err();
     assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
     assert!(error.message().contains("not valid TOML"));
@@ -423,7 +424,7 @@ fn init_creates_the_layout_with_private_keys() {
     assert_eq!(workspace.config().name, "my-team");
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 1\nname = \"my-team\"\n"
+        "config_version = 2\nname = \"my-team\"\n"
     );
     assert!(dir.join("spaces/main").is_dir());
     assert!(dir.join("state/keys").is_dir());
@@ -452,7 +453,7 @@ fn init_without_a_name_writes_only_the_version_and_defaults_the_name() {
     let workspace = Workspace::init(&dir, None).unwrap();
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 1\n"
+        "config_version = 2\n"
     );
     assert_eq!(workspace.config().name, "team-notes");
 }
@@ -594,4 +595,366 @@ fn the_journal_sink_shares_the_workspace_lock() {
     );
     drop(held);
     assert!(sink.lock().is_ok());
+}
+
+// ── Configuration version 2: plugin instances ──────────────────────────────────────────────────
+
+const V2: &str = "config_version = 2\n";
+
+fn instances(text: &str) -> Vec<umbel::workspace::PluginInstance> {
+    open(text).unwrap().config().plugins.instances.clone()
+}
+
+#[test]
+fn version_1_opens_as_version_2_with_no_plugins() {
+    let one = open("config_version = 1\n").unwrap();
+    assert_eq!(one.config().version, 1);
+    assert!(one.config().plugins.enabled.is_empty());
+    assert!(one.config().plugins.instances.is_empty());
+    let two = open(V2).unwrap();
+    assert_eq!(two.config().version, 2);
+    assert_eq!(umbel::CONFIG_VERSION, 2);
+    // Version 1 has no plugins: the phase 0 rule stays for it.
+    invalid(
+        "config_version = 1\n[plugins]\nenabled = [\"x\"]\n",
+        "plugins.enabled",
+    );
+    invalid("config_version = 1\n[plugins.x]\n", "plugins.x");
+}
+
+#[test]
+fn an_instance_with_no_table_takes_every_default() {
+    let found = instances(&format!(
+        "{V2}[plugins]\nenabled = [\"hello\", \"tickets\"]\n"
+    ));
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].id, "hello");
+    assert_eq!(found[1].id, "tickets");
+    let hello = &found[0];
+    assert_eq!(hello.source, None);
+    assert_eq!(hello.required, None);
+    assert_eq!(hello.spaces, None);
+    assert!(hello.deny.is_empty());
+    assert_eq!(hello.config, serde_json::json!({}));
+    assert_eq!(hello.limits, umbel::workspace::Limits::default());
+}
+
+#[test]
+fn a_full_instance_is_read_in_order_with_every_key() {
+    let text = format!(
+        r#"{V2}
+default_space = "main"
+[spaces.main]
+[spaces.research]
+
+[plugins]
+enabled = ["hello", "tickets"]
+
+[plugins.hello]
+source = "compiled:hello"
+required = true
+spaces = ["research"]
+deny = ["events"]
+[plugins.hello.config]
+default_name = "team"
+[plugins.hello.limits]
+fuel = 2000000000
+timeout_ms = 2000
+memory_bytes = 33554432
+table_elements = 100
+
+[plugins.tickets]
+source = "plugins/tickets"
+required = false
+prefix = "tickets"
+url = "https://tickets.example.com/mcp"
+bearer_env = "TICKETS_TOKEN"
+connect_timeout_ms = 10000
+timeout_ms = 30000
+max_result_bytes = 1048576
+[plugins.tickets.env]
+TICKETS_REGION = "eu"
+"#
+    );
+    let found = instances(&text);
+    let hello = &found[0];
+    assert_eq!(hello.source.as_deref(), Some("compiled:hello"));
+    assert_eq!(hello.spaces.as_ref().unwrap()[0].as_str(), "research");
+    assert_eq!(hello.deny, ["events"]);
+    assert_eq!(hello.config["default_name"], "team");
+    assert_eq!(hello.limits.fuel, Some(2_000_000_000));
+    assert_eq!(hello.limits.table_elements, Some(100));
+    let tickets = &found[1];
+    assert_eq!(tickets.required, Some(false));
+    assert_eq!(tickets.prefix.as_deref(), Some("tickets"));
+    assert_eq!(
+        tickets.url.as_deref(),
+        Some("https://tickets.example.com/mcp")
+    );
+    assert_eq!(tickets.bearer_env.as_deref(), Some("TICKETS_TOKEN"));
+    assert_eq!(tickets.max_result_bytes, Some(1_048_576));
+    assert_eq!(tickets.env["TICKETS_REGION"], "eu");
+}
+
+#[test]
+fn every_version_2_rule_names_its_key() {
+    let with = |body: &str| format!("{V2}[spaces.main]\n[plugins]\nenabled = [\"hello\"]\n{body}");
+    // The list.
+    invalid(
+        &format!("{V2}[plugins]\nenabled = [\"enabled\"]\n"),
+        "plugins.enabled",
+    );
+    invalid(
+        &format!("{V2}[plugins]\nenabled = [\"Hello\"]\n"),
+        "plugins.enabled",
+    );
+    invalid(
+        &format!("{V2}[plugins]\nenabled = [\"a\", \"a\"]\n"),
+        "plugins.enabled",
+    );
+    invalid(
+        &format!("{V2}[plugins]\nenabled = [1]\n"),
+        "plugins.enabled",
+    );
+    // A table for an instance that is not enabled.
+    invalid(
+        &format!("{V2}[plugins]\nenabled = []\n[plugins.ghost]\n"),
+        "plugins.ghost",
+    );
+    // Keys and values of an instance.
+    invalid(&with("[plugins.hello]\nbogus = 1\n"), "plugins.hello.bogus");
+    invalid(
+        &with("[plugins.hello]\nsource = \"../x\"\n"),
+        "plugins.hello.source",
+    );
+    invalid(
+        &with("[plugins.hello]\nsource = \"compiled:\"\n"),
+        "plugins.hello.source",
+    );
+    invalid(
+        &with("[plugins.hello]\nrequired = \"yes\"\n"),
+        "plugins.hello.required",
+    );
+    invalid(
+        &with("[plugins.hello]\nspaces = []\n"),
+        "plugins.hello.spaces",
+    );
+    invalid(
+        &with("[plugins.hello]\nspaces = [\"nope\"]\n"),
+        "plugins.hello.spaces",
+    );
+    invalid(
+        &with("[plugins.hello]\nspaces = [\"main\", \"main\"]\n"),
+        "plugins.hello.spaces",
+    );
+    invalid(
+        &with("[plugins.hello]\ndeny = [\"teleport\"]\n"),
+        "plugins.hello.deny",
+    );
+    invalid(
+        &with("[plugins.hello]\nconfig = 3\n"),
+        "plugins.hello.config",
+    );
+    invalid(
+        &with("[plugins.hello]\nprefix = \"workspace\"\n"),
+        "plugins.hello.prefix",
+    );
+    invalid(
+        &with("[plugins.hello]\nprefix = \"serve\"\n"),
+        "plugins.hello.prefix",
+    );
+    invalid(
+        &with("[plugins.hello]\nurl = \"http://example.com/mcp\"\n"),
+        "plugins.hello.url",
+    );
+    invalid(
+        &with("[plugins.hello]\nbearer_env = \"not a name\"\n"),
+        "plugins.hello.bearer_env",
+    );
+    invalid(
+        &with("[plugins.hello]\nconnect_timeout_ms = 60001\n"),
+        "plugins.hello.connect_timeout_ms",
+    );
+    invalid(
+        &with("[plugins.hello]\ntimeout_ms = 300001\n"),
+        "plugins.hello.timeout_ms",
+    );
+    invalid(
+        &with("[plugins.hello]\nmax_result_bytes = 16777217\n"),
+        "plugins.hello.max_result_bytes",
+    );
+    invalid(&with("[plugins.hello]\nenv = 3\n"), "plugins.hello.env");
+    invalid(&with("[plugins.hello.env]\nA = 1\n"), "plugins.hello.env");
+    // Limits are inside the host caps.
+    invalid(
+        &with("[plugins.hello.limits]\nfuel = 20000000001\n"),
+        "plugins.hello.limits.fuel",
+    );
+    invalid(
+        &with("[plugins.hello.limits]\ntimeout_ms = 60001\n"),
+        "plugins.hello.limits.timeout_ms",
+    );
+    invalid(
+        &with("[plugins.hello.limits]\nmemory_bytes = 1073741825\n"),
+        "plugins.hello.limits.memory_bytes",
+    );
+    invalid(
+        &with("[plugins.hello.limits]\ntable_elements = 1000001\n"),
+        "plugins.hello.limits.table_elements",
+    );
+    invalid(
+        &with("[plugins.hello.limits]\nfuel = 0\n"),
+        "plugins.hello.limits.fuel",
+    );
+    invalid(
+        &with("[plugins.hello.limits]\nbogus = 1\n"),
+        "plugins.hello.limits.bogus",
+    );
+}
+
+#[test]
+fn two_instances_cannot_share_a_prefix() {
+    invalid(
+        &format!(
+            "{V2}[plugins]\nenabled = [\"a\", \"b\"]\n[plugins.a]\nprefix = \"tickets\"\n[plugins.b]\nprefix = \"tickets\"\n"
+        ),
+        "plugins.b.prefix",
+    );
+}
+
+#[test]
+fn the_spaces_of_an_instance_must_be_declared_ones() {
+    let text = format!(
+        "{V2}default_space = \"main\"\n[spaces.main]\n[spaces.second]\n[plugins]\nenabled = [\"hello\"]\n[plugins.hello]\nspaces = [\"second\"]\n"
+    );
+    let found = instances(&text);
+    let declared: Vec<_> = open(&text)
+        .unwrap()
+        .spaces()
+        .iter()
+        .map(|space| space.id.clone())
+        .collect();
+    assert_eq!(found[0].enabled_spaces(&declared).len(), 1);
+    let all = instances(&format!("{V2}[plugins]\nenabled = [\"hello\"]\n"));
+    assert_eq!(all[0].enabled_spaces(&declared).len(), 2);
+}
+
+#[test]
+fn the_reserved_allow_key_is_accepted_and_reported_not_unknown() {
+    let text = format!(
+        "{V2}[plugins]\nenabled = [\"hello\"]\n[plugins.hello.grants.http]\nallow = [\"example.com\"]\n"
+    );
+    let file = ConfigFile::parse(&text).unwrap();
+    let scan = file.scan_keys();
+    assert!(scan.unknown.is_empty(), "{scan:?}");
+    assert_eq!(scan.reserved, ["plugins.hello.grants"]);
+    open(&text).unwrap();
+}
+
+// ── Plugin sources ─────────────────────────────────────────────────────────────────────────────
+
+mod sources {
+    use super::*;
+    use umbel::plugins::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
+
+    fn plugin_dir(root: &Path, rel: &str) {
+        let dir = root.join(rel);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("umbel-plugin.toml"), "manifest_version = 1\n").unwrap();
+    }
+
+    #[test]
+    fn a_source_is_compiled_or_a_relative_directory() {
+        assert_eq!(
+            SourceSpec::parse("compiled:hello"),
+            Ok(SourceSpec::Compiled("hello".into()))
+        );
+        assert_eq!(
+            SourceSpec::parse("plugins/hello"),
+            Ok(SourceSpec::Directory("plugins/hello".into()))
+        );
+        for bad in ["../x", "/abs", "a/../b", "compiled:Bad", ""] {
+            assert!(SourceSpec::parse(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_default_is_compiled_when_the_binary_has_it_and_a_directory_when_it_exists() {
+        let (_dir, root) = workspace_with(V2);
+        let catalog = CompiledCatalog::new().with("hello", "m");
+        // Compiled only.
+        assert!(matches!(
+            resolve_source(&root, "hello", None, Some(&catalog)).unwrap(),
+            ResolvedSource::Compiled { .. }
+        ));
+        // Neither.
+        let error = resolve_source(&root, "other", None, Some(&catalog)).unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_NOT_FOUND");
+        assert!(error.message().contains("plugins.other"));
+        // A directory only.
+        plugin_dir(&root, "plugins/other");
+        assert!(matches!(
+            resolve_source(&root, "other", None, Some(&catalog)).unwrap(),
+            ResolvedSource::Directory { .. }
+        ));
+        // Both.
+        plugin_dir(&root, "plugins/hello");
+        let error = resolve_source(&root, "hello", None, Some(&catalog)).unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_CONFLICT");
+        // An explicit source ends the doubt.
+        assert!(matches!(
+            resolve_source(&root, "hello", Some("compiled:hello"), Some(&catalog)).unwrap(),
+            ResolvedSource::Compiled { .. }
+        ));
+        assert!(matches!(
+            resolve_source(&root, "hello", Some("plugins/hello"), Some(&catalog)).unwrap(),
+            ResolvedSource::Directory { .. }
+        ));
+    }
+
+    #[test]
+    fn a_compiled_source_without_a_catalog_is_unresolved_not_missing() {
+        let (_dir, root) = workspace_with(V2);
+        assert_eq!(
+            resolve_source(&root, "hello", None, None).unwrap(),
+            ResolvedSource::Unresolved { id: "hello".into() }
+        );
+        assert_eq!(
+            resolve_source(&root, "hello", Some("compiled:hello"), None).unwrap(),
+            ResolvedSource::Unresolved { id: "hello".into() }
+        );
+        // With a catalog that lacks it, it is not found.
+        let error = resolve_source(
+            &root,
+            "hello",
+            Some("compiled:hello"),
+            Some(&CompiledCatalog::new()),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_NOT_FOUND");
+    }
+
+    #[test]
+    fn a_directory_source_needs_a_manifest_and_stays_inside_the_workspace() {
+        let (dir, root) = workspace_with(V2);
+        let error = resolve_source(&root, "x", Some("plugins/x"), None).unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_NOT_FOUND");
+        fs::create_dir_all(root.join("plugins/x")).unwrap();
+        let error = resolve_source(&root, "x", Some("plugins/x"), None).unwrap_err();
+        assert!(error.message().contains("umbel-plugin.toml"));
+        let error = resolve_source(&root, "x", Some("../outside"), None).unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_CONFIG_INVALID");
+        // A symlink out of the workspace is refused after it is resolved.
+        #[cfg(unix)]
+        {
+            let outside = dir.path().join("outside");
+            fs::create_dir_all(&outside).unwrap();
+            fs::write(outside.join("umbel-plugin.toml"), "manifest_version = 1\n").unwrap();
+            std::os::unix::fs::symlink(&outside, root.join("plugins/link")).unwrap();
+            let error = resolve_source(&root, "x", Some("plugins/link"), None).unwrap_err();
+            assert_eq!(error.code(), "PLUGIN_CONFIG_INVALID");
+            assert!(error.message().contains("symlink"));
+        }
+        let _ = dir;
+    }
 }

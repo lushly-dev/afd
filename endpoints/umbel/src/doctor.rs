@@ -1,4 +1,5 @@
-//! The workspace doctor (specification section 2): the checks that need no registry.
+//! The workspace doctor (specification section 2): the checks that need no registry. The plugin
+//! checks that need only files (phase 1 specification, section 9.2) are here too.
 //!
 //! [`run`] reports a workspace that cannot be opened, such as one whose `umbel.toml` does not
 //! parse. A sealed host adds the two registry-dependent checks (`mcp.surface`, `cli.verbs`) to
@@ -14,6 +15,7 @@ use afd::{CommandError, CommandResult, ResultOptions, Warning};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::plugins::CompiledCatalog;
 use crate::workspace::{
     ConfigFile, FoundBy, Layout, Located, SpaceId, WorkspaceError, codes, discover_from_process,
     read_key, read_token, take_lock,
@@ -92,7 +94,7 @@ impl Check {
         Self::new(id, CheckStatus::Skip, NEEDS_SEALED_HOST, None)
     }
 
-    fn skip(id: &str, message: &str) -> Self {
+    pub(crate) fn skip(id: &str, message: &str) -> Self {
         Self::new(id, CheckStatus::Skip, message, None)
     }
 }
@@ -171,7 +173,17 @@ impl Report {
 /// Inspect the workspace at `path` as if `--workspace` named it. Needs no registry and no
 /// sealed host, so it reports a workspace that cannot be opened.
 pub fn run(path: impl AsRef<Path>) -> Report {
-    let root = std::path::absolute(path.as_ref()).unwrap_or_else(|_| path.as_ref().to_path_buf());
+    run_with(path.as_ref(), None)
+}
+
+/// [`run`] with the compiled plugins of the host binary, so a `compiled:<id>` source resolves
+/// instead of being skipped.
+pub fn run_with_catalog(path: impl AsRef<Path>, catalog: &CompiledCatalog) -> Report {
+    run_with(path.as_ref(), Some(catalog))
+}
+
+fn run_with(path: &Path, catalog: Option<&CompiledCatalog>) -> Report {
+    let root = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
     let located = if Layout::new(&root).config_file().is_file() {
         Ok(Located {
             root,
@@ -183,7 +195,7 @@ pub fn run(path: impl AsRef<Path>) -> Report {
             root.display()
         )))
     };
-    inspect(located)
+    inspect_with_catalog(located, catalog)
 }
 
 /// Inspect the workspace the process finds: `flag`, else `UMBEL_WORKSPACE`, else a search upward
@@ -192,8 +204,21 @@ pub fn run_discovered(flag: Option<&Path>) -> Report {
     inspect(discover_from_process(flag))
 }
 
+/// [`run_discovered`] with the compiled plugins of the host binary.
+pub fn run_discovered_with_catalog(flag: Option<&Path>, catalog: &CompiledCatalog) -> Report {
+    inspect_with_catalog(discover_from_process(flag), Some(catalog))
+}
+
 /// Inspect the outcome of workspace discovery.
 pub fn inspect(located: Result<Located, WorkspaceError>) -> Report {
+    inspect_with_catalog(located, None)
+}
+
+/// [`inspect`] with the compiled plugins of the host binary, when there is a binary to ask.
+pub fn inspect_with_catalog(
+    located: Result<Located, WorkspaceError>,
+    catalog: Option<&CompiledCatalog>,
+) -> Report {
     let located = match located {
         Ok(located) => located,
         Err(error) => {
@@ -244,7 +269,11 @@ pub fn inspect(located: Result<Located, WorkspaceError>) -> Report {
     checks.push(http_config(file.as_ref()));
     checks.push(Check::skip_sealed("mcp.surface"));
     checks.push(Check::skip_sealed("cli.verbs"));
-    checks.push(plugins_none(file.as_ref()));
+    checks.extend(crate::plugins::doctor_checks(
+        file.as_ref(),
+        &located.root,
+        catalog,
+    ));
     Report {
         workspace: Some(located.root),
         found_by: Some(located.found_by),
@@ -252,7 +281,7 @@ pub fn inspect(located: Result<Located, WorkspaceError>) -> Report {
     }
 }
 
-const NEEDS_CONFIG: &str = "Needs a readable umbel.toml; config.parse failed.";
+pub(crate) const NEEDS_CONFIG: &str = "Needs a readable umbel.toml; config.parse failed.";
 
 fn config_parse(layout: &Layout, root: &Path) -> (Option<ConfigFile>, Check) {
     let text = match fs::read_to_string(layout.config_file()) {
@@ -278,7 +307,10 @@ fn config_parse(layout: &Layout, root: &Path) -> (Option<ConfigFile>, Check) {
         }
     };
     let check = match file.validate_rest(root) {
-        Ok(()) => Check::pass("config.parse", "umbel.toml is configuration version 1"),
+        Ok(()) => Check::pass(
+            "config.parse",
+            format!("umbel.toml is configuration version {}", file.version()),
+        ),
         Err(error) => Check::fail("config.parse", error.message(), error.suggestion()),
     };
     (Some(file), check)
@@ -292,7 +324,7 @@ fn config_keys(scan: Option<&crate::workspace::KeyScan>) -> Check {
         return Check::fail(
             "config.keys",
             format!("Unknown keys: {}", scan.unknown.join(", ")),
-            "Remove or correct the unknown keys in umbel.toml; this version reads configuration version 1.",
+            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 and 2.",
         );
     }
     if !scan.reserved.is_empty() {
@@ -661,13 +693,5 @@ fn http_config(file: Option<&ConfigFile>) -> Check {
             "http.config",
             format!("Binds {} at {}", http.bind, http.path),
         ),
-    }
-}
-
-fn plugins_none(file: Option<&ConfigFile>) -> Check {
-    match file.map(ConfigFile::plugins) {
-        None => Check::skip("plugins.none", NEEDS_CONFIG),
-        Some(Err(error)) => Check::fail("plugins.none", error.message(), error.suggestion()),
-        Some(Ok(_)) => Check::pass("plugins.none", "No plugins are enabled"),
     }
 }

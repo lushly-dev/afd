@@ -1,0 +1,162 @@
+{
+	"manifest_version": 1,
+	"protocol": 1,
+	"plugin": {
+		"id": "hello",
+		"title": "Hello",
+		"version": "0.1.0",
+		"description": "One command, one pack, one skill: the reference plugin.",
+		"kind": "compiled",
+		"domains": ["hello"],
+		"homepage": "https://afd.dev/umbel",
+		"license": "MIT"
+	},
+	"grants": [
+		{
+			"name": "config",
+			"required": true,
+			"reason": "Reads default_name from the instance configuration."
+		},
+		{
+			"name": "packs",
+			"required": true,
+			"reason": "Reads the salutation from the greetings pack."
+		},
+		{
+			"name": "clock",
+			"required": true,
+			"reason": "Stamps the greeting with the command context's clock."
+		},
+		{
+			"name": "random",
+			"required": false,
+			"reason": "The standard library seeds hash maps from it."
+		}
+	],
+	"commands": [
+		{
+			"name": "hello-greet",
+			"description": "Greet someone, in a space, with the pack's salutation.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 80
+					},
+					"space": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": false
+			},
+			"returns": {
+				"type": "object",
+				"properties": {
+					"greeting": {
+						"type": "string"
+					},
+					"space": {
+						"type": "string"
+					},
+					"at": {
+						"type": "string"
+					}
+				},
+				"required": ["greeting", "space", "at"],
+				"additionalProperties": false
+			},
+			"category": "hello",
+			"tags": ["example"],
+			"version": "1.0.0",
+			"contexts": ["hello"],
+			"first_class": true,
+			"approval": "none",
+			"execution_time": "instant",
+			"expose": {
+				"mcp": true,
+				"agent": true,
+				"cli": true,
+				"palette": false
+			},
+			"examples": [
+				{
+					"title": "Greet Ada",
+					"input": {
+						"name": "Ada"
+					}
+				}
+			]
+		}
+	],
+	"contexts": [
+		{
+			"name": "hello",
+			"description": "Greeting commands.",
+			"triggers": ["greet"],
+			"priority": 0
+		}
+	],
+	"pipelines": [
+		{
+			"name": "hello-twice",
+			"description": "Greet two people in one call.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"first": {
+						"type": "string"
+					},
+					"second": {
+						"type": "string"
+					}
+				},
+				"required": ["first", "second"],
+				"additionalProperties": false
+			},
+			"steps": [
+				{
+					"command": "hello-greet",
+					"input": {
+						"name": "$input.first"
+					},
+					"as": "one"
+				},
+				{
+					"command": "hello-greet",
+					"input": {
+						"name": "$input.second"
+					},
+					"as": "two"
+				}
+			]
+		}
+	],
+	"packs": [
+		{
+			"id": "greetings",
+			"path": "packs/greetings"
+		}
+	],
+	"skills": [
+		{
+			"name": "hello-guide",
+			"path": "skills/hello-guide"
+		}
+	],
+	"config": {
+		"schema": {
+			"type": "object",
+			"properties": {
+				"default_name": {
+					"type": "string",
+					"default": "world"
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

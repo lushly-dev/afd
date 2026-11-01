@@ -1,0 +1,80 @@
+package umbel:plugin@1.0.0;
+
+/// Shared types. JSON travels as UTF-8 text; the host parses and validates it.
+interface types {
+  type json = string;
+
+  /// What the command is called with. The principal is a summary: plugins never
+  /// see credentials or tokens.
+  record call-context {
+    command: string,
+    trace-id: string,
+    /// The resolved space for a command with a `space` input; none otherwise.
+    space: option<string>,
+    actor-kind: string,
+    actor-id: option<string>,
+    on-behalf-of: option<string>,
+    /// mcp, cli, agent or palette.
+    %interface: string,
+  }
+
+  variant host-error {
+    /// The grant was not declared, or the deployer denied it.
+    not-granted(string),
+    not-found(string),
+    invalid(string),
+    too-large(string),
+  }
+}
+
+/// Grant `config`. The instance's configuration, validated, with defaults applied.
+interface config {
+  use types.{json};
+  get: func() -> json;
+}
+
+/// Grant `log`. Lines go to the host's stderr log, tagged with the instance id.
+interface log {
+  enum level { error, warn, info, debug, trace }
+  write: func(level: level, message: string);
+}
+
+/// Grant `packs`. Read the call's space's effective copy of one of this plugin's packs.
+interface packs {
+  use types.{host-error};
+  list: func(pack: string) -> result<list<string>, host-error>;
+  read: func(pack: string, path: string) -> result<list<u8>, host-error>;
+}
+
+/// Grant `events`. Read one space's event log by cursor, as event-list returns it.
+interface events {
+  use types.{json, host-error};
+  list: func(space: option<string>, after: option<string>, limit: u32) -> result<json, host-error>;
+}
+
+/// Grant `clock`. The command context's clock, in epoch milliseconds; recorded on the tape.
+interface clock {
+  now: func() -> s64;
+}
+
+/// Grant `random`. The command context's random source, in [0, 1); recorded on the tape.
+interface random {
+  next: func() -> f64;
+}
+
+/// What a component provides: one entry point for every command it declares.
+interface command {
+  use types.{json, call-context};
+  /// Returns an AFD CommandResult as JSON.
+  execute: func(name: string, input: json, context: call-context) -> json;
+}
+
+world plugin {
+  import config;
+  import log;
+  import packs;
+  import events;
+  import clock;
+  import random;
+  export command;
+}

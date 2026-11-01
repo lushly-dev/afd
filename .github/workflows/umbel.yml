@@ -46,13 +46,13 @@ jobs:
         with:
           workspaces: endpoints/umbel
       - name: Format
-        run: cargo fmt --check
+        run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Clippy (library only, no default features)
-        run: cargo clippy --locked --lib --no-default-features -- -D warnings
+        run: cargo clippy --locked -p umbel --lib --no-default-features -- -D warnings
       - name: Test
-        run: cargo test --locked
+        run: cargo test --locked --workspace
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -73,4 +73,4 @@ jobs:
           workspaces: endpoints/umbel
           key: msrv
       - name: Check
-        run: cargo +1.97.0 check --locked --all-targets
+        run: cargo +1.97.0 check --locked --workspace --all-targets

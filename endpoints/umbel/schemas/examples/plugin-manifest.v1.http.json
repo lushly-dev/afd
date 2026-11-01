@@ -1,0 +1,30 @@
+{
+	"manifest_version": 1,
+	"protocol": 1,
+	"plugin": {
+		"id": "tickets",
+		"title": "Tickets",
+		"version": "1.4.0",
+		"description": "A ticket tracker's MCP server.",
+		"kind": "mounted",
+		"domains": ["tickets"]
+	},
+	"mount": {
+		"prefix": "tickets",
+		"transport": "http",
+		"bearer": "required",
+		"only": ["search_tickets", "get_ticket"],
+		"tools": [
+			{
+				"tool": "search_tickets",
+				"name": "search",
+				"effects": ["inspect"],
+				"first_class": true
+			},
+			{
+				"tool": "get_ticket",
+				"effects": ["inspect"]
+			}
+		]
+	}
+}
