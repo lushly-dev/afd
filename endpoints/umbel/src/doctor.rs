@@ -99,7 +99,6 @@ impl Check {
 
 /// The doctor's report. Build more checks into `checks` to extend it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct Report {
     /// The workspace directory; `None` when none was found.
     pub workspace: Option<PathBuf>,

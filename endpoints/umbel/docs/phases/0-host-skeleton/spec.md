@@ -9,8 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (step 0 done, step 1 in
-  review). Written and revised
+- **State:** approved, implementation in progress (steps 0 to 2 done). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -41,9 +40,20 @@
   ([#567](https://github.com/lushly-dev/afd/pull/567)), merged as `045b6feb`
   on 2026-10-31 exactly as the [plan](#step-0-the-afd-pull-request) lists it,
   with all nine checks green.
-- **In review:** step 1, the scaffold ([#570](https://github.com/lushly-dev/afd/pull/570)), as the plan's table lists
-  it. Not done until it merges and `umbel.yml` has run green on `main`.
-- **Not done:** steps 2 to 6 of the [plan](#11-implementation-plan); the exit
+- **Done:** step 1, the scaffold ([#570](https://github.com/lushly-dev/afd/pull/570)),
+  merged as `273e0160` on 2026-10-31 as the plan's table lists it, with
+  `umbel.yml` green on Linux, macOS and the MSRV leg.
+- **Done:** step 2, the workspace ([#572](https://github.com/lushly-dev/afd/pull/572)),
+  on 2026-10-31: discovery, `umbel.toml` version 1 with defaults and
+  validation, the layout and `Workspace::init`, race-safe keys, the workspace
+  lock over AFD's `JournalFileLock`, `doctor::run`, the six schema files with
+  their examples, and `workspace.rs`, `doctor.rs` and `schemas.rs`. Checks:
+  `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`,
+  the library-only clippy leg, `cargo test --locked` and `cargo +1.97.0 check
+  --locked --all-targets`, run locally, then `umbel.yml` and `pnpm check` on
+  the pull request. Amendments it needed: see
+  [Amendments from step 2](#amendments-from-step-2).
+- **Not done:** steps 3 to 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -175,7 +185,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
-toml = "1"
+# preserve_order keeps [spaces.*] in the file's order, which space-list reports.
+toml = { version = "1", features = ["preserve_order"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
@@ -183,7 +194,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"]
 bytes = "1"
 http = "1"
 http-body-util = "0.1"
-jsonschema = "0.60"
+# No resolve-http or TLS features: the schemas are checked offline, and reqwest and rustls stay out of the lock.
+jsonschema = { version = "0.60", default-features = false }
 # The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
 rmcp = { version = "3.7", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
@@ -232,7 +244,7 @@ Rules:
 | `Host::repair_events() -> Result<RepairReport, HostError>` | The full catch-up of section 6, under the workspace lock; `umbel serve` calls it at start |
 | `Host::workspace() -> &Workspace`, `Workspace`, `Config`, `SpaceId` | Read-only views of the workspace |
 | `Workspace::resolve_space(&self, input: &Value, context: &CommandContext) -> Result<SpaceId, CommandError>` | The one space resolution, used by the space middleware and by every handler (section 5) |
-| `doctor::run(path) -> Report`, `Report`, `Check`, `CheckStatus` | The doctor without a sealed host (section 2) |
+| `doctor::run(path) -> Report`, `Report`, `Check`, `CheckStatus` | The doctor without a sealed host (section 2). `doctor::inspect(discovery result)` and `doctor::run_discovered(flag)` report the workspace the discovery rules find; `Report::into_result` is the `CommandResult`, and a sealed host replaces the two `skip` checks |
 | `events::{Event, Cursor}` | Event version 0 and the cursor |
 | `principal::Principal`, `provenance::Envelope` | Version 0 of each |
 | `CONFIG_VERSION`, `PRINCIPAL_VERSION`, `PROVENANCE_VERSION`, `EVENT_VERSION`, `CURSOR_VERSION` | `1`, `0`, `0`, `0`, `0` |
@@ -539,6 +551,12 @@ Validation, each a `WORKSPACE_CONFIG_INVALID` naming the key, at `open`:
   `null` are refused.
 - `journal.lock_timeout_ms` is 100 to 600000.
 - `principal.local_id` is 1 to 128 printable characters.
+- `profile` is `team`, and `plugins.enabled` is empty, because phase 0 loads
+  no plugin; a host that ignored a configured plugin would be wrong. The
+  doctor reports the second as `plugins.none`.
+- `name` is non-empty text without control characters; `mcp.confirmations`,
+  `log.level` and `log.format` are one of their listed values;
+  `max_body_bytes` is 1024 to 16777216.
 
 The machine-readable schema is `schemas/workspace-config.v1.json` (section 7).
 
@@ -609,10 +627,16 @@ The doctor runs as the `workspace-doctor` command on a sealed host and as
 `umbel workspace doctor` still reports a broken `umbel.toml`. Both return the
 same `CommandResult`. Each check has an id, a status (`pass`, `warn`, `fail`
 or `skip`), a message and, for `warn` and `fail`, a suggestion. `skip` means
-the check needs a sealed host; `doctor::run` reports the registry-dependent
+the check could not run here; `doctor::run` reports the registry-dependent
 checks as `skip` with the message "Needs a sealed host; run umbel workspace
-doctor on a workspace that opens." A skipped check never makes the workspace
-unhealthy.
+doctor on a workspace that opens." A check that needs a readable `umbel.toml`
+(`config.keys`, `spaces.valid`, `http.config`, `plugins.none`) is also `skip`
+when `config.parse` failed, with the message "Needs a readable umbel.toml;
+config.parse failed.". A skipped check never makes the workspace unhealthy.
+`config.parse` fails for a syntax error, another version, and any value that
+breaks a rule no other check owns (`name`, `profile`, `[mcp]`, `[journal]`,
+`[log]`, `[principal]`), so a workspace that will not open is never reported
+healthy. When no workspace is found, the report holds `workspace.found` alone.
 
 | Id | Passes when | `warn` | `fail` | Without a sealed host |
 | --- | --- | --- | --- | --- |
@@ -1462,6 +1486,23 @@ Step 1 needs step 0 merged, because its `Cargo.toml` names the
 step 1; step 4 needs 3; step 5 needs 3 and may run beside 4, with
 `journal_events.rs`, `trusted_keys.rs` and `process.rs` gaining their MCP
 cases when both have landed.
+
+## Amendments from step 2
+
+Made in [#572](https://github.com/lushly-dev/afd/pull/572), each the smallest
+change the code needed:
+
+- The `toml` dependency gains `preserve_order` (`space-list` reports spaces in
+  configuration order, which a sorted map cannot), and `jsonschema` takes
+  `default-features = false`, which keeps `reqwest` and `rustls` out of
+  `Cargo.lock` (the default features resolve HTTP references).
+- The validation list gains `profile`, `plugins.enabled`, `name` and the enum
+  and range rules the schema already states.
+- The doctor's `skip` also covers checks that need a readable `umbel.toml`,
+  and `config.parse` covers the value rules no other check owns (section 2).
+- Discovery is `workspace::discover(flag, env value, cwd)`, a pure function, so
+  tests need not change the process environment (setting it is `unsafe` in
+  edition 2024, and the crate forbids unsafe code).
 
 ## Follow-ups
 
