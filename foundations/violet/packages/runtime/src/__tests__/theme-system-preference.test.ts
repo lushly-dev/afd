@@ -145,6 +145,123 @@ describe('ThemeManager.useSystemPreference()', () => {
 	});
 });
 
+describe('ThemeManager.useSystemPreference() with a high-contrast theme', () => {
+	const WITH_CONTRAST: Theme[] = [...THEMES, { nodeId: 'brand-contrast', name: 'High contrast' }];
+	let runtime: VioletRuntime;
+	let manager: ThemeManager;
+	const originalMatchMedia = window.matchMedia;
+
+	/** One controllable query per media string, as a browser returns. */
+	function fakeSystem(initial: { dark?: boolean; contrast?: boolean; forced?: boolean }) {
+		const queries = {
+			'(prefers-color-scheme: dark)': fakeMediaQuery(initial.dark ?? false),
+			'(prefers-contrast: more)': fakeMediaQuery(initial.contrast ?? false),
+			'(forced-colors: active)': fakeMediaQuery(initial.forced ?? false),
+		};
+		window.matchMedia = vi.fn(
+			(media: string) => queries[media as keyof typeof queries],
+		) as unknown as typeof window.matchMedia;
+		return {
+			dark: queries['(prefers-color-scheme: dark)'],
+			contrast: queries['(prefers-contrast: more)'],
+			forced: queries['(forced-colors: active)'],
+		};
+	}
+
+	beforeEach(() => {
+		runtime = makeRuntime();
+		manager = new ThemeManager(runtime, {
+			themes: WITH_CONTRAST,
+			defaultTheme: 'brand-light',
+			transitionDuration: 0,
+		});
+	});
+
+	afterEach(() => {
+		window.matchMedia = originalMatchMedia;
+		vi.restoreAllMocks();
+	});
+
+	it('chooses high contrast when prefers-contrast is more, even in dark mode', async () => {
+		fakeSystem({ dark: true, contrast: true });
+
+		manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+		await settle();
+
+		expect(runtime.switchNode).toHaveBeenCalledOnce();
+		expect(runtime.switchNode).toHaveBeenCalledWith('brand-contrast');
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-contrast');
+	});
+
+	it('chooses high contrast when forced colors are active', async () => {
+		fakeSystem({ forced: true });
+
+		manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+		await settle();
+
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-contrast');
+	});
+
+	it('follows the color scheme while neither contrast query matches', async () => {
+		fakeSystem({ dark: true });
+
+		manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+		await settle();
+
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-dark');
+	});
+
+	it('follows every query until unsubscribed', async () => {
+		const system = fakeSystem({});
+		const changes = vi.fn();
+		manager.onChange((theme) => changes(theme.nodeId));
+
+		const stop = manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+		system.contrast.change(true);
+		await settle();
+		// A color-scheme change while contrast is on keeps high contrast.
+		system.dark.change(true);
+		await settle();
+		system.contrast.change(false);
+		await settle();
+		system.forced.change(true);
+		await settle();
+		system.forced.change(false);
+		system.dark.change(false);
+		await settle();
+
+		expect(changes.mock.calls).toEqual([
+			['brand-contrast'],
+			['brand-dark'],
+			['brand-contrast'],
+			['brand-light'],
+		]);
+
+		stop();
+		for (const query of [system.dark, system.contrast, system.forced]) {
+			expect(query.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+			expect(query.listenerCount).toBe(0);
+		}
+		system.contrast.change(true);
+		await settle();
+		expect(changes).toHaveBeenCalledTimes(4);
+	});
+
+	it('does not read the contrast queries without a high-contrast theme', async () => {
+		const system = fakeSystem({ contrast: true, forced: true });
+
+		const stop = manager.useSystemPreference('brand-light', 'brand-dark');
+		await settle();
+
+		expect(window.matchMedia).toHaveBeenCalledOnce();
+		expect(window.matchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-light');
+		expect(system.contrast.listenerCount).toBe(0);
+		stop();
+		expect(system.dark.listenerCount).toBe(0);
+	});
+});
+
 describe('ThemeManager options and listeners', () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();

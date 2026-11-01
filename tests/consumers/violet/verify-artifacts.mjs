@@ -317,9 +317,31 @@ passed(
 	'integration absent: @lushly-dev/violet-afd is ERR_MODULE_NOT_FOUND, core ./commands is ERR_PACKAGE_PATH_NOT_EXPORTED'
 );
 
+// A preloaded source applies the same resolved tokens with no token server (Loam D50).
+const runtimeImport =
+	'import { VioletRuntime, ThemeManager } from "/node_modules/@lushly-dev/violet-runtime/dist/index.js";';
+const resolved = JSON.parse(readFileSync(join(violetRoot, 'tokens.json'), 'utf8')).data.tokens;
+const preloaded = { tokens: resolved.map(({ id, value }) => ({ id, value })) };
+await writeFile(
+	join(violetRoot, 'source.html'),
+	`<!doctype html><style>button { background: var(--color-action); padding: var(--spacing-md); }</style><button>Source</button><script type="module">${runtimeImport} const violet = new VioletRuntime({ nodeId: "brand-dark", source: ${JSON.stringify(preloaded)} }); await violet.load(); document.body.dataset.loaded = String(violet.getAll().length);</script>`
+);
+// ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors.
+const systemSources = {
+	light: { tokens: [{ id: 'color.text', value: '#000000' }] },
+	dark: { tokens: [{ id: 'color.text', value: '#ffffff' }] },
+	contrast: { tokens: [{ id: 'color.text', value: '#ffff00' }] },
+};
+await writeFile(
+	join(violetRoot, 'system.html'),
+	`<!doctype html><script type="module">${runtimeImport} const sources = ${JSON.stringify(systemSources)}; const violet = new VioletRuntime({ nodeId: "light", source: sources.light }); await violet.load(); const themes = new ThemeManager(violet, { themes: Object.entries(sources).map(([nodeId, source]) => ({ nodeId, name: nodeId, source })), defaultTheme: "light", transitionDuration: 0 }); const show = (theme) => { document.body.dataset.theme = theme.nodeId; }; show(themes.getCurrentTheme()); themes.onChange(show); themes.useSystemPreference("light", "dark", "contrast");</script>`
+);
+
 const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript' };
+let apiRequests = 0;
 const http = createServer(async (request, response) => {
 	const path = new URL(request.url, 'http://consumer').pathname;
+	if (path.startsWith('/api/')) apiRequests++;
 	if (path === '/api/v1/nodes/brand-dark/tokens') {
 		response.writeHead(200, { 'content-type': 'application/json' });
 		response.end(await readFile(join(violetRoot, 'tokens.json')));
@@ -369,12 +391,42 @@ try {
 		[applied.tag, applied.background, applied.padding],
 		['BUTTON', 'rgb(53, 32, 100)', '12px']
 	);
+	assert.equal(apiRequests, 1);
+
+	await page.goto(`${origin}/source.html`);
+	await page.waitForSelector('body[data-loaded]');
+	assert.equal(await page.$eval('body', (body) => body.dataset.loaded), '4');
+	const fromSource = await style();
+	assert.deepEqual(
+		[fromSource.tag, fromSource.background, fromSource.padding],
+		['BUTTON', 'rgb(53, 32, 100)', '12px']
+	);
+	assert.equal(apiRequests, 1, 'a preloaded source makes no token request');
+
+	const system = await browser.newPage();
+	const theme = async (expected) => {
+		await system.waitForSelector(`body[data-theme="${expected}"]`, { state: 'attached' });
+		return system.evaluate(() => document.documentElement.style.getPropertyValue('--color-text'));
+	};
+	await system.emulateMedia({ colorScheme: 'light', contrast: 'more' });
+	await system.goto(`${origin}/system.html`);
+	assert.equal(await theme('contrast'), '#ffff00');
+	await system.emulateMedia({ colorScheme: 'dark', contrast: 'no-preference' });
+	assert.equal(await theme('dark'), '#ffffff');
+	await system.emulateMedia({ forcedColors: 'active' });
+	assert.equal(await theme('contrast'), '#ffff00');
+	await system.emulateMedia({ colorScheme: 'light', forcedColors: 'none' });
+	assert.equal(await theme('light'), '#000000');
+	assert.equal(apiRequests, 1);
 } finally {
 	await browser.close();
 	http.close();
 }
 passed(
-	`Chromium ${browserVersion}: exported CSS styles a plain HTML button; the runtime applies the same tokens as custom properties`
+	`Chromium ${browserVersion}: exported CSS styles a plain HTML button; the runtime applies the same tokens as custom properties, over HTTP and from a preloaded source with no request`
+);
+passed(
+	`Chromium ${browserVersion}: ThemeManager follows prefers-color-scheme, prefers-contrast: more and forced-colors: active to a high-contrast theme`
 );
 
 const typeSource = await readFile(
@@ -391,11 +443,17 @@ import * as Worker from '@lushly-dev/violet-core/worker';
 import * as Css from '@lushly-dev/violet-core/css';
 import type * as Types from '@lushly-dev/violet-core/types';
 import * as Engine from '@lushly-dev/violet-core/engine';
-import { VioletRuntime, ThemeManager, type VioletConfig, type Token } from '@lushly-dev/violet-runtime';
+import { VioletRuntime, ThemeManager, type VioletConfig, type VioletHttpConfig, type VioletSourceConfig, type VioletTokenSource, type SourceToken, type Token } from '@lushly-dev/violet-runtime';
 export type NativeTypes = [${nativeTypes.map((name) => `Native.${name}`).join(', ')}];
 export type Contracts = [Types.Node, Types.OperationRecord, Types.ResolvedToken, Types.Constraint, Types.Webhook, Types.CheckSnapshot, Types.ErrorCode, Native.Database, Worker.Database, Engine.ResolutionScope];
 export const api = [Native.resolveTokens, Native.exportTokens, Native.createMemoryDatabase, Native.SQLiteDatabase, Native.PostgresDatabase, Native.transformerRegistry, Native.buildOpenApiSpec, Worker.exportTokens, Css.safeCssColor, Engine.resolveInheritance, Engine.matchesGlob, Engine.OverlayDatabase];
 export const runtime: [typeof VioletRuntime, typeof ThemeManager, VioletConfig?, Token?] = [VioletRuntime, ThemeManager];
+export const preloaded: VioletSourceConfig = { nodeId: 'brand-dark', source: { tokens: [{ id: 'color.text', value: '#fff' }] satisfies SourceToken[] } };
+export const http: VioletHttpConfig = { nodeId: 'brand-dark', apiUrl: 'https://violet.example.com', apiKey: 'key' };
+export const configs: VioletConfig[] = [preloaded, http];
+export const switched: Promise<Token[]> = new VioletRuntime(preloaded).switchNode('brand-light', { tokens: [] } satisfies VioletTokenSource);
+// @ts-expect-error a preloaded source and a token server are either/or
+export const both: VioletConfig = { nodeId: 'brand-dark', source: { tokens: [] }, apiUrl: 'https://violet.example.com' };
 // @ts-expect-error the command registry moved to @lushly-dev/violet-afd
 Native.registry;
 // @ts-expect-error AFD result helpers are no longer re-exported

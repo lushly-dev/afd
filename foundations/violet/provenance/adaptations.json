@@ -1445,9 +1445,9 @@
       "path": "foundations/violet/packages/runtime/README.md",
       "upstream_path": "packages/runtime/README.md",
       "upstream_sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
-      "current_import_sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "c18d18bfeb481dec7f9f180263c6da3e06b4dd71bc21b8b9b728e9ff7c97d557",
+      "classification": "adapted",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): documents the preloaded source (source in place of apiUrl, switchNode with a new source, ThemeManager theme sources) and the high-contrast theme of useSystemPreference",
       "candidate": {
         "path": "packages/runtime/README.md",
         "sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
@@ -1520,6 +1520,19 @@
       }
     },
     {
+      "path": "foundations/violet/packages/runtime/src/__tests__/client-source.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "00ae1be524b8d97d4a456513d7c44d62f8ee6810eb141ea2cfab187f2480cf00",
+      "classification": "afd-authored",
+      "reason": "Covers VioletRuntime with a preloaded source (Loam D50 and phase 0 spec section 3 (step 0b)): no request and no cache, resolvedAt defaults, copying, autoApply and cssPrefix, switchNode with and without a source, refused switches leaving the theme in place, HTTP runtimes refusing a source, and ThemeManager theme sources",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "foundations/violet/packages/runtime/src/__tests__/client.test.ts",
       "upstream_path": "packages/runtime/src/__tests__/client.test.ts",
       "upstream_sha256": "9dde8cf2104ea0ee9cb6c13e26cf4174a667abb77c89b7da63eb5686244f0448",
@@ -1549,9 +1562,9 @@
       "path": "foundations/violet/packages/runtime/src/__tests__/theme-system-preference.test.ts",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "5866a71571f2cd827a3b0c6a360cd66f7968328f6e0d254a31c8027ade42c984",
+      "current_import_sha256": "7e0a136e8459e01126d90c07fdb78b1e15ad5072d6a5210e97471bca051a0384",
       "classification": "afd-authored",
-      "reason": "Covers ThemeManager.useSystemPreference, transition options, preference persistence with and without storage, toggle, listener isolation and superseded apply(), restoring vitest 4 coverage (lushly-dev/afd#602)",
+      "reason": "Covers ThemeManager.useSystemPreference, transition options, preference persistence with and without storage, toggle, listener isolation and superseded apply(), restoring vitest 4 coverage (lushly-dev/afd#602); covers the high-contrast theme of useSystemPreference (Loam D50 and phase 0 spec section 3 (step 0b)): prefers-contrast and forced-colors win over the color scheme, every query is followed and every listener removed, and the contrast queries are not read without the theme",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -1588,9 +1601,9 @@
       "path": "foundations/violet/packages/runtime/src/client.ts",
       "upstream_path": "packages/runtime/src/client.ts",
       "upstream_sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
-      "current_import_sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "e5851834b6b9df2832fb10d8352b3cbf49e8426bef9177c849cd05f19f068f7b",
+      "classification": "adapted",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletRuntime accepts a preloaded source, { tokens }, in place of apiUrl, so a static build applies a theme with no token server; load() resolves from it, switchNode(nodeId, source) takes a new one, preload() is a no-op and the cache is never used; source with apiUrl or apiKey, a malformed source, and a source given to an HTTP runtime are refused; the HTTP path is unchanged",
       "candidate": {
         "path": "packages/runtime/src/client.ts",
         "sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
@@ -1601,9 +1614,9 @@
       "path": "foundations/violet/packages/runtime/src/index.ts",
       "upstream_path": "packages/runtime/src/index.ts",
       "upstream_sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
-      "current_import_sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "fcb9186ce6b83cd06587460c2769215bbd7c5664df828c13ba316752118f5a55",
+      "classification": "adapted",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): exports the VioletBaseConfig, VioletHttpConfig, VioletSourceConfig, VioletTokenSource and SourceToken types",
       "candidate": {
         "path": "packages/runtime/src/index.ts",
         "sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
@@ -1614,9 +1627,9 @@
       "path": "foundations/violet/packages/runtime/src/theme.ts",
       "upstream_path": "packages/runtime/src/theme.ts",
       "upstream_sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
-      "current_import_sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "8f9b99df8c08737cf91c21c7e6ff15570e784bc1e68f92877b25c42b28887c4f",
+      "classification": "adapted",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): useSystemPreference takes an optional high-contrast theme, chosen while (prefers-contrast: more) or (forced-colors: active) matches and following changes to every query, with all listeners removed on unsubscribe; apply() and switch() pass a theme's source to switchNode",
       "candidate": {
         "path": "packages/runtime/src/theme.ts",
         "sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
@@ -1627,9 +1640,9 @@
       "path": "foundations/violet/packages/runtime/src/types.ts",
       "upstream_path": "packages/runtime/src/types.ts",
       "upstream_sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
-      "current_import_sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "886351ca2e437bb05726af74bb6f3daaf552c94c3155aff2d2c723d9cebcb9e7",
+      "classification": "adapted",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletConfig becomes the either/or union of VioletHttpConfig and VioletSourceConfig over VioletBaseConfig, with VioletTokenSource and SourceToken (resolvedAt optional, defaulting to the node); Theme gains an optional source",
       "candidate": {
         "path": "packages/runtime/src/types.ts",
         "sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
@@ -3668,9 +3681,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "157a3c8797dfb1158b89403e39d9daec4dd5658a3f498b89e586168f8e2b2b65",
+      "current_import_sha256": "f8354c24489f6d6ce67fcd9531d4d22787e3cf653a7028edd6d965a9f41d97e5",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b))",
       "candidate": {
         "path": null,
         "sha256": null,
