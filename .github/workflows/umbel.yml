@@ -22,6 +22,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Every test binary links wasmtime; keep their debug information small enough for the
+  # hosted runners' disks.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
