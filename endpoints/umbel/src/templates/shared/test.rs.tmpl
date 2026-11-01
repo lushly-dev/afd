@@ -1,0 +1,16 @@
+//! The plugin through the test kit: an in-process host with only this plugin.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use {{lib}}::plugin;
+use serde_json::json;
+use umbel::plugins::sdk;
+use umbel::testkit::TestHost;
+
+#[tokio::test]
+async fn {{id}}_hello_greets_with_the_packs_salutation() {
+    let host = TestHost::compiled(sdk(plugin())).boot().unwrap();
+    let result = host.call("{{id}}-hello", json!({ "name": "Ada" })).await;
+    assert!(result.success, "{result:?}");
+    let data = result.data.unwrap();
+    assert_eq!(data["greeting"], "Hello, Ada!");
+}

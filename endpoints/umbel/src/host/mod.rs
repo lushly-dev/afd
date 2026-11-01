@@ -159,6 +159,8 @@ impl HostBuilder {
             commands::plugin_show(Arc::clone(&loaded_cell)),
             commands::skill_list(Arc::clone(&loaded_cell)),
             commands::skill_export(Arc::clone(&loaded_cell)),
+            commands::plugin_new(),
+            commands::plugin_check(self.compiled.clone()),
             commands::event_list(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::event_ack(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::space_list(Arc::clone(&workspace), Arc::clone(&projector)),
@@ -239,6 +241,7 @@ impl HostBuilder {
             projector,
             server,
             clock: self.clock,
+            loaded,
         })
     }
 }
@@ -386,6 +389,7 @@ pub struct Host {
     projector: Arc<Projector>,
     server: McpServer,
     clock: Option<Arc<dyn Clock>>,
+    loaded: Arc<LoadedPlugins>,
 }
 
 impl Host {
@@ -398,6 +402,11 @@ impl Host {
     /// The workspace.
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
+    }
+
+    /// What the load sequence decided for every plugin instance, for `plugin-check`'s `boot`.
+    pub(crate) fn loaded(&self) -> &LoadedPlugins {
+        &self.loaded
     }
 
     /// Catch every event stream up with the journal under the workspace lock, whether or not

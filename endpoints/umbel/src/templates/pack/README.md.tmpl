@@ -1,0 +1,12 @@
+# {{title}}
+
+An Umbel pack plugin: content with no code. It ships one pack, `starter`, and one skill,
+`{{id}}-guide`.
+
+```sh
+umbel plugin check path=.      # the manifest, the pack, the skill, and a boot of an internal host
+```
+
+To deploy, copy this directory to `plugins/{{id}}/` in a workspace and set
+`plugins.enabled = ["{{id}}"]` in `umbel.toml`. A space can replace the pack whole with
+`spaces/<space>/packs/{{id}}/starter/`; files are never merged.

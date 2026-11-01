@@ -1,0 +1,31 @@
+# {{title}}
+
+An Umbel mounted plugin: an external MCP server that the host starts and talks to over stdio,
+renaming its tools under the prefix `{{id}}`. The server is yours to write in any language.
+
+Put the server's program at `bin/{{id}}-mcp` (or change `mount.command` in `umbel-plugin.toml`),
+then:
+
+```sh
+umbel plugin check path=.              # the manifest; it does not start the server
+umbel plugin check path=. spawn=true   # starts the server, lists its tools, reports what mounts
+```
+
+`spawn=true` runs the plugin's own program, so it is off unless you ask for it.
+
+## Write the server
+
+AFD builds MCP servers in three languages, each with the same `CommandResult` shape:
+
+- TypeScript: `@lushly-dev/afd-server`, `defineCommand` and `createMcpServer` (the `afd-typescript` skill).
+- Python: the `afd` package with FastMCP (the `afd-python` skill).
+- Rust: the `afd` crate with its `server` feature, or `umbel-sdk`'s `serve_mounted` (the `afd-rust` skill).
+
+Serve over stdio and write logs to stderr: stdout carries only JSON-RPC.
+
+## What the host does with it
+
+The child starts with a cleared environment (`PATH`, the manifest's `env` and the deployer's). It
+never receives a caller's credential, token or principal. Its results are labelled
+`dev.umbel/trust = "external"` and recorded in the journal but not replayed. A tool description that
+matches the `description-injection` rule is reported by `plugin check` and by the doctor.

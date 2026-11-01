@@ -1,0 +1,42 @@
+manifest_version = 1
+protocol = 1
+
+[plugin]
+id = "{{id}}"
+title = "{{title}}"
+version = "0.1.0"
+description = "A starting point: one command, one pack and one skill."
+kind = "component"
+domains = ["{{id}}"]
+
+[component]
+# Copy the built component here: see the README.
+path = "{{id}}.wasm"
+
+[[grants]]
+name = "packs"
+reason = "Reads the salutation from the starter pack."
+
+[[grants]]
+name = "clock"
+reason = "Stamps the greeting with the command context's clock."
+
+[[grants]]
+name = "log"
+reason = "Notes whom it greeted."
+
+[[commands]]
+name = "{{id}}-hello"
+description = "Greet someone with the starter pack's salutation."
+effects = ["inspect"]
+input_schema = "schemas/{{id}}-hello.input.json"
+returns = "schemas/{{id}}-hello.output.json"
+examples = [{ title = "Greet Ada", input = { name = "Ada" } }]
+
+[[packs]]
+id = "starter"
+path = "packs/starter"
+
+[[skills]]
+name = "{{id}}-guide"
+path = "skills/{{id}}-guide"

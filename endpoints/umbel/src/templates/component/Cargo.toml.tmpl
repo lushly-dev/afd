@@ -1,0 +1,40 @@
+[package]
+name = "{{crate}}"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+description = "{{title}}, an Umbel component plugin"
+
+[lib]
+# A component is a cdylib; the tests link the rlib.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# The plugin as a WebAssembly component: `cargo build --release --target wasm32-wasip2 --features component`.
+component = ["umbel-sdk/component"]
+
+[dependencies]
+serde_json = "1"
+umbel-sdk = {{umbel_sdk}}
+
+[build-dependencies]
+umbel-sdk = {{umbel_sdk}}
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The test kit: an in-process host with only this plugin.
+umbel = {{umbel}}
+
+# The workspace lints, with one scoped exception: with the `component` feature `export_component!`
+# expands wit-bindgen's glue in this crate, and it uses `unsafe`. The glue is wrapped in
+# `#[allow(unsafe_code)]`, which `deny` permits and `forbid` would not. Your own `unsafe` stays refused.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

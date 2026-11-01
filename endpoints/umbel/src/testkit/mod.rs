@@ -326,26 +326,13 @@ impl TestHostBuilder {
                 )
             }
         };
-        let mut config = toml::Table::new();
-        config.insert("config_version".into(), 2.into());
-        if let Some(first) = self.spaces.first() {
-            config.insert("default_space".into(), first.clone().into());
-        }
-        let mut spaces = toml::Table::new();
-        for space in &self.spaces {
-            spaces.insert(space.clone(), toml::Table::new().into());
-        }
-        config.insert("spaces".into(), spaces.into());
-        let mut instance = toml::Table::new();
-        instance.insert("source".into(), source.into());
-        if !self.config.is_empty() {
-            instance.insert("config".into(), self.config.clone().into());
-        }
-        instance.extend(self.keys.clone());
-        let mut plugins = toml::Table::new();
-        plugins.insert("enabled".into(), vec![id.clone()].into());
-        plugins.insert(id.clone(), instance.into());
-        config.insert("plugins".into(), plugins.into());
+        let config = crate::plugins::single_plugin_config(
+            &self.spaces,
+            &id,
+            &source,
+            &self.config,
+            &self.keys,
+        );
         for over in &self.overrides {
             let target = dir
                 .path()

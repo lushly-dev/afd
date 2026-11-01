@@ -6,6 +6,7 @@
 //! ([`CompiledPlugin`]) and the host services they are granted ([`Services`]); the component and
 //! mounted kinds arrive in the steps that follow.
 
+mod check;
 mod compiled;
 #[cfg(feature = "component")]
 mod component;
@@ -23,6 +24,9 @@ mod pipelines;
 mod skills;
 mod source;
 
+pub(crate) use check::run as check_plugin;
+#[cfg(feature = "testkit")]
+pub(crate) use check::single_plugin_config;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
 pub(crate) use doctor::{
     checks as doctor_checks, first_class_check, loaded_check, pipelines_check,
