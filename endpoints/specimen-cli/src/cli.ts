@@ -41,6 +41,8 @@ const valueOptions = new Set([
 	'screenshot',
 	'output',
 	'allow-context',
+	'id',
+	'file',
 ]);
 const flagOptions = new Set(['require-visual']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -66,7 +68,7 @@ function parseArguments(args: string[]): ParsedArguments {
 		options.set(key, value);
 	}
 	const action = positionals.shift();
-	if (!action) throw new Error('Choose a command: list, render, diff, or build');
+	if (!action) throw new Error('Choose a command: list, validate, render, diff, or build');
 	return { action, positionals, options, flags };
 }
 function dimensions(value: string): { width: number; height: number } {
@@ -77,6 +79,7 @@ function dimensions(value: string): { width: number; height: number } {
 function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
 		list: new Set(['root', 'config', 'output']),
+		validate: new Set(['root', 'config', 'output', 'id', 'file']),
 		render: new Set([
 			'root',
 			'config',
@@ -99,7 +102,8 @@ function validateOptions(parsed: ParsedArguments): void {
 		if (!known.has(option))
 			throw new Error(`Option --${option} does not apply to ${parsed.action}`);
 	}
-	const expected = parsed.action === 'list' ? 0 : parsed.action === 'diff' ? 2 : 1;
+	const expected =
+		parsed.action === 'list' || parsed.action === 'validate' ? 0 : parsed.action === 'diff' ? 2 : 1;
 	if (parsed.positionals.length !== expected)
 		throw new Error(
 			`${parsed.action} expects ${expected} positional argument${expected === 1 ? '' : 's'}`
@@ -152,6 +156,11 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			});
 			if (parsed.action === 'list')
 				result = await executeSpecimenCommand(bench, 'specimen-list', {});
+			else if (parsed.action === 'validate')
+				result = await executeSpecimenCommand(bench, 'specimen-validate', {
+					...(parsed.options.has('id') ? { id: parsed.options.get('id') } : {}),
+					...(parsed.options.has('file') ? { file: parsed.options.get('file') } : {}),
+				});
 			else if (parsed.action === 'build')
 				result = await executeSpecimenCommand(bench, 'specimen-build', {
 					outDir: resolve(root, parsed.positionals[0] ?? ''),
@@ -196,7 +205,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, render ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], render ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

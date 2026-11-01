@@ -109,25 +109,59 @@ export function parseCaptureRequest(value: unknown): CaptureRequest {
 	return request;
 }
 
-export function parseConfig(value: unknown): BenchConfig {
-	const fields = record(value, 'configuration', ['specimens']);
-	if (!Array.isArray(fields.specimens) || fields.specimens.length < 1)
+function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
+	if (!Array.isArray(value) || value.length < 1)
 		fail('configuration.specimens', 'expected at least one specimen');
+	return value.map((item: unknown, index) => {
+		const path = `configuration.specimens[${index}]`;
+		const entry = record(item, path, ['id', 'title', 'module', 'exportName', 'component']);
+		return {
+			id: text(entry.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
+			title: text(entry.title, `${path}.title`),
+			module: text(entry.module, `${path}.module`),
+			exportName: text(entry.exportName, `${path}.exportName`),
+			...(entry.component === undefined
+				? {}
+				: {
+						component: text(entry.component, `${path}.component`, /^[a-z][a-z0-9]*-[a-z0-9-]+$/),
+					}),
+		};
+	});
+}
+
+function stories(value: unknown): NonNullable<BenchConfig['stories']> {
+	if (!Array.isArray(value) || value.length < 1)
+		fail('configuration.stories', 'expected at least one stories specifier');
+	return value.map((item: unknown, index) => {
+		const path = `configuration.stories[${index}]`;
+		if (typeof item === 'string') return text(item, path);
+		const entry = record(item, path, ['directory', 'files', 'titlePrefix']);
+		return {
+			directory: text(entry.directory, `${path}.directory`),
+			...(entry.files === undefined ? {} : { files: text(entry.files, `${path}.files`) }),
+			...(entry.titlePrefix === undefined
+				? {}
+				: {
+						titlePrefix:
+							typeof entry.titlePrefix === 'string'
+								? entry.titlePrefix
+								: fail(`${path}.titlePrefix`, 'expected a string'),
+					}),
+		};
+	});
+}
+
+export function parseConfig(value: unknown): BenchConfig {
+	const fields = record(value, 'configuration', ['specimens', 'stories', 'preview']);
+	if (fields.specimens === undefined && fields.stories === undefined)
+		fail('configuration', 'expected specimens, stories or both');
+	if (fields.preview !== undefined && fields.stories === undefined)
+		fail('configuration.preview', 'project annotations apply only to stories');
 	return {
-		specimens: fields.specimens.map((item: unknown, index) => {
-			const path = `configuration.specimens[${index}]`;
-			const entry = record(item, path, ['id', 'title', 'module', 'exportName', 'component']);
-			return {
-				id: text(entry.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
-				title: text(entry.title, `${path}.title`),
-				module: text(entry.module, `${path}.module`),
-				exportName: text(entry.exportName, `${path}.exportName`),
-				...(entry.component === undefined
-					? {}
-					: {
-							component: text(entry.component, `${path}.component`, /^[a-z][a-z0-9]*-[a-z0-9-]+$/),
-						}),
-			};
-		}),
+		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
+		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
+		...(fields.preview === undefined
+			? {}
+			: { preview: text(fields.preview, 'configuration.preview') }),
 	};
 }

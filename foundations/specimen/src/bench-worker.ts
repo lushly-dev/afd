@@ -7,7 +7,7 @@ import {
 } from './bench-worker-client.js';
 
 // This entrypoint has no public command surface. Only the owning bench has its IPC channel.
-let bench: SpecimenBench | undefined;
+let bench: Omit<SpecimenBench, 'validate'> | undefined;
 let queue: Promise<void> = Promise.resolve();
 let closing = false;
 let shutdown: Promise<void> | undefined;

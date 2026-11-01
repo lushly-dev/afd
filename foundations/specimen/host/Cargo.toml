@@ -14,9 +14,11 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 base64 = "0.22"
+fast-glob = "1.1.2"
 futures = "0.3"
 libc = "0.2"
 oxc = { version = "=0.156.0", features = ["ast_visit"] }
+regex = "1.13"
 rolldown = "=1.2.16"
 rolldown_common = "=1.2.16"
 rolldown_plugin = "=1.2.16"

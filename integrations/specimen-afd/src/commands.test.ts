@@ -49,6 +49,24 @@ function bench(): SpecimenCommandBench {
 		list: vi.fn(() => [
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
 		]),
+		validate: vi.fn((target) => ({
+			valid: target?.id !== 'broken',
+			scope: 'static' as const,
+			checked: 1,
+			issues:
+				target?.id === 'broken'
+					? [
+							{
+								severity: 'error' as const,
+								code: 'UNSUPPORTED_ANNOTATION',
+								message: 'broken: the meta sets `loaders`',
+								suggestion: 'Move the behavior into the render.',
+								id: 'broken',
+								field: 'meta.loaders',
+							},
+						]
+					: [],
+		})),
 		render: vi.fn(async () => observation()),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
@@ -68,6 +86,7 @@ describe('specimen commands', () => {
 			'specimen-render',
 			'specimen-diff',
 			'specimen-build',
+			'specimen-validate',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -76,6 +95,39 @@ describe('specimen commands', () => {
 		const result = await executeSpecimenCommand(instance, 'specimen-list', {});
 		expect(result.success).toBe(true);
 		expect(result.data).toEqual({ specimens: instance.list() });
+	});
+	it('validates stories through the bench and returns its report, issues included', async () => {
+		const instance = bench();
+		const broken = await executeSpecimenCommand(instance, 'specimen-validate', { id: 'broken' });
+		expect(broken.success).toBe(true);
+		expect(broken.data).toMatchObject({
+			valid: false,
+			issues: [{ code: 'UNSUPPORTED_ANNOTATION' }],
+		});
+		expect(instance.validate).toHaveBeenCalledWith({ id: 'broken' });
+		const all = await executeSpecimenCommand(instance, 'specimen-validate', {});
+		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('lists retained stories with their Storybook identity', async () => {
+		const instance = bench();
+		const story = {
+			id: 'components-button--primary',
+			title: 'Components/Button',
+			module: './src/button.stories.ts',
+			exportName: 'Primary',
+			story: {
+				name: 'Primary',
+				tags: ['dev', 'test', 'manifest'],
+				play: 'unknown' as const,
+				unresolved: [{ level: 'story' as const, field: '*', reason: 'a call' }],
+				annotations: { meta: ['title'], story: ['*'] },
+			},
+		};
+		instance.list = () => [story];
+		const result = await executeSpecimenCommand(instance, 'specimen-list', {});
+		expect(result.data).toEqual({ specimens: [story] });
 	});
 	it('validates input before a render and rejects unknown fields', async () => {
 		const instance = bench();

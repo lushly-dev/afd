@@ -41,7 +41,7 @@ export const Probe = { render() {
 			})
 		);
 		const config = await loadConfig({ root });
-		const entry = config.config.specimens[0];
+		const entry = config.entries[0];
 		if (!entry) throw new Error('Missing cold fixture');
 		const browser = await chromium.launch({ headless: true });
 		try {

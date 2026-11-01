@@ -1,11 +1,36 @@
 import { resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
-import type { BenchOptions, CaptureRequest, Observation, SpecimenEntry } from './types.js';
+import { validateDiscovery } from './stories.js';
+import type {
+	BenchOptions,
+	CaptureRequest,
+	Observation,
+	SpecimenEntry,
+	ValidationReport,
+	ValidationTarget,
+} from './types.js';
 import { parseCaptureRequest } from './validate.js';
 
+/** Discovery found stories it cannot index; `validate()` reports each problem. */
+export class DiscoveryError extends Error {
+	readonly code = 'SPECIMEN_DISCOVERY_FAILED';
+	constructor(readonly problems: string[]) {
+		super(
+			`Story discovery failed with ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join('; ')}`
+		);
+	}
+}
+
 export interface SpecimenBench {
+	/** Native specimens and discovered stories; throws a `DiscoveryError` if discovery failed. */
 	list(): SpecimenEntry[];
+	/**
+	 * Static validation of discovered stories, optionally one story or file: identity, format
+	 * and annotation support, and what only running the module can settle. Never throws for
+	 * problems it finds.
+	 */
+	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	build(
 		outDir: string
@@ -17,8 +42,8 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	// Validate once, before returning metadata. Either backend receives this exact snapshot,
 	// including resolved module paths and digest, rather than rereading a changed config.
 	let config: LoadedConfig | undefined = await loadConfig(options);
-	for (const entry of config.config.specimens) Object.freeze(entry);
-	Object.freeze(config.config.specimens);
+	for (const entry of config.entries) Object.freeze(entry);
+	Object.freeze(config.entries);
 	Object.freeze(config.config);
 	Object.freeze(config.modules);
 	Object.freeze(config);
@@ -32,6 +57,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	const ensureOpen = (): LoadedConfig => {
 		if (closed || !config) throw new Error('Specimen bench is closed');
 		return config;
+	};
+	/** Listing and rendering need a discovery without errors. */
+	const ensureDiscovered = (): LoadedConfig => {
+		const snapshot = ensureOpen();
+		const errors = snapshot.stories?.discovery.errors ?? [];
+		if (errors.length) throw new DiscoveryError(errors.map((problem) => problem.message));
+		return snapshot;
 	};
 	const enqueue = <T>(operation: (runtime: Backend) => Promise<T>): Promise<T> => {
 		const snapshot = ensureOpen();
@@ -53,19 +85,58 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	};
 	return {
 		list() {
-			return ensureOpen().config.specimens.map((entry) => ({ ...entry }));
+			return ensureDiscovered().entries.map((entry) => ({ ...entry }));
+		},
+		validate(target) {
+			const snapshot = ensureOpen();
+			const discovery = snapshot.stories?.discovery;
+			if (!discovery) {
+				const known = !target?.id || snapshot.entries.some((entry) => entry.id === target.id);
+				return {
+					valid: known,
+					scope: 'static',
+					checked: 0,
+					issues: known
+						? []
+						: [
+								{
+									severity: 'error',
+									code: 'SPECIMEN_NOT_FOUND',
+									message: `Specimen not found: ${target?.id}`,
+									suggestion: 'Use specimen-list to check the id.',
+								},
+							],
+				};
+			}
+			const report = validateDiscovery(discovery, snapshot.root, target);
+			if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
+				return {
+					...report,
+					valid: false,
+					issues: [
+						{
+							severity: 'error',
+							code: 'SPECIMEN_NOT_FOUND',
+							message: `Specimen not found: ${target.id}`,
+							suggestion:
+								'Use specimen-list to check the id, or validate the file to see why it was not indexed.',
+						},
+						...report.issues,
+					],
+				};
+			return report;
 		},
 		async render(rawRequest) {
-			const snapshot = ensureOpen();
+			const snapshot = ensureDiscovered();
 			const request = parseCaptureRequest(rawRequest);
-			if (!snapshot.config.specimens.some((entry) => entry.id === request.id))
+			if (!snapshot.entries.some((entry) => entry.id === request.id))
 				throw new Error(`Specimen not found: ${request.id}`);
 			// Resolve context here too: invalid requests never start a runtime.
 			resolveContext(request.context);
 			return enqueue((client) => client.render(request));
 		},
 		async build(outDir) {
-			ensureOpen();
+			ensureDiscovered();
 			const directory = resolve(outDir);
 			return enqueue((client) => client.build(directory));
 		},

@@ -1,7 +1,14 @@
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SpecimenBench } from './bench.js';
-import { defaultContext, digest, type LoadedConfig, loadConfig, resolveContext } from './config.js';
+import {
+	defaultContext,
+	digest,
+	type LoadedConfig,
+	loadConfig,
+	renderable,
+	resolveContext,
+} from './config.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
 import { startTrace, traced } from './trace.js';
@@ -43,7 +50,7 @@ interface HostRender {
 export async function createInProcessBench(
 	options: BenchOptions,
 	validatedConfig?: LoadedConfig
-): Promise<SpecimenBench> {
+): Promise<Omit<SpecimenBench, 'validate'>> {
 	const createTrace = startTrace('bench-create');
 	const config =
 		validatedConfig ?? (await traced(createTrace, 'load-config', () => loadConfig(options)));
@@ -65,8 +72,8 @@ export async function createInProcessBench(
 					{
 						root: config.root,
 						runtime: browserRuntimePath(),
-						modules: Object.entries(config.modules),
-						entries: config.config.specimens,
+						modules: Object.entries(renderable(config).modules),
+						entries: renderable(config).entries,
 						defaults: defaultContext,
 						executable,
 						work: tmpdir(),
@@ -83,7 +90,7 @@ export async function createInProcessBench(
 	return {
 		list() {
 			ensureOpen();
-			return config.config.specimens.map((entry) => ({ ...entry }));
+			return config.entries.map((entry) => ({ ...entry }));
 		},
 		async build(outDir) {
 			ensureOpen();
@@ -103,8 +110,15 @@ export async function createInProcessBench(
 				checkpoint: parsed.checkpoint ?? 'mount',
 				timeoutMs: parsed.timeoutMs ?? 10_000,
 			};
-			const entry = config.config.specimens.find((item) => item.id === request.id);
+			const entry = config.entries.find((item) => item.id === request.id);
 			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			if (entry.story)
+				throw Object.assign(
+					new Error(
+						`${entry.id} is a retained story; rendering stories in compatibility mode is not available yet`
+					),
+					{ code: 'STORY_RENDER_UNAVAILABLE' }
+				);
 			const context = resolveContext(request.context);
 			const trace = startTrace('render', { id: entry.id, checkpoint: request.checkpoint });
 			try {

@@ -4,23 +4,41 @@ import { defaultContext } from './config.js';
 import { captureRequestSchema, contextSchema } from './schema.js';
 import { parseCaptureRequest, parseConfig, parseContext } from './validate.js';
 
-// The configuration rules as Zod expressed them before validation moved off Zod.
-const configSchema = z.strictObject({
-	specimens: z
-		.array(
-			z.strictObject({
-				id: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
-				title: z.string().min(1),
-				module: z.string().min(1),
-				exportName: z.string().min(1),
-				component: z
-					.string()
-					.regex(/^[a-z][a-z0-9]*-[a-z0-9-]+$/)
-					.optional(),
-			})
-		)
-		.min(1),
-});
+// The configuration rules as Zod expresses them; validation itself does not load Zod.
+const configSchema = z
+	.strictObject({
+		specimens: z
+			.array(
+				z.strictObject({
+					id: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
+					title: z.string().min(1),
+					module: z.string().min(1),
+					exportName: z.string().min(1),
+					component: z
+						.string()
+						.regex(/^[a-z][a-z0-9]*-[a-z0-9-]+$/)
+						.optional(),
+				})
+			)
+			.min(1)
+			.optional(),
+		stories: z
+			.array(
+				z.union([
+					z.string().min(1),
+					z.strictObject({
+						directory: z.string().min(1),
+						files: z.string().min(1).optional(),
+						titlePrefix: z.string().optional(),
+					}),
+				])
+			)
+			.min(1)
+			.optional(),
+		preview: z.string().min(1).optional(),
+	})
+	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
+	.refine((config) => config.preview === undefined || config.stories !== undefined);
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -128,6 +146,19 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: entry },
 			...entries.map((item) => ({ specimens: [item] })),
 			{ specimens: [entry, { ...entry, id: 'second' }] },
+			{ stories: ['src/**/*.stories.ts'] },
+			{ stories: [] },
+			{ stories: [''] },
+			{ stories: [{ directory: 'src' }] },
+			{ stories: [{ directory: 'src', files: '*.stories.ts', titlePrefix: '' }] },
+			{ stories: [{ directory: 'src', titlePrefix: 1 }] },
+			{ stories: [{ files: '*.ts' }] },
+			{ stories: [{ directory: 'src', extra: 1 }] },
+			{ stories: ['src'], preview: '.storybook/preview.ts' },
+			{ stories: ['src'], preview: '' },
+			{ specimens: [entry], preview: '.storybook/preview.ts' },
+			{ specimens: [entry], stories: ['src'] },
+			{ preview: 'x.ts' },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});

@@ -1,10 +1,10 @@
 # Specimens
 
-Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-render`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-render`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
-The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, full CSF discovery, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
+The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, running retained stories, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
 
 ## Run the fixtures
 
@@ -48,6 +48,25 @@ The feasibility manifest is explicit metadata, so listing and loading one specim
 Save this as `specimen.config.json`. A module can export meta defaults and a specimen object with args, a custom renderer, targets and scenario steps. Custom renderers return an `HTMLElement` or `{ element, ready, dispose }`. An element-returning renderer can instead declare specimen-level `ready` and `dispose` hooks. Hook promises are bounded by the render deadline. Duplicate hook declarations fail instead of silently selecting one.
 
 The fallback component renderer assigns args as properties. Schema validation, slots, imperative Storybook plays and command/expectation scenario steps are not implemented in this milestone. Use custom renderers for the supported native fixtures; unsupported format features must not be assumed to execute.
+
+## Discover retained stories
+
+In CSF compatibility mode a configuration names the consumer's existing Storybook story files, beside or instead of native specimens. `preview` is the project annotations module:
+
+```json
+{
+  "stories": ["src/**/*.stories.ts"],
+  "preview": ".storybook/preview.ts"
+}
+```
+
+Each `stories` entry is a glob, directory, file or `{ "directory", "files", "titlePrefix" }`, read as Storybook's `stories` entries are, relative to the configuration file. Extended globs such as `@(a|b)` are rejected; use braces.
+
+The native host reads the files statically, without running them, and lists each story with the id, title, name and tags Storybook's index gives it. A story's entry also says whether it has a play, which annotations it sets, and which values only running it can settle.
+
+Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on an unreadable file, a dynamic title, duplicate ids or an incomplete export order. `validate()`, `specimen-validate` and `specimen validate [--id ID | --file PATH]` report each problem with a suggestion. They also report annotations compatibility mode does not run, such as `loaders` or `beforeEach`, and values that are deferred to runtime.
+
+Rendering retained stories is not available yet: it fails with `STORY_RENDER_UNAVAILABLE`. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
 
 ## Build a review page
 
@@ -105,7 +124,7 @@ The host owns Chromium's process group. Each render is bounded by its deadline, 
 
 ## Validation
 
-`pnpm -F @lushly-dev/specimen test:browser` builds the host, then runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. It then runs the reference driver (`vitest.reference.config.ts`): the same browser runtime inside Vitest browser mode, the harness the consumers' Storybook Vitest addon uses. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`) and the Rust toolchain available; missing binaries are failures, not skipped acceptance. The host's own format, lint and tests run in `foundations/specimen/host` (`cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked`). The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
+`pnpm -F @lushly-dev/specimen test:browser` builds the host, then runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. It then runs the reference driver (`vitest.reference.config.ts`): the same browser runtime inside Vitest browser mode, the harness the consumers' Storybook Vitest addon uses. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`) and the Rust toolchain available; missing binaries are failures, not skipped acceptance. The host's own format, lint and tests run in `foundations/specimen/host` (`cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked`). The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. `src/compat.test.ts` runs Storybook 10.6.2's own indexer over the `compat/` fixtures as the reference; Storybook is a development dependency only. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
 
 Read [current status](../../docs/features/active/specimens/STATUS.md) for verified progress, known gaps and delivery state, then the [implementation plan](../../docs/features/active/specimens/implementation.md) for ordered tasks and the remaining acceptance gates.
 

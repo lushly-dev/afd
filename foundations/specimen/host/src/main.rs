@@ -5,6 +5,8 @@
 //! - `{"id", "op": "open", "root", "runtime", "modules": [[id, file]], "entries", "defaults", "executable", "work"}`
 //!   starts Chromium and replies `{"browserPid"}`, the browser's process group.
 //! - `{"id", "op": "render", "entry", "context", "checkpoint", "timeoutMs", "screenshot"}`
+//! - `{"id", "op": "index", "root", "base", "stories": [{directory, files, titlePrefix}], "preview"}`
+//!   reads story files statically and replies with their Storybook identities; it needs no `open`.
 //! - `{"id", "op": "close"}` waits for accepted renders, stops Chromium and exits.
 //!
 //! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes"}}`.
@@ -15,6 +17,7 @@ mod browser;
 mod bundle;
 mod cdp;
 mod console;
+mod csf;
 mod page;
 mod serve;
 
@@ -186,6 +189,27 @@ async fn main() -> Result<()> {
                         },
                         Err(error) => {
                             failure(&id, anyhow!("Invalid render request: {error}").into())
+                        }
+                    };
+                    let _ = replies.send(reply);
+                });
+            }
+            Some("index") => {
+                let replies = replies.clone();
+                work.spawn(async move {
+                    let reply = match serde_json::from_value::<csf::index::IndexRequest>(message) {
+                        Ok(request) => {
+                            match tokio::task::spawn_blocking(move || csf::index::index(&request))
+                                .await
+                            {
+                                Ok(index) => json!({ "id": id, "ok": true, "result": index }),
+                                Err(error) => {
+                                    failure(&id, anyhow!("Indexing failed: {error}").into())
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            failure(&id, anyhow!("Invalid index request: {error}").into())
                         }
                     };
                     let _ = replies.send(reply);
