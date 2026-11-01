@@ -18,7 +18,8 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **State:** approved 2026-11-01 under the owner's delegation of 2026-10-31; the owner approved the
   direction with the Umbel phase 1 specification (D47, [#583](https://github.com/lushly-dev/afd/pull/583),
   merged as `880779ff`). Step 0 (`spec/`) is written in the pull request that adds this file
-  (Umbel phase 1 step 0a); Rust implements it as of Umbel phase 1 step 0b, no other language yet.
+  (Umbel phase 1 step 0a); Rust implements it as of Umbel phase 1 step 0b and TypeScript as of step 2
+  (`packages/server`, PR_LINK); Python and C++ not yet.
 - **Last verified:** 2026-11-01 against `main` at `880779ff`. Current behavior read from
   `packages/server/src` (`mcp-modern.ts`, `http-handler.ts`, `tools.ts`, `lazy-tools.ts`,
   `schema.ts`, `execution.ts`), `packages/core/src/command-metadata.ts`, `python/src/afd/server`
@@ -39,8 +40,15 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (every case of `spec/mcp-resources.json` over Streamable HTTP and stdio in both eras) and
   `tests/server_tool_meta.rs`. `rmcp` 3.8.0 routes `skills/list`, `skills/get` and
   `resources/directory/read` through `on_custom_request`, so the spec stood.
-- **Not done:** steps 2 to 5 of the proposal's [implementation plan](mcp-resources-skills.proposal.md#implementation-plan)
-  (TypeScript, Python, C++, vectors); prompts.
+  Step 2, TypeScript, is written in PR_LINK (merge pending when this was written): `resources`
+  and `skills` options on `createMcpServer` and `createMcpHandler`, `toolMeta` and
+  `advertisedInputSchema` on `defineCommand`, verified 2026-11-01 by `packages/server`'s
+  `resources.test.ts`, `tool-meta.test.ts`, `skills.test.ts` and `frontmatter.test.ts` (every case of
+  `spec/mcp-resources.json` through a real `@modelcontextprotocol/client`, over Streamable HTTP and
+  dual-era stdio, in both eras) and `pnpm check`. Choices it made are in the proposal's
+  [Amendments from step 2](mcp-resources-skills.proposal.md#amendments-from-step-2).
+- **Not done:** steps 3 to 5 of the proposal's [implementation plan](mcp-resources-skills.proposal.md#implementation-plan)
+  (Python, C++, vectors); prompts; the V2 `afd validate --surface` warning (below).
 
 ## Implementation plan
 
@@ -48,7 +56,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | --- | --- | --- | --- |
 | 0. `spec/` | Done (#588) | New [`spec/mcp-resources.md`](../../../../spec/mcp-resources.md) and [`spec/mcp-resources.json`](../../../../spec/mcp-resources.json); amendments to `command-metadata.md`, `protocol-conformance.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merge |
 | 1. Rust | Done | [#608](https://github.com/lushly-dev/afd/pull/608): `packages/rust` `server` feature (`src/server/resources.rs`, `skills.rs`, `frontmatter.rs`), `src/meta_keys.rs`, `CommandRegistry::register_with_schemas`; `tests/server_resources.rs`, `tests/server_tool_meta.rs`; CHANGELOG, parity rows, `afd-rust` skill. Spec clarifications in the Umbel phase 1 specification's "Amendments from step 0b" | Umbel steps 3, 5 and 6 may now build on it |
-| 2. TypeScript | Not started | None | Step 0 merged. Loam phase 1 waits on it |
+| 2. TypeScript | Done (PR_LINK; verified 2026-11-01) | `packages/server`: `src/resources.ts`, `skills.ts`, `frontmatter.ts`, `meta-keys.ts`, wiring in `mcp-modern.ts`/`server.ts`; `defineCommand({ toolMeta, advertisedInputSchema })`, core `commandToolMeta`; tests `resources.test.ts` (all of `mcp-resources.json`, HTTP and stdio, both eras), `tool-meta.test.ts`, `skills.test.ts`, `frontmatter.test.ts`; README, `afd-typescript` skill, parity rows, spec status tables, minor changeset. `/direct` stays within its budgets (+0.3 KB) | Loam phase 1 may now build on it |
 | 3. Python | Not started | None | Step 0 merged |
 | 4. C++ | Not started | None | Step 0 and parity D2 ([#341](https://github.com/lushly-dev/afd/issues/341)) merged |
 | 5. Vectors, conformance rows, skills | Not started | None | Steps 1 to 4 |
@@ -67,7 +75,9 @@ None. The choices the phase 1 plan left open are made in the proposal's
 | 2026-11-01 | Step 0 session | Move `spec/mcp-resources.json` into `spec/vectors/` (and the loader table in `vectors/README.md`) in the step that makes the fourth language load it | Open |
 | 2026-11-01 | Step 0 session | If `rmcp` cannot route `skills/list`, `skills/get` or `resources/directory/read`, step 1 stops and amends the spec, as Umbel's phase 1 plan says | Done in step 1: `rmcp` 3.8.0 routes them through `ServerHandler::on_custom_request`; the spec stood |
 | 2026-11-01 | Step 0 session | Resources in the in-process registries (`DirectClient`, `createDirectRegistry`) if Loam's browser kernel needs `ui://` resources without an MCP server | Open, Loam to raise |
-| 2026-11-01 | Step 0 session | MCP prompts in AFD servers, the next step, when a phase needs workflows as prompts | Open |
+| 2026-11-01 | Step 2 session | `afd validate --surface` cannot warn when the advertised and validation schemas disagree (V2, SHOULD): it reads `tools/list`, which carries only the advertised schema. A warning needs both schemas, so it belongs where a language holds both (TypeScript: `defineCommand`, at a cost to the `/direct` budget) | Open |
+| 2026-11-01 | Step 2 session | `defineCommand` and the in-process registry do not check `toolMeta` keys (the server does, at registration), to keep `/direct` within its size budgets; `checkMetaEntry` is exported from the root entry only, which loads the MCP SDK | Open, Loam to raise |
+| 2026-11-01 | Step 2 session | MCP prompts in AFD servers, the next step, when a phase needs workflows as prompts | Open |
 
 ## Session log
 
@@ -75,3 +85,4 @@ None. The choices the phase 1 plan left open are made in the proposal's
 | --- | --- | --- |
 | 2026-11-01 | Step 0 session (Umbel phase 1 step 0a) | Proposal, this status file, `spec/mcp-resources.md` and its cases, the `command-metadata.md`, `protocol-conformance.md` and `CHANGELOG.md` amendments, parity rows; the Skill Knowledge Layer's out-of-scope note points here; Umbel's phase 1 specification takes AFD's `dev.afd/digest` in place of `dev.umbel/sha256`. No code |
 | 2026-11-01 | Umbel phase 1 step 0b | Rust implementation in `packages/rust` and the todo library split. Clarified in the spec: directory-read results are in `resources` (SEP-2640), frontmatter depth and repeated keys, reserved prefixes compared without case, no whitespace in a resource URI. New optional dependency `saphyr-parser` for the frontmatter. Parity rows and status tables updated for Rust |
+| 2026-11-01 | Step 2 session (TypeScript) | `packages/server` serves resources, the Skills extension and `toolMeta`, and shows `advertisedInputSchema`; core `CommandDefinition.toolMeta`. New dependency `yaml`. `spec/mcp-resources.md`, `command-metadata.md`, `protocol-conformance.md`, `CHANGELOG.md`, parity rows and the Loam prerequisites row updated; proposal "Amendments from step 2" |

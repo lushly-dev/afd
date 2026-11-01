@@ -14,7 +14,9 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { ContextField } from './context-fields.js';
+import type { ResourcesOption } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
+import type { SkillCatalog } from './skills.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSPORT
@@ -292,6 +294,26 @@ export interface McpServerOptions {
 	 * @default false
 	 */
 	bootstrap?: boolean;
+
+	/**
+	 * MCP resources (`spec/mcp-resources.md`, R1 to R6): a {@link ResourceProvider}, or an array of
+	 * static entries. The server then declares the `resources` capability and answers
+	 * `resources/list`, `resources/read` and `resources/templates/list` on `/mcp` and stdio, in
+	 * both MCP eras. A list never varies by connection, session or context. Entries are checked
+	 * when the server is built, and creation throws naming the entry that breaks a rule. A
+	 * `ui://` entry needs the `text/html;profile=mcp-app` MIME type; its `_meta.ui` goes on the
+	 * content a read returns. The deprecated `/sse` and `/message` lane serves none of this.
+	 */
+	resources?: ResourcesOption;
+
+	/**
+	 * Agent Skills served over MCP (`spec/mcp-resources.md`, S1 to S8): a {@link SkillCatalog}, fixed
+	 * when it is built. The server declares the `io.modelcontextprotocol/skills` extension and
+	 * `resources`, answers `skills/list` and `skills/get`, and serves every skill file as a
+	 * resource (`skill://<path>/<file>`) with its `dev.afd/digest`. `new SkillCatalog(skills, {
+	 * directoryRead: true })` also serves `resources/directory/read`.
+	 */
+	skills?: SkillCatalog;
 }
 
 /**

@@ -74,7 +74,7 @@ both eras, and digested under `_meta["dev.afd/digest"]`; the Skills over MCP ext
 `toolMeta`, extra tool `_meta` entries under reverse-DNS keys or MCP Apps' `ui`; and an advertised
 input schema kept apart from the one the registry validates with. `command-metadata.md` gains the
 `toolMeta` field and the advertised schema. It is additive: no existing fixture, vector, error code or
-result changes, and only Rust implements it so far (Umbel phase 1 step 0b). Its cases are in `mcp-resources.json`, which joins
+result changes, and Rust (Umbel phase 1 step 0b) and TypeScript implement it so far. Its cases are in `mcp-resources.json`, which joins
 `vectors/` once all four languages load it.
 
 [`vectors/journal-context-cap.json`](./vectors/journal-context-cap.json) pins the journal's 4096-byte

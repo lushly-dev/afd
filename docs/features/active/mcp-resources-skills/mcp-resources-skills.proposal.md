@@ -7,7 +7,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved 2026-11-01 under the owner's delegation of 2026-10-31: the owner approved this direction with the [Umbel phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first) (decision D47), merged in [#583](https://github.com/lushly-dev/afd/pull/583). Spec step done in this pull request; no language implements it yet. Progress is in [STATUS.md](STATUS.md) |
+| Status | Approved 2026-11-01 under the owner's delegation of 2026-10-31: the owner approved this direction with the [Umbel phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first) (decision D47), merged in [#583](https://github.com/lushly-dev/afd/pull/583). Spec step done; Rust (step 1) and TypeScript (step 2) implement it. Progress is in [STATUS.md](STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D47](../../../../endpoints/umbel/docs/decisions.md) and step 0a of its [phase 1 plan](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first); [Loam](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), which needs `ui://` resources and MCP Apps' `_meta.ui.resourceUri` from the same mechanism. Under Umbel's D25 it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
@@ -237,3 +237,18 @@ The phase 1 plan left these open; each is recorded here and in the spec.
    the bytes are valid UTF-8 (S5, R4).
 8. **`resources/templates/list` answers an empty list** rather than an error, so clients that call it
    after seeing `resources` do not fail (R5).
+
+## Amendments from step 2
+
+Step 2 (`packages/server`, TypeScript) found the spec able to stand as written and made these choices,
+none of which changes what a consumer sees on the wire:
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| T2, `toolMeta` "refused when the command is defined or registered" | Implied at definition | `createMcpServer` and `createMcpHandler` refuse a bad key when they register the command, naming the command and the key; `defineCommand` and the in-process `createDirectRegistry` do not check | The key rule costs about 1.5 KB minified, and the `/direct` entry has fixed size budgets. A hand-built command definition skips `defineCommand` anyway, so registration is the one check that covers every server. `commandToolMeta` puts the server's own fields after `toolMeta`, so an unchecked key still cannot replace one |
+| V2, `afd validate --surface` SHOULD warn when a property is required by one schema and absent from the other | A step 2 deliverable | Not implemented | `afd validate --surface` is a wire client: it reads `tools/list`, which carries only the advertised schema, so it cannot see the validation schema. A language that holds both in process (TypeScript could compare the Zod-derived schema in `defineCommand`) can warn there; no language does yet. Left as a follow-up |
+| R1, S1: the capability "in the `server/discover` result and in the `initialize` result" | Every transport | `/mcp` and stdio, in both eras. The deprecated `/sse` and `/message` lane (MCP 2024-11-05) serves no resources and still declares only `tools` | It is a separate, deprecated transport the spec's "eras" do not cover; declaring what it cannot serve would break R1 the other way |
+| R2, a provider entry's `size` "REQUIRED when the provider gives the content's bytes up front" | The provider sets it | `ResourceEntry.content` carries the bytes; the server fills `size` and `dev.afd/digest` from them, and refuses an entry whose `size` is also given and differs | Less to get wrong than a size and bytes that must agree by hand |
+| S2, "no two [file paths] equal" | A check | A `Skill`'s `files` is a record keyed by path, so a repeated path cannot be written; the other path rules (relative, `/`-separated, valid UTF-8, no empty, `.` or `..` segment) are checked | The idiomatic TypeScript shape |
+| S2, frontmatter | YAML 1.2 core schema | The `yaml` package (`version: '1.2'`, `schema: 'core'`, `uniqueKeys`, no merge keys), its tree walked here to refuse tags, anchors, aliases, non-string keys, non-finite numbers and nesting beyond 64 levels; a `__proto__` key stays data. The parse of the Rust reader's own test cases is identical | A new runtime dependency of `@lushly-dev/afd-server` (already in the lockfile through Vite) |
+| R3 cache hints | `ttlMs` equals the `tools/list` TTL option | Resource and skill results use `toolsListTtlMs ?? 300000`, never the context-lowered default. The SDK stamps `ttlMs`, `cacheScope` and `resultType` on `resources/*` results; `skills/*` results (custom methods) carry them from the handler, on the modern era only | The SDK client caches a modern `resources/list` for its TTL (`resources.test.ts` shows one `list()` call for two lists) |

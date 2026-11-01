@@ -393,6 +393,44 @@ for an entry that is unregistered, not `expose.mcp`, reserved, repeated or beyon
 it is listed everywhere but callable only in its contexts (`afd validate --surface` warns). `afd-help`
 reports `toolStrategy` and, on hybrid servers, `firstClassTools`.
 
+### Resources, Skills and Tool `_meta`
+
+All opt-in (`spec/mcp-resources.md`; details in the server README). Served on `/mcp` and stdio in both
+MCP eras, not on the deprecated `/sse` lane.
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands,
+  resources: {
+    list: () => [{ uri: 'ui://app/view.html', name: 'View', mimeType: MCP_APP_MIME_TYPE, content: html }],
+    read: async (uri) => (uri === 'file:///a.txt' ? { content: 'text' } : undefined), // undefined = -32602
+  },
+  skills: new SkillCatalog([await skillFromDirectory('acme/lint-rules', './skills/lint-rules')]),
+});
+```
+
+- `resources` is a provider (`list()` called on every list, optional `read(uri)`) or an array of static
+  entries. Entries need an absolute unique `uri` (not `skill://`), a non-empty `name`; `ui://` needs
+  `MCP_APP_MIME_TYPE`. `content` (string or bytes) is served by the server with `size` and
+  `_meta["dev.afd/digest"]`; a read may return `_meta` (including `ui`) on the content item. Bad entries
+  throw at creation, naming the entry.
+- `new SkillCatalog(skills, { directoryRead })` checks every Agent Skills rule once, at construction:
+  `SKILL.md` frontmatter (YAML 1.2 core schema, no tags/anchors/aliases), `name` = last path segment and
+  unique, `description` 1 to 1,024 characters, at most 512 files and 16 MiB. The server declares the
+  `io.modelcontextprotocol/skills` extension and `resources`, and serves `skills/list`, `skills/get` and every
+  skill file as `skill://<path>/<file>`. Skills are untrusted data.
+- Lists never vary by connection or context; modern-era results carry the `toolsListTtlMs` option as `ttlMs`
+  (300,000 default, never lowered by contexts) and `cacheScope: "public"`. An unknown URI is `-32602` with
+  `data.uri` on both eras; a read runs no command, middleware or journal entry.
+- `defineCommand({ toolMeta })` adds `_meta` entries to the command's tool, grouped action entry and
+  `afd-detail`: keys are prefixed with two or more labels (`dev.umbel/origin`), outside `dev.afd/` and MCP's
+  reserved prefixes, or exactly `ui` (`{ resourceUri: 'ui://...' }`). `createMcpServer` refuses any other
+  key, naming the command; `defineCommand` itself does not check.
+- `defineCommand({ advertisedInputSchema })` shows a JSON object schema (`type: "object"`) on every surface
+  while `input` still validates; keeping the two consistent is yours to do.
+
 ### With Contexts
 
 ```typescript

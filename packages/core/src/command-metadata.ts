@@ -4,7 +4,14 @@ import type { CommandDefinition, JsonSchema } from './commands.js';
 
 type MetadataFields = Pick<
 	CommandDefinition,
-	'category' | 'requires' | 'mutation' | 'destructive' | 'undoable' | 'examples' | 'contexts'
+	| 'category'
+	| 'requires'
+	| 'mutation'
+	| 'destructive'
+	| 'undoable'
+	| 'examples'
+	| 'contexts'
+	| 'toolMeta'
 >;
 
 /** Per-command planning metadata; display-only confirmPrompt is intentionally absent. */
@@ -16,13 +23,19 @@ export type CommandToolMeta = MetadataFields & {
 	outputSchema?: { [Key in keyof JsonSchema]: JsonSchema[Key] };
 };
 
-/** Omit unset fields and empty arrays, while preserving explicitly set false booleans. */
+/**
+ * Omit unset fields and empty arrays, while preserving explicitly set false booleans. The
+ * command's extra `toolMeta` entries are emitted beside the server's own.
+ */
 export function commandToolMeta(
 	command: MetadataFields & { approval?: ApprovalPolicy<never> },
 	outputSchema?: JsonSchema
 ): CommandToolMeta | undefined {
 	const approval = approvalMode(command.approval);
+	// The extra entries come first: the key rule (spec/mcp-resources.md, T2) refuses every key the
+	// server sets, so they never collide, and the server's own fields win if one ever did.
 	const meta: CommandToolMeta = {
+		...(command.toolMeta as CommandToolMeta | undefined),
 		...(command.category != null && { category: command.category }),
 		...(command.requires?.length && { requires: command.requires }),
 		...(command.mutation != null && { mutation: command.mutation }),
