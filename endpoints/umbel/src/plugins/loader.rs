@@ -21,6 +21,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
+#[cfg(feature = "component")]
+use super::component::ComponentRuntime;
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
@@ -613,7 +615,7 @@ fn resolve(
     super::doctor::fits(instance, &opened.manifest, opened.compiled.is_some())
         .map_err(|error| (error, http))?;
     let unavailable = match opened.manifest.plugin.kind {
-        PluginKind::Component => true,
+        PluginKind::Component => !cfg!(feature = "component"),
         PluginKind::Mounted => !cfg!(feature = "mounted"),
         _ => false,
     };
@@ -802,6 +804,22 @@ fn prepare(
     });
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
+        #[cfg(feature = "component")]
+        None if manifest.plugin.kind == PluginKind::Component => {
+            let runtime = ComponentRuntime::load(
+                &instance.id,
+                manifest,
+                files,
+                &services,
+                &instance.limits,
+            )?;
+            manifest
+                .commands
+                .iter()
+                .zip(&schemas)
+                .map(|(command, schema)| runtime.command(&command.name, has_space_property(schema)))
+                .collect()
+        }
         None => Vec::new(),
     };
 

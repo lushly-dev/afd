@@ -143,6 +143,49 @@ impl CallServices {
         &self.space
     }
 
+    /// Whether the grant `name` is held (declared and not denied).
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn holds(&self, name: &str) -> bool {
+        self.shared.granted.contains(name)
+    }
+
+    /// The command context the call runs in, for the virtualized clocks and random source.
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn command_context(&self) -> CommandContext {
+        self.context.clone()
+    }
+
+    /// Whether `len` more bytes of log output fit in the call's budget. The first overrun says
+    /// so once; later lines are dropped silently.
+    fn log_budget(&self, len: usize) -> bool {
+        let used = self.log_bytes.fetch_add(len as u64, Ordering::Relaxed);
+        if used + len as u64 > MAX_LOG_BYTES as u64 {
+            if used <= MAX_LOG_BYTES as u64 {
+                tracing::warn!(
+                    plugin = %self.shared.instance,
+                    "the plugin's log output for this call passed {MAX_LOG_BYTES} bytes; further lines are dropped"
+                );
+            }
+            return false;
+        }
+        true
+    }
+
+    /// A line a component wrote to stdout or stderr. Always linked, never granted, and under the
+    /// same per-call cap as the `log` grant (specification section 4).
+    #[cfg_attr(not(feature = "component"), allow(dead_code))]
+    pub(crate) fn wasi_line(&self, stderr: bool, line: &str) {
+        if !self.log_budget(line.len()) {
+            return;
+        }
+        let plugin = &self.shared.instance;
+        if stderr {
+            tracing::warn!(plugin = %plugin, source = "wasi", "{line}");
+        } else {
+            tracing::info!(plugin = %plugin, source = "wasi", "{line}");
+        }
+    }
+
     fn require(&self, grant: &str) -> Result<(), ServiceError> {
         require(&self.shared, grant)
     }
@@ -169,16 +212,7 @@ impl HostServices for CallServices {
         if self.require("log").is_err() {
             return;
         }
-        let used = self
-            .log_bytes
-            .fetch_add(message.len() as u64, Ordering::Relaxed);
-        if used + message.len() as u64 > MAX_LOG_BYTES as u64 {
-            if used <= MAX_LOG_BYTES as u64 {
-                tracing::warn!(
-                    plugin = %self.shared.instance,
-                    "the plugin's log output for this call passed {MAX_LOG_BYTES} bytes; further lines are dropped"
-                );
-            }
+        if !self.log_budget(message.len()) {
             return;
         }
         let plugin = &self.shared.instance;

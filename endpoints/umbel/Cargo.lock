@@ -3204,6 +3204,7 @@ dependencies = [
  "umbel-sdk",
  "wasmtime",
  "wasmtime-wasi",
+ "wasmtime-wasi-io",
 ]
 
 [[package]]
