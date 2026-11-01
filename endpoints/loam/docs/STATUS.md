@@ -38,7 +38,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
 | AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; the manifest proposal (phase 1) and the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest proposal before phase 1; see the phase detail |
-| 0. Kernel, chrome and design foundation | Specification written 2026-11-01, awaiting approval | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | The owner approves the specification by pull request (D17); then step 0a |
+| 0. Kernel, chrome and design foundation | Specification approved 2026-11-01; implementation not started | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | Steps 0a (AFD IndexedDB adapter and journal sink) and 1 (scaffold) |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
@@ -114,13 +114,12 @@ should never have to scan the codebase to learn what is current.
 
 ### 0. Kernel, chrome and design foundation
 
-- **State:** specification written 2026-11-01, awaiting the owner's
-  approval. Last verified 2026-11-01 against `main` at `b0782de7`; the
+- **State:** specification approved by the owner on 2026-11-01;
+  implementation not started. Last verified 2026-11-01 against `main` at `b0782de7`; the
   evidence is listed in the [specification's status block](phases/0-kernel-chrome/spec.md#status).
 - **Done:** the [specification](phases/0-kernel-chrome/spec.md), proposing
   D50 to D53.
-- **Not done:** the owner's approval; steps 0a to 8 of its implementation
-  plan.
+- **Not done:** steps 0a to 8 of its implementation plan.
 
 Phases 1 to 8 have no detail yet; add a heading in this shape when one
 starts.
@@ -171,3 +170,4 @@ starts.
 | 2026-10-31 | AFD proposals | The two AFD areas the review found were written as feature proposals with status files, the browser-safe direct registry and declared context fields, filed as #527 and #528, and linked from the prerequisites table |
 | 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |
 | 2026-11-01 | Phase 0 specification | The [phase 0 specification](phases/0-kernel-chrome/spec.md) written: four packages under `endpoints/loam/packages/`, the token contract and Loam's Violet tree, the shared components moved onto a committed Violet export (D50), the design document and the `loam-design` skill, the token-only lint, kernel interface version 0, the phase 0 commands with `appearance` and `palette` (D51), stores version 0 on IndexedDB for browser and desktop (D52), Specimen high contrast (D53), the bundle budget and the accelerator rule's operations and budgets (D37), and the exit tests |
+| 2026-11-01 | Owner's approval | The owner approved the phase 0 specification, deciding D50 to D53, and granted autonomy across phases: commit, merge, fix and approve later specifications without checking in unless a question blocks on the owner. D53's wording aligned with the specification (light scheme plus `prefers-contrast: more`; forced colors tested in Loam's suite) |

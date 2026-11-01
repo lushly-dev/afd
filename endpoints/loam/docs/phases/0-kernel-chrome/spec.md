@@ -11,8 +11,8 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
-  Awaiting the owner's approval by pull request (D17). Nothing is
-  implemented.
+  Approved by the owner on 2026-11-01 (D17). Implementation starts with
+  steps 0a and 1.
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
