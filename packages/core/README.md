@@ -28,6 +28,7 @@ This package provides the foundational types used across all AFD packages:
 | `@lushly-dev/afd-core/result` | `CommandResult`, `success`, `failure`, `error`, `isSuccess`, `isFailure` | Node.js and browsers |
 | `@lushly-dev/afd-core/connectors` | `GitHubConnector`, `PackageManagerConnector` and their types | Node.js only |
 | `@lushly-dev/afd-core/journal-file` | `FileJournalSink`, a JSON Lines command journal on disk | Node.js only |
+| `@lushly-dev/afd-core/journal-indexeddb` | `IndexedDbJournalSink`, a command journal in IndexedDB, and `IndexedDbJournalError` | Browsers, workers and webviews |
 | `@lushly-dev/afd-core/platform` | `exec`, `findUp`, `isWindows` and other process helpers | Node.js only |
 
 ### Connectors live in their own subpath
@@ -51,6 +52,25 @@ JSON Lines helpers (`serializeJournal`, `parseJournal`) are in the root entry. T
 ```typescript
 import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
 ```
+
+In a browser, web worker or webview, `IndexedDbJournalSink` keeps the journal in IndexedDB:
+
+```typescript
+import { IndexedDbJournalSink } from '@lushly-dev/afd-core/journal-indexeddb';
+
+const sink = new IndexedDbJournalSink({ name: 'my-app-journal' });
+await sink.lock(); // rejects with code JOURNAL_LOCKED when another tab is writing
+```
+
+It owns the database `name`, with one object store, `entries`, keyed by `seq`, and stores each
+entry as the JSON value the file sink would write. `read(range)` reads the inclusive `seq` range
+without the lock. As the file sink allows one process per file, this sink allows one writer per
+database: before its first `append` it takes the Web Lock `<name>:writer` and holds it until
+`close()`. When another context holds it, `append` and `lock()` reject with an
+`IndexedDbJournalError` whose `code` is `JOURNAL_LOCKED`, with a `suggestion`, instead of
+waiting; call `lock()` at startup to find out before any command runs. Without the Web Locks
+API it refuses to write (`JOURNAL_LOCK_UNAVAILABLE`). In Node.js tests, pass `indexedDB` (from
+`fake-indexeddb`) and `locks`.
 
 The server package records entries (`createJournalMiddleware`) and replays them
 (`replayJournal`). The format is in [`spec/journal.md`](../../spec/journal.md).

@@ -1,4 +1,16 @@
-import { assertValidName, DataAdapterError, jsonCopy, UPSERT_TABLES } from './adapter-support.js';
+import {
+	asRow,
+	assertValidName,
+	DataAdapterError,
+	jsonCopy,
+	parseBatchPath,
+	queryRows,
+	type Row,
+	recordId,
+	requireId,
+	rolledBack,
+	UPSERT_TABLES,
+} from './adapter-support.js';
 import type {
 	BatchOperation,
 	BatchOperationResult,
@@ -9,8 +21,6 @@ import type {
 	QueryParams,
 } from './types.js';
 
-type Row = Record<string, unknown>;
-
 /** How to undo one write of a failed batch. */
 interface UndoEntry {
 	table: string;
@@ -19,51 +29,6 @@ interface UndoEntry {
 	previous: Row | undefined;
 	/** The write created the table. */
 	createdTable: boolean;
-}
-
-const RESERVED_QUERY_KEYS = new Set(['limit', 'offset', 'sort', 'order']);
-
-function compareSortValues(a: unknown, b: unknown): number {
-	if (typeof a === 'number' && Number.isFinite(a) && typeof b === 'number' && Number.isFinite(b)) {
-		if (a < b) return -1;
-		if (a > b) return 1;
-		return 0;
-	}
-
-	const aValue = a == null ? '' : String(a);
-	const bValue = b == null ? '' : String(b);
-	return aValue.localeCompare(bValue);
-}
-
-function recordId(record: Row): string {
-	const id = String(record.id ?? record.name ?? record.key ?? crypto.randomUUID());
-	assertValidName('record id', id);
-	return id;
-}
-
-function asRow(value: unknown): Row {
-	return typeof value === 'object' && value !== null ? jsonCopy(value as Row) : {};
-}
-
-/** Split a batch path `/<table>[/<id>]` into its percent-decoded table and record ID. */
-function parseBatchPath(path: unknown): { table: string; id: string | undefined } {
-	if (typeof path !== 'string') {
-		throw new DataAdapterError(400, 'Batch operation path must be a string', 'INVALID_PATH');
-	}
-	const [first = '', ...rest] = path.replace(/^\/+/, '').split('/');
-	try {
-		const id = rest.length > 0 ? decodeURIComponent(rest.join('/')) : undefined;
-		return { table: decodeURIComponent(first), id: id === '' ? undefined : id };
-	} catch {
-		throw new DataAdapterError(400, `Malformed batch path ${JSON.stringify(path)}`, 'INVALID_PATH');
-	}
-}
-
-function requireId(method: string, id: string | undefined): string {
-	if (id === undefined) {
-		throw new DataAdapterError(400, `${method} needs a /<table>/<id> path`, 'INVALID_PATH');
-	}
-	return id;
 }
 
 /**
@@ -99,30 +64,7 @@ export class MemoryAdapter implements DataAdapter {
 
 	async list<T>(table: string, params?: QueryParams): Promise<ListResult<T>> {
 		assertValidName('table', table);
-		let rows = [...(this.tables.get(table)?.values() ?? [])];
-
-		// Filter by params (exact match on string/number/boolean values)
-		if (params) {
-			for (const [key, value] of Object.entries(params)) {
-				if (RESERVED_QUERY_KEYS.has(key) || value === undefined) continue;
-				rows = rows.filter((row) => String(row[key]) === String(value));
-			}
-		}
-
-		const total = rows.length;
-
-		// Sort
-		if (params?.sort) {
-			const sortKey = params.sort;
-			const order = params.order === 'desc' ? -1 : 1;
-			rows.sort((a, b) => compareSortValues(a[sortKey], b[sortKey]) * order);
-		}
-
-		// Paginate
-		const offset = params?.offset ?? 0;
-		const limit = params?.limit ?? rows.length;
-		rows = rows.slice(offset, offset + limit);
-
+		const { rows, total } = queryRows([...(this.tables.get(table)?.values() ?? [])], params);
 		return { data: jsonCopy(rows) as T[], total };
 	}
 
@@ -152,14 +94,7 @@ export class MemoryAdapter implements DataAdapter {
 			if (result.status >= 400 && !readMiss) {
 				this.rollback(undo);
 				return {
-					results: operations.map((_, other) =>
-						other === index
-							? result
-							: {
-									status: 424,
-									error: `Not applied: operation ${index} failed, so the batch was rolled back`,
-								}
-					),
+					results: operations.map((_, other) => (other === index ? result : rolledBack(index))),
 					summary: { total: operations.length, success: 0, failed: operations.length },
 				};
 			}

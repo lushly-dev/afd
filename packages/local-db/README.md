@@ -6,6 +6,7 @@ Async data adapter with swappable backends for [Agent-First Development](https:/
 
 AFD commands need persistent storage, but the backend varies:
 - **Unit tests** need fast, in-memory storage with no setup
+- **Browser apps** need offline storage in IndexedDB
 - **Local dev** needs a REST API backed by SQLite or similar
 - **Production** needs a cloud database (Azure SQL, Cosmos DB, Postgres)
 
@@ -54,10 +55,18 @@ await db.remove('users', 'u1');
 | `batch` | `batch(ops): Promise<BatchResult>` | Atomic multi-operation |
 | `health` | `health(): Promise<HealthStatus>` | Backend health check |
 
+## Entry points
+
+| Import | Contents | Runs in |
+|--------|----------|---------|
+| `@lushly-dev/local-db` | `DataAdapter` and its types, `MemoryAdapter`, `HttpAdapter`, `DataAdapterError` | Node.js and browsers |
+| `@lushly-dev/local-db/indexeddb` | `IndexedDbAdapter`, `createIndexedDbAdapter` | Browsers, workers and webviews (or Node.js with `fake-indexeddb`) |
+| `@lushly-dev/local-db/testing` | `runDataAdapterContract`, the contract suite | Vitest, in Node.js or browser mode |
+
 ### Contract
 
-`MemoryAdapter` and `HttpAdapter` pass one shared contract test suite, so tests written
-against the memory adapter describe production behavior:
+`MemoryAdapter`, `HttpAdapter` and `IndexedDbAdapter` pass one shared contract test suite, so
+tests written against the memory adapter describe production behavior:
 
 - **Records are JSON copies.** Changing a returned object, or the object you passed in, never
   changes stored data. Values are stored as JSON, so a `Date` comes back as an ISO string and
@@ -78,7 +87,29 @@ against the memory adapter describe production behavior:
   failed. `HttpAdapter` sends the batch as one `POST /batch`, so the server must implement the
   same semantics.
 - **Errors** reject with `DataAdapterError` (`status`, `code`: `NOT_FOUND`, `CONFLICT`,
-  `INVALID_NAME` or `HTTP_<status>`).
+  `INVALID_NAME`, `INVALID_PATH` or `HTTP_<status>`; `IndexedDbAdapter` adds
+  `STORAGE_UNAVAILABLE` and `STORAGE_ERROR`).
+
+#### Running the contract against your adapter
+
+`runDataAdapterContract(name, create)` registers the suite in a Vitest `describe` block.
+`create` runs before each test and returns an empty adapter, or `{ adapter, dispose }` when the
+adapter needs cleanup after each test:
+
+```ts
+import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
+import { runDataAdapterContract } from '@lushly-dev/local-db/testing';
+
+runDataAdapterContract('IndexedDbAdapter', () => {
+  const adapter = new IndexedDbAdapter({ name: `contract-${crypto.randomUUID()}` });
+  return { adapter, dispose: () => adapter.destroy() };
+});
+```
+
+The entry imports `describe`, `it`, `expect`, `beforeEach` and `afterEach` from `vitest`, an
+optional peer dependency, and no Node.js builtin, so the same call runs in Node.js and in a
+Vitest browser-mode suite against the real IndexedDB. This package runs it for all three
+adapters, with `IndexedDbAdapter` over `fake-indexeddb`.
 
 ### `QueryParams`
 
@@ -120,6 +151,32 @@ Default path mapping: `accounts` → `/accounts`, `flags` → `/flags`, `setting
 `/<encoded table name>`.
 
 Uses PUT for upsert-style tables (settings, flags), PATCH for entity tables (accounts, annotations).
+
+#### `IndexedDbAdapter`
+
+IndexedDB storage for browsers, web workers and webviews, from its own entry so the root entry
+stays free of it.
+
+```ts
+import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
+
+const db = new IndexedDbAdapter({ name: 'my-app-store' });
+await db.update('settings', 'theme', { value: 'dark' });
+await db.close();   // close the connection; the next call reopens it
+await db.destroy(); // close and delete the database
+```
+
+- **Its own database.** The adapter owns the database `name`: one object store, `records`,
+  keyed by `[table, id]`, with an index on `table`, so any table name works. Adapters with the
+  same name share their data. A database of that name that something else created is refused
+  with `STORAGE_ERROR`.
+- **One transaction per call**, so `batch()` is atomic: a failed operation aborts the
+  transaction. `list()` without `sort` returns records in ID order.
+- **Other connections.** When another connection upgrades or deletes the database, the adapter
+  closes its connection and reopens it on the next call.
+- **Options.** `indexedDB` takes the factory to use (default `globalThis.indexedDB`); in Node.js
+  pass `new IDBFactory()` from `fake-indexeddb`. With no IndexedDB, calls reject with
+  `STORAGE_UNAVAILABLE` (503).
 
 ## With AFD commands
 

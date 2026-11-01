@@ -20,6 +20,10 @@
 			"types": "./dist/journal-file.d.ts",
 			"import": "./dist/journal-file.js"
 		},
+		"./journal-indexeddb": {
+			"types": "./dist/journal-indexeddb.d.ts",
+			"import": "./dist/journal-indexeddb.js"
+		},
 		"./internal/direct-approval": {
 			"types": "./dist/direct-approval.d.ts",
 			"import": "./dist/direct-approval.js"
@@ -76,6 +80,7 @@
 	"devDependencies": {
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^4.1.12",
+		"fake-indexeddb": "^6.2.7",
 		"rimraf": "^6.1.3",
 		"typescript": "^5.9.3",
 		"vitest": "^4.1.12"

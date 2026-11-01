@@ -172,7 +172,7 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 | `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
 | `@lushly-dev/afd-view-state` | Ecosystem-level UI view state management via commands; not part of the core cross-language parity surface |
 | `@lushly-dev/afd-cli` | Command-line interface |
-| `@lushly-dev/local-db` | Async data adapter with swappable backends (Memory, HTTP) |
+| `@lushly-dev/local-db` | Async data adapter with swappable backends (Memory, HTTP, IndexedDB at `/indexeddb`) and its contract suite (`/testing`) |
 
 ## When to Escalate
 

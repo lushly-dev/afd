@@ -1,14 +1,18 @@
 /**
- * One contract suite for every DataAdapter. `HttpAdapter` runs against a small REST server
- * (below) that implements the conventions its docs describe, so both adapters must agree on
- * copies, JSON values, update/remove semantics, table names and atomic batches.
+ * One contract suite for every DataAdapter (`runDataAdapterContract`, exported at
+ * `@lushly-dev/local-db/testing`). `HttpAdapter` runs against a small REST server (below) that
+ * implements the conventions its docs describe, and `IndexedDbAdapter` over fake-indexeddb, so
+ * every adapter must agree on copies, JSON values, update/remove semantics, table names and
+ * atomic batches.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
-import { DataAdapterError } from './adapter-support.js';
+import { IDBFactory } from 'fake-indexeddb';
+import { describe, expect, it } from 'vitest';
 import { HttpAdapter } from './http-adapter.js';
+import { IndexedDbAdapter } from './indexeddb-adapter.js';
 import { MemoryAdapter } from './memory-adapter.js';
-import type { BatchOperation, DataAdapter } from './types.js';
+import { runDataAdapterContract } from './testing.js';
+import type { BatchOperation } from './types.js';
 
 type Row = Record<string, unknown>;
 interface Reply {
@@ -148,206 +152,43 @@ function createRestServer() {
 	return { fetch, paths };
 }
 
-interface Implementation {
-	db: DataAdapter;
-	/** Request paths the adapter sent, for HttpAdapter. */
-	paths: string[];
+function createHttpAdapter() {
+	const server = createRestServer();
+	return {
+		db: new HttpAdapter(`http://db.test${API}`, { fetch: server.fetch }),
+		paths: server.paths,
+	};
 }
 
-const implementations: Array<[string, () => Implementation]> = [
-	['MemoryAdapter', () => ({ db: new MemoryAdapter(), paths: [] })],
-	[
-		'HttpAdapter',
-		() => {
-			const server = createRestServer();
-			return {
-				db: new HttpAdapter(`http://db.test${API}`, { fetch: server.fetch }),
-				paths: server.paths,
-			};
-		},
-	],
-];
+runDataAdapterContract('MemoryAdapter', () => new MemoryAdapter());
+runDataAdapterContract('HttpAdapter', () => createHttpAdapter().db);
+runDataAdapterContract('IndexedDbAdapter', () => {
+	const adapter = new IndexedDbAdapter({ name: 'contract', indexedDB: new IDBFactory() });
+	return { adapter, dispose: () => adapter.close() };
+});
 
-describe.each(implementations)('DataAdapter contract: %s', (_name, implement) => {
-	let db: DataAdapter;
-	let paths: string[];
-
-	beforeEach(() => {
-		({ db, paths } = implement());
-	});
-
-	it('creates and reads records, and returns null for a missing one', async () => {
-		const created = await db.create('users', { id: 'u1', name: 'Alice' });
-
-		expect(created).toEqual({ id: 'u1', name: 'Alice' });
-		expect(await db.get('users', 'u1')).toEqual({ id: 'u1', name: 'Alice' });
-		expect(await db.get('users', 'missing')).toBeNull();
-	});
-
-	it('returns copies, so changing a result or an input leaves stored data alone', async () => {
-		const input = { id: 'u1', tags: ['a'] };
-		const created = await db.create<{ id: string; tags: string[] }>('users', input);
-		input.tags.push('from-input');
-		created.tags.push('from-create');
-		const read = await db.get<{ tags: string[] }>('users', 'u1');
-		read?.tags.push('from-get');
-		const listed = await db.list<{ tags: string[] }>('users');
-		listed.data[0]?.tags.push('from-list');
-		const updated = await db.update<{ tags: string[] }>('users', 'u1', { tags: ['b'] });
-		updated.tags.push('from-update');
-
-		expect(await db.get('users', 'u1')).toEqual({ id: 'u1', tags: ['b'] });
-	});
-
-	it('stores values as JSON', async () => {
-		await db.create('events', {
-			id: 'e1',
-			at: new Date(0),
-			skipped: undefined,
-			nested: { list: [1, { deep: true }] },
-		});
-
-		expect(await db.get('events', 'e1')).toEqual({
-			id: 'e1',
-			at: '1970-01-01T00:00:00.000Z',
-			nested: { list: [1, { deep: true }] },
-		});
-	});
-
-	it('merges update() into an existing record', async () => {
-		await db.create('users', { id: 'u1', name: 'Alice', score: 1 });
-
-		expect(await db.update('users', 'u1', { score: 2 })).toEqual({
-			id: 'u1',
-			name: 'Alice',
-			score: 2,
-		});
-	});
-
-	it('rejects update() of a missing record with a 404 and creates nothing', async () => {
-		const update = db.update('users', 'ghost', { name: 'Nobody' });
-
-		await expect(update).rejects.toBeInstanceOf(DataAdapterError);
-		await expect(update).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
-		expect(await db.get('users', 'ghost')).toBeNull();
-	});
-
-	it('creates a missing record with update() in an upsert table', async () => {
-		expect(await db.update('settings', 'theme', { value: 'dark' })).toEqual({
-			id: 'theme',
-			value: 'dark',
-		});
-		expect(await db.get('settings', 'theme')).toEqual({ id: 'theme', value: 'dark' });
-	});
-
-	it('removes records, and removing a missing record succeeds', async () => {
-		await db.create('users', { id: 'u1' });
-
-		await db.remove('users', 'u1');
-		await expect(db.remove('users', 'u1')).resolves.toBeUndefined();
-		expect(await db.get('users', 'u1')).toBeNull();
-	});
-
-	it('filters, sorts and paginates list()', async () => {
-		await db.create('items', { id: '1', type: 'a', value: 10 });
-		await db.create('items', { id: '2', type: 'b', value: 20 });
-		await db.create('items', { id: '3', type: 'a', value: 30 });
-
-		const page = await db.list('items', { type: 'a', sort: 'value', order: 'desc', limit: 1 });
-
-		expect(page).toEqual({ data: [{ id: '3', type: 'a', value: 30 }], total: 2 });
-		expect(await db.list('empty')).toEqual({ data: [], total: 0 });
-	});
-
+describe('HttpAdapter request paths', () => {
 	it.each(['constructor', '__proto__', 'toString', '../admin', 'a b/c?d#e'])(
-		'keeps the table %j separate and inside the API',
+		'keeps the table %j inside the API',
 		async (table) => {
-			await db.create(table, { id: 'x', table });
-			await db.create('admin', { id: 'x', table: 'admin' });
+			const { db, paths } = createHttpAdapter();
+			await db.create(table, { id: 'x' });
+			await db.get(table, 'x');
+			await db.list(table);
 
-			expect(await db.get(table, 'x')).toEqual({ id: 'x', table });
-			expect(await db.list(table)).toMatchObject({ total: 1 });
-			expect(await db.get('admin', 'x')).toEqual({ id: 'x', table: 'admin' });
+			expect(paths).toHaveLength(3);
 			for (const path of paths) expect(path.startsWith(`${API}/`)).toBe(true);
 		}
 	);
 
-	it.each(['', '.', '..'])('rejects the table name %j with a 400', async (table) => {
-		await expect(db.list(table)).rejects.toMatchObject({ status: 400, code: 'INVALID_NAME' });
-		await expect(db.create(table, { id: 'x' })).rejects.toBeInstanceOf(DataAdapterError);
-		await expect(db.get(table, 'x')).rejects.toMatchObject({ status: 400 });
+	it.each(['', '.', '..'])('sends no request for the table or record ID %j', async (name) => {
+		const { db, paths } = createHttpAdapter();
+		await expect(db.list(name)).rejects.toMatchObject({ status: 400 });
+		await expect(db.create(name, { id: 'x' })).rejects.toMatchObject({ status: 400 });
+		await expect(db.get('users', name)).rejects.toMatchObject({ status: 400 });
+		await expect(db.update('users', name, {})).rejects.toMatchObject({ status: 400 });
+		await expect(db.remove('users', name)).rejects.toMatchObject({ status: 400 });
+
 		expect(paths).toEqual([]);
-	});
-
-	it.each(['', '.', '..'])('rejects the record ID %j with a 400', async (id) => {
-		await expect(db.get('users', id)).rejects.toMatchObject({ status: 400, code: 'INVALID_NAME' });
-		await expect(db.update('users', id, {})).rejects.toMatchObject({ status: 400 });
-		await expect(db.remove('users', id)).rejects.toMatchObject({ status: 400 });
-		expect(paths).toEqual([]);
-	});
-
-	it('applies every operation of a successful batch', async () => {
-		await db.create('users', { id: 'old' });
-
-		const result = await db.batch([
-			{ method: 'POST', path: '/users', body: { id: 'u1', name: 'A' } },
-			{ method: 'PATCH', path: '/users/u1', body: { name: 'B' } },
-			{ method: 'PUT', path: '/users/u2', body: { name: 'C' } },
-			{ method: 'DELETE', path: '/users/old' },
-			{ method: 'GET', path: '/users/u1' },
-		]);
-
-		expect(result.results.map((entry) => entry.status)).toEqual([201, 200, 200, 204, 200]);
-		expect(result.results[4]?.data).toEqual({ id: 'u1', name: 'B' });
-		expect(result.summary).toEqual({ total: 5, success: 5, failed: 0 });
-		expect((await db.list('users')).total).toBe(2);
-	});
-
-	it('applies nothing when one operation of a batch fails', async () => {
-		await db.create('users', { id: 'kept', name: 'before' });
-
-		const result = await db.batch([
-			{ method: 'POST', path: '/users', body: { id: 'u1' } },
-			{ method: 'PATCH', path: '/users/kept', body: { name: 'after' } },
-			{ method: 'DELETE', path: '/users/kept' },
-			{ method: 'PATCH', path: '/users/ghost', body: { name: 'x' } },
-			{ method: 'POST', path: '/users', body: { id: 'u2' } },
-		]);
-
-		expect(result.results.map((entry) => entry.status)).toEqual([424, 424, 424, 404, 424]);
-		expect(result.results[3]?.error).toBeTruthy();
-		expect(result.summary).toEqual({ total: 5, success: 0, failed: 5 });
-		expect(await db.list('users')).toEqual({
-			data: [{ id: 'kept', name: 'before' }],
-			total: 1,
-		});
-	});
-
-	it('rolls back a batch with an unsupported method, including the tables it created', async () => {
-		const result = await db.batch([
-			{ method: 'POST', path: '/fresh', body: { id: 'f1' } },
-			{ method: 'OPTIONS' as 'GET', path: '/fresh' },
-		]);
-
-		expect(result.results.map((entry) => entry.status)).toEqual([424, 400]);
-		expect(await db.list('fresh')).toEqual({ data: [], total: 0 });
-		expect((await db.health()).tables).toBe(0);
-	});
-
-	it('treats a batch GET of a missing record as a read, not a failure', async () => {
-		const result = await db.batch([
-			{ method: 'GET', path: '/users/nobody' },
-			{ method: 'POST', path: '/users', body: { id: 'u1' } },
-		]);
-
-		expect(result.results).toEqual([
-			{ status: 404, data: null },
-			{ status: 201, data: { id: 'u1' } },
-		]);
-		expect(result.summary).toEqual({ total: 2, success: 2, failed: 0 });
-	});
-
-	it('reports health', async () => {
-		expect(await db.health()).toMatchObject({ status: 'ok' });
 	});
 });

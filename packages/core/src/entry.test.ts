@@ -3,7 +3,8 @@
  *
  * The connectors spawn processes, so they live only in `@lushly-dev/afd-core/connectors`.
  * Bundling the root entry with esbuild for the browser must not reach `node:child_process`
- * or any other Node.js builtin.
+ * or any other Node.js builtin. The IndexedDB journal sink bundles for the browser too, from its
+ * own subpath.
  */
 
 import { createRequire } from 'node:module';
@@ -56,8 +57,29 @@ describe('root entry', () => {
 		const inputs = Object.keys(result.metafile?.inputs ?? {});
 		expect(inputs.some((input) => input.endsWith('src/result.ts'))).toBe(true);
 		expect(
-			inputs.filter((input) => /^node:|src\/(platform|journal-file|connectors\/)/.test(input))
+			inputs.filter((input) =>
+				/^node:|src\/(platform|journal-file|journal-indexeddb|connectors\/)/.test(input)
+			)
 		).toEqual([]);
+	});
+
+	it('leaves the IndexedDB journal sink to a browser-safe subpath of its own', async () => {
+		const esbuild = await loadEsbuild();
+		const result = await esbuild.build({
+			entryPoints: [join(srcDir, 'journal-indexeddb.ts')],
+			bundle: true,
+			platform: 'browser',
+			format: 'esm',
+			write: false,
+			metafile: true,
+			logLevel: 'silent',
+		});
+
+		expect(result.errors).toEqual([]);
+		const inputs = Object.keys(result.metafile?.inputs ?? {});
+		expect(inputs.filter((input) => input.startsWith('node:'))).toEqual([]);
+		expect(inputs.some((input) => input.endsWith('src/journal.ts'))).toBe(true);
+		expect(root).not.toHaveProperty('IndexedDbJournalSink');
 	});
 
 	it('no longer exports the resolveReference alias', () => {
