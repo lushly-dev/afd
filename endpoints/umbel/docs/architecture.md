@@ -378,8 +378,8 @@ sequenceDiagram
 | Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 2 ([D28](decisions.md)); phase 0 stores only files. It must let several host processes open one workspace (for example SQLite in WAL mode, or LMDB), as phase 0's files do ([D29](decisions.md)); no single-writer daemon |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
-| Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0 and the `wasm32-wasip3` target on stable Rust ([D38](decisions.md)) |
-| MCP client for mounted plugins | `rmcp`'s client role with its child-process and Streamable HTTP client transports ([D43](decisions.md)) | The `afd` crate has no Rust MCP client | Brings `reqwest` and `rustls` into Umbel's lock |
+| Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |
+| MCP client for mounted plugins | `rmcp`'s client role with its child-process and Streamable HTTP client transports, and its `reqwest` feature for rustls ([D43](decisions.md)) | The `afd` crate has no Rust MCP client | Brings `reqwest` and `rustls` into Umbel's lock |
 | Code structure | tree-sitter | Deterministic symbol graph for repositories | |
 | Schemas | JSON Schema 2020-12 through serde and schemars | Matches the MCP revision | |
 | Observability | OpenTelemetry GenAI semantic conventions: tool-execution spans, trace context from request metadata, agent and session baggage carried into stored records | Debuggable inside harness traces | The conventions are in development; the schema is pinned |
@@ -459,7 +459,9 @@ material, from loosest to strongest:
 
 ## 8. Cross-cutting rules
 
-- **Security.** Sandboxed plugins; no token forwarding to plugins or mounted
+- **Security.** Sandboxed component plugins (only components are sandboxed;
+  compiled-in plugins and stdio mounts are trusted code, the owner's decision
+  of 2026-11-01, [D42](decisions.md) and [D43](decisions.md)); no token forwarding to plugins or mounted
   servers; untrusted content labeled on read and scanned on write; rate limits
   and size caps per agent; audit on every write, recording both the agent and
   the person on whose behalf it acted. Over MCP, a held result never carries
