@@ -14,13 +14,44 @@ point and none depends on another. That is the architecture.
 
 ## Status
 
-Phase 0, the host skeleton, is being built step by step from its
-[specification](docs/phases/0-host-skeleton/spec.md). The Cargo package
-(`umbel`, a library and a binary) is a scaffold: the binary answers
-`--version` and nothing else yet. Nothing is released or published; the crate
-is `publish = false` and its release unit is quarantined with no route under
-the [platform migration](../../docs/features/active/platform-monorepo/) rules.
-[STATUS.md](docs/STATUS.md) says which steps are done.
+Phase 0, the host skeleton, is done: the empty host serves MCP over stdio and
+Streamable HTTP and a CLI from one registry, with a workspace, the journal and
+its per-space event log, approvals and confirmations, and no plugins. Phase 1,
+the plugin contract, is next. Nothing is released or published; the crate is
+`publish = false` and its release unit is quarantined with no route under the
+[platform migration](../../docs/features/active/platform-monorepo/) rules.
+[STATUS.md](docs/STATUS.md) says exactly what is done.
+
+## Build and run
+
+Umbel needs Rust 1.97 or later (`rust-toolchain.toml` pins it) and builds
+against the in-repository `afd` crate.
+
+```sh
+cd endpoints/umbel
+cargo build --locked
+cargo test --locked
+
+# A workspace with one space, `main`.
+./target/debug/umbel init ~/umbel-ws
+cd ~/umbel-ws
+umbel workspace doctor        # exits 0 with "healthy": true
+umbel help                    # the commands the CLI can run
+umbel workspace show
+
+# MCP for a harness, over stdio (stdout carries only JSON-RPC).
+umbel serve --stdio
+
+# MCP over Streamable HTTP, loopback only. Every request needs the bearer
+# token in state/keys/http.token; --print-token writes it to stdout.
+umbel serve --http --bind 127.0.0.1:7410 --print-token
+```
+
+The workspace is found from `--workspace`, then `UMBEL_WORKSPACE`, then the
+nearest `umbel.toml` upward. Several processes may use one workspace at once:
+stdio servers from different harness sessions, an HTTP server and one-shot CLI
+commands. The [phase 0 specification](docs/phases/0-host-skeleton/spec.md)
+defines the configuration, commands, surfaces and shapes.
 
 ## Documents
 
