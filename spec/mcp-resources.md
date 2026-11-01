@@ -368,14 +368,16 @@ Cache hints and `resultType` are not part of the expected results; R3 and S3 sta
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Resources (R1 to R6) | Planned | Planned | Yes (Umbel phase 1 step 0b) | Planned (after #341) |
-| Skills extension (S1 to S6) | Planned | Planned | Yes (step 0b) | Planned (after #341) |
-| Extra tool `_meta` (T1 to T3) | Planned | Planned | Yes (step 0b) | Planned |
-| Advertised and validation schemas (V1, V2) | Planned | Planned | Yes (step 0b) | Planned |
-| Loads [`mcp-resources.json`](./mcp-resources.json) | Planned | Planned | Yes (step 0b) | Planned |
+| Resources (R1 to R6) | Yes (`resources` option; `/mcp` and stdio, not the deprecated `/sse` lane) | Planned | Yes (Umbel phase 1 step 0b) | Planned (after #341) |
+| Skills extension (S1 to S6) | Yes (`skills: SkillCatalog`) | Planned | Yes (step 0b) | Planned (after #341) |
+| Extra tool `_meta` (T1 to T3) | Yes (`defineCommand({ toolMeta })`) | Planned | Yes (step 0b) | Planned |
+| Advertised and validation schemas (V1, V2) | Yes (`advertisedInputSchema`) | Planned | Yes (step 0b) | Planned |
+| Loads [`mcp-resources.json`](./mcp-resources.json) | Yes (`resources.test.ts`, over Streamable HTTP and stdio) | Planned | Yes (step 0b) | Planned |
 
-Today only Rust serves resources, the Skills extension and extra tool `_meta`, and keeps an
-advertised schema apart from its validation schema (`packages/rust`, Umbel phase 1 step 0b). Python's SDK declares empty `resources` and
+Today Rust (`packages/rust`, Umbel phase 1 step 0b) and TypeScript (`packages/server`) serve resources,
+the Skills extension and extra tool `_meta`, and keep an advertised schema apart from the validation
+schema. TypeScript serves them on `/mcp` and stdio, in both eras; its deprecated `/sse` and `/message`
+lane (MCP 2024-11-05, not an era this page governs) serves none of it and declares none of it. Python's SDK declares empty `resources` and
 `prompts` capabilities, which R1 forbids. The proposal's
 [current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
 records what each does instead. Progress is recorded in the

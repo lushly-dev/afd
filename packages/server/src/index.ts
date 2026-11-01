@@ -139,6 +139,8 @@ export {
 	type ReplayStatus,
 	replayJournal,
 } from './journal-replay.js';
+// MCP resources, tool `_meta` keys and Agent Skills (spec/mcp-resources.md)
+export { checkMetaEntry } from './meta-keys.js';
 // Middleware
 export {
 	ConsoleTelemetrySink,
@@ -163,6 +165,13 @@ export {
 	type Tracer,
 	type TracingOptions,
 } from './middleware.js';
+export {
+	MCP_APP_MIME_TYPE,
+	type ResourceContents,
+	type ResourceEntry,
+	type ResourceProvider,
+	type ResourcesOption,
+} from './resources.js';
 // Schema and command definition
 export {
 	defineCommand,
@@ -186,6 +195,12 @@ export {
 	type McpTransport,
 	type ToolStrategy,
 } from './server.js';
+export {
+	type Skill,
+	SkillCatalog,
+	type SkillCatalogOptions,
+	skillFromDirectory,
+} from './skills.js';
 // Validation utilities
 export {
 	type DateRange,

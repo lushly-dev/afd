@@ -319,6 +319,14 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * only commands matching the active context (or commands without contexts) are visible.
 	 */
 	contexts?: string[];
+
+	/**
+	 * Extra `_meta` entries emitted on this command's tool, its grouped action entry and
+	 * afd-detail (`spec/mcp-resources.md`, T1): reverse-DNS prefixed keys with two or more labels,
+	 * outside `dev.afd/`, or the MCP Apps key `ui` (`{ resourceUri: 'ui://...' }`). A server refuses
+	 * any other key when it registers the command, so an entry never replaces one the server sets.
+	 */
+	toolMeta?: Record<string, unknown>;
 }
 
 /**

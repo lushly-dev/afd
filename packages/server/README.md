@@ -519,6 +519,8 @@ const server = createMcpServer({
   cors: true,              // Send CORS headers (default: follows devMode)
   toolStrategy: 'grouped', // Default: 'grouped' (see "Tool Strategies")
   bootstrap: true,         // Add afd-help, afd-docs, afd-schema (default: false)
+  resources: provider,     // MCP resources (see "Resources, Skills and Tool _meta")
+  skills: catalog,         // Agent Skills over MCP (a SkillCatalog)
 
   // Per-request context for HTTP calls (see "Request Context")
   createContext: (req) => ({ clientIp: req.socket.remoteAddress ?? 'unknown' }),
@@ -907,6 +909,8 @@ Create a command definition with Zod schema.
 | `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
 | `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
 | `approval` | `'required'` \| `'not-required'` \| `(input, context) => …` | No | Whether a call needs human approval before the handler runs (default `'not-required'`); enforced by [`createApprovalMiddleware`](#approvals) |
+| `toolMeta` | `Record<string, unknown>` | No | Extra `_meta` entries on the command's tool, grouped action entry and `afd-detail`: prefixed keys with two or more labels, or `ui`; the server refuses others (see [Resources, Skills and Tool `_meta`](#resources-skills-and-tool-_meta)) |
+| `advertisedInputSchema` | JSON Schema object | No | The input schema shown on every surface in place of the one generated from `input`, which still validates |
 
 ### createMcpServer(options)
 
@@ -938,7 +942,9 @@ Create an MCP server from commands.
 | `random` | `RandomSource` | No | `context.random` for every command (default: `systemRandom`) |
 | `actor` | `Actor` | No | `context.actor` for commands called over MCP when the context has none (default: `{ kind: 'agent' }`) |
 | `instructions` | string | No | Agent guidance returned by MCP `server/discover` (default: a description of the tool strategy, meta-tools and contexts) |
-| `toolsListTtlMs` | number | No | `ttlMs` freshness hint on MCP 2026-07-28 `tools/list` and `server/discover` results (default: 300000, or 0 when `contexts` are set) |
+| `toolsListTtlMs` | number | No | `ttlMs` freshness hint on MCP 2026-07-28 `tools/list` and `server/discover` results (default: 300000, or 0 when `contexts` are set); also the `ttlMs` of resource and skill results, which `contexts` never lower |
+| `resources` | `ResourceProvider \| ResourceEntry[]` | No | MCP resources served on `/mcp` and stdio; declares the `resources` capability |
+| `skills` | `SkillCatalog` | No | Agent Skills served through `skills/list`, `skills/get` and as `skill://` resources; declares `io.modelcontextprotocol/skills` |
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |
@@ -1181,6 +1187,83 @@ const server = createMcpServer({
 - **Calls.** A first-class tool behaves as under `individual` (confirmations, approvals, errors); an exposed command that is not first-class runs by name or through the meta-tools.
 - **Fixed while running.** `tools/list` never changes and `listChanged` is `false`; changing the set is a restart.
 - **Reporting.** `afd-help` reports `toolStrategy` on every strategy and, on a hybrid server, `firstClassTools` and `firstClass: true` on those commands.
+
+## Resources, Skills and Tool `_meta`
+
+A server can serve more than tools: MCP **resources**, **Agent Skills** over the Skills extension (SEP-2640), extra `_meta` on a command's tool, and a command's input schema shown apart from the one that validates. Everything is opt-in; a server that uses none of it is unchanged. The rules are in [`spec/mcp-resources.md`](../../spec/mcp-resources.md). It is served on `/mcp` and on stdio, in both MCP eras, not on the deprecated `/sse` and `/message` lane.
+
+### Resources
+
+```typescript
+import { createMcpServer, MCP_APP_MIME_TYPE } from '@lushly-dev/afd-server';
+
+const server = createMcpServer({
+  name: 'notes',
+  version: '1.0.0',
+  commands,
+  resources: {
+    // Called on every list, so entries may change while the server runs.
+    list: () => [
+      { uri: 'ui://notes/list.html', name: 'Notes view', mimeType: MCP_APP_MIME_TYPE, content: viewHtml },
+      { uri: 'file:///notes/readme.txt', name: 'Readme', mimeType: 'text/plain' },
+    ],
+    // Reads every entry that has no `content`; return `undefined` for an unknown URI.
+    read: (uri) => (uri === 'file:///notes/readme.txt' ? { content: 'Hello\n' } : undefined),
+  },
+});
+```
+
+`resources` takes a provider (`list()`, optional `read(uri)`) or an array of static entries. The server then declares the `resources` capability (never `subscribe` or `listChanged`) and answers `resources/list`, `resources/read` and an empty `resources/templates/list`.
+
+- **Entries** need a `uri` (absolute, unique, no whitespace, not `skill://`) and a non-empty `name`; a `ui://` entry needs `MCP_APP_MIME_TYPE`. `_meta` follows the key rule below, without `ui`. A bad entry throws when the server is built, naming it; a provider that breaks a rule later is answered `-32603`.
+- **`content`** (a string or `Uint8Array`) is served by the server, which fills `size` and sets `_meta["dev.afd/digest"]` (`sha256:<hex>`). Bytes that are valid UTF-8 are sent as `text`, others as `blob`.
+- **An MCP Apps view** reads back with its own `_meta.ui` (`csp`, `permissions`, `domain`, `prefersBorder`): return `{ content, mimeType, _meta: { ui: { prefersBorder: true } } }` from `read`.
+- **Lists are fixed.** No cursor (a `cursor` is `-32602`), the same list for every connection, session and context. A modern-era result carries `ttlMs` (the `toolsListTtlMs` option, 300,000 by default, not lowered by `contexts`) and `cacheScope: "public"`.
+- **An unknown URI** is `-32602`, `Resource not found`, with `data: { uri }`, on both eras. A read runs no command, middleware, confirmation or journal entry, and `createContext` does not run for it.
+
+### Skills
+
+```typescript
+import { createMcpServer, SkillCatalog, skillFromDirectory } from '@lushly-dev/afd-server';
+
+const skills = new SkillCatalog(
+  [
+    await skillFromDirectory('acme/lint-rules', './skills/lint-rules'),
+    { path: 'hello-greeting', files: { 'SKILL.md': skillMarkdown, 'references/STYLE.md': '# Style\n' } },
+  ],
+  { directoryRead: false }
+);
+createMcpServer({ name: 'notes', version: '1.0.0', commands, skills });
+```
+
+A `SkillCatalog` is fixed when it is built: it reads each skill's bytes once, checks them and computes the digests. The constructor throws, naming the skill and the rule, when:
+
+- a skill has no `SKILL.md`, or its frontmatter is not one YAML mapping (read with the YAML 1.2 core schema, so `2026-11-01` stays a string; no tags, anchors, aliases, repeated keys or more than 64 levels);
+- `name` is not 1 to 64 characters of `a-z`, `0-9` and `-` (no leading, trailing or doubled `-`), does not equal the path's last segment, or is used by another skill; `description` is empty or over 1,024 characters;
+- a file path is not relative and `/`-separated, or a skill has more than 512 files or 16 MiB.
+
+The server declares the `io.modelcontextprotocol/skills` extension (and `resources`), answers `skills/list` and `skills/get`, and serves every skill file as a `skill://<path>/<file>` resource after the provider's entries, each with `size`, a MIME type by suffix and its `dev.afd/digest`. `directoryRead: true` also serves `resources/directory/read` for every skill directory and declares `directoryRead`. `skillFromDirectory` refuses a symbolic link that leaves the directory. Skills are untrusted content: the server serves bytes and never acts on them.
+
+### Tool `_meta`
+
+```typescript
+const notesList = defineCommand({
+  name: 'notes-list',
+  description: 'List notes',
+  input: z.object({}),
+  toolMeta: {
+    ui: { resourceUri: 'ui://notes/list.html' }, // MCP Apps: the view of this tool
+    'dev.umbel/origin': { plugin: 'notes' },
+  },
+  handler: async () => success({ notes: [] }),
+});
+```
+
+`toolMeta` entries are emitted in the tool's `_meta` (individual strategy and hybrid first-class tools), in the command's entry of a grouped tool's `_meta.actions`, and by `afd-detail` as `toolMeta`; never on meta-tools. A key is allowed when it is a reverse-DNS prefixed key with two or more labels outside `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui` (an object; a `resourceUri` must begin `ui://`). The server refuses any other key when it registers the command (`createMcpServer`, `createMcpHandler`), naming the command and the key, so an entry never replaces one the server sets. `defineCommand` and the in-process registry do not check, to keep `/direct` small.
+
+### Advertised schema
+
+`advertisedInputSchema` is the input schema every surface shows (tool `inputSchema`, grouped entries, `afd-detail`, `afd-schema`, `afd-docs`); `input` still validates every call. It must be a JSON object whose `type` is `"object"`, and nothing else in it is checked. Use it to re-serve a wrapped tool whose schema uses keywords the generated one cannot express. Keeping `input` no wider than the advertised schema is your job.
 
 ## Bootstrap Tools
 

@@ -19,10 +19,13 @@ import { createHttpHandler } from './http-handler.js';
 import { createSessionStore } from './http-sessions.js';
 import {
 	createModernHttpLane,
+	DEFAULT_TOOLS_LIST_TTL_MS,
 	defaultInstructions,
 	type ModernMcpDeps,
 	serveModernStdio,
 } from './mcp-modern.js';
+import { assertToolMeta } from './meta-keys.js';
+import { createResourceService } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
@@ -68,6 +71,12 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	const firstClassTools = options.firstClassTools ? [...options.firstClassTools] : undefined;
 
 	assertValidCommandNames(commands, { bootstrap, contexts: Boolean(contexts?.length) });
+	// A command built by hand skips `defineCommand`'s check; registration refuses a bad key too.
+	for (const command of commands) assertToolMeta(command.name, command.toolMeta);
+	// Resource entries and the skill catalog are checked now, so a bad one stops the server from
+	// being built. Their results do not vary by context, so contexts leave the TTL alone.
+	const resourcesTtlMs = options.toolsListTtlMs ?? DEFAULT_TOOLS_LIST_TTL_MS;
+	const resources = createResourceService(options.resources, options.skills, resourcesTtlMs);
 
 	// stdio serves one client, so it uses this single state. HTTP callers each get a session
 	// state (or none), bound to their command context by the HTTP handler.
@@ -176,6 +185,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		toolsListTtlMs: options.toolsListTtlMs,
 		toolStrategy,
 		confirmationKey: options.confirmationKey,
+		resources,
+		resourcesTtlMs,
 		devMode,
 		onError,
 	};

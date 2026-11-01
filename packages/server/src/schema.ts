@@ -126,6 +126,24 @@ export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	 * only commands matching the active context (or commands without contexts) are visible.
 	 */
 	contexts?: string[];
+
+	/**
+	 * Extra `_meta` entries for this command's tool, its grouped action entry and afd-detail
+	 * (`spec/mcp-resources.md`, T1). Keys are reverse-DNS prefixed with two or more labels, outside
+	 * `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui`, the MCP Apps
+	 * key (`{ resourceUri: 'ui://app/view.html' }`). An MCP server refuses any other key when it
+	 * registers the command, so an entry never replaces one the server sets. (`defineCommand` and
+	 * the in-process registry do not check, to keep the `/direct` entry within its size budget.)
+	 */
+	toolMeta?: Record<string, unknown>;
+
+	/**
+	 * The input schema shown on every surface (tool `inputSchema`, afd-detail, afd-schema,
+	 * afd-docs), in place of the one generated from `input`. `input` still validates every call.
+	 * It must be a JSON object whose `type` is `"object"`; nothing else in it is checked. Keeping
+	 * `input` no wider than this schema is the caller's duty (`spec/mcp-resources.md`, V1).
+	 */
+	advertisedInputSchema?: JsonSchema;
 }
 
 /**
@@ -141,7 +159,7 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 	/** Zod schema for input validation */
 	inputSchema: TInput;
 
-	/** JSON Schema representation (for MCP tools) */
+	/** JSON Schema shown on every surface (for MCP tools): the advertised schema when one was given */
 	jsonSchema: JsonSchema;
 
 	/** Command handler */
@@ -207,6 +225,9 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 	/** Contexts this command belongs to */
 	contexts?: string[];
 
+	/** Extra `_meta` entries for this command's tool (`spec/mcp-resources.md`, T1) */
+	toolMeta?: Record<string, unknown>;
+
 	/**
 	 * Convert to standard CommandDefinition format.
 	 */
@@ -249,9 +270,23 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		console.warn(`[AFD] ${nameCheck.reason}`);
 	}
 
+	const { advertisedInputSchema } = options;
+	if (
+		advertisedInputSchema !== undefined &&
+		(advertisedInputSchema === null ||
+			typeof advertisedInputSchema !== 'object' ||
+			Array.isArray(advertisedInputSchema) ||
+			advertisedInputSchema.type !== 'object')
+	) {
+		throw new Error(
+			`command "${options.name}": advertisedInputSchema must be a JSON Schema object whose type is "object"`
+		);
+	}
+
 	// Input schemas describe what a caller may send (defaults optional, transforms by their
-	// input type); output schemas describe what the handler returns.
-	const jsonSchema = zodToJsonSchema(options.input, { io: 'input' });
+	// input type); output schemas describe what the handler returns. An advertised schema replaces
+	// the generated one on every surface; the Zod schema still validates.
+	const jsonSchema = advertisedInputSchema ?? zodToJsonSchema(options.input, { io: 'input' });
 	const outputJsonSchema = options.output
 		? zodToJsonSchema(options.output, { io: 'output' })
 		: undefined;
@@ -299,6 +334,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		outputSchema: options.output,
 		outputJsonSchema,
 		contexts: options.contexts,
+		toolMeta: options.toolMeta,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -323,6 +359,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 				// handler input, which differs only for schemas with defaults or transforms.
 				examples: options.examples as CommandExample<z.infer<TInput>>[] | undefined,
 				contexts: options.contexts,
+				toolMeta: options.toolMeta,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: outputJsonSchema,
 				handler: options.handler as (

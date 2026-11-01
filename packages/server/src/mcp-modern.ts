@@ -73,6 +73,7 @@ import {
 } from './elicitation-state.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { requestContextValues } from './request-context.js';
+import { type ResourceService, resourceCacheHints } from './resources.js';
 import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
@@ -109,6 +110,13 @@ export interface ModernMcpDeps {
 	 * key per process).
 	 */
 	confirmationKey?: string | Uint8Array;
+	/**
+	 * Resources, skills and the Skills extension (`spec/mcp-resources.md`), when the server was
+	 * given a `resources` provider or a `skills` catalog.
+	 */
+	resources?: ResourceService;
+	/** `ttlMs` of resource and skill results: the `tools/list` TTL option, never lowered by contexts. */
+	resourcesTtlMs?: number;
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
 	onError?: (error: Error) => void;
@@ -374,14 +382,16 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		const server = new Server(
 			{ name: deps.name, version: deps.version },
 			{
-				capabilities: { tools: { listChanged: false } },
+				capabilities: { tools: { listChanged: false }, ...deps.resources?.capabilities },
 				instructions: deps.instructions,
 				cacheHints: {
 					'tools/list': { ttlMs, cacheScope: 'public' },
 					'server/discover': { ttlMs, cacheScope: 'public' },
+					...(deps.resources && resourceCacheHints(deps.resourcesTtlMs ?? ttlMs)),
 				},
 			}
 		);
+		deps.resources?.install(server, { modern: era === 'modern', internalError });
 
 		if (deps.contextFields?.length) {
 			// The SDK's serving layer installs its own `server/discover` handler, which calls

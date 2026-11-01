@@ -49,6 +49,8 @@ interface DetailResult {
 	handoffProtocol?: string;
 	version?: string;
 	callable: boolean;
+	/** The command's extra tool `_meta` entries (`spec/mcp-resources.md`, T1). */
+	toolMeta?: Record<string, unknown>;
 }
 
 interface DetailError {
@@ -217,6 +219,7 @@ export function executeDetail(
 			handoffProtocol: cmd.handoffProtocol,
 			version: cmd.version,
 			callable: exposedCommandNames.has(cmd.name),
+			...(cmd.toolMeta && Object.keys(cmd.toolMeta).length > 0 && { toolMeta: cmd.toolMeta }),
 		};
 	});
 
