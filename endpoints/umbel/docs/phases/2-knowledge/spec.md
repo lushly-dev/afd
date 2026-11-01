@@ -82,7 +82,7 @@
   (documents, records, the change log and the graph on bundled SQLite in WAL
   mode, safe across processes), with the `knowledge` CI job; see [Amendments
   from step 2](#amendments-from-step-2). **Step 3, the tantivy index**,
-  2026-11-01, in [640](https://github.com/lushly-dev/afd/pull/640): `umbel-store-embedded`'s `TantivyIndex`
+  2026-11-01, in [643](https://github.com/lushly-dev/afd/pull/643): `umbel-store-embedded`'s `TantivyIndex`
   (schema 1 with LZ4 named in the settings and `en_stem`, the query builder over
   the `tantivy-query-grammar` AST with its limits and bounded prefixes, the reader
   clause as a score-less mandatory clause, writer sessions on tantivy's own lock
@@ -2101,7 +2101,7 @@ run against the SQLite backend, and the index cases wait for step 3.
 
 ## Amendments from step 3
 
-Step 3 ([640](https://github.com/lushly-dev/afd/pull/640)) read this specification against tantivy
+Step 3 ([643](https://github.com/lushly-dev/afd/pull/643)) read this specification against tantivy
 0.27.0 and `tantivy-query-grammar` 0.27.0 and made these smallest-correct changes. Everything else
 is built as written. C1 corrects a claim the revision made about the grammar; the rest are details
 the specification left open.
