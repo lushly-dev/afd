@@ -11,10 +11,9 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
-  Approved by the owner on 2026-11-01 (D17). Implementation starts with
-  steps 0a and 1.
-  Step 6, Specimen high contrast, merged in
-  [#628](https://github.com/lushly-dev/afd/pull/628); it amended
+  Approved by the owner on 2026-11-01 (D17). In implementation; each
+  step's state is one line in STATUS.md's phase 0 block. Step 6
+  ([#628](https://github.com/lushly-dev/afd/pull/628)) amended
   [section 4](#4-specimen-with-high-contrast-d53), because the bench now
   emulates media in its native host rather than through Playwright.
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
@@ -84,9 +83,10 @@
 
   The trajectory rows were re-checked on the same day; see the
   [trajectory refresh](#trajectory-refresh).
-- **Done:** this specification and its approval; step 6 of the
-  [implementation plan](#12-implementation-plan) (#628).
-- **Not done:** steps 0a to 5, 7 and 8 of the implementation plan.
+- **Done:** this specification and its approval. Each step of the
+  [implementation plan](#12-implementation-plan) has one line in STATUS.md's
+  phase 0 block, which is the record of what is merged.
+- **Not done:** see that block.
 - **Follow-ups:** see [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -1009,7 +1009,7 @@ specification's status block and STATUS.md before it merges.
 | --- | --- | --- | --- |
 | 0a | AFD: browser stores | `IndexedDbAdapter`, `runDataAdapterContract` at `/testing`, and `IndexedDbJournalSink` with its writer lock; parity rows; changesets | `pnpm check` |
 | 0b | Violet: preloaded source and high contrast | [Section 3](#3-units-of-work-in-afd-and-the-foundations-first-d15)'s two runtime changes; provenance | `pnpm check`, `pnpm test:violet`, each Violet package's `lint` |
-| 1 | Loam scaffold | The four packages with empty sources, the workspace glob, the inventory entries, `loam.yml`, the `AGENTS.md` rows | `pnpm check`, `loam.yml` |
+| 1 | Loam scaffold | The four packages with empty sources, the workspace glob, the inventory entries, `loam.yml` with the steps whose scripts exist (build, typecheck, units, and a Chromium test that the built shell boots under its CSP), the `AGENTS.md` rows, a repository contract test. The `theme:*` and `lint:tokens` scripts arrive with step 2 and `budget` with step 7, each adding its `loam.yml` step; `web`'s `fake-indexeddb` dev dependency arrives with step 7 | `pnpm check`, `loam.yml` |
 | 2 | Theme | The Violet tree, the exports, the contract, the contrast checks, `theme:check` (without the fallback scan), the token-only lint with its corpus | `pnpm check`, `loam.yml` |
 | 3 | Components onto Violet themes | [Section 2.4](#24-the-shared-components-onto-violet-themes-d50-revising-d28): the export, the generator's new source, the `high-contrast` preset, the retired registries, the fallback scan and the edits it requires, the README, provenance | `pnpm check`, `pnpm test:fast-af`, the Health dashboard's `test:browser`, `loam.yml` |
 | 4 | Design document and skill | `design.md`, the `loam-design` skill, `skills/exports.json` | `pnpm check:skills`, `pnpm check` |

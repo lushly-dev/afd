@@ -98,6 +98,142 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  endpoints/loam/packages/chrome:
+    dependencies:
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../theme
+      '@lushly-dev/violet-elements':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/violet-elements
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/kernel:
+    dependencies:
+      '@lushly-dev/afd-auth':
+        specifier: workspace:*
+        version: link:../../../../packages/auth
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../../../packages/server
+      '@lushly-dev/afd-view-state':
+        specifier: workspace:*
+        version: link:../../../../packages/view-state
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/theme:
+    dependencies:
+      '@lushly-dev/violet-core':
+        specifier: workspace:*
+        version: link:../../../../foundations/violet/packages/core
+    devDependencies:
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/web:
+    dependencies:
+      '@lushly-dev/loam-chrome':
+        specifier: workspace:*
+        version: link:../chrome
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../theme
+    devDependencies:
+      '@lushly-dev/specimen':
+        specifier: workspace:*
+        version: link:../../../../foundations/specimen
+      '@lushly-dev/violet-runtime':
+        specifier: workspace:*
+        version: link:../../../../foundations/violet/packages/runtime
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      axe-core:
+        specifier: 4.13.0
+        version: 4.13.0
+      playwright:
+        specifier: ^1.64.0
+        version: 1.64.0
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   endpoints/specimen-cli:
     dependencies:
       '@lushly-dev/afd-core':

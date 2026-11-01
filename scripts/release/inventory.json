@@ -511,6 +511,90 @@
 			]
 		},
 		{
+			"id": "loam-theme",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "85d938bf06d87fc9a3ff54af305afea4131c3d61",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-theme",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/theme/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-kernel",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "85d938bf06d87fc9a3ff54af305afea4131c3d61",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-kernel",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/kernel/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-chrome",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "85d938bf06d87fc9a3ff54af305afea4131c3d61",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-chrome",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/chrome/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-web",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "85d938bf06d87fc9a3ff54af305afea4131c3d61",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-web",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/web/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel",
 			"family": "umbel",
 			"protocol": "language-tag-v1",

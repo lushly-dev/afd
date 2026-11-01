@@ -38,7 +38,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
 | AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; the manifest proposal (phase 1) and the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest proposal before phase 1; see the phase detail |
-| 0. Kernel, chrome and design foundation | Specification approved 2026-11-01; implementation not started | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | Steps 0a (AFD IndexedDB adapter and journal sink) and 1 (scaffold) |
+| 0. Kernel, chrome and design foundation | Specification approved 2026-11-01; implementation in progress (see the steps below) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | The next unstarted steps in the phase 0 block below |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
@@ -115,13 +115,28 @@ should never have to scan the codebase to learn what is current.
 ### 0. Kernel, chrome and design foundation
 
 - **State:** specification approved by the owner on 2026-11-01;
-  implementation not started. Last verified 2026-11-01 against `main` at `b0782de7`; the
-  evidence is listed in the [specification's status block](phases/0-kernel-chrome/spec.md#status).
-- **Done:** the [specification](phases/0-kernel-chrome/spec.md), proposing
+  implementation in progress. Last verified 2026-11-01 against `main` at
+  `85d938bf`; the specification's evidence is listed in its
+  [status block](phases/0-kernel-chrome/spec.md#status).
+- **Done:** the [specification](phases/0-kernel-chrome/spec.md), deciding
   D50 to D53.
-- **Done:** step 6, Specimen's `high-contrast` theme context (D53), merged in
-  [#628](https://github.com/lushly-dev/afd/pull/628).
-- **Not done:** steps 0a to 5, 7 and 8 of its implementation plan.
+- **Steps** ([plan](phases/0-kernel-chrome/spec.md#12-implementation-plan);
+  one line each, so parallel pull requests touch different lines):
+  - 0a, AFD browser stores: in progress.
+  - 0b, Violet preloaded source and high contrast: in progress.
+  - 1, scaffold: merged in [#626](https://github.com/lushly-dev/afd/pull/626).
+    The four packages build with empty sources; `loam.yml` runs build,
+    typecheck, units and a Chromium boot test under the CSP. Steps 2 and 7
+    add `theme:check`, `lint:tokens` and `budget` to it.
+  - 2, theme: not started.
+  - 3, components onto Violet themes: not started.
+  - 4, design document and skill: not started.
+  - 5, kernel: not started.
+  - 6, Specimen high contrast: merged in
+    [#628](https://github.com/lushly-dev/afd/pull/628); it amended section 4,
+    because the bench emulates media in its native host.
+  - 7, chrome and web: not started.
+  - 8, exit: not started.
 
 Phases 1 to 8 have no detail yet; add a heading in this shape when one
 starts.
@@ -173,4 +188,4 @@ starts.
 | 2026-11-01 | Owner's review | The owner read the full set and approved the direction ("It is done, start the work"); the design review closed. The AFD prerequisites row brought up to date: the phase 0 and phase 2 rows are merged in AFD (#576, #569, #581, #589); TypeScript MCP resources, the phase 1 blocker, started. Phase 0's specification started |
 | 2026-11-01 | Phase 0 specification | The [phase 0 specification](phases/0-kernel-chrome/spec.md) written: four packages under `endpoints/loam/packages/`, the token contract and Loam's Violet tree, the shared components moved onto a committed Violet export (D50), the design document and the `loam-design` skill, the token-only lint, kernel interface version 0, the phase 0 commands with `appearance` and `palette` (D51), stores version 0 on IndexedDB for browser and desktop (D52), Specimen high contrast (D53), the bundle budget and the accelerator rule's operations and budgets (D37), and the exit tests |
 | 2026-11-01 | Owner's approval | The owner approved the phase 0 specification, deciding D50 to D53, and granted autonomy across phases: commit, merge, fix and approve later specifications without checking in unless a question blocks on the owner. D53's wording aligned with the specification (light scheme plus `prefers-contrast: more`; forced colors tested in Loam's suite) |
-| 2026-11-01 | Phase 0 step 6 | Specimen's `high-contrast` theme context (D53) merged in [#628](https://github.com/lushly-dev/afd/pull/628): the light scheme with `prefers-contrast: more`, emulated by the native host over CDP, checked at capture, offered by the static preview and run by all three drivers. Section 4 of the specification amended: since #616 the mapping lives in `host/src/page.rs`, not `bench-runtime.ts` |
+| 2026-11-01 | Phase 0 step 1 | The scaffold: four private, quarantined packages under `endpoints/loam/packages/`, the workspace glob, four release-inventory entries, `loam.yml`, `AGENTS.md` rows and a repository contract test. Steps 0a, 0b and 6 started in parallel. The phase 0 block now has one line per step |
