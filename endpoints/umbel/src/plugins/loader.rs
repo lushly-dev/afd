@@ -452,7 +452,17 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                 .commands
                 .iter()
                 .find(|command| command.name == definition.name)
-                .map(|command| command.effects.clone());
+                .map(|command| command.effects.clone())
+                .or_else(|| {
+                    // A mounted tool's effects come from the load, not from the manifest.
+                    prepared.report.mount.as_ref().and_then(|mount| {
+                        mount
+                            .tools
+                            .iter()
+                            .find(|tool| tool.command == definition.name)
+                            .map(|tool| tool.effects.clone())
+                    })
+                });
             known.insert(
                 definition.name.clone(),
                 Known {

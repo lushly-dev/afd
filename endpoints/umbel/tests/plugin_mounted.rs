@@ -1012,3 +1012,85 @@ async fn two_instances_with_their_own_prefixes_serve_disjoint_commands_and_one_c
     hello_dir(dir.path(), "h2");
     assert_eq!(error_of(open(dir.path())).code(), "PLUGIN_CONFLICT");
 }
+
+// ── a mounted plugin beside the rest of the plugin contract ───────────────────────────────────
+
+#[tokio::test]
+async fn a_servers_afd_meta_tools_are_never_mounted() {
+    let tools = json!([
+        {"name": "afd-call", "description": "Call any command."},
+        {"name": "afd-batch", "description": "Call several commands."},
+        {"name": "afd-pipe", "description": "Pipe commands."},
+        {"name": "fx_get", "description": "Fetch one ticket by id."}
+    ]);
+    // Not even a deployer's `only` list or override can bring one in.
+    let overrides = "[[mount.tools]]\ntool = \"afd-call\"\nname = \"fx-call\"\n";
+    let dir = fx_stdio("", overrides, &extra_tools_env(&tools));
+    let host = open(dir.path()).unwrap();
+    let registry = host.registry();
+    for name in [
+        "afd-call",
+        "afd-batch",
+        "afd-pipe",
+        "fx-call",
+        "fx-batch",
+        "fx-pipe",
+    ] {
+        assert!(registry.get_tool(name).is_none(), "{name}");
+    }
+    assert!(registry.get_tool("fx-get").is_some());
+    let shown = show(&host, "fx").await;
+    let mounted: Vec<&str> = shown["mount"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["tool"].as_str().unwrap())
+        .collect();
+    assert!(
+        mounted.iter().all(|tool| !tool.starts_with("afd-")),
+        "{mounted:?}"
+    );
+}
+
+#[tokio::test]
+async fn pipelines_suggestions_and_contexts_work_over_mounted_commands() {
+    let tools = "[[mount.tools]]\ntool = \"echo\"\neffects = [\"inspect\"]\nfirst_class = true\n\n[[contexts]]\nname = \"fx-scope\"\ndescription = \"The fixture scope.\"\ntriggers = [\"fixture\"]\n\n[[pipelines]]\nname = \"fx-twice\"\ndescription = \"Echo a value twice.\"\neffects = [\"inspect\"]\ninput_schema = { type = \"object\", properties = { text = { type = \"string\" } }, required = [\"text\"], additionalProperties = false }\nsteps = [\n  { command = \"fx-echo\", input = { value = \"$input.text\" }, as = \"one\" },\n  { command = \"fx-echo\", input = { value = \"$steps.one.args.value\" } },\n]\n";
+    let dir = fx_stdio("", tools, "");
+    let host = open(dir.path()).unwrap();
+
+    // The mounted tool is a first-class suggestion; the other tools are not.
+    let first_class = host.first_class_tools().to_vec();
+    assert!(
+        first_class.contains(&"fx-echo".to_owned()),
+        "{first_class:?}"
+    );
+    assert!(
+        !first_class.contains(&"fx-pid".to_owned()),
+        "{first_class:?}"
+    );
+
+    // The pipeline is registered over mounted steps and runs them in order.
+    let shown = show(&host, "fx").await;
+    let pipeline = &shown["pipelines"][0];
+    assert_eq!(pipeline["state"], "registered", "{pipeline}");
+    let result = call(&host, "fx-twice", json!({"text": "hi"})).await;
+    assert!(result.success, "{result:?}");
+    let steps = result.data.unwrap()["steps"].clone();
+    assert_eq!(steps.as_array().unwrap().len(), 2);
+    assert_eq!(steps[1]["data"]["args"]["value"], "hi");
+
+    // The plugin's context is configured by the server.
+    let listed = call(&host, "afd-context-list", json!({})).await;
+    let text = serde_json::to_string(&listed).unwrap();
+    assert!(text.contains("fx-scope"), "{text}");
+
+    // A pipeline whose effects do not cover a mounted step's fails the instance.
+    let under = tools.replace(
+        "effects = [\"inspect\"]\nfirst_class",
+        "effects = [\"plugin-state\"]\nfirst_class",
+    );
+    let dir = fx_stdio("", &under, "");
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_MANIFEST_INVALID");
+    assert!(error.to_string().contains("does not cover"), "{error}");
+}
