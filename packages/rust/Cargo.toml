@@ -52,7 +52,7 @@ sha2 = "0.10"
 ryu-js = "1.0"
 
 # `approval` feature: the approval token's MAC and constant-time comparisons.
-hmac = { version = "0.12", optional = true }
+hmac = { version = "0.13", optional = true }
 subtle = { version = "2.5", optional = true }
 
 # Native-only: only `tokio::time::timeout` is used.
