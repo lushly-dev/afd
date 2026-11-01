@@ -12,6 +12,11 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+# `pnpm install` installs the lefthook git hooks, and the Changesets action pushes the release
+# branch: the pre-push hook would run package tests against unbuilt output on the runner.
+env:
+  LEFTHOOK: '0'
+
 jobs:
   release:
     if: github.event_name == 'push'
@@ -41,10 +46,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Publication is irreversible, so run the same complete gate as CI first.
-      - name: Quality gate
-        run: pnpm check
-
       - name: Inspect durable publication claim
         id: claim-status
         run: |
@@ -58,6 +59,12 @@ jobs:
         run: |
           node scripts/release-control.mjs intent-status --output "$RUNNER_TEMP/npm-intent-status.json"
           node --input-type=module -e 'import fs from "node:fs"; const status = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-intent-status.json`)); const claim = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-claim-status.json`)); if (status.state === "fulfilled" && claim.state !== "succeeded") throw new Error("Publication held: registry versions exist without verified finalization"); if (status.publishable && claim.state === "succeeded") throw new Error("Publication held: completed claim disagrees with registry"); fs.appendFileSync(process.env.GITHUB_OUTPUT, `publishable=${status.publishable}\n`);'
+
+      # Publication is irreversible, so run the complete gate over the whole workspace first.
+      # Pushes without an approved publication need no gate here: ci.yml checked the change.
+      - name: Quality gate
+        if: steps.intent.outputs.publishable == 'true'
+        run: pnpm check:all
 
       - name: Plan approved npm artifacts
         if: steps.intent.outputs.publishable == 'true'
@@ -156,7 +163,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Quality gate
-        run: pnpm check
+        run: pnpm check:all
       - name: Configure release tag author
         run: |
           git config user.name 'github-actions[bot]'

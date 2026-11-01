@@ -39,9 +39,35 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  scope:
+    # Triggered by a shared input such as a foundation or pnpm-lock.yaml, the suite below runs only
+    # when the change reaches Loam's packages (scripts/affected.mjs). Manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.run.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: run
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-kernel --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+
   loam:
     name: Build, unit and Chromium
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

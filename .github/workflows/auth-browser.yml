@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   browser:
     name: Better Auth browser lifecycle (Chromium)

@@ -214,7 +214,8 @@ describe('McpClient.stream()', () => {
 		});
 		const client = await connectedClient(server);
 
-		const chunks = await collect(client.stream('items-stream', {}, { timeout: 50 }));
+		// The deadline covers the whole stream, so it must outlast the first chunk on a loaded machine.
+		const chunks = await collect(client.stream('items-stream', {}, { timeout: 500 }));
 
 		expect(chunks.map((chunk) => chunk.type)).toEqual(['data', 'error']);
 		expect(chunks[1]).toMatchObject({

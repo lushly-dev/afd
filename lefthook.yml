@@ -38,7 +38,8 @@ pre-commit:
 
     typecheck:
       glob: "*.ts"
-      run: pnpm typecheck
+      # Only the packages owning the staged files, and their dependents (scripts/affected.mjs).
+      run: node scripts/affected.mjs run typecheck --files {staged_files}
 
 commit-msg:
   commands:
@@ -49,15 +50,17 @@ pre-push:
   # Sequential to prevent stdout interleaving deadlock on Windows
   # (Biome diffs + TS errors flood parallel output buffers)
   parallel: false
+  # Package tests and typechecks cover only the packages affected since the merge base with
+  # origin/main (scripts/affected.mjs). Repository-wide checks stay whole: they take seconds.
   commands:
     lint-all:
       run: pnpm lint
 
     test:
-      run: pnpm test
+      run: node scripts/affected.mjs run test
 
     typecheck:
-      run: pnpm typecheck
+      run: node scripts/affected.mjs run typecheck
 
     portability:
       run: node scripts/check-portability.mjs
@@ -80,8 +83,10 @@ pre-push:
     tooling-tests:
       run: pnpm test:tooling
 
-# On-demand quality gate — run with: npx lefthook run check
+# On-demand quality gate — run with: pnpm check (affected packages) or pnpm check:all (all).
 # Mirrors the TypeScript CI workflow (ci.yml) exactly so local `pnpm check` = remote CI.
+# Build, typecheck and test cover the packages affected since the merge base with origin/main
+# (AFD_BASE overrides the base, AFD_SCOPE=all selects everything; see scripts/affected.mjs).
 # Python, Rust and alfred are not covered here; see python.yml, rust.yml and alfred.yml.
 check:
   # Sequential for same Windows terminal deadlock prevention.
@@ -91,13 +96,13 @@ check:
       run: pnpm lint
 
     build:
-      run: pnpm build
+      run: node scripts/affected.mjs run build
 
     typecheck:
-      run: pnpm typecheck
+      run: node scripts/affected.mjs run typecheck
 
     test:
-      run: pnpm test:coverage
+      run: node scripts/affected.mjs run test --no-bail -- --coverage
 
     portability:
       run: node scripts/check-portability.mjs
