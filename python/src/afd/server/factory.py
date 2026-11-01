@@ -280,6 +280,7 @@ class MCPServer:
         undoable: bool | None = None,
         approval: ApprovalPolicy | None = None,
         version: str | None = None,
+        title: str | None = None,
     ) -> Callable:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -301,6 +302,7 @@ class MCPServer:
                 undoable=undoable,
                 approval=approval,
                 version=version,
+                title=title,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -1189,6 +1191,7 @@ class MCPServer:
         return Tool(
             fn=handler,
             name=tool_definition["name"],
+            title=tool_definition.get("title"),
             description=tool_definition.get("description", ""),
             parameters=input_schema,
             fn_metadata=FuncMetadata(arg_model=input_model),

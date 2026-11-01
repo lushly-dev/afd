@@ -27,6 +27,7 @@ writes = 0
 
 @server.command(
     name="alpha-run",
+    title="Run alpha",
     description="Run alpha",
     contexts=["alpha"],
     input_schema=ValueInput,

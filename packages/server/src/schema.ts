@@ -45,6 +45,9 @@ export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	/** Command handler function */
 	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
 
+	/** A short human-readable label, reported as the MCP tool `title` and by afd-detail */
+	title?: string;
+
 	/** Category for grouping related commands */
 	category?: string;
 
@@ -143,6 +146,9 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 
 	/** Command handler */
 	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
+
+	/** Display label (MCP tool `title`) */
+	title?: string;
 
 	/** Category for grouping */
 	category?: string;
@@ -274,6 +280,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		inputSchema: options.input,
 		jsonSchema,
 		handler: options.handler,
+		title: options.title,
 		category: options.category,
 		mutation: options.mutation,
 		version: options.version,
@@ -297,6 +304,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 			return {
 				name: options.name,
 				description: options.description,
+				title: options.title,
 				category: options.category,
 				mutation: options.mutation,
 				version: options.version,

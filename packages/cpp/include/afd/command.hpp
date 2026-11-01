@@ -180,6 +180,10 @@ struct CommandDefinition {
     /// `domain-action` kebab-case with at least two segments.
     std::string name;
     std::string description;
+    /// A short human-readable label, such as "Create a todo": the MCP tool `title` of the
+    /// command's own tool. Display text, never reported in `_meta`; when unset, nothing is
+    /// derived from the name.
+    std::optional<std::string> title;
     std::optional<std::string> category;
     /// JSON Schema (draft-07 subset; see schema.hpp) for the input. The default accepts any object.
     Json input_schema = Json{{"type", "object"}};

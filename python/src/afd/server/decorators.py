@@ -90,6 +90,7 @@ class CommandMetadata:
     undoable: Optional[bool] = None
     approval: Optional[ApprovalPolicy] = None
     version: Optional[str] = None
+    title: Optional[str] = None
 
 
 def define_command(
@@ -111,6 +112,7 @@ def define_command(
     undoable: Optional[bool] = None,
     approval: Optional[ApprovalPolicy] = None,
     version: Optional[str] = None,
+    title: Optional[str] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -139,6 +141,9 @@ def define_command(
             ``_meta.approval`` (``"conditional"`` for a function).
         version: The command's version, reported by ``afd-detail`` and recorded as
             ``metadata.commandVersion`` on its results (and so in journal entries).
+        title: A short human-readable label, reported as the MCP tool ``title`` of the
+            command's own tool, by ``afd-detail`` and by ``afd-help`` (full). Never derived
+            from the name.
 
     Returns:
         Decorator function that wraps the handler.
@@ -198,6 +203,7 @@ def define_command(
             undoable=undoable,
             approval=approval,
             version=version,
+            title=title,
         )
         
         @wraps(func)
@@ -345,6 +351,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         undoable=metadata.undoable,
         approval=metadata.approval,
         version=metadata.version,
+        title=metadata.title,
     )
 
 

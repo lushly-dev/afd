@@ -154,6 +154,7 @@ def execute_detail(
         entry = {
             "name": command.name,
             "found": True,
+            "title": command.title,
             "description": command.description,
             "category": command.category,
             "tags": list(command.tags or []),

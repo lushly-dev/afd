@@ -25,6 +25,7 @@ const CONFIRM_NAMES: &str = "Names of the commands that ask for confirmation and
 pub fn call_tool() -> Value {
     json!({
         "name": "afd-call",
+        "title": "Call a command",
         "description": "Invoke any command by name with runtime input validation. Works in all server strategies.",
         "inputSchema": {
             "type": "object",
@@ -42,6 +43,7 @@ pub fn call_tool() -> Value {
 pub fn batch_tool() -> Value {
     json!({
         "name": "afd-batch",
+        "title": "Run commands in a batch",
         "description": "Execute multiple commands in a single batch request with partial success semantics",
         "inputSchema": {
             "type": "object",
@@ -86,6 +88,7 @@ const STEP_INPUT: &str = "Input parameters. A string value that is exactly $prev
 pub fn pipe_tool() -> Value {
     json!({
         "name": "afd-pipe",
+        "title": "Run a command pipeline",
         "description": "Execute a pipeline of chained commands where the output of one becomes the input of the next",
         "inputSchema": {
             "type": "object",
@@ -134,6 +137,7 @@ pub fn pipe_tool() -> Value {
 pub fn discover_tool() -> Value {
     json!({
         "name": "afd-discover",
+        "title": "Discover commands",
         "description": "List available commands with optional filtering by category, tag, or search text. Returns compact summaries.",
         "inputSchema": {
             "type": "object",
@@ -157,6 +161,7 @@ pub fn discover_tool() -> Value {
 pub fn detail_tool() -> Value {
     json!({
         "name": "afd-detail",
+        "title": "Describe commands",
         "description": "Get the full input schema and metadata for one or more commands by name.",
         "inputSchema": {
             "type": "object",
@@ -529,6 +534,9 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
     let mut entry = Map::new();
     entry.insert("name".into(), json!(command.name));
     entry.insert("found".into(), json!(true));
+    if let Some(title) = &command.title {
+        entry.insert("title".into(), json!(title));
+    }
     entry.insert("description".into(), json!(command.description));
     let mut optional = |key: &str, value: Option<Value>| {
         if let Some(value) = value {
