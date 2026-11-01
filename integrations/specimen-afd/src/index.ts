@@ -1,6 +1,7 @@
 export {
 	buildOutputSchema,
 	contextSchema,
+	inspectResultSchema,
 	observationSchema,
 	storyRunSchema,
 } from '@lushly-dev/specimen/schema';

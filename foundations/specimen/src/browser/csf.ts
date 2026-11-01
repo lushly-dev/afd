@@ -257,6 +257,8 @@ export interface ComposedStory {
 	/** Innermost first, as `prepareStory` orders them. */
 	decorators: Decorator[];
 	render?: Render;
+	/** Where the render comes from: `default` is the web-components renderer's. */
+	renderSource: 'story' | 'meta' | 'project' | 'default';
 	play?: Play;
 }
 
@@ -301,6 +303,14 @@ export function composeStory(input: {
 		...((storyFn ?? story.render ?? meta.render ?? project.render)
 			? { render: (storyFn ?? story.render ?? meta.render ?? project.render) as Render }
 			: {}),
+		renderSource:
+			storyFn || story.render
+				? 'story'
+				: meta.render
+					? 'meta'
+					: project.render
+						? 'project'
+						: 'default',
 		...((story.play ?? meta.play) ? { play: (story.play ?? meta.play) as Play } : {}),
 	};
 }

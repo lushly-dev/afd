@@ -10,6 +10,8 @@ import { diffObservations } from '@lushly-dev/specimen';
 import {
 	buildOutputSchema,
 	captureRequestSchema,
+	inspectRequestSchema,
+	inspectResultSchema,
 	observationSchema,
 	runRequestSchema,
 	storyRunSchema,
@@ -19,12 +21,15 @@ import { z } from 'zod';
 export {
 	buildOutputSchema,
 	contextSchema,
+	inspectResultSchema,
 	observationSchema,
 	storyRunSchema,
 } from '@lushly-dev/specimen/schema';
 
 import type {
 	CaptureRequest,
+	InspectRequest,
+	InspectResult,
 	Observation,
 	RunRequest,
 	SpecimenEntry,
@@ -111,6 +116,7 @@ export interface SpecimenCommandBench {
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	run(request: RunRequest): Promise<StoryRun>;
+	inspect(request: InspectRequest): Promise<InspectResult>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
 }
 
@@ -225,6 +231,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Use specimen-list to check the id is a retained story, then validate it and check the browser installation.'
 			),
 	});
+	const inspect = defineCommand({
+		...common,
+		name: 'specimen-inspect',
+		description:
+			"Resolve a specimen or retained story without capturing it: its args, context and its component's schema",
+		mutation: false,
+		input: inspectRequestSchema,
+		output: inspectResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.inspect(input),
+				inspectResultSchema,
+				'SPECIMEN_INSPECT_FAILED',
+				'Use specimen-list to check the id, then validate it; a failing plugin or module load is reported here.'
+			),
+	});
 	const diff = createDiffCommand();
 	const build = defineCommand({
 		...common,
@@ -241,7 +263,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
-	return [list, render, diff, build, validate, runStory] as const;
+	return [list, render, diff, build, validate, runStory, inspect] as const;
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -264,7 +286,7 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build, validate, runStory] = createSpecimenCommands(bench);
+	const [list, render, diff, build, validate, runStory, inspect] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
 			return execute(list, input);
@@ -278,11 +300,13 @@ export async function executeSpecimenCommand(
 			return execute(validate, input);
 		case 'specimen-run':
 			return execute(runStory, input);
+		case 'specimen-inspect':
+			return execute(inspect, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
-				suggestion: 'Use specimen list, validate, render, run, diff, or build.',
+				suggestion: 'Use specimen list, validate, inspect, render, run, diff, or build.',
 			});
 	}
 }

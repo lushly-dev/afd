@@ -363,6 +363,27 @@
 			]
 		},
 		{
+			"id": "specimen-fast-af",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "df6eff227fce4ab265a5fe32d3fbaadd60afb6d6",
+			"authority": "none: new integration authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "specimen.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-fast-af",
+					"registry": "npm",
+					"manifest": "integrations/specimen-fast-af/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "fast-element",
 			"family": "fast-af",
 			"protocol": "npm-changesets",

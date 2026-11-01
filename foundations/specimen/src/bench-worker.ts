@@ -46,6 +46,7 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 	if (!bench) throw new Error('Specimen worker is not initialized');
 	if (message.operation === 'render') return bench.render(message.request);
 	if (message.operation === 'run') return bench.run(message.request);
+	if (message.operation === 'inspect') return bench.inspect(message.request);
 	return bench.build(message.outDir);
 }
 function exitAfterCleanup(): void {

@@ -1,0 +1,26 @@
+{
+	"specimens": [
+		{
+			"id": "press-default",
+			"title": "FAST-AF/Press",
+			"module": "./press.specimens.ts",
+			"exportName": "Default",
+			"component": "fixture-press"
+		},
+		{
+			"id": "press-pressed",
+			"title": "FAST-AF/Press",
+			"module": "./press.specimens.ts",
+			"exportName": "Pressed",
+			"component": "fixture-press"
+		},
+		{
+			"id": "press-unknown-command",
+			"title": "FAST-AF/Press",
+			"module": "./press.specimens.ts",
+			"exportName": "UnknownCommand",
+			"component": "fixture-press"
+		}
+	],
+	"plugins": ["./fast-af.plugins.ts"]
+}

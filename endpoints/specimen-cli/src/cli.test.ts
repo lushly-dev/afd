@@ -24,6 +24,21 @@ function harness() {
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
 		]),
 		validate: vi.fn(() => ({ valid: true, scope: 'static' as const, checked: 1, issues: [] })),
+		inspect: vi.fn(async (request) => ({
+			id: request.id,
+			component: 'plain-button',
+			schema: null,
+			args: { label: 'Save' },
+			context: {
+				viewport: { width: 1280, height: 720 },
+				theme: 'light' as const,
+				locale: 'en-US',
+				reducedMotion: 'no-preference' as const,
+				motion: 'natural' as const,
+			},
+			limitations: ['No schema source describes plain-button.'],
+			plugins: [],
+		})),
 		run: vi.fn(async (request) => ({
 			id: request.id,
 			outcome: {
@@ -65,6 +80,20 @@ function harness() {
 }
 
 describe('specimen CLI', () => {
+	it('dispatches inspect with context options only', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'inspect', 'button', '--viewport', '375x812'], h.io)).toBe(
+			0
+		);
+		expect(h.bench.inspect).toHaveBeenCalledWith({
+			id: 'button',
+			context: { viewport: { width: 375, height: 812 } },
+		});
+		expect(await runCli(['--root', root, 'inspect', 'button', '--screenshot', 'x.png'], h.io)).toBe(
+			1
+		);
+	});
 	it('dispatches run with context options and no checkpoint', async () => {
 		const h = harness();
 		const root = await directory();

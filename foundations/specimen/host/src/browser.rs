@@ -221,6 +221,9 @@ pub struct RenderRequest {
     pub requested: Option<Value>,
     #[serde(default)]
     pub defaults: Option<Value>,
+    /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
+    #[serde(default)]
+    pub inspect: Option<Value>,
 }
 
 pub struct RenderOutcome {
@@ -419,6 +422,32 @@ impl Browser {
         attempt
             .ready
             .store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(inspect) = &request.inspect {
+            let schema = inspect.get("schema").cloned().unwrap_or(Value::Null);
+            let inspected = page
+                .evaluate(&format!(
+                    "window.__specimen.inspect({}, {}, {}, {})",
+                    request.entry,
+                    request.requested.clone().unwrap_or(json!({})),
+                    request
+                        .defaults
+                        .clone()
+                        .unwrap_or_else(|| request.context.clone()),
+                    schema
+                ))
+                .await?;
+            let context = inspected
+                .get("context")
+                .cloned()
+                .unwrap_or_else(|| request.context.clone());
+            return Ok(Attempted {
+                captured: inspected,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome: None,
+            });
+        }
         let retained = request.entry.get("story").is_some_and(Value::is_object);
         let mut context = request.context.clone();
         let mut outcome = None;

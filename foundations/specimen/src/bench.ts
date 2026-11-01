@@ -5,6 +5,8 @@ import { validateDiscovery } from './stories.js';
 import type {
 	BenchOptions,
 	CaptureRequest,
+	InspectRequest,
+	InspectResult,
 	Observation,
 	RunRequest,
 	SpecimenEntry,
@@ -39,6 +41,11 @@ export interface SpecimenBench {
 	 * accessibility check under its effective policy. A story that fails to render fails its run.
 	 */
 	run(request: RunRequest): Promise<StoryRun>;
+	/**
+	 * Resolve one specimen or retained story without capturing it: its args, its context and
+	 * its component's schema, from the manifest and the plugins' schema sources.
+	 */
+	inspect(request: InspectRequest): Promise<InspectResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -56,7 +63,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	Object.freeze(config);
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
-	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'build' | 'close'>;
+	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'inspect' | 'build' | 'close'>;
 	let backend: Backend | undefined;
 	let closed = false;
 	let closing: Promise<void> | undefined;
@@ -151,6 +158,16 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.run(request));
+		},
+		async inspect(rawRequest) {
+			const snapshot = ensureDiscovered();
+			const request = parseCaptureRequest(rawRequest);
+			if (request.checkpoint !== undefined || request.screenshot !== undefined)
+				throw new Error('Inspection takes an id, a context and a timeout only.');
+			if (!snapshot.entries.some((entry) => entry.id === request.id))
+				throw new Error(`Specimen not found: ${request.id}`);
+			resolveContext(request.context);
+			return enqueue((client) => client.inspect(request));
 		},
 		async build(outDir) {
 			ensureDiscovered();

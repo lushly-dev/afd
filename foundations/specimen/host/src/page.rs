@@ -520,6 +520,29 @@ impl Page<'_> {
             .map(|_| ())
     }
 
+    /// An explicit command: the page's plugin runner called on the resolved target.
+    async fn command(&self, command: &Value, targets: &Value) -> Result<()> {
+        let name = command
+            .get("target")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("A command step names no target"))?;
+        let target = targets
+            .get(name)
+            .ok_or_else(|| anyhow!("Command step refers to an undeclared target"))?;
+        let object = self.target(name, target).await?;
+        self.call(
+            &object,
+            "async function (runner, name, input) { await window.__specimen.command(this, runner, name, input); }",
+            json!([
+                { "value": command.get("runner") },
+                { "value": command.get("name") },
+                { "value": command.get("input").cloned().unwrap_or(Value::Null) }
+            ]),
+        )
+        .await?;
+        Ok(())
+    }
+
     async fn act(&self, action: &Value, targets: &Value) -> Result<()> {
         let (kind, name) = ["click", "focus", "hover", "fill"]
             .iter()
@@ -597,6 +620,10 @@ impl Page<'_> {
                 if capture == checkpoint {
                     return Ok(());
                 }
+                continue;
+            }
+            if let Some(command) = step.get("command") {
+                self.command(command, &targets).await?;
                 continue;
             }
             self.act(step.get("action").unwrap_or(&Value::Null), &targets)
