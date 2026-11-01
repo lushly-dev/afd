@@ -237,6 +237,18 @@
 			"publicSurfaces": ["rust-library", "plugin-sdk-1"]
 		},
 		{
+			"manifest": "endpoints/umbel/store/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library", "store-traits-1"]
+		},
+		{
+			"manifest": "endpoints/umbel/store-embedded/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library"]
+		},
+		{
 			"manifest": "endpoints/umbel/plugins/hello/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",

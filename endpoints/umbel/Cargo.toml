@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "plugins/hello", "plugins/todo", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "plugins/hello", "plugins/todo", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -101,6 +101,8 @@ http-body-util = { version = "0.1", optional = true }
 rmcp = { version = "3.7", optional = true, default-features = false, features = ["server", "transport-io"] }
 tempfile = { version = "3", optional = true }
 umbel-sdk = { path = "sdk" }
+# The store traits and shared types; the embedded backend joins behind a feature in step 4.
+umbel-store = { path = "store" }
 
 [dev-dependencies]
 bytes = "1"
@@ -133,6 +135,12 @@ opt-level = 2
 [profile.dev.package.wasmtime-internal-cranelift]
 opt-level = 2
 [profile.dev.package.wasmtime-environ]
+opt-level = 2
+# SQLite's C code is slow unoptimised, and the store tests write thousands of rows (the
+# embedded store, specification section 1). The test profile inherits this from dev.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 2
+[profile.dev.package.sha2]
 opt-level = 2
 
 [lints]

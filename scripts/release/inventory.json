@@ -637,6 +637,48 @@
 			]
 		},
 		{
+			"id": "umbel-store",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "882206503efae746f8e8f36c7cec967855c9b939",
+			"authority": "none: new store traits crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-store",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/store/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-store-embedded",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "882206503efae746f8e8f36c7cec967855c9b939",
+			"authority": "none: new embedded store backend crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-store-embedded",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/store-embedded/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel-plugin-hello",
 			"family": "umbel",
 			"protocol": "language-tag-v1",
