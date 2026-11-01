@@ -139,17 +139,15 @@ should never have to scan the codebase to learn what is current.
     committed token contract, `theme:build` and `theme:check`, contrast floors
     per theme, and the `loam-lint-tokens` lint with its corpus; `loam.yml`
     runs `theme:check` and `lint:tokens`.
-  - 3, components onto Violet themes: not started.
+  - 3, components onto Violet themes: merged in
+    [#639](https://github.com/lushly-dev/afd/pull/639). `violet-elements`
+    generates its `light`, `dark` and `high-contrast` presets from Loam's
+    committed export, and `theme:check` holds its fallbacks to light.
   - 4, design document and skill: merged in
     [#640](https://github.com/lushly-dev/afd/pull/640). [design.md](design.md)
     and the `loam-design` skill record every rule with its tokens, and decide
     that the resting field border must meet 3:1 (a theme and component
     follow-up in the specification).
-  - 3, components onto Violet themes: merged in
-    [#639](https://github.com/lushly-dev/afd/pull/639). `violet-elements`
-    generates its `light`, `dark` and `high-contrast` presets from Loam's
-    committed export, and `theme:check` holds its fallbacks to light.
-  - 4, design document and skill: not started.
   - 5, kernel: merged in [#638](https://github.com/lushly-dev/afd/pull/638).
     `createKernel` with the two registries, name refusal, the commands, the
     layout validator, the palette index, the journal options and the test
