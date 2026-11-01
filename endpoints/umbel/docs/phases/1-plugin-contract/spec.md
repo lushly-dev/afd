@@ -79,8 +79,23 @@
   `_meta["dev.afd/digest"]` as `sha256:<hex>`, the Skills extension's format,
   so section 8.3 no longer mints `dev.umbel/sha256` (see
   [Amendments from step 0a](#amendments-from-step-0a)).
-- **Done:** this specification, approved and merged; step 0a.
-- **Not done:** step 0b and every Umbel step of the
+- **Step 0b done 2026-11-01** (AFD, `packages/rust` and the Rust todo backend;
+  [#PR](https://github.com/lushly-dev/afd/pull/PR)): `McpServer::with_resources`
+  and `with_skills`, `SkillCatalog` and `Skill`, `CommandDefinition::with_tool_meta`,
+  `CommandRegistry::register_with_schemas`, and the todo backend split into a
+  library (`todo_backend_rust::commands(store)`, `TodoStore::new`) and its
+  binary behind the default `server` feature. Verified against `main` at
+  `cdfbbfb7`, rebased on `origin/main` before merge: `rmcp` 3.8.0 routes
+  `skills/list`, `skills/get` and `resources/directory/read` through
+  `ServerHandler::on_custom_request` (so step 0b did not stop and amend 0a),
+  every case of `spec/mcp-resources.json` passes over Streamable HTTP and a
+  stdio-shaped connection in both MCP eras, the 34-case conformance suite
+  passes against the Rust backend in both eras plus confirmations, and
+  `endpoints/umbel` builds and tests against the new `afd`. Its choices and the
+  small amendments to step 0a's text are in
+  [Amendments from step 0b](#amendments-from-step-0b).
+- **Done:** this specification, approved and merged; steps 0a and 0b.
+- **Not done:** every Umbel step of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1967,6 +1982,22 @@ the YAML 1.2 core schema; skill files' MIME types from a fixed suffix table
 which matches section 8.3 for `.md` and the octet-stream default; and
 prefixed tool `_meta` keys need two labels, which `dev.umbel/origin`
 satisfies.
+
+## Amendments from step 0b
+
+Step 0b ([`packages/rust`](../../../../../packages/rust)) found `rmcp` able to
+route the extension's methods and made these choices, none of which changes
+what Umbel plans:
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| Step 0b, `with_tool_meta` | "refused when the command is defined or registered" (spec T2) | `with_tool_meta(key, value)` returns `Self`; `register`, `register_with_schema` and `register_with_schemas` refuse a bad key, naming the command and the key | A builder that returns a `Result` breaks chaining, and a registration check also covers the public `tool_meta` field. A plugin's definition fails when the host registers it |
+| Step 0b, the todo backend | `src/lib.rs` exposing `commands(store)`; axum and `tower-http` "only in the binary" | As written, and the binary has `required-features = ["server"]` (feature on by default, enabling `axum`, `tower-http` and `afd/server`); `TodoStore::new()` and `register_commands` (what the binary uses) are also public | Without the feature the crate is the commands and the store over `afd` without its `server` feature, which is what the todo plugin needs |
+| Spec S6 (directory read) | The result "lists the directory's direct children" | The result's field is `resources` (SEP-2640), with R3's cache hints; children sort by their own last path segment | The spec named no field; SEP-2640 does |
+| Spec S2 | Frontmatter "one mapping" | Also at most 64 levels deep with no repeated key | A reader with its own stack, and JSON objects cannot hold a repeated key |
+| Spec T2 | Reserved prefixes by name | `dev.afd/` and MCP's reserved prefixes are matched without regard to case | A case-insensitive consumer must not see `DEV.AFD/x` as a different namespace |
+| Spec R2 | An absolute URI with a scheme | Also no whitespace or control character | The check the server can make cheaply without a URI parser |
+| Crate | No YAML dependency | `saphyr-parser` 0.3 (optional, `server` feature) | Frontmatter needs a real YAML 1.2 reader whose events let the crate refuse tags, anchors and aliases and resolve plain scalars by the core schema itself |
 
 ## Follow-ups
 

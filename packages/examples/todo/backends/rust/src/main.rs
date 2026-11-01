@@ -1,17 +1,10 @@
-mod commands;
-mod server;
-mod store;
-mod types;
-mod validation;
-
 use afd::{CommandContext, CommandRegistry};
-use commands::Tool;
 use serde_json::Value;
 use std::env;
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
-use store::TodoStore;
+use todo_backend_rust::{register_commands, server, TodoStore, Tool};
 
 fn print_usage() {
     println!("Usage:");
@@ -26,7 +19,7 @@ fn print_usage() {
 
 fn build() -> Result<(CommandRegistry, Vec<Tool>), String> {
     let mut registry = CommandRegistry::new();
-    let tools = commands::register_commands(&mut registry, &Arc::new(TodoStore::default()))?;
+    let tools = register_commands(&mut registry, &Arc::new(TodoStore::new()))?;
     Ok((registry, tools))
 }
 

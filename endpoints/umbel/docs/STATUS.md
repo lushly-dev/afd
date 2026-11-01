@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); step 0a done (AFD spec, documents only); step 0b next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) | Step 0b (the Rust implementation and the todo library split) and step 1, which needs only 0a |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec) and 0b (AFD Rust implementation, todo library split) done | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md) | Step 0b (the Rust implementation and the todo library split) and step 1, which needs only 0a |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -264,8 +264,23 @@ should never have to scan the codebase to learn what is current.
   and `prompts` capabilities (on the modern era with `subscribe` and
   `listChanged` true); recorded in the AFD status. It does not affect Umbel,
   which is Rust.
-- **Not done:** steps 0b, 1, 2a, 2b and 3 to 8; the exit criterion.
-- **Needs the owner:** nothing for step 0b. O1 is unchanged.
+- **Done:** step 0b ([#PR](https://github.com/lushly-dev/afd/pull/PR)): in
+  `packages/rust` (`server` feature) `McpServer::with_resources` and
+  `with_skills` (`SkillCatalog`, `Skill`, optional directory reads),
+  `CommandDefinition::with_tool_meta` and `CommandRegistry::register_with_schemas`;
+  in `packages/examples/todo/backends/rust` the library
+  (`todo_backend_rust::commands(store)`, `TodoStore::new()`) split from its
+  binary behind the default `server` feature. Verified 2026-11-01: the Rust
+  crate's fmt, clippy `-D warnings` and tests with default, no-default,
+  `server` and `journal-file-shared` features, the wasm checks, every case of
+  `spec/mcp-resources.json` over Streamable HTTP and stdio in both MCP eras,
+  the todo backend's own checks, the 34-case conformance suite against it in
+  both eras plus confirmations, `endpoints/umbel`'s `cargo test --locked
+  --workspace` against the new `afd`, and `pnpm check`. `rmcp` 3.8.0 routes the
+  extension's methods, so 0a stands; the small amendments are in the
+  specification's "Amendments from step 0b".
+- **Not done:** steps 1, 2a, 2b and 3 to 8; the exit criterion.
+- **Needs the owner:** nothing. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
 Phases 2 to 7 have no detail yet; add a heading in this shape when one

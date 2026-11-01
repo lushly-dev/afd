@@ -77,6 +77,7 @@ pub mod errors;
 pub mod handoff;
 pub mod journal;
 pub mod mcp;
+mod meta_keys;
 pub mod metadata;
 pub mod pipeline;
 pub mod result;
@@ -158,6 +159,8 @@ pub use commands::{
     CommandMiddleware, CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema,
     JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
 };
+
+pub use meta_keys::{check_meta_entry, MCP_APPS_META_KEY};
 
 pub use contexts::{
     get_context_commands, register_context_commands, ContextConfig, ContextStack,

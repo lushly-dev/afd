@@ -16,6 +16,15 @@ and passes the shared conformance suite (`pnpm test:conformance:rs`).
 - **In-memory storage**: data lasts until the process exits and is not shared with
   the TypeScript and Python backends' `data/todos.json`.
 
+## As a library
+
+The crate is a library and a binary. `todo_backend_rust::commands(store)` returns the eleven
+commands as `(CommandDefinition, serde_json::Value)` pairs, each with the JSON Schema of its
+input, over a `TodoStore::new()`; nothing is registered, so a host chooses the registry (Umbel's
+todo plugin does). The binary, the CLI, the shell and the HTTP server need the `server` feature,
+which is on by default; without it (`--no-default-features`) the crate depends on `afd` without
+its `server` feature and on neither `axum` nor `tower-http`.
+
 ## Quick start
 
 ```bash

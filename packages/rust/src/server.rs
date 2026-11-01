@@ -73,8 +73,10 @@
 use std::sync::Arc;
 
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, DiscoverResult, ListToolsResult,
-    MetaObject, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
+    CacheScope, CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult,
+    DiscoverResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, MetaObject,
+    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ResourcesCapability,
+    ServerCapabilities, ServerConfig, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -94,21 +96,33 @@ use crate::{
 /// The MCP revision served statelessly.
 pub const MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 
+/// The Skills extension's identifier (SEP-2640), declared in `capabilities.extensions`.
+pub const SKILLS_EXTENSION_ID: &str = "io.modelcontextprotocol/skills";
+
 /// Default freshness hint of `tools/list` results (5 minutes).
 pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
 pub mod confirmations;
 pub mod context_hook;
+mod encoding;
+mod frontmatter;
 mod meta_argument;
 pub mod meta_tools;
 mod panic_guard;
+mod resources;
 mod router;
+mod skills;
 pub mod strategy;
 mod structured;
 use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
+pub use resources::{
+    ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError, DIGEST_META_KEY,
+    MCP_APP_MIME_TYPE,
+};
+pub use skills::{Skill, SkillCatalog, MAX_SKILL_BYTES, MAX_SKILL_FILES};
 pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
@@ -151,6 +165,8 @@ struct Inner {
     confirmations: Arc<Gate>,
     context_hook: Option<ContextHook>,
     advertise_output_schema: bool,
+    resources: Option<Arc<dyn ResourceProvider>>,
+    skills: Option<SkillCatalog>,
     /// Whether a 2025 connection can receive server-sent requests (stdio: yes; the stateless
     /// Streamable HTTP service: no).
     legacy_back_channel: bool,
@@ -194,6 +210,8 @@ impl McpServer {
                 ),
                 context_hook: None,
                 advertise_output_schema: true,
+                resources: None,
+                skills: None,
                 legacy_back_channel: true,
             }),
             session: Some(ContextStack::new()),
@@ -216,6 +234,8 @@ impl McpServer {
             confirmations: Arc::clone(&shared.confirmations),
             context_hook: shared.context_hook.clone(),
             advertise_output_schema: shared.advertise_output_schema,
+            resources: shared.resources.clone(),
+            skills: shared.skills.clone(),
             legacy_back_channel: shared.legacy_back_channel,
         });
         change(&mut inner);
@@ -279,11 +299,20 @@ impl McpServer {
     /// fail at startup.
     ///
     /// # Errors
-    /// The message names the offending option or entry: a first-class set without the hybrid
+    /// The message names the offending option or entry. For resources: a provider entry that
+    /// breaks a rule of `spec/mcp-resources.md` R2 (a bad or repeated `uri`, an empty `name`, a
+    /// `skill://` entry, a `ui://` entry without the MCP Apps `mimeType`, a `size` that does not
+    /// match the bytes, a `_meta` key the key rule refuses). For the tool strategy: a first-class set without the hybrid
     /// strategy, a hybrid server without one or with an empty one, and an entry that is not a
     /// registered command, is not exposed to MCP, is a meta-tool or context tool, repeats, or is
     /// beyond [`MAX_FIRST_CLASS_TOOLS`] (the first one beyond it).
     pub fn validate(&self) -> Result<(), String> {
+        self.validate_strategy()?;
+        self.validate_resources()
+    }
+
+    /// The tool strategy's checks alone, run on every tools request.
+    fn validate_strategy(&self) -> Result<(), String> {
         strategy::validate_first_class(
             self.inner.strategy,
             self.inner
@@ -396,6 +425,26 @@ impl McpServer {
     {
         let hook = context_hook::boxed(hook);
         self.with(|inner| inner.context_hook = Some(hook))
+    }
+
+    /// Serve a [`ResourceProvider`]'s entries through `resources/list` and `resources/read`
+    /// (`spec/mcp-resources.md`, R1 to R6). The server then declares the `resources` capability
+    /// (never `subscribe` or `listChanged`), answers `resources/templates/list` with an empty list
+    /// and adds `dev.afd/digest` to every entry whose bytes the provider gives up front. The
+    /// provider's entries are checked when the server starts serving ([`Self::validate`]) and each
+    /// time they are listed. It replaces any provider set before.
+    pub fn with_resources(self, provider: impl ResourceProvider + 'static) -> Self {
+        let provider: Arc<dyn ResourceProvider> = Arc::new(provider);
+        self.with(|inner| inner.resources = Some(provider))
+    }
+
+    /// Serve a [`SkillCatalog`] through the Skills extension, `io.modelcontextprotocol/skills`
+    /// (`spec/mcp-resources.md`, S1 to S8): `skills/list`, `skills/get`, and every skill file as a
+    /// resource, listed after the provider's entries. The server declares the extension and the
+    /// `resources` capability. A catalog is checked when it is built, so this cannot fail. It
+    /// replaces any catalog set before.
+    pub fn with_skills(self, catalog: SkillCatalog) -> Self {
+        self.with(|inner| inner.skills = Some(catalog))
     }
 
     /// Add the `confirm` acknowledgement to a confirm-gated tool under `Enforce`.
@@ -775,6 +824,20 @@ impl ServerHandler for McpServer {
             tools.list_changed = Some(false);
             tools
         });
+        if self.serves_resources() {
+            // No subscriptions and no list-changed notifications: AFD servers push nothing.
+            capabilities.resources = Some(ResourcesCapability::default());
+        }
+        if let Some(catalog) = &self.inner.skills {
+            let mut settings = serde_json::Map::new();
+            if catalog.directory_read() {
+                settings.insert("directoryRead".to_owned(), Value::Bool(true));
+            }
+            capabilities
+                .extensions
+                .get_or_insert_with(Default::default)
+                .insert(SKILLS_EXTENSION_ID.to_owned(), settings);
+        }
         let mut info = ServerConfig::new(capabilities);
         info.server_info.name = self.inner.name.clone();
         info.server_info.version = self.inner.version.clone();
@@ -793,7 +856,7 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         panic_guard::guard_request(async {
-            self.validate().map_err(internal)?;
+            self.validate_strategy().map_err(internal)?;
             let active = self
                 .request_scope(&context)?
                 .and_then(|scope| scope.active());
@@ -816,7 +879,7 @@ impl ServerHandler for McpServer {
         &self,
         _context: RequestContext<RoleServer>,
     ) -> Result<DiscoverResult, ErrorData> {
-        self.validate().map_err(internal)?;
+        self.validate_strategy().map_err(internal)?;
         let mut result = DiscoverResult::from_server_info(
             self.supported_protocol_versions().into_owned(),
             self.get_info(),
@@ -837,12 +900,44 @@ impl ServerHandler for McpServer {
         Ok(result)
     }
 
+    async fn list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        self.serve_list_resources(request, &context).await
+    }
+
+    async fn list_resource_templates(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, ErrorData> {
+        self.serve_list_resource_templates(request, &context).await
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        self.serve_read_resource(request, &context).await
+    }
+
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, ErrorData> {
+        self.serve_custom_request(request, &context).await
+    }
+
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        if let Err(message) = self.validate() {
+        if let Err(message) = self.validate_strategy() {
             return Err(internal(message));
         }
         panic_guard::guard_call(router::route(self, &request, &context)).await

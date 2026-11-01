@@ -33,7 +33,7 @@ journal-file-shared = ["journal-file"]
 approval = ["dep:hmac", "dep:subtle", "dep:getrandom"]
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
-server = ["native", "dep:rmcp", "dep:http", "dep:getrandom", "tokio/rt", "tokio/io-std"]
+server = ["native", "dep:rmcp", "dep:http", "dep:getrandom", "dep:saphyr-parser", "tokio/rt", "tokio/io-std"]
 
 [dependencies]
 # Core dependencies
@@ -69,6 +69,10 @@ rmcp = { version = "3.7", default-features = false, features = [
     "request-state",
     "elicitation",
 ], optional = true }
+# `server` feature: the YAML 1.2 event parser that reads a skill's frontmatter
+# (`spec/mcp-resources.md`, S2); the crate builds the JSON value itself, so it can refuse tags,
+# anchors and aliases and resolve plain scalars by the core schema.
+saphyr-parser = { version = "0.3", optional = true }
 # `server` feature: the request type the context hook reads (`http::request::Parts`); the
 # version `rmcp` uses.
 http = { version = "1", optional = true }

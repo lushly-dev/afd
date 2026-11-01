@@ -127,8 +127,8 @@ fn parameters(schema: &Value) -> Vec<CommandParameter> {
         .collect()
 }
 
-/// Register one command and return its tool description.
-fn register<C: Command>(registry: &mut CommandRegistry, command: C) -> Result<Tool, String> {
+/// One command's definition and the JSON Schema of its input.
+fn definition<C: Command>(command: C) -> (CommandDefinition, Value) {
     let schema = C::schema();
     let mut definition = CommandDefinition::new(
         C::NAME,
@@ -150,12 +150,26 @@ fn register<C: Command>(registry: &mut CommandRegistry, command: C) -> Result<To
             .with_destructive(true)
             .with_confirm_prompt(prompt);
     }
-    registry.register(definition)?;
-    Ok(Tool {
-        name: C::NAME.to_string(),
-        description: C::DESCRIPTION.to_string(),
-        input_schema: schema,
-    })
+    (definition, schema)
+}
+
+/// The eleven todo commands over `store`, each with the JSON Schema of its input, in
+/// registration order. Nothing is registered: the caller decides where they go.
+pub fn definitions(store: &Arc<TodoStore>) -> Vec<(CommandDefinition, Value)> {
+    let store = || Arc::clone(store);
+    vec![
+        definition(create::Create(store())),
+        definition(list::List(store())),
+        definition(get::Get(store())),
+        definition(update::Update(store())),
+        definition(toggle::Toggle(store())),
+        definition(delete::Delete(store())),
+        definition(clear::Clear(store())),
+        definition(stats::Stats(store())),
+        definition(create_batch::CreateBatch(store())),
+        definition(delete_batch::DeleteBatch(store())),
+        definition(toggle_batch::ToggleBatch(store())),
+    ]
 }
 
 /// Register every todo command against `store`. Returns the tool descriptions
@@ -164,20 +178,18 @@ pub fn register_commands(
     registry: &mut CommandRegistry,
     store: &Arc<TodoStore>,
 ) -> Result<Vec<Tool>, String> {
-    let store = || Arc::clone(store);
-    Ok(vec![
-        register(registry, create::Create(store()))?,
-        register(registry, list::List(store()))?,
-        register(registry, get::Get(store()))?,
-        register(registry, update::Update(store()))?,
-        register(registry, toggle::Toggle(store()))?,
-        register(registry, delete::Delete(store()))?,
-        register(registry, clear::Clear(store()))?,
-        register(registry, stats::Stats(store()))?,
-        register(registry, create_batch::CreateBatch(store()))?,
-        register(registry, delete_batch::DeleteBatch(store()))?,
-        register(registry, toggle_batch::ToggleBatch(store()))?,
-    ])
+    definitions(store)
+        .into_iter()
+        .map(|(definition, schema)| {
+            let tool = Tool {
+                name: definition.name.clone(),
+                description: definition.description.clone(),
+                input_schema: schema,
+            };
+            registry.register(definition)?;
+            Ok(tool)
+        })
+        .collect()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
