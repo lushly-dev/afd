@@ -1,4 +1,9 @@
-export { buildOutputSchema, contextSchema, observationSchema } from '@lushly-dev/specimen/schema';
+export {
+	buildOutputSchema,
+	contextSchema,
+	observationSchema,
+	storyRunSchema,
+} from '@lushly-dev/specimen/schema';
 export {
 	createSpecimenCommands,
 	executeSpecimenCommand,

@@ -57,6 +57,7 @@ const CONTEXT_KEYS = [
 	'locale',
 	'reducedMotion',
 	'motion',
+	'themeMedia',
 ] as const;
 const contextField: Record<
 	(typeof CONTEXT_KEYS)[number],
@@ -68,6 +69,7 @@ const contextField: Record<
 	locale,
 	reducedMotion: (value, path) => choice(value, path, ['reduce', 'no-preference']),
 	motion: (value, path) => choice(value, path, ['natural', 'settled']),
+	themeMedia: (value, path) => choice(value, path, ['browser-default']),
 };
 
 /** A context for a new request; with `partial`, any field may be absent. */
@@ -79,7 +81,7 @@ export function parseContext(
 	const fields = record(value, path, CONTEXT_KEYS);
 	const context: Fields = {};
 	for (const key of CONTEXT_KEYS) {
-		const optional = partial || key === 'container';
+		const optional = partial || key === 'container' || key === 'themeMedia';
 		if (fields[key] === undefined) {
 			if (!optional) fail(`${path}.${key}`, 'required');
 			continue;
@@ -151,17 +153,33 @@ function stories(value: unknown): NonNullable<BenchConfig['stories']> {
 	});
 }
 
+function tagList(value: unknown, path: string): string[] {
+	if (!Array.isArray(value)) fail(path, 'expected an array of tags');
+	return value.map((tag, index) => text(tag, `${path}[${index}]`));
+}
+
+function testTags(value: unknown): NonNullable<BenchConfig['test']> {
+	const fields = record(value, 'configuration.test', ['include', 'exclude', 'skip']);
+	const result: NonNullable<BenchConfig['test']> = {};
+	for (const key of ['include', 'exclude', 'skip'] as const)
+		if (fields[key] !== undefined) result[key] = tagList(fields[key], `configuration.test.${key}`);
+	return result;
+}
+
 export function parseConfig(value: unknown): BenchConfig {
-	const fields = record(value, 'configuration', ['specimens', 'stories', 'preview']);
+	const fields = record(value, 'configuration', ['specimens', 'stories', 'preview', 'test']);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
 	if (fields.preview !== undefined && fields.stories === undefined)
 		fail('configuration.preview', 'project annotations apply only to stories');
+	if (fields.test !== undefined && fields.stories === undefined)
+		fail('configuration.test', 'test tags apply only to stories');
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
 		...(fields.preview === undefined
 			? {}
 			: { preview: text(fields.preview, 'configuration.preview') }),
+		...(fields.test === undefined ? {} : { test: testTags(fields.test) }),
 	};
 }

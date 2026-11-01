@@ -1,6 +1,11 @@
 # T05 retained-CSF compatibility slice
 
-**State, 2026-11-01:** in progress. Step 1, discovery and static validation, is implemented on branch `lush/specimens-t05-compat`. The remaining steps are listed [below](#remaining-steps).
+**State, 2026-11-01:** in progress.
+
+- Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
+- Step 2, running retained stories, is implemented on branch `lush/specimens-t05-runtime`.
+
+The remaining steps are listed [below](#remaining-steps).
 
 T05 lets Specimen run the consumers' existing Storybook stories (CSF files) without rewriting them. Its acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue) and the proposal's [CSF compatibility contract](../../proposed/specimens/specimens.proposal.md#csf-compatibility-contract):
 
@@ -103,7 +108,85 @@ Rules for a bench whose discovery failed:
 - `list()`, `render()` and `build()` throw a `DiscoveryError`.
 - `validate()` reports each problem instead of throwing.
 
-A retained story is listed with its Storybook identity under `story`. Rendering one fails with `STORY_RENDER_UNAVAILABLE` until step 2. Its module is not bundled yet.
+A retained story is listed with its Storybook identity under `story`.
+
+## Step 2: running retained stories
+
+A retained story now renders and runs the way Storybook's Vitest addon (10.6.2, portable stories) runs it, in the native host's fresh browser context.
+
+### Composition
+
+The page composes the project, meta and story annotations with Storybook's field-specific rules (`src/browser/csf.ts`):
+
+- `parameters` and `argTypes` merge with `combineParameters`: plain objects merge deeply, arrays replace, and `undefined` never overrides.
+- `args` and `globals` merge shallowly. Globals are the `globalTypes` defaults, then initial globals, then the meta's and the story's.
+- `argTypes` `mapping` and `if` conditions apply to the args, as `prepareContext` applies them.
+- Decorators wrap the story's first, then the meta's, then the project's. A decorator's context update is merged shallowly into one shared context, except identity fields.
+- `render` is the story's, the meta's or the project's. Without one, the web-components default render sets args as element properties.
+- Runtime tags are `dev`, `test`, the project's, the meta's and the story's, without `play-fn` or `manifest`.
+- Storybook's own preview contributions in a Vitest run come first: the a11y addon's default `test: 'todo'` policy and initial globals.
+- With a `component`, event args come from the custom elements manifest the preview registers: an action handler for each `on<Event>`, as the renderer's argTypes give.
+
+A story fails to run rather than run without what it relies on. That covers fields the runtime does not compose, a play that destructures `mount`, `canvas` or `userEvent` from its context, a lit template result, and a story HTML string with a `<script>`. None of the consumers' stories does any of these.
+
+### Context
+
+A retained story settles its own context in the page, before it renders. The host then applies that context's viewport and media and mounts the story.
+
+- **Viewport:** the addon's `setViewport`. Storybook's minimal viewports plus the story's viewport options, selected by `globals.viewport.value`. The default is 1200×900; percentages are taken of it, and `vw`, `vh` and `em` units are converted.
+- **Theme:** the project's `theme` global, applied by the project's own decorators. A request's `theme` sets that global, as its toolbar would.
+- **Media:** the manifest records `themeMedia: 'browser-default'`. Media preferences keep the browser's defaults, because the incumbent never emulates them for a theme. Native captures do not carry the field, so their manifests are unchanged.
+- **Canvas:** the story renders into a plain `div` in the body, as Storybook's runner gives it a canvas. Specimen's native root is a `<main>`, which would change landmark checks. The page sets no language, theme attribute or color scheme of its own.
+- **Mismatches:** a viewport name no option defines, or a theme value the project's toolbar does not offer, renders as Storybook renders it. Specimen also records a `Context mismatch` limitation, which Storybook does not.
+
+### Run
+
+`bench.run({ id })`, the AFD command `specimen-run` and `specimen run ID` follow `runStory`:
+
+1. Render through the decorators.
+2. Run the play, with the play context fields Storybook gives it.
+3. Pause animations.
+4. Run the a11y addon's check.
+
+No readiness wait is added between render and play, because the incumbent has none. The capture after the run waits for upgrade, fonts and a frame.
+
+The check runs axe-core 4.13.0, the version Storybook's addon resolves, now a dependency of `@lushly-dev/specimen`, loaded only when a story runs. It analyses the whole body with only `region` disabled. It applies the story's `parameters.a11y` `config`, `options` and `context`, and the policy decides the outcome:
+- `error`: violations fail the story.
+- `todo`: violations are a warning.
+- `off`, `disable` or a manual global: the check does not run.
+
+A play that throws ends the run before the check, as an `afterEach` is skipped.
+
+A run's outcome is `passed`, `failed`, `skipped` or `excluded`. A failure is categorized as `render`, `play` or `a11y`. The configuration's `test` field takes the Vitest addon's `tags` option:
+- `include` and `exclude` test the index tags without `manifest`; a story they leave out is `excluded`, as no test exists for it.
+- `skip` tests the runtime tags; such a story is `skipped`.
+
+### Agreement
+
+`src/compat-run.test.ts` runs Storybook's Vitest addon and Specimen over the same two fixture projects in CI, one runner at a time. For every story it requires:
+- the same outcome;
+- for a failure, the same kind of reason (accessibility or not);
+- the outcome the fixture was written to produce.
+
+| Fixture | Both runners |
+| --- | --- |
+| Custom renderer, args/parameters/decorator precedence, global theme, responsive (`mobile1`, 320×568), default viewport (1200×900), form-associated element (FormData through `userEvent.type`), smoke-only, and the step 1 identity stories | Passed. The play of each asserts the behaviour it is about. |
+| A `skip-me` story under `test.skip` | Skipped |
+| A `!test` story | No incumbent test; Specimen reports it `excluded` |
+| Play assertion fails | Failed: play |
+| Image without `alt` under `test: 'error'` | Failed: a11y (`image-alt`) |
+| The same image under `todo` / `off` | Passed, with a warning / without a check |
+| Render throws | Failed: render |
+| A story after the failures | Passed: nothing from earlier stories remains |
+| Unknown viewport name, unknown theme value | Passed, at the default size. Specimen also labels the mismatch. |
+
+Storybook shares one document across a file's stories and tears each canvas down when the next starts; Specimen gives every story a fresh browser context. The cleanup fixture shows the incumbent leaves nothing behind across these stories, so the two isolation models agree here. Disposal failure has no Storybook counterpart for web components, which have no unmount. It remains covered by the native lifecycle suite.
+
+### Bundling
+
+The host now bundles stories and the preview. Imported source modules always run, even inside a package that declares `"sideEffects": false`, as under Vite's development server. A story's `import './element.js'` that only registers a custom element is therefore never shaken away. Dependencies under `node_modules` keep their own rules. FAST-AF declares `sideEffects: true` and Lushly declares none, so neither consumer was affected. Specimen's own package was: its fixtures live inside it.
+
+The story runtime loads lazily, so native pages and the static shell do not carry it.
 
 ## Storybook behaviour the next steps reproduce
 
@@ -118,12 +201,11 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 
 ## Remaining steps
 
-1. ~~Discovery, identity and static validation.~~ Implemented on branch.
-2. **Runtime composition and rendering.**
-   - Project, meta and story annotations composed with Storybook's field-specific rules: args, `argTypes` mapping and conditions, `parameters`, `globals`, decorators and render.
-   - The web-components render and the incumbent's viewport.
-   - The context provider mapping globals to context.
-   - Runtime validation of what static reading deferred, and `inspect`.
-3. **Run.** Plays with the play context, accessibility under the effective policy, and outcomes with failure categories. Also reset and disposal, the four plugin contracts, and the FAST-AF theme and schema plugin.
+1. ~~Discovery, identity and static validation.~~ Merged in #634.
+2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Implemented on branch.
+3. **Plugins and inspection.**
+   - The four plugin contracts exercised: schema source, context provider, token map and command runner.
+   - The FAST-AF theme and schema plugin.
+   - `inspect`, with the resolved args and context of a story.
 4. **The preview-first codemod** (`specimen-migrate`), with a file-by-file report.
-5. **The agreement record.** Representative positive and failing cases through both runners, and the refreshed Lushly inventory: Lushly's main has moved from `b8906b75` to `0eede7f0`, while FAST-AF's main is unchanged.
+5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.

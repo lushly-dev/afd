@@ -10,6 +10,12 @@ export interface SpecimenContext {
 	locale: string;
 	reducedMotion: 'reduce' | 'no-preference';
 	motion: 'natural' | 'settled';
+	/**
+	 * Absent: the theme also sets the media it implies (`prefers-color-scheme`,
+	 * `prefers-contrast`). `browser-default`: the theme is applied by the page alone and media
+	 * keep the browser's defaults, as Storybook's Vitest runner leaves them for a retained story.
+	 */
+	themeMedia?: 'browser-default';
 }
 export type Target = { selector: string } | { role: string; name?: string };
 export type ScenarioStep =
@@ -79,6 +85,11 @@ export interface BenchConfig {
 	stories?: (string | StoriesSpecifier)[];
 	/** The project annotations module (Storybook's preview), relative to the configuration. */
 	preview?: string;
+	/**
+	 * Which retained stories run, as the Storybook Vitest addon's `tags` option selects them:
+	 * `include` defaults to `['test']`; `skip` reports a story skipped without running it.
+	 */
+	test?: { include?: string[]; exclude?: string[]; skip?: string[] };
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */
@@ -116,6 +127,14 @@ export interface CaptureRequest {
 	checkpoint?: string;
 	screenshot?: string;
 	timeoutMs?: number;
+}
+/** A retained story's run: like a capture request, always at the after-run checkpoint. */
+export type RunRequest = Omit<CaptureRequest, 'checkpoint'>;
+export interface StoryRun {
+	id: string;
+	outcome: StoryOutcome;
+	/** The capture after the run; `null` when the story did not render. */
+	observation: Observation | null;
 }
 export interface Completeness {
 	status: 'complete' | 'partial' | 'unsupported' | 'not-requested';
@@ -187,11 +206,40 @@ export interface ObservationDiff {
 	differences: ChannelDifference[];
 	limitations: string[];
 }
+/** What a retained story's run found: the play, then the accessibility check. */
+export interface StoryOutcome {
+	/** `excluded`: no test exists for the story under the include and exclude tags. */
+	status: 'passed' | 'failed' | 'skipped' | 'excluded';
+	play: 'ran' | 'none';
+	failures: { category: 'render' | 'play' | 'a11y'; message: string }[];
+	a11y: {
+		/** `warning`: violations under `parameters.a11y.test: 'todo'`. */
+		status: 'passed' | 'warning' | 'failed' | 'not-run';
+		policy: 'error' | 'todo' | 'off' | 'disabled' | 'manual';
+		reason?: string;
+		violations: { id: string; impact: string | null; help: string; targets: string[] }[];
+		incomplete: number;
+		engine?: string;
+	};
+}
 export interface BrowserRuntime {
+	/**
+	 * A retained story's render context, settled from its own annotations and the request;
+	 * `null` for a native specimen, whose context the request already settles.
+	 */
+	resolve(
+		entry: SpecimenEntry,
+		requested: Partial<SpecimenContext>,
+		defaults: SpecimenContext
+	): Promise<{ context: SpecimenContext; limitations: string[] } | null>;
+	/** `settle: false` mounts a retained story without waiting for fonts and a frame, as its runner does. */
 	mount(
 		entry: SpecimenEntry,
-		context: SpecimenContext
+		context: SpecimenContext,
+		options?: { settle?: boolean }
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
+	/** Run the mounted retained story's play and accessibility check. */
+	run(): Promise<StoryOutcome>;
 	capture(): BrowserObservation;
 	/** Elements under the mount root matching a selector target, across open shadow roots. */
 	locate(selector: string): Element[];

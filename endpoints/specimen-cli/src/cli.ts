@@ -68,7 +68,7 @@ function parseArguments(args: string[]): ParsedArguments {
 		options.set(key, value);
 	}
 	const action = positionals.shift();
-	if (!action) throw new Error('Choose a command: list, validate, render, diff, or build');
+	if (!action) throw new Error('Choose a command: list, validate, render, run, diff, or build');
 	return { action, positionals, options, flags };
 }
 function dimensions(value: string): { width: number; height: number } {
@@ -85,6 +85,18 @@ function validateOptions(parsed: ParsedArguments): void {
 			'config',
 			'output',
 			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'screenshot',
+		]),
+		run: new Set([
+			'root',
+			'config',
+			'output',
 			'viewport',
 			'container',
 			'theme',
@@ -192,7 +204,11 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
 						: {}),
 				};
-				result = await executeSpecimenCommand(bench, 'specimen-render', input);
+				result = await executeSpecimenCommand(
+					bench,
+					parsed.action === 'run' ? 'specimen-run' : 'specimen-render',
+					input
+				);
 			}
 		}
 		await bench?.close();
@@ -205,7 +221,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], render ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], render ID, run ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

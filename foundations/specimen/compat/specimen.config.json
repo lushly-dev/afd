@@ -1,4 +1,5 @@
 {
 	"stories": ["stories/**/*.stories.ts"],
-	"preview": ".storybook/preview.ts"
+	"preview": ".storybook/preview.ts",
+	"test": { "skip": ["skip-me"] }
 }

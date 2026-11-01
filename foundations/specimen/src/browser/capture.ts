@@ -298,12 +298,14 @@ export function contextMismatches(
 		reasons.push(
 			`Context mismatch: the viewport is ${observed.width}x${observed.height}, not the requested ${width}x${height}.`
 		);
-	const colorScheme = colorSchemeOf(context.theme);
+	// With browser-default media, the theme is the page's alone and media keep their defaults.
+	const media = context.themeMedia === 'browser-default' ? 'light' : context.theme;
+	const colorScheme = colorSchemeOf(media);
 	if (observed.colorScheme !== colorScheme)
 		reasons.push(
 			`Context mismatch: prefers-color-scheme is ${observed.colorScheme}, not the requested ${colorScheme}; only the theme attribute and color-scheme apply.`
 		);
-	const contrast = contrastOf(context.theme);
+	const contrast = contrastOf(media);
 	if (observed.contrast !== contrast)
 		reasons.push(
 			`Context mismatch: prefers-contrast is ${observed.contrast}, not the requested ${contrast}; only the theme attribute applies.`

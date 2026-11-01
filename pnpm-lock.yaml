@@ -427,6 +427,9 @@ importers:
 
   foundations/specimen:
     dependencies:
+      axe-core:
+        specifier: 4.13.0
+        version: 4.13.0
       parse5:
         specifier: ^8.0.0
         version: 8.0.1

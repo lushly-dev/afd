@@ -1,12 +1,23 @@
-import type { MountHandle, SpecimenContext, SpecimenModule } from '../types.js';
+import type {
+	MountHandle,
+	ScenarioStep,
+	SpecimenContext,
+	SpecimenEntry,
+	SpecimenModule,
+	Target,
+} from '../types.js';
 import { captureDocument, colorSchemeOf, contextMismatches, openElements } from './capture.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
+import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
 import { validateSpecimen } from './validate.js';
 
 export { installPage } from './page.js';
 
 type Disposer = () => void | Promise<void>;
+
+/** Retained stories' runtime, loaded on first use so native pages do not carry it. */
+const storyRuntime = () => import('./story-runtime.js');
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -45,8 +56,11 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	const instrumentation = installInstrumentation();
 	const root = document.querySelector<HTMLElement>('#specimen-root');
 	if (!root) throw new Error('The bench page must contain #specimen-root.');
-	const mountRoot = root;
+	let mountRoot = root;
 	let active = false;
+	// A retained story, between resolve, mount and run.
+	let story: { prepared: PreparedStory; mounted?: MountedStory } | undefined;
+	const abort = new AbortController();
 	let motion: 'natural' | 'settled' = 'natural';
 	let requested: SpecimenContext | undefined;
 	const disposers: Disposer[] = [];
@@ -105,13 +119,88 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		instrumentation.setMotionMode(motion);
 	}
 
+	/** Upgrade, fonts and a frame: the native readiness contract. */
+	async function settle(): Promise<void> {
+		for (const element of openElements(mountRoot)) {
+			if (element.localName.includes('-')) await customElements.whenDefined(element.localName);
+		}
+		instrumentation.setMotionMode(motion);
+		await document.fonts.ready;
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+	}
+
+	/**
+	 * A retained story renders into a plain `div` in the body, as Storybook's runner gives it
+	 * a canvas, and the page sets no theme, language or color scheme of its own: the
+	 * project's decorators do that.
+	 */
+	async function mountRetained(
+		entry: SpecimenEntry,
+		context: SpecimenContext,
+		options: { settle?: boolean }
+	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }> {
+		if (!story) throw new Error(`Resolve ${entry.id} before mounting it.`);
+		if (mountRoot.localName !== 'div') {
+			const canvas = document.createElement('div');
+			canvas.id = mountRoot.id;
+			mountRoot.replaceWith(canvas);
+			mountRoot = canvas;
+		}
+		requested = context;
+		motion = context.motion;
+		instrumentation.setMotionMode(motion);
+		if (context.container) {
+			mountRoot.style.width = `${context.container.width}px`;
+			if (context.container.height !== undefined)
+				mountRoot.style.height = `${context.container.height}px`;
+		}
+		const { mountStory } = await storyRuntime();
+		story.mounted = mountStory(story.prepared, mountRoot, abort.signal);
+		if (options.settle !== false) await settle();
+		return { targets: {}, scenario: [] };
+	}
+
 	window.__specimen = {
-		async mount(entry, context) {
+		async resolve(entry, requestedContext, defaults) {
+			if (!entry.story) return null;
+			const load = loaders[entry.id];
+			if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
+			const preview = loaders.$preview;
+			const [module, project] = await Promise.all([load(), preview?.()]);
+			const { prepareStory, storyRenderContext } = await storyRuntime();
+			const prepared = prepareStory(
+				{ id: entry.id, title: entry.title, name: entry.story.name, exportName: entry.exportName },
+				project as StoryModule | undefined,
+				module as StoryModule,
+				requestedContext
+			);
+			story = { prepared };
+			return {
+				context: storyRenderContext(prepared, requestedContext, defaults),
+				limitations: prepared.mismatches,
+			};
+		},
+		async run() {
+			if (!story?.mounted) throw new Error('Mount a retained story before running it.');
+			const { runStory } = await storyRuntime();
+			const outcome = await runStory(story.mounted);
+			await settle();
+			return outcome;
+		},
+		async mount(entry, context, options = {}) {
 			if (active)
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			const load = loaders[entry.id];
 			if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
 			active = true;
+			if (entry.story) {
+				try {
+					return await mountRetained(entry, context, options);
+				} catch (error) {
+					active = false;
+					throw error;
+				}
+			}
 			applyContext(context);
 			try {
 				const module = await load();
@@ -144,12 +233,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				}
 				await handle.ready;
 				await specimen.ready?.();
-				for (const element of openElements(mountRoot)) {
-					if (element.localName.includes('-')) await customElements.whenDefined(element.localName);
-				}
-				instrumentation.setMotionMode(motion);
-				await document.fonts.ready;
-				await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+				await settle();
 				return { targets: specimen.targets ?? {}, scenario: specimen.scenario ?? [] };
 			} catch (error) {
 				try {
@@ -170,6 +254,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			observation.limitations.push(...instrumentation.limitations);
 			if (requested)
 				observation.limitations.push(...contextMismatches(requested, observation.viewport));
+			if (story) observation.limitations.push(...story.prepared.mismatches);
 			return observation;
 		},
 		locate(selector) {

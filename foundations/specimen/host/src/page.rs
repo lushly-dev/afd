@@ -618,23 +618,12 @@ fn theme_media(theme: &str) -> (&'static str, &'static str) {
 
 /// The page environment Playwright gives a new page in a context with these options.
 pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
-    let viewport: Viewport =
-        serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
-            .map_err(|error| anyhow!("Invalid viewport: {error}"))?;
     let locale = context
         .get("locale")
         .and_then(Value::as_str)
         .unwrap_or("en-US");
-    let theme = context
-        .get("theme")
-        .and_then(Value::as_str)
-        .unwrap_or("light");
-    let (scheme, contrast) = theme_media(theme);
-    let motion = context
-        .get("reducedMotion")
-        .and_then(Value::as_str)
-        .unwrap_or("no-preference");
-    let commands = [
+    // Chromium accepts these once per page.
+    let once = [
         ("Page.enable", json!({})),
         ("Log.enable", json!({})),
         ("Runtime.enable", json!({})),
@@ -643,15 +632,44 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
             json!({ "enabled": true }),
         ),
         (
-            "Emulation.setDeviceMetricsOverride",
-            json!({ "mobile": false, "width": viewport.width, "height": viewport.height, "screenWidth": viewport.width, "screenHeight": viewport.height, "deviceScaleFactor": 1, "screenOrientation": { "angle": 0, "type": "landscapePrimary" } }),
-        ),
-        (
             "Emulation.setUserAgentOverride",
             json!({ "userAgent": "", "acceptLanguage": locale }),
         ),
         ("Emulation.setLocaleOverride", json!({ "locale": locale })),
         ("Page.setFontFamilies", font_families()),
+    ];
+    // Sent together, as Playwright does; Chromium applies a session's commands in order.
+    futures::future::try_join_all(
+        once.iter()
+            .map(|(method, params)| page.send(method, params.clone())),
+    )
+    .await?;
+    emulate(page, context).await
+}
+
+/// The viewport and media emulation. A retained story's own context is applied again with
+/// this once the page has settled it; its locale is the request's.
+pub async fn emulate(page: &Page<'_>, context: &Value) -> Result<Viewport> {
+    let viewport: Viewport =
+        serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
+            .map_err(|error| anyhow!("Invalid viewport: {error}"))?;
+    let theme = context
+        .get("theme")
+        .and_then(Value::as_str)
+        .unwrap_or("light");
+    // A retained story's theme is applied by its own decorators; media keep the defaults.
+    let browser_default =
+        context.get("themeMedia").and_then(Value::as_str) == Some("browser-default");
+    let (scheme, contrast) = theme_media(if browser_default { "light" } else { theme });
+    let motion = context
+        .get("reducedMotion")
+        .and_then(Value::as_str)
+        .unwrap_or("no-preference");
+    let commands = [
+        (
+            "Emulation.setDeviceMetricsOverride",
+            json!({ "mobile": false, "width": viewport.width, "height": viewport.height, "screenWidth": viewport.width, "screenHeight": viewport.height, "deviceScaleFactor": 1, "screenOrientation": { "angle": 0, "type": "landscapePrimary" } }),
+        ),
         (
             "Emulation.setEmulatedMedia",
             json!({ "media": "", "features": [
@@ -662,7 +680,6 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
             ] }),
         ),
     ];
-    // Sent together, as Playwright does; Chromium applies a session's commands in order.
     futures::future::try_join_all(
         commands
             .iter()

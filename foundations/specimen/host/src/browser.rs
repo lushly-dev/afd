@@ -7,7 +7,7 @@
 use crate::aria;
 use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
-use crate::page::{Page, Viewport, prepare};
+use crate::page::{Page, Viewport, emulate, prepare};
 use anyhow::{Result, anyhow};
 use base64::Engine;
 use serde::Deserialize;
@@ -216,6 +216,11 @@ pub struct RenderRequest {
     pub checkpoint: String,
     pub timeout_ms: u64,
     pub screenshot: Option<String>,
+    /// A retained story's requested context, which the page completes from the story.
+    #[serde(default)]
+    pub requested: Option<Value>,
+    #[serde(default)]
+    pub defaults: Option<Value>,
 }
 
 pub struct RenderOutcome {
@@ -224,6 +229,19 @@ pub struct RenderOutcome {
     pub screenshot: Option<String>,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    /// The context the page rendered in: the request's, or a retained story's own.
+    pub context: Value,
+    /// A retained story's run: its play and accessibility check.
+    pub outcome: Option<Value>,
+}
+
+/// What one attempt produced before its context was disposed.
+struct Attempted {
+    captured: Value,
+    snapshot: String,
+    screenshot: Option<String>,
+    context: Value,
+    outcome: Option<Value>,
 }
 
 /// A failure the client re-raises: one message, or the render and disposal failures together.
@@ -318,14 +336,22 @@ impl Browser {
             let _ = timeout(Duration::from_millis(1000), close).await;
         }
         match (outcome, disposal) {
-            (Ok((captured, snapshot, screenshot)), Ok(())) => Ok(RenderOutcome {
-                captured,
-                snapshot,
-                screenshot,
+            (Ok(attempted), Ok(())) => Ok(RenderOutcome {
+                captured: attempted.captured,
+                snapshot: attempted.snapshot,
+                screenshot: attempted.screenshot,
                 errors,
                 warnings,
+                context: attempted.context,
+                outcome: attempted.outcome,
             }),
-            (Ok(_), Err(failure)) | (Err(failure), Ok(())) => Err(failure.into()),
+            (Ok(_), Err(failure)) => Err(failure.into()),
+            // The page's own errors usually explain a render that failed or never became ready.
+            (Err(failure), Ok(())) if !errors.is_empty() => Err(RenderFailure::from(anyhow!(
+                "{failure:#}; page errors: {}",
+                errors.join("; ")
+            ))),
+            (Err(failure), Ok(())) => Err(failure.into()),
             (Err(render), Err(disposal)) => Err(RenderFailure {
                 message: format!("Specimen render and disposal failed: {render:#}; {disposal:#}"),
                 causes: vec![format!("{render:#}"), format!("{disposal:#}")],
@@ -338,7 +364,7 @@ impl Browser {
         attempt: &Attempt,
         url: &str,
         request: &RenderRequest,
-    ) -> Result<(Value, String, Option<String>)> {
+    ) -> Result<Attempted> {
         let context = self
             .cdp
             .send(
@@ -393,13 +419,51 @@ impl Browser {
         attempt
             .ready
             .store(true, std::sync::atomic::Ordering::SeqCst);
-        let mounted = page
-            .evaluate(&format!(
-                "window.__specimen.mount({}, {})",
-                request.entry, request.context
+        let retained = request.entry.get("story").is_some_and(Value::is_object);
+        let mut context = request.context.clone();
+        let mut outcome = None;
+        if retained {
+            if !matches!(request.checkpoint.as_str(), "mount" | "after-run") {
+                return Err(anyhow!(
+                    "A retained story has the mount and after-run checkpoints, not '{}'",
+                    request.checkpoint
+                ));
+            }
+            // The story settles its own viewport and theme; emulate what it resolves to.
+            let resolved = page
+                .evaluate(&format!(
+                    "window.__specimen.resolve({}, {}, {})",
+                    request.entry,
+                    request.requested.clone().unwrap_or(json!({})),
+                    request
+                        .defaults
+                        .clone()
+                        .unwrap_or_else(|| request.context.clone())
+                ))
+                .await?;
+            context = resolved
+                .get("context")
+                .cloned()
+                .ok_or_else(|| anyhow!("The page did not resolve the story's context"))?;
+            emulate(&page, &context).await?;
+            let run = request.checkpoint == "after-run";
+            page.evaluate(&format!(
+                "window.__specimen.mount({}, {}, {{ settle: {} }})",
+                request.entry, context, !run
             ))
             .await?;
-        page.steps(&mounted, &request.checkpoint).await?;
+            if run {
+                outcome = Some(page.evaluate("window.__specimen.run()").await?);
+            }
+        } else {
+            let mounted = page
+                .evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, request.context
+                ))
+                .await?;
+            page.steps(&mounted, &request.checkpoint).await?;
+        }
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
         let captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
@@ -407,11 +471,20 @@ impl Browser {
         let root = page.root_backend_id().await?;
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
         let snapshot = aria::snapshot(&tree, root);
+        let viewport: Viewport =
+            serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
+                .unwrap_or(viewport);
         let screenshot = match &request.screenshot {
             Some(path) => Some(screenshot(&page, path, &viewport).await?),
             None => None,
         };
-        Ok((captured, snapshot, screenshot))
+        Ok(Attempted {
+            captured,
+            snapshot,
+            screenshot,
+            context,
+            outcome,
+        })
     }
 }
 

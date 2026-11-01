@@ -24,6 +24,21 @@ function harness() {
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
 		]),
 		validate: vi.fn(() => ({ valid: true, scope: 'static' as const, checked: 1, issues: [] })),
+		run: vi.fn(async (request) => ({
+			id: request.id,
+			outcome: {
+				status: 'skipped' as const,
+				play: 'none' as const,
+				failures: [],
+				a11y: {
+					status: 'not-run' as const,
+					policy: 'error' as const,
+					violations: [],
+					incomplete: 0,
+				},
+			},
+			observation: null,
+		})),
 		render: vi.fn(async () => {
 			throw new Error('No render configured');
 		}),
@@ -50,6 +65,17 @@ function harness() {
 }
 
 describe('specimen CLI', () => {
+	it('dispatches run with context options and no checkpoint', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'run', 'button', '--theme', 'dark'], h.io)).toBe(0);
+		expect(h.bench.run).toHaveBeenCalledWith({ id: 'button', context: { theme: 'dark' } });
+		expect(JSON.parse(h.output[0] ?? '')).toMatchObject({
+			success: true,
+			data: { id: 'button', outcome: { status: 'skipped' }, observation: null },
+		});
+		expect(await runCli(['--root', root, 'run', 'button', '--checkpoint', 'mount'], h.io)).toBe(1);
+	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();
 		const root = await directory();

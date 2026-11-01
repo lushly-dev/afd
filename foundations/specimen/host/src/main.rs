@@ -80,6 +80,8 @@ impl Bench {
             "snapshot": outcome.snapshot,
             "screenshot": outcome.screenshot,
             "console": { "errors": outcome.errors, "warnings": outcome.warnings },
+            "context": outcome.context,
+            "outcome": outcome.outcome,
             "loaded": loaded,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))

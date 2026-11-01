@@ -7,6 +7,7 @@ use anyhow::{Result, anyhow};
 use rolldown::{
     BundlerOptions, InputItem, ModuleType, OutputFormat, Platform, ResolveOptions, TsConfig,
 };
+use rolldown_common::{InnerOptions, ModuleSideEffects, TreeshakeOptions};
 use rolldown_plugin::{
     HookLoadArgs, HookLoadOutput, HookLoadReturn, HookUsage, Plugin, SharedLoadPluginContext,
 };
@@ -362,6 +363,19 @@ struct Output {
     sources: Vec<PathBuf>,
 }
 
+/// Every imported source module runs, as under Vite's development server, even inside a
+/// package that declares `"sideEffects": false`: a story's `import './element.js'` that only
+/// registers a custom element must not be shaken away. Dependencies keep their own rules.
+fn source_side_effects() -> TreeshakeOptions {
+    TreeshakeOptions::Option(InnerOptions {
+        module_side_effects: ModuleSideEffects::Function(Arc::new(|id: &str, external: bool| {
+            let source = !external && !id.contains("/node_modules/");
+            Box::pin(async move { Ok(source.then_some(true)) })
+        })),
+        ..Default::default()
+    })
+}
+
 /// One Rolldown build of the page with the given modules, the rest rejected with their errors.
 async fn bundle(
     source: &BenchSource,
@@ -409,6 +423,7 @@ async fn bundle(
             ),
             ..Default::default()
         }),
+        treeshake: source_side_effects(),
         ..Default::default()
     };
     let assets: Assets = Arc::default();
