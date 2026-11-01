@@ -111,6 +111,29 @@ fn list(
     }
 }
 
+/// The read behind the `events` grant (specification section 7.1): `event-list`'s read for
+/// `space` under the caller's principal, as the consumer `default`, without acknowledging.
+pub(crate) fn read_events(
+    workspace: &Workspace,
+    projector: &Projector,
+    space: SpaceId,
+    after: Option<String>,
+    limit: usize,
+    caller: Option<(afd::Actor, String)>,
+) -> Result<Value, CommandError> {
+    list(
+        workspace,
+        projector,
+        Request {
+            space,
+            consumer: "default".to_owned(),
+            limit,
+            after,
+            caller,
+        },
+    )
+}
+
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {

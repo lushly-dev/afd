@@ -1960,6 +1960,31 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "umbel",
+ "umbel-plugin-hello",
+ "umbel-sdk",
+]
+
+[[package]]
+name = "umbel-plugin-hello"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "chrono",
+ "serde_json",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-sdk",
+]
+
+[[package]]
+name = "umbel-sdk"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

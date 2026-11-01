@@ -72,6 +72,16 @@ impl From<WorkspaceError> for HostError {
     }
 }
 
+impl From<crate::plugins::PluginError> for HostError {
+    fn from(error: crate::plugins::PluginError) -> Self {
+        Self::new(
+            error.code(),
+            error.message().to_owned(),
+            error.suggestion().to_owned(),
+        )
+    }
+}
+
 impl fmt::Display for HostError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.error.code, self.error.message)

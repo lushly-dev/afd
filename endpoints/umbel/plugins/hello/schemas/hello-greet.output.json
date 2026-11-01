@@ -1,0 +1,9 @@
+{
+	"type": "object",
+	"properties": {
+		"greeting": { "type": "string" },
+		"space": { "type": "string" },
+		"at": { "type": "string", "description": "The command context's clock, ISO 8601" }
+	},
+	"required": ["greeting", "space", "at"]
+}

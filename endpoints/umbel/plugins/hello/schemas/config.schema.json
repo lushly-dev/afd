@@ -1,0 +1,14 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"default_name": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"default": "world",
+			"description": "Who hello-greet greets when the call names no one"
+		}
+	},
+	"additionalProperties": false
+}

@@ -14,17 +14,18 @@ pub use space::SPACE_NOT_FOUND;
 use crate::commands::{self, Builtin};
 use crate::events::{EventsError, ProjectingSink, Projector, RepairReport};
 use crate::middleware;
+use crate::plugins::{self, Catalog, CompiledPlugin, LoadedPlugins};
 use crate::principal::{Authentication, Principal, Transport};
 use crate::surfaces;
 use crate::workspace::{Workspace, codes};
 use afd::server::McpServer;
 use afd::{
-    Actor, ApprovalMiddlewareOptions, CommandContext, CommandDefinition, CommandInterface,
+    Actor, ApprovalMiddlewareOptions, Clock, CommandContext, CommandDefinition, CommandInterface,
     CommandRegistry, DirectClient, JournalRecorder, create_approval_middleware,
     get_bootstrap_commands,
 };
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
@@ -50,6 +51,8 @@ impl Pending {
 pub struct HostBuilder {
     workspace: Workspace,
     commands: Vec<Pending>,
+    compiled: Vec<Arc<dyn CompiledPlugin>>,
+    clock: Option<Arc<dyn Clock>>,
 }
 
 impl HostBuilder {
@@ -67,7 +70,37 @@ impl HostBuilder {
         Self {
             workspace,
             commands: Vec::new(),
+            compiled: Vec::new(),
+            clock: None,
         }
+    }
+
+    /// Make a compiled plugin available as `compiled:<id>`, where `<id>` is the `plugin.id` of
+    /// its manifest. It is loaded only when an instance in `plugins.enabled` names it. A binary
+    /// built with compiled plugins calls this from the `configure` hook it passes to
+    /// [`cli::run`](crate::cli::run).
+    #[must_use]
+    pub fn with_compiled(mut self, plugin: impl CompiledPlugin) -> Self {
+        self.compiled.push(Arc::new(plugin));
+        self
+    }
+
+    /// The compiled plugins added so far, by id, each with its embedded manifest. The doctor
+    /// resolves `compiled:` sources against it, even when `seal` fails.
+    ///
+    /// # Errors
+    /// `PLUGIN_MANIFEST_INVALID` for an embedded manifest that has no readable `plugin.id`.
+    pub fn compiled_catalog(&self) -> Result<plugins::CompiledCatalog, HostError> {
+        Ok(Catalog::new(&self.compiled)?.manifests().clone())
+    }
+
+    /// Give every call of this host the clock `clock`, on every surface: the CLI, the library's
+    /// [`Host::context`] and the MCP context hook. For tests and replays; a host has the system
+    /// clock by default.
+    #[must_use]
+    pub fn with_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.clock = Some(Arc::new(clock));
+        self
     }
 
     /// Add a command. A registration problem (a reserved CLI verb, a name already taken) is
@@ -85,32 +118,33 @@ impl HostBuilder {
         self
     }
 
-    /// Register the built-in commands, then the added ones, then AFD's bootstrap commands
-    /// (with `cli: true`); install the middleware; build the MCP server and validate its
-    /// surface.
+    /// Register the built-in commands, then the added ones, then every plugin instance of
+    /// `plugins.enabled` (the load sequence of the phase 1 specification, section 6), then AFD's
+    /// bootstrap commands (with `cli: true`); install the middleware; build the MCP server and
+    /// validate its surface.
     ///
     /// # Errors
     /// `WORKSPACE_KEY_INVALID` for a key under 32 bytes; `WORKSPACE_CONFIG_INVALID` naming
     /// `mcp.first_class_tools` for an invalid first-class set, or naming the command for a
-    /// reserved CLI verb or a name collision.
+    /// reserved CLI verb or a name collision; the `PLUGIN_*` code of the first required plugin
+    /// instance that fails to load (an optional one is skipped and reported by `plugin-list`).
     pub fn seal(self) -> Result<Host, HostError> {
-        // The loader arrives with step 2a of the phase 1 plan. A configured plugin is never
-        // silently ignored, so until then a workspace that enables one does not seal; the
-        // doctor still checks its files.
-        if !self.workspace.config().plugins.enabled.is_empty() {
-            return Err(HostError::config_invalid(
-                "`plugins.enabled`",
-                "names plugin instances, but this build has no plugin loader yet",
-                "Empty plugins.enabled until the loader lands; umbel workspace doctor still checks the plugins' files.",
-            ));
-        }
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());
+        let loaded_cell: Arc<OnceLock<Arc<LoadedPlugins>>> = Arc::new(OnceLock::new());
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
+        let catalog = Catalog::new(&self.compiled)?;
+        let compiled_catalog = Arc::new(catalog.manifests().clone());
 
         let builtins: Vec<Builtin> = vec![
-            commands::workspace_show(Arc::clone(&workspace), Arc::clone(&first_class_cell)),
+            commands::workspace_show(
+                Arc::clone(&workspace),
+                Arc::clone(&first_class_cell),
+                Arc::clone(&loaded_cell),
+            ),
+            commands::plugin_list(Arc::clone(&loaded_cell)),
+            commands::plugin_show(Arc::clone(&loaded_cell)),
             commands::event_list(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::event_ack(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::space_list(Arc::clone(&workspace), Arc::clone(&projector)),
@@ -118,6 +152,8 @@ impl HostBuilder {
                 Arc::clone(&workspace),
                 Arc::downgrade(&registry),
                 Arc::clone(&first_class_cell),
+                Arc::clone(&loaded_cell),
+                Arc::clone(&compiled_catalog),
             ),
             commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
         ];
@@ -137,6 +173,13 @@ impl HostBuilder {
             }
             register(&registry, pending)?;
         }
+        let loaded = Arc::new(plugins::load(&plugins::Inputs {
+            workspace: &workspace,
+            projector: &projector,
+            registry: &registry,
+            catalog: &catalog,
+        })?);
+        let _ = loaded_cell.set(Arc::clone(&loaded));
         for command in get_bootstrap_commands(&registry) {
             let expose = command.expose.clone().with_cli(true);
             register(&registry, Pending::Plain(command.with_expose(expose)))?;
@@ -150,8 +193,9 @@ impl HostBuilder {
             .unwrap_or_else(|| surfaces::default_first_class_tools(&registry));
         let _ = first_class_cell.set(first_class.clone());
 
-        install_middleware(&registry, &workspace)?;
-        let server = surfaces::mcp::build_server(&registry, &workspace, &first_class)?;
+        install_middleware(&registry, &workspace, &loaded)?;
+        let server =
+            surfaces::mcp::build_server(&registry, &workspace, &first_class, self.clock.as_ref())?;
         install_journal(&registry, &workspace, &projector);
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
@@ -169,6 +213,7 @@ impl HostBuilder {
             first_class,
             projector,
             server,
+            clock: self.clock,
         })
     }
 }
@@ -207,16 +252,25 @@ fn has_space_property(registry: &CommandRegistry, name: &str) -> bool {
         .is_some()
 }
 
-/// Install the middleware, outermost first: the event stamp, the space check, approvals.
+/// Install the middleware, outermost first: the event stamp, the space check, the plugin gate,
+/// approvals.
+///
+/// The set of space commands is the host's own knowledge: a built-in by its `space` property, a
+/// plugin command by what its instance's load decided (a mounted tool's own `space` argument is
+/// the server's, not Umbel's).
 fn install_middleware(
     registry: &Arc<CommandRegistry>,
     workspace: &Arc<Workspace>,
+    loaded: &LoadedPlugins,
 ) -> Result<(), HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
         commands
             .iter()
-            .filter(|command| has_space_property(registry, &command.name))
+            .filter(|command| match loaded.gate.get(&command.name) {
+                Some(entry) => entry.space_command,
+                None => has_space_property(registry, &command.name),
+            })
             .map(|command| command.name.clone())
             .collect(),
     );
@@ -233,14 +287,20 @@ fn install_middleware(
         Arc::clone(&with_space),
         workspace.default_space().to_string(),
     ));
-    let resolver = Arc::clone(workspace);
-    registry.add_middleware(middleware::space_check(
-        with_space,
+    let resolve: middleware::ResolveSpace = {
+        let resolver = Arc::clone(workspace);
         Arc::new(move |input, context| {
             resolver
                 .resolve_space(input, context)
                 .map(|space| space.to_string())
-        }),
+        })
+    };
+    registry.add_middleware(middleware::space_check(with_space, Arc::clone(&resolve)));
+    let entries: BTreeMap<_, _> = loaded.gate.clone();
+    registry.add_middleware(middleware::plugin_gate(
+        Arc::new(entries),
+        resolve,
+        workspace.default_space().to_string(),
     ));
 
     let key = workspace.approval_key()?;
@@ -282,6 +342,7 @@ pub struct Host {
     first_class: Vec<String>,
     projector: Arc<Projector>,
     server: McpServer,
+    clock: Option<Arc<dyn Clock>>,
 }
 
 impl Host {
@@ -340,7 +401,14 @@ impl Host {
     pub fn context(&self, actor: Actor) -> CommandContext {
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
         Principal::new(actor, Transport::Library, Authentication::Embedder).apply(&mut context);
+        self.apply_clock(&mut context);
         context
+    }
+
+    fn apply_clock(&self, context: &mut CommandContext) {
+        if let Some(clock) = &self.clock {
+            context.clock = Some(Arc::clone(clock));
+        }
     }
 
     /// What the CLI projection calls through: a [`DirectClient`] with the CLI interface, so the
@@ -357,6 +425,7 @@ impl Host {
             Actor::new(afd::ActorKind::Human).with_id(&self.workspace.config().principal.local_id);
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
         Principal::new(actor, Transport::Cli, Authentication::Process).apply(&mut context);
+        self.apply_clock(&mut context);
         context
     }
 }

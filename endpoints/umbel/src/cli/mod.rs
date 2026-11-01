@@ -18,6 +18,7 @@ mod terminal;
 pub use prompt::Console;
 
 use crate::host::{Host, HostBuilder, HostError};
+use crate::plugins::CompiledCatalog;
 use crate::workspace::{
     Located, LogFormat, Overrides, WORKSPACE_ENV, Workspace, WorkspaceError, discover,
 };
@@ -326,7 +327,7 @@ async fn serve_host(
     mode: serve::Mode,
     out: &mut dyn Write,
 ) -> i32 {
-    let (sealed, _) = build_host(flag, log, bind, environment, configure);
+    let (sealed, _, _) = build_host(flag, log, bind, environment, configure);
     let outcome = match sealed {
         Ok(host) => serve::serve(&host, mode, out).await,
         Err(error) => Err(error),
@@ -372,12 +373,12 @@ async fn open_host(
     writers: &mut Writers<'_>,
     command: Option<&str>,
 ) -> Option<Host> {
-    let (sealed, located) = build_host(flag, log, None, environment, configure);
+    let (sealed, located, catalog) = build_host(flag, log, None, environment, configure);
     match sealed {
         Ok(host) => Some(host),
         Err(error) => {
             if command == Some("workspace-doctor") {
-                let report = doctor::inspect(located);
+                let report = doctor::inspect_with_catalog(located, catalog.as_ref());
                 let result = report.into_result();
                 writers.exit_for(&result);
             } else {
@@ -389,28 +390,37 @@ async fn open_host(
 }
 
 /// Find the workspace, open it, install logging and seal a host; also the discovery result, which
-/// the doctor reports when the workspace does not open.
+/// the doctor reports when the workspace does not open, and the binary's compiled plugins, which
+/// it resolves `compiled:` sources against even when `seal` fails. The catalog is `None` when the
+/// workspace never opened, so `configure` never ran.
 fn build_host(
     flag: &Option<PathBuf>,
     log: &Option<String>,
     bind: Option<String>,
     environment: &Environment,
     configure: impl FnOnce(HostBuilder) -> HostBuilder,
-) -> (Result<Host, HostError>, Result<Located, WorkspaceError>) {
+) -> (
+    Result<Host, HostError>,
+    Result<Located, WorkspaceError>,
+    Option<CompiledCatalog>,
+) {
     let located = discover(
         flag.as_deref(),
         environment.workspace.as_ref(),
         &environment.cwd,
     );
     let opened = open_with(&located, log, bind, environment);
+    let mut catalog = None;
     let sealed = opened.and_then(|workspace| {
         logging::init(
             workspace.config().log.filter(),
             workspace.config().log.format == LogFormat::Json,
         );
-        configure(HostBuilder::from_workspace(workspace)).seal()
+        let builder = configure(HostBuilder::from_workspace(workspace));
+        catalog = builder.compiled_catalog().ok();
+        builder.seal()
     });
-    (sealed, located)
+    (sealed, located, catalog)
 }
 
 fn open_with(

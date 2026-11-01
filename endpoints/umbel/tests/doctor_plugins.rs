@@ -1,6 +1,6 @@
 //! The doctor's plugin checks that need only files (phase 1 specification, section 9.2): each
 //! in pass, warn and fail, without a sealed host, and `skip` for a compiled source with no
-//! catalog. The sealed-host cases arrive with the loader.
+//! catalog, and the sealed-host cases: `plugins.loaded` on a host that loaded its plugins.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::fs;
@@ -178,7 +178,7 @@ fn a_workspace_that_cannot_be_read_skips_every_plugin_check() {
 }
 
 #[test]
-fn a_sealed_host_does_not_load_a_workspace_that_enables_a_plugin_yet() {
+fn a_sealed_host_has_no_loader_for_a_mounted_plugin_yet() {
     let (_dir, root) = workspace(&config("[plugins]\nenabled = [\"hello\"]\n"));
     write(
         &root,
@@ -186,8 +186,8 @@ fn a_sealed_host_does_not_load_a_workspace_that_enables_a_plugin_yet() {
         &mounted("hello", ""),
     );
     let error = HostBuilder::open(&root).unwrap().seal().err().unwrap();
-    assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
-    assert!(error.message().contains("plugins.enabled"), "{error}");
+    assert_eq!(error.code(), "PLUGIN_KIND_UNAVAILABLE");
+    assert!(error.message().contains("hello"), "{error}");
     assert!(!error.suggestion().is_empty());
     // The doctor still reports the files.
     let report = doctor::run(&root);
@@ -838,4 +838,160 @@ fn a_mounted_plugins_packs_are_checked_once_however_many_instances() {
         "{}",
         check(&report, "plugins.packs").message
     );
+}
+
+// ── Sealed host: plugins.loaded, and the binary's catalog when seal fails ─────────────────────
+
+mod sealed {
+    use super::*;
+    use afd::{Actor, ActorKind};
+    use serde_json::Value;
+    use std::sync::Arc;
+    use umbel::cli::{Console, Environment};
+    use umbel::plugins::sdk;
+    use umbel::workspace::Overrides;
+
+    fn hello() -> impl umbel::plugins::CompiledPlugin {
+        sdk(umbel_plugin_hello::plugin())
+    }
+
+    struct NoPerson;
+
+    impl Console for NoPerson {
+        fn is_interactive(&self) -> bool {
+            false
+        }
+
+        fn ask(&self, _text: &str) -> bool {
+            false
+        }
+    }
+
+    async fn sealed_report(
+        root: &Path,
+        configure: impl FnOnce(HostBuilder) -> HostBuilder,
+    ) -> Value {
+        let host = configure(HostBuilder::open(root).unwrap()).seal().unwrap();
+        let actor = Actor::new(ActorKind::Test).with_id("doctor");
+        let result = host
+            .registry()
+            .execute(
+                "workspace-doctor",
+                serde_json::json!({}),
+                Some(host.context(actor)),
+            )
+            .await;
+        assert!(result.success, "{result:?}");
+        result.data.unwrap()
+    }
+
+    fn find<'a>(report: &'a Value, id: &str) -> &'a Value {
+        report["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|check| check["id"] == id)
+            .unwrap_or_else(|| panic!("no check {id}"))
+    }
+
+    #[tokio::test]
+    async fn plugins_loaded_passes_naming_kinds_counts_and_the_trust_note() {
+        let (_dir, root) = workspace(&config("[plugins]\nenabled = [\"hello\", \"guide\"]\n"));
+        pack_plugin(&root, "guide");
+        let report = sealed_report(&root, |b| b.with_compiled(hello())).await;
+        let loaded = find(&report, "plugins.loaded");
+        assert_eq!(loaded["status"], "pass", "{loaded}");
+        let message = loaded["message"].as_str().unwrap();
+        assert!(
+            message.contains("hello (compiled, 1 command(s))"),
+            "{message}"
+        );
+        assert!(message.contains("guide (pack, 0 command(s))"), "{message}");
+        assert!(message.contains("trusted, not sandboxed"), "{message}");
+        // The file-only checks still run, and the two that wait for packs and pipelines stay skipped.
+        assert_eq!(find(&report, "plugins.sources")["status"], "pass");
+        assert_eq!(find(&report, "plugins.first_class")["status"], "skip");
+        assert_eq!(find(&report, "plugins.pipelines")["status"], "skip");
+    }
+
+    #[tokio::test]
+    async fn plugins_loaded_passes_with_no_plugins() {
+        let (_dir, root) = workspace("config_version = 2\n");
+        let report = sealed_report(&root, |b| b).await;
+        let loaded = find(&report, "plugins.loaded");
+        assert_eq!(loaded["status"], "pass");
+        assert_eq!(loaded["message"], "No plugins are enabled");
+    }
+
+    #[tokio::test]
+    async fn plugins_loaded_warns_when_an_optional_instance_failed() {
+        let (_dir, root) = workspace(&config(
+            "[plugins]\nenabled = [\"hello\", \"ghost\"]\n[plugins.ghost]\nrequired = false\n",
+        ));
+        let report = sealed_report(&root, |b| b.with_compiled(hello())).await;
+        let loaded = find(&report, "plugins.loaded");
+        assert_eq!(loaded["status"], "warn", "{loaded}");
+        let message = loaded["message"].as_str().unwrap();
+        assert!(
+            message.contains("ghost failed to load: PLUGIN_NOT_FOUND"),
+            "{message}"
+        );
+        assert!(message.contains("hello (compiled"), "{message}");
+        assert!(!loaded["suggestion"].as_str().unwrap().is_empty());
+        assert_eq!(report["healthy"], true, "a warning is not a failure");
+    }
+
+    /// `umbel workspace doctor` in process, with `configure` as the binary's hook.
+    async fn cli_doctor(root: &Path, configure: impl FnOnce(HostBuilder) -> HostBuilder) -> Value {
+        let environment = Environment {
+            cwd: root.to_path_buf(),
+            workspace: None,
+            overrides: Overrides::default(),
+            console: Arc::new(NoPerson),
+        };
+        let mut stdout = Vec::new();
+        umbel::cli::run(
+            ["umbel", "workspace", "doctor"],
+            &environment,
+            &mut stdout,
+            configure,
+        )
+        .await;
+        let document: Value = serde_json::from_slice(&stdout).unwrap();
+        document
+            .get("data")
+            .or_else(|| document["error"].get("details"))
+            .unwrap()
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn a_compiled_source_resolves_with_the_binarys_catalog_even_when_seal_fails() {
+        // `mcp.first_class_tools` names a command that does not exist, so seal fails.
+        let (_dir, root) = workspace(&config(
+            "[plugins]\nenabled = [\"hello\"]\n[mcp]\nfirst_class_tools = [\"nope-nope\"]\n",
+        ));
+        assert!(
+            HostBuilder::open(&root)
+                .unwrap()
+                .with_compiled(hello())
+                .seal()
+                .is_err()
+        );
+
+        let with = cli_doctor(&root, |b| b.with_compiled(hello())).await;
+        let sources = find(&with, "plugins.sources");
+        assert_eq!(sources["status"], "pass", "{sources}");
+        assert!(
+            sources["message"]
+                .as_str()
+                .unwrap()
+                .contains("1 source(s) resolve")
+        );
+        assert_eq!(find(&with, "plugins.config")["status"], "pass");
+
+        // The same binary without the plugin cannot resolve it: the instance's source fails.
+        let without = cli_doctor(&root, |b| b).await;
+        assert_eq!(find(&without, "plugins.sources")["status"], "fail");
+    }
 }
