@@ -25,6 +25,9 @@ version is separate from each implementation's own package version.
 - [`mcp-resources.md`](./mcp-resources.md): MCP resources, the Skills over MCP extension, extra
   `_meta` entries on a command's tool, and advertised input schemas apart from validation schemas,
   with the cases in [`mcp-resources.json`](./mcp-resources.json).
+- [`output-budgets.md`](./output-budgets.md): per-command output budgets, a declaration, a per-call
+  ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
+  [`output-budgets.json`](./output-budgets.json).
 
 The bounded TypeScript/Python protocol acceptance inventory is recorded in
 [`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.
@@ -64,6 +67,21 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`output-budgets.md`](./output-budgets.md) specifies per-command output budgets (Umbel decision D64):
+a command declares `outputBudget: { defaultBytes, maxBytes }`, shown on its tool as
+`_meta["dev.afd/outputBudget"]` and by `afd-detail`; a caller asks for `{ maxBytes }` per call in the
+same `_meta` key, the meta-tools' `meta` argument or an in-process call option, through the
+declared-context-field plumbing and per item in batches and pipelines; the handler reads the
+effective budget from its context; and the engine checks the result after the handler, measuring the
+canonical JSON without `metadata`. An over-budget read is replaced by the new failure
+`OUTPUT_BUDGET_EXCEEDED`, an over-budget mutation keeps its result with a warning of that code, and
+nothing truncates structured output. `command-metadata.md` gains the field, `context-fields.md`
+reserves `outputBudget` and lets `meta` carry the key, `journal.md` gains the optional entry field
+`outputBudget` (an entry without it hashes as before), and `error-codes.md` lists the code as
+specified, joining the catalog with its four constants in the first implementation. It is additive:
+no existing fixture, vector, error code, tool list or result changes, and no language implements it
+yet. Its cases are in `output-budgets.json`, which joins `vectors/` once all four languages load it.
 
 [`mcp-resources.md`](./mcp-resources.md) specifies four opt-in additions to AFD MCP servers (Umbel
 decision D47, shared with Loam): MCP resources from a provider, listed in one stable page with the

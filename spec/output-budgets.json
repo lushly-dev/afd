@@ -1,0 +1,811 @@
+{
+	"description": "Output budgets (spec/output-budgets.md, B1 to B8): refused and accepted declarations, the effective budget for each ask, measured sizes (canonical JSON without metadata), what the check after the handler produces, the per-item rule in afd-batch, and the journal field. Written by hand from the spec; byte counts computed with Node (Buffer.byteLength of JSON.stringify), which is the canonical length because key order does not change it.",
+	"declarations": [
+		{
+			"description": "default below max",
+			"value": {
+				"defaultBytes": 16000,
+				"maxBytes": 64000
+			},
+			"valid": true
+		},
+		{
+			"description": "default equal to max",
+			"value": {
+				"defaultBytes": 1,
+				"maxBytes": 1
+			},
+			"valid": true
+		},
+		{
+			"description": "the largest safe integer",
+			"value": {
+				"defaultBytes": 9007199254740991,
+				"maxBytes": 9007199254740991
+			},
+			"valid": true
+		},
+		{
+			"description": "default above max",
+			"value": {
+				"defaultBytes": 65,
+				"maxBytes": 64
+			},
+			"valid": false
+		},
+		{
+			"description": "zero default",
+			"value": {
+				"defaultBytes": 0,
+				"maxBytes": 64
+			},
+			"valid": false
+		},
+		{
+			"description": "negative max",
+			"value": {
+				"defaultBytes": 1,
+				"maxBytes": -1
+			},
+			"valid": false
+		},
+		{
+			"description": "a fraction",
+			"value": {
+				"defaultBytes": 1.5,
+				"maxBytes": 64
+			},
+			"valid": false
+		},
+		{
+			"description": "a string",
+			"value": {
+				"defaultBytes": "16",
+				"maxBytes": 64
+			},
+			"valid": false
+		},
+		{
+			"description": "beyond 2^53 - 1",
+			"value": {
+				"defaultBytes": 1,
+				"maxBytes": 9007199254740992
+			},
+			"valid": false
+		},
+		{
+			"description": "missing maxBytes",
+			"value": {
+				"defaultBytes": 16
+			},
+			"valid": false
+		},
+		{
+			"description": "an extra member",
+			"value": {
+				"defaultBytes": 16,
+				"maxBytes": 64,
+				"unit": "bytes"
+			},
+			"valid": false
+		},
+		{
+			"description": "not an object",
+			"value": 64,
+			"valid": false
+		}
+	],
+	"asks": [
+		{
+			"description": "no ask: the default",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"effective": 64
+		},
+		{
+			"description": "null is no ask",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": null,
+			"effective": 64
+		},
+		{
+			"description": "an ask below max",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 100
+			},
+			"effective": 100
+		},
+		{
+			"description": "an ask below default",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 10
+			},
+			"effective": 10
+		},
+		{
+			"description": "an ask above max is clamped",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 1000
+			},
+			"effective": 128
+		},
+		{
+			"description": "an ask at max",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 128
+			},
+			"effective": 128
+		},
+		{
+			"description": "an ask of one byte",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 1
+			},
+			"effective": 1
+		},
+		{
+			"description": "zero",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 0
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "negative",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": -5
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "a fraction",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 10.5
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "a string",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": "100"
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "beyond 2^53 - 1",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 9007199254740992
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "an extra member",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 100,
+				"defaultBytes": 10
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "an empty object",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "not an object",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": 100,
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "an array",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": [100],
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "a valid ask to a command with no declaration is ignored",
+			"declaration": null,
+			"ask": {
+				"maxBytes": 100
+			},
+			"effective": null
+		},
+		{
+			"description": "an invalid ask to a command with no declaration still fails",
+			"declaration": null,
+			"ask": {
+				"maxBytes": 0
+			},
+			"effective": "VALIDATION_ERROR"
+		},
+		{
+			"description": "no ask and no declaration",
+			"declaration": null,
+			"effective": null
+		}
+	],
+	"measure": [
+		{
+			"description": "minimal success",
+			"json": "{\"success\":true,\"data\":null}",
+			"bytes": 28
+		},
+		{
+			"description": "metadata is left out",
+			"json": "{\"success\":true,\"data\":{\"id\":\"a\"},\"metadata\":{\"executionTimeMs\":12,\"traceId\":\"t-1\",\"commandVersion\":\"1.0.0\"}}",
+			"bytes": 34
+		},
+		{
+			"description": "keys sorted and whitespace removed: same length as received in any order",
+			"json": "{ \"success\" : true,\n  \"data\" : { \"b\" : 1, \"a\" : 2 } }",
+			"bytes": 37
+		},
+		{
+			"description": "numbers as JavaScript writes them",
+			"json": "{\"success\":true,\"data\":[1.0,1e21,-0,0.1,1E-7,100000000000000000000]}",
+			"bytes": 66
+		},
+		{
+			"description": "two-byte, three-byte and four-byte UTF-8",
+			"json": "{\"success\":true,\"data\":\"é€😀\"}",
+			"bytes": 35
+		},
+		{
+			"description": "escaped characters written raw",
+			"json": "{\"success\":true,\"data\":\"\\u00e9\\u20ac\\ud83d\\ude00\"}",
+			"bytes": 35
+		},
+		{
+			"description": "quotes, backslashes and control characters escaped",
+			"json": "{\"success\":true,\"data\":\"a\\\"b\\\\c\\nd\\u0001e\\u001f\"}",
+			"bytes": 49
+		},
+		{
+			"description": "a slash is not escaped",
+			"json": "{\"success\":true,\"data\":\"a\\/b\"}",
+			"bytes": 29
+		},
+		{
+			"description": "a lone surrogate is escaped",
+			"json": "{\"success\":true,\"data\":\"\\ud800\"}",
+			"bytes": 32
+		},
+		{
+			"description": "warnings and sources count",
+			"json": "{\"success\":true,\"data\":[],\"warnings\":[{\"code\":\"W\",\"message\":\"m\"}],\"sources\":[{\"type\":\"document\",\"id\":\"d\"}]}",
+			"bytes": 107
+		}
+	],
+	"checks": [
+		{
+			"description": "a read within its default budget",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxx"
+				}
+			},
+			"measuredBytes": 50,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxx"
+				},
+				"metadata": {
+					"dev.afd/outputBudget": {
+						"limitBytes": 64,
+						"usedBytes": 50
+					}
+				}
+			}
+		},
+		{
+			"description": "a read exactly at its default budget",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			},
+			"measuredBytes": 64,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"metadata": {
+					"dev.afd/outputBudget": {
+						"limitBytes": 64,
+						"usedBytes": 64
+					}
+				}
+			}
+		},
+		{
+			"description": "a read one byte over its default budget: replaced, ask for more",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			},
+			"measuredBytes": 65,
+			"expected": {
+				"success": false,
+				"error": {
+					"code": "OUTPUT_BUDGET_EXCEEDED",
+					"message": "The result is 65 bytes, over this call's output budget of 64 bytes",
+					"suggestion": "Narrow the request (fewer results, a smaller window or a filter), or ask for up to 128 bytes with _meta[\"dev.afd/outputBudget\"] = { \"maxBytes\": 128 }.",
+					"retryable": false,
+					"details": {
+						"limitBytes": 64,
+						"actualBytes": 65,
+						"maxBytes": 128
+					}
+				}
+			}
+		},
+		{
+			"description": "the same read with an ask for more",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			},
+			"ask": {
+				"maxBytes": 128
+			},
+			"measuredBytes": 65,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"metadata": {
+					"dev.afd/outputBudget": {
+						"limitBytes": 128,
+						"usedBytes": 65
+					}
+				}
+			}
+		},
+		{
+			"description": "a read over its maximum: replaced, nothing more to ask",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			},
+			"ask": {
+				"maxBytes": 500
+			},
+			"measuredBytes": 129,
+			"expected": {
+				"success": false,
+				"error": {
+					"code": "OUTPUT_BUDGET_EXCEEDED",
+					"message": "The result is 129 bytes, over this call's output budget of 128 bytes",
+					"suggestion": "Narrow the request (fewer results, a smaller window or a filter); 128 bytes is this command's largest output budget.",
+					"retryable": false,
+					"details": {
+						"limitBytes": 128,
+						"actualBytes": 129,
+						"maxBytes": 128
+					}
+				}
+			}
+		},
+		{
+			"description": "a read over a small ask",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxx"
+				}
+			},
+			"ask": {
+				"maxBytes": 32
+			},
+			"measuredBytes": 40,
+			"expected": {
+				"success": false,
+				"error": {
+					"code": "OUTPUT_BUDGET_EXCEEDED",
+					"message": "The result is 40 bytes, over this call's output budget of 32 bytes",
+					"suggestion": "Narrow the request (fewer results, a smaller window or a filter), or ask for up to 128 bytes with _meta[\"dev.afd/outputBudget\"] = { \"maxBytes\": 128 }.",
+					"retryable": false,
+					"details": {
+						"limitBytes": 32,
+						"actualBytes": 40,
+						"maxBytes": 128
+					}
+				}
+			}
+		},
+		{
+			"description": "metadata does not count",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"metadata": {
+					"note": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+				}
+			},
+			"measuredBytes": 64,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"metadata": {
+					"note": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+					"dev.afd/outputBudget": {
+						"limitBytes": 64,
+						"usedBytes": 64
+					}
+				}
+			}
+		},
+		{
+			"description": "a mutation over budget keeps its result, with a warning appended",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": true,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"warnings": [
+					{
+						"code": "DUPLICATE_TITLE",
+						"message": "Exists",
+						"severity": "caution"
+					}
+				]
+			},
+			"measuredBytes": 150,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				},
+				"warnings": [
+					{
+						"code": "DUPLICATE_TITLE",
+						"message": "Exists",
+						"severity": "caution"
+					},
+					{
+						"code": "OUTPUT_BUDGET_EXCEEDED",
+						"message": "The result is 150 bytes, over this call's output budget of 64 bytes; the change was made",
+						"severity": "caution",
+						"details": {
+							"limitBytes": 64,
+							"actualBytes": 150
+						}
+					}
+				],
+				"metadata": {
+					"dev.afd/outputBudget": {
+						"limitBytes": 64,
+						"usedBytes": 150
+					}
+				}
+			}
+		},
+		{
+			"description": "a mutation within budget",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": true,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxx"
+				}
+			},
+			"measuredBytes": 40,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxx"
+				},
+				"metadata": {
+					"dev.afd/outputBudget": {
+						"limitBytes": 64,
+						"usedBytes": 40
+					}
+				}
+			}
+		},
+		{
+			"description": "a handler failure is never replaced and gets no report",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"mutation": false,
+			"result": {
+				"success": false,
+				"error": {
+					"code": "NOT_FOUND",
+					"message": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+				}
+			},
+			"measuredBytes": null,
+			"expected": {
+				"success": false,
+				"error": {
+					"code": "NOT_FOUND",
+					"message": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+				}
+			}
+		},
+		{
+			"description": "no declaration: unchanged, no report",
+			"declaration": null,
+			"mutation": false,
+			"result": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			},
+			"ask": {
+				"maxBytes": 10
+			},
+			"measuredBytes": 5000,
+			"expected": {
+				"success": true,
+				"data": {
+					"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+				}
+			}
+		}
+	],
+	"batch": {
+		"description": "One ask of 96 bytes applies to every item, each against its own command: doc-search clamps nothing (96 ≤ 128) and 90 fits; doc-open gets 96 and 90 fits; doc-tag has no budget; the last doc-open item is over 96 and is replaced, which fails that item only",
+		"commands": {
+			"doc-search": {
+				"declaration": {
+					"defaultBytes": 64,
+					"maxBytes": 128
+				},
+				"mutation": false
+			},
+			"doc-open": {
+				"declaration": {
+					"defaultBytes": 100,
+					"maxBytes": 200
+				},
+				"mutation": false
+			},
+			"doc-tag": {
+				"declaration": null,
+				"mutation": false
+			}
+		},
+		"ask": {
+			"maxBytes": 96
+		},
+		"items": [
+			{
+				"id": "a",
+				"command": "doc-search",
+				"result": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					}
+				},
+				"expected": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					},
+					"metadata": {
+						"dev.afd/outputBudget": {
+							"limitBytes": 96,
+							"usedBytes": 90
+						}
+					}
+				}
+			},
+			{
+				"id": "b",
+				"command": "doc-open",
+				"result": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					}
+				},
+				"expected": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					},
+					"metadata": {
+						"dev.afd/outputBudget": {
+							"limitBytes": 96,
+							"usedBytes": 90
+						}
+					}
+				}
+			},
+			{
+				"id": "c",
+				"command": "doc-tag",
+				"result": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					}
+				},
+				"expected": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					}
+				}
+			},
+			{
+				"id": "d",
+				"command": "doc-open",
+				"result": {
+					"success": true,
+					"data": {
+						"text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					}
+				},
+				"expected": {
+					"success": false,
+					"error": {
+						"code": "OUTPUT_BUDGET_EXCEEDED",
+						"message": "The result is 150 bytes, over this call's output budget of 96 bytes",
+						"suggestion": "Narrow the request (fewer results, a smaller window or a filter), or ask for up to 200 bytes with _meta[\"dev.afd/outputBudget\"] = { \"maxBytes\": 200 }.",
+						"retryable": false,
+						"details": {
+							"limitBytes": 96,
+							"actualBytes": 150,
+							"maxBytes": 200
+						}
+					}
+				}
+			}
+		]
+	},
+	"journal": [
+		{
+			"description": "a budgeted call without an ask records the default",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"expected": 64
+		},
+		{
+			"description": "an ask is recorded as the effective budget, clamped",
+			"declaration": {
+				"defaultBytes": 64,
+				"maxBytes": 128
+			},
+			"ask": {
+				"maxBytes": 1000
+			},
+			"expected": 128
+		},
+		{
+			"description": "a command without a declaration records nothing",
+			"declaration": null,
+			"ask": {
+				"maxBytes": 50
+			},
+			"expected": null
+		}
+	]
+}

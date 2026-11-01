@@ -33,6 +33,7 @@ Keys are camelCase. Optional fields that are not set are omitted, never `null`.
 | `contextDigest` | object | yes | `hash`, and `interface` when set (below) |
 | `context` | object | no | The values of the [declared context fields](#declared-context-fields) marked `journal: true` that the call had, by field name. Omitted when there are none |
 | `contextOmitted` | string[] | no | The names of such fields whose value was too large to keep, sorted. Omitted when there are none |
+| `outputBudget` | integer ≥ 1 | no | The call's effective [output budget](./output-budgets.md#b8-the-journal). Omitted when the call had none |
 | `result` | `CommandResult` | yes | The result, `metadata` included (the shapes in [`wire/`](./wire/README.md)) |
 | `durationMs` | number | yes | Duration of the call through the rest of the middleware chain |
 | `tape` | object | no | The clock and random values the handler read (below). Omitted when it read none |
@@ -60,8 +61,9 @@ members with the same values, and the names they hold leave `keys`:
 {"actor": …, "context": {"scope": …}, "contextOmitted": ["space"], "interface": …, "keys": [<names>], "traceId": …}
 ```
 
-An entry without either hashes exactly as before, so existing journals and fixture lines keep
-their hashes. Two calls with the same hash had the same allowlisted values and the same context shape.
+When the entry has `outputBudget`, the hashed object gains `"outputBudget": <n>` the same way, and
+the context key that holds the effective budget leaves `keys`. An entry without any of them hashes
+exactly as before, so existing journals and fixture lines keep their hashes. Two calls with the same hash had the same allowlisted values and the same context shape.
 Replay does not compare hashes: the replaying surface builds its own context. Hashes compare only
 within one implementation, because the context key names (`clock`, `random` and the rest) differ
 between languages.
@@ -113,6 +115,8 @@ restores:
 - each value in `context`, under its field name. The replaying surface validates it as on any call,
   so a value that no longer validates fails the call. A field the surface no longer declares is
   dropped with a note on the entry, and each name in `contextOmitted` gets a note too;
+- `outputBudget`, as the call's output-budget ask (`{ "maxBytes": <n> }`,
+  [B8](./output-budgets.md#b8-the-journal));
 - a clock that returns the `tape.clock` readings in order, then repeats the last one;
 - a random source that returns the `tape.random` values in order, then continues with a seeded
   source.

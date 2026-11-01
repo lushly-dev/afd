@@ -224,6 +224,18 @@ handler ran.
 | --- | --- | --- | --- |
 | `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. Retry the same call with the token once a human approved | No | Middleware |
 
+## Specified, not yet in the catalog
+
+Engine codes a `spec/` page defines before any language emits them. Each joins
+[the shared catalog](#the-shared-catalog), with its constant in all four languages and its entry in
+[`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
+it ([Changing this page](#changing-this-page)). Until then no language defines it, and the catalog
+stays at 45 codes.
+
+| Code | Meaning | Retryable | Layers | Specified in |
+| --- | --- | --- | --- | --- |
+| `OUTPUT_BUDGET_EXCEEDED` | A command's successful result was larger than the call's output budget. For a read, the result is replaced by this failure, with `details.limitBytes`, `actualBytes` and `maxBytes`; the suggestion says to narrow the request or ask for up to `maxBytes`. For a mutation, the result is kept and this is a warning's code instead, because the change was made | No | Server engine (the check after the handler), core executors (batch items, pipeline steps), DirectClient | [`output-budgets.md`](./output-budgets.md#b5-the-check-after-the-handler), B5. Joins the catalog in Umbel phase 2 step 0b (Rust), which adds the four constants |
+
 ## Transport-specific codes
 
 Not in the shared catalog. An implementation with the transport uses these codes; one without it

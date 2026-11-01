@@ -46,9 +46,16 @@
   `spec/`, `docs/features` or `packages/rust`. Trajectory rows re-checked
   against primary sources on 2026-11-01 ([Trajectory refresh](#trajectory-refresh)).
   Relative links and anchors in this file resolve.
-- **Done:** this specification, in review.
-- **Not done:** approval; every step of the [plan](#14-implementation-plan);
-  the exit criterion.
+- **Done:** this specification, merged in [#625](https://github.com/lushly-dev/afd/pull/625)
+  as `e996aad1`. Step 0a, 2026-11-01: output budgets specified in AFD, the
+  [proposal](../../../../../docs/features/active/output-budgets/output-budgets.proposal.md)
+  and [`spec/output-budgets.md`](../../../../../spec/output-budgets.md) with
+  [`spec/output-budgets.json`](../../../../../spec/output-budgets.json), verified
+  against `main` at `e996aad1` (the four languages' engines read, MCP
+  2026-07-28 checked, `pnpm check`, the alfred parity tests); see
+  [Amendments from step 0a](#amendments-from-step-0a).
+- **Not done:** steps 0b to 10 of the [plan](#14-implementation-plan); the
+  exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
@@ -1983,6 +1990,26 @@ tree-sitter 0.27.1, tree-sitter-typescript 0.23.2); none was rejected.
 | N8 | `content_write` not atomic against outside writers | Fixed wording | 3.3 |
 | N9 | pulldown-cmark in the host | Fixed: `umbel-scan` crate | 1, 11 |
 | N10 | `dev.afd/outputBudget` shapes | Fixed: context-field plumbing, per item, journaled | 14 (0a) |
+
+## Amendments from step 0a
+
+Step 0a wrote the AFD [proposal](../../../../../docs/features/active/output-budgets/output-budgets.proposal.md)
+and [`spec/output-budgets.md`](../../../../../spec/output-budgets.md). It kept every rule of section
+14's 0a and made the choices that section left open; these change what 0b builds. The spec is
+binding where it and section 14 differ.
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 14 (0a), path | `docs/features/proposed/output-budgets/` | `docs/features/active/output-budgets/` | Approved through D64, as the resources proposal was through D47 |
+| 14 (0a), where the check runs | "The server measures", on every MCP route | The engine checks in the innermost link of the middleware chain, after the handler and before it stamps `metadata` (B5): every MCP route, batch item and pipeline step, and `DirectClient` and in-process calls too. In Rust that is the innermost link of `CommandRegistry::execute`'s chain, so the journal recorder, which finishes outside the chain, records the checked result | One place, the same in all four engines, and the journal records what the caller got |
+| 14 (0a), what is measured | The UTF-8 length of the `structuredContent` | The UTF-8 length of the result's canonical JSON (the journal context cap's form: keys sorted, no whitespace, JavaScript's number spelling and escaping) with `metadata` removed | Engines stamp different `metadata` (Rust only `actorKind`), and `executionTimeMs` varies by call |
+| 14 (0a), failures | Unstated | A handler's own failure passes unchanged and gets no report; only successful results are checked | Its error is what the agent needs |
+| 14 (0a), the failure's details | `limitBytes`, `actualBytes` | Also `maxBytes`, and one of two fixed suggestions (ask for up to `maxBytes`, or narrow only when the call already had it) | The agent can ask for the most it may without another `afd-detail` |
+| 14 (0a), the error code | A new code | `OUTPUT_BUDGET_EXCEEDED` is listed in `error-codes.md` as specified, not catalogued. **0b adds it to the shared catalog and `vectors/error-codes.json` with its constant in all four languages** (one line each), as the catalog rule requires of a new code in one pull request | A documents-only pull request cannot add the constants |
+| 14 (0a), the ask | `_meta`, the meta-tools' `meta`, or in process | The same, plus the AFD HTTP lanes where they read `_meta`; an ask to a command without a declaration is validated, then ignored; an ask above `maxBytes` is clamped; bounds 1 to 2^53 − 1 with no other member; the invalid-ask `VALIDATION_ERROR` details are `{ "field": "outputBudget", "meta": "dev.afd/outputBudget" }`. In Rust the in-process ask is `CommandContext::with_output_budget_ask(max_bytes)` and a `DirectClient` call option | One ask covers a mixed batch; the rest follows declared context fields |
+| 14 (0a), the journal | "Records the effective budget" | An optional entry field `outputBudget` (an integer) after `contextOmitted`; it joins the context digest only when present; replay restores it as the ask | Existing journals and the fixture keep their hashes |
+| 14 (0a), `meta-tools.json` | Unstated | Unchanged until every language accepts the key | TypeScript and Rust compare it byte for byte |
+| 14 (0a), streams | Unstated | Streamed chunks are not checked | No phase 2 command streams |
 
 ## Follow-ups
 
