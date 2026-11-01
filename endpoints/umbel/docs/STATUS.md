@@ -387,11 +387,13 @@ should never have to scan the codebase to learn what is current.
   plugin gate's `recorded`/`external` stamps, respawn (3 in 60 s), `timeout_ms`/`connect_timeout_ms`,
   HTTP mounts defaulting to `required = false`; `umbel-sdk`'s `mounted` feature (`serve_mounted`,
   `mounted_server`), the `hello-mcp` binary and hello's `mounted.toml`; the test kit's
-  `instance_keys`. Tests: `plugin_mounted.rs` (30, including HTTPS against a local TLS server),
+  `instance_keys`. Tests: `plugin_mounted.rs` (31, including HTTPS against a local TLS server, the AFD meta-tools never mounted, and pipelines, first-class suggestions and contexts over mounted commands),
   `mount_naming.rs`, unit tests of the reader and the result mapping; the injection rule's shared
   vectors in `packages/testing`. Amendments: the specification's "Amendments from step 5".
-  **Verification gap:** the session ran out of disk (about 2.8 GB free) before the full checks;
-  see the pull request for what ran.
+  Verified 2026-11-01 against `main` at `b0782de7` (step 2b merged): `cargo fmt --all --check`,
+  clippy `-D warnings` on the workspace and on the library-only, mounted library-only and mounted
+  SDK/`hello-mcp` legs, `cargo test --locked --workspace` (488 passed, 0 failed), `cargo +1.97.0
+  check --locked --workspace --all-targets`, `pnpm check` and the `packages/testing` suite (566).
 - **Not done:** steps 4, 6 to 8; the exit criterion.
 - **Needs the owner:** nothing for step 4. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
@@ -464,4 +466,4 @@ starts.
 | 2026-11-01 | Phase 1 step 2a | Loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610)): the load sequence, grant gates, plugin gate, `plugin-list` and `plugin-show`, `umbel-sdk`, `umbel-plugin-hello`, the `testkit` feature and its tests. Resumed from a partial branch left by an agent whose disk filled; reviewed against the specification, merged with `main` (step 0b), fixed the clippy findings the earlier session never compiled. Origin `_meta` stays with step 3 (the plan assigns it there). Six amendments in the specification |
 | 2026-11-01 | Phase 1 step 3 | Skills on three paths ([#611](https://github.com/lushly-dev/afd/pull/611)): validation through AFD's `SkillCatalog`, the host's MCP server serving every loaded skill on the Skills extension and as resources, `skill-list`, `skill-export` and the origin `_meta` on plugin tools; `SkillCatalog::entries()` made public in `packages/rust`. Eight amendments in the specification |
 | 2026-11-01 | Phase 1 step 2b | Packs and per-space overrides, first-class suggestions, plugin contexts (`build_server` before `install_middleware`) and pipelines as data with the confirmation union ([#612](https://github.com/lushly-dev/afd/pull/612)): `plugins/pipelines.rs`, `PackSet` in `plugins/packs.rs`, the loader preparing every instance before it registers any, `surfaces::first_class_plan`, the doctor's sealed `plugins.first_class` and `plugins.pipelines`, `TestHostBuilder::pack_override`. Step 3 (skills) ran in parallel in the same crate. Eleven spec amendments, mostly shapes the specification left open |
-| 2026-11-01 | Phase 1 step 5 | Mounted loader ([#613](https://github.com/lushly-dev/afd/pull/613)): rmcp client over stdio and Streamable HTTP with rustls, instance-only `url` and `bearer_env`, renaming, overrides, `bind_space`, advertised and validation schemas, the description scan, transport-level result limits, stamps, respawn, `hello-mcp`, the SDK's `mounted` feature and the tests. Written while another agent shared the disk; the session stopped under 4 GB free. Eight amendments in the specification |
+| 2026-11-01 | Phase 1 step 5 | Mounted loader ([#613](https://github.com/lushly-dev/afd/pull/613)): rmcp client over stdio and Streamable HTTP with rustls, instance-only `url` and `bearer_env`, renaming, overrides, `bind_space`, advertised and validation schemas, the description scan, transport-level result limits, stamps, respawn, `hello-mcp`, the SDK's `mounted` feature and the tests. Started on a branch whose session ran out of disk; resumed, merged with step 2b, and verified in full. Nine amendments in the specification |
