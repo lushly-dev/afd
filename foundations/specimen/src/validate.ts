@@ -64,7 +64,7 @@ const contextField: Record<
 > = {
 	viewport: (value, path) => size(value, path, false),
 	container: (value, path) => size(value, path, true),
-	theme: (value, path) => choice(value, path, ['light', 'dark']),
+	theme: (value, path) => choice(value, path, ['light', 'dark', 'high-contrast']),
 	locale,
 	reducedMotion: (value, path) => choice(value, path, ['reduce', 'no-preference']),
 	motion: (value, path) => choice(value, path, ['natural', 'settled']),

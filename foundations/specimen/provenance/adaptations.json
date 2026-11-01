@@ -213,11 +213,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "f13e1c882d89f24d5c5d391e96d082825c4782b08de82a899412702494974f8e",
+      "current_import_sha256": "0176ea608a020c24598352a96334bb9924a8a949a0663911e00be5331838acce",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -585,11 +585,11 @@
       "upstream_sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
       "staged_path": "packages/specimen/src/browser/capture.ts",
       "staged_sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
-      "current_import_sha256": "bba875c3e6b7c590e8f41ea4efd1cfc0f1f4606eaf0c90ede8d03bccfc788a7d",
+      "current_import_sha256": "42497a7086f6c6d18a9ba02dd0ba86779ca67a99bada27c9a7b18b1216179259",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/html-observation.ts",
@@ -609,11 +609,11 @@
       "upstream_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
       "staged_path": "packages/specimen/src/browser/index.ts",
       "staged_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
-      "current_import_sha256": "03fd1d90ffef2d93daf1bc4e28c5ea72a7c0b1eb50f4f86a4f3f42f600288de0",
+      "current_import_sha256": "650032b41080618b38e9fd1dcb66c6cd632d64887aa3358fd091705a0ea5830c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/instrumentation.ts",
@@ -633,11 +633,11 @@
       "upstream_sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
       "staged_path": "packages/specimen/src/browser/page.ts",
       "staged_sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
-      "current_import_sha256": "77e839a6a92ad9bacc98af7b6eec92da3b2b4a92be48deac274c90192e7294ef",
+      "current_import_sha256": "e387bb0c3463bc6a731d86a6da858df4c2359a4224650a9dd02c5238e9fb419f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/validate.ts",
@@ -765,11 +765,11 @@
       "upstream_sha256": "09c8a7ae03929807198fb977b06daa655537f1db50a3d7d9d01b2f831223f22d",
       "staged_path": "packages/specimen/src/schema.ts",
       "staged_sha256": "8c5269378f112d21ad06484ceefa033a9b0671eb3961f3401cb190709ea6bf36",
-      "current_import_sha256": "43abc783e7e496ada5ea22d8a49f0f783557985dc3dbc9c076707405b677654e",
+      "current_import_sha256": "f4077c486a1a3e1c9cb94b2795ef86a6a2ab1dcdc4fbfd2323651c1b7e2a8f4e",
       "stage_classification": "modified-upstream",
       "stage_reason": "Move observation/build data validators into the native public schema module",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/types.ts",
@@ -777,11 +777,11 @@
       "upstream_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
       "staged_path": "packages/specimen/src/types.ts",
       "staged_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
-      "current_import_sha256": "51b9daf131ffb42cdfcfd14a6a4824fb22abb640e1fb5bb285ba4a3cb099e09c",
+      "current_import_sha256": "397f807f6f5dbff1ec8c6679445b9c4b23fe609f1b91af65ec4ff1adab0b4d1c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/vite.ts",
@@ -1185,11 +1185,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5abe3d17d147a0fbb62747aa78d37051205c8ee7176b97ec44a4a53d0e34d419",
+      "current_import_sha256": "97b2db32632d7d3940922d13fe5c8defedbac5d25dd75b353e2d6fdf55a80f8c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/context-matrix.ts",
@@ -1197,11 +1197,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f9a90b06ba5c8653d61d8e26b75e44991976d36653c5ce3f0c65b64da976821a",
+      "current_import_sha256": "2654994c416ee7b3141648d6ae7cce5201a3e374640a3ce4f70a51c207aed32c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/context.stories.ts",
@@ -1209,11 +1209,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "1ca89c9d8c00ff93dce0bfdc8bdde3ad150cf9b313c68669d908e3206edf65f2",
+      "current_import_sha256": "5ff947415a3360f970405681be19e18dd29ad28718b7e78ea27f47997a72ae01",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/serve-static.ts",
@@ -1233,11 +1233,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d50fe9ef4421fcae227bb2f0f7c8d557d9dd906e0e88eb3d77cdd979cfe36ceb",
+      "current_import_sha256": "5825ee7d8b83679fe872a5adaace71edd43940342b96366706484361eb16181c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/drivers.test.ts",
@@ -1245,11 +1245,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "68e7f8ef0c703554fd6911f0fedb23fa6325656b9a2a8f84560a3d2b7136bb3b",
+      "current_import_sha256": "bbe74703e6bb09834daf032fbc5be6156bc48dbad3d3864d7eecb07e27c7bbc3",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/vitest.reference.config.ts",
@@ -1269,11 +1269,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "1532cea363cea8d3235b2a0ef1c3f64ff9f0526bceeed097c444b2f4079d2f02",
+      "current_import_sha256": "64e01be33f78e133500cce087613faf525586bb5e0a7baca8c80f665209319a5",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/resources/pairs.mjs",
@@ -1653,11 +1653,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9943aa50b7c1323c030b448e71e62420201f653c7224835fb010491e663e2702",
+      "current_import_sha256": "dc0508f5247c169591c490da927f775deb38cac4bd510ac189cfee5b14ede00e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/host/src/serve.rs",
@@ -1737,11 +1737,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "dafee9dbb97ba0429d8ac1b836018b55acf9888edb35032bd1cd0e27dcea81f6",
+      "current_import_sha256": "6a842d24d56516680dfe73d7dd0656e7b469179bea402179d01a55b78c110038",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/validate.ts",
@@ -1749,11 +1749,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f87d3775d4fc3760e6e54dfa20d8dd72d38ba00ab039bb672de356f2ca783776",
+      "current_import_sha256": "9f4da270fa14cffea8fe78f61e423ad20709613b2a5f7cb47c459ee5c37935d1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged"
     }
   ]
 }

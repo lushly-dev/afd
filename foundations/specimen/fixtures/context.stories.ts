@@ -26,6 +26,7 @@ function report(wrapper: HTMLElement, marker: HTMLElement): ContextReport {
 		colorScheme: getComputedStyle(html).colorScheme,
 		theme: html.dataset.specimenTheme ?? null,
 		prefersDark: matchMedia('(prefers-color-scheme: dark)').matches,
+		prefersContrast: matchMedia('(prefers-contrast: more)').matches,
 		prefersReducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
 		lang: html.lang,
 		language: navigator.language,

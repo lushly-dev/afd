@@ -17,6 +17,8 @@ export interface ContextReport {
 	colorScheme: string;
 	theme: string | null;
 	prefersDark: boolean;
+	/** `(prefers-contrast: more)`, which only the high-contrast theme emulates. */
+	prefersContrast: boolean;
 	prefersReducedMotion: boolean;
 	lang: string;
 	language: string;
@@ -35,8 +37,9 @@ export interface MatrixCase {
 const base = { motion: 'natural' } as const;
 
 /**
- * Three contexts which differ on every axis a driver must apply. `incumbent` is the 1200x900
- * viewport the Storybook Vitest addon gives a story whose viewport is `responsive`.
+ * Contexts which differ on every axis a driver must apply. `incumbent` is the 1200x900
+ * viewport the Storybook Vitest addon gives a story whose viewport is `responsive`;
+ * `contrast` is the high-contrast theme, the light scheme with `prefers-contrast: more`.
  */
 export const contextMatrix: MatrixCase[] = [
 	{
@@ -71,11 +74,23 @@ export const contextMatrix: MatrixCase[] = [
 			reducedMotion: 'no-preference',
 		},
 	},
+	{
+		name: 'contrast',
+		context: {
+			...base,
+			viewport: { width: 1024, height: 768 },
+			container: { width: 360, height: 400 },
+			theme: 'high-contrast',
+			locale: 'en-US',
+			reducedMotion: 'reduce',
+		},
+	},
 ];
 
 /** Fields whose value follows the browser's own emulation rather than the specimen document. */
 export const emulatedFields = [
 	'prefersDark',
+	'prefersContrast',
 	'prefersReducedMotion',
 	'language',
 	'intlLocale',
@@ -96,9 +111,10 @@ export function expectedReport(context: SpecimenContext): ContextReport {
 		rem: 16,
 		container,
 		containerNarrow: container <= 400,
-		colorScheme: context.theme,
+		colorScheme: context.theme === 'dark' ? 'dark' : 'light',
 		theme: context.theme,
 		prefersDark: context.theme === 'dark',
+		prefersContrast: context.theme === 'high-contrast',
 		prefersReducedMotion: context.reducedMotion === 'reduce',
 		lang: context.locale,
 		language: context.locale,

@@ -53,7 +53,7 @@ const sizes = [
 const contextValues: Record<string, unknown[]> = {
 	viewport: sizes,
 	container: [undefined, ...sizes],
-	theme: ['light', 'dark', 'sepia', '', 1],
+	theme: ['light', 'dark', 'high-contrast', 'sepia', 'High-Contrast', '', 1],
 	locale: ['en-US', 'fr-FR', 'zh-Hant-TW', 'en_US', 'not a locale', '', 'en-US,fr', 7],
 	reducedMotion: ['reduce', 'no-preference', 'none'],
 	motion: ['natural', 'settled', 'paused'],
@@ -87,6 +87,7 @@ describe('bench validation matches the Zod schemas', () => {
 			...[1, 60_000, 0, 60_001, 2.5, '10'].map((timeoutMs) => ({ id: 'probe', timeoutMs })),
 			{ id: 'probe', context: {} },
 			{ id: 'probe', context: { theme: 'dark' } },
+			{ id: 'probe', context: { theme: 'high-contrast' } },
 			{ id: 'probe', context: { theme: 'sepia' } },
 			{ id: 'probe', context: { viewport: { width: 375 } } },
 			{ id: 'probe', context: { container: { width: 320, height: 600 } } },
@@ -129,6 +130,12 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry, { ...entry, id: 'second' }] },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
+	});
+
+	it('accepts the three themes and nothing else', () => {
+		for (const theme of ['light', 'dark', 'high-contrast'] as const)
+			expect(parseContext({ ...defaultContext, theme })).toEqual({ ...defaultContext, theme });
+		expect(() => parseContext({ ...defaultContext, theme: 'contrast' })).toThrow('theme');
 	});
 
 	it('names the field that failed', () => {

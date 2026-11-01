@@ -22,6 +22,8 @@ The `ContextProbe` fixture (`fixtures/context.stories.ts`) writes 16 values into
 | desktop | 1280×720 | none | light | en-US | no-preference |
 | incumbent | 1200×900, the Storybook addon's default | 480 | dark | en-US | no-preference |
 
+Added 2026-11-01 for Loam's decision D53: a fourth context, `contrast` (1024×768, container 360×400, the `high-contrast` theme, en-US, reduce), and a 17th probe value, `(prefers-contrast: more)`. High contrast is the light color scheme with `prefers-contrast: more`; the bench and the reference driver emulate both, and the static preview labels `prefers-contrast` as it labels the other media. The results and test counts below are T03's.
+
 ## Results
 
 The static preview ran in a browser set to light, no-preference and en-US, as a viewer's would be.

@@ -606,6 +606,16 @@ impl Page<'_> {
     }
 }
 
+/// The color scheme and `prefers-contrast` a theme emulates: high contrast is Playwright's
+/// `colorScheme: 'light'` with `contrast: 'more'`.
+fn theme_media(theme: &str) -> (&'static str, &'static str) {
+    match theme {
+        "dark" => ("dark", "no-preference"),
+        "high-contrast" => ("light", "more"),
+        _ => ("light", "no-preference"),
+    }
+}
+
 /// The page environment Playwright gives a new page in a context with these options.
 pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
     let viewport: Viewport =
@@ -619,6 +629,7 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
         .get("theme")
         .and_then(Value::as_str)
         .unwrap_or("light");
+    let (scheme, contrast) = theme_media(theme);
     let motion = context
         .get("reducedMotion")
         .and_then(Value::as_str)
@@ -644,10 +655,10 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
         (
             "Emulation.setEmulatedMedia",
             json!({ "media": "", "features": [
-                { "name": "prefers-color-scheme", "value": theme },
+                { "name": "prefers-color-scheme", "value": scheme },
                 { "name": "prefers-reduced-motion", "value": motion },
                 { "name": "forced-colors", "value": "" },
-                { "name": "prefers-contrast", "value": "" }
+                { "name": "prefers-contrast", "value": contrast }
             ] }),
         ),
     ];
@@ -669,4 +680,16 @@ fn normalize_name(name: &str) -> String {
         .filter(|c| !matches!(c, '\u{200b}' | '\u{ad}'))
         .collect();
     stripped.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::theme_media;
+
+    #[test]
+    fn high_contrast_is_the_light_scheme_with_more_contrast() {
+        assert_eq!(theme_media("light"), ("light", "no-preference"));
+        assert_eq!(theme_media("dark"), ("dark", "no-preference"));
+        assert_eq!(theme_media("high-contrast"), ("light", "more"));
+    }
 }
