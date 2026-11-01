@@ -103,7 +103,7 @@
 - **Step 5 done 2026-11-01** ([#613](https://github.com/lushly-dev/afd/pull/613)): the mounted loader, as the step 5 row of
   the [plan](#14-implementation-plan) lists it. The amendments are in
   [Amendments from step 5](#amendments-from-step-5).
-- **Step 4 done 2026-11-01** (PR_URL): the component loader, as the step 4
+- **Step 4 done 2026-11-01** ([#620](https://github.com/lushly-dev/afd/pull/620)): the component loader, as the step 4
   row of the [plan](#14-implementation-plan) lists it. The amendments are in
   [Amendments from step 4](#amendments-from-step-4); the one that matters most
   is that the normative WIT file did not parse (`list` is a WIT keyword).
