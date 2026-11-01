@@ -14,11 +14,11 @@ pub use space::SPACE_NOT_FOUND;
 use crate::commands::{self, Builtin};
 use crate::events::{EventsError, ProjectingSink, Projector, RepairReport};
 use crate::middleware;
-use crate::plugins::{self, Catalog, CompiledPlugin, LoadedPlugins};
+use crate::plugins::{self, Catalog, CompiledPlugin, LoadedPlugins, LoadedSkill};
 use crate::principal::{Authentication, Principal, Transport};
 use crate::surfaces;
 use crate::workspace::{Workspace, codes};
-use afd::server::McpServer;
+use afd::server::{McpServer, SkillCatalog};
 use afd::{
     Actor, ApprovalMiddlewareOptions, Clock, CommandContext, CommandDefinition, CommandInterface,
     CommandRegistry, DirectClient, JournalRecorder, create_approval_middleware,
@@ -146,6 +146,8 @@ impl HostBuilder {
             ),
             commands::plugin_list(Arc::clone(&loaded_cell)),
             commands::plugin_show(Arc::clone(&loaded_cell)),
+            commands::skill_list(Arc::clone(&loaded_cell)),
+            commands::skill_export(Arc::clone(&loaded_cell)),
             commands::event_list(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::event_ack(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::space_list(Arc::clone(&workspace), Arc::clone(&projector)),
@@ -205,6 +207,7 @@ impl HostBuilder {
             &loaded.contexts,
             self.clock.as_ref(),
         )?;
+        let server = serve_skills(server, &loaded)?;
         install_middleware(&registry, &workspace, &loaded)?;
         install_journal(&registry, &workspace, &projector);
 
@@ -226,6 +229,17 @@ impl HostBuilder {
             clock: self.clock,
         })
     }
+}
+
+/// Serve the loaded plugins' skills on the Skills extension and as resources (specification
+/// section 8.3). With no skill the server is unchanged: it declares neither.
+fn serve_skills(server: McpServer, loaded: &LoadedPlugins) -> Result<McpServer, HostError> {
+    if loaded.skills.is_empty() {
+        return Ok(server);
+    }
+    let catalog = SkillCatalog::new(loaded.skills.iter().map(LoadedSkill::to_skill).collect())
+        .map_err(|problem| HostError::from(plugins::PluginError::load_failed("skills", problem)))?;
+    Ok(server.with_skills(catalog))
 }
 
 /// The reserved CLI verb a command name starts with, if any.

@@ -26,12 +26,12 @@ pub(crate) use doctor::{
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
-pub use loader::TRUST_NOTE;
 #[cfg(feature = "testkit")]
 pub(crate) use loader::embedded_id;
 pub(crate) use loader::{
     Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, Status, load,
 };
+pub use loader::{ORIGIN_KEY, TRUST_NOTE};
 pub(crate) use manifest::to_json;
 pub use manifest::{
     Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect, Expose, GrantDecl,
@@ -40,6 +40,7 @@ pub use manifest::{
 };
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
 pub(crate) use pipelines::PipelineState;
+pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level};

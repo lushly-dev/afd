@@ -274,8 +274,11 @@ impl SkillCatalog {
         self.skills.is_empty()
     }
 
-    /// The `skills/list` entries, in catalog order.
-    pub(crate) fn entries(&self) -> Vec<Value> {
+    /// The `skills/list` entries, in catalog order: each skill's `uri`, its `frontmatter` and the
+    /// `resources` manifest of every file with its `digest` and `size` (S3). A host that lists
+    /// its skills outside MCP (a CLI, a report) reads what the server serves instead of parsing
+    /// `SKILL.md` a second time.
+    pub fn entries(&self) -> Vec<Value> {
         self.skills
             .iter()
             .map(|skill| skill.entry.clone())

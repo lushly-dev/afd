@@ -140,7 +140,12 @@ impl Http {
         mut params: Value,
         extra_headers: &[(&str, &str)],
     ) -> Reply {
-        let name = params["name"].as_str().map(str::to_owned);
+        // `Mcp-Name` is the tool's name, or a resource's URI for `resources/read`.
+        let name = match method {
+            "resources/read" => params["uri"].as_str(),
+            _ => params["name"].as_str(),
+        }
+        .map(str::to_owned);
         // A test that sets its own `_meta` (client capabilities, say) keeps it.
         if params.get("_meta").is_none() {
             params["_meta"] = modern_meta();

@@ -26,6 +26,7 @@ use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
 use super::manifest::{CommandDecl, Effect, Manifest, PluginKind};
 use super::packs::{PackSet, PackState};
 use super::pipelines::{self, Known, PipelinePlan, PipelineState};
+use super::skills::{LoadedSkill, read_skill};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
 use super::{GRANTS, HOST_DOMAINS, PluginError, RESERVED_GRANTS};
 use crate::events::Projector;
@@ -108,6 +109,8 @@ pub(crate) struct LoadedPlugins {
     /// The commands whose manifest says `first_class = true` and that MCP exposes, in instance
     /// order and manifest order (section 8.4, D45).
     pub suggestions: Vec<String>,
+    /// Every skill of every loaded instance, in `plugins.enabled` order and manifest order.
+    pub skills: Vec<LoadedSkill>,
 }
 
 impl LoadedPlugins {
@@ -188,6 +191,8 @@ struct Prepared {
     contexts: Vec<ContextConfig>,
     suggestions: Vec<String>,
     spaces: Vec<String>,
+    /// The instance's skills that no earlier instance of the same plugin already ships.
+    skills: Vec<LoadedSkill>,
 }
 
 /// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
@@ -211,6 +216,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         .map(|command| (command.name.clone(), "the host".to_owned()))
         .collect();
     let mut contexts_taken: BTreeMap<String, String> = BTreeMap::new();
+    let mut shipped: Vec<LoadedSkill> = Vec::new();
     let mut slots: Vec<Slot> = Vec::new();
     for instance in &inputs.workspace.config().plugins.instances {
         let resolved = match resolve(inputs, instance) {
@@ -231,6 +237,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
             required,
             &taken,
             &contexts_taken,
+            &shipped,
         ) {
             Ok(prepared) => {
                 let owner = format!("plugin instance `{}`", instance.id);
@@ -243,6 +250,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
                 for context in &prepared.contexts {
                     contexts_taken.insert(context.name.clone(), owner.clone());
                 }
+                shipped.extend(prepared.skills.iter().cloned());
                 slots.push(Slot::Ready(Box::new(prepared)));
             }
             Err(error) => slots.push(fail(instance, required, Some(resolved.manifest), error)?),
@@ -296,6 +304,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         loaded.gate.extend(prepared.gate);
         loaded.contexts.extend(prepared.contexts);
         loaded.suggestions.extend(prepared.suggestions);
+        loaded.skills.extend(prepared.skills);
         loaded.instances.push(prepared.report);
     }
     Ok(loaded)
@@ -541,6 +550,7 @@ fn prepare(
     required: bool,
     taken: &BTreeMap<String, String>,
     contexts_taken: &BTreeMap<String, String>,
+    shipped: &[LoadedSkill],
 ) -> Result<Prepared, PluginError> {
     let manifest = &resolved.manifest;
     let workspace = inputs.workspace;
@@ -625,6 +635,9 @@ fn prepare(
     )?;
     let pack_states = packs.states();
 
+    // The skills, read and checked before any plugin code runs (section 8.3).
+    let skills = read_skills(instance, manifest, files)?;
+
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let services = Services::new(Shared {
         instance: instance.id.clone(),
@@ -656,8 +669,10 @@ fn prepare(
         }
     }
 
+    let skills = check_skill_names(instance, skills, shipped)?;
+
     // 8 (prepared). The definitions; registration itself is the caller's.
-    let definitions = definitions(manifest, &schemas, returns, implementations)?;
+    let definitions = definitions(&instance.id, manifest, &schemas, returns, implementations)?;
     let space_names: Vec<String> = spaces
         .iter()
         .map(|space| space.as_str().to_owned())
@@ -719,7 +734,62 @@ fn prepare(
         contexts,
         suggestions,
         spaces: space_names,
+        skills,
     })
+}
+
+/// Read and validate every skill the manifest declares (`SKILL_INVALID`).
+fn read_skills(
+    instance: &PluginInstance,
+    manifest: &Manifest,
+    files: &dyn PluginFiles,
+) -> Result<Vec<LoadedSkill>, PluginError> {
+    manifest
+        .skills
+        .iter()
+        .map(|decl| {
+            let (loaded, entry) = read_skill(files, &decl.name, &decl.path)
+                .map_err(|problem| PluginError::skill_invalid(&decl.path, problem))?;
+            Ok(LoadedSkill {
+                name: decl.name.clone(),
+                instance: instance.id.clone(),
+                plugin: manifest.plugin.id.clone(),
+                version: manifest.plugin.version.clone(),
+                files: loaded,
+                entry,
+            })
+        })
+        .collect()
+}
+
+/// Step 7 for skills. A name is served once: a second instance of one plugin shipping the same
+/// bytes adds nothing, and any other repeat of a name is a conflict naming both owners.
+fn check_skill_names(
+    instance: &PluginInstance,
+    skills: Vec<LoadedSkill>,
+    shipped: &[LoadedSkill],
+) -> Result<Vec<LoadedSkill>, PluginError> {
+    let mut added = Vec::new();
+    for skill in skills {
+        match shipped.iter().find(|other| other.name == skill.name) {
+            None => added.push(skill),
+            Some(other) if other.plugin == skill.plugin && other.same_content(&skill) => {}
+            Some(other) => {
+                return Err(PluginError::conflict(format!(
+                    "plugin instance `{}` ships the skill `{}`, but plugin instance `{}` already ships a skill of that name{}",
+                    instance.id,
+                    skill.name,
+                    other.instance,
+                    if other.plugin == skill.plugin {
+                        " with other content"
+                    } else {
+                        ""
+                    },
+                )));
+            }
+        }
+    }
+    Ok(added)
 }
 
 /// Step 4 (section 7.2): each declared grant is granted, withheld, or fails the load.
@@ -809,6 +879,20 @@ impl CommandHandler for Shared2 {
     }
 }
 
+/// The key of a plugin tool's origin in the tool's `_meta` (section 8.1).
+pub const ORIGIN_KEY: &str = "dev.umbel/origin";
+
+/// `{ plugin, kind, version, effects }`: where a plugin tool comes from. The host sets it from
+/// the manifest; a plugin's own finished definition cannot keep a value of its own for the key.
+fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
+    serde_json::json!({
+        "plugin": instance,
+        "kind": manifest.plugin.kind.as_str(),
+        "version": manifest.plugin.version,
+        "effects": command.effects.iter().map(|effect| effect.as_str()).collect::<Vec<_>>(),
+    })
+}
+
 fn expose(command: &CommandDecl) -> ExposeOptions {
     ExposeOptions::new()
         .with_palette(command.expose.palette)
@@ -827,6 +911,7 @@ fn returns_schema(value: Value) -> JsonSchema {
 /// Match each manifest command with the plugin's implementation of it and build the definition
 /// the registry gets (specification section 6.1).
 fn definitions(
+    instance: &str,
     manifest: &Manifest,
     schemas: &[Value],
     returns: Vec<Option<Value>>,
@@ -931,7 +1016,9 @@ fn definitions(
                 *definition
             }
         };
-        let definition = definition.with_expose(expose(command));
+        let definition = definition
+            .with_expose(expose(command))
+            .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
         built.push((definition, schema.clone()));
     }
     Ok(built)
