@@ -79,8 +79,10 @@ from afd.server.approval import (
     create_approval_middleware,
 )
 from afd.server.context_fields import (
+    AFD_CONTEXT_FIELDS_META_KEY,
     ContextField,
     check_context_fields,
+    describe_context_fields,
 )
 from afd.server.journal import (
     MAX_JOURNAL_CONTEXT_BYTES,
@@ -157,8 +159,10 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalSecret",
     # Declared context fields
+    "AFD_CONTEXT_FIELDS_META_KEY",
     "ContextField",
     "check_context_fields",
+    "describe_context_fields",
     # Command journal: recording middleware and replay
     "create_journal_middleware",
     "journal_context_fields",

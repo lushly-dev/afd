@@ -14,6 +14,12 @@
 //! [`journal`](ContextField::journal) in the entry's `context` (`spec/journal.md`, "Declared
 //! context fields"), and [`replay_journal`](crate::replay_journal) restores it.
 //!
+//! The MCP server (feature `server`) reads each field's value from a `tools/call`'s
+//! `params._meta[meta]`, on both protocol eras, over Streamable HTTP and stdio; a value the
+//! context hook sets for the same name wins, and undeclared `_meta` keys are dropped.
+//! `server/discover` lists the fields under `_meta["dev.afd/context-fields"]`
+//! ([`AFD_CONTEXT_FIELDS_META_KEY`]), and `afd-help` returns them as `contextFields`.
+//!
 //! A declared field is a claim the caller makes. A handler may use it to narrow what it does
 //! (which project, which space), never to grant anything: authorization still comes from the
 //! actor and verified credentials.
@@ -45,6 +51,10 @@ use std::sync::OnceLock;
 
 use crate::commands::CommandContext;
 use crate::errors::{error_codes, CommandError};
+
+/// The `_meta` key under which `server/discover` lists the declared fields, each as
+/// [`ContextField`] serializes.
+pub const AFD_CONTEXT_FIELDS_META_KEY: &str = "dev.afd/context-fields";
 
 /// A request value a host declares: where it lands in the context, the `_meta` key a caller
 /// sends it in, how it is validated and whether the journal keeps it.
@@ -256,7 +266,7 @@ fn field_failure(field: &ContextField, message: String, errors: Vec<Value>) -> B
     Box::new(
         CommandError::new(error_codes::VALIDATION_ERROR, message)
             .with_suggestion(format!(
-                "Send '{}' in _meta[\"{}\"] as its schema describes (server/discover lists it under _meta[\"dev.afd/context-fields\"]){ending}",
+                "Send '{}' in _meta[\"{}\"] as its schema describes (server/discover lists it under _meta[\"{AFD_CONTEXT_FIELDS_META_KEY}\"]){ending}",
                 field.name, field.meta
             ))
             .with_details(details),

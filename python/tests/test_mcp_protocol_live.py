@@ -23,7 +23,7 @@ except ImportError:  # MCP SDK 1.19 compatibility.
 
 
 @asynccontextmanager
-async def protocol_server(strategy, transport, *, stateless=False):
+async def protocol_server(strategy, transport, *, stateless=False, fixture="protocol_server.py"):
     # Holding the listener until just before spawning minimizes port reuse races.
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -32,7 +32,7 @@ async def protocol_server(strategy, transport, *, stateless=False):
     env = dict(os.environ, PYTHONPATH=str(root / "src"))
     process = await asyncio.create_subprocess_exec(
         sys.executable,
-        str(root / "tests/fixtures/protocol_server.py"),
+        str(root / "tests/fixtures" / fixture),
         str(port),
         strategy,
         transport,

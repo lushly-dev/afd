@@ -22,6 +22,7 @@ from afd.server.confirmations import (
     without_confirm,
 )
 from afd.core.similarity import truncate_name
+from afd.server.context_fields import current_context_field_values
 from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
 from afd.server.tools import derive_group_action, derive_group_name
 
@@ -99,9 +100,16 @@ def create_tool_router(deps: ToolRouterDeps):
             all_commands_by_group.setdefault(get_group(command) or "general", []).append(command)
 
     def mcp_context(prefix: str, active_context: str | None) -> CommandContext:
+        # Declared context fields from the request's _meta first, so the router's own
+        # keys win (spec/context-fields.md, "Trusted code wins"); the server validates them.
         return CommandContext(
             trace_id=new_trace_id(prefix),
-            extra={"interface": "mcp", "remote": True, "active_context": active_context},
+            extra={
+                **current_context_field_values(),
+                "interface": "mcp",
+                "remote": True,
+                "active_context": active_context,
+            },
             actor=copy.copy(deps.actor or _MCP_ACTOR),
         )
 

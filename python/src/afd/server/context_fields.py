@@ -6,6 +6,11 @@ carries it in ``context.extra`` under the field's name; the server validates it
 with the field's schema before middleware and the handler run, and the journal
 keeps the fields declared ``journal=True``.
 
+Over MCP, a ``tools/call`` carries each value in ``params._meta[field.meta]``; the
+server reads the declared keys into ``context.extra`` and drops the rest.
+``server/discover`` lists the fields under ``_meta["dev.afd/context-fields"]`` and
+``afd-help`` as ``contextFields``.
+
 Mirrors ``packages/server/src/context-fields.ts``; the rules are
 ``spec/context-fields.md``.
 
@@ -25,8 +30,10 @@ Example:
 from __future__ import annotations
 
 import contextlib
+import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,10 +43,20 @@ from pydantic import ValidationError as PydanticValidationError
 from afd.core.result import CommandResult, error
 
 __all__ = [
+    "AFD_CONTEXT_FIELDS_META_KEY",
     "ContextField",
     "apply_context_fields",
+    "bind_context_field_values",
     "check_context_fields",
+    "context_field_values",
+    "current_context_field_values",
+    "describe_context_fields",
 ]
+
+logger = logging.getLogger("afd.server")
+
+AFD_CONTEXT_FIELDS_META_KEY = "dev.afd/context-fields"
+"""The ``_meta`` key under which ``server/discover`` lists the declared fields."""
 
 # Context keys AFD sets itself, which a declared field cannot take: TypeScript's list, the
 # fields of Python's CommandContext classes (core and DirectClient) and their camelCase or
@@ -83,6 +100,12 @@ _RESERVED_LABELS = frozenset({"mcp", "modelcontextprotocol"})
 # ``journal=True``, for the journal middleware. Underscored, so the context digest never
 # counts it among the context's keys. (TypeScript keeps it under a symbol.)
 JOURNALED_CONTEXT_FIELDS = "_afd_journaled_context_fields"
+
+# The declared fields' values from the ``_meta`` of the MCP ``tools/call`` being served,
+# bound by the server around the call and read by the tool router into ``context.extra``.
+_REQUEST_VALUES: ContextVar[Mapping[str, Any] | None] = ContextVar(
+    "afd_context_field_values", default=None
+)
 
 
 @dataclass
@@ -132,6 +155,64 @@ def _adapter_for(field: ContextField) -> TypeAdapter[Any]:
             f"Context field '{field.name}' needs a schema pydantic can validate with "
             "(a model, a type or a TypeAdapter)"
         ) from exc
+
+
+def describe_context_fields(fields: Sequence[ContextField]) -> list[dict[str, Any]]:
+    """The declared fields as ``server/discover`` and ``afd-help`` list them, in order.
+
+    Each is ``{"name", "meta", "schema", "required", "journal"}``, with ``schema`` the
+    JSON Schema of the values the field accepts (``TypeAdapter.json_schema()``). A schema
+    pydantic cannot describe in JSON Schema is listed as ``{}``, which accepts any value.
+    """
+    return [
+        {
+            "name": declared.name,
+            "meta": declared.meta,
+            "schema": _json_schema(declared),
+            "required": declared.required is True,
+            "journal": declared.journal is True,
+        }
+        for declared in fields
+    ]
+
+
+def _json_schema(declared: ContextField) -> dict[str, Any]:
+    if declared._adapter is None:
+        declared._adapter = _adapter_for(declared)
+    try:
+        return declared._adapter.json_schema()
+    except Exception:
+        logger.warning(
+            "Context field '%s' has no JSON Schema; discovery lists it as {}", declared.name
+        )
+        return {}
+
+
+def context_field_values(fields: Sequence[ContextField] | None, meta: Any) -> dict[str, Any]:
+    """The declared fields' values in a request's ``_meta``, by field name.
+
+    Undeclared keys are left out. Callers merge trusted values (those the server or
+    host sets itself) after these, so trusted code wins.
+    """
+    if not fields or not isinstance(meta, Mapping):
+        return {}
+    return {declared.name: meta[declared.meta] for declared in fields if declared.meta in meta}
+
+
+@contextlib.contextmanager
+def bind_context_field_values(values: Mapping[str, Any] | None) -> Iterator[None]:
+    """Make ``values`` the declared fields of the MCP call being served, for its duration."""
+    token = _REQUEST_VALUES.set(values or None)
+    try:
+        yield
+    finally:
+        _REQUEST_VALUES.reset(token)
+
+
+def current_context_field_values() -> dict[str, Any]:
+    """The declared fields bound for the MCP call being served, or ``{}``."""
+    values = _REQUEST_VALUES.get()
+    return dict(values) if values else {}
 
 
 def check_context_fields(

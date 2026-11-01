@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -72,7 +73,15 @@ from afd.server.decorators import (
     validate_command_input,
 )
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
-from afd.server.context_fields import ContextField, apply_context_fields, check_context_fields
+from afd.server.context_fields import (
+    AFD_CONTEXT_FIELDS_META_KEY,
+    ContextField,
+    apply_context_fields,
+    bind_context_field_values,
+    check_context_fields,
+    context_field_values,
+    describe_context_fields,
+)
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
@@ -155,7 +164,9 @@ class ServerConfig:
     """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
     order (1 to 8 names). Checked against the registered commands before the first request."""
     context_fields: list[ContextField] = field(default_factory=list)
-    """Request values the host declares (``spec/context-fields.md``), checked at construction."""
+    """Request values the host declares (``spec/context-fields.md``), checked at construction.
+    MCP ``tools/call`` reads them from ``params._meta``; ``server/discover`` and ``afd-help``
+    list them."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -363,6 +374,8 @@ class MCPServer:
             options["tool_strategy"] = self.config.tool_strategy
             if self.config.tool_strategy == "hybrid":
                 options["first_class_tools"] = list(self.config.first_class_tools or [])
+            if self.config.context_fields:
+                options["context_fields"] = list(self.config.context_fields)
             if self.config.contexts:
                 options["get_contexts"] = self.list_contexts
                 options["context_state"] = self._context_state
@@ -663,6 +676,40 @@ class MCPServer:
 
         lowlevel.get_capabilities = fixed
         lowlevel._afd_fixed_tools_list = True
+
+    def _advertise_context_fields(self) -> None:
+        """List the declared context fields in ``server/discover`` (``spec/context-fields.md``).
+
+        The SDK answers ``server/discover`` with the low-level server's registered handler
+        (by default ``Server._handle_discover``, derived from server state per request). This
+        wraps that entry, through the SDK's own ``get_request_handler`` and
+        ``add_request_handler``, and adds ``_meta["dev.afd/context-fields"]`` to its result.
+        ``tests/test_context_fields_mcp.py`` fails if an SDK upgrade serves discover another way.
+        """
+        if not self.config.context_fields:
+            return
+        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        get_handler = getattr(lowlevel, "get_request_handler", None)
+        entry = get_handler("server/discover") if get_handler is not None else None
+        if entry is None or getattr(lowlevel, "_afd_context_fields_discover", False):
+            return
+        described = describe_context_fields(self.config.context_fields)
+        discover = entry.handler
+
+        async def discover_with_fields(ctx: Any, params: Any) -> Any:
+            result = await discover(ctx, params)
+            # A copy per answer, so a response never aliases the server's description.
+            listed = {AFD_CONTEXT_FIELDS_META_KEY: copy.deepcopy(described)}
+            if isinstance(result, BaseModel):
+                meta = getattr(result, "meta", None)
+                return result.model_copy(update={"meta": {**(meta or {}), **listed}})
+            if isinstance(result, Mapping):
+                meta = result.get("_meta")
+                return {**result, "_meta": {**(meta if isinstance(meta, Mapping) else {}), **listed}}
+            return result
+
+        lowlevel.add_request_handler("server/discover", entry.params_type, discover_with_fields)
+        lowlevel._afd_context_fields_discover = True
 
     def _install_fastmcp_context_error_translation(self) -> None:
         """Translate stale direct tool calls into actionable context errors when possible."""
@@ -1208,7 +1255,13 @@ class MCPServer:
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
             async def call_tool(self, name, arguments, context=None):
-                with bound_request():
+                # Declared context fields come from this request's _meta, on both eras and
+                # every transport; undeclared keys are dropped. The router puts them in
+                # context.extra and the command's execution validates them.
+                values = context_field_values(
+                    server.config.context_fields, _request_meta(_CURRENT_REQUEST.get())
+                )
+                with bound_request(), bind_context_field_values(values):
                     return await super().call_tool(name, arguments, context)
 
         self._mcp_server = SessionMCPServer(
@@ -1230,6 +1283,7 @@ class MCPServer:
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         self._advertise_fixed_tools_list()
+        self._advertise_context_fields()
         return self._mcp_server
 
     def streamable_http_app(self, **options: Any) -> Any:
@@ -1274,6 +1328,12 @@ class MCPServer:
             await mcp.run_sse_async(**options)
         else:
             await mcp.run_streamable_http_async(**options)
+
+
+def _request_meta(request: Any) -> Any:
+    """The raw ``_meta`` of an SDK request (``ServerRequestContext.params``), or ``None``."""
+    params = getattr(request, "params", None)
+    return params.get("_meta") if isinstance(params, Mapping) else None
 
 
 def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
@@ -1459,13 +1519,18 @@ def create_server(
             one's name, ``_meta`` key, schema (a Pydantic model or any type
             ``pydantic.TypeAdapter`` accepts), and whether the journal keeps it
             (``journal=True``) or a call needs it (``required=True``). A call carries a
-            field's value in ``context.extra[name]``; it is validated before middleware runs
-            and replaced with the schema's output, and an invalid or missing required value
-            fails the call with ``VALIDATION_ERROR`` (``required`` is not enforced for AFD's own
-            ``afd-*`` commands, so a client can discover the fields first). A bad declaration (an empty, reserved or
-            repeated name, a ``meta`` key without a reverse-DNS prefix, with a reserved one or
-            repeated) raises ``ValueError`` naming the field; a schema pydantic cannot use
-            raises ``TypeError``. ``_meta`` delivery over MCP is not implemented yet (#528).
+            field's value in ``context.extra[name]``: in process on the call's context, and
+            over MCP from ``tools/call``'s ``params._meta[meta]`` (both eras, every transport;
+            undeclared ``_meta`` keys are dropped, and HTTP headers are never read). It is
+            validated before middleware runs and replaced with the schema's output, and an
+            invalid or missing required value fails the call with ``VALIDATION_ERROR``
+            (``required`` is not enforced for AFD's own ``afd-*`` commands, so a client can
+            discover the fields first). ``server/discover`` lists the fields under
+            ``_meta["dev.afd/context-fields"]`` and ``afd-help`` as ``contextFields``; neither
+            ``tools/list`` nor its cache hint varies by a field. A bad declaration (an empty,
+            reserved or repeated name, a ``meta`` key without a reverse-DNS prefix, with a
+            reserved one or repeated) raises ``ValueError`` naming the field; a schema pydantic
+            cannot use raises ``TypeError``.
         tool_strategy: How commands become MCP tools: ``"individual"`` (the default), ``"grouped"``,
             ``"lazy"`` or ``"hybrid"`` (``spec/tool-strategies.md``).
         first_class_tools: With ``tool_strategy="hybrid"`` (required there, and refused with any
