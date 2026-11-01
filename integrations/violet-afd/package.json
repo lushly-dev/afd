@@ -75,10 +75,10 @@
 		"@types/node": "^26.6.6",
 		"@types/pg": "^8.23.1",
 		"@types/ws": "^8.18.2",
-		"@vitest/coverage-v8": "^3.2.7",
+		"@vitest/coverage-v8": "^4.1.12",
 		"pg": "^8.23.1",
 		"typescript": "^5.9.3",
-		"vitest": "^3.2.7"
+		"vitest": "^4.1.12"
 	},
 	"files": [
 		"dist",
