@@ -9,10 +9,9 @@ export default defineConfig({
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],
-			// Branches recalibrated from 70 for vitest 4's coverage remapping; restore with #602.
 			thresholds: {
 				statements: 65,
-				branches: 66,
+				branches: 70,
 				functions: 50,
 				lines: 65,
 			},
