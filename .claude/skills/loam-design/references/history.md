@@ -113,8 +113,6 @@ between inline parts. Insets from `space.layout.sm` and `space.layout.md`.
 
 ### Open
 
-- The single-pointer alternative to dragging a handle (WCAG 2.5.7), for
-  step 7.
 - A font-family id, and a focus-width id components outside the chrome can
   read, for contract version 2.
 
@@ -138,3 +136,19 @@ The values above landed, for the theme and the components together:
   components that take `--_danger-border` from the field defaults follow the
   new invalid border (the file upload's invalid drop zone among them). The
   focus border is unchanged. Recorded in FAST-AF's provenance (D50).
+
+## 2026-11-01. The chrome (step 7)
+
+- Handles are children of their parts, on the part's `1px` boundary with
+  main, so each separator is inside its part's landmark.
+- WCAG 2.5.7: a click on a handle without dragging steps through the
+  minimum, default and maximum sizes.
+- Quiet buttons: transparent at rest, `color.action.secondary.hover` and
+  `.pressed` with `color.text.primary`, the selected-control colors and a
+  start-edge mark when pressed. `pairs.ts` holds text on the hover and
+  pressed colors, and danger text on the floating surface.
+- `violet-option` reads `--color-surface-highlight`, not a contract id; the
+  palette maps it to `color.surface.card` until the component is fixed.
+- A maximized panel collapses main to zero and makes it `inert`.
+- The shell renders its parts after the first `appearance-get`, so nothing
+  paints in the wrong theme.

@@ -136,7 +136,7 @@ The full set per theme is `dist/loam-theme.json` after `theme:build`.
 
 | Pair kind | Light and dark | High contrast |
 | --- | --- | --- |
-| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` and `color.field.placeholder` on both field backgrounds | 4.5:1 | 7:1 |
+| Text: primary, secondary and muted on the five surfaces; each action's text on its background, hover and pressed colors; state text on its background, on page and on card; `color.control.selected.foreground` on its background; `color.field.text` and `color.field.placeholder` on both field backgrounds; `color.text.primary` and `.secondary` on `color.action.secondary.hover` and `.pressed`; `color.state.danger.text` on `color.surface.floating` | 4.5:1 | 7:1 |
 | Non-text: `color.border.strong` on page, card, subtle and floating; `color.field.border`, `color.field.border.hover` and `color.field.border.invalid` on both field backgrounds; `shell.color.handle.hover` and `.active` on page, card and subtle; `color.focus.ring` on the five surfaces; `color.field.border.focus` on both field backgrounds | 3:1 | 3:1 |
 | Non-text, high contrast only: `color.border.subtle` and `shell.color.handle.rest` on the five surfaces; the primary and danger action backgrounds on page; `color.action.secondary.border`, `color.control.selected.border` and each state border on their backgrounds | Not held (decorative, or identified by a label) | 3:1 |
 
@@ -280,6 +280,8 @@ equal are at their floors, and are shown so the scale reads whole:
 ### Handles
 
 `loam-resize-handle` sits on the boundary between a resizable part and main.
+It is a child of its part (step 7), positioned on the part's `1px`
+boundary on main's side, so it is inside the part's landmark.
 
 - **The bar** is `shell.size.handle` (4px) across and takes the place of
   the `1px` boundary line, centered on the boundary. It is colored
@@ -296,9 +298,11 @@ equal are at their floors, and are shown so the scale reads whole:
 - **Cursor** is `col-resize` or `row-resize`.
 - Keyboard: arrows step 16px and commit each step; Home and End go to the
   minimum and maximum (spec section 7).
-- **Open:** WCAG 2.2's 2.5.7 asks for a single-pointer alternative to
-  dragging. The keyboard steps do not count; step 7 decides the pointer
-  alternative (a follow-up in the specification).
+- **Single pointer (WCAG 2.5.7).** A click on the handle without dragging
+  (the pointer moves less than 3px) steps the part to the next of its
+  minimum, default and maximum sizes, cycling, and commits one `layout-set`.
+  Decided by step 7; it needs no extra control, and the separator's
+  `aria-valuenow` says where it is.
 
 ## Motion
 
@@ -466,30 +470,30 @@ How a pull request shows each item:
 
 One line per component of Loam's kit and chrome: its element, what it is,
 and the pull request that merged it under the checklist. Phase 0's kit is
-only what the empty shell uses (spec section 7); none is built yet, and step
-7 builds them.
+only what the empty shell uses (spec section 7); step 7 built them. Each has
+a fixture in `packages/chrome/specimens/chrome.specimens.ts`.
 
 | Element | What | Merged |
 | --- | --- | --- |
-| `loam-shell` | The grid that hosts the parts and reads the three state properties | Not yet (step 7) |
-| `loam-titlebar` | `banner`, "Loam": the title and the palette's search button | Not yet (step 7) |
-| `loam-rail` | `navigation`, "Apps", except in the compact class; in phase 0 only a disabled settings entry | Not yet (step 7) |
-| `loam-tabbar` | `navigation`, "Apps", in the compact class in place of the rail | Not yet (step 7) |
-| `loam-sidebar` | `complementary`, "Sidebar" | Not yet (step 7) |
-| `loam-main` | `main`, with the empty landing "No apps yet" and the palette shortcut | Not yet (step 7) |
-| `loam-inspector` | `complementary`, "Inspector" | Not yet (step 7) |
-| `loam-panel` | `region`, "Panel" | Not yet (step 7) |
-| `loam-statusbar` | `contentinfo`, "Status", except in the compact class | Not yet (step 7) |
-| `loam-resize-handle` | `separator` between a resizable part and main | Not yet (step 7) |
-| `loam-palette` | A `violet-dialog` with a search field and a `violet-listbox` of results | Not yet (step 7) |
-| `loam-empty-state` | `violet-empty-state` as parts use it: one sentence saying what will appear there | Not yet (step 7) |
-| `loam-status-item` | One item of the status bar | Not yet (step 7) |
+| `loam-shell` | The grid that hosts the parts, and the controller that binds them to the kernel: it reads the three state properties, renders the parts once the first appearance is read, and turns every action into a command | Step 7 (this pull request) |
+| `loam-titlebar` | `banner`, "Loam": the title, the palette's search button, the sidebar, panel and inspector toggles (`aria-pressed`), and the account button ("Sign in", or the name and "Sign out") | Step 7 (this pull request) |
+| `loam-rail` | `navigation`, "Apps", except in the compact class; in phase 0 only the settings entry, `aria-disabled` and focusable, with its tooltip "Settings arrive in phase 4", which Escape dismisses | Step 7 (this pull request) |
+| `loam-tabbar` | `navigation`, "Apps", in the compact class in place of the rail; the same entry with a visible label | Step 7 (this pull request) |
+| `loam-sidebar` | `complementary`, "Sidebar": inline, a non-modal overlay drawer, or in the compact class a modal drawer (`<dialog>`) that traps Tab and returns focus; a header with its close button | Step 7 (this pull request) |
+| `loam-main` | `main`, with the empty landing "No apps yet" (the page's one `h1`) and the palette shortcut, or "Nothing here" and a link home on any other path | Step 7 (this pull request) |
+| `loam-inspector` | `complementary`, "Inspector", as the sidebar from inline-end | Step 7 (this pull request) |
+| `loam-panel` | `region`, "Panel": inline below main, maximized over main's area, or the compact class's non-modal sheet; a header with Maximize (`aria-pressed`) and close | Step 7 (this pull request) |
+| `loam-statusbar` | `contentinfo`, "Status", except in the compact class: the actor or "Signed out", and the journal's last sequence number | Step 7 (this pull request) |
+| `loam-resize-handle` | `separator` on a resizable part's boundary with main: drag, arrows, Home and End, and a click that steps through the preset sizes | Step 7 (this pull request) |
+| `loam-palette` | A `violet-dialog` with a `combobox` field and a `violet-listbox` of results; Enter runs, failures show in its `status` footer; loads after first paint | Step 7 (this pull request) |
+| `loam-empty-state` | `violet-empty-state` as parts use it: one sentence saying what will appear there | Step 7 (this pull request) |
+| `loam-status-item` | One item of the status bar: an optional muted label before its value | Step 7 (this pull request) |
+| `loam-notice` | A full-page notice in place of the shell ("Loam is open in another tab", a kernel version mismatch): `main` with an `h1`; it sets the font family itself, since no shell is present | Step 7 (this pull request) |
 
 ## Open questions
 
 | Question | Where it is settled |
 | --- | --- |
-| The single-pointer alternative to dragging a handle (WCAG 2.5.7) | Step 7; a follow-up in the specification |
 | A font-family id, and a focus-width id components outside the chrome can read | Contract version 2; a follow-up in the specification. Phase 0 has no Loam package outside the chrome that draws focus |
 
 ## History
@@ -600,3 +604,29 @@ only what the empty shell uses (spec section 7); none is built yet, and step
   from the field defaults follow the new invalid border (the file upload's
   invalid drop zone among them). The focus border is unchanged. Recorded in
   FAST-AF's provenance (D50).
+
+- **2026-11-01. The chrome (step 7).** The parts, the palette and the
+  handles as built. Decided here:
+  - **Handles live in their parts**, positioned on the part's `1px`
+    `color.border.subtle` boundary with main, so each separator is inside its
+    part's landmark (axe's `region` rule), and a part's width includes its
+    boundary.
+  - **The single-pointer alternative (WCAG 2.5.7)** is a click on the handle
+    without dragging: it steps through the minimum, default and maximum
+    sizes, cycling.
+  - **Quiet buttons** in bars and part headers: transparent at rest,
+    `color.action.secondary.hover` and `.pressed` with `color.text.primary`,
+    and the selected-control colors with a `size.space.xs` start-edge mark
+    when pressed. `pairs.ts` now holds primary and secondary text on the
+    hover and pressed colors, and danger text on the floating surface.
+  - **The palette's active row.** `violet-option` reads
+    `--color-surface-highlight` for its active row, which is not a contract
+    id, so its white fallback failed contrast in dark; the palette maps it to
+    `color.surface.card` until the component reads a contract id (a
+    follow-up in the specification). Under forced colors the palette marks
+    the active option and colors its text `HighlightText`, because the
+    option turns forced-color adjustment off.
+  - **A maximized panel** collapses main's track to zero and makes main
+    `inert`; main stays in the tree.
+  - **No flash at boot.** The shell renders its parts only after the first
+    `appearance-get`, so the theme is on the document before anything paints.

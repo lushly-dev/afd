@@ -84,7 +84,7 @@ const template = html<LoamShell>`
 				tabindex="-1"
 				account="${(x) => x.account}"
 				shortcut="${(x) => x.shortcut}"
-				aria-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
+				key-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
 				shown-parts="${(x) => x.shownParts}"
 			></loam-titlebar>
 			<loam-rail
@@ -100,19 +100,20 @@ const template = html<LoamShell>`
 				?hidden="${(x) => x.presentation.sidebar === 'closed'}"
 			>
 				<loam-empty-state message="${() => sideEmpty.sidebar}"></loam-empty-state>
+				<loam-resize-handle
+					slot="handle"
+					class="sidebar-handle"
+					${ref('sidebarHandle')}
+					growth="end"
+					label="Resize sidebar"
+					data-resizes="sidebar"
+					value="${(x) => x.layout.sidebar.width}"
+					min="${() => LAYOUT_DEFAULTS_V0.sidebar.min}"
+					max="${() => LAYOUT_DEFAULTS_V0.sidebar.max}"
+					preset="${() => LAYOUT_DEFAULTS_V0.sidebar.default}"
+					?hidden="${(x) => x.presentation.sidebar !== 'inline'}"
+				></loam-resize-handle>
 			</loam-sidebar>
-			<loam-resize-handle
-				class="sidebar-handle"
-				${ref('sidebarHandle')}
-				growth="end"
-				label="Resize sidebar"
-				data-resizes="sidebar"
-				value="${(x) => x.layout.sidebar.width}"
-				min="${() => LAYOUT_DEFAULTS_V0.sidebar.min}"
-				max="${() => LAYOUT_DEFAULTS_V0.sidebar.max}"
-				preset="${() => LAYOUT_DEFAULTS_V0.sidebar.default}"
-				?hidden="${(x) => x.presentation.sidebar !== 'inline'}"
-			></loam-resize-handle>
 			<loam-main
 				data-part="main"
 				tabindex="-1"
@@ -121,18 +122,6 @@ const template = html<LoamShell>`
 				home="${(x) => x.home}"
 				?inert="${(x) => x.presentation.panel === 'maximized'}"
 			></loam-main>
-			<loam-resize-handle
-				class="inspector-handle"
-				${ref('inspectorHandle')}
-				growth="start"
-				label="Resize inspector"
-				data-resizes="inspector"
-				value="${(x) => x.layout.inspector.width}"
-				min="${() => LAYOUT_DEFAULTS_V0.inspector.min}"
-				max="${() => LAYOUT_DEFAULTS_V0.inspector.max}"
-				preset="${() => LAYOUT_DEFAULTS_V0.inspector.default}"
-				?hidden="${(x) => x.presentation.inspector !== 'inline'}"
-			></loam-resize-handle>
 			<loam-inspector
 				data-part="inspector"
 				tabindex="-1"
@@ -141,19 +130,20 @@ const template = html<LoamShell>`
 				?hidden="${(x) => x.presentation.inspector === 'closed'}"
 			>
 				<loam-empty-state message="${() => sideEmpty.inspector}"></loam-empty-state>
+				<loam-resize-handle
+					slot="handle"
+					class="inspector-handle"
+					${ref('inspectorHandle')}
+					growth="start"
+					label="Resize inspector"
+					data-resizes="inspector"
+					value="${(x) => x.layout.inspector.width}"
+					min="${() => LAYOUT_DEFAULTS_V0.inspector.min}"
+					max="${() => LAYOUT_DEFAULTS_V0.inspector.max}"
+					preset="${() => LAYOUT_DEFAULTS_V0.inspector.default}"
+					?hidden="${(x) => x.presentation.inspector !== 'inline'}"
+				></loam-resize-handle>
 			</loam-inspector>
-			<loam-resize-handle
-				class="panel-handle"
-				${ref('panelHandle')}
-				growth="up"
-				label="Resize panel"
-				data-resizes="panel"
-				value="${(x) => x.layout.panel.height}"
-				min="${() => LAYOUT_DEFAULTS_V0.panel.min}"
-				max="${(x) => x.panelMax}"
-				preset="${() => LAYOUT_DEFAULTS_V0.panel.default}"
-				?hidden="${(x) => x.presentation.panel !== 'inline'}"
-			></loam-resize-handle>
 			<loam-panel
 				data-part="panel"
 				tabindex="-1"
@@ -161,6 +151,19 @@ const template = html<LoamShell>`
 				?hidden="${(x) => x.presentation.panel === 'closed'}"
 			>
 				<loam-empty-state message="${() => sideEmpty.panel}"></loam-empty-state>
+				<loam-resize-handle
+					slot="handle"
+					class="panel-handle"
+					${ref('panelHandle')}
+					growth="up"
+					label="Resize panel"
+					data-resizes="panel"
+					value="${(x) => x.layout.panel.height}"
+					min="${() => LAYOUT_DEFAULTS_V0.panel.min}"
+					max="${(x) => x.panelMax}"
+					preset="${() => LAYOUT_DEFAULTS_V0.panel.default}"
+					?hidden="${(x) => x.presentation.panel !== 'inline'}"
+				></loam-resize-handle>
 			</loam-panel>
 			<loam-statusbar
 				data-part="statusbar"
@@ -197,16 +200,16 @@ const styles = css`
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
 		font-weight: var(--type-body-md-weight);
-		grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
-		grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+		grid-template-columns: auto auto minmax(0, 1fr) auto;
+		grid-template-rows: auto minmax(0, 1fr) auto auto auto;
 	}
 	:host([data-panel='inline']) {
 		grid-template-rows:
-			auto minmax(var(--shell-size-panel-min), 1fr) auto minmax(0, var(--_panel-height))
+			auto minmax(var(--shell-size-panel-min), 1fr) minmax(0, var(--_panel-height))
 			auto auto;
 	}
 	:host([data-panel='maximized']) {
-		grid-template-rows: auto 0 auto minmax(0, 1fr) auto auto;
+		grid-template-rows: auto 0 minmax(0, 1fr) auto auto;
 	}
 	loam-titlebar {
 		grid-column: 1 / -1;
@@ -214,57 +217,45 @@ const styles = css`
 	}
 	loam-rail {
 		grid-column: 1;
-		grid-row: 2 / 5;
+		grid-row: 2 / 4;
 	}
 	loam-sidebar {
 		grid-column: 2;
-		grid-row: 2 / 5;
+		grid-row: 2 / 4;
 		inline-size: var(--_sidebar-width);
 	}
-	.sidebar-handle {
-		grid-column: 3;
-		grid-row: 2 / 5;
-	}
 	loam-main {
-		grid-column: 4;
+		grid-column: 3;
 		grid-row: 2;
 	}
 	:host([data-panel='maximized']) loam-main {
 		overflow: hidden;
 		padding-block: 0;
 	}
-	.panel-handle {
-		grid-column: 4;
+	loam-panel {
+		grid-column: 3;
 		grid-row: 3;
 	}
-	loam-panel {
-		grid-column: 4;
-		grid-row: 4;
-	}
-	.inspector-handle {
-		grid-column: 5;
-		grid-row: 2 / 5;
-	}
 	loam-inspector {
-		grid-column: 6;
-		grid-row: 2 / 5;
+		grid-column: 4;
+		grid-row: 2 / 4;
 		inline-size: var(--_inspector-width);
 	}
 	loam-statusbar {
 		grid-column: 1 / -1;
-		grid-row: 5;
+		grid-row: 4;
 	}
 	loam-tabbar {
 		grid-column: 1 / -1;
-		grid-row: 6;
+		grid-row: 5;
 	}
 	:host([data-sidebar='overlay']) loam-sidebar {
-		grid-column: 4;
+		grid-column: 3;
 		justify-self: start;
 		inline-size: min(var(--_sidebar-width), 85vw);
 	}
 	:host([data-inspector='overlay']) loam-inspector {
-		grid-column: 4;
+		grid-column: 3;
 		justify-self: end;
 		inline-size: min(var(--_inspector-width), 85vw);
 	}

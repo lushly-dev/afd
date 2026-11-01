@@ -25,6 +25,7 @@ const template = html<LoamTitlebar>`
 	<button
 		class="quiet search"
 		type="button"
+		aria-label="Search commands"
 		aria-keyshortcuts="${(x) => x.ariaShortcut}"
 		@click="${(x) => dispatchAction(x, { action: 'palette-open' })}"
 	>
@@ -160,7 +161,7 @@ export class LoamTitlebar extends FASTElement {
 }
 attr(LoamTitlebar.prototype, 'account');
 attr(LoamTitlebar.prototype, 'shortcut');
-attr({ attribute: 'aria-shortcut' })(LoamTitlebar.prototype, 'ariaShortcut');
+attr({ attribute: 'key-shortcut' })(LoamTitlebar.prototype, 'ariaShortcut');
 attr({ attribute: 'shown-parts' })(LoamTitlebar.prototype, 'shownParts');
 
 export const titlebarDefinition = { name: 'loam-titlebar', template, styles } as const;

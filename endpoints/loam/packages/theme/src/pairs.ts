@@ -65,6 +65,14 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		on([`color.state.${state}.text`], [`color.state.${state}.background`, PAGE, CARD], 'text')
 	),
 	...on(['color.control.selected.foreground'], ['color.control.selected.background'], 'text'),
+	// The chrome's quiet buttons: text on their hover and pressed colors (design.md, states), and
+	// the palette's failure message on the floating surface (step 7).
+	...on(
+		['color.text.primary', 'color.text.secondary'],
+		['color.action.secondary.hover', 'color.action.secondary.pressed'],
+		'text'
+	),
+	...on(['color.state.danger.text'], [FLOATING], 'text'),
 	...on(['color.field.text', 'color.field.placeholder'], FIELD_BACKGROUNDS, 'text'),
 	// Boundaries a control needs to be seen.
 	...on(['color.border.strong'], OPEN_SURFACES, 'non-text'),

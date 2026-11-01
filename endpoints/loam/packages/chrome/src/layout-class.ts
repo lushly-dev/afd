@@ -35,10 +35,8 @@ export interface PresentationV0 {
 export interface PresentOptions {
 	/** The shell's inline size, in CSS pixels. */
 	width: number;
-	/** What the fixed tracks take from it: the rail and one boundary per inline side part. */
+	/** What the rail takes from it, in CSS pixels. A side part's boundary is inside its width. */
 	rail: number;
-	/** The boundary between a side part and main, in CSS pixels. */
-	boundary?: number;
 }
 
 /**
@@ -71,12 +69,11 @@ export function presentLayout(
 			: 'inline'
 		: 'closed';
 	if (layoutClass === 'expanded') {
-		const boundary = options.boundary ?? 1;
 		const main = () =>
 			options.width -
 			options.rail -
-			(sidebar === 'inline' ? layout.sidebar.width + boundary : 0) -
-			(inspector === 'inline' ? layout.inspector.width + boundary : 0);
+			(sidebar === 'inline' ? layout.sidebar.width : 0) -
+			(inspector === 'inline' ? layout.inspector.width : 0);
 		if (inspector === 'inline' && main() < LAYOUT_DEFAULTS_V0.mainMin) inspector = 'overlay';
 		if (sidebar === 'inline' && main() < LAYOUT_DEFAULTS_V0.mainMin) sidebar = 'overlay';
 	}

@@ -34,6 +34,7 @@ const template = html<LoamPanel>`
 		</button>
 	</div>
 	<div class="body"><slot></slot></div>
+	<slot name="handle"></slot>
 `;
 
 const styles = [
@@ -42,11 +43,21 @@ const styles = [
 	partHeader,
 	css`
 		:host {
+			position: relative;
 			display: flex;
 			flex-direction: column;
+			box-sizing: border-box;
 			background: var(--color-surface-card);
 			color: var(--color-text-primary);
-			overflow: hidden;
+		}
+		:host([mode='inline']),
+		:host([mode='maximized']) {
+			border-block-start: 1px solid var(--color-border-subtle);
+		}
+		::slotted([slot='handle']) {
+			position: absolute;
+			inset-inline: 0;
+			inset-block-start: 0;
 		}
 		:host([mode='sheet']) {
 			z-index: var(--z-index-overlay);
@@ -59,6 +70,13 @@ const styles = [
 		.body {
 			flex: 1;
 		}
+		.header,
+		.body {
+			overflow: hidden;
+		}
+		.body {
+			overflow: auto;
+		}
 		[hidden] {
 			display: none;
 		}
@@ -69,6 +87,10 @@ const styles = [
 			}
 			:host([mode='sheet']) {
 				border: 1px solid CanvasText;
+			}
+			:host([mode='inline']),
+			:host([mode='maximized']) {
+				border-block-start-color: CanvasText;
 			}
 		}
 	`,

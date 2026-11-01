@@ -30,6 +30,7 @@ const template = html<LoamSidePart>`
 		</div>
 		<div class="body"><slot></slot></div>
 	</div>
+	<slot name="handle"></slot>
 	<dialog
 		class="drawer"
 		${ref('drawer')}
@@ -46,10 +47,11 @@ const styles = (side: SidePart) => [
 	partHeader,
 	css`
 		:host {
+			position: relative;
 			display: block;
+			box-sizing: border-box;
 			background: var(--color-surface-card);
 			color: var(--color-text-primary);
-			overflow: hidden;
 		}
 		:host([mode='overlay']) {
 			z-index: var(--z-index-overlay);
@@ -64,6 +66,11 @@ const styles = (side: SidePart) => [
 			flex-direction: column;
 			block-size: 100%;
 			min-block-size: 0;
+			overflow: hidden;
+		}
+		::slotted([slot='handle']) {
+			position: absolute;
+			inset-block: 0;
 		}
 		.body {
 			flex: 1;
@@ -124,15 +131,37 @@ const styles = (side: SidePart) => [
 	`,
 	side === 'sidebar'
 		? css`
+				:host([mode='inline']) {
+					border-inline-end: 1px solid var(--color-border-subtle);
+				}
+				::slotted([slot='handle']) {
+					inset-inline-end: 0;
+				}
 				.drawer {
 					inset-inline-start: 0;
 					inset-inline-end: auto;
 				}
+				@media (forced-colors: active) {
+					:host([mode='inline']) {
+						border-inline-end-color: CanvasText;
+					}
+				}
 			`
 		: css`
+				:host([mode='inline']) {
+					border-inline-start: 1px solid var(--color-border-subtle);
+				}
+				::slotted([slot='handle']) {
+					inset-inline-start: 0;
+				}
 				.drawer {
 					inset-inline-start: auto;
 					inset-inline-end: 0;
+				}
+				@media (forced-colors: active) {
+					:host([mode='inline']) {
+						border-inline-start-color: CanvasText;
+					}
 				}
 			`,
 ];

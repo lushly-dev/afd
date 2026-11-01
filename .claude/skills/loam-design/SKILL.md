@@ -148,8 +148,9 @@ regions: `space.layout.*`.
   dragged or focused; a 24px (`size.target.compact`) transparent hit area;
   arrows step 16px, Home and End go to the bounds. At rest it stays below
   3:1 in light and dark (a recorded judgement: hover and focus are held to
-  3:1). The single-pointer alternative to dragging (WCAG 2.5.7) is open for
-  step 7.
+  3:1). The handle is a child of its part, on the part's boundary with main.
+  The single-pointer alternative to dragging (WCAG 2.5.7) is a click without
+  dragging, which steps through the minimum, default and maximum sizes.
 
 ## Motion
 

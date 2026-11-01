@@ -6,7 +6,16 @@
  * to search, run and close.
  */
 
-import { css, FASTElement, html, observable, ref, repeat, when } from '@lushly-dev/fast-element';
+import {
+	css,
+	FASTElement,
+	html,
+	observable,
+	ref,
+	repeat,
+	Updates,
+	when,
+} from '@lushly-dev/fast-element';
 import '@lushly-dev/violet-elements/dist/dialog/violet-dialog.js';
 import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 import '@lushly-dev/violet-elements/dist/option/violet-option.js';
@@ -148,6 +157,14 @@ const styles = css`
 		overflow: auto;
 		padding: var(--size-space-sm);
 	}
+	/*
+	 * violet-option reads --color-surface-highlight for its active row, which is not a contract id,
+	 * so its white fallback shows in every theme and fails contrast in dark. Map it to a contract
+	 * surface until the component reads one (a follow-up in the phase 0 specification).
+	 */
+	violet-option {
+		--color-surface-highlight: var(--color-surface-card);
+	}
 	.result-name {
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
@@ -184,6 +201,15 @@ const styles = css`
 		.failure,
 		.footer {
 			color: CanvasText;
+		}
+		/* violet-option sets forced-color-adjust: none, so its slotted text keeps author colors. */
+		.result-name,
+		.result-description {
+			color: ButtonText;
+		}
+		violet-option[data-active] .result-name,
+		violet-option[data-active] .result-description {
+			color: HighlightText;
 		}
 	}
 `;
@@ -232,8 +258,8 @@ export class LoamPalette extends FASTElement {
 		if (generation !== this.#generation) return;
 		this.results = results;
 		this.searched = true;
-		// The listbox picks its active option when its slot changes; point the field at it.
-		await Promise.resolve();
+		// The results render on FAST's next update; then point the listbox and the field at the first.
+		await Updates.next();
 		this.listbox.activeValue = results.find((result) => !result.disabled)?.name ?? '';
 		this.#syncActive();
 	}
@@ -293,6 +319,8 @@ export class LoamPalette extends FASTElement {
 		const option = this.listbox.options.find(
 			(candidate) => candidate.value === this.listbox.activeValue
 		);
+		for (const candidate of this.listbox.options)
+			candidate.toggleAttribute('data-active', candidate === option);
 		if (option) this.field.setAttribute('aria-activedescendant', option.id);
 		else this.field.removeAttribute('aria-activedescendant');
 	}
