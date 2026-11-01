@@ -2437,9 +2437,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "fast-glob",
  "futures",
  "libc",
  "oxc",
+ "regex",
  "rolldown",
  "rolldown_common",
  "rolldown_plugin",

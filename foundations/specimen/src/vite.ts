@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, createServer, type Plugin, type ViteDevServer } from 'vite';
-import { defaultContext, type LoadedConfig } from './config.js';
+import { defaultContext, type LoadedConfig, renderable } from './config.js';
 
 const ENTRY = '/__specimen_entry__.js';
 const SHELL_BUDGET = 50_000;
@@ -19,11 +19,12 @@ async function runtimePath(): Promise<string> {
 	}
 }
 function entrySource(config: LoadedConfig, runtime: string): string {
-	const loaders = Object.entries(config.modules)
+	const { entries, modules } = renderable(config);
+	const loaders = Object.entries(modules)
 		.map(([id, file]) => `${JSON.stringify(id)}: () => import(${JSON.stringify(file)})`)
 		.join(',');
 	return `import { installRuntime, installPage } from ${JSON.stringify(runtime)};
-const entries = ${JSON.stringify(config.config.specimens)};
+const entries = ${JSON.stringify(entries)};
 installRuntime({${loaders}});
 await installPage(entries, ${JSON.stringify(defaultContext)});`;
 }
@@ -102,7 +103,7 @@ export async function startBenchServer(
 		plugins: [plugin, cachedDevMaps],
 		// The HTML references a virtual entry; scan its actual import roots before
 		// dynamic specimen loading can discover dependencies and reload the page.
-		optimizeDeps: { entries: [runtime, ...new Set(Object.values(config.modules))] },
+		optimizeDeps: { entries: [runtime, ...new Set(Object.values(renderable(config).modules))] },
 		logLevel: 'silent',
 		server: {
 			host: '127.0.0.1',

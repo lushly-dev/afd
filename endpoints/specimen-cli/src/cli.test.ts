@@ -23,6 +23,7 @@ function harness() {
 		list: vi.fn(() => [
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
 		]),
+		validate: vi.fn(() => ({ valid: true, scope: 'static' as const, checked: 1, issues: [] })),
 		render: vi.fn(async () => {
 			throw new Error('No render configured');
 		}),
@@ -49,6 +50,21 @@ function harness() {
 }
 
 describe('specimen CLI', () => {
+	it('dispatches validate with an optional story or file', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'validate', '--id', 'button'], h.io)).toBe(0);
+		expect(h.bench.validate).toHaveBeenCalledWith({ id: 'button' });
+		expect(JSON.parse(h.output[0] ?? '')).toMatchObject({
+			success: true,
+			data: { valid: true, scope: 'static' },
+		});
+		expect(await runCli(['--root', root, 'validate', '--file', 'src/a.stories.ts'], h.io)).toBe(0);
+		expect(h.bench.validate).toHaveBeenLastCalledWith({ file: 'src/a.stories.ts' });
+		expect(await runCli(['--root', root, 'validate', 'extra'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'list', '--id', 'button'], h.io)).toBe(1);
+	});
+
 	it('dispatches list and emits one JSON result', async () => {
 		const h = harness();
 		const root = await directory();

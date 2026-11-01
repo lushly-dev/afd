@@ -48,12 +48,60 @@ export interface SpecimenModule {
 export interface SpecimenEntry {
 	id: string;
 	title: string;
+	/** A native entry's module, relative to the configuration file; a story's import path. */
 	module: string;
 	exportName: string;
 	component?: string;
+	/** Present on retained stories discovered in CSF compatibility mode. */
+	story?: StoryIdentity;
+}
+/** What Storybook's index gives a retained story, and what discovery could not read. */
+export interface StoryIdentity {
+	name: string;
+	tags: string[];
+	/** Whether the story or its meta has a play function; `unknown` when not readable statically. */
+	play: 'present' | 'absent' | 'unknown';
+	/** Fields whose values are only known when the module runs. */
+	unresolved: { level: 'meta' | 'story'; field: string; reason: string }[];
+	/** Annotation fields each level sets; `*` when a level may set fields that cannot be read. */
+	annotations: { meta: string[]; story: string[] };
+}
+/** Storybook's stories specifier: files matching `files` under `directory`. */
+export interface StoriesSpecifier {
+	directory: string;
+	files?: string;
+	titlePrefix?: string;
 }
 export interface BenchConfig {
-	specimens: SpecimenEntry[];
+	/** Native specimens. */
+	specimens?: SpecimenEntry[];
+	/** CSF compatibility mode: retained story files, as Storybook's `stories` names them. */
+	stories?: (string | StoriesSpecifier)[];
+	/** The project annotations module (Storybook's preview), relative to the configuration. */
+	preview?: string;
+}
+export interface ValidationIssue {
+	/** `deferred`: only the module, run, can settle it. */
+	severity: 'error' | 'warning' | 'deferred';
+	code: string;
+	message: string;
+	suggestion: string;
+	id?: string;
+	importPath?: string;
+	exportName?: string;
+	field?: string;
+}
+export interface ValidationReport {
+	valid: boolean;
+	/** `static`: read without running any story module. */
+	scope: 'static';
+	checked: number;
+	issues: ValidationIssue[];
+}
+export interface ValidationTarget {
+	id?: string;
+	/** An import path such as `./src/button.stories.ts`, or a path relative to the root. */
+	file?: string;
 }
 export interface BenchOptions {
 	root: string;

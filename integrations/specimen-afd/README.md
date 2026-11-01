@@ -1,6 +1,6 @@
 # Specimen AFD integration
 
-`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes. It supports Specimen, AFD core and AFD server versions `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
+`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes: `specimen-list`, `specimen-validate`, `specimen-render`, `specimen-diff` and `specimen-build`. It supports Specimen, AFD core and AFD server versions `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
 
 ```ts
 import { createSpecimenBench } from '@lushly-dev/specimen';

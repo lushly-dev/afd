@@ -195,7 +195,7 @@ import * as root from '@lushly-dev/specimen';
 import * as types from '@lushly-dev/specimen/types';
 import { contextSchema, captureRequestSchema, observationSchema, buildOutputSchema } from '@lushly-dev/specimen/schema';
 import * as schema from '@lushly-dev/specimen/schema';
-assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION', 'createSpecimenBench', 'diffObservations', 'normalizeDom']);
+assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'createSpecimenBench', 'diffObservations', 'normalizeDom', 'normalizeSpecifier']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
 assert.deepEqual(Object.keys(schema).sort(), ['buildOutputSchema', 'captureRequestSchema', 'contextSchema', 'observationSchema']);
 assert.equal(CAPTURE_VERSION, '0.2');
@@ -279,7 +279,7 @@ const root = new URL('./fixtures/', import.meta.url).pathname;
 const bench = await createSpecimenBench({ root });
 try {
 	const commands = createSpecimenCommands(bench);
-	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-build', 'specimen-diff', 'specimen-list', 'specimen-render']);
+	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-build', 'specimen-diff', 'specimen-list', 'specimen-render', 'specimen-validate']);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-list', {})).success, true);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-unknown', {})).success, false);
 	assert.equal((await executeSpecimenDiff({ left: {}, right: {} })).error.code, 'VALIDATION_ERROR');
@@ -294,7 +294,7 @@ try {
 );
 execFileSync(process.execPath, ['runtime.mjs'], { cwd: fullRoot, stdio: 'inherit' });
 passed(
-	'integration present: four command definitions, execution, invalid input and unknown command'
+	'integration present: five command definitions, execution, invalid input and unknown command'
 );
 await writeFile(
 	join(fullRoot, 'consumer.ts'),

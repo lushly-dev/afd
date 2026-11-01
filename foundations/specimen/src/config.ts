@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import type { BenchConfig, BenchOptions, SpecimenContext } from './types.js';
+import { type Discovery, discoverStories } from './stories.js';
+import type { BenchConfig, BenchOptions, SpecimenContext, SpecimenEntry } from './types.js';
 import { parseConfig, parseContext } from './validate.js';
 
 export const defaultContext: SpecimenContext = {
@@ -18,24 +19,91 @@ export interface LoadedConfig {
 	root: string;
 	file: string;
 	config: BenchConfig;
+	/** Native specimens and discovered stories, in that order. */
+	entries: SpecimenEntry[];
 	modules: Record<string, string>;
 	digest: string;
+	/** CSF compatibility mode: what discovery found, including its problems. */
+	stories?: { discovery: Discovery; preview?: string };
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
+/**
+ * What the page bundles: native specimens. Retained stories are listed and validated; their
+ * runtime is the next compatibility step, so their modules are not bundled yet.
+ */
+export function renderable(config: LoadedConfig): {
+	entries: SpecimenEntry[];
+	modules: Record<string, string>;
+} {
+	const entries = config.entries.filter((entry) => !entry.story);
+	return {
+		entries,
+		modules: Object.fromEntries(
+			entries.map((entry) => [entry.id, config.modules[entry.id] as string])
+		),
+	};
+}
+
+function inside(root: string, path: string, label: string): string {
+	const relativePath = relative(root, path);
+	if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath))
+		throw new Error(`Specimen module escapes the configured root: ${label}`);
+	return path;
+}
+
 export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 	const root = await realpath(options.root);
 	const file = resolve(root, options.configFile ?? 'specimen.config.json');
 	const text = await readFile(file, 'utf8');
 	const config = parseConfig(JSON.parse(text));
 	const modules: Record<string, string> = {};
-	for (const entry of config.specimens) {
+	const entries: SpecimenEntry[] = [];
+	for (const entry of config.specimens ?? []) {
 		if (Object.hasOwn(modules, entry.id)) throw new Error(`Duplicate specimen id: ${entry.id}`);
-		const modulePath = await realpath(resolve(dirname(file), entry.module));
-		const relativePath = relative(root, modulePath);
-		if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath))
-			throw new Error(`Specimen module escapes the configured root: ${entry.module}`);
-		modules[entry.id] = modulePath;
+		modules[entry.id] = inside(
+			root,
+			await realpath(resolve(dirname(file), entry.module)),
+			entry.module
+		);
+		entries.push(entry);
 	}
-	return { root, file, config, modules, digest: digest(text) };
+	let stories: LoadedConfig['stories'];
+	if (config.stories) {
+		const discovery = await discoverStories(root, dirname(file), config);
+		for (const entry of discovery.entries) {
+			if (Object.hasOwn(modules, entry.id)) {
+				discovery.errors.push({
+					importPath: entry.module,
+					exportName: entry.exportName,
+					code: 'DUPLICATE_ID',
+					message: `Duplicate specimen id '${entry.id}': a native specimen and ${entry.module}#${entry.exportName}`,
+				});
+				continue;
+			}
+			modules[entry.id] = inside(root, resolve(root, entry.module), entry.module);
+			entries.push(entry);
+		}
+		stories = {
+			discovery,
+			...(config.preview === undefined
+				? {}
+				: {
+						preview: inside(
+							root,
+							await realpath(resolve(dirname(file), config.preview)),
+							config.preview
+						),
+					}),
+		};
+	}
+	return {
+		root,
+		file,
+		config,
+		entries,
+		modules,
+		digest: digest(text),
+		...(stories ? { stories } : {}),
+	};
 }

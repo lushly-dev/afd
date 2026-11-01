@@ -16,8 +16,25 @@ import { z } from 'zod';
 
 export { buildOutputSchema, contextSchema, observationSchema } from '@lushly-dev/specimen/schema';
 
-import type { CaptureRequest, Observation, SpecimenEntry } from '@lushly-dev/specimen/types';
+import type {
+	CaptureRequest,
+	Observation,
+	SpecimenEntry,
+	ValidationReport,
+	ValidationTarget,
+} from '@lushly-dev/specimen/types';
 
+const storySchema = z
+	.object({
+		name: z.string(),
+		tags: z.array(z.string()),
+		play: z.enum(['present', 'absent', 'unknown']),
+		unresolved: z.array(
+			z.object({ level: z.enum(['meta', 'story']), field: z.string(), reason: z.string() }).strict()
+		),
+		annotations: z.object({ meta: z.array(z.string()), story: z.array(z.string()) }).strict(),
+	})
+	.strict();
 const entrySchema = z
 	.object({
 		id: z.string(),
@@ -25,6 +42,31 @@ const entrySchema = z
 		module: z.string(),
 		exportName: z.string(),
 		component: z.string().optional(),
+		story: storySchema.optional(),
+	})
+	.strict();
+const validateInput = z
+	.object({ id: z.string().min(1).optional(), file: z.string().min(1).optional() })
+	.strict();
+const validateOutput = z
+	.object({
+		valid: z.boolean(),
+		scope: z.literal('static'),
+		checked: z.number().int().nonnegative(),
+		issues: z.array(
+			z
+				.object({
+					severity: z.enum(['error', 'warning', 'deferred']),
+					code: z.string(),
+					message: z.string(),
+					suggestion: z.string(),
+					id: z.string().optional(),
+					importPath: z.string().optional(),
+					exportName: z.string().optional(),
+					field: z.string().optional(),
+				})
+				.strict()
+		),
 	})
 	.strict();
 const renderInput = captureRequestSchema;
@@ -57,6 +99,7 @@ const diffOutput = z
 /** The command layer requires only these bench operations, allowing transport tests without a browser. */
 export interface SpecimenCommandBench {
 	list(): SpecimenEntry[];
+	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
 }
@@ -125,6 +168,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Check the specimen configuration and try specimen-list again.'
 			),
 	});
+	const validate = defineCommand({
+		...common,
+		name: 'specimen-validate',
+		description:
+			'Validate retained stories statically: identity, format and annotation support, with what only running them can settle',
+		mutation: false,
+		input: validateInput,
+		output: validateOutput,
+		handler: async (input) =>
+			result(
+				() => bench.validate(input),
+				validateOutput,
+				'SPECIMEN_VALIDATE_FAILED',
+				'Check the specimen configuration and stories specifiers, then validate again.'
+			),
+	});
 	const render = defineCommand({
 		...common,
 		name: 'specimen-render',
@@ -156,7 +215,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
-	return [list, render, diff, build] as const;
+	return [list, render, diff, build, validate] as const;
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -179,7 +238,7 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build] = createSpecimenCommands(bench);
+	const [list, render, diff, build, validate] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
 			return execute(list, input);
@@ -189,11 +248,13 @@ export async function executeSpecimenCommand(
 			return execute(diff, input);
 		case 'specimen-build':
 			return execute(build, input);
+		case 'specimen-validate':
+			return execute(validate, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
-				suggestion: 'Use specimen list, render, diff, or build.',
+				suggestion: 'Use specimen list, validate, render, diff, or build.',
 			});
 	}
 }
