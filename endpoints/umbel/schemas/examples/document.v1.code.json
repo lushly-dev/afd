@@ -1,0 +1,58 @@
+{
+	"version": 1,
+	"id": "code/src/lib.rs",
+	"space": "main",
+	"collection": "code",
+	"path": "src/lib.rs",
+	"rev": 1842,
+	"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+	"frontmatter": {},
+	"type": "code",
+	"title": "src/lib.rs",
+	"description": null,
+	"tags": [],
+	"aliases": [],
+	"owners": [],
+	"status": "stable",
+	"staleAfter": null,
+	"supersededBy": null,
+	"verification": {
+		"tier": "unverified",
+		"last": null,
+		"count": 0
+	},
+	"access": ["group:platform"],
+	"sensitivity": "confidential",
+	"flags": ["instruction-like", "type-defaulted"],
+	"size": 15,
+	"lines": 1,
+	"envelope": {
+		"version": 1,
+		"origin": "document-derived",
+		"space": "main",
+		"plugin": "sources-filesystem",
+		"agent": null,
+		"principal": "human:local",
+		"session": null,
+		"traceId": "c0f3a1d2e4b5968778695a4b3c2d1e0f",
+		"observedAt": "2026-11-02T10:15:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null,
+		"sources": [
+			{
+				"resource": "/handbook/deploy/rollback"
+			}
+		],
+		"generated": {
+			"by": "human:ada",
+			"at": "2026-10-30T09:00:00+00:00"
+		},
+		"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+		"derivedFrom": null,
+		"access": ["space"],
+		"sensitivity": "internal"
+	},
+	"bytes": "ZnVuIG1haW4oKSB7fQo="
+}

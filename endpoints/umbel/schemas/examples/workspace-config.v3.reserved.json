@@ -1,0 +1,21 @@
+{
+	"config_version": 3,
+	"spaces": {
+		"main": {
+			"backend": "embedded"
+		}
+	},
+	"events": {
+		"retention": "forever"
+	},
+	"plugins": {
+		"enabled": ["hello"],
+		"hello": {
+			"grants": {
+				"http": {
+					"allow": ["example.com"]
+				}
+			}
+		}
+	}
+}

@@ -17,8 +17,8 @@ use serde_json::{Value, json};
 
 use crate::plugins::CompiledCatalog;
 use crate::workspace::{
-    ConfigFile, FoundBy, Layout, Located, SpaceId, WorkspaceError, codes, discover_from_process,
-    read_key, read_token, take_lock,
+    ConfigFile, FoundBy, Layout, Located, RootProblem, SpaceId, WorkspaceError, codes,
+    discover_from_process, read_key, read_token, resolve_root, take_lock,
 };
 
 /// The message of a check that needs a sealed host.
@@ -254,6 +254,7 @@ pub fn inspect_with_catalog(
     checks.push(config_keys(scan.as_ref()));
     let spaces = file.as_ref().map(ConfigFile::spaces);
     checks.push(spaces_valid(spaces.as_ref()));
+    checks.push(collections_roots(file.as_ref(), &located.root));
     let space_ids: Vec<SpaceId> = match &spaces {
         Some(Ok((spaces, _))) => spaces.iter().map(|space| space.id.clone()).collect(),
         _ => Vec::new(),
@@ -329,7 +330,7 @@ fn config_keys(scan: Option<&crate::workspace::KeyScan>) -> Check {
         return Check::fail(
             "config.keys",
             format!("Unknown keys: {}", scan.unknown.join(", ")),
-            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 and 2.",
+            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1, 2 and 3.",
         );
     }
     if !scan.reserved.is_empty() {
@@ -356,6 +357,52 @@ fn spaces_valid(spaces: Option<&SpaceRules>) -> Check {
             format!("{} space(s); default space {default}", spaces.len()),
         ),
     }
+}
+
+/// `collections.roots` (phase 2 specification, section 3.5): each declared collection root
+/// exists, is a directory and is inside the workspace.
+fn collections_roots(file: Option<&ConfigFile>, workspace: &Path) -> Check {
+    let Some(file) = file else {
+        return Check::skip("collections.roots", NEEDS_CONFIG);
+    };
+    let collections = match file.collections() {
+        Ok(collections) => collections,
+        Err(error) => {
+            return Check::skip(
+                "collections.roots",
+                &format!("The collections cannot be read: {}", error.message()),
+            );
+        }
+    };
+    if collections.is_empty() {
+        return Check::pass("collections.roots", "No collections are declared");
+    }
+    for (space, collection) in &collections {
+        let problem = match resolve_root(workspace, &collection.root) {
+            Ok(_) => continue,
+            Err(RootProblem::Missing) => "does not exist",
+            Err(RootProblem::NotADirectory) => "is not a directory",
+            Err(RootProblem::Outside) => "resolves outside the workspace",
+        };
+        return Check::fail(
+            "collections.roots",
+            format!(
+                "The root `{}` of collection `{}` in space `{space}` {problem}",
+                collection.root, collection.id
+            ),
+            &format!(
+                "Create the directory, or fix spaces.{space}.collections.{}.root in umbel.toml: a root is a directory inside the workspace.",
+                collection.id
+            ),
+        );
+    }
+    Check::pass(
+        "collections.roots",
+        format!(
+            "{} collection root(s) exist inside the workspace",
+            collections.len()
+        ),
+    )
 }
 
 /// Whether a file could be created at `path` (or, when its directories are missing, at the

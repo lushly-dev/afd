@@ -44,8 +44,8 @@ pub use loader::{ORIGIN_KEY, TRUST_NOTE};
 pub(crate) use manifest::to_json;
 pub use manifest::{
     Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect, Expose, GrantDecl,
-    MAX_COMPONENT_BYTES, Manifest, MountDecl, MountTool, PackDecl, PipelineDecl, PipelineStep,
-    PluginInfo, PluginKind, SchemaRef, SkillDecl, Transport,
+    MAX_COMPONENT_BYTES, Manifest, MountDecl, MountTool, OutputBudget, PackDecl, PipelineDecl,
+    PipelineStep, PluginInfo, PluginKind, SchemaRef, SkillDecl, Transport,
 };
 #[cfg(feature = "mounted")]
 pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
@@ -56,8 +56,10 @@ pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level};
 
-/// The manifest version this host reads (`manifest_version`).
-pub const MANIFEST_VERSION: u32 = 1;
+/// The newest manifest version this host reads (`manifest_version`).
+pub const MANIFEST_VERSION: u32 = 2;
+/// Every manifest version this host reads: version 2 is an addition within protocol 1 (D54).
+pub const MANIFEST_VERSIONS: &[u32] = &[1, 2];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.
@@ -69,7 +71,15 @@ pub const PACK_VERSION: u32 = 1;
 pub const MANIFEST_FILE: &str = "umbel-plugin.toml";
 
 /// First name segments the host owns: no plugin command or prefix may use one.
-pub const HOST_DOMAINS: &[&str] = &["workspace", "space", "event", "plugin", "skill", "afd"];
+pub const HOST_DOMAINS: &[&str] = &[
+    "workspace",
+    "space",
+    "event",
+    "plugin",
+    "skill",
+    "afd",
+    "store",
+];
 
 /// The grants phase 1 provides.
 pub const GRANTS: &[&str] = &["config", "log", "packs", "events", "clock", "random"];

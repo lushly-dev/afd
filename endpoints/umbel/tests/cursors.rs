@@ -72,7 +72,7 @@ async fn paging_with_limit_has_more_and_head() {
     assert_eq!(first["head"], "v0:main:5");
     assert_eq!(first["hasMore"], true);
     assert_eq!(first["acknowledged"], "v0:main:0", "cursor is not stored");
-    let validator = schema_validator("event.v0");
+    let validator = schema_validator("event.v1");
     for event in first["events"].as_array().unwrap() {
         assert_event_valid(&validator, event);
     }

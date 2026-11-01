@@ -1,0 +1,60 @@
+{
+	"manifest_version": 2,
+	"protocol": 1,
+	"plugin": {
+		"id": "hello",
+		"title": "Hello",
+		"version": "0.1.0",
+		"description": "One command, one pack, one skill: the reference plugin.",
+		"kind": "component",
+		"domains": ["hello"],
+		"homepage": "https://afd.dev/umbel",
+		"license": "MIT"
+	},
+	"component": {
+		"path": "hello.wasm"
+	},
+	"grants": [
+		{
+			"name": "config",
+			"reason": "Reads default_name."
+		},
+		{
+			"name": "packs",
+			"reason": "Reads the salutation."
+		},
+		{
+			"name": "clock",
+			"reason": "Wall time for the greeting."
+		},
+		{
+			"name": "random",
+			"reason": "Rust's standard library seeds hash maps from it."
+		},
+		{
+			"name": "log",
+			"reason": "Writes diagnostics."
+		}
+	],
+	"commands": [
+		{
+			"name": "hello-greet",
+			"description": "Greet someone.",
+			"effects": ["inspect"],
+			"input_schema": "schemas/hello-greet.input.json",
+			"returns": "schemas/hello-greet.output.json"
+		}
+	],
+	"packs": [
+		{
+			"id": "greetings",
+			"path": "packs/greetings"
+		}
+	],
+	"skills": [
+		{
+			"name": "hello-guide",
+			"path": "skills/hello-guide"
+		}
+	]
+}

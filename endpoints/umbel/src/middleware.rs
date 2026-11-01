@@ -12,6 +12,7 @@
 
 use crate::plugins::{GateEntry, PluginError, PluginKind};
 use crate::provenance::{PROVENANCE_KEY, supplied_fields};
+use crate::versions::EVENT_VERSION;
 use afd::{
     BoxFuture, CommandContext, CommandError, CommandMiddleware, CommandResult, MiddlewareNext,
     ResultMetadata, failure,
@@ -25,6 +26,12 @@ pub(crate) const SPACE_KEY: &str = "dev.umbel/space";
 /// `result.metadata` key: `true` on the successful result of a mutation that is projected into an
 /// event. Written only by the host.
 pub(crate) const MUTATION_KEY: &str = "dev.umbel/mutation";
+
+/// `result.metadata` key: the event version the host that journaled the call writes
+/// ([`EVENT_VERSION`]), on the successful result of a mutation that is projected into an event.
+/// Written only by the host: an entry without it was journaled before event version 1 and
+/// projects as version 0.
+pub(crate) const EVENT_VERSION_KEY: &str = "dev.umbel/event-version";
 
 /// `result.metadata` key: the plugin that answered, `{ "id", "kind" }`. Written only by the plugin
 /// gate.
@@ -63,9 +70,10 @@ fn remove(result: &mut CommandResult<Value>, key: &str) {
     }
 }
 
-/// The event stamp: `dev.umbel/mutation = true` on a successful result of a command declared
-/// `mutation: true` (other than [`UNPROJECTED_MUTATIONS`]), removed from every other result. A
-/// stamped result of a command with no `space` input also gets the default space.
+/// The event stamp: `dev.umbel/mutation = true` and `dev.umbel/event-version` on a successful
+/// result of a command declared `mutation: true` (other than [`UNPROJECTED_MUTATIONS`]), both
+/// removed from every other result. A stamped result of a command with no `space` input also
+/// gets the default space.
 pub(crate) fn event_stamp(
     mutations: HashSet<String>,
     with_space: Arc<HashSet<String>>,
@@ -85,11 +93,13 @@ pub(crate) fn event_stamp(
                 let mut result = next().await;
                 if stamped && result.success {
                     set(&mut result, MUTATION_KEY, Value::Bool(true));
+                    set(&mut result, EVENT_VERSION_KEY, Value::from(EVENT_VERSION));
                     if !has_space {
                         set(&mut result, SPACE_KEY, Value::String(default_space));
                     }
                 } else {
                     remove(&mut result, MUTATION_KEY);
+                    remove(&mut result, EVENT_VERSION_KEY);
                 }
                 result
             })

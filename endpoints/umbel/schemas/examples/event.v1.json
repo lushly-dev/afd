@@ -1,0 +1,46 @@
+{
+	"version": 1,
+	"id": "main:12",
+	"space": "main",
+	"seq": 12,
+	"cursor": "v0:main:12",
+	"journalSeq": 341,
+	"command": "sources-sync",
+	"timestamp": "2026-11-02T10:15:00.000Z",
+	"traceId": "c0f3a1d2e4b5968778695a4b3c2d1e0f",
+	"actor": {
+		"kind": "human",
+		"id": "local"
+	},
+	"record": {
+		"kind": "sync",
+		"id": "main:handbook",
+		"version": 1842
+	},
+	"changes": {
+		"fromRev": 1801,
+		"toRev": 1842,
+		"count": 38
+	},
+	"provenance": {
+		"version": 1,
+		"origin": "document-derived",
+		"space": "main",
+		"plugin": "sources-filesystem",
+		"agent": null,
+		"principal": "human:local",
+		"session": null,
+		"traceId": "c0f3a1d2e4b5968778695a4b3c2d1e0f",
+		"observedAt": "2026-11-02T10:15:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null,
+		"sources": null,
+		"generated": null,
+		"contentHash": null,
+		"derivedFrom": null,
+		"access": ["space"],
+		"sensitivity": "internal"
+	}
+}

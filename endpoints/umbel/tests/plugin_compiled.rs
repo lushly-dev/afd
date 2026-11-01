@@ -275,7 +275,10 @@ async fn a_results_provenance_keeps_only_the_fields_a_command_may_supply() {
     let provenance = &stream[0]["provenance"];
     assert_eq!(provenance["origin"], "user-stated");
     assert_eq!(provenance["space"], "main");
-    assert_eq!(provenance["principal"], json!(null));
+    // Version 1: the effective principal string, and the plugin the gate stamped.
+    assert_eq!(provenance["version"], 1);
+    assert_eq!(provenance["principal"], json!("agent:agent-1"));
+    assert_eq!(provenance["plugin"], "probe");
     assert_eq!(provenance["agent"]["id"], "agent-1");
     assert_ne!(provenance["traceId"], "forged");
     assert_ne!(provenance["observedAt"], "2000-01-01T00:00:00Z");

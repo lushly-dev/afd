@@ -23,7 +23,7 @@ fn seal_with_fixtures(dir: &std::path::Path) -> umbel::Host {
 async fn events_only_for_successful_mutations_in_the_right_stream() {
     let dir = two_spaces();
     let host = seal_with_fixtures(dir.path());
-    let validator = schema_validator("event.v0");
+    let validator = schema_validator("event.v1");
     let actor = agent("local");
 
     let first = call(&host, actor.clone(), "note-remember", json!({"text": "a"})).await;
@@ -88,7 +88,12 @@ async fn events_only_for_successful_mutations_in_the_right_stream() {
         main[0]["provenance"]["agent"],
         json!({"kind": "agent", "id": "local"})
     );
-    assert_eq!(main[0]["provenance"]["principal"], Value::Null);
+    assert_eq!(main[0]["version"], 1);
+    assert_eq!(main[0]["provenance"]["version"], 1);
+    assert_eq!(main[0]["provenance"]["principal"], "agent:local");
+    assert_eq!(main[0]["provenance"]["plugin"], Value::Null);
+    assert_eq!(main[0]["provenance"]["access"], json!(["space"]));
+    assert_eq!(main[0]["provenance"]["sensitivity"], "internal");
     assert_eq!(main[0]["provenance"]["traceId"], main[0]["traceId"]);
     assert_eq!(main[0]["provenance"]["observedAt"], main[0]["timestamp"]);
     assert_eq!(other[0]["id"], "second:1");
@@ -112,12 +117,13 @@ async fn record_and_provenance_come_from_the_result_metadata() {
     .await;
     assert!(result.success);
     let event = &events(dir.path(), "main")[0];
-    assert_event_valid(&schema_validator("event.v0"), event);
+    assert_event_valid(&schema_validator("event.v1"), event);
     let provenance = &event["provenance"];
     assert_eq!(provenance["origin"], "user-stated");
     assert_eq!(provenance["confidence"], 0.8);
     assert_eq!(provenance["session"], "s-9");
-    assert_eq!(provenance["principal"], "ada");
+    // Version 1: the person the call acted for, as a principal string.
+    assert_eq!(provenance["principal"], "human:ada");
     assert_eq!(provenance["validFrom"], Value::Null);
     assert_eq!(provenance["authority"], Value::Null);
 
@@ -133,7 +139,7 @@ async fn record_and_provenance_come_from_the_result_metadata() {
     let second = &events(dir.path(), "main")[1];
     assert_eq!(second["provenance"]["origin"], "unspecified");
     assert_eq!(second["provenance"]["confidence"], Value::Null);
-    assert_eq!(second["provenance"]["principal"], "grace");
+    assert_eq!(second["provenance"]["principal"], "human:grace");
     assert_eq!(second["provenance"]["agent"], Value::Null);
 }
 
@@ -145,7 +151,7 @@ async fn a_bare_execute_without_a_principal_is_still_projected() {
         .execute("note-remember", json!({"text": "x"}), None)
         .await;
     let event = &events(dir.path(), "main")[0];
-    assert_event_valid(&schema_validator("event.v0"), event);
+    assert_event_valid(&schema_validator("event.v1"), event);
     assert!(event.get("actor").is_none());
     assert!(event.get("traceId").is_none());
     assert_eq!(event["provenance"]["traceId"], Value::Null);
@@ -450,7 +456,7 @@ mod over_mcp {
     async fn mutations_over_mcp_are_journaled_and_projected_with_the_transports_actor() {
         let dir = minimal();
         let host = seal_with_fixtures(dir.path());
-        let validator = schema_validator("event.v0");
+        let validator = schema_validator("event.v1");
         for mut client in Client::lanes(&host).await {
             let label = client.label();
             let result = client
@@ -487,4 +493,156 @@ mod over_mcp {
             .collect();
         assert_eq!(ids, ["loopback", "local", "loopback", "local"]);
     }
+}
+
+// ── Event versions (phase 2 specification, section 2.2) ────────────────────────────────────────
+
+fn journal_line_with(seq: u64, metadata: Value) -> String {
+    json!({
+        "seq": seq,
+        "timestamp": "2026-11-02T10:15:00.000Z",
+        "command": "note-remember",
+        "input": {},
+        "contextDigest": { "hash": "sha256:00", "interface": "agent" },
+        "result": { "success": true, "data": {}, "metadata": metadata },
+        "durationMs": 1
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
+    let dir = minimal();
+    fs::create_dir_all(dir.path().join("state")).unwrap();
+    let old = json!({ "dev.umbel/mutation": true, "dev.umbel/space": "main" });
+    let new = json!({
+        "dev.umbel/mutation": true,
+        "dev.umbel/space": "main",
+        "dev.umbel/event-version": 1,
+        "dev.umbel/plugin": { "id": "notes", "kind": "compiled" },
+        "dev.umbel/record": { "kind": "sync", "id": "main:handbook", "version": 9 },
+        "dev.umbel/changes": { "fromRev": 5, "toRev": 9, "count": 3 },
+        "dev.umbel/provenance": {
+            "origin": "document-derived",
+            "access": ["space", "group:platform", "space"],
+            "sensitivity": "restricted",
+            "contentHash": format!("sha256:{}", "ab".repeat(32)),
+            "sources": [{ "resource": "/handbook/a" }],
+            "generated": { "by": "human:ada", "at": "2026-10-30T09:00:00+00:00" },
+            "derivedFrom": [{ "kind": "proposal", "id": "p-1", "contentHash": format!("sha256:{}", "cd".repeat(32)) }]
+        },
+    });
+    // Changes the stamp never set read as absent: a malformed range is dropped.
+    let malformed = json!({
+        "dev.umbel/mutation": true,
+        "dev.umbel/space": "main",
+        "dev.umbel/event-version": 1,
+        "dev.umbel/changes": { "fromRev": 9, "toRev": 5, "count": 3 },
+        "dev.umbel/provenance": { "access": ["nobody"], "sensitivity": "secret", "contentHash": "nope" },
+    });
+    let lines = [
+        journal_line_with(1, old),
+        journal_line_with(2, new),
+        journal_line_with(3, malformed),
+    ];
+    fs::write(
+        dir.path().join("state/journal.jsonl"),
+        lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    )
+    .unwrap();
+    // The marker says an event may be missing, so the first seal projects the journal.
+    fs::write(dir.path().join("state/projection.pending"), "").unwrap();
+    let host = seal_with_fixtures(dir.path());
+    // The host stamps what it journals from here on: version 1.
+    call(
+        &host,
+        agent("local"),
+        "note-remember",
+        json!({"text": "now"}),
+    )
+    .await;
+
+    let stream = events(dir.path(), "main");
+    assert_eq!(stream.len(), 4, "{stream:?}");
+    let (v0, v1) = (schema_validator("event.v0"), schema_validator("event.v1"));
+    assert_eq!(stream[0]["version"], 0);
+    assert_eq!(stream[0]["provenance"]["version"], 0);
+    assert!(stream[0].get("changes").is_none());
+    assert!(
+        stream[0]["provenance"].get("access").is_none(),
+        "no access is invented"
+    );
+    assert_event_valid(&v0, &stream[0]);
+
+    assert_eq!(stream[1]["version"], 1);
+    assert_event_valid(&v1, &stream[1]);
+    assert_eq!(
+        stream[1]["changes"],
+        json!({ "fromRev": 5, "toRev": 9, "count": 3 })
+    );
+    let provenance = &stream[1]["provenance"];
+    assert_eq!(provenance["plugin"], "notes");
+    assert_eq!(
+        provenance["access"],
+        json!(["group:platform", "space"]),
+        "sorted, deduplicated"
+    );
+    assert_eq!(provenance["sensitivity"], "restricted");
+    assert_eq!(
+        provenance["contentHash"],
+        format!("sha256:{}", "ab".repeat(32))
+    );
+    assert_eq!(
+        provenance["sources"],
+        json!([{ "resource": "/handbook/a" }])
+    );
+    assert_eq!(provenance["generated"]["by"], "human:ada");
+    assert_eq!(provenance["derivedFrom"][0]["id"], "p-1");
+    assert_eq!(provenance["origin"], "document-derived");
+
+    // Values that are not of the documented shape read as absent, and the defaults apply.
+    assert_eq!(stream[2]["version"], 1);
+    assert_event_valid(&v1, &stream[2]);
+    assert!(stream[2].get("changes").is_none());
+    assert_eq!(stream[2]["provenance"]["access"], json!(["space"]));
+    assert_eq!(stream[2]["provenance"]["sensitivity"], "internal");
+    assert_eq!(stream[2]["provenance"]["contentHash"], Value::Null);
+
+    assert_eq!(stream[3]["version"], 1);
+    assert_event_valid(&v1, &stream[3]);
+
+    // `event-rebuild` writes each in the version its journal entry supports, and event-list
+    // returns every line in its own version.
+    let rebuilt = host
+        .cli_client()
+        .call("event-rebuild", json!({}), None)
+        .await;
+    assert!(rebuilt.success, "{rebuilt:?}");
+    let again = events(dir.path(), "main");
+    assert_eq!(
+        again
+            .iter()
+            .map(|e| e["version"].clone())
+            .collect::<Vec<_>>(),
+        [json!(0), json!(1), json!(1), json!(1)]
+    );
+    let listed = call(
+        &host,
+        agent("local"),
+        "event-list",
+        json!({"space": "main"}),
+    )
+    .await;
+    let listed = listed.data.unwrap();
+    let versions: Vec<_> = listed["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["version"].clone())
+        .collect();
+    assert_eq!(
+        versions,
+        [json!(0), json!(1), json!(1), json!(1)],
+        "{listed}"
+    );
 }

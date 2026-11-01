@@ -1,0 +1,354 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/proposal.v1.json",
+	"title": "Umbel proposal record, version 1",
+	"description": "A change to the knowledge base, proposed and then decided (D62, D17): a record of kind proposal in the knowledge instance's namespace, in the target's space. The knowledge base changes only by proposal (principle 8); phase 4's curator is one more proposer.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"idempotencyKey",
+		"changeHash",
+		"space",
+		"area",
+		"state",
+		"change",
+		"diff",
+		"rationale",
+		"evidence",
+		"provenance",
+		"policy",
+		"exception",
+		"proposer",
+		"confidence",
+		"decision",
+		"result",
+		"flags",
+		"createdAt",
+		"updatedAt"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "p- and the first 20 hex of SHA-256 of <space>\\0<proposer actor string>\\0<idempotency_key>.",
+			"type": "string",
+			"pattern": "^p-[0-9a-f]{20}$"
+		},
+		"idempotencyKey": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+		},
+		"changeHash": {
+			"description": "sha256 of the canonical JSON of change, rationale and evidence.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"area": {
+			"description": "The area id that governs the target (phase 2 section 9.2).",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"state": {
+			"enum": ["pending", "approved", "applied", "rejected", "withdrawn"]
+		},
+		"change": {
+			"type": "object",
+			"required": ["op", "doc", "baseHash"],
+			"additionalProperties": false,
+			"properties": {
+				"op": {
+					"enum": ["create", "update", "deprecate", "verify"]
+				},
+				"doc": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"baseHash": {
+					"description": "null only for create.",
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^sha256:[0-9a-f]{64}$"
+						}
+					]
+				},
+				"content": {
+					"description": "The whole new file, for create and update, at most max_file_bytes.",
+					"type": "string"
+				},
+				"supersededBy": {
+					"type": "string",
+					"minLength": 1
+				},
+				"verification": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"note": {
+							"type": "string"
+						},
+						"staleAfter": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"op": {
+								"const": "create"
+							}
+						},
+						"required": ["op"]
+					},
+					"then": {
+						"properties": {
+							"baseHash": {
+								"type": "null"
+							}
+						},
+						"required": ["content"]
+					},
+					"else": {
+						"properties": {
+							"baseHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"op": {
+								"const": "update"
+							}
+						},
+						"required": ["op"]
+					},
+					"then": {
+						"required": ["content"]
+					}
+				}
+			]
+		},
+		"diff": {
+			"description": "A unified diff (3 lines of context) computed at submission; for deprecate and verify, the frontmatter change the apply step will write.",
+			"type": "string"
+		},
+		"rationale": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4000
+		},
+		"evidence": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "object",
+				"required": ["kind", "ref"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"enum": ["document", "url", "text", "record"]
+					},
+					"ref": {
+						"type": "string",
+						"minLength": 1
+					},
+					"contentHash": {
+						"type": "string",
+						"pattern": "^sha256:[0-9a-f]{64}$"
+					},
+					"excerpt": {
+						"type": "string",
+						"maxLength": 1000
+					}
+				}
+			}
+		},
+		"provenance": {
+			"$ref": "provenance-envelope.v1.json"
+		},
+		"policy": {
+			"type": "object",
+			"required": ["area", "version", "rule"],
+			"additionalProperties": false,
+			"properties": {
+				"area": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				},
+				"version": {
+					"description": "sha256 of the canonical JSON of the area's policy.",
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				},
+				"rule": {
+					"description": "Phase 4 adds deterministic rules.",
+					"const": "person"
+				}
+			}
+		},
+		"exception": {
+			"enum": [null, "self-approval"]
+		},
+		"proposer": {
+			"type": "object",
+			"required": ["actor", "principal"],
+			"additionalProperties": false,
+			"properties": {
+				"actor": {
+					"$ref": "#/$defs/actor"
+				},
+				"principal": {
+					"$ref": "#/$defs/principal"
+				},
+				"run": {
+					"type": "string",
+					"maxLength": 128
+				}
+			}
+		},
+		"confidence": {
+			"type": ["number", "null"],
+			"minimum": 0,
+			"maximum": 1
+		},
+		"decision": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["by", "principal", "at", "traceId", "proposerKind"],
+					"additionalProperties": false,
+					"properties": {
+						"by": {
+							"$ref": "#/$defs/actor"
+						},
+						"principal": {
+							"$ref": "#/$defs/principal"
+						},
+						"at": {
+							"type": "string",
+							"minLength": 1
+						},
+						"reason": {
+							"type": "string",
+							"maxLength": 2000
+						},
+						"traceId": {
+							"type": "string",
+							"minLength": 1
+						},
+						"proposerKind": {
+							"enum": ["human", "agent", "service", "script", "test"]
+						}
+					}
+				}
+			]
+		},
+		"result": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["rev", "contentHash", "path"],
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"contentHash": {
+							"type": "string",
+							"pattern": "^sha256:[0-9a-f]{64}$"
+						},
+						"path": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["error"],
+					"additionalProperties": false,
+					"properties": {
+						"error": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				}
+			]
+		},
+		"flags": {
+			"description": "The write scan's flags on the proposed content.",
+			"type": "array",
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9-]*$"
+			}
+		},
+		"createdAt": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601, from the command context's clock."
+		},
+		"updatedAt": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601, from the command context's clock."
+		}
+	},
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"principal": {
+			"description": "<kind>:<id>: kind is human, agent, service or script; the id is 1 to 128 characters without a control character.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		}
+	}
+}

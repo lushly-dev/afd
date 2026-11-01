@@ -1,0 +1,141 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/eval-queries.v1.json",
+	"title": "Umbel eval query set, version 1",
+	"description": "One line of an eval query set in JSON Lines (D65): spaces/<space>/eval/queries.jsonl, or the seeded fixture's eval/queries.jsonl. Grades are 2 (the answer) and 1 (bridges and passing mentions). recall, nDCG and MRR count the answerable kinds; unanswerable queries count only toward the unanswerable rate and permission probes only toward leaks.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"kind",
+		"query",
+		"spaces",
+		"principal",
+		"filters",
+		"qrels",
+		"unanswerable"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^q-[0-9]{4,}$"
+		},
+		"kind": {
+			"enum": [
+				"exact",
+				"alias",
+				"phrase",
+				"field",
+				"multi-hop",
+				"cross-space",
+				"unanswerable",
+				"permission"
+			]
+		},
+		"query": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024
+		},
+		"spaces": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 8,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9-]{0,62}$"
+			}
+		},
+		"principal": {
+			"description": "<kind>:<id>: kind is human, agent, service or script; the id is 1 to 128 characters without a control character.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"filters": {
+			"description": "knowledge-search's filters (phase 2 section 8.2).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"collection": {
+					"type": "string"
+				},
+				"type": {
+					"type": "string"
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"status": {
+					"enum": ["draft", "stable", "deprecated"]
+				},
+				"verified": {
+					"type": "array",
+					"items": {
+						"enum": ["unverified", "machine", "human", "owner"]
+					}
+				},
+				"sensitivity": {
+					"enum": ["public", "internal", "confidential", "restricted"]
+				},
+				"updatedAfter": {
+					"type": "string"
+				},
+				"include_deprecated": {
+					"type": "boolean"
+				}
+			}
+		},
+		"qrels": {
+			"description": "<space>:<document id> to grade. For a permission probe, the restricted answers a member would receive.",
+			"type": "object",
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]{0,62}:.+$"
+			},
+			"additionalProperties": {
+				"type": "integer",
+				"minimum": 1,
+				"maximum": 2
+			}
+		},
+		"unanswerable": {
+			"type": "boolean"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "unanswerable"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"properties": {
+					"unanswerable": {
+						"const": true
+					},
+					"qrels": {
+						"maxProperties": 0
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"unanswerable": {
+						"const": false
+					}
+				}
+			}
+		}
+	]
+}

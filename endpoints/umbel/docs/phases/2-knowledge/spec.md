@@ -53,9 +53,13 @@
   [`spec/output-budgets.json`](../../../../../spec/output-budgets.json), verified
   against `main` at `e996aad1` (the four languages' engines read, MCP
   2026-07-28 checked, `pnpm check`, the alfred parity tests); see
-  [Amendments from step 0a](#amendments-from-step-0a).
-- **Not done:** steps 0b to 10 of the [plan](#14-implementation-plan); the
-  exit criterion.
+  [Amendments from step 0a](#amendments-from-step-0a). **Step 1, shapes and
+  configuration**, 2026-11-01, in [632](https://github.com/lushly-dev/afd/pull/632)
+  (nine schemas with examples, configuration version 3, manifest version 2
+  parsing, envelope and event version 1); see [Amendments from step
+  1](#amendments-from-step-1).
+- **Not done:** steps 0b and 2 to 10 of the [plan](#14-implementation-plan);
+  the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
@@ -2010,6 +2014,23 @@ binding where it and section 14 differ.
 | 14 (0a), the journal | "Records the effective budget" | An optional entry field `outputBudget` (an integer) after `contextOmitted`; it joins the context digest only when present; replay restores it as the ask | Existing journals and the fixture keep their hashes |
 | 14 (0a), `meta-tools.json` | Unstated | Unchanged until every language accepts the key | TypeScript and Rust compare it byte for byte |
 | 14 (0a), streams | Unstated | Streamed chunks are not checked | No phase 2 command streams |
+
+## Amendments from step 1
+
+Step 1 ([632](https://github.com/lushly-dev/afd/pull/632)) read this
+specification against the code and made these smallest-correct changes.
+Everything else is built as written.
+
+| # | Where the text and the code disagreed | What step 1 did | Section |
+| --- | --- | --- | --- |
+| A1 | Section 2.2 rebuilds an entry "the phase 2 host journaled (it carries the version 1 envelope fields)" as version 1, but a command that supplies no provenance leaves nothing in its journal entry to tell a phase 2 entry from a phase 1 one | The event stamp (`event_stamp`, outermost middleware) writes the host-owned result key `dev.umbel/event-version = 1` beside `dev.umbel/mutation`; an entry without it projects as version 0, as it was first written. No plugin can set it: the gate strips every `dev.umbel/` key it does not name, and the stamp overwrites | 2.2 |
+| A2 | Section 2.2 says the host "refuses a version 1 event without `access`" for knowledge mutations, but every other mutation (`todo-create`, a mounted tool, a test fixture) also becomes a version 1 event, and a plugin that is not a store writer supplies no access set | A version 1 event whose command supplied no valid `access` carries `["space"]`, and `sensitivity` `internal`: readable by everyone who may read the space, as a collection's defaults are. The refusal itself (`STORE_PROVENANCE_REQUIRED`) belongs to the store write in step 4; an invalid supplied value reads as absent, as version 0's fields do, and the journal is read through the same shape check again when the event is projected | 2.1, 2.2 |
+| A3 | Section 3.3 rule 6 has the plugin gate set `dev.umbel/changes` in step 4; the projection that reads it is step 1 | `Event::from_entry` reads `dev.umbel/changes` from the entry's result when the entry is version 1 and drops a value that is not `{ fromRev, toRev, count }` with `1 ≤ fromRev ≤ toRev` and `count ≥ 1`. Nothing sets the key yet, and the gate still strips a plugin-supplied one | 2.2, 3.3 |
+| A4 | Section 4.1 validates a root's canonical path "at open", but a root that does not exist yet has none, and the doctor's `collections.roots` is defined as the check that it exists | At open a root is checked lexically (relative, `/` separators, no `..`, not the workspace itself, not under `state/`, not overlapping another root of its space) and, **when it exists**, by its canonical path (inside the canonical workspace, not overlapping another resolved root). A missing root opens and `collections.roots` fails it, naming the collection and what is wrong (missing, not a directory, outside the workspace) | 4.1, 3.5 |
+| A5 | Section 3.4 lets a mounted plugin's `[[mount.tools]]` name `effects` from the manifest's catalog, and version 2's catalog adds `store-write` and `workspace-write` | A mounted tool may not name either, in any manifest version: it holds no grants, so neither could be satisfied. Version 1 manifests refuse both effects and version 2's two command keys with a message naming `manifest_version = 2` | 3.4 |
+| A6 | Section 3.3 makes `store` a host domain without saying which schemas change | `store` joins `HOST_DOMAINS`, so a command or mount prefix `store-` is `PLUGIN_MANIFEST_INVALID` in manifest versions 1 and 2 alike, and a prefix `store` is refused by the host in configuration versions 2 and 3 alike. Only the version 2 manifest schema and the version 3 configuration schema list it; the shipped version 1 and 2 files stay as they were | 3.5 |
+| A7 | Section 2 names the shapes but fixes only some of their fields | The schemas fix the rest: `document.v1.json` carries `bytes` as base64 and is absent from `knowledge-describe` output; its `description`, `staleAfter` and `supersededBy` are required and nullable; `eval-report.v1.json` has `corpusDigest`, `indexApplied`, `rankingDigest`, `hostVersion`, `queries` (counts), `metrics` (`overall` and `byKind`, each with `on` and `off`), `unanswerable`, `leaks`, `latency` and `results` (per query, per expansion setting); `eval-queries.v1.json` ties `unanswerable` to the kind `unanswerable` and empty `qrels`; `proposal.v1.json` requires `baseHash: null` and `content` for `create`, a hash for every other op, and `content` for `update` | 5.4, 9.1, 10.2, 10.3 |
+| A8 | Section 2 says `workspace-show`'s `store`, `document`, `locator` and `proposal` versions are 1; the crate that owns the store traits version is step 2's | The four constants live in the host's `versions.rs` until `umbel-store` exists; step 2 makes `umbel-store` own `STORE_TRAITS_VERSION` and the host re-export it | 2 |
 
 ## Follow-ups
 

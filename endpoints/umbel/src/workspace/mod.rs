@@ -1,6 +1,7 @@
 //! The workspace: discovery, `umbel.toml`, the directory layout, race-safe keys and the
 //! workspace lock (phase 0 specification, section 2).
 
+mod access;
 mod config;
 mod discovery;
 mod error;
@@ -16,10 +17,14 @@ use std::time::Duration;
 
 use afd::{FileJournalSink, JournalFileLock, JournalLockError};
 
+pub use access::{AccessToken, PRINCIPAL_KINDS, ReaderEntry, check_member, parse_principal};
 pub use config::{
-    CONFIG_VERSION, Config, ConfigFile, Confirmations, HttpConfig, JournalConfig, KeyScan,
-    LogConfig, LogFormat, McpConfig, Overrides, PrincipalConfig, SpaceConfig,
+    AccessConfig, AccessGroup, CONFIG_VERSION, CollectionConfig, CollectionKind, Config,
+    ConfigFile, Confirmations, DEFAULT_MAX_FILE_BYTES, DEFAULT_STORE_LOCK_TIMEOUT_MS, HttpConfig,
+    JournalConfig, KeyScan, LogConfig, LogFormat, McpConfig, Overrides, PrincipalConfig,
+    SpaceConfig, StoreConfig,
 };
+pub(crate) use config::{RootProblem, resolve_root};
 pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_process};
 pub use error::{WorkspaceError, codes};
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
@@ -84,7 +89,7 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 2` and, when given, `name`; `spaces/main/`; `state/` with the keys and a
+    /// `config_version = 3` and, when given, `name`; `spaces/main/`; `state/` with the keys and a
     /// `.gitignore` of `*`.
     ///
     /// # Errors

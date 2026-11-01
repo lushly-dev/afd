@@ -1,0 +1,128 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/event.v1.json",
+	"title": "Umbel event, version 1",
+	"description": "One line of state/spaces/<space>/events.jsonl: a projection of one journal entry. Version 1 carries a provenance envelope version 1 and an optional changes range: the lowest and highest store revision the call wrote and how many it wrote. Lines written as version 0 stay as written; a consumer accepts both. A new envelope version needs a new event version.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"space",
+		"seq",
+		"cursor",
+		"journalSeq",
+		"command",
+		"timestamp",
+		"record",
+		"provenance"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "<space>:<seq>, unique in the deployment.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}:[1-9][0-9]*$"
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"seq": {
+			"description": "Per space, from 1, increasing by 1.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"cursor": {
+			"description": "The cursor that resumes after this event.",
+			"$ref": "cursor.v0.json"
+		},
+		"journalSeq": {
+			"description": "The journal entry's seq.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"command": {
+			"type": "string",
+			"minLength": 1
+		},
+		"timestamp": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601"
+		},
+		"traceId": {
+			"type": "string"
+		},
+		"actor": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"record": {
+			"description": "The record the command named in result.metadata[\"dev.umbel/record\"], or null.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["kind", "id"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"type": "string",
+							"minLength": 1
+						},
+						"id": {
+							"type": "string",
+							"minLength": 1
+						},
+						"version": {
+							"type": ["integer", "string"]
+						}
+					}
+				}
+			]
+		},
+		"provenance": {
+			"$ref": "provenance-envelope.v1.json"
+		},
+		"changes": {
+			"description": "The store revisions this call wrote. Other processes may write between fromRev and toRev, so toRev - fromRev + 1 can exceed count.",
+			"type": "object",
+			"required": ["fromRev", "toRev", "count"],
+			"additionalProperties": false,
+			"properties": {
+				"fromRev": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"toRev": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"count": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		}
+	}
+}
