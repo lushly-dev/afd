@@ -53,8 +53,8 @@ identifies the field. Nothing else does: `color.field.background` is
 and `shadow.control` is a soft drop shadow (at most 0.09 alpha in light), not
 an edge.
 
-The change, for the theme and the components together (a follow-up in the
-phase 0 specification):
+The change, for the theme and the components together (landed in #645;
+see below):
 
 | Id | Light (`loam`) | Dark (`loam/dark`) | High contrast (`loam/high-contrast`) |
 |----|----------------|--------------------|--------------------------------------|
@@ -117,3 +117,24 @@ between inline parts. Insets from `space.layout.sm` and `space.layout.md`.
   step 7.
 - A font-family id, and a focus-width id components outside the chrome can
   read, for contract version 2.
+
+## 2026-11-01. The resting field border (#645)
+
+The values above landed, for the theme and the components together:
+
+- `color.field.border` aliases `color.border.strong` on `loam`;
+  `color.field.border.hover` is `rgba(28, 26, 13, 0.64)` on `loam` and
+  `rgba(255, 248, 235, 0.52)` on `loam/dark`; `color.field.border.invalid`
+  aliases `color.state.danger.text`. `loam/high-contrast` keeps its values by
+  overriding the resting border with `color.border.subtle` and the hover
+  border with `color.border.strong`.
+- `pairs.ts` holds the resting, hover and invalid borders on both field
+  backgrounds to 3:1 in every theme.
+- The eight field components draw the resting border from
+  `color.field.border` and the hover border from `color.field.border.hover`,
+  through `--_field-border` and `--_field-border-hover` in
+  `violetFieldTokenDefaults`, whose invalid fallback moved to the new light
+  value; the color picker's hex input reads `color.field.border` too, and
+  components that take `--_danger-border` from the field defaults follow the
+  new invalid border (the file upload's invalid drop zone among them). The
+  focus border is unchanged. Recorded in FAST-AF's provenance (D50).

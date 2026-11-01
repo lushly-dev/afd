@@ -83,7 +83,7 @@ const styles = css`
         min-block-size: var(--_target-size);
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: calc(var(--_space-stack-xs) + 2px);
-        border: 1px solid var(--_border-subtle);
+        border: 1px solid var(--_field-border);
         border-radius: var(--_radius-md);
         background: var(--_surface-page);
         color: inherit;
@@ -97,7 +97,7 @@ const styles = css`
     }
 
     .trigger:hover {
-        border-color: var(--color-field-border-hover, rgba(28, 26, 13, 0.48));
+        border-color: var(--_field-border-hover);
     }
 
     .trigger:focus-visible,
@@ -243,7 +243,7 @@ const styles = css`
         inline-size: 100%;
         min-block-size: calc(var(--_target-size) - 4px);
         padding-inline: max(var(--_space-inline-md), 0.75rem);
-        border: 1px solid var(--_border-subtle);
+        border: 1px solid var(--_field-border);
         border-radius: var(--_radius-md);
         background: var(--_surface-page);
         color: inherit;

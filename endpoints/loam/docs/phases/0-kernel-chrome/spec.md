@@ -23,7 +23,8 @@
   [section 8.1](#81-bundle-budget).
   Step 4 wrote the
   [design document](../../design.md), which holds the visual rules step 7
-  follows, and decided the resting field border (see
+  follows, and decided the resting field border, which
+  [#645](https://github.com/lushly-dev/afd/pull/645) changed in the theme and the components (see
   [Follow-ups](#follow-ups)).
   Step 3 recorded its decisions in section 2.4, under "Decided by step 3".
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
@@ -355,7 +356,8 @@ Decided by step 2 (2026-11-01):
   text or a fill), button fills, which their labels identify, or the resting
   field border to 3:1 (WCAG 1.4.11), so they keep today's values. High
   contrast holds all of them to 3:1. Step 4 decided that the resting field
-  border must meet 3:1 after all; the change is a follow-up (see
+  border must meet 3:1 after all; [#645](https://github.com/lushly-dev/afd/pull/645) made the change, and every theme
+  now holds the resting and invalid field borders to 3:1 (see
   [Follow-ups](#follow-ups)).
 - **High contrast** is a light scheme on neutral colors: white surfaces with
   `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
@@ -1426,7 +1428,8 @@ returned 18 findings. Each is addressed in the text above:
 | 2026-11-01 | Phase 0 specification | Specimen running axe itself, so the chrome's checks need no second harness | Open; not needed for phase 0 |
 | 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |
-| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Decided 2026-11-01 by step 4: it must meet 3:1, because nothing else identifies the field (its background is the page surface). The exact values are in the [design document's history](../../design.md#history): `color.field.border` aliases `color.border.strong` in light and dark (3.06:1 or more), `color.field.border.hover` becomes `rgba(28, 26, 13, 0.64)` and `rgba(255, 248, 235, 0.52)` in dark, `color.field.border.invalid` aliases `color.state.danger.text`, high contrast keeps today's values, `pairs.ts` holds the resting and invalid borders in every theme, and the eight field components draw their resting border from `color.field.border` instead of `color.border.subtle`. Open: one pull request for the theme and the components, with or after step 3 |
+| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Decided 2026-11-01 by step 4: it must meet 3:1, because nothing else identifies the field (its background is the page surface). The exact values are in the [design document's history](../../design.md#history): `color.field.border` aliases `color.border.strong` in light and dark (3.06:1 or more), `color.field.border.hover` becomes `rgba(28, 26, 13, 0.64)` and `rgba(255, 248, 235, 0.52)` in dark, `color.field.border.invalid` aliases `color.state.danger.text`, high contrast keeps today's values, `pairs.ts` holds the resting and invalid borders in every theme, and the eight field components draw their resting border from `color.field.border` instead of `color.border.subtle`. Done in [#645](https://github.com/lushly-dev/afd/pull/645): the theme and the eight components changed together, `pairs.ts` holds the resting, hover and invalid borders to 3:1 in every theme, and the edited FAST-AF files are in its provenance |
 | 2026-11-01 | Phase 0 step 5 | The kernel's esbuild browser bundle is 520,541 bytes against the 150,000-byte ceiling of 8.1, almost all Zod (section 8.1); step 7 decides how the budget holds before it adds `budget` | Open; step 7 |
 | 2026-11-01 | Phase 0 step 4 | WCAG 2.2's 2.5.7 asks for a single-pointer alternative to dragging a resize handle; section 7 gives the handle keyboard steps only, which do not count. Step 7 decides the pointer alternative and records it in the design document | Open |
 | 2026-11-01 | Phase 0 step 4 | Contract version 2 candidates: a font-family id (the chrome declares the shared components' stack until then) and a focus-width id that components outside the chrome can read (`shell.size.focus` is chrome-only) | Open; not needed for phase 0 |
+| 2026-11-01 | Resting field border ([#645](https://github.com/lushly-dev/afd/pull/645)) | Two field borders the step 4 decision did not cover still fall under 3:1 in light and dark. The eight field components' focus border mixes `color.focus.ring` 48% with `color.border.subtle` (about 1.8:1 in light), fainter than the new resting border, though the 2px focus ring around it meets 3:1; and other text inputs keep a `color.border.subtle` resting border: the search inputs in the data grid's pill, reference, persona and multi pickers, and the file upload's drop zone. Decide whether each draws from `color.field.border` and `color.field.border.focus` | Open |

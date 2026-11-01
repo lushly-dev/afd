@@ -12,6 +12,7 @@ import {
 	SHELL_TOKENS,
 	TARGET_IDS,
 	THEMES,
+	type ThemeName,
 	themeNode,
 } from './tree/index.js';
 
@@ -84,6 +85,19 @@ describe("Loam's Violet tree", () => {
 		expect(value(light, 'color.border.strong')).toBe('rgba(28, 26, 13, 0.48)');
 		expect(value(themeNode('dark'), 'color.surface.page')).toBe('#161713');
 		expect(value(themeNode('dark'), 'color.border.strong')).toBe('rgba(255, 248, 235, 0.37)');
+	});
+
+	it('gives the field borders the values the design document decided', () => {
+		const expected: Record<ThemeName, [string, string, string]> = {
+			light: ['rgba(28, 26, 13, 0.48)', 'rgba(28, 26, 13, 0.64)', '#B42318'],
+			dark: ['rgba(255, 248, 235, 0.37)', 'rgba(255, 248, 235, 0.52)', '#F5C7C2'],
+			'high-contrast': ['#595959', '#000000', '#A30000'],
+		};
+		for (const theme of THEMES)
+			for (const node of [themeNode(theme), compactNode(theme)])
+				expect(
+					['', '.hover', '.invalid'].map((suffix) => value(node, `color.field.border${suffix}`))
+				).toEqual(expected[theme]);
 	});
 
 	it('gives the shell its sizes, 3px focus in high contrast only', () => {

@@ -55,7 +55,7 @@ const styles = css`
         min-block-size: calc(var(--_target-size) * 2 + var(--_space-layout-sm));
         padding-inline: max(var(--_space-inline-md), calc(var(--_target-size) * 0.375));
         padding-block: calc(var(--_target-size) * 0.25);
-        border: 1px solid var(--_border-subtle);
+        border: 1px solid var(--_field-border);
         border-radius: var(--_radius-md);
         background: var(--_surface-page);
         color: var(--color-text-primary, #18181b);
@@ -92,7 +92,7 @@ const styles = css`
     }
 
     .control-frame:hover {
-        border-color: var(--color-field-border-hover, rgba(28, 26, 13, 0.48));
+        border-color: var(--_field-border-hover);
     }
 
     .control-frame:focus-within {
