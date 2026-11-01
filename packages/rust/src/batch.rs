@@ -183,7 +183,11 @@ pub struct BatchRequest<T = serde_json::Value> {
     )]
     pub options: Option<BatchOptions>,
 
-    /// Additional context for the batch (Rust extension; ignored by other hosts).
+    /// Additional context for the batch, which
+    /// [`CommandRegistry::execute_batch_with_context`](crate::CommandRegistry::execute_batch_with_context)
+    /// adds to each command's `CommandContext::extra` where the caller's context has no such
+    /// key (Rust extension, in process only; ignored by other hosts). The `afd-batch` MCP tool
+    /// ignores a `context` argument: over MCP, declared context fields come only from `_meta`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<HashMap<String, serde_json::Value>>,
 }

@@ -340,11 +340,16 @@ impl Call<'_> {
             );
         }
         let acknowledged = named(args.get("confirm").unwrap_or(&Value::Null));
-        let request: BatchRequest<Value> =
-            match serde_json::from_value(Value::Object(without_confirm(args))) {
-                Ok(request) => request,
-                Err(_) => return invalid(USAGE.to_owned(), None),
-            };
+        // `BatchRequest::context`, which the in-process batch API merges into each item's
+        // `extra`, is not an `afd-batch` argument (`spec/meta-tools.json`): declared context
+        // fields come only from `_meta` (`spec/context-fields.md`). So a `context` argument is
+        // ignored, like any other argument the tool does not declare.
+        let mut args = without_confirm(args);
+        args.remove("context");
+        let request: BatchRequest<Value> = match serde_json::from_value(Value::Object(args)) {
+            Ok(request) => request,
+            Err(_) => return invalid(USAGE.to_owned(), None),
+        };
         let steps: Vec<Step> = request
             .commands
             .iter()
