@@ -307,11 +307,11 @@
       "path": "botcore-connectors/uv.lock",
       "upstream_sha256": "4645ec86806de5308848216c363444eabcc27eabed54c025ae9f37dcdb1c2640",
       "staged_sha256": "4645ec86806de5308848216c363444eabcc27eabed54c025ae9f37dcdb1c2640",
-      "current_import_sha256": "4645ec86806de5308848216c363444eabcc27eabed54c025ae9f37dcdb1c2640",
+      "current_import_sha256": "dbdcdade7e35c08851efe7b0caae49235256593d0040c6c59a91baece6152bdc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Refresh dependencies within declared constraints"
     },
     {
       "path": "docs/architecture-eval.plan.md",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "99211483a1a53c40032b7b815fbb444fabced86bc3f6471b08dfa4e3c4deec68",
+      "current_import_sha256": "ae0921a21afe9522ffef31186f11ebacce5c35fc082f04f0269c6e80d9e47d44",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -5497,11 +5497,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "79ce2c2a210177e59b7519358a2dd412e84abd982b64037a197c1829dbb83d25",
+      "current_import_sha256": "d6bbeb6f8d0d5ee6e8199325455d226d27f74fe8f66f23bc69645aec187fe0b2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3 development dependencies"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     }
   ]
 }

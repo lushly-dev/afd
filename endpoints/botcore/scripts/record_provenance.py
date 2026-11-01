@@ -155,7 +155,10 @@ IMPORT_REASONS = {
     "src/botcore/skills/mcp-builder/references/troubleshooting.md": (
         "Describe schema failures model-neutrally; re-test before adding the execute fallback"
     ),
-    "uv.lock": ("Lock local AFD 0.10 and MCP 2.3 development dependencies"),
+    "uv.lock": (
+        "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
+    ),
+    "botcore-connectors/uv.lock": ("Refresh dependencies within declared constraints"),
 }
 
 
