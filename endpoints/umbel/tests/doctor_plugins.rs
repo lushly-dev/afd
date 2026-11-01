@@ -178,7 +178,8 @@ fn a_workspace_that_cannot_be_read_skips_every_plugin_check() {
 }
 
 #[test]
-fn a_sealed_host_has_no_loader_for_a_mounted_plugin_yet() {
+fn a_mounted_plugin_whose_server_does_not_start_fails_the_load_and_the_doctor_still_reads_its_files()
+ {
     let (_dir, root) = workspace(&config("[plugins]\nenabled = [\"hello\"]\n"));
     write(
         &root,
@@ -186,7 +187,13 @@ fn a_sealed_host_has_no_loader_for_a_mounted_plugin_yet() {
         &mounted("hello", ""),
     );
     let error = HostBuilder::open(&root).unwrap().seal().err().unwrap();
-    assert_eq!(error.code(), "PLUGIN_KIND_UNAVAILABLE");
+    // The mounted loader tries `bin/hello`, which is not there; a build without it has no loader.
+    let expected = if cfg!(feature = "mounted") {
+        "PLUGIN_LOAD_FAILED"
+    } else {
+        "PLUGIN_KIND_UNAVAILABLE"
+    };
+    assert_eq!(error.code(), expected);
     assert!(error.message().contains("hello"), "{error}");
     assert!(!error.suggestion().is_empty());
     // The doctor still reports the files.

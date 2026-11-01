@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
-| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration), 2a (loader core and compiled plugins) 2b (packs, suggestions, contexts, pipelines) and 3 (skills on three paths) done; steps 4 and 5 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611) | Steps 4 and 5 (which need 2a and may run in parallel) |
+| 1. Plugin contract | Specification approved and merged (2026-11-01); steps 0a (AFD spec, documents only), 0b (Rust resources and Skills), 1 (manifest and configuration), 2a (loader core and compiled plugins) 2b (packs, suggestions, contexts, pipelines), 3 (skills on three paths) and 5 (mounted loader, in review) done; step 4 next | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613) | Step 4 (needs 2a); step 6 needs 2b, 3 and 5 |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
@@ -215,7 +215,7 @@ should never have to scan the codebase to learn what is current.
 
 - **State:** specification approved by the owner (D24) and merged in
   [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff` on
-  2026-11-01; steps 0a, 0b, 1, 2a, 2b and 3 done the same day; step 4 is next.
+  2026-11-01; steps 0a, 0b, 1, 2a, 2b, 3 and 5 done the same day; step 4 is next.
   Last verified 2026-11-01 against `main` at `28ac8ffe`. (Superseded: "in
   review, revised, not approved", verified at `cdfbbfb7`.)
 - **Done:** the [specification](phases/1-plugin-contract/spec.md), in
@@ -309,7 +309,7 @@ should never have to scan the codebase to learn what is current.
   default features; todo conformance 34/34 legacy, 34/34 modern, 5/5 confirmations; `cargo test
   --locked --workspace` in `endpoints/umbel`. Seven amendments are in the specification's
   "Amendments from step 0b".
-- **Done:** step 2a, the loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610)): the load
+- **Done:** step 2a, the loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610), `07527f50`): the load
   sequence of section 6 for compiled plugins (`plugins/loader.rs`),
   `CompiledPlugin` and `HostBuilder::with_compiled` (through `cli::run`'s
   `configure` hook), `Services` and the grant gates, failure isolation per
@@ -375,7 +375,24 @@ should never have to scan the codebase to learn what is current.
   +1.97.0 check --locked --workspace --all-targets`; `pnpm check` and
   `umbel.yml` on the pull request. Amendments: the specification's
   "Amendments from step 3".
-- **Not done:** steps 4 to 8; the exit criterion.
+- **Done:** step 5, the mounted loader ([#613](https://github.com/lushly-dev/afd/pull/613)): rmcp's
+  client over a child process's stdio (own `tokio::process::Command` with `kill_on_drop` and a
+  cleared environment: `PATH`, the manifest's `env`, the instance's `env`) and Streamable HTTP with
+  rustls; `url` and `bearer_env` from the instance only; `Discover` at 2026-07-28 with an explicit
+  `Initialize` fallback at 2025-11-25 and no declared client capabilities; renaming with instance
+  prefixes, `[[mount.tools]]` overrides (`effects`, `bind_space`, `confirm_prompt`, `approval`),
+  advertised and stripped validation schemas through `register_with_schemas`, the load-time
+  `description-injection` scan (warnings in `plugin-show` and the doctor), result mapping, the
+  `max_result_bytes` limit enforced in a counting stdio reader and a bounded HTTP client, the
+  plugin gate's `recorded`/`external` stamps, respawn (3 in 60 s), `timeout_ms`/`connect_timeout_ms`,
+  HTTP mounts defaulting to `required = false`; `umbel-sdk`'s `mounted` feature (`serve_mounted`,
+  `mounted_server`), the `hello-mcp` binary and hello's `mounted.toml`; the test kit's
+  `instance_keys`. Tests: `plugin_mounted.rs` (30, including HTTPS against a local TLS server),
+  `mount_naming.rs`, unit tests of the reader and the result mapping; the injection rule's shared
+  vectors in `packages/testing`. Amendments: the specification's "Amendments from step 5".
+  **Verification gap:** the session ran out of disk (about 2.8 GB free) before the full checks;
+  see the pull request for what ran.
+- **Not done:** steps 4, 6 to 8; the exit criterion.
 - **Needs the owner:** nothing for step 4. O1 is unchanged.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
 
@@ -447,3 +464,4 @@ starts.
 | 2026-11-01 | Phase 1 step 2a | Loader core and compiled plugins ([#610](https://github.com/lushly-dev/afd/pull/610)): the load sequence, grant gates, plugin gate, `plugin-list` and `plugin-show`, `umbel-sdk`, `umbel-plugin-hello`, the `testkit` feature and its tests. Resumed from a partial branch left by an agent whose disk filled; reviewed against the specification, merged with `main` (step 0b), fixed the clippy findings the earlier session never compiled. Origin `_meta` stays with step 3 (the plan assigns it there). Six amendments in the specification |
 | 2026-11-01 | Phase 1 step 3 | Skills on three paths ([#611](https://github.com/lushly-dev/afd/pull/611)): validation through AFD's `SkillCatalog`, the host's MCP server serving every loaded skill on the Skills extension and as resources, `skill-list`, `skill-export` and the origin `_meta` on plugin tools; `SkillCatalog::entries()` made public in `packages/rust`. Seven amendments in the specification |
 | 2026-11-01 | Phase 1 step 2b | Packs and per-space overrides, first-class suggestions, plugin contexts (`build_server` before `install_middleware`) and pipelines as data with the confirmation union ([#612](https://github.com/lushly-dev/afd/pull/612)): `plugins/pipelines.rs`, `PackSet` in `plugins/packs.rs`, the loader preparing every instance before it registers any, `surfaces::first_class_plan`, the doctor's sealed `plugins.first_class` and `plugins.pipelines`, `TestHostBuilder::pack_override`. Step 3 (skills) ran in parallel in the same crate. Eleven spec amendments, mostly shapes the specification left open |
+| 2026-11-01 | Phase 1 step 5 | Mounted loader ([#613](https://github.com/lushly-dev/afd/pull/613)): rmcp client over stdio and Streamable HTTP with rustls, instance-only `url` and `bearer_env`, renaming, overrides, `bind_space`, advertised and validation schemas, the description scan, transport-level result limits, stamps, respawn, `hello-mcp`, the SDK's `mounted` feature and the tests. Written while another agent shared the disk; the session stopped under 4 GB free. Seven amendments in the specification |
