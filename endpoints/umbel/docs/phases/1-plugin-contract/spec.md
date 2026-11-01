@@ -91,7 +91,7 @@
 - **Step 2a done 2026-11-01** (PR_URL): the loader core and compiled
   plugins, as the step 2a row of the [plan](#14-implementation-plan) lists
   them. The amendments are in [Amendments from step 2a](#amendments-from-step-2a).
-- **Step 3 done 2026-11-01** (PR_URL_3): skills on three paths and the origin
+- **Step 3 done 2026-11-01** ([#611](https://github.com/lushly-dev/afd/pull/611)): skills on three paths and the origin
   `_meta` of plugin tools, as the step 3 row of the [plan](#14-implementation-plan)
   lists them. The amendments are in [Amendments from step 3](#amendments-from-step-3).
 - **Done:** this specification, approved and merged; steps 0a, 0b, 1, 2a and 3.
