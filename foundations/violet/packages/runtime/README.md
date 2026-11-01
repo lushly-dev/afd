@@ -44,7 +44,7 @@ await violet.load(); // no request; applies the tokens as custom properties
 await violet.switchNode('brand-light', { tokens: themes.nodes['brand-light'] });
 ```
 
-- A token needs an `id` and a `value`; `resolvedAt` defaults to the node the source was given for. The runtime copies the tokens, so later changes to your array do not reach it.
+- A token needs a non-empty `id` and a string, finite number or object `value`; `resolvedAt` defaults to the node the source was given for. The runtime copies the array and each token's top level, so adding, removing or replacing tokens in your array later does not reach it; nested values are shared.
 - `load()` applies the current source. `switchNode(nodeId, source)` takes the new node's tokens; without a source it can only reapply the node the runtime already holds. An HTTP runtime refuses a source.
 - Nothing is cached and `preload()` has nothing to do: `cacheEnabled` and `timeout` are ignored.
 - Give each `ThemeManager` theme its `source`, and the manager passes it to `switchNode`:

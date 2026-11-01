@@ -56,17 +56,19 @@ function sourceTokens(source: VioletTokenSource, nodeId: string): Token[] {
 		);
 	}
 	return source.tokens.map((token, index) => {
+		const value = token?.value;
 		const valid =
 			token !== null &&
 			typeof token === 'object' &&
 			typeof token.id === 'string' &&
 			token.id !== '' &&
-			(typeof token.value === 'string' ||
-				typeof token.value === 'number' ||
-				(token.value !== null && typeof token.value === 'object'));
+			(typeof value === 'string' ||
+				(typeof value === 'number' && Number.isFinite(value)) ||
+				(value !== null && typeof value === 'object' && !Array.isArray(value))) &&
+			(token.resolvedAt === undefined || typeof token.resolvedAt === 'string');
 		if (!valid) {
 			throw new Error(
-				`VioletRuntime: token ${index} in the source for "${nodeId}" needs a non-empty string id and a string, number or object value.`,
+				`VioletRuntime: token ${index} in the source for "${nodeId}" needs a non-empty string id, a string, finite number or object value, and a string resolvedAt if any.`,
 			);
 		}
 		return { ...token, resolvedAt: token.resolvedAt ?? nodeId };
@@ -135,9 +137,9 @@ export class VioletRuntime {
 			...DEFAULT_CONFIG,
 			...options,
 			apiKey: config.apiKey ?? '',
-			// A preloaded source is already in memory; a cached copy could only shadow it.
-			cacheEnabled: this.source === null && (config.cacheEnabled ?? DEFAULT_CONFIG.cacheEnabled),
 		};
+		// A preloaded source is already in memory; a cached copy could only shadow it.
+		if (this.source) this.config.cacheEnabled = false;
 		this.currentNodeId = config.nodeId;
 		this.cache = new TokenCache();
 	}

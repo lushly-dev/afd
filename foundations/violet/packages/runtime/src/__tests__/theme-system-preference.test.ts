@@ -40,8 +40,14 @@ function fakeMediaQuery(matches: boolean) {
 	return query;
 }
 
-/** Let fire-and-forget switch() calls (and their zero-length transition delay) settle. */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 5));
+/**
+ * Let fire-and-forget switch() calls (and their zero-length transition delay) settle.
+ * Each turn queues its timer behind any a switch has already queued, so the result
+ * depends on timer order, not on how fast the machine is.
+ */
+const settle = async () => {
+	for (let turn = 0; turn < 5; turn++) await new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 describe('ThemeManager.useSystemPreference()', () => {
 	let runtime: VioletRuntime;
@@ -245,6 +251,34 @@ describe('ThemeManager.useSystemPreference() with a high-contrast theme', () => 
 		system.contrast.change(true);
 		await settle();
 		expect(changes).toHaveBeenCalledTimes(4);
+	});
+
+	it('a quick contrast on and off ends on the color-scheme theme', async () => {
+		const system = fakeSystem({ dark: true });
+		manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+		await settle();
+		vi.mocked(runtime.switchNode).mockClear();
+
+		// Both changes land before the first switch commits.
+		system.contrast.change(true);
+		system.contrast.change(false);
+		await settle();
+
+		expect(vi.mocked(runtime.switchNode).mock.calls).toEqual([['brand-contrast'], ['brand-dark']]);
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-dark');
+	});
+
+	it('switches once when every query changes in the same frame', async () => {
+		const system = fakeSystem({});
+		manager.useSystemPreference('brand-light', 'brand-dark', 'brand-contrast');
+
+		system.forced.change(true);
+		system.contrast.change(true);
+		system.dark.change(true);
+		await settle();
+
+		expect(vi.mocked(runtime.switchNode).mock.calls).toEqual([['brand-contrast']]);
+		expect(manager.getCurrentTheme()?.nodeId).toBe('brand-contrast');
 	});
 
 	it('does not read the contrast queries without a high-contrast theme', async () => {

@@ -65,6 +65,8 @@ export class ThemeManager {
 	private listeners: Set<(theme: Theme) => void> = new Set();
 	/** Incremented by every apply()/switch(); only the latest request updates state. */
 	private requestSeq = 0;
+	/** Theme of the latest apply()/switch() while it is in flight, else null. */
+	private requestedTheme: string | null = null;
 	/** Number of in-flight transitions holding the transition class on <html>. */
 	private activeTransitions = 0;
 
@@ -136,12 +138,16 @@ export class ThemeManager {
 			throw new Error(`Theme not found: ${nodeId}`);
 		}
 
-		const seq = ++this.requestSeq;
+		const seq = this.begin(nodeId);
 
-		if (this.runtime.getCurrentNodeId() !== nodeId) {
-			await this.switchRuntime(theme);
-		} else {
-			await this.runtime.load();
+		try {
+			if (this.runtime.getCurrentNodeId() !== nodeId) {
+				await this.switchRuntime(theme);
+			} else {
+				await this.runtime.load();
+			}
+		} finally {
+			this.settle(seq);
 		}
 
 		// A newer apply()/switch() superseded this one: leave its state alone.
@@ -161,11 +167,13 @@ export class ThemeManager {
 			throw new Error(`Theme not found: ${nodeId}`);
 		}
 
-		if (this.currentTheme?.nodeId === nodeId) {
-			return; // Already on this theme
+		// Already on this theme, or already switching to it. Compared with the latest
+		// request, not the committed theme, so a quick A -> B -> A ends on A.
+		if ((this.requestedTheme ?? this.currentTheme?.nodeId) === nodeId) {
+			return;
 		}
 
-		const seq = ++this.requestSeq;
+		const seq = this.begin(nodeId);
 
 		// Add transition class (removed in `finally`, even if the switch fails)
 		if (typeof document !== 'undefined') {
@@ -184,6 +192,7 @@ export class ThemeManager {
 			if (this.activeTransitions === 0 && typeof document !== 'undefined') {
 				document.documentElement.classList.remove(this.transitionClass);
 			}
+			this.settle(seq);
 		}
 
 		// A newer apply()/switch() superseded this one: leave its state alone.
@@ -280,6 +289,21 @@ export class ThemeManager {
 				query.removeEventListener('change', handler);
 			}
 		};
+	}
+
+	/**
+	 * Start a request: it becomes the latest, and its theme the requested one.
+	 */
+	private begin(nodeId: string): number {
+		this.requestedTheme = nodeId;
+		return ++this.requestSeq;
+	}
+
+	/**
+	 * End a request, successful or not. Only the latest clears the requested theme.
+	 */
+	private settle(seq: number): void {
+		if (seq === this.requestSeq) this.requestedTheme = null;
 	}
 
 	/**

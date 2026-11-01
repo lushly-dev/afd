@@ -66,8 +66,17 @@ describe('VioletRuntime with a preloaded source', () => {
 			}
 		});
 
-		it('refuses a token without a string id or with an unusable value', () => {
-			const bad = [null, { value: '#fff' }, { id: '', value: '#fff' }, { id: 'a', value: null }];
+		it('refuses a token without a usable id, value or resolvedAt', () => {
+			const bad = [
+				null,
+				{ value: '#fff' },
+				{ id: '', value: '#fff' },
+				{ id: 'a', value: null },
+				{ id: 'a', value: Number.NaN },
+				{ id: 'a', value: Number.POSITIVE_INFINITY },
+				{ id: 'a', value: ['#fff'] },
+				{ id: 'a', value: '#fff', resolvedAt: 5 },
+			];
 			for (const token of bad) {
 				const source = { tokens: [DARK[0], token] } as unknown as VioletTokenSource;
 				expect(() => new VioletRuntime({ nodeId: 'loam/dark', source })).toThrow(
@@ -200,14 +209,37 @@ describe('VioletRuntime with a preloaded source', () => {
 		});
 
 		it('a refused switch does not supersede one in flight', async () => {
-			const runtime = new VioletRuntime({ nodeId: 'loam/dark', source: { tokens: DARK } });
+			let release!: () => void;
+			mockFetch.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						release = () =>
+							resolve({
+								ok: true,
+								json: () =>
+									Promise.resolve({
+										success: true,
+										data: {
+											tokens: [{ id: 'color.text', value: 'navy', resolvedAt: 'brand-dark' }],
+											nodeId: 'brand-dark',
+											ancestry: [],
+											tokenCount: 1,
+										},
+									}),
+							});
+					}),
+			);
+			const runtime = new VioletRuntime({ nodeId: 'brand', cacheEnabled: false });
 
-			const pending = runtime.switchNode('loam/light', { tokens: LIGHT });
-			await expect(runtime.switchNode('loam/hc')).rejects.toThrow(/needs a source/);
+			const pending = runtime.switchNode('brand-dark');
+			await expect(runtime.switchNode('brand-light', { tokens: LIGHT })).rejects.toThrow(
+				/loads over HTTP/,
+			);
+			release();
 			await pending;
 
-			expect(runtime.getCurrentNodeId()).toBe('loam/light');
-			expect(cssVar('--color-surface')).toBe('#ffffff');
+			expect(runtime.getCurrentNodeId()).toBe('brand-dark');
+			expect(cssVar('--color-text')).toBe('navy');
 		});
 
 		it('an HTTP runtime refuses a source and makes no request', async () => {
