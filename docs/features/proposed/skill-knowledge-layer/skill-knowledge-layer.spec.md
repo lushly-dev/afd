@@ -925,7 +925,7 @@ If a project later needs botcore-level skill management, the `CommandSkill` type
 - **Skill generation from schemas** — auto-generating skill docs from Zod schemas is a future enhancement
 - **Runtime skill routing** — this spec covers static skill docs; dynamic routing (which skill to show based on agent context) is a separate concern
 - **Skill versioning and migration** — semver in frontmatter is supported but version comparison logic is not implemented
-- **MCP resource exposure** — exposing skills as MCP Resources (rather than via a tool) is a possible future optimization. Resources would avoid tool-call overhead for read-only content, but tools provide better discoverability since agents already introspect the tool list.
+- **MCP resource exposure** — exposing skills as MCP Resources (rather than via a tool) is a possible future optimization. Resources would avoid tool-call overhead for read-only content, but tools provide better discoverability since agents already introspect the tool list. *Reconciled 2026-11-01:* AFD servers now serve Agent Skills over MCP (the Skills extension and resources) under [MCP resources and skills](../../active/mcp-resources-skills/mcp-resources-skills.proposal.md#reconciliation-with-the-skill-knowledge-layer) and [`spec/mcp-resources.md`](../../../../spec/mcp-resources.md#s8-command-skills-are-separate). Command skills stay a separate, local convention; if this layer is implemented, serving them as resources would reuse that spec's resource rules.
 - **Embedding/vector search** — semantic search over skill content is out of scope; the `skill-docs` command uses exact matching
 
 ---

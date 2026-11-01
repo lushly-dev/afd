@@ -62,9 +62,26 @@
   `rmcp` 3.8.0, its `reqwest` feature (the one that enables `reqwest/rustls`),
   `TokioChildProcess` (no `kill_on_drop` option) and
   `DEFAULT_AUTO_DISCOVER_TIMEOUT` (10 s).
-- **Done:** this specification, in review, revised.
-- **Not done:** approval; every step of the [plan](#14-implementation-plan);
-  the exit criterion.
+- **Approved 2026-11-01** by the owner (D24) and merged in
+  [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; the
+  state line above is kept as written and superseded by this one.
+- **Step 0a done 2026-11-01** (documents only): the AFD proposal
+  [MCP resources and skills](../../../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md),
+  approved under the owner's delegation of 2026-10-31 and placed in
+  `docs/features/active/` (not `proposed/`, as step 0a first said), with
+  [`spec/mcp-resources.md`](../../../../../spec/mcp-resources.md), its cases
+  in `spec/mcp-resources.json`, the `command-metadata.md`,
+  `protocol-conformance.md` and `CHANGELOG.md` amendments and parity rows
+  marked Planned. Verified against `main` at `880779ff`. It made the choices
+  this plan left open, listed in the proposal's
+  [choices](../../../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#choices-this-proposal-made);
+  one changes this document: a resource's digest goes under AFD's
+  `_meta["dev.afd/digest"]` as `sha256:<hex>`, the Skills extension's format,
+  so section 8.3 no longer mints `dev.umbel/sha256` (see
+  [Amendments from step 0a](#amendments-from-step-0a)).
+- **Done:** this specification, approved and merged; step 0a.
+- **Not done:** step 0b and every Umbel step of the
+  [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
@@ -1199,10 +1216,11 @@ section 5, R4):
    MCP 2026-07-28, `ttlMs` and `cacheScope` are fields of the
    `resources/list` **result**, not of each resource (revised 2026-11-01):
    the result carries `cacheScope: "public"` and the server's
-   `tools_list_ttl_ms`. Each resource carries `size`, and its SHA-256 digest
-   under `_meta["dev.umbel/sha256"]` (lowercase hex of the served bytes),
-   the same value the Skills extension's file manifest gives; step 0a
-   specifies the key for AFD as a per-resource `_meta` entry.
+   `tools_list_ttl_ms`. Each resource carries `size`, and its digest under
+   AFD's `_meta["dev.afd/digest"]` (`sha256:` and the lowercase hex of the
+   served bytes), which AFD sets and which equals the digest in the Skills
+   extension's file manifest ([`spec/mcp-resources.md`](../../../../../spec/mcp-resources.md#r6-digests-in-resource-_meta)
+   R6; amended by step 0a, which replaced `dev.umbel/sha256`).
 3. **The CLI export**: `umbel skill export dir=<path> [skill=<name>]`
    (`skill-export`, CLI-only) writes each skill's directory under `<path>`,
    refusing to overwrite a file that differs unless `force=true`, and writes
@@ -1778,7 +1796,7 @@ section it covers.
 | `grants.rs` | Each grant of the catalog works when declared; each answers `NotGranted` when undeclared or denied; a denied required grant is `PLUGIN_GRANT_DENIED`; each reserved grant is `PLUGIN_GRANT_UNAVAILABLE`; `allow` in a `[[grants]]` entry is refused as reserved; any grant on a mounted manifest is refused; `events` outside the instance's spaces is `not-granted`; `events` reads under the caller's principal and, with no space, the call's space; `plugin-show` prints "trusted, not sandboxed" for a compiled instance only |
 | `plugin_spaces.rs` | `spaces` limits calls (`PLUGIN_NOT_ENABLED`) and grants; a plugin with a space-less command must include the default space; mutations project into the resolved space |
 | `packs.rs` | Default and override per space; whole replacement (a file only in the default is absent under an override); limits; an invalid override fails the load; `plugin-show` reports `default` and `override` |
-| `skills.rs` | Name rules and uniqueness; `skills/list`, `skills/get` and `resources/read` in both eras with correct digests, sizes and frontmatter; `-32602` for an unknown URI; `resources/list` with `ttlMs` and `cacheScope` on the result and each resource's `size` and `_meta["dev.umbel/sha256"]`; `skill-export` writes files and the origin file, and refuses to overwrite without `force=true` |
+| `skills.rs` | Name rules and uniqueness; `skills/list`, `skills/get` and `resources/read` in both eras with correct digests, sizes and frontmatter; `-32602` for an unknown URI; `resources/list` with `ttlMs` and `cacheScope` on the result and each resource's `size` and `_meta["dev.afd/digest"]` (amended by step 0a); `skill-export` writes files and the origin file, and refuses to overwrite without `force=true` |
 | `plugin_component.rs` | hello as a component: imports checked (a component importing `wasi:sockets` and one importing `umbel:plugin/events` without the grant are refused with `PLUGIN_IMPORT_DENIED`); the world read from the export and import versions, a `2.0.0` export refused; calls in both eras and the CLI; a trapping fixture is `PLUGIN_TRAPPED` and the next call works; a panicking fixture without the `log` grant loads (stderr is always linked) and its panic message reaches the host log; a forged host-filled provenance field is removed |
 | `component_limits.rs` | Fixtures that loop, allocate and log past the limits: `fuel`, `timeout`, `memory` and `io` each give `PLUGIN_LIMIT_EXCEEDED` with `details.limit`; host caps refuse larger configured limits |
 | `component_replay.rs` | A component that reads the clock and random: the journal tape holds the reads; `TestHost::replay` reports every entry `same`; a second run with another wall time gives the recorded values on replay; hello's tape stays under 16 reads per call |
@@ -1822,7 +1840,9 @@ block. Any step that finds a design decision stops and amends this document.
 
 Two pull requests in AFD, before the Umbel steps that need them (D25).
 
-**0a. The proposal and its spec** (documents only):
+**0a. The proposal and its spec** (documents only; done 2026-11-01, placed
+in `docs/features/active/mcp-resources-skills/` because the owner approved
+the direction with this specification):
 `docs/features/proposed/mcp-resources-skills/` with a proposal and a
 `spec/` change, shared with Loam (which needs `ui://` resources from the same
 mechanism), covering for every language:
@@ -1832,9 +1852,10 @@ mechanism), covering for every language:
   already recorded (`Mcp-Name` carries `params.uri`; lists do not vary per
   connection). In 2026-07-28, `ttlMs` and `cacheScope` are fields of the list
   **result**, not of each resource; a resource's digest goes in its own
-  `_meta` under a reverse-DNS key (Umbel uses `dev.umbel/sha256`), and the
+  `_meta` under a reverse-DNS key (Umbel used `dev.umbel/sha256`; see below), and the
   Skills extension's file manifest carries the same digests (revised
-  2026-11-01).
+  2026-11-01). Step 0a chose AFD's own key, `dev.afd/digest`, set by AFD,
+  so Umbel mints none (amended by step 0a).
 - Serving the **Skills extension** (`io.modelcontextprotocol/skills`,
   SEP-2640): the declaration, `skills/list`, `skills/get`, manifests computed
   from served bytes, `-32602` for unknown URIs; `directoryRead` optional and
@@ -1924,6 +1945,28 @@ and D36 forbids a version 0 producer from writing new fields. So the gate
 keeps only the fields a command may supply, the host fills the rest, and
 the plugin is attributed by the gate's `dev.umbel/plugin` stamp; the
 envelope field is a follow-up for version 1. Nothing else was rejected.
+
+## Amendments from step 0a
+
+Step 0a ([`spec/mcp-resources.md`](../../../../../spec/mcp-resources.md))
+made the choices this plan left open; the proposal lists them all. Two touch
+this document:
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 8.3, step 0a | Digest under `_meta["dev.umbel/sha256"]`, bare lowercase hex, "the same value the Skills extension's file manifest gives" | Under AFD's `_meta["dev.afd/digest"]`, `sha256:<hex>`, set by AFD (R6) | The extension writes digests as `sha256:<hex>`, so bare hex was not the same value; AFD computes the digest from the bytes it serves, so the key is AFD's and Umbel needs none |
+| Step 0a | `docs/features/proposed/mcp-resources-skills/` | `docs/features/active/mcp-resources-skills/` | Approved under the owner's delegation through this specification |
+
+Other choices step 0a made that step 0b and step 3 must follow: one error
+code, `-32602`, for an unknown resource or skill on both eras; cache hints
+on `resources/read`, `resources/templates/list` and `skills/get` as well as
+the lists; skill names unique in a catalog even under different prefixes
+(Umbel's plugin-id prefix rule already guarantees it); frontmatter read with
+the YAML 1.2 core schema; skill files' MIME types from a fixed suffix table
+([S5](../../../../../spec/mcp-resources.md#s5-skill-files-as-resources)),
+which matches section 8.3 for `.md` and the octet-stream default; and
+prefixed tool `_meta` keys need two labels, which `dev.umbel/origin`
+satisfies.
 
 ## Follow-ups
 
