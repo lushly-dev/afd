@@ -295,12 +295,25 @@ const GROUPS: &[Group] = &[
 /// index cases are skipped for a backend whose stores carry no index.
 #[must_use]
 pub fn run_all(factory: Factory<'_>, spawn_writer: Option<SpawnWriter>) -> Report {
+    run_groups(factory, spawn_writer, &[])
+}
+
+/// Run the named case groups (all of them when `only` is empty), in the suite's order. A backend's
+/// own tests use it to run the part of the suite a change touches; a backend passes only when
+/// [`run_all`] does.
+#[must_use]
+pub fn run_groups(
+    factory: Factory<'_>,
+    spawn_writer: Option<SpawnWriter>,
+    only: &[&str],
+) -> Report {
     let env = Env {
         factory,
         spawn_writer,
     };
     let groups = GROUPS
         .iter()
+        .filter(|(name, _)| only.is_empty() || only.contains(name))
         .map(|(name, cases)| GroupReport {
             name,
             cases: cases

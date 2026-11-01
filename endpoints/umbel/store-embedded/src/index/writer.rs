@@ -88,8 +88,8 @@ impl IndexWriterSession for Session {
                 current: Some(self.applied.to_string()),
             });
         }
-        let payload = serde_json::json!({ "applied": applied, "schema": schema::SCHEMA_VERSION })
-            .to_string();
+        let payload =
+            serde_json::json!({ "applied": applied, "schema": schema::SCHEMA_VERSION }).to_string();
         let writer = self.open()?;
         let mut prepared = writer.prepare_commit().map_err(|e| map_tantivy(&e))?;
         prepared.set_payload(&payload);

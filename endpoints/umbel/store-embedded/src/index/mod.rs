@@ -18,7 +18,7 @@ use tantivy::schema::Value as _;
 use tantivy::snippet::SnippetGenerator;
 use tantivy::store::Compressor;
 use tantivy::{
-    DocAddress, Directory, Index, IndexBuilder, IndexReader, ReloadPolicy, Searcher, TantivyDocument,
+    Directory, Index, IndexBuilder, IndexReader, ReloadPolicy, Searcher, TantivyDocument,
     TantivyError, Term,
 };
 use umbel_store::{
@@ -128,23 +128,29 @@ impl TantivyIndex {
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
         let lock_timeout = Duration::from_millis(options.lock_timeout_ms);
         let (tantivy_schema, fields) = schema::build();
-        // Creation is serialised with every indexer by the writer lock, so a process that loses
-        // the race opens what the winner made.
-        let deadline = Instant::now() + lock_timeout;
-        let index = loop {
-            match directory.acquire_lock(&INDEX_WRITER_LOCK) {
-                Ok(_held) => {
-                    break IndexBuilder::new()
-                        .schema(tantivy_schema.clone())
-                        .settings(schema::settings())
-                        .open_or_create(directory.clone())
-                        .map_err(|e| map_tantivy(&e))?;
+        let build = || {
+            IndexBuilder::new()
+                .schema(tantivy_schema.clone())
+                .settings(schema::settings())
+                .open_or_create(directory.clone())
+                .map_err(|e| map_tantivy(&e))
+        };
+        // An index that exists is opened without the writer lock, so a reader never waits for an
+        // indexer. Creating one is serialised with every indexer by that lock, and a process
+        // that loses the race opens what the winner made.
+        let index = if Index::exists(&directory).map_err(|e| StoreError::Io(e.to_string()))? {
+            build()?
+        } else {
+            let deadline = Instant::now() + lock_timeout;
+            loop {
+                match directory.acquire_lock(&INDEX_WRITER_LOCK) {
+                    Ok(_held) => break build()?,
+                    Err(LockError::LockBusy) if Instant::now() < deadline => {
+                        std::thread::sleep(LOCK_POLL);
+                    }
+                    Err(LockError::LockBusy) => return Err(StoreError::Busy),
+                    Err(LockError::IoError(e)) => return Err(StoreError::Io(e.to_string())),
                 }
-                Err(LockError::LockBusy) if Instant::now() < deadline => {
-                    std::thread::sleep(LOCK_POLL);
-                }
-                Err(LockError::LockBusy) => return Err(StoreError::Busy),
-                Err(LockError::IoError(e)) => return Err(StoreError::Io(e.to_string())),
             }
         };
         if index.settings().docstore_compression != Compressor::Lz4 {
@@ -248,11 +254,12 @@ impl TantivyIndex {
         if let Value::Object(map) = &mut value {
             map.insert("body".to_owned(), Value::String(body));
         }
-        serde_json::from_value(value).map_err(|e| StoreError::Corrupt(format!("a stored chunk: {e}")))
+        serde_json::from_value(value)
+            .map_err(|e| StoreError::Corrupt(format!("a stored chunk: {e}")))
     }
 
-    fn address(&self, searcher: &Searcher, address: DocAddress) -> Result<(String, u64), StoreError> {
-        let document: TantivyDocument = searcher.doc(address).map_err(|e| map_tantivy(&e))?;
+    /// A stored chunk's document id and ordinal.
+    fn address(&self, document: &TantivyDocument) -> Result<(String, u64), StoreError> {
         let doc = document
             .get_first(self.fields.doc)
             .and_then(|v| v.as_str())
@@ -346,16 +353,22 @@ impl SearchIndex for TantivyIndex {
             window = (window * 4).min(TIE_WINDOW);
         };
         let cutoff = scored.get(limit - 1).map(|(score, _)| rounded(*score));
-        let mut candidates: Vec<(i64, String, u64, DocAddress)> = Vec::with_capacity(scored.len());
+        let mut candidates: Vec<(i64, String, u64, TantivyDocument)> =
+            Vec::with_capacity(scored.len());
         for (score, address) in scored {
             let score = rounded(score);
             if cutoff.is_some_and(|c| score < c) {
                 continue;
             }
-            let (doc, ordinal) = self.address(&searcher, address)?;
-            candidates.push((score, doc, ordinal, address));
+            let document: TantivyDocument = searcher.doc(address).map_err(|e| map_tantivy(&e))?;
+            let (doc, ordinal) = self.address(&document)?;
+            candidates.push((score, doc, ordinal, document));
         }
-        candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+        candidates.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then_with(|| a.1.cmp(&b.1))
+                .then(a.2.cmp(&b.2))
+        });
         candidates.truncate(limit);
         let generator = SnippetGenerator::create(&searcher, &*query, self.fields.body)
             .ok()
@@ -365,9 +378,7 @@ impl SearchIndex for TantivyIndex {
             });
         candidates
             .into_iter()
-            .map(|(score, _, _, address)| {
-                let document: TantivyDocument =
-                    searcher.doc(address).map_err(|e| map_tantivy(&e))?;
+            .map(|(score, _, _, document)| {
                 let chunk = self.chunk_of(&document)?;
                 let snippet = generator
                     .as_ref()

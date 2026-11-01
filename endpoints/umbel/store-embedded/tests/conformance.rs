@@ -11,7 +11,11 @@ fn the_suite_passes() {
     println!("{report}");
     report.assert_passed();
     // The backend has every store and spawns its writers: nothing is skipped.
-    assert!(report.skipped().is_empty(), "skipped: {:?}", report.skipped());
+    assert!(
+        report.skipped().is_empty(),
+        "skipped: {:?}",
+        report.skipped()
+    );
     assert!(
         report.passed() >= 55,
         "the suite ran only {} cases",

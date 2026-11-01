@@ -339,7 +339,11 @@ fn index_writers(env: &Env<'_>) -> CaseResult {
     outcome?;
     // Committing, aborting and dropping each release the writer.
     let mut next = index.writer().ctx("a writer after a commit")?;
-    ensure_eq(next.applied().ctx("applied")?, 1, "the next writer reads the revision")?;
+    ensure_eq(
+        next.applied().ctx("applied")?,
+        1,
+        "the next writer reads the revision",
+    )?;
     next.abort();
     let again = index.writer().ctx("a writer after an abort")?;
     drop(again);

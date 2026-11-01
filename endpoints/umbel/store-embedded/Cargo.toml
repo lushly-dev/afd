@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97"
 publish = false
 license = "MIT"
-description = "AFD Umbel embedded reference store backend: SQLite (WAL) documents, records, changes and graph"
+description = "AFD Umbel embedded reference store backend: SQLite (WAL) documents, records, changes and graph, and the tantivy search index"
 repository = "https://github.com/lushly-dev/afd"
 
 [dependencies]

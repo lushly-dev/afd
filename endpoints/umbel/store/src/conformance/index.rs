@@ -61,7 +61,10 @@ fn corpus() -> Vec<IndexChunk> {
     canary.aliases = vec!["progressive delivery".into()];
     canary.doc_type = "guide".into();
     canary.updated = Some("2025-06-01T00:00:00Z".into());
-    canary.meta = json!({"team": "infra"}).as_object().cloned().unwrap_or_default();
+    canary.meta = json!({"team": "infra"})
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
 
     let mut flags = chunk(
         "handbook/feature-flags",
@@ -73,7 +76,10 @@ fn corpus() -> Vec<IndexChunk> {
     flags.status = "draft".into();
     flags.updated = Some("2026-06-01T00:00:00Z".into());
     flags.verified = "owner".into();
-    flags.meta = json!({"team": "growth"}).as_object().cloned().unwrap_or_default();
+    flags.meta = json!({"team": "growth"})
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
 
     let mut legacy = chunk(
         "handbook/legacy",
@@ -122,7 +128,15 @@ fn corpus() -> Vec<IndexChunk> {
     parser.lang = Some("rust".into());
 
     vec![
-        rollback, canary, flags, legacy, staging, keys, monitoring0, monitoring1, parser,
+        rollback,
+        canary,
+        flags,
+        legacy,
+        staging,
+        keys,
+        monitoring0,
+        monitoring1,
+        parser,
     ]
 }
 
@@ -303,7 +317,10 @@ fn ranges_and_prefixes(env: &Env<'_>) -> CaseResult {
                 &["handbook/rollback", "handbook/canary", "handbook/staging"],
             ),
             ("canary*", &[]),
-            ("deploy*", &["handbook/rollback", "handbook/legacy", "handbook/staging"]),
+            (
+                "deploy*",
+                &["handbook/rollback", "handbook/legacy", "handbook/staging"],
+            ),
             ("\"feature fl\"*", &["handbook/feature-flags"]),
             ("+roll* -legacy", &["handbook/rollback"]),
         ],
@@ -362,7 +379,10 @@ fn boosts(env: &Env<'_>) -> CaseResult {
     )?;
     for hits in [&legacy, &canary] {
         let gap = hits[0].score - hits[1].score;
-        ensure(gap >= 0.001, "an exact-order assertion needs a gap of 0.001")?;
+        ensure(
+            gap >= 0.001,
+            "an exact-order assertion needs a gap of 0.001",
+        )?;
     }
     pass()
 }
@@ -380,7 +400,12 @@ fn errors(env: &Env<'_>) -> CaseResult {
         return skip("this backend has no search index");
     };
     let space = everyone();
-    let words = |n: usize| (0..n).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+    let words = |n: usize| {
+        (0..n)
+            .map(|i| format!("w{i}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
     let mut bad: Vec<(String, &str)> = Vec::new();
     for text in [
         "nope:x",
@@ -442,7 +467,10 @@ fn errors(env: &Env<'_>) -> CaseResult {
     let Err(StoreError::Invalid(why)) = l.index.search(&ask("title:"), &space) else {
         return Err("`title:` is invalid".to_owned());
     };
-    ensure(why.contains("position"), "a syntax error names its position")?;
+    ensure(
+        why.contains("position"),
+        "a syntax error names its position",
+    )?;
     for limit in [0, 401] {
         let query = IndexQuery {
             limit,
@@ -532,7 +560,10 @@ fn reader_clause(env: &Env<'_>) -> CaseResult {
         "the group's reader finds it",
     )?;
     ensure(
-        l.index.chunks("secret/keys", &space).ctx("chunks")?.is_empty(),
+        l.index
+            .chunks("secret/keys", &space)
+            .ctx("chunks")?
+            .is_empty(),
         "an unreadable document has no chunks, as an absent one has none",
     )?;
     ensure_eq(
@@ -541,7 +572,10 @@ fn reader_clause(env: &Env<'_>) -> CaseResult {
         "its reader reads them",
     )?;
     ensure(
-        l.index.chunks("nope/absent", &space).ctx("chunks")?.is_empty(),
+        l.index
+            .chunks("nope/absent", &space)
+            .ctx("chunks")?
+            .is_empty(),
         "an absent document has no chunks",
     )?;
     // Snippets and stored fields of an unreadable chunk never appear in a reader's hits.
@@ -719,7 +753,10 @@ fn ordering(env: &Env<'_>) -> CaseResult {
         vec!["tie/a".to_owned(), "tie/b".into()],
         "the cut-off among ties is by document id too",
     )?;
-    for hit in index.search(&ask("migration planning"), &space).ctx("search")? {
+    for hit in index
+        .search(&ask("migration planning"), &space)
+        .ctx("search")?
+    {
         let rounded = ((f64::from(hit.score) * 10_000.0).round() / 10_000.0) as f32;
         ensure(
             hit.score.to_bits() == rounded.to_bits(),
@@ -789,36 +826,57 @@ fn applied(env: &Env<'_>) -> CaseResult {
     let Some(index) = fresh.stores.index.clone() else {
         return skip("this backend has no search index");
     };
-    ensure_eq(index.applied().ctx("applied")?, 0, "an empty index reflects 0")?;
+    ensure_eq(
+        index.applied().ctx("applied")?,
+        0,
+        "an empty index reflects 0",
+    )?;
     {
         let mut w = index.writer().ctx("writer")?;
         ensure_eq(w.applied().ctx("applied")?, 0, "the session's applied")?;
-        w.replace(&"a/one".to_owned(), vec![chunk("a/one", "One", "first note")])
-            .ctx("replace")?;
+        w.replace(
+            &"a/one".to_owned(),
+            vec![chunk("a/one", "One", "first note")],
+        )
+        .ctx("replace")?;
         w.commit(5).ctx("commit")?;
     }
     ensure_eq(index.applied().ctx("applied")?, 5, "after commit(5)")?;
     {
         let mut w = index.writer().ctx("writer")?;
         ensure_eq(w.applied().ctx("applied")?, 5, "read under the writer")?;
-        w.replace(&"a/two".to_owned(), vec![chunk("a/two", "Two", "second note")])
-            .ctx("replace")?;
+        w.replace(
+            &"a/two".to_owned(),
+            vec![chunk("a/two", "Two", "second note")],
+        )
+        .ctx("replace")?;
         let refused = w.commit(4);
         expect_err(refused, "a lower revision", super::conflict)?;
         if let Err(StoreError::Conflict { current }) = w.commit(2) {
-            ensure_eq(current, Some("5".to_owned()), "the conflict names the current revision")?;
+            ensure_eq(
+                current,
+                Some("5".to_owned()),
+                "the conflict names the current revision",
+            )?;
         }
         w.abort();
     }
-    ensure_eq(index.applied().ctx("applied")?, 5, "a refused commit moved nothing")?;
+    ensure_eq(
+        index.applied().ctx("applied")?,
+        5,
+        "a refused commit moved nothing",
+    )?;
     ensure(
         found(&*index, &everyone(), "second")?.is_empty(),
         "a refused commit published nothing",
     )?;
     {
         let mut w = index.writer().ctx("writer")?;
-        w.replace(&"a/two".to_owned(), vec![chunk("a/two", "Two", "second note")])
-            .ctx("replace")?;
+        w.replace(
+            &"a/two".to_owned(),
+            vec![chunk("a/two", "Two", "second note")],
+        )
+        .ctx("replace")?;
         w.commit(5).ctx("the same revision is allowed")?;
     }
     ensure(
@@ -829,7 +887,11 @@ fn applied(env: &Env<'_>) -> CaseResult {
         let mut w = index.writer().ctx("writer")?;
         w.commit(9).ctx("a higher revision")?;
     }
-    ensure_eq(index.applied().ctx("applied")?, 9, "an empty commit records its revision")?;
+    ensure_eq(
+        index.applied().ctx("applied")?,
+        9,
+        "an empty commit records its revision",
+    )?;
     pass()
 }
 
@@ -844,7 +906,10 @@ fn replace_and_clear(env: &Env<'_>) -> CaseResult {
         c.ordinal = n;
         c.heading_path = vec![format!("Heading {n}")];
         c.updated = Some("2026-02-03T04:05:06Z".into());
-        c.meta = json!({"team": "infra"}).as_object().cloned().unwrap_or_default();
+        c.meta = json!({"team": "infra"})
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
         c.aliases = vec!["alias".into()];
         c.description = Some("a description".into());
         c
@@ -856,7 +921,8 @@ fn replace_and_clear(env: &Env<'_>) -> CaseResult {
     ];
     {
         let mut w = index.writer().ctx("writer")?;
-        w.replace(&"d/one".to_owned(), wrote.clone()).ctx("replace")?;
+        w.replace(&"d/one".to_owned(), wrote.clone())
+            .ctx("replace")?;
         w.replace(&"d/two".to_owned(), vec![numbered("d/two", 0, "beta zero")])
             .ctx("replace")?;
         // Duplicate ordinals, and a chunk of another document, stage nothing.
@@ -886,13 +952,20 @@ fn replace_and_clear(env: &Env<'_>) -> CaseResult {
     )?;
     {
         let mut w = index.writer().ctx("writer")?;
-        w.replace(&"d/one".to_owned(), vec![numbered("d/one", 0, "gamma only")])
-            .ctx("replace")?;
+        w.replace(
+            &"d/one".to_owned(),
+            vec![numbered("d/one", 0, "gamma only")],
+        )
+        .ctx("replace")?;
         w.replace(&"d/two".to_owned(), Vec::new()).ctx("replace")?;
         w.commit(2).ctx("commit")?;
     }
     let one = index.chunks("d/one", &space).ctx("chunks")?;
-    ensure_eq(one.len(), 1, "a replace removes the chunks it does not list")?;
+    ensure_eq(
+        one.len(),
+        1,
+        "a replace removes the chunks it does not list",
+    )?;
     ensure_eq(one[0].body.as_str(), "gamma only", "and replaces the rest")?;
     ensure(
         index.chunks("d/two", &space).ctx("chunks")?.is_empty(),

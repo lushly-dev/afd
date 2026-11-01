@@ -5,8 +5,8 @@ use tantivy::schema::{
     DateOptions, Field, IndexRecordOption, JsonObjectOptions, Schema, TextFieldIndexing,
     TextOptions,
 };
-use tantivy::{IndexSettings, TantivyDocument};
 use tantivy::store::Compressor;
+use tantivy::{IndexSettings, TantivyDocument};
 use umbel_store::{IndexChunk, StoreError};
 
 /// The schema version, part of the directory name (`index/v1/`) and of every commit payload.
@@ -68,7 +68,12 @@ pub(crate) fn build() -> (Schema, Fields) {
     let mut b = Schema::builder();
     let fields = Fields {
         doc: b.add_text_field("doc", raw().set_stored()),
-        ordinal: b.add_u64_field("ordinal", tantivy::schema::NumericOptions::default().set_stored().set_fast()),
+        ordinal: b.add_u64_field(
+            "ordinal",
+            tantivy::schema::NumericOptions::default()
+                .set_stored()
+                .set_fast(),
+        ),
         chunk: b.add_text_field("chunk", TextOptions::default().set_stored()),
         title: b.add_text_field("title", text(STEMMED)),
         aliases: b.add_text_field("aliases", text(STEMMED)),

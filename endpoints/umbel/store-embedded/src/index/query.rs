@@ -17,8 +17,8 @@ use tantivy::query::{
 use tantivy::schema::{Field, IndexRecordOption};
 use tantivy::tokenizer::TextAnalyzer;
 use tantivy_query_grammar::{
-    Delimiter, Occur as GrammarOccur, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
-    parse_query, parse_query_lenient,
+    Delimiter, Occur as GrammarOccur, UserInputAst, UserInputBound, UserInputLeaf,
+    UserInputLiteral, parse_query, parse_query_lenient,
 };
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -141,7 +141,10 @@ fn raw_term(field: Field, text: &str) -> Box<dyn Query> {
 }
 
 /// The structured filters as mandatory clauses.
-fn filter_clauses(f: &Fields, filters: &IndexFilters) -> Result<Option<Box<dyn Query>>, StoreError> {
+fn filter_clauses(
+    f: &Fields,
+    filters: &IndexFilters,
+) -> Result<Option<Box<dyn Query>>, StoreError> {
     let mut must: Vec<(Occur, Box<dyn Query>)> = Vec::new();
     let mut one = |field: Field, value: &Option<String>| {
         if let Some(value) = value {

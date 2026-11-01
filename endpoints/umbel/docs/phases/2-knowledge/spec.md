@@ -81,8 +81,16 @@
   in-memory fake and `suite_detects.rs`) and `umbel-store-embedded`
   (documents, records, the change log and the graph on bundled SQLite in WAL
   mode, safe across processes), with the `knowledge` CI job; see [Amendments
-  from step 2](#amendments-from-step-2).
-- **Not done:** steps 3 to 10 of the [plan](#14-implementation-plan);
+  from step 2](#amendments-from-step-2). **Step 3, the tantivy index**,
+  2026-11-01, in [640](https://github.com/lushly-dev/afd/pull/640): `umbel-store-embedded`'s `TantivyIndex`
+  (schema 1 with LZ4 named in the settings and `en_stem`, the query builder over
+  the `tantivy-query-grammar` AST with its limits and bounded prefixes, the reader
+  clause as a score-less mandatory clause, writer sessions on tantivy's own lock
+  that never lower `applied`, four-decimal scores, snippets, checksum validation),
+  the petgraph cache, and the suite's `index` group with the two index cases that
+  waited since step 2; the `knowledge` job's timeout set from a measurement. See
+  [Amendments from step 3](#amendments-from-step-3).
+- **Not done:** steps 4 to 10 of the [plan](#14-implementation-plan);
   the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1129,7 +1137,9 @@ limit. So the backend parses with `tantivy_query_grammar::parse_query` and
    leaf clauses (after default-field expansion counts as one per written
    leaf), at most 8 distinct named fields, nesting depth at most 16, phrase
    slop at most 8, boosts in `(0, 100]`.
-3. An unquoted literal the grammar marks `prefix: true` (`roll*`) becomes,
+3. (Corrected by step 3, [C1](#amendments-from-step-3): the grammar marks
+   `prefix` only on a quoted phrase; the builder itself reads a single
+   trailing `*` of an unquoted word.) An unquoted literal that ends in `*` (`roll*`) becomes,
    per field, a one-term
    `PhrasePrefixQuery::new_with_offset(vec![(0, term)])` with
    `set_max_expansions(256)`, which tantivy runs as a term-range scan
@@ -2089,6 +2099,30 @@ run against the SQLite backend, and the index cases wait for step 3.
 | B6 | Section 3.2's checkpoint policy runs from the host after a run, but the host holds the traits | `DocumentStore::checkpoint()`, a default method that does nothing; SQLite's runs `PRAGMA wal_checkpoint(TRUNCATE)` and ignores a busy result. `SqliteStore::info()` reports the pragmas, schema version and file sizes for `store-show` and `store-check` (step 4). `PRAGMA journal_mode=WAL` on a store several processes create at once can answer busy past the busy handler, so open retries it until the lock timeout | 3.2 |
 | B7 | Section 1 says `umbel-store` has no new third-party dependency, `umbel` (host) adds none of its own, and "the existing jobs do not build SQLite" | `umbel-store`'s feature `conformance` adds the optional `tempfile` (already in the lock; the types and traits need nothing new). The host depends on `umbel-store` now and re-exports `STORE_TRAITS_VERSION` as `STORE_VERSION` (step 1's A8). The `check` and `msrv` jobs run `--workspace --exclude umbel-store-embedded`; the new `knowledge` job (Linux and macOS, 45 minutes until step 3 measures it, plus an MSRV check on Linux) owns the SQLite crate. `[profile.dev.package]` optimises `libsqlite3-sys` and `sha2` | 1, 12 |
 
+## Amendments from step 3
+
+Step 3 ([640](https://github.com/lushly-dev/afd/pull/640)) read this specification against tantivy
+0.27.0 and `tantivy-query-grammar` 0.27.0 and made these smallest-correct changes. Everything else
+is built as written. C1 corrects a claim the revision made about the grammar; the rest are details
+the specification left open.
+
+| # | Where the text and the code disagreed | What step 3 did | Section |
+| --- | --- | --- | --- |
+| C1 | Section 8.1 item 3 and the trajectory row say the grammar marks an unquoted `roll*` with `prefix: true` and reads `*b` as a `Regex` leaf. In 0.27.0 `prefix` is set **only** for a quoted phrase (`"roll"*`, `'a b'*`); an unquoted `roll*` arrives as the word `roll*` with `prefix: false`, and `*b`, `b*b` and `ro*ll` are plain words too (a `Regex` leaf is only `/pattern/`). tantivy's own parser does not read them either, so the tokenizer would silently reduce `*b` to `b` | The builder reads a **single trailing unescaped `*`** of an unquoted word as the prefix (`roll*`, `title:roll*`), and refuses every other unescaped `*` (`*b`, `ro*ll`, `roll**`, `**`) as `QUERY_INVALID` rather than dropping it. A quoted or escaped star is text. `Regex`, `All` (`*`), `Exists` (`field:*`) and `Set` leaves are refused with a reason. `?` is punctuation | 8.1 |
+| C2 | Section 8.1 allows a prefix wherever a field is named | A prefix is available on the text fields (`title`, `aliases`, `description`, `headings`, `body`, `code`, `path`). On a raw, date or `meta` field (`tags:plat*`) it is `QUERY_INVALID`: a raw field has no positions for a phrase prefix, and a range over its terms would not be bounded at 256. The expansion is a `ConstScoreQuery` of 1 under the field's boost, so a prefix scores exactly the boost (tested: `title:roll*` scores 3) and a user `^` multiplies it. The cap holds for the one-term form (the scorer stops after 256 terms; tested with 300 terms sharing a prefix) | 8.1 |
+| C3 | Section 3.1 says `search` returns BM25 scores "ordered by score then `(doc, ordinal)`"; section 8.2 rounds to four places "first" | The index rounds: `ChunkHit.score` is the score to **four decimals**, and the order is rounded score descending, then document id, then ordinal. It reads one candidate past the limit and widens its window (up to 4096) while that candidate ties the last one at four decimals, so which tied chunks make the cut never depends on segment order. A tie wider than 4096 candidates is cut by tantivy's order | 3.1, 8.2 |
+| C4 | Section 8.1 item 5 adds the reader filter and structured filters as mandatory clauses without saying how they score | Both are `ConstScoreQuery(…, 0.0)` inside the outer `BooleanQuery`: they filter and add nothing to a score, so a hit's score is the same for every reader and every filter (tested). This is owner decision 4's accepted leak, not a new one: statistics still span the index | 8.1, 6 |
+| C5 | Section 3.2 keys the petgraph cache by `(space, graph applied rev, reader filter digest)`; amendment B3 made an edge readable through its origin document's **current** access set | The key adds the store's **head** revision. A document write that tightens an access set moves the head, not the graph's applied revision, and must hide its edges at once; a cache keyed without the head would keep serving them (tested). `SqliteStore::readable_graph(reader)` returns the `StableDiGraph` with the node index; eight entries, least recently used evicted | 3.2 |
+| C6 | Section 3.2 has a writer session take tantivy's lock; opening an index is unstated | `TantivyIndex::open` takes the writer lock **only to create** the index (so processes racing to create one open what the winner made) and opens an existing index without it: a process that only reads never waits for an indexer. It refuses an index not written with LZ4 and a commit payload from a newer schema (`VersionUnsupported`) | 3.2 |
+| C7 | Section 3.1 says the lock is "released when the session is committed, aborted or dropped" | `commit` finishes the session: after the commit it waits for the merges the commit made eligible (so no merge runs after the lock is released, which `store-backup` relies on), then drops the writer. A `Conflict` leaves the session open for `abort`. A finished session answers `Invalid` | 3.1, 3.5 |
+| C8 | Section 3.1 gives `replace` no limits | At most 2000 chunks per document (section 7.2) and a body of at most 1 MiB are `TooLarge`; two chunks with one ordinal, a chunk of another document, and a date that is not RFC 3339 are `Invalid`. Every chunk is built before anything is staged, so a refused `replace` stages nothing | 3.1 |
+| C9 | Section 8.1 says `meta.<key>` addresses the JSON field "only for keys the schema pack lists as `filterable`" | The index cannot know the pack: the **plugin** puts only filterable keys into `IndexChunk.meta`, so the allow-list is enforced at index time, and a key never indexed matches nothing. A value matches as the raw string and also as the number or boolean it reads as (`meta.tier:1`, `meta.ready:true`); a dot in the key is a nesting separator | 8.1 |
+| C10 | Section 8.1 says ranges parse as RFC 3339 on date fields | Any offset is accepted and converted to UTC; `updated` and `stale_after` are held at second precision. `updated:<instant>` is a one-point range; `[* TO *]` is `QUERY_INVALID` (it would match every document that has a date, which `field:*` was refused for). A range names its field | 8.1 |
+| C11 | Section 8.2 asks for snippets of 240 characters (concise) or 480 (detailed) | The index makes one snippet per hit, **240** characters, `**` around the matches, and none when the match is outside the body. `IndexQuery` carries no length, so the detailed form's 480 needs a field there; step 6 adds one (`snippet_chars`) if it wants it. Nothing in step 3 depends on it | 8.2 |
+| C12 | Section 3.2 lists `stopwords` among the features | The feature is carried as specified; `en_stem` is lower-casing, splitting and stemming, and **removes no stop words**, so `the` is searchable. No stop-word filter is registered | 1, 3.2 |
+| C13 | Section 3.1 names one `index` group of the suite and the plan names `conformance.rs` and `multiprocess.rs` | The suite gains the `index` group (twelve cases: terms, Booleans, phrases and fields; ranges and prefixes; the 256-term bound; boosts; errors and limits; `access` refused in every position; the reader clause; filters; ties and rounding; atomic commits; `applied` never lowering; `replace` and `clear`), the two cases that waited since step 2 (`access::the_index_honours_the_reader_filter` and `concurrency::two_index_writer_sessions_take_turns`), `samples::chunk`, and `run_groups(factory, spawn_writer, only)`, which runs the named groups. The in-memory fake has no index, so its index cases skip; the embedded backend's `index_suite_detects.rs` plants four faults in the real index (the reader ignored in `search` and in `chunks`, a lowered commit swallowed, a lowered commit raised) and fails each in the case that should catch it. `multiprocess.rs` adds two indexer processes taking turns and never lowering either revision, a second process waiting for the writer and then `Busy`, a killed indexer leaving no stale lock, and a run after a crash between the two commits redoing only the lagging store | 3.1, 12, 14 |
+| C14 | Section 12 and the plan: the `knowledge` job's timeout is "three times the measured time" | Measured cold on the development machine (Apple silicon, dev profile with `line-tables-only`, `-j4`, a load average of 10 to 18 from other agents) in a fresh target directory: `cargo build -p umbel-store-embedded` 83 s and 640 MB; clippy on the two crates 20 s; their tests 75 s (build and run; the suite is about 12 s of it); the `wasm32-wasip2` check 4 s; the MSRV check 23 s: **205 s** and 1.1 GB for the job's steps. Tantivy and the 96 crates it adds beyond SQLite, `umbel-store` and their dependencies took 135 of the build's 188 CPU-seconds (`tantivy` 57 s, `tantivy-columnar` 18 s, `tantivy-query-grammar` 4 s, `frostem` 3 s), against 28 s for SQLite's C build; the `tantivy` rlib is 88 MB and `tantivy-columnar`'s 15 MB. Three times 205 s is ten minutes; the `knowledge` job's timeout is **15 minutes** (it was 45), because the hosted runners are slower than this machine and had not run the job when it was set. The first hosted runs are in the pull request; lower the timeout to three times the slower of them if that is under 15 | 12 |
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2101,3 +2135,5 @@ run against the SQLite backend, and the index cases wait for step 3.
 | 2026-11-01 | Chunk size against the research (S57 found about 250-token chunks with overlap best in one study; phase 2 uses larger, overlap-free structural chunks): measure alternatives with the eval harness once the baseline exists | After step 9 |
 | 2026-11-01 | A per-collection option to block, not only flag, content the write scan matches | When a deployer asks |
 | 2026-11-01 | Watching collection roots instead of explicit `knowledge-refresh` | Later |
+| 2026-11-01 | The `knowledge` job's timeout: 15 minutes, to lower to three times the slower hosted run when that is under 15 (C14) | After the first hosted runs |
+| 2026-11-01 | A length on `IndexQuery` so the detailed form's 480-character snippet needs no second search (C11) | Step 6 |

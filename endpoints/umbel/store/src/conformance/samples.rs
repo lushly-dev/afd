@@ -4,8 +4,8 @@
 use serde_json::Map;
 
 use crate::{
-    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, IndexChunk, Origin, Sensitivity,
-    Status, Tier, Verification,
+    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, IndexChunk, Origin, Sensitivity, Status,
+    Tier, Verification,
 };
 
 use super::SPACE;

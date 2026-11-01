@@ -12,8 +12,16 @@ fn a_correct_in_memory_backend_passes_every_case() {
     let report = run_all(&factory(Fault::None), None);
     report.assert_passed();
     assert!(report.passed() >= 40, "{report}");
-    // Without a spawn_writer and an index, exactly these wait.
-    assert_eq!(report.skipped().len(), 3, "{:?}", report.skipped());
+    // Without a spawn_writer and an index, the multi-process case and every index case wait; the
+    // embedded backend's own tests run those, and detect their faults.
+    let skipped = report.skipped();
+    assert!(
+        skipped
+            .iter()
+            .all(|s| s.contains("no spawn_writer") || s.contains("no search index")),
+        "{skipped:?}"
+    );
+    assert_eq!(skipped.len(), 15, "{skipped:?}");
 }
 
 /// Each fault, and a group that must fail because of it.
