@@ -18,6 +18,7 @@ mod durability;
 mod envelope;
 mod fixture;
 mod graph;
+mod index;
 mod records;
 pub mod samples;
 
@@ -43,8 +44,8 @@ pub type Factory<'a> = &'a dyn Fn(&Path, &str) -> Result<Stores, StoreError>;
 /// Builds the command that runs one writer child against the directory.
 pub type SpawnWriter = fn(&Path) -> Command;
 
-/// One space's stores. `index` is `None` until the backend has built its search index; the index
-/// groups are then skipped.
+/// One space's stores. `index` is `None` for a backend without a search index; the index cases
+/// are then skipped.
 #[derive(Clone)]
 pub struct Stores {
     /// Documents, records and changes.
@@ -285,20 +286,34 @@ const GROUPS: &[Group] = &[
     ("envelope", envelope::CASES),
     ("access", access::CASES),
     ("graph", graph::CASES),
+    ("index", index::CASES),
     ("concurrency", concurrency::CASES),
     ("durability", durability::CASES),
 ];
 
 /// Run every case group against a backend. `spawn_writer` enables the multi-process cases; the
-/// index cases wait for a backend whose stores carry an index.
+/// index cases are skipped for a backend whose stores carry no index.
 #[must_use]
 pub fn run_all(factory: Factory<'_>, spawn_writer: Option<SpawnWriter>) -> Report {
+    run_groups(factory, spawn_writer, &[])
+}
+
+/// Run the named case groups (all of them when `only` is empty), in the suite's order. A backend's
+/// own tests use it to run the part of the suite a change touches; a backend passes only when
+/// [`run_all`] does.
+#[must_use]
+pub fn run_groups(
+    factory: Factory<'_>,
+    spawn_writer: Option<SpawnWriter>,
+    only: &[&str],
+) -> Report {
     let env = Env {
         factory,
         spawn_writer,
     };
     let groups = GROUPS
         .iter()
+        .filter(|(name, _)| only.is_empty() || only.contains(name))
         .map(|(name, cases)| GroupReport {
             name,
             cases: cases

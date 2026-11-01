@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97"
 publish = false
 license = "MIT"
-description = "AFD Umbel embedded reference store backend: SQLite (WAL) documents, records, changes and graph"
+description = "AFD Umbel embedded reference store backend: SQLite (WAL) documents, records, changes and graph, and the tantivy search index"
 repository = "https://github.com/lushly-dev/afd"
 
 [dependencies]
@@ -13,6 +13,17 @@ umbel-store = { path = "../store" }
 # Bundled SQLite: no system library is needed (specification section 1). The backend is the only
 # crate that links it.
 rusqlite = { version = "0.41", features = ["bundled"] }
+# The lexical lane (specification section 1): the features are fixed. `stemmer` is `en_stem`;
+# `lz4-compression` is the doc store's compressor, which an index written with it cannot be opened
+# without; `mmap` is the directory; `stopwords` is part of the specification's set.
+tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
+# Query syntax: the AST the backend walks to build the query itself (section 8.1).
+tantivy-query-grammar = "0.27"
+# RFC 3339 for the date fields: ranges in the query, and the document builder. tantivy's own
+# dependency, named so its features are ours.
+time = { version = "0.3", default-features = false, features = ["std", "parsing"] }
+# In-memory traversal of the readable graph (section 3.2).
+petgraph = { version = "0.8", default-features = false, features = ["stable_graph"] }
 serde = "1"
 serde_json = "1"
 

@@ -303,8 +303,54 @@ fn graph_applied(env: &Env<'_>) -> CaseResult {
 
 fn index_writers(env: &Env<'_>) -> CaseResult {
     let f = env.fresh()?;
-    if f.stores.index.is_none() {
-        return skip("this backend has no search index yet (step 3)");
-    }
-    skip("the index writer cases arrive with the tantivy index (step 3)")
+    let Some(index) = f.stores.index.clone() else {
+        return skip("this backend has no search index");
+    };
+    let first = index.writer().ctx("the first writer")?;
+    let released = AtomicBool::new(false);
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let outcome = std::thread::scope(|scope| -> Result<(), String> {
+        let second = scope.spawn(|| {
+            let _ = started_tx.send(());
+            let result = index.writer();
+            // Read after the answer: a writer granted while the first was held saw `false`.
+            let after_release = released.load(Ordering::SeqCst);
+            (result.map(drop), after_release)
+        });
+        started_rx
+            .recv()
+            .map_err(|_| "the second writer never started".to_owned())?;
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        released.store(true, Ordering::SeqCst);
+        let mut first = first;
+        first.commit(1).ctx("the first writer's commit")?;
+        let (second, after_release) = second
+            .join()
+            .map_err(|_| "the second writer's thread panicked".to_owned())?;
+        match second {
+            Ok(()) => ensure(
+                after_release,
+                "a second writer was granted while the first still held the index",
+            ),
+            Err(StoreError::Busy) => Ok(()),
+            Err(other) => Err(format!("the second writer failed oddly: {other}")),
+        }
+    });
+    outcome?;
+    // Committing, aborting and dropping each release the writer.
+    let mut next = index.writer().ctx("a writer after a commit")?;
+    ensure_eq(
+        next.applied().ctx("applied")?,
+        1,
+        "the next writer reads the revision",
+    )?;
+    next.abort();
+    let again = index.writer().ctx("a writer after an abort")?;
+    drop(again);
+    let mut last = index.writer().ctx("a writer after a drop")?;
+    ensure(
+        matches!(last.commit(0), Err(StoreError::Conflict { .. })),
+        "the second writer, holding the index in turn, still cannot lower its revision",
+    )?;
+    pass()
 }

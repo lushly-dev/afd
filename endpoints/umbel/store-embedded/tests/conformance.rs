@@ -1,4 +1,5 @@
-//! The conformance suite against the SQLite backend: every group that does not need the index.
+//! The conformance suite against the embedded backend: SQLite for documents, records and the graph,
+//! tantivy for the index.
 
 mod support;
 
@@ -9,14 +10,14 @@ fn the_suite_passes() {
     let report = umbel_store::conformance::run_all(&open, Some(spawn_writer));
     println!("{report}");
     report.assert_passed();
-    // Only the index cases wait for step 3; nothing else may be skipped.
-    let skipped = report.skipped();
+    // The backend has every store and spawns its writers: nothing is skipped.
     assert!(
-        skipped.iter().all(|s| s.contains("index")),
-        "unexpected skips: {skipped:?}"
+        report.skipped().is_empty(),
+        "skipped: {:?}",
+        report.skipped()
     );
     assert!(
-        report.passed() >= 40,
+        report.passed() >= 55,
         "the suite ran only {} cases",
         report.passed()
     );

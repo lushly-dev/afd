@@ -4,8 +4,8 @@
 use serde_json::Map;
 
 use crate::{
-    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, Origin, Sensitivity, Status, Tier,
-    Verification,
+    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, IndexChunk, Origin, Sensitivity, Status,
+    Tier, Verification,
 };
 
 use super::SPACE;
@@ -82,5 +82,43 @@ pub fn document(id: &str, access: &[&str], text: &str, trace: &str) -> DocumentW
         sensitivity: Sensitivity::Internal,
         flags: Vec::<Flag>::new(),
         envelope: envelope(access, trace, "2026-11-02T10:00:00.000Z"),
+    }
+}
+
+/// Chunk `ordinal` of document `doc` (`<collection>/<path>`), readable by `access`, with plain
+/// defaults for everything a case does not set: a `note` in the collection, `stable`,
+/// `unverified`, `internal`, no tags, no dates.
+///
+/// # Panics
+/// When `doc` has no `/` or `access` holds an invalid token.
+#[must_use]
+pub fn chunk(doc: &str, ordinal: u32, title: &str, body: &str, access: &[&str]) -> IndexChunk {
+    let (collection, path) = doc.split_once('/').unwrap_or((doc, ""));
+    IndexChunk {
+        doc: doc.to_owned(),
+        ordinal,
+        line_start: 1,
+        line_end: u32::try_from(body.lines().count().max(1)).unwrap_or(1),
+        heading_path: Vec::new(),
+        chunk_hash: ContentHash::of(body.as_bytes()).to_string(),
+        body: body.to_owned(),
+        title: title.to_owned(),
+        aliases: Vec::new(),
+        description: None,
+        code: None,
+        tags: Vec::new(),
+        owners: Vec::new(),
+        doc_type: "note".to_owned(),
+        collection: collection.to_owned(),
+        status: "stable".to_owned(),
+        verified: "unverified".to_owned(),
+        sensitivity: "internal".to_owned(),
+        lang: None,
+        path: format!("{path}.md"),
+        updated: None,
+        stale_after: None,
+        meta: serde_json::Map::new(),
+        access: AccessSet::new(access.iter().copied())
+            .unwrap_or_else(|_| unreachable!("the caller passes valid access tokens")),
     }
 }

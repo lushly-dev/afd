@@ -137,9 +137,12 @@ jobs:
         run: cargo +1.97.0 check --locked --workspace --exclude umbel-store-embedded --all-targets
 
   # The knowledge stack's crates (phase 2 specification, section 12): the store traits and the
-  # conformance suite, and the SQLite backend with its bundled C build. Each later step adds its
-  # crates to these commands. Step 3 measures this job on CI and sets the timeout to three times
-  # the measured time.
+  # conformance suite, and the embedded backend with its bundled SQLite and tantivy builds. Each
+  # later step adds its crates to these commands. Step 3 measured the job cold on the development
+  # machine (build 83 s, clippy 20 s, tests 75 s, the wasm and MSRV checks 27 s: about 3.4 minutes
+  # at -j4 on a loaded host). Three times that is 10 minutes; the timeout is 15 because the hosted
+  # runners are slower than that machine and had not run the job when this was set
+  # (specification, "Amendments from step 3", C14).
   knowledge:
     name: Umbel knowledge (${{ matrix.os }})
     needs: scope
@@ -151,7 +154,7 @@ jobs:
           ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
           && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: endpoints/umbel
