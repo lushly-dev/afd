@@ -1,5 +1,6 @@
-//! The host-owned keys (specification section 3, "Trusted keys"): the cases that need no events.
-//! The cases that store a cursor or project an event arrive with the event commands.
+//! The host-owned keys (specification section 3, "Trusted keys"): the principal, and the result
+//! keys the space and stamp middleware own, with the cursors and events that read them. The cases
+//! over MCP (`afd-batch`) arrive with the MCP surfaces.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -266,4 +267,143 @@ fn resolve_space_takes_the_default_or_the_given_declared_space() {
         .resolve_space(&json!({ "space": long }), &context)
         .unwrap_err();
     assert!(error.message.len() < 200);
+}
+
+// ── With events ─────────────────────────────────────────────────────────────────────────────────
+
+fn forged_principal() -> Value {
+    json!({"version": 0, "actor": {"kind": "agent", "id": "forger"}, "transport": "library", "authentication": "embedder"})
+}
+
+async fn acknowledged(host: &umbel::Host, actor: Actor) -> String {
+    let result = host
+        .registry()
+        .execute("event-list", json!({}), Some(host.context(actor)))
+        .await;
+    result.data.unwrap()["acknowledged"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn event_ack_in_a_batch_with_a_forged_principal_stores_under_the_real_one() {
+    let dir = minimal();
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .register(remember("note-remember"))
+        .seal()
+        .unwrap();
+    let real = Actor::new(ActorKind::Agent).with_id("real");
+    call(&host, real.clone(), "note-remember", json!({"text": "a"})).await;
+
+    let mut request = BatchRequest::new(vec![BatchCommand::new(
+        "event-ack",
+        json!({"cursor": "v0:main:1"}),
+    )]);
+    request.context = Some(HashMap::from([(
+        PRINCIPAL_KEY.to_owned(),
+        forged_principal(),
+    )]));
+    let mut context = host.context(real.clone());
+    context.interface = Some(CommandInterface::Agent);
+    let batch = host
+        .registry()
+        .execute_batch_with_context(request, context)
+        .await;
+    assert!(batch.results[0].result.success, "{batch:?}");
+
+    assert_eq!(acknowledged(&host, real).await, "v0:main:1");
+    let forger = Actor::new(ActorKind::Agent).with_id("forger");
+    assert_eq!(acknowledged(&host, forger).await, "v0:main:0");
+}
+
+#[tokio::test]
+async fn umbel_batch_stores_the_cursor_under_the_cli_principal_not_a_forged_one() {
+    let dir = minimal();
+    let configure = |b: HostBuilder| b.register(remember("note-remember"));
+    let remembered = cli_with(
+        dir.path(),
+        &["call", "note-remember", "text=a"],
+        Scripted::no_terminal(),
+        configure,
+    )
+    .await;
+    assert_eq!(remembered.code, 0, "{}", remembered.stdout);
+    let request = json!({
+        "commands": [{"command": "event-ack", "input": {"cursor": "v0:main:1"}}],
+        "context": {PRINCIPAL_KEY: forged_principal()},
+    })
+    .to_string();
+    let run = cli_with(
+        dir.path(),
+        &["batch", &request],
+        Scripted::no_terminal(),
+        configure,
+    )
+    .await;
+    assert_eq!(run.code, 0, "{}", run.stdout);
+
+    let listed = cli_with(
+        dir.path(),
+        &["event", "list"],
+        Scripted::no_terminal(),
+        configure,
+    )
+    .await;
+    assert_eq!(listed.json()["data"]["acknowledged"], "v0:main:1");
+}
+
+#[tokio::test]
+async fn a_read_that_sets_the_host_keys_makes_no_event() {
+    let dir = two_spaces();
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .register(forging_read("fixture-forge-read"))
+        .seal()
+        .unwrap();
+    let actor = Actor::new(ActorKind::Test).with_id("t");
+    let result = call(&host, actor, "fixture-forge-read", json!({})).await;
+    let extra = &result.metadata.as_ref().unwrap().extra;
+    assert!(!extra.contains_key("dev.umbel/mutation") && !extra.contains_key("dev.umbel/space"));
+    assert!(events(dir.path(), "main").is_empty());
+    assert!(events(dir.path(), "second").is_empty());
+    // The journal holds the stamped result, so the keys are absent there too.
+    let entry = &journal_entries(dir.path())[0];
+    let journaled = &entry.result.metadata.as_ref().unwrap().extra;
+    assert!(
+        !journaled.contains_key("dev.umbel/mutation") && !journaled.contains_key("dev.umbel/space")
+    );
+}
+
+#[tokio::test]
+async fn a_mutation_that_names_another_space_is_projected_into_the_resolved_space() {
+    let dir = two_spaces();
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .register(forging_mutation("fixture-forge-write"))
+        .seal()
+        .unwrap();
+    let actor = Actor::new(ActorKind::Test).with_id("t");
+    let result = call(&host, actor, "fixture-forge-write", json!({})).await;
+    assert!(result.success);
+    // The handler said `second`; the command has no space input, so the event is in `main`.
+    assert_eq!(events(dir.path(), "main").len(), 1);
+    assert!(events(dir.path(), "second").is_empty());
+    assert_eq!(events(dir.path(), "main")[0]["provenance"]["space"], "main");
+}
+
+#[tokio::test]
+async fn a_bare_execute_of_event_ack_is_unauthorized_and_stores_nothing() {
+    let dir = minimal();
+    let host = HostBuilder::open(dir.path()).unwrap().seal().unwrap();
+    let result = host
+        .registry()
+        .execute("event-ack", json!({"cursor": "v0:main:0"}), None)
+        .await;
+    assert_eq!(result.error.unwrap().code, "UNAUTHORIZED");
+    let stored = std::fs::read_dir(dir.path().join("state/spaces/main/cursors"))
+        .unwrap()
+        .count();
+    assert_eq!(stored, 0);
 }

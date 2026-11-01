@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** approved, implementation in progress (steps 0 to 3 done). Written and revised
+- **State:** approved, implementation in progress (steps 0 to 4 done). Written and revised
   2026-10-31 after an independent review returned "approve after
   must-fixes"; the coordinator's decisions on D29, D32, D33 and D34, made
   under the owner's delegation of 2026-10-31, are recorded as amendments in
@@ -60,7 +60,20 @@
   warnings`, the library-only clippy leg, `cargo test --locked` and `cargo
   +1.97.0 check --locked --all-targets`, run locally, then `umbel.yml` and
   `pnpm check` on the pull request.
-- **Not done:** steps 4 to 6 of the [plan](#11-implementation-plan); the exit
+- **Done:** step 4, journal and events
+  ([#574](https://github.com/lushly-dev/afd/pull/574)), on 2026-11-01: the
+  projecting sink over `FileJournalSink::shared`, the pending marker and the
+  catch-up, `Host::repair_events`, event and provenance envelope version 0,
+  cursors with consumers, `event-list`, `event-ack`, `event-rebuild`, and
+  `space-list` on the catch-up. Tests: `journal_events.rs` (12), `cursors.rs`
+  (10), `multi_process.rs` (4, one of them over the built binary) and 5 more
+  cases in `trusted_keys.rs`. Checks: `cargo fmt --check`, `cargo clippy
+  --all-targets --locked -- -D warnings`, the library-only clippy leg, `cargo
+  test --locked` and `cargo +1.97.0 check --locked --all-targets`, run
+  locally, then `umbel.yml` and `pnpm check` on the pull request. Amendments it
+  needed: see [Amendments from step 4](#amendments-from-step-4). The MCP cases
+  of `journal_events.rs`, `trusted_keys.rs` and `process.rs` wait for step 5.
+- **Not done:** steps 5 and 6 of the [plan](#11-implementation-plan); the exit
   criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -1551,6 +1564,59 @@ document (the pull request number is in the status block):
   not collide with the step 2 cases; the `trusted_keys.rs` cases that need no
   events are in `tests/trusted_keys.rs`, which step 4 extends. `cli.rs` covers
   `umbel help` without `event-rebuild`, which step 4 registers.
+
+## Amendments from step 4
+
+What step 4 settled where the plan left room, and the amendments it made to this
+document (the pull request number is in the status block):
+
+- **`consumer` has no `pattern` in the input schema.** AFD's input-schema
+  checker has no `pattern` keyword, and a schema that uses one fails
+  registration. The schema carries `type` and `maxLength`; the handler enforces
+  `^[a-z0-9][a-z0-9._-]{0,63}$` and answers `VALIDATION_ERROR` for the other
+  strings, as section 3 says.
+- **A damaged stream, journal or cursor file is not a new code.** A stream, the
+  journal or a cursor file the host cannot read is `WORKSPACE_UNHEALTHY` with
+  the suggestion "Run umbel workspace doctor, then umbel event rebuild to
+  rebuild the streams from the journal." (a cursor file that `event-list`
+  cannot read is `INVALID_CURSOR` with a suggestion to acknowledge a valid
+  one); a file the host cannot write is `WORKSPACE_STATE_UNWRITABLE`. The
+  table of error codes is unchanged.
+- **`seal` repairs, but a damaged stream does not stop the open.** The marker
+  catch-up at `seal` fails the open only on `WORKSPACE_LOCK_TIMEOUT`. Any other
+  failure is logged as a warning and the host opens, because `umbel event
+  rebuild` needs a host to run and is the repair for a damaged stream; the
+  doctor reports it as `events.consistent`.
+- **`event-rebuild` of one space** rebuilds that stream, and runs the catch-up
+  for the others when the marker is present; the marker goes only once every
+  stream is current. A rebuild of every space removes it directly.
+- **`event-ack` does not catch up**: it validates the cursor against the
+  stream as it is, and a cursor that came from `event-list` is never past it.
+  `event-list` and `space-list` catch up first, as section 6 says.
+- **A sink failure is logged with its context.** A journal append that fails
+  (the lock timeout, a full disk) returns an error to the recorder whose message
+  carries the code, `command <name>` and `trace <id>`; the recorder's `on_error`
+  logs it at `error`. A projection failure after the journal append is logged by
+  the sink itself, at `error`, and the entry is still returned. An event
+  candidate in a space the workspace no longer declares is journaled and not
+  projected.
+- **Public API.** `events::{Event, RecordRef, Cursor, RepairReport,
+  RepairedSpace, INVALID_CURSOR, EVENT_VERSION, RECORD_KEY}` and
+  `provenance::{Envelope, Origin, PROVENANCE_KEY}`; `Host::repair_events` is
+  synchronous and blocks for up to `journal.lock_timeout_ms`, so an async caller
+  runs it with `spawn_blocking`. `RepairReport` and `RepairedSpace` are
+  `#[non_exhaustive]`.
+- **Leniency of command-supplied metadata.** `dev.umbel/record` is taken only
+  when it is `{ kind, id, version? }` with non-empty strings; each
+  `dev.umbel/provenance` field of the wrong type reads as absent
+  (`origin` becomes `unspecified`), consistent with "the host refuses nothing in
+  phase 0".
+- **Tests.** The failure of an event append is injected by putting a directory
+  where a stream file goes (no test hook in the library). `multi_process.rs`
+  also runs the built `umbel` binary (24 concurrent one-shot processes) so the
+  OS lock is exercised across real processes. The MCP cases of
+  `journal_events.rs`, `trusted_keys.rs` (`afd-batch` over MCP) and
+  `process.rs` are step 5's.
 
 ## Follow-ups
 

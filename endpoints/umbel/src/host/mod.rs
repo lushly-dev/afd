@@ -12,13 +12,15 @@ pub use error::HostError;
 pub use space::SPACE_NOT_FOUND;
 
 use crate::commands::{self, Builtin};
+use crate::events::{EventsError, ProjectingSink, Projector, RepairReport};
 use crate::middleware;
 use crate::principal::{Authentication, Principal, Transport};
 use crate::surfaces;
 use crate::workspace::{Workspace, codes};
 use afd::{
     Actor, ApprovalMiddlewareOptions, CommandContext, CommandDefinition, CommandInterface,
-    CommandRegistry, DirectClient, create_approval_middleware, get_bootstrap_commands,
+    CommandRegistry, DirectClient, JournalRecorder, create_approval_middleware,
+    get_bootstrap_commands,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -94,15 +96,19 @@ impl HostBuilder {
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());
+        let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
 
         let builtins: Vec<Builtin> = vec![
             commands::workspace_show(Arc::clone(&workspace), Arc::clone(&first_class_cell)),
-            commands::space_list(Arc::clone(&workspace)),
+            commands::event_list(Arc::clone(&workspace), Arc::clone(&projector)),
+            commands::event_ack(Arc::clone(&workspace), Arc::clone(&projector)),
+            commands::space_list(Arc::clone(&workspace), Arc::clone(&projector)),
             commands::workspace_doctor(
                 Arc::clone(&workspace),
                 Arc::downgrade(&registry),
                 Arc::clone(&first_class_cell),
             ),
+            commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
         ];
         for Builtin { definition, schema } in builtins {
             register(&registry, Pending::Schema(definition, schema))?;
@@ -135,11 +141,22 @@ impl HostBuilder {
 
         install_middleware(&registry, &workspace)?;
         surfaces::mcp::build_server(&registry, &workspace, &first_class)?;
+        install_journal(&registry, &workspace, &projector);
+
+        // A marker left by a crash or a failed projection is repaired before anything else. A
+        // stream too damaged to repair does not stop the open: `umbel event rebuild` needs the
+        // host, and the doctor reports it.
+        match projector.catch_up_if_pending() {
+            Err(EventsError::Lock(error)) => return Err(error.into()),
+            Err(error) => tracing::warn!("{error}"),
+            Ok(()) => {}
+        }
 
         Ok(Host {
             workspace,
             registry,
             first_class,
+            projector,
         })
     }
 }
@@ -236,11 +253,22 @@ fn install_middleware(
     Ok(())
 }
 
+/// The journal recorder: the outermost layer, so the stamps are in the journaled result and the
+/// journal alone is enough to rebuild every stream.
+fn install_journal(registry: &CommandRegistry, workspace: &Workspace, projector: &Arc<Projector>) {
+    registry.set_journal(
+        JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
+            .with_record_failures(workspace.config().journal.record_failures)
+            .with_on_error(|message| tracing::error!("journal: {message}")),
+    );
+}
+
 /// A sealed host: the registry, the workspace, and the surfaces built over them.
 pub struct Host {
     workspace: Arc<Workspace>,
     registry: Arc<CommandRegistry>,
     first_class: Vec<String>,
+    projector: Arc<Projector>,
 }
 
 impl Host {
@@ -253,6 +281,20 @@ impl Host {
     /// The workspace.
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
+    }
+
+    /// Catch every event stream up with the journal under the workspace lock, whether or not
+    /// `projection.pending` is there, so a stream damaged by hand is repaired too. `umbel serve`
+    /// calls it at start. Blocks while it waits for the lock (up to `journal.lock_timeout_ms`);
+    /// an async caller should run it with `spawn_blocking`.
+    ///
+    /// # Errors
+    /// `WORKSPACE_LOCK_TIMEOUT` when the lock is not taken in time; `WORKSPACE_UNHEALTHY` when a
+    /// stream or the journal is too damaged to repair (run `umbel event rebuild`).
+    pub fn repair_events(&self) -> Result<RepairReport, HostError> {
+        self.projector
+            .repair()
+            .map_err(EventsError::into_host_error)
     }
 
     /// The first-class tools of the hybrid MCP surface, in list order.

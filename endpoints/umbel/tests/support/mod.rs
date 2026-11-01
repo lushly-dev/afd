@@ -6,8 +6,10 @@ use afd::{
     CommandResult, ExposeOptions, ResultMetadata, failure, success,
 };
 use async_trait::async_trait;
+use jsonschema::{Retrieve, Uri, Validator};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -233,4 +235,164 @@ pub async fn cli_with(
 
 pub async fn cli(cwd: &Path, args: &[&str]) -> Run {
     cli_with(cwd, args, Scripted::no_terminal(), |builder| builder).await
+}
+
+// ── Events ──────────────────────────────────────────────────────────────────────────────────────
+
+/// A mutation with a `space` input that names a record. `text` is the record id and the
+/// command's `origin`, `confidence` (a number as text) and `session` go to the provenance.
+pub fn remember(name: &str) -> CommandDefinition {
+    let mut command = CommandDefinition::new(
+        name,
+        "A fixture mutation",
+        vec![
+            CommandParameter::optional_string("space", "The space"),
+            CommandParameter::optional_string("text", "The record id"),
+            CommandParameter::optional_string("origin", "Provenance origin"),
+            CommandParameter::optional_string("confidence", "Provenance confidence, as text"),
+            CommandParameter::optional_string("session", "Provenance session"),
+        ],
+        Fixed {
+            run: Box::new(|input, _| {
+                let text = |name: &str| input.get(name).and_then(Value::as_str);
+                let mut result = success(json!({ "stored": text("text") }));
+                let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
+                if let Some(text) = text("text") {
+                    metadata.extra.insert(
+                        "dev.umbel/record".into(),
+                        json!({"kind": "memory", "id": text}),
+                    );
+                }
+                let mut provenance = serde_json::Map::new();
+                if let Some(origin) = text("origin") {
+                    provenance.insert("origin".into(), json!(origin));
+                }
+                if let Some(confidence) = text("confidence") {
+                    provenance.insert(
+                        "confidence".into(),
+                        json!(confidence.parse::<f64>().unwrap()),
+                    );
+                }
+                if let Some(session) = text("session") {
+                    provenance.insert("session".into(), json!(session));
+                }
+                if !provenance.is_empty() {
+                    metadata
+                        .extra
+                        .insert("dev.umbel/provenance".into(), Value::Object(provenance));
+                }
+                result
+            }),
+        },
+    )
+    .with_expose(everywhere());
+    command.mutation = true;
+    command
+}
+
+/// A mutation that always fails.
+pub fn failing_mutation(name: &str) -> CommandDefinition {
+    let mut command = fixture(name, |_, _| {
+        failure(
+            afd::CommandError::new("FIXTURE_FAILED", "It failed").with_suggestion("Do not retry."),
+        )
+    });
+    command.mutation = true;
+    command
+}
+
+/// Resolves a `$ref` to a sibling schema from the files, never from the network.
+struct Siblings(BTreeMap<String, Value>);
+
+impl Retrieve for Siblings {
+    fn retrieve(
+        &self,
+        uri: &Uri<String>,
+    ) -> Result<Value, Box<dyn std::error::Error + Send + Sync>> {
+        self.0
+            .get(uri.as_str())
+            .cloned()
+            .ok_or_else(|| format!("no schema file has the id {}", uri.as_str()).into())
+    }
+}
+
+/// A validator for `schemas/<stem>.json`, with its sibling files for `$ref`.
+pub fn schema_validator(stem: &str) -> Validator {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas");
+    let read = |stem: &str| -> Value {
+        serde_json::from_str(&std::fs::read_to_string(dir.join(format!("{stem}.json"))).unwrap())
+            .unwrap()
+    };
+    let siblings = [
+        "principal.v0",
+        "provenance-envelope.v0",
+        "event.v0",
+        "cursor.v0",
+        "cursor-file.v0",
+    ]
+    .iter()
+    .map(|stem| {
+        let value = read(stem);
+        (value["$id"].as_str().unwrap().to_owned(), value)
+    })
+    .collect();
+    jsonschema::options()
+        .with_retriever(Siblings(siblings))
+        .build(&read(stem))
+        .unwrap()
+}
+
+pub fn jsonl(path: &Path) -> Vec<Value> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => text
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn journal_path(dir: &Path) -> PathBuf {
+    dir.join("state/journal.jsonl")
+}
+
+pub fn events_path(dir: &Path, space: &str) -> PathBuf {
+    dir.join("state/spaces").join(space).join("events.jsonl")
+}
+
+pub fn journal_entries(dir: &Path) -> Vec<afd::JournalEntry> {
+    afd::parse_journal(&std::fs::read_to_string(journal_path(dir)).unwrap()).unwrap()
+}
+
+pub fn events(dir: &Path, space: &str) -> Vec<Value> {
+    jsonl(&events_path(dir, space))
+}
+
+/// The bytes of a stream, or empty when it does not exist.
+pub fn stream_bytes(dir: &Path, space: &str) -> Vec<u8> {
+    std::fs::read(events_path(dir, space)).unwrap_or_default()
+}
+
+/// Assert that `event` is valid against `event.v0.json`.
+pub fn assert_event_valid(validator: &Validator, event: &Value) {
+    if let Err(error) = validator.validate(event) {
+        panic!("event is not valid against event.v0.json: {error}\n{event}");
+    }
+}
+
+/// Run `command` as `actor` through the registry.
+pub async fn call(
+    host: &Host,
+    actor: afd::Actor,
+    command: &str,
+    input: Value,
+) -> afd::CommandResult<Value> {
+    host.registry()
+        .execute(command, input, Some(host.context(actor)))
+        .await
+}
+
+pub fn agent(id: &str) -> afd::Actor {
+    afd::Actor::new(afd::ActorKind::Agent).with_id(id)
 }
