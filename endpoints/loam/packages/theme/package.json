@@ -21,12 +21,12 @@
 		"./contract.json": "./dist/contract.json"
 	},
 	"scripts": {
-		"build": "tsc && node dist/cli.js build",
+		"build": "tsc && node scripts/theme.mjs build",
 		"clean": "rimraf dist coverage",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run",
-		"theme:build": "tsc && node dist/cli.js build",
-		"theme:check": "tsc && node dist/cli.js check",
+		"theme:build": "tsc && node scripts/theme.mjs build",
+		"theme:check": "tsc && node scripts/theme.mjs check",
 		"lint:tokens": "node scripts/lint-tokens.mjs \"src/**/*.ts\" \"src/**/*.css\""
 	},
 	"dependencies": {

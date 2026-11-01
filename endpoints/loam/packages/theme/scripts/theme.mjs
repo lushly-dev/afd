@@ -1,20 +1,25 @@
+#!/usr/bin/env node
 /**
- * The theme's scripts:
+ * The theme's scripts, run after `tsc` (they import the built `dist/index.js`):
  *
- *   node dist/cli.js build            write dist/loam-theme.css, dist/loam-theme.json and
- *                                     dist/contract.json (theme:build)
- *   node dist/cli.js check [--write]  compare the committed contract and the kernel with the tree
- *                                     (theme:check); --write rewrites contract/tokens.json first
+ *   node scripts/theme.mjs build            write dist/loam-theme.css, dist/loam-theme.json and
+ *                                           dist/contract.json (theme:build)
+ *   node scripts/theme.mjs check [--write]  compare the committed contract and the kernel's
+ *                                           LAYOUT_DEFAULTS_V0 with the tree (theme:check);
+ *                                           --write rewrites contract/tokens.json first
+ *
+ * This is tooling, not the package's runtime: `@lushly-dev/loam-kernel` is a development
+ * dependency, read here only for `LAYOUT_DEFAULTS_V0`.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
-import { checkTheme } from './check.js';
-import { buildOutputs } from './outputs.js';
+import * as kernel from '@lushly-dev/loam-kernel';
+import { buildOutputs, checkTheme } from '../dist/index.js';
 
 const packageRoot = new URL('../', import.meta.url);
 const contractPath = new URL('contract/tokens.json', packageRoot);
 const distDirectory = new URL('dist/', packageRoot);
 
-async function build(): Promise<number> {
+async function build() {
 	const outputs = await buildOutputs();
 	if (outputs.resolved.brokenReferences.length > 0) {
 		for (const broken of outputs.resolved.brokenReferences)
@@ -30,10 +35,13 @@ async function build(): Promise<number> {
 	return 0;
 }
 
-async function check(write: boolean): Promise<number> {
+async function check(write) {
 	const outputs = await buildOutputs();
 	if (write) await writeFile(contractPath, outputs.files['contract.json']);
-	const { errors, notes } = await checkTheme(contractPath, outputs);
+	const { errors, notes } = await checkTheme(contractPath, {
+		outputs,
+		layoutDefaults: kernel.LAYOUT_DEFAULTS_V0,
+	});
 	for (const note of notes) console.log(`note: ${note}`);
 	for (const error of errors) console.error(`error: ${error}`);
 	if (errors.length > 0) return 1;
@@ -43,7 +51,7 @@ async function check(write: boolean): Promise<number> {
 	return 0;
 }
 
-async function main([command, ...flags]: string[]): Promise<number> {
+async function main([command, ...flags]) {
 	if (command === 'build') return build();
 	if (command === 'check') return check(flags.includes('--write'));
 	console.error(`Unknown command '${command ?? ''}'; use 'build' or 'check'`);

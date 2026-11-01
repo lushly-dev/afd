@@ -5,6 +5,7 @@
  * `dist/loam-theme.css` and `dist/loam-theme.json`, through this package's subpaths.
  */
 export {
+	type CheckOptions,
 	type CheckReport,
 	checkTheme,
 	compareContract,

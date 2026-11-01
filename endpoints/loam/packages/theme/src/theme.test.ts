@@ -206,9 +206,22 @@ describe('exports', () => {
 });
 
 describe('theme:check', () => {
-	it('passes on the committed contract', async () => {
-		const report = await checkTheme(contractUrl, outputs);
+	it('passes on the committed contract, skipping the kernel until it has the constant', async () => {
+		const report = await checkTheme(contractUrl, { outputs });
 		expect(report.errors).toEqual([]);
+		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the shell sizes/)]);
+	});
+
+	it('fails when the kernel it is given disagrees with the tree', async () => {
+		const layoutDefaults = {
+			sidebar: { default: 260, min: 200, max: 480 },
+			inspector: { default: 300, min: 240, max: 520 },
+			panel: { default: 240, min: 120 },
+			mainMin: 400,
+		};
+		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
+		expect(report.notes).toEqual([]);
+		expect(report.errors).toHaveLength(NODE_IDS.length);
 	});
 
 	it('fails when the contract and the tree disagree', () => {
@@ -269,7 +282,7 @@ describe('theme:check', () => {
 			...resolved,
 			brokenReferences: [{ nodeId: 'loam', tokenId: 'color.x', message: 'not found' }],
 		};
-		const report = await checkTheme(contractUrl, { ...outputs, resolved: broken });
+		const report = await checkTheme(contractUrl, { outputs: { ...outputs, resolved: broken } });
 		expect(report.errors).toEqual(['color.x in loam: not found']);
 	});
 });

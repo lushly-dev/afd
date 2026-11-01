@@ -283,7 +283,9 @@ Decided by step 2 (2026-11-01):
   it.
 - **`LAYOUT_DEFAULTS_V0` before the kernel has it.** The theme package maps
   each of the constant's numbers to its shell id (`LAYOUT_DEFAULT_TOKENS`)
-  and compares every node with the kernel's export. Until step 5 adds the
+  and compares every node with the kernel's export, which
+  `theme/scripts/theme.mjs` reads: the kernel is a development dependency,
+  and the boundary check refuses it in `src/`. Until step 5 adds the
   constant, `theme:check` prints a note and skips that comparison, and
   `theme`'s `test` compares the tree with the numbers of 5.2 instead. Step 5
   removes the skip, so a missing export then fails.

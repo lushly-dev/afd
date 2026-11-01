@@ -5,8 +5,10 @@
  * - `contract/tokens.json` must equal the contract the tree gives, id for id, and every node
  *   must resolve to exactly the contract's ids.
  * - No token may have a broken reference.
- * - The shell size defaults must equal the kernel's `LAYOUT_DEFAULTS_V0` (5.2). Until step 5 of
- *   the phase 0 specification adds that constant, the comparison is skipped with a note.
+ * - The shell size defaults must equal the kernel's `LAYOUT_DEFAULTS_V0` (5.2), which the
+ *   caller passes in: `scripts/theme.mjs` imports it from `@lushly-dev/loam-kernel`, a
+ *   development dependency. Until step 5 of the phase 0 specification adds that constant, it is
+ *   undefined and the comparison is skipped with a note.
  *
  * The component token export of 2.4 joins the comparison with step 3, which commits it.
  */
@@ -91,13 +93,17 @@ export function compareNodeIds(resolved: ResolvedTree, contract: Contract): stri
 	return errors;
 }
 
-/** The kernel's constant, or undefined while the kernel does not export it yet. */
-async function kernelLayoutDefaults(): Promise<unknown> {
-	const kernel: Record<string, unknown> = await import('@lushly-dev/loam-kernel');
-	return kernel.LAYOUT_DEFAULTS_V0;
+export interface CheckOptions {
+	/** Outputs already built; built here when absent. */
+	outputs?: ThemeOutputs;
+	/** The kernel's `LAYOUT_DEFAULTS_V0`, or undefined while the kernel does not export it. */
+	layoutDefaults?: unknown;
 }
 
-export async function checkTheme(contractPath: URL, outputs?: ThemeOutputs): Promise<CheckReport> {
+export async function checkTheme(
+	contractPath: URL,
+	{ outputs, layoutDefaults }: CheckOptions = {}
+): Promise<CheckReport> {
 	const built = outputs ?? (await buildOutputs());
 	const errors: string[] = built.resolved.brokenReferences.map(
 		(broken) => `${broken.tokenId} in ${broken.nodeId}: ${broken.message}`
@@ -122,12 +128,11 @@ export async function checkTheme(contractPath: URL, outputs?: ThemeOutputs): Pro
 			);
 	}
 
-	const defaults = await kernelLayoutDefaults();
-	if (defaults === undefined)
+	if (layoutDefaults === undefined)
 		notes.push(
 			'Skipped the shell sizes against LAYOUT_DEFAULTS_V0: @lushly-dev/loam-kernel does not export it yet (step 5 of the phase 0 specification adds it and removes this skip)'
 		);
-	else errors.push(...compareLayoutDefaults(built.resolved, defaults));
+	else errors.push(...compareLayoutDefaults(built.resolved, layoutDefaults));
 
 	return { errors, notes };
 }

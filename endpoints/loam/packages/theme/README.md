@@ -12,7 +12,7 @@ Private and quarantined. The design is in the
 | `src/tree/` | The tree, built with `@lushly-dev/violet-core` in a memory database (Node only): `loam` (product) holds the primitives under `ref.*` and every contract id with its light value; `loam/light`, `loam/dark` and `loam/high-contrast` (themes) hold overrides; `loam/<theme>/compact` (custom) holds compact density |
 | `src/pairs.ts` | The color pairs and their contrast floors per theme, checked by the tests |
 | `src/outputs.ts` | Renders the contract, `loam-theme.css` and `loam-theme.json` |
-| `src/check.ts`, `src/cli.ts` | `theme:build` and `theme:check` |
+| `src/check.ts`, `scripts/theme.mjs` | `theme:check`, and the script behind `theme:build` and `theme:check`, which reads the kernel's `LAYOUT_DEFAULTS_V0` (a development dependency) |
 | `contract/tokens.json` | The committed token contract: per id, its custom property, type and kind (`component` or `shell`) |
 | `scripts/lint-tokens.mjs` | The token-only lint, the `loam-lint-tokens` bin |
 | `fixtures/lint-tokens/` | The lint's corpus, one passing and one failing case per rule |
