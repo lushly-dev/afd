@@ -229,6 +229,18 @@
 				"event-0",
 				"cursor-0"
 			]
+		},
+		{
+			"manifest": "endpoints/umbel/sdk/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library", "plugin-sdk-1"]
+		},
+		{
+			"manifest": "endpoints/umbel/plugins/hello/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library"]
 		}
 	],
 	"coverageContract": {

@@ -88,8 +88,11 @@
   `register_with_schemas` in `packages/rust`, and the Rust todo backend split
   into a library. Seven amendments, in
   [Amendments from step 0b](#amendments-from-step-0b).
-- **Done:** this specification, approved and merged; steps 0a, 0b and 1.
-- **Not done:** the Umbel steps 2a to 8 of the
+- **Step 2a done 2026-11-01** (PR_URL): the loader core and compiled
+  plugins, as the step 2a row of the [plan](#14-implementation-plan) lists
+  them. The amendments are in [Amendments from step 2a](#amendments-from-step-2a).
+- **Done:** this specification, approved and merged; steps 0a, 0b, 1 and 2a.
+- **Not done:** the Umbel steps 2b to 8 of the
   [plan](#14-implementation-plan); the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2005,6 +2008,17 @@ Two shapes the specification leaves open, fixed here for steps 2a onward:
 which the CLI's `configure` hook will fill in step 2a; the file-only checks
 use `plugins::resolve_source`, which answers `ResolvedSource::Unresolved`
 (reported `skip`) when there is no catalog.
+
+## Amendments from step 2a
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 1, 10.1 | The `testkit` feature enables `tempfile` and `rmcp` | It also enables `http` and `http-body-util` | The in-process HTTP driver builds requests and reads response bodies against the router; both crates are also dev-dependencies for the integration tests |
+| 10.1 | The test kit's clock is fixed | `HostBuilder::with_clock(impl Clock)` is a new public builder method; `TestHost` uses it for the fixed clock | Phase 0's builder had no way to inject a clock without the test kit reaching into `seal` |
+| 1 | The `umbel` crate has no self dependency | Its `[dev-dependencies]` name `umbel` itself with `features = ["testkit"]`, and `umbel-plugin-hello` | The integration tests drive the test kit as a plugin author would, and use hello as the second compiled plugin |
+| 5, 7 | `Services` calls are plain method calls | `Plugin::handle` is synchronous and `Services` `events` reads block on files, so the host's wrapper for an SDK command (`SdkHandler`) runs `handle` under `spawn_blocking` and rethrows a panic with `resume_unwind`, which AFD reports as `COMMAND_EXECUTION_ERROR` | A blocking read on the async runtime stalls other calls, and swallowing a panic would turn it into a plain failure |
+| 6 | `seal` refuses a configured plugin (amended by step 1) | The guard is removed: every configured instance goes through the load sequence. The CLI passes the compiled catalog to the doctor even when `seal` fails, so `workspace doctor` still reports the instance | Step 1 promised the removal; the doctor must explain a failed load |
+| 8.1, 6 step 8 | Origin `_meta["dev.umbel/origin"]` on every plugin tool, registered with the command | Not in step 2a: the step 3 row of the plan owns "origin `_meta` on plugin tools", with the skills that use the same entry. Plugin commands in 2a carry no tool `_meta` of their own | The plan table assigns it to step 3; step 2a registers commands with `register_with_schema` and the gate's stamps |
 
 ## Follow-ups
 

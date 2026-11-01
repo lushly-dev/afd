@@ -7,9 +7,7 @@ mod support;
 
 use afd::{ApprovalPolicy, CommandContext, CommandDefinition, ExecutionTime, success};
 use serde_json::{Value, json};
-use support::plugins::{
-    Probe, Raw, closure, config, echo, echo_manifest, grants_toml, probe_manifest, seal,
-};
+use support::plugins::{Probe, Raw, closure, config, echo, echo_manifest, seal};
 use support::{Scripted, agent, call, cli_with, events};
 use umbel::plugins::{PluginCommand, sdk};
 

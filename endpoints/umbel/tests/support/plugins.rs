@@ -2,7 +2,7 @@
 //! a raw `CompiledPlugin` whose commands a test builds.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
-use afd::{CommandContext, CommandHandler, CommandResult, ResultMetadata, success};
+use afd::{CommandContext, CommandHandler, CommandResult, success};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use umbel::HostBuilder;
@@ -303,5 +303,5 @@ pub fn seal(
 
 /// The metadata a result carries, as JSON.
 pub fn metadata(result: &CommandResult<Value>) -> Value {
-    serde_json::to_value(result.metadata.clone().unwrap_or_else(ResultMetadata::new)).unwrap()
+    serde_json::to_value(result.metadata.clone().unwrap_or_default()).unwrap()
 }

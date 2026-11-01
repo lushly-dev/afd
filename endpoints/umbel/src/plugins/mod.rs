@@ -24,9 +24,10 @@ pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
 pub use loader::TRUST_NOTE;
+#[cfg(feature = "testkit")]
+pub(crate) use loader::embedded_id;
 pub(crate) use loader::{
-    Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, Status, embedded_id,
-    load,
+    Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, Status, load,
 };
 pub(crate) use manifest::to_json;
 pub use manifest::{
