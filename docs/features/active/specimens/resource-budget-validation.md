@@ -144,7 +144,7 @@ The proposal's [risk table](../../proposed/specimens/specimens.proposal.md#remai
 
 These are the owner's choices. Option 1 is the only one that keeps today's criteria. Options 2 and 3 change what success means and need explicit approval.
 
-**Decision, 2026-10-31:** the owner chose option 1, as rounds of optimization under the unchanged criteria, with Rust welcome where it gives the better outcome. The rounds and their measurements are in the [T04 optimization record](t04-optimization.md). This record's verdict stands until a new paired verdict session replaces it.
+**Decision, 2026-10-31:** the owner chose option 1, as rounds of optimization under the unchanged criteria, with Rust welcome where it gives the better outcome. The rounds and their measurements are in the [T04 optimization record](t04-optimization.md). This record's verdict stands for the runtime it measured. With the native host, the [verdict session](t04-optimization.md#verdict-session) of 2026-11-01 passes every criterion for both consumers under the unchanged policy.
 
 ## Evidence
 

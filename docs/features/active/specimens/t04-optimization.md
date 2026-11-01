@@ -1,6 +1,8 @@
 # T04 optimization rounds
 
-T04's verdict session did not pass as declared: Specimen failed CPU per verified case for FAST-AF and post-close footprint for both consumers ([record](resource-budget-validation.md)). The owner chose the first [revision option](resource-budget-validation.md#decision-needed) on 2026-10-31: change the architecture, then remeasure under the unchanged criteria.
+**Verdict, 2026-11-01:** with the native host, Specimen passes every T04 criterion for both consumers, in-process and isolated, in a paired session on `random` with every probe in band and no held cell ([below](#verdict-session)). Post-close footprint is parity within the policy's noise floor, not a reduction, except on Lushly's isolated path.
+
+T04's first verdict session did not pass as declared: Specimen failed CPU per verified case for FAST-AF and post-close footprint for both consumers ([record](resource-budget-validation.md)). The owner chose the first [revision option](resource-budget-validation.md#decision-needed) on 2026-10-31: change the architecture, then remeasure under the unchanged criteria.
 
 > I think we should do rounds of optimization. First, make sure you have the necessary instrumentation, then keep refining until we match or improve.
 
@@ -121,8 +123,45 @@ These are on the recording Mac, 2026-11-01, `run-t04-pairs.mjs --paths candidate
 
 Before the Node side was trimmed (host rendering, with Zod and parse5 still in the caller), post-close was 51–52 MiB on both paths. Peak was 157–194 MiB, and CPU per case was 0.183–0.207.
 
-## Next
+## Verdict session
 
-A full paired session on `random`, with the incumbent, the quiet gate and the probe band, decides whether the workstream 0 exit now passes. Until then, the T04 verdict remains the one in the [resource and budget record](resource-budget-validation.md).
+This is the paired session under the unchanged policy, on `random` at `542d5e74`, the reviewed and fixed host. The tree was clean, and the host binary's digest is `9bd6e996…`. The session ran on 2026-11-01: the quiet gate passed at 09:24:57 UTC after its ten-minute window, and the 12 jobs (nested ABBA per consumer, five cold and five warm samples each) finished at 09:35:09. Every job passed, with every probe between 0.410 and 0.420 s against a limit of 0.451 s. No cell was held, so both sides met the 10% CPU and peak repeatability rules. Both sides ran the incumbent's headless Chromium with the recorded fonts, on Node 24.21.0.
 
-Evidence is local and ignored, under `test-results/specimens-t04-optimize/` in the recording worktree: `r0-local` and `r1-local` (traces and profiles), `r1-random` (the round 1 session) and `r2-local` (the round 2 sessions, with `fast-af-before-lean` before the Node side was trimmed).
+Ratios are candidate over incumbent, with in-process and isolated given as a range:
+
+| Criterion | Limit | FAST-AF | Lushly |
+| --- | --- | --- | --- |
+| CPU per verified case | ≤ 1 | 0.651–0.675, passes | 0.203–0.211, passes |
+| Active peak footprint | ≤ 1 | 0.079–0.088, passes | 0.066–0.072, passes |
+| Post-close footprint | ≤ 1 | 0.997–1.011, passes: no measurable difference | 0.867 isolated, passes; 0.957 in-process, passes: no measurable difference |
+| Cold startup latency | ≤ 1.25 | 0.111–0.121, passes | 0.054–0.060, passes |
+| Warm render latency | ≤ 1.25 | 0.058, passes | 0.036–0.038, passes |
+
+The same ratios in absolute terms, as candidate against incumbent medians:
+
+| Consumer | CPU per case | Peak | Post-close | Cold | Warm |
+| --- | --- | --- | --- | --- | --- |
+| FAST-AF | 0.212–0.220 / 0.326 core-s | 135–149 / 1,700 MiB | 30.9–31.3 / 31.0 MiB | 267–292 / 2,405 ms | 132–133 / 2,299 ms |
+| Lushly | 0.224–0.232 / 1.099 core-s | 131–144 / 1,988 MiB | 28.0–30.9 / 32.3 MiB | 254–285 / 4,721 ms | 158–166 / 4,383 ms |
+
+Build budgets pass:
+- Shell: 26,505 and 26,706 bytes, against 50,000.
+- Helper prototype: 486,032 and 585,145, against 600,000.
+- Axe prototype: 553,608 and 572,916, against 650,000.
+- Totals: 1,066,145 and 1,184,767, against 1,300,000.
+
+Limits of this verdict:
+
+- **Post-close is parity.** On three of the four paths it is within the 5% noise floor, which the policy reports as no measurable difference. Only Lushly's isolated path is measurably lower.
+- **Cross-session CPU.** Candidate CPU per job was 13–16% higher than in the preview session an hour earlier: FAST-AF 4.24–4.42 against 3.66–3.81 core-seconds, and Lushly 4.00–4.17 against 3.49–3.64. The review's fixes add per-action checks, but most renders take no action, and the incumbent's CPU barely moved. The cause is not isolated. G02's rule that cross-session CPU ratios need a host-condition control applies, and this verdict compares within one session.
+- **Merge commit.** The commit merged to main also carries main's unrelated changes (`cfd73572`). Specimen's resolved Playwright, Vite, parse5 and Zod versions and the host's locked crates are unchanged by them.
+- **Measured scope.** The verdict covers T04's representative jobs on this host. The equivalence evidence G03 names (retained stories and full suites) remains T05–T08's.
+
+## Evidence
+
+Evidence is local and ignored, under `test-results/specimens-t04-optimize/` in the recording worktree:
+- `r0-local` and `r1-local`: traces and profiles.
+- `r1-random`: the round 1 session.
+- `r2-local`: the round 2 local sessions, with `fast-af-before-lean` from before the Node side was trimmed.
+- `r2-random-preview`: the preview session, with its budgets.
+- `r2-random-verdict`: the verdict session, with its budgets.
