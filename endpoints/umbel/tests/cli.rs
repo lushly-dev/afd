@@ -319,6 +319,9 @@ async fn help_lists_what_the_cli_can_run_and_not_an_mcp_only_command() {
     for listed in [
         "workspace-show",
         "space-list",
+        "event-list",
+        "event-ack",
+        "event-rebuild",
         "workspace-doctor",
         "widget-open",
         "afd-help",
@@ -569,4 +572,33 @@ async fn stamps_a_handler_set_never_reach_the_cli_result() {
     assert!(metadata.get("dev.umbel/mutation").is_none(), "{metadata}");
     assert!(metadata.get("dev.umbel/space").is_none(), "{metadata}");
     let _ = ResultMetadata::new();
+}
+
+#[test]
+fn event_commands_run_from_the_command_line_and_rebuild_is_cli_only() {
+    let dir = minimal();
+    let listed = umbel(dir.path(), &["event", "list"]);
+    assert_eq!(listed.status.code(), Some(0));
+    let data = &stdout_json(&listed)["data"];
+    assert_eq!(data["cursor"], "v0:main:0");
+    assert_eq!(data["acknowledged"], "v0:main:0");
+    assert_eq!(data["events"], json!([]));
+
+    let acked = umbel(
+        dir.path(),
+        &["event", "ack", "cursor=v0:main:0", "consumer=hook"],
+    );
+    assert_eq!(acked.status.code(), Some(0));
+    assert_eq!(stdout_json(&acked)["data"]["consumer"], "hook");
+
+    let bad = umbel(dir.path(), &["event", "ack", "cursor=v0:main:9"]);
+    assert_eq!(bad.status.code(), Some(1));
+    assert_eq!(stdout_json(&bad)["error"]["code"], "INVALID_CURSOR");
+
+    let rebuilt = umbel(dir.path(), &["event", "rebuild"]);
+    assert_eq!(rebuilt.status.code(), Some(0));
+    assert_eq!(
+        stdout_json(&rebuilt)["data"]["rebuilt"][0]["head"],
+        "v0:main:0"
+    );
 }

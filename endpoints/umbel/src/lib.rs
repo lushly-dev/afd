@@ -9,7 +9,9 @@
 #![allow(clippy::result_large_err)]
 
 pub mod doctor;
+pub mod events;
 pub mod principal;
+pub mod provenance;
 pub mod workspace;
 
 mod commands;

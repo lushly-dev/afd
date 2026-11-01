@@ -111,7 +111,7 @@ fn the_first_class_set_is_validated_at_seal() {
 fn the_default_first_class_set_is_computed_and_an_explicit_one_wins() {
     let dir = minimal();
     let host = host(dir.path());
-    assert_eq!(host.first_class_tools(), ["workspace-show"]);
+    assert_eq!(host.first_class_tools(), ["workspace-show", "event-list"]);
 
     let dir = workspace(
         "config_version = 1\n[mcp]\nfirst_class_tools = [\"space-list\", \"widget-open\"]\n",

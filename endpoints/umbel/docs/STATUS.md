@@ -37,7 +37,7 @@ should never have to scan the codebase to learn what is current.
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
-| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: steps 0 to 3 done | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 4 (journal and events); step 5 (MCP surfaces) may run beside it |
+| 0. Host skeleton | Specification approved 2026-10-31; implementation in progress: steps 0 to 4 done | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md), approved under the owner's delegation and merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525` | Step 5 (MCP surfaces; it may have run beside step 4); then step 6 (exit) |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
@@ -107,8 +107,8 @@ should never have to scan the codebase to learn what is current.
 ### Phase 0. Host skeleton
 
 - **State:** specification approved 2026-10-31 under the owner's delegation
-  (D24); implementation in progress, steps 0 to 3 done. Last verified
-  2026-11-01 against `main` at `96af69b7`.
+  (D24); implementation in progress, steps 0 to 4 done. Last verified
+  2026-11-01 against `main` at `d03f2bbd`.
 - **Done:** the [specification](phases/0-host-skeleton/spec.md), merged in
   [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`, with
   decisions D28 to D36 and the architecture amendments they need (embedded
@@ -163,8 +163,29 @@ should never have to scan the codebase to learn what is current.
   pull request. Not in step 3: `umbel serve` (parsed, answers
   `NOT_IMPLEMENTED` until step 5) and the event commands (step 4). Amendments:
   the specification's "Amendments from step 3".
-- **Not done:** steps 4 to 6 of the specification's plan (journal and events,
-  MCP surfaces, exit); the exit criterion.
+- **Done:** step 4, journal and events ([#PR](https://github.com/lushly-dev/afd/pull/PR)):
+  the projecting sink over `FileJournalSink::shared`, which holds one
+  `state/lock` across the journal append and the event append; `seq` read from
+  the file tails under the lock; lock-free readers that skip a torn last line;
+  the `projection.pending` marker, so the next append from any process, the next
+  `seal`, `event-list` or `space-list` replays a failed projection first;
+  `Host::repair_events`; event and provenance envelope version 0 (valid against
+  `event.v0.json`); cursors `v0:<space>:<seq>` with `v0:<space>:0` before the
+  first event; stored cursors per principal and consumer, written by atomic
+  rename; `event-list`, `event-ack` and the CLI-only `event-rebuild`; and
+  `space-list` on the catch-up instead of counting lines. Tests:
+  `journal_events.rs` (12), `cursors.rs` (10), `multi_process.rs` (4: 200
+  interleaved mutations across two hosts with a reader beside them, a held lock
+  past the timeout, eight hosts opening a fresh workspace at once, and 24
+  concurrent `umbel` processes) and five more cases in `trusted_keys.rs`.
+  Verified 2026-11-01 in `endpoints/umbel`: `cargo fmt --check`, `cargo clippy
+  --all-targets --locked -- -D warnings`, the library-only clippy leg, `cargo
+  test --locked`, `cargo +1.97.0 check --locked --all-targets`; `pnpm check`
+  and `umbel.yml` on the pull request. Amendments: the specification's
+  "Amendments from step 4".
+- **Not done:** steps 5 and 6 of the specification's plan (MCP surfaces, exit);
+  the exit criterion. The MCP cases of `journal_events.rs`, `trusted_keys.rs`
+  and `process.rs` wait for step 5.
 - **Follow-ups:** the open rows of the specification's follow-ups table,
   mirrored below.
 
@@ -194,6 +215,7 @@ starts.
 | 2026-10-31 | Phase 0 review | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line without replacing them | Open, AFD, if wanted |
 | 2026-10-31 | Phase 0 specification | Windows in the `umbel.yml` matrix (key permissions, file locks, signals) | Open, phase 7 |
 | 2026-10-31 | Phase 0 specification | An external client check, `afd validate` against `umbel serve --http`, in CI; the client must send the bearer token | Open, phase 1 |
+| 2026-11-01 | Step 4 | For the step 5 agent: when both steps have landed, add the MCP cases to `journal_events.rs` (events and cursors over `afd-call`/`event-list` in both eras), `trusted_keys.rs` (`afd-batch` over MCP with a forged `dev.umbel/principal` stores `event-ack` under the real principal's cursor) and `process.rs` (one-shot `umbel event ack` and `umbel event list` beside a running `serve --stdio`, journal `seq` contiguous). `umbel serve` should call `Host::repair_events` at start (run it with `spawn_blocking`); `multi_process.rs` already runs real `umbel` processes against one journal | Open, step 5 |
 
 ## Session log
 
@@ -215,3 +237,4 @@ starts.
 | 2026-10-31 | Phase 0 step 1 | Scaffolded `endpoints/umbel/` ([#570](https://github.com/lushly-dev/afd/pull/570)): `Cargo.toml` (the single `umbel` package, library and binary, `afd` by path with `server` and `journal-file-shared`), `Cargo.lock` committed (and the `.gitignore` negation), `rust-toolchain.toml` (1.98.0), `clippy.toml`, a `src/lib.rs` that forbids unsafe code, a `src/main.rs` that prints `--version` and one smoke test; `.github/workflows/umbel.yml` (Linux and macOS, plus an MSRV 1.97 check); the quarantined `umbel` unit in `scripts/release/inventory.json` (private, no route), its explicit `architecture.json` unit and a repository-contract test; the `AGENTS.md` CI row, key rule and tree line. In review |
 | 2026-10-31 | Phase 0 step 2 | Implemented the workspace in `endpoints/umbel/` ([#572](https://github.com/lushly-dev/afd/pull/572)): `src/workspace/` (discovery, configuration version 1, layout, keys, lock, `init`), `src/doctor.rs`, the six schemas and examples under `schemas/`, and the `workspace.rs`, `doctor.rs` and `schemas.rs` tests. Marked step 1 done ([#570](https://github.com/lushly-dev/afd/pull/570), `273e0160`, `umbel.yml` green on Linux, macOS and MSRV). Kept `reqwest` and `rustls` out of the lock. Spec amended in four small places |
 | 2026-11-01 | Phase 0 step 3 | Implemented the registry and the CLI in `endpoints/umbel/` ([#573](https://github.com/lushly-dev/afd/pull/573)): `src/host/` (`HostBuilder`, `seal`, `Host`, `HostError`, `Workspace::resolve_space`), `src/commands/` (`workspace-show`, `space-list`, `workspace-doctor`), `src/middleware.rs` (event stamp, space check), `src/principal.rs`, `src/surfaces/` (the default first-class set, the MCP server `seal` validates), `src/logging.rs`, `src/cli/` (`run`, argument parsing, JSON and text output, the sanitizer, approvals and confirmations) and the `umbel` binary; tests `cli.rs`, `seal.rs`, `doctor_sealed.rs`, `trusted_keys.rs`. Spec amendments: `async-trait`, the event stamp outermost, public `cli::run` and `RESERVED_VERBS`, the `cli.rs` row. Marked step 3 done |
+| 2026-11-01 | Phase 0 step 4 | Journal and events: the projecting sink, the pending marker and catch-up, `repair_events`, event and provenance version 0, cursors and consumers, `event-list`, `event-ack`, `event-rebuild`, and the multi-process tests, in [#PR](https://github.com/lushly-dev/afd/pull/PR). Amendments recorded in the specification's "Amendments from step 4" |
