@@ -224,6 +224,49 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
+test('Loam is four private, route-less endpoints under endpoints/loam/packages', async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const { checkBoundaries } = await import('./check-boundaries.mjs');
+	const inventory = loadInventory(repoRoot);
+	const { dependencies, errors } = checkBoundaries(repoRoot);
+	assert.deepEqual(errors, []);
+	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/packages\/\*"$/m);
+	const loam = ['theme', 'kernel', 'chrome', 'web'];
+	for (const name of loam) {
+		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
+		assert.equal(unit.family, 'loam');
+		assert.equal(unit.state, 'quarantined');
+		assert.deepEqual(unit.routes, []);
+		assert.deepEqual(unit.gates, ['pnpm check', 'loam.yml', 'release-approval']);
+		const manifestPath = `endpoints/loam/packages/${name}/package.json`;
+		assert.deepEqual(
+			unit.distributions.map((entry) => [entry.name, entry.manifest, entry.private]),
+			[[`@lushly-dev/loam-${name}`, manifestPath, true]]
+		);
+		assert.equal(JSON.parse(read(manifestPath)).private, true);
+		assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+		assert.throws(
+			() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route: 'npm-main' }),
+			/not admitted/
+		);
+	}
+	// Nothing outside Loam depends on it.
+	const names = new Set(loam.map((name) => `@lushly-dev/loam-${name}`));
+	for (const [name, targets] of Object.entries(dependencies))
+		if (!names.has(name)) assert.ok(!targets.some((target) => names.has(target)), name);
+	// The kernel has no DOM or foundation dependency; the chrome reaches Violet only through FAST-AF.
+	assert.ok(
+		!dependencies['@lushly-dev/loam-kernel'].some((target) =>
+			/fast-element|violet|specimen|loam-/.test(target)
+		)
+	);
+	const workflow = read('.github/workflows/loam.yml');
+	assert.match(workflow, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
+});
+
 test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'

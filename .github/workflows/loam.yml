@@ -1,0 +1,73 @@
+name: Loam
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/**'
+      - '!endpoints/loam/docs/**'
+      # The foundations and AFD packages Loam builds on.
+      - 'foundations/fast-af/**'
+      - 'foundations/violet/**'
+      - 'foundations/specimen/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/view-state/**'
+      - 'packages/auth/**'
+      - 'packages/local-db/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/loam.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/**'
+      - '!endpoints/loam/docs/**'
+      - 'foundations/fast-af/**'
+      - 'foundations/violet/**'
+      - 'foundations/specimen/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/view-state/**'
+      - 'packages/auth/**'
+      - 'packages/local-db/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/loam.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loam:
+    name: Build, unit and Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-web..." build
+      - name: Typecheck the four packages
+        run: pnpm -F "./endpoints/loam/packages/*" typecheck
+      - name: Unit suites with coverage
+        run: pnpm -F "./endpoints/loam/packages/*" test --coverage
+      # Steps 2 and 7 of the phase 0 specification add theme:check, lint:tokens and budget here.
+      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - name: Chromium suite against the built shell
+        run: pnpm -F @lushly-dev/loam-web test:browser
+      - name: Build leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-test-results
+          path: endpoints/loam/packages/web/test-results/
+          retention-days: 7

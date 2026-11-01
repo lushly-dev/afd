@@ -6,6 +6,7 @@ packages:
   - "foundations/afd/typescript/*"
   - "integrations/*"
   - "endpoints/*"
+  - "endpoints/loam/packages/*"
   - "packages/auth/hosted/convex"
   - "packages/examples/_shared/*"
   - "packages/examples/chat"
