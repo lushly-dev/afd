@@ -61,10 +61,11 @@
 	"hostCondition": {
 		"confirmed": "2026-10-31",
 		"reason": "T02 found cross-session CPU tracks host contention (probe correlation r = 0.999 / 0.960), so admission alone does not make jobs comparable",
-		"probe": "Fixed-work speed probe (experiments/resources/speed-probe.mjs) before and after every job",
+		"probe": "Fixed-work speed probe (experiments/resources/speed-probe.mjs) before and after every job; each probe is the fastest of three separate runs",
 		"pairRule": "A comparison pair counts only when every job's before and after probe CPU seconds are at most 1.10 times the session's quietest probe; otherwise the pair is held and supplies no ratio",
 		"maxProbeRatio": 1.1,
-		"quietWindow": "Measurements start only after experiments/resources/quiet.mjs reports a full quiet window; the gate is a precondition, not evidence"
+		"quietWindow": "Measurements start only after experiments/resources/quiet.mjs reports a full quiet window; the gate is a precondition, not evidence",
+		"probeRevision": "Revised 2026-10-31 before any T04 comparison produced a verdict: on Apple silicon a single run lands on a performance or efficiency core and reads about 1.6 times slower on the latter even on a quiet host (T04 sessions 1-4: discrete 0.664-0.678 s readings against 0.41-0.42 s), so single-run probes held pairs for core placement rather than contention. The 1.10 band is unchanged."
 	},
 	"budgets": {
 		"unit": "minified UTF-8 JavaScript bytes",

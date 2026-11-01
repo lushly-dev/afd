@@ -20,17 +20,36 @@ process.stdout.write(JSON.stringify({
 	digest: digest.slice(0, 16),
 }));`;
 
-export function speedProbe() {
+function probeOnce() {
 	const run = spawnSync(process.execPath, ['-e', source], { encoding: 'utf8', timeout: 30_000 });
 	if (run.status !== 0)
 		return { status: 'failed', error: (run.stderr || run.error?.message || '').trim() };
 	try {
-		return {
-			status: 'complete',
-			timestampUtc: new Date().toISOString(),
-			...JSON.parse(run.stdout),
-		};
+		return { status: 'complete', ...JSON.parse(run.stdout) };
 	} catch (error) {
 		return { status: 'failed', error: `Unreadable probe output: ${error.message}` };
 	}
+}
+
+/**
+ * The fastest of `runs` separate runs. On Apple silicon a half-second single-threaded run lands
+ * on a performance or an efficiency core, and the two read about 1.6 times apart on a quiet
+ * host; contention slows every run, while an unlucky placement slows one.
+ */
+export function speedProbe({ runs = 3 } = {}) {
+	const timestampUtc = new Date().toISOString();
+	const results = Array.from({ length: runs }, probeOnce);
+	const failed = results.find((result) => result.status !== 'complete');
+	if (failed) return { ...failed, timestampUtc, runs: results };
+	const fastest = results.reduce((best, result) =>
+		result.cpuSeconds < best.cpuSeconds ? result : best
+	);
+	return {
+		status: 'complete',
+		timestampUtc,
+		cpuSeconds: fastest.cpuSeconds,
+		wallSeconds: fastest.wallSeconds,
+		digest: fastest.digest,
+		runs: results.map(({ cpuSeconds, wallSeconds }) => ({ cpuSeconds, wallSeconds })),
+	};
 }
