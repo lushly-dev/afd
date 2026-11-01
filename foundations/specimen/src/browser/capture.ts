@@ -248,6 +248,7 @@ export function captureDocument(
 			height: innerHeight,
 			media: matchMedia('(max-width: 600px)').matches,
 			colorScheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+			contrast: observedContrast(),
 			reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches
 				? 'reduce'
 				: 'no-preference',
@@ -255,6 +256,23 @@ export function captureDocument(
 			devicePixelRatio,
 		},
 	};
+}
+
+/** The `prefers-contrast` this document observes. */
+export function observedContrast(): BrowserObservation['viewport']['contrast'] {
+	for (const value of ['more', 'less', 'custom'] as const)
+		if (matchMedia(`(prefers-contrast: ${value})`).matches) return value;
+	return 'no-preference';
+}
+
+/** The color scheme a theme renders in; high contrast is the light scheme. */
+export function colorSchemeOf(theme: SpecimenContext['theme']): 'light' | 'dark' {
+	return theme === 'dark' ? 'dark' : 'light';
+}
+
+/** The `prefers-contrast` a theme emulates; only high contrast asks for more. */
+export function contrastOf(theme: SpecimenContext['theme']): 'more' | 'no-preference' {
+	return theme === 'high-contrast' ? 'more' : 'no-preference';
 }
 
 /** Compare language tags as the browser does, so `EN-us` and `en-US` are one locale. */
@@ -280,9 +298,15 @@ export function contextMismatches(
 		reasons.push(
 			`Context mismatch: the viewport is ${observed.width}x${observed.height}, not the requested ${width}x${height}.`
 		);
-	if (observed.colorScheme !== context.theme)
+	const colorScheme = colorSchemeOf(context.theme);
+	if (observed.colorScheme !== colorScheme)
 		reasons.push(
-			`Context mismatch: prefers-color-scheme is ${observed.colorScheme}, not the requested ${context.theme}; only the theme attribute and color-scheme apply.`
+			`Context mismatch: prefers-color-scheme is ${observed.colorScheme}, not the requested ${colorScheme}; only the theme attribute and color-scheme apply.`
+		);
+	const contrast = contrastOf(context.theme);
+	if (observed.contrast !== contrast)
+		reasons.push(
+			`Context mismatch: prefers-contrast is ${observed.contrast}, not the requested ${contrast}; only the theme attribute applies.`
 		);
 	if (observed.reducedMotion !== context.reducedMotion)
 		reasons.push(

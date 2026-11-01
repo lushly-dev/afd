@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { commands, page } from 'vitest/browser';
 import { contextMatrix, expectedReport, FIXED_NOW } from '../fixtures/context-matrix.js';
+import { colorSchemeOf, contrastOf } from '../src/browser/capture.js';
 import { installRuntime } from '../src/browser/index.js';
 import type { BrowserObservation, SpecimenContext, SpecimenEntry } from '../src/types.js';
 import { type MediaEmulation, providerMedia } from './provider.js';
@@ -52,7 +53,11 @@ async function render(
 	await page.viewport(context.viewport.width, context.viewport.height);
 	await commands.emulateMedia(
 		media === 'emulated'
-			? { colorScheme: context.theme, reducedMotion: context.reducedMotion }
+			? {
+					colorScheme: colorSchemeOf(context.theme),
+					contrast: contrastOf(context.theme),
+					reducedMotion: context.reducedMotion,
+				}
 			: providerMedia
 	);
 	await window.__specimen.mount(entry, context);
@@ -106,10 +111,12 @@ describe('the reference driver: the common runtime in Vitest browser mode', () =
 			const observation = await render('context-probe', context, 'provider');
 			const values = report(observation) as Record<string, unknown>;
 			expect(values.prefersDark).toBe(providerMedia.colorScheme === 'dark');
+			expect(values.prefersContrast).toBe(providerMedia.contrast === 'more');
 			expect(values.prefersReducedMotion).toBe(providerMedia.reducedMotion === 'reduce');
-			expect(values.colorScheme).toBe(context.theme);
+			expect(values.colorScheme).toBe(colorSchemeOf(context.theme));
 			const expected =
-				(context.theme === providerMedia.colorScheme ? 0 : 1) +
+				(colorSchemeOf(context.theme) === providerMedia.colorScheme ? 0 : 1) +
+				(contrastOf(context.theme) === providerMedia.contrast ? 0 : 1) +
 				(context.reducedMotion === providerMedia.reducedMotion ? 0 : 1);
 			expect(
 				mismatches(observation).filter((value) => !value.includes('navigator.language'))

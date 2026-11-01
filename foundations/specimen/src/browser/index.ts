@@ -1,5 +1,5 @@
 import type { MountHandle, SpecimenContext, SpecimenModule } from '../types.js';
-import { captureDocument, contextMismatches, openElements } from './capture.js';
+import { captureDocument, colorSchemeOf, contextMismatches, openElements } from './capture.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
 import { validateSpecimen } from './validate.js';
@@ -93,7 +93,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				if (!bodyNodes.has(node)) node.remove();
 		});
 		html.lang = context.locale;
-		html.style.colorScheme = context.theme;
+		html.style.colorScheme = colorSchemeOf(context.theme);
 		html.dataset.specimenTheme = context.theme;
 		if (context.container) {
 			mountRoot.style.width = `${context.container.width}px`;

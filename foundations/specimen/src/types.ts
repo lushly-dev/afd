@@ -5,7 +5,8 @@ export const NORMALIZATION_VERSION = '0.1' as const;
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
 	container?: { width: number; height?: number };
-	theme: 'light' | 'dark';
+	/** `high-contrast` is the light color scheme with `prefers-contrast: more`. */
+	theme: 'light' | 'dark' | 'high-contrast';
 	locale: string;
 	reducedMotion: 'reduce' | 'no-preference';
 	motion: 'natural' | 'settled';
@@ -92,6 +93,7 @@ export interface BrowserObservation {
 		height: number;
 		media: boolean;
 		colorScheme: 'light' | 'dark';
+		contrast: 'more' | 'less' | 'custom' | 'no-preference';
 		reducedMotion: 'reduce' | 'no-preference';
 		language: string;
 		devicePixelRatio: number;

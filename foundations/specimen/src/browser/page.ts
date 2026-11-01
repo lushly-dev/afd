@@ -1,5 +1,5 @@
 import type { SpecimenContext, SpecimenEntry } from '../types.js';
-import { sameLocale } from './capture.js';
+import { colorSchemeOf, contrastOf, observedContrast, sameLocale } from './capture.js';
 
 function viewport(value: string): SpecimenContext['viewport'] {
 	const dimensions = /^(\d+)x(\d+)$/.exec(value.trim());
@@ -47,7 +47,7 @@ function readContext(params: URLSearchParams, defaults: SpecimenContext): Specim
 	}
 	const context: SpecimenContext = {
 		...defaults,
-		theme: choice(params, 'theme', ['light', 'dark'], defaults.theme),
+		theme: choice(params, 'theme', ['light', 'dark', 'high-contrast'], defaults.theme),
 		locale,
 		reducedMotion: choice(
 			params,
@@ -68,10 +68,15 @@ function readContext(params: URLSearchParams, defaults: SpecimenContext): Specim
 function hostDifferences(context: SpecimenContext): string[] {
 	const differences: string[] = [];
 	const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-	if (dark !== (context.theme === 'dark'))
+	const colorScheme = colorSchemeOf(context.theme);
+	if (dark !== (colorScheme === 'dark'))
 		differences.push(
-			`prefers-color-scheme is ${dark ? 'dark' : 'light'} from this browser, not ${context.theme}`
+			`prefers-color-scheme is ${dark ? 'dark' : 'light'} from this browser, not ${colorScheme}`
 		);
+	const observed = observedContrast();
+	const contrast = contrastOf(context.theme);
+	if (observed !== contrast)
+		differences.push(`prefers-contrast is ${observed} from this browser, not ${contrast}`);
 	const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 	if (reduce !== (context.reducedMotion === 'reduce'))
 		differences.push(
@@ -121,10 +126,14 @@ function controls(root: HTMLElement, context: SpecimenContext): void {
 	themeLabel.textContent = 'Theme';
 	const theme = document.createElement('select');
 	theme.id = themeLabel.htmlFor;
-	for (const value of ['light', 'dark']) {
+	for (const [value, label] of [
+		['light', 'Light'],
+		['dark', 'Dark'],
+		['high-contrast', 'High contrast'],
+	] as const) {
 		const option = document.createElement('option');
 		option.value = value;
-		option.textContent = value === 'light' ? 'Light' : 'Dark';
+		option.textContent = label;
 		theme.append(option);
 	}
 	theme.value = context.theme;
@@ -181,7 +190,7 @@ export async function installPage(
 			return;
 		}
 		root.replaceChildren();
-		document.documentElement.style.colorScheme = context.theme;
+		document.documentElement.style.colorScheme = colorSchemeOf(context.theme);
 		const heading = document.createElement('h1');
 		heading.textContent = 'Specimens';
 		root.append(heading);
@@ -203,7 +212,7 @@ export async function installPage(
 			frame.title = `${entry.title} specimen preview`;
 			frame.width = String(context.viewport.width);
 			frame.height = String(context.viewport.height);
-			frame.style.cssText = `display:block;border:0;width:${context.viewport.width}px;height:${context.viewport.height}px;color-scheme:${context.theme};`;
+			frame.style.cssText = `display:block;border:0;width:${context.viewport.width}px;height:${context.viewport.height}px;color-scheme:${colorSchemeOf(context.theme)};`;
 			root.append(back, title);
 			const differences = hostDifferences(context);
 			if (differences.length) {

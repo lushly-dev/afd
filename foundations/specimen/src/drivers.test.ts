@@ -22,12 +22,14 @@ const root = resolve(import.meta.dirname, '../fixtures');
 const viewer = { colorScheme: 'light', reducedMotion: 'no-preference', locale: 'en-US' } as const;
 const viewerReport = {
 	prefersDark: false,
+	prefersContrast: false,
 	prefersReducedMotion: false,
 	language: viewer.locale,
 	intlLocale: viewer.locale,
 } satisfies Partial<ContextReport>;
 const mismatchLabel = {
 	prefersDark: 'prefers-color-scheme',
+	prefersContrast: 'prefers-contrast',
 	prefersReducedMotion: 'prefers-reduced-motion',
 	language: 'navigator.language',
 	intlLocale: 'navigator.language',
@@ -132,6 +134,22 @@ describe('one context and lifecycle contract across drivers', () => {
 			} finally {
 				await page.close();
 			}
+		});
+	});
+
+	it('renders high contrast as the light scheme with prefers-contrast: more (Loam D53)', async () => {
+		const context = { ...defaultContext, theme: 'high-contrast' } as const;
+		const capture = await bench.render({ id: 'context-probe', context });
+		expect(reportOf(capture)).toMatchObject({
+			prefersContrast: true,
+			prefersDark: false,
+			colorScheme: 'light',
+			theme: 'high-contrast',
+		});
+		expect(capture.manifest.context.theme).toBe('high-contrast');
+		expect(capture.completeness.styles).toMatchObject({ status: 'complete', reasons: [] });
+		expect(reportOf(await bench.render({ id: 'context-probe' }))).toMatchObject({
+			prefersContrast: false,
 		});
 	});
 

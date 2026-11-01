@@ -431,6 +431,24 @@ export const Good = {
 			expect(
 				await lightFrame.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
 			).toBe('light');
+			await page.getByRole('combobox', { name: 'Theme' }).selectOption('high-contrast');
+			await Promise.all([
+				page.waitForURL(/[?&]theme=high-contrast(?:&|$)/),
+				page.getByRole('button', { name: 'Apply context' }).click(),
+			]);
+			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
+			const contrastFrame = page.frames().find((candidate) => candidate.parentFrame());
+			if (!contrastFrame) throw new Error('No specimen iframe after the high-contrast change');
+			expect(
+				await contrastFrame.evaluate(() => ({
+					colorScheme: getComputedStyle(document.documentElement).colorScheme,
+					theme: document.documentElement.dataset.specimenTheme,
+				}))
+			).toEqual({ colorScheme: 'light', theme: 'high-contrast' });
+			// The viewer's browser has no contrast preference; the preview says so.
+			expect(await page.locator('#specimen-page-context-notice').textContent()).toContain(
+				'prefers-contrast is no-preference from this browser, not more'
+			);
 			expect(errors).toEqual([]);
 		} finally {
 			try {

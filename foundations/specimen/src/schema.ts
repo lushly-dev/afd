@@ -11,7 +11,7 @@ const recordedContextSchema = z.strictObject({
 			height: z.number().int().min(1).max(8192).optional(),
 		})
 		.optional(),
-	theme: z.enum(['light', 'dark']),
+	theme: z.enum(['light', 'dark', 'high-contrast']),
 	locale: z.string().min(1),
 	reducedMotion: z.enum(['reduce', 'no-preference']),
 	motion: z.enum(['natural', 'settled']),

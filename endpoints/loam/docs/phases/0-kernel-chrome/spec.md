@@ -13,6 +13,10 @@
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
   Approved by the owner on 2026-11-01 (D17). Implementation starts with
   steps 0a and 1.
+  Step 6, Specimen high contrast, merged in
+  [#628](https://github.com/lushly-dev/afd/pull/628); it amended
+  [section 4](#4-specimen-with-high-contrast-d53), because the bench now
+  emulates media in its native host rather than through Playwright.
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -58,7 +62,9 @@
       HTTP only, and `ThemeManager.useSystemPreference` knows light and dark
       only.
   - **Specimen:** `foundations/specimen/src`:
-    - `bench-runtime.ts:157` passes `theme` to Playwright as `colorScheme`;
+    - `bench-runtime.ts:157` passes `theme` to Playwright as `colorScheme`
+      (corrected by step 6: since #616 the native host, `host/src/page.rs`,
+      sends the media over CDP);
     - `capture.ts:283` checks the color scheme;
     - `browser/index.ts:95-96` and `browser/page.ts:50`;
     - `axe: 'not-run'`.
@@ -78,9 +84,9 @@
 
   The trajectory rows were re-checked on the same day; see the
   [trajectory refresh](#trajectory-refresh).
-- **Done:** this specification.
-- **Not done:** the owner's approval, then every step of the
-  [implementation plan](#12-implementation-plan).
+- **Done:** this specification and its approval; step 6 of the
+  [implementation plan](#12-implementation-plan) (#628).
+- **Not done:** steps 0a to 5, 7 and 8 of the implementation plan.
 - **Follow-ups:** see [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -487,15 +493,36 @@ resolves its theme from media queries, as the chrome does under
 `appearance: system`, selects high contrast itself. The bench sets no
 attribute of its own beyond its existing `data-specimen-theme`.
 
+Amended by step 6 (2026-11-01): the bench no longer renders through
+Playwright's `newContext`; since #616 its native host drives Chromium over
+CDP. The mapping is therefore the same media the host sends with
+`Emulation.setEmulatedMedia`, `prefers-color-scheme: light` and
+`prefers-contrast: more`, and the light and dark themes now send
+`prefers-contrast: no-preference` rather than leaving it to the browser.
+The capture observes `prefers-contrast` beside `prefers-color-scheme`, and
+reports a `Context mismatch` when either differs from what the theme
+requires, so a capture that did not have high contrast is never evidence
+for it.
+
 Files that change, recorded in `foundations/specimen/provenance/adaptations.json`:
 
-- `src/types.ts` and `src/schema.ts`;
-- `src/bench-runtime.ts`, the context mapping;
-- `src/capture.ts`, whose color-scheme check expects `light` for high
-  contrast;
-- `src/browser/index.ts` and `src/browser/page.ts`, the theme picker and
-  `data-specimen-theme`;
-- the README.
+- `src/types.ts`, `src/schema.ts` and `src/validate.ts`, the bench's own
+  request validation;
+- `host/src/page.rs`, the context mapping, in place of
+  `src/bench-runtime.ts`, which does not change;
+- `src/browser/capture.ts`, whose color-scheme check expects `light` for
+  high contrast and which checks `prefers-contrast`;
+- `src/browser/index.ts` and `src/browser/page.ts`, the theme picker,
+  `color-scheme` and `data-specimen-theme`;
+- the README;
+- the tests: the context probe and matrix in `fixtures/`, which gain a
+  high-contrast context, the bench and static drivers in
+  `src/drivers.test.ts`, the Vitest reference driver in `reference/`, and
+  `src/validate.test.ts`; and the driver comparison record in
+  `docs/features/active/specimens/driver-context-validation.md`.
+
+The AFD integration and the CLI take the theme through the shared schema
+and validation, so neither changes.
 
 Specimen still does not run axe; the Loam suite does. Forced colors is a
 separate condition, which overrides Loam's palette. It is tested by the
