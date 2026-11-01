@@ -1,0 +1,29 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/principal.v0.json",
+	"title": "Umbel principal projection, version 0",
+	"description": "The caller, as the context hook sets it in CommandContext.extra[\"dev.umbel/principal\"]. Reserved, and refused by version 0: credentials, delegationChain, tokenBinding, humanPresent, policyDecision, policyVersion, scopes, spaces, tenant.",
+	"type": "object",
+	"required": ["version", "actor", "transport", "authentication"],
+	"additionalProperties": false,
+	"properties": {
+		"version": { "const": 0 },
+		"actor": { "$ref": "#/$defs/actor" },
+		"transport": { "enum": ["stdio", "http", "cli", "library"] },
+		"authentication": { "enum": ["none", "process", "embedder"] }
+	},
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "enum": ["human", "agent", "service", "script", "test"] },
+				"id": { "type": "string" },
+				"label": { "type": "string" },
+				"onBehalfOf": { "type": "string" }
+			}
+		}
+	}
+}

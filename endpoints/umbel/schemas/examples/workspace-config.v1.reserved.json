@@ -1,0 +1,7 @@
+{
+	"config_version": 1,
+	"spaces": {
+		"main": { "content_roots": ["notes"], "backend": "embedded" }
+	},
+	"events": { "retention": "forever" }
+}

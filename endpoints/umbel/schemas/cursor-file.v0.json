@@ -1,0 +1,24 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/cursor-file.v0.json",
+	"title": "Umbel stored cursor file, version 0",
+	"description": "state/spaces/<space>/cursors/<cursor-key>.json: one principal's acknowledged cursor for one consumer in one space.",
+	"type": "object",
+	"required": ["version", "actor", "consumer", "cursor", "updatedAt"],
+	"additionalProperties": false,
+	"properties": {
+		"version": { "const": 0 },
+		"actor": {
+			"type": "object",
+			"required": ["kind", "id"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "enum": ["human", "agent", "service", "script", "test"] },
+				"id": { "type": "string", "minLength": 1 }
+			}
+		},
+		"consumer": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
+		"cursor": { "$ref": "cursor.v0.json" },
+		"updatedAt": { "type": "string", "minLength": 1, "description": "ISO 8601" }
+	}
+}

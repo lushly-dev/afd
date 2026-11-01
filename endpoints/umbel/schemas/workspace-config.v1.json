@@ -1,0 +1,108 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/workspace-config.v1.json",
+	"title": "Umbel workspace configuration, version 1",
+	"description": "umbel.toml read as JSON. Every key but config_version has a default baked into the binary. Reserved keys (spaces.<id>.content_roots, spaces.<id>.backend, events.retention) are accepted here and flagged by the doctor. Rules that need more than a schema, such as a loopback IP in http.bind and a declared default_space, are checked when the host opens the workspace.",
+	"type": "object",
+	"required": ["config_version"],
+	"additionalProperties": false,
+	"properties": {
+		"config_version": { "const": 1 },
+		"name": { "type": "string", "minLength": 1 },
+		"default_space": { "$ref": "#/$defs/spaceId" },
+		"profile": { "enum": ["team"] },
+		"spaces": {
+			"type": "object",
+			"propertyNames": { "$ref": "#/$defs/spaceId" },
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"title": { "type": "string", "minLength": 1 },
+					"content_roots": { "description": "Reserved (phase 2).", "type": "array", "items": { "type": "string" } },
+					"backend": { "description": "Reserved (phase 6).", "type": "string" }
+				}
+			}
+		},
+		"plugins": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"enabled": { "description": "Must be empty in phase 0; the loader is phase 1.", "type": "array", "maxItems": 0 }
+			}
+		},
+		"mcp": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"first_class_tools": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 8,
+					"items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$" }
+				},
+				"tools_list_ttl_ms": { "type": "integer", "minimum": 0 },
+				"confirmations": { "enum": ["enforce", "require-human", "off"] },
+				"instructions": { "type": "string" }
+			}
+		},
+		"http": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"bind": { "description": "A loopback socket address.", "type": "string", "pattern": "^(127(\\.[0-9]{1,3}){3}|\\[::1\\]):[0-9]{1,5}$" },
+				"path": {
+					"description": "Starts with /, is not / and not /health, and has no query, fragment or .. segment.",
+					"type": "string",
+					"pattern": "^/[^?#]+$",
+					"not": { "anyOf": [{ "const": "/health" }, { "pattern": "(^|/)\\.\\.(/|$)" }] }
+				},
+				"allowed_hosts": {
+					"description": "Host names or IP literals, optionally with a port; no wildcard.",
+					"type": "array",
+					"items": { "type": "string", "pattern": "^[^*\\s/?#@]+$" }
+				},
+				"allowed_origins": {
+					"description": "Exact http or https origins; no wildcard and not null.",
+					"type": "array",
+					"items": { "type": "string", "pattern": "^https?://[^*\\s/?#@]+$" }
+				},
+				"max_body_bytes": { "type": "integer", "minimum": 1024, "maximum": 16777216 }
+			}
+		},
+		"journal": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"record_failures": { "type": "boolean" },
+				"lock_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 600000 }
+			}
+		},
+		"events": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"retention": { "description": "Reserved; phase 0 keeps every event.", "type": "string" }
+			}
+		},
+		"log": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"level": { "enum": ["error", "warn", "info", "debug", "trace"] },
+				"format": { "enum": ["text", "json"] }
+			}
+		},
+		"principal": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"local_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+				"on_behalf_of": { "type": "string", "minLength": 1 }
+			}
+		}
+	},
+	"$defs": {
+		"spaceId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" }
+	}
+}

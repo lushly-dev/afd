@@ -1,0 +1,8 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/cursor.v0.json",
+	"title": "Umbel cursor, version 0",
+	"description": "An opaque position in one space's event stream: v0:<space>:<seq>. v0:<space>:0 is the cursor before the first event.",
+	"type": "string",
+	"pattern": "^v0:[a-z][a-z0-9-]{0,62}:(0|[1-9][0-9]*)$"
+}

@@ -1,0 +1,14 @@
+{
+	"version": 0,
+	"origin": "unspecified",
+	"space": "main",
+	"agent": null,
+	"principal": null,
+	"session": null,
+	"traceId": null,
+	"observedAt": "2026-11-02T10:15:00.000Z",
+	"validFrom": "2026-11-01T00:00:00.000Z",
+	"validUntil": "2027-11-01T00:00:00.000Z",
+	"confidence": null,
+	"authority": "handbook"
+}

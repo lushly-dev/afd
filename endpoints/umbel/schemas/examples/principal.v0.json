@@ -1,0 +1,6 @@
+{
+	"version": 0,
+	"actor": { "kind": "agent", "id": "local", "onBehalfOf": "ada" },
+	"transport": "stdio",
+	"authentication": "process"
+}

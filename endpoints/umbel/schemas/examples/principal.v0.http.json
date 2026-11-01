@@ -1,0 +1,6 @@
+{
+	"version": 0,
+	"actor": { "kind": "agent", "id": "loopback" },
+	"transport": "http",
+	"authentication": "none"
+}

@@ -4,3 +4,8 @@
 //! [phase 0 specification](https://github.com/lushly-dev/afd/blob/main/endpoints/umbel/docs/phases/0-host-skeleton/spec.md)
 //! plans it; `endpoints/umbel/docs/STATUS.md` says what exists.
 #![forbid(unsafe_code)]
+
+pub mod doctor;
+pub mod workspace;
+
+pub use workspace::{CONFIG_VERSION, Config, SpaceId, Workspace};
