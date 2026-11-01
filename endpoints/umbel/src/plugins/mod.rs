@@ -14,6 +14,8 @@ mod files;
 mod grants;
 mod loader;
 mod manifest;
+#[cfg(feature = "mounted")]
+mod mounted;
 mod packs;
 mod pipelines;
 mod skills;
@@ -29,7 +31,8 @@ pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
 #[cfg(feature = "testkit")]
 pub(crate) use loader::embedded_id;
 pub(crate) use loader::{
-    Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, Status, load,
+    Catalog, GateEntry, GrantReport, Inputs, InstanceReport, LoadedPlugins, MountReport, Status,
+    load,
 };
 pub use loader::{ORIGIN_KEY, TRUST_NOTE};
 pub(crate) use manifest::to_json;
@@ -38,6 +41,8 @@ pub use manifest::{
     MAX_COMPONENT_BYTES, Manifest, MountDecl, MountTool, PackDecl, PipelineDecl, PipelineStep,
     PluginInfo, PluginKind, SchemaRef, SkillDecl, Transport,
 };
+#[cfg(feature = "mounted")]
+pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
 pub(crate) use pipelines::PipelineState;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};

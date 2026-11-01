@@ -55,6 +55,9 @@ pub struct PluginError {
     code: &'static str,
     message: String,
     suggestion: String,
+    retryable: bool,
+    /// `details.limit` of a `PLUGIN_LIMIT_EXCEEDED`.
+    limit: Option<&'static str>,
 }
 
 impl PluginError {
@@ -63,6 +66,8 @@ impl PluginError {
             code,
             message,
             suggestion,
+            retryable: false,
+            limit: None,
         }
     }
 
@@ -83,9 +88,19 @@ impl PluginError {
 
     /// The error as AFD's [`CommandError`].
     pub fn to_command_error(&self) -> CommandError {
-        CommandError::new(self.code, &self.message)
+        let error = CommandError::new(self.code, &self.message)
             .with_suggestion(&self.suggestion)
-            .with_retryable(false)
+            .with_retryable(self.retryable);
+        match self.limit {
+            Some(limit) => error.with_details(
+                [(
+                    "limit".to_owned(),
+                    serde_json::Value::String(limit.to_owned()),
+                )]
+                .into(),
+            ),
+            None => error,
+        }
     }
 
     /// The error as a failure [`CommandResult`].
@@ -179,6 +194,36 @@ impl PluginError {
             "Run umbel plugin check path=<dir>; for a mount, check that its server starts."
                 .to_owned(),
         )
+    }
+
+    /// `PLUGIN_UNAVAILABLE` for `instance`: its mounted server is not reachable now. Retryable,
+    /// and never retried by the host, because the call may have run.
+    pub(crate) fn unavailable(instance: &str, problem: impl fmt::Display) -> Self {
+        let mut error = Self::new(
+            codes::PLUGIN_UNAVAILABLE,
+            format!("plugins.{instance}: {problem}"),
+            format!("Retry; if it persists, run umbel plugin show plugin={instance}."),
+        );
+        error.retryable = true;
+        error
+    }
+
+    /// `PLUGIN_LIMIT_EXCEEDED` for `instance`: the per-call limit `limit` (`details.limit`) was
+    /// reached.
+    pub(crate) fn limit_exceeded(
+        instance: &str,
+        limit: &'static str,
+        problem: impl fmt::Display,
+    ) -> Self {
+        let mut error = Self::new(
+            codes::PLUGIN_LIMIT_EXCEEDED,
+            format!("plugins.{instance}: {problem}"),
+            format!(
+                "Raise plugins.{instance}.max_result_bytes within the host cap, or reduce the input."
+            ),
+        );
+        error.limit = Some(limit);
+        error
     }
 
     /// `PLUGIN_KIND_UNAVAILABLE`: this build has no loader for the plugin's kind.

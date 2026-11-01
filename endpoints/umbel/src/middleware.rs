@@ -10,7 +10,7 @@
 //! `seal`) the approval middleware. The event stamp is outermost so that it runs last on the way out and can
 //! put the default space on a mutation of a command that has no `space` input.
 
-use crate::plugins::{GateEntry, PluginError};
+use crate::plugins::{GateEntry, PluginError, PluginKind};
 use crate::provenance::{PROVENANCE_KEY, supplied_fields};
 use afd::{
     BoxFuture, CommandContext, CommandError, CommandMiddleware, CommandResult, MiddlewareNext,
@@ -29,6 +29,11 @@ pub(crate) const MUTATION_KEY: &str = "dev.umbel/mutation";
 /// `result.metadata` key: the plugin that answered, `{ "id", "kind" }`. Written only by the plugin
 /// gate.
 pub(crate) const PLUGIN_KEY: &str = "dev.umbel/plugin";
+/// `result.metadata` key: `"recorded"` on a mounted result, which the journal keeps and replay
+/// skips. Written only by the plugin gate.
+pub(crate) const REPLAY_KEY: &str = "dev.umbel/replay";
+/// `result.metadata` key: `"external"` on a mounted result. Written only by the plugin gate.
+pub(crate) const TRUST_KEY: &str = "dev.umbel/trust";
 /// `result.metadata` key: a command's record, which the event projector reads (phase 0).
 pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
 /// The prefix of every key the host owns.
@@ -180,11 +185,14 @@ pub(crate) fn plugin_gate(
 
 /// Reduce a plugin result's metadata to what a plugin may supply, and stamp the plugin.
 fn sanitize(result: &mut CommandResult<Value>, entry: &GateEntry) {
+    let mounted = entry.kind == PluginKind::Mounted;
     let metadata = metadata_mut(result);
     let provenance = metadata.extra.get(PROVENANCE_KEY).and_then(supplied_fields);
+    // A compiled or component result may carry a record for the event projector; nothing a
+    // mounted server says about the host is kept.
     metadata
         .extra
-        .retain(|key, _| !key.starts_with(HOST_PREFIX) || key == RECORD_KEY);
+        .retain(|key, _| !key.starts_with(HOST_PREFIX) || (key == RECORD_KEY && !mounted));
     if let Some(provenance) = provenance {
         metadata.extra.insert(PROVENANCE_KEY.to_owned(), provenance);
     }
@@ -192,4 +200,14 @@ fn sanitize(result: &mut CommandResult<Value>, entry: &GateEntry) {
         PLUGIN_KEY.to_owned(),
         json!({ "id": entry.instance, "kind": entry.kind.as_str() }),
     );
+    if mounted {
+        // Recorded, not replayable (architecture section 8): the journal keeps the stamp, and
+        // replay never calls the server again. The answer is external content.
+        metadata
+            .extra
+            .insert(REPLAY_KEY.to_owned(), Value::String("recorded".to_owned()));
+        metadata
+            .extra
+            .insert(TRUST_KEY.to_owned(), Value::String("external".to_owned()));
+    }
 }

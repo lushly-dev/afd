@@ -9,6 +9,7 @@
 //! skipped and reported `failed` by `plugin-list`.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use afd::{
@@ -23,7 +24,9 @@ use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
-use super::manifest::{CommandDecl, Effect, Manifest, PluginKind};
+use super::manifest::{CommandDecl, Effect, Manifest, PluginKind, Transport};
+#[cfg(feature = "mounted")]
+use super::mounted;
 use super::packs::{PackSet, PackState};
 use super::pipelines::{self, Known, PipelinePlan, PipelineState};
 use super::skills::{LoadedSkill, read_skill};
@@ -54,6 +57,55 @@ pub(crate) enum Status {
     Failed(PluginError),
 }
 
+/// What a mounted instance's server offered, and what became of it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MountReport {
+    /// The prefix the tools are renamed under (the instance's, else the manifest's).
+    pub prefix: String,
+    pub transport: Transport,
+    /// Whether a bearer token is configured (`bearer_env` is set and its variable was read). The
+    /// value is never kept.
+    pub bearer_configured: bool,
+    /// The tools that became commands, in the server's order.
+    pub tools: Vec<MountToolReport>,
+    /// Tools the server listed that were not mounted.
+    pub skipped: Vec<SkippedTool>,
+    /// Descriptions the `description-injection` rule matched.
+    pub warnings: Vec<ScanWarning>,
+}
+
+/// One mounted tool.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MountToolReport {
+    /// The server's name for the tool.
+    pub tool: String,
+    /// The registered command name.
+    pub command: String,
+    pub description: String,
+    pub effects: Vec<Effect>,
+    pub mutation: bool,
+    pub bind_space: bool,
+    pub first_class: bool,
+}
+
+/// A tool the server listed that was not mounted: a diagnostic, not a result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SkippedTool {
+    pub tool: String,
+    /// `PLUGIN_TOOL_UNNAMEABLE` or `PLUGIN_TOOL_SCHEMA_UNSUPPORTED`.
+    pub code: &'static str,
+    pub message: String,
+}
+
+/// A description that matched a pattern of the `description-injection` rule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScanWarning {
+    pub tool: String,
+    /// `description`, or the JSON pointer of the schema description (`inputSchema/properties/...`).
+    pub location: String,
+    pub pattern: String,
+}
+
 /// One instance of `plugins.enabled`, as `plugin-list`, `plugin-show` and the doctor report it.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct InstanceReport {
@@ -74,6 +126,8 @@ pub(crate) struct InstanceReport {
     pub contexts: Vec<String>,
     /// Each pipeline and whether it was registered (section 8.5).
     pub pipelines: Vec<PipelinePlan>,
+    /// A mounted instance's tools, diagnostics and warnings.
+    pub mount: Option<MountReport>,
     pub status: Status,
 }
 
@@ -170,6 +224,8 @@ pub(crate) struct Inputs<'a> {
     pub projector: &'a Arc<Projector>,
     pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
+    /// Extra trusted root certificates (PEM) for HTTPS mounts.
+    pub mount_roots: &'a [Vec<u8>],
 }
 
 /// An instance past steps 1 and 2.
@@ -178,6 +234,8 @@ struct Resolved {
     files: Arc<dyn PluginFiles + Send + Sync>,
     compiled: Option<Arc<dyn CompiledPlugin>>,
     source: String,
+    /// The plugin directory (canonical), for a directory source.
+    root: Option<PathBuf>,
 }
 
 /// An instance past step 7, ready to register once its pipelines are decided.
@@ -185,6 +243,8 @@ struct Prepared {
     report: InstanceReport,
     manifest: Manifest,
     commands: Vec<(CommandDefinition, Value)>,
+    /// The schema a command advertises, where it differs from the one it validates with.
+    advertised: BTreeMap<String, Value>,
     gate: Vec<(String, GateEntry)>,
     /// The input schema of each manifest pipeline, in manifest order.
     pipeline_schemas: Vec<Value>,
@@ -269,14 +329,20 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
             Slot::Ready(prepared) => *prepared,
         };
         let id = prepared.report.id.clone();
+        let advertised = std::mem::take(&mut prepared.advertised);
         let register = |definition: CommandDefinition, schema: Value| {
             let name = definition.name.clone();
-            inputs
-                .registry
-                .register_with_schema(definition, schema)
-                .map_err(|message| {
-                    PluginError::load_failed(&id, format!("cannot register `{name}`: {message}"))
-                })
+            match advertised.get(&name) {
+                Some(shown) => {
+                    inputs
+                        .registry
+                        .register_with_schemas(definition, schema, shown.clone())
+                }
+                None => inputs.registry.register_with_schema(definition, schema),
+            }
+            .map_err(|message| {
+                PluginError::load_failed(&id, format!("cannot register `{name}`: {message}"))
+            })
         };
         for (definition, schema) in std::mem::take(&mut prepared.commands) {
             register(definition, schema)?;
@@ -434,6 +500,7 @@ fn fail(
         packs: Vec::new(),
         contexts: Vec::new(),
         pipelines: Vec::new(),
+        mount: None,
         status: Status::Failed(error),
     })))
 }
@@ -503,6 +570,7 @@ fn resolve(
                 files: Arc::new(files),
                 compiled: Some(plugin),
                 source: format!("compiled:{id}"),
+                root: None,
             }
         }
         ResolvedSource::Directory { dir } => {
@@ -524,16 +592,19 @@ fn resolve(
                 files: Arc::new(files),
                 compiled: None,
                 source: relative,
+                root: Some(dir),
             }
         }
     };
     let http = opened.manifest.is_http_mount();
     super::doctor::fits(instance, &opened.manifest, opened.compiled.is_some())
         .map_err(|error| (error, http))?;
-    if matches!(
-        opened.manifest.plugin.kind,
-        PluginKind::Component | PluginKind::Mounted
-    ) {
+    let unavailable = match opened.manifest.plugin.kind {
+        PluginKind::Component => true,
+        PluginKind::Mounted => !cfg!(feature = "mounted"),
+        _ => false,
+    };
+    if unavailable {
         return Err((
             PluginError::kind_unavailable(&instance.id, opened.manifest.plugin.kind),
             http,
@@ -638,6 +709,47 @@ fn prepare(
     // The skills, read and checked before any plugin code runs (section 8.3).
     let skills = read_skills(instance, manifest, files)?;
 
+    // 6 and 7 for a mounted plugin: connect, list the tools and name them.
+    #[cfg(feature = "mounted")]
+    if manifest.plugin.kind == PluginKind::Mounted {
+        let enabled: Vec<String> = spaces
+            .iter()
+            .map(|space| space.as_str().to_owned())
+            .collect();
+        let built = mounted::build(&mounted::Request {
+            instance,
+            manifest,
+            root: resolved.root.as_deref().unwrap_or_else(|| workspace.root()),
+            workspace,
+            spaces: &enabled,
+            taken,
+            roots: inputs.mount_roots,
+        })?;
+        let skills = check_skill_names(instance, skills, shipped)?;
+        return Ok(Prepared {
+            report: InstanceReport {
+                id: instance.id.clone(),
+                required,
+                source: resolved.source.clone(),
+                spaces: enabled,
+                manifest: Some(manifest.clone()),
+                grants,
+                commands: built
+                    .report
+                    .tools
+                    .iter()
+                    .map(|tool| tool.command.clone())
+                    .collect(),
+                mount: Some(built.report),
+                status: Status::Loaded,
+            },
+            commands: built.commands,
+            advertised: built.advertised,
+            gate: built.gate,
+            skills,
+        });
+    }
+
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let services = Services::new(Shared {
         instance: instance.id.clone(),
@@ -725,10 +837,12 @@ fn prepare(
             packs: pack_states,
             contexts: manifest.contexts.iter().map(|c| c.name.clone()).collect(),
             pipelines: Vec::new(),
+            mount: None,
             status: Status::Loaded,
         },
         manifest: manifest.clone(),
         commands: definitions,
+        advertised: BTreeMap::new(),
         gate,
         pipeline_schemas,
         contexts,
@@ -844,7 +958,7 @@ fn decide_grants(
 }
 
 /// Step 7 for one name.
-fn check_name(
+pub(super) fn check_name(
     name: &str,
     instance: &str,
     taken: &BTreeMap<String, String>,

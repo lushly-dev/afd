@@ -8,10 +8,20 @@ license = "MIT"
 description = "AFD Umbel hello plugin: one command, one pack and one skill, the reference plugin"
 repository = "https://github.com/lushly-dev/afd"
 
+[features]
+# The `hello-mcp` binary: hello served as a stdio MCP server (specification section 10.5).
+mounted = ["umbel-sdk/mounted", "dep:tokio"]
+
+[[bin]]
+name = "hello-mcp"
+path = "src/bin/hello-mcp.rs"
+required-features = ["mounted"]
+
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 serde_json = "1"
 umbel-sdk = { path = "../../sdk" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"], optional = true }
 
 [build-dependencies]
 umbel-sdk = { path = "../../sdk" }

@@ -36,12 +36,16 @@
 
 mod assets;
 mod cx;
+#[cfg(feature = "mounted")]
+mod mounted;
 mod outcome;
 
 pub mod build;
 
 pub use assets::Asset;
 pub use cx::{CallContext, Cx, HostError, HostServices, Level, NoServices};
+#[cfg(feature = "mounted")]
+pub use mounted::{mounted_server, serve_mounted};
 pub use outcome::{Outcome, failure, success};
 
 /// A plugin written against the SDK. One value serves every kind.
