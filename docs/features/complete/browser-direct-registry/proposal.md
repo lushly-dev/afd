@@ -6,10 +6,10 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved by the owner 2026-10-31, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Complete 2026-11-01: parts 1 to 3 merged (#561, #563, #571), with #458's vectors (#557). Approved by the owner 2026-10-31, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `packages/server`, `packages/core` (a stale comment only), `packages/client` (docs), the `afd-typescript` and `afd-directclient` skills, `docs/language-parity.md` |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [View State](../../complete/view-state/view-state.proposal.md), [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), #533 (tool lists per strategy), #466 (meta-tool `context` argument), #474 (`afd-detail` fields), #458 (shared approval-token vectors), #460 (private approval exchange) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [View State](../../complete/view-state/view-state.proposal.md), [Hybrid tool strategy](../../active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), #533 (tool lists per strategy), #466 (meta-tool `context` argument), #474 (`afd-detail` fields), #458 (shared approval-token vectors), #460 (private approval exchange) |
 
 ## Why
 
@@ -150,7 +150,7 @@ Part 3 moves it out of the router's import graph.
   server with the same commands would advertise for that strategy and
   context, by calling the server's own `getToolsList` rather than building
   its own. Every strategy the server has comes with it, including `hybrid`
-  from the [hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md),
+  from the [hybrid tool strategy](../../active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md),
   and #533's settlement of which tools each strategy lists applies to both.
   `DirectClient.listTools` forwards
   it with the client's allowlist applied, as `listCommands` and
