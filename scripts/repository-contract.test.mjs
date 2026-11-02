@@ -312,6 +312,21 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
+test('a workflow reads the one output its affected.mjs gate writes', () => {
+	// `gate` writes only `run=`, so any other key reads as empty and silently skips the job.
+	const directory = join(repoRoot, '.github/workflows');
+	for (const file of readdirSync(directory)) {
+		const workflow = read(`.github/workflows/${file}`);
+		for (const [, id] of workflow.matchAll(
+			/- id: ([\w-]+)\n\s+run: node scripts\/affected\.mjs gate\b/g
+		)) {
+			const reads = [...workflow.matchAll(new RegExp(`steps\\.${id}\\.outputs\\.([\\w-]+)`, 'g'))];
+			assert.ok(reads.length > 0, `${file}: nothing reads the gate step ${id}`);
+			for (const [text, key] of reads) assert.equal(key, 'run', `${file}: ${text}`);
+		}
+	}
+});
+
 test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'
