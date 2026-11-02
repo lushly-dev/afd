@@ -10,8 +10,6 @@ export {
 	GRANT_CATALOG_V1,
 	type GrantEntry,
 	ICONS_V1,
-	LAYOUT_DEFAULTS_V0,
-	type LayoutDefaultsV0,
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
 	SHELL_RESERVED_CHORDS_V1,
@@ -19,6 +17,7 @@ export {
 	type SurfaceEntry,
 	TRUST_LINES_V1,
 } from './catalogs.js';
+export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
 export type {
 	DeploymentRead,
 	DeploymentRefusal,

@@ -5,7 +5,7 @@
  */
 
 import type { FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV0 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV1 } from '@lushly-dev/loam-kernel';
 import { LoamRail, LoamTabbar, railDefinition, tabbarDefinition } from './elements/app-nav.js';
 import { emptyStateDefinition, LoamEmptyState } from './elements/empty-state.js';
 import { LoamMain, mainDefinition } from './elements/main.js';
@@ -63,7 +63,7 @@ export function defineChrome(): Promise<void> {
 }
 
 export interface MountShellOptions {
-	kernel: LoamKernelV0;
+	kernel: LoamKernelV1;
 	/** The text of `@lushly-dev/loam-theme/loam-theme.css`, adopted on the document. */
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */

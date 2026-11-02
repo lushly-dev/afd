@@ -189,6 +189,12 @@ importers:
       '@lushly-dev/afd-view-state':
         specifier: workspace:*
         version: link:../../../../packages/view-state
+      '@lushly-dev/loam-manifest':
+        specifier: workspace:*
+        version: link:../manifest
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@lushly-dev/local-db':
         specifier: workspace:*
         version: link:../../../../packages/local-db
@@ -265,6 +271,40 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  endpoints/loam/packages/testing:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
+    devDependencies:
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   endpoints/loam/packages/theme:
     dependencies:
       '@lushly-dev/violet-core':
@@ -317,6 +357,9 @@ importers:
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
+      '@lushly-dev/loam-testing':
+        specifier: workspace:*
+        version: link:../testing
       '@lushly-dev/specimen':
         specifier: workspace:*
         version: link:../../../../foundations/specimen

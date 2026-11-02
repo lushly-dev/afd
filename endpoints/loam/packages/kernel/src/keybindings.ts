@@ -1,6 +1,6 @@
 /**
- * @fileoverview The chrome's reserved chords (phase 0 specification, section 7). A keybindings
- * registry arrives with the keybindings surface in phase 1.
+ * @fileoverview The reserved chords (phase 0 specification, section 7) and the keybindings registry
+ * (phase 1 specification, 4.2), with the active app's bindings as its second band.
  */
 
 /** One reserved chord. `Mod` is Command on macOS and Control elsewhere. */
@@ -39,4 +39,51 @@ export function keybindingFor(command: string): string | undefined {
 	return SHELL_KEYBINDINGS_V0.find(
 		(binding) => binding.command === command && binding.toggle === undefined
 	)?.chord;
+}
+
+/** One chord an app holds: the manifest's binding, once load admitted it. */
+export interface AppKeybinding {
+	chord: string;
+	command: string;
+	instance: string;
+}
+
+export interface KeybindingRegistry {
+	/** The reserved chords, then `active`'s bindings. */
+	list(active: string | null): ShellKeybindingV0[];
+	/** The chord that runs `command`, as `listCommands` reports it. */
+	keybindingFor(command: string): string | undefined;
+}
+
+export function createKeybindings(
+	shell: readonly Readonly<ShellKeybindingV0>[],
+	apps: readonly AppKeybinding[]
+): KeybindingRegistry {
+	return {
+		list(active) {
+			const band = apps
+				.filter((binding) => binding.instance === active)
+				.map(({ chord, command }) => ({ chord, command }));
+			return [...shell.map((binding) => ({ ...binding })), ...band];
+		},
+		keybindingFor(command) {
+			return keybindingFor(command) ?? apps.find((binding) => binding.command === command)?.chord;
+		},
+	};
+}
+
+/**
+ * Whether a command's JSON Schema needs input: it has a required property, or every branch of a
+ * union does. A chord runs only a command that does not (4.2).
+ */
+export function needsInput(schema: unknown): boolean {
+	if (typeof schema !== 'object' || schema === null) return false;
+	const record = schema as { required?: unknown; anyOf?: unknown; oneOf?: unknown };
+	if (Array.isArray(record.required) && record.required.length > 0) return true;
+	const branches = Array.isArray(record.anyOf)
+		? record.anyOf
+		: Array.isArray(record.oneOf)
+			? record.oneOf
+			: undefined;
+	return branches !== undefined && branches.length > 0 && branches.every(needsInput);
 }

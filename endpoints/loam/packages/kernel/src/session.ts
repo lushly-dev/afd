@@ -6,11 +6,12 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
-import type { KernelEnvironmentV0, KernelOptionsV0, LoamKernelV0 } from './types.js';
+import type { KernelEnvironmentV0, KernelOptionsV1, KernelPortsV1, LoamKernelV1 } from './types.js';
 
 // ─── Environment ────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ export interface RecordSessionOptions {
 	start?: number;
 	/** Random seed. Default: `'loam'`. */
 	seed?: string;
+	deployment?: ProjectionV1;
+	ports?: KernelPortsV1;
 }
 
 export interface RecordedSession {
@@ -55,10 +58,12 @@ export interface TestKernelOptions {
 	commands?: ZodCommandDefinition[];
 	clock?: () => number;
 	random?: () => number;
+	deployment?: ProjectionV1;
+	ports?: KernelPortsV1;
 }
 
 export interface TestKernel {
-	kernel: LoamKernelV0;
+	kernel: LoamKernelV1;
 	journal: MemoryJournalSink;
 }
 
@@ -78,6 +83,8 @@ export async function createTestKernel(options: TestKernelOptions = {}): Promise
 		...(options.commands !== undefined ? { commands: options.commands } : {}),
 		...(options.clock !== undefined ? { clock: options.clock } : {}),
 		...(options.random !== undefined ? { random: options.random } : {}),
+		...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
+		...(options.ports !== undefined ? { ports: options.ports } : {}),
 	});
 	return { kernel, journal };
 }
@@ -113,7 +120,7 @@ export async function recordSession(
 	options: RecordSessionOptions = {}
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
-	const kernelOptions: KernelOptionsV0 = {
+	const kernelOptions: KernelOptionsV1 = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
@@ -123,6 +130,8 @@ export async function recordSession(
 		clock: createSteppingClock(options.start),
 		random: createSeededRandom(options.seed ?? 'loam'),
 		...(options.commands !== undefined ? { commands: options.commands } : {}),
+		...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
+		...(options.ports !== undefined ? { ports: options.ports } : {}),
 	};
 	const { kernel } = await createKernelParts(kernelOptions);
 	try {
@@ -143,7 +152,7 @@ export async function recordSession(
 
 /** Run `calls` in order on `kernel`, each on its interface. */
 export async function runSession(
-	kernel: LoamKernelV0,
+	kernel: LoamKernelV1,
 	calls: readonly SessionCall[]
 ): Promise<void> {
 	for (const call of calls) {

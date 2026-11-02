@@ -11,8 +11,8 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
-  under the owner's delegation, after that review (D17). Implementation is in progress: steps 0b, 1
-  and 2 are merged, and each step's state is one line in STATUS.md's phase 1 block.
+  under the owner's delegation, after that review (D17). Implementation is in progress: steps 0b, 1,
+  2 and 3 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -115,9 +115,12 @@
     [Trajectory refresh](#trajectory-refresh).
 - **Done:** this specification, and the steps STATUS.md's phase 1 block marks merged. Step 2 delivered
   `@lushly-dev/loam-sdk` and `@lushly-dev/loam-cli`, the `rules` cases that need files and E13's CLI
-  part; [11.2](#112-decided-by-step-2) records what it decided.
-- **Not done:** the rest of the [implementation plan](#15-implementation-plan). Of E13, the test kit's
-  items wait for step 3, and the scaffold's own test, which imports the test kit, runs from there.
+  part; [11.2](#112-decided-by-step-2) records what it decided. Step 3 delivered kernel interface 1,
+  `kernel/src/apps/` for native and view, `@lushly-dev/loam-testing`, E8 and the kernel unit of E9;
+  [9.5](#95-decided-by-step-3) records what it decided.
+- **Not done:** the rest of the [implementation plan](#15-implementation-plan). Of E13, the test kit and the
+  scaffold's own test run from step 3, over a fixture of hello's shape; hello's own scenario, and `app check`
+  on hello for E8, wait for hello itself in step 4.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
   [#677](https://github.com/lushly-dev/afd/pull/677). The proposal says that step "lands before Loam's phase 1
   specification is approved, or in the same pull request", which holds.
@@ -216,7 +219,7 @@ The four phase 0 packages change as follows:
 | --- | --- |
 | `kernel` | Kernel interface version 1, `src/apps/` loaded dynamically, the new commands; adds `@lushly-dev/loam-manifest` and `@lushly-dev/loam-sdk`. `LAYOUT_DEFAULTS_V0` moves to `manifest` and stays exported from the kernel, so `theme:check` and the chrome are unchanged |
 | `chrome` | The rail and tab bar's app list, `loam-mount`, the surfaces, overlays, the view host, the keybindings registry; adds `@lushly-dev/loam-console`, `@lushly-dev/loam-sdk` |
-| `web` | The deployment read, the mount transport, the sandbox proxy, the suites; adds `@lushly-dev/afd-client`; dev: `@lushly-dev/loam-cli`, `@lushly-dev/loam-app-hello`, `@lushly-dev/loam-app-tally`, `@modelcontextprotocol/ext-apps` |
+| `web` | The deployment read, the mount transport, the sandbox proxy, the suites; adds `@lushly-dev/afd-client`; dev: `@lushly-dev/loam-cli`, `@lushly-dev/loam-testing`, `@lushly-dev/loam-app-hello`, `@lushly-dev/loam-app-tally`, `@modelcontextprotocol/ext-apps` |
 | `theme` | Nothing. No token is added; the contract stays version 1 |
 
 - **Workspace.** `pnpm-workspace.yaml` gains `endpoints/loam/apps/*`. The boundary
@@ -868,8 +871,8 @@ open?, height? } }`, within `LAYOUT_DEFAULTS_V0`'s bounds.
   active app, every part is available, as in phase 0.
 - **Keying.** Each instance has a view-state handler `loam.layout.<instance>`, registered while the
   kernel reads the deployment, before its one `hydrate()`. Its initial state is the defaults
-  overlaid with the preset, which a persisted record then replaces, so the preset seeds only the first
-  open. It goes through `validateLayoutPatch`, and the kernel's `view-state-set` guard covers it as it
+  overlaid with the preset, with its undeclared parts closed, which a persisted record then replaces, so the
+  preset seeds only the first open. It goes through `validateLayoutPatch`, and the kernel's `view-state-set` guard covers it as it
   does `loam.layout`. `loam.layout` keeps its
   phase 0 handler for the no-app state. `layout-get`, `layout-set` and `layout-reset`
   act on the active owner's record. The kernel's wrappers of `view-state-get` and
@@ -1065,7 +1068,7 @@ export interface OverlayResultV1 {
   which boots a headless kernel with only the app and returns `{ kernel, port, replay() }`.
   It runs AFD scenarios through `kernel.call` and `kernel.agent.call`, and drives the
   layout through the view-state commands. It fails when importing the definition defines a global
-  element. Affordance grading is phase 7 (D49).
+  element ([9.5](#95-decided-by-step-3) says how). Affordance grading is phase 7 (D49).
 
 ### 5.3 The app port
 
@@ -1109,7 +1112,8 @@ export const APP_CALLABLE_SHELL_COMMANDS_V1 = [
      `overlay-dismiss` is `OVERLAY_NOT_OWNER` on another's. So a sandboxed view sees nothing of another app.
   3. **Nested calls.** A call made through a handler's `context.client` carries `parent`, the outer call's trace
      ID. A nested call to a mutation is `NESTED_MUTATION_REFUSED`, naming D68: its effect would run twice on
-     replay, once in the outer handler and once as its own entry, and phase 1 has no way to pair them.
+     replay, once in the outer handler and once as its own entry, and phase 1 has no way to pair them. The port
+     runs the internal command `app-nested-refuse { command }`, so the refusal is journaled as 1's is.
 - **An activation failure** is the kernel's in-memory `state: 'failed'`, not journaled: it depends on the page and
   not on a command, and `REPLAY_RECORDED_QUERIES` ([7.6](#76-journal-behaviour)) keeps it out of a replay's comparison.
 
@@ -1438,7 +1442,7 @@ export interface MountTransportV1 {
 - **Confirmations.** No `onElicitation` is given in phase 1. A command that needs one
   returns Umbel's `CONFIRMATION_REQUIRED` or `INPUT_REQUIRED` with its suggestion, which the
   console shows. Approval evidence never comes from tool arguments.
-- **Under the CSP.** Zod keeps its configuration on `globalThis`, so the web host's `zod-jitless.js` also covers
+- **Under the CSP.** Zod keeps its configuration on `globalThis`, so the web host's `zodJitlessByDefault` also covers
   a second copy of Zod in this chunk, and E3's CSP check holds that.
 - **Credentials.** The kernel holds none. It forwards no person's token. The `Authorization`
   header exists only between the relay and the instance.
@@ -1662,8 +1666,10 @@ export interface KernelEventV1 extends KernelEventV0 {
 	instance?: string;
 }
 
-/** Every URL a port receives is absolute, resolved against the document's base by the kernel's caller. */
+/** Every URL a port receives is absolute, resolved by the kernel against `baseUrl` (9.5). */
 export interface KernelPortsV1 {
+	/** The document's base, which a package's relative path resolves against. */
+	readonly baseUrl: string;
 	fetchJson(url: string): Promise<unknown>;
 	fetchText(url: string): Promise<string>;
 	importNative(url: string): Promise<AppDefinitionV1>;
@@ -1723,6 +1729,7 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 | `app-instance-refresh` | mutation | `{ instance }` | `{ instance, state, commands: string[], catalog }`; no undo; `replay: 'recorded'` |
 | `app-selection-get` | query | `{ instance }` | `{ id: string \| null }` |
 | `app-call-refuse` | internal | `{ command }` | Always `CALL_NOT_GRANTED`. Not in `listCommands` |
+| `app-nested-refuse` | internal | `{ command }` | Always `NESTED_MUTATION_REFUSED`. Not in `listCommands` |
 | `app-selection-set` | mutation | `{ instance; id: string \| null }` | `{ id }`; undo restores it |
 | `status-item-set` | mutation | `{ id; value: string (0 to 40) }` | `{ id, value }`. Only the owning app; `shell` may not. An unknown id is `STATUS_ITEM_UNKNOWN` |
 | `toast-show`, `modal-open`, `overlay-dismiss`, `overlay-list` | [Section 8](#8-overlays-in-phase-1) | | |
@@ -1754,6 +1761,8 @@ export interface AppDetailV1 extends AppSummaryV1 {
 	skills: string[];
 	warnings: ManifestRefusal[];
 	notices: Array<{ code: string; message: string }>;
+	/** Each status item's value, for the ones the app has set (9.5). */
+	statusItems: Record<string, string>;
 }
 
 /** Never a location, a credential or a command line. */
@@ -1777,8 +1786,9 @@ export interface AppInstanceV1 {
 
 - **`shell-info-get`** gains `manifestVersion: 1`, `appProtocol: 1`, `surfaceCatalog: 1`,
   `compositionLibrary: 1`, `sdk: 1`, and reports `kernelInterface: 1`.
-- **`metadata["dev.loam/seq"]`.** `run` adds it to a result it returns, when the call was journaled, and does
-  not change the journal's copy.
+- **`metadata["dev.loam/seq"]`.** `run` adds it to the result of a person's or agent's call, when the call was
+  journaled, and does not change the journal's copy. Never to an app's: a seq counts every app's calls, and a handler may
+  return a nested result as its own, which would put the number in the journal.
 - **`palette-search` and `listCommands`.** `listCommands` returns all the palette registry's
   commands, each with its `instance`. `palette-search` shows shell commands and the active
   app's only (the catalog's "filtered by active app"). An inactive app's commands stay
@@ -1798,10 +1808,10 @@ new commands are small and the rest is lazy:
 
 | Measure | Loaded | Ceiling |
 | --- | --- | --- |
-| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000 |
-| The kernel alone | As phase 0 | 231,360 |
+| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000. Step 3 measured 319,794 and 93,012: **206 bytes are left**, so step 4's chrome goes behind dynamic imports ([9.5](#95-decided-by-step-3)) |
+| The kernel alone | As phase 0, without `src/apps/` | 231,360. Step 3 measured 225,238 |
 | CSS | As phase 0 | 8,496 |
-| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it does not yet hold the kernel's `src/apps/`, and step 4 must confirm it by measuring the whole chunk |
+| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
 | `view` chunk: the view host | When a view app opens | 60,000 |
@@ -1841,7 +1851,7 @@ with a line in `design.md`'s component list and a Specimen fixture:
 ### 9.4 Web host
 
 ```ts
-// src/main.ts, after './zod-jitless.js'
+// src/main.ts; `zodJitlessByDefault` in the build starts Zod jitless (9.5)
 const raw = await fetch('deployment.json').then((response) => response.json());
 // A hand-written check in the first-paint bundle: only a projection that lists apps loads the reader.
 const deployment = isEmptyProjection(raw) ? undefined : await readOrNotice(raw);
@@ -1856,6 +1866,101 @@ const host = await createHostKernel({ environment, deployment, ports: webPorts(d
   `openHandlerFrame` (delegates to the chrome's frame code), `mountTransport` (a dynamic import of the mount chunk).
 - **Failure.** A `deployment.json` that does not parse or fails `readProjection` shows "Loam
   cannot start", with the refusal, as an unopenable store does.
+
+### 9.5 Decided by step 3
+
+What the sections above left open, and what the code showed. Later steps build on these.
+
+**The budget: 9.2's premise was wrong about Zod, and the rows hold another way**
+
+- **What 9.2 missed.** It measured the readers "without Zod, which the kernel shares", as if a lazy chunk cost the
+  first-paint chunk nothing. `z.fromJSONSchema`'s file builds `const z = { ..._schemas, ..._checks, iso: _iso }`.
+  That spread uses every export of Zod's classic schemas and checks, a bundler tree-shakes across the whole graph and
+  not per chunk, and a module is split whole. So the first dynamic import of `fromJSONSchema` put the rest of Zod's
+  classic API in the shared first-paint chunk: 351,858 bytes of JavaScript against 320,000, and 278,421 for the kernel
+  against 231,360.
+- **`narrowZodFromJsonSchema`** (`web/scripts/narrow-zod.mjs`), a Vite plugin in `web`'s build and `budget`, writes that
+  object out with the names the file reads, so the rest tree-shakes. It changes no behaviour, and stops the build on a
+  name it cannot place or a file of another shape. A unit test bundles it and holds its answers equal to Zod's own for
+  every keyword and format listed there. A host built without it works and is larger. The formats `fromJSONSchema` reads stay in the shared chunk,
+  about 11 KB, because they are used from a module that is shared.
+- **`budget`'s rows.** The kernel row measures what phase 0's did, the kernel with its dependencies and without
+  `src/apps/`, which the empty shell never loads, so it does not count those 11 KB (Zod there is 178,126, as in phase
+  0). The page's row does count them, and it is the one that matters. The `apps` row reads the page's own `apps-*.js`
+  chunk, because Vite's library mode for ES does not remove whitespace, which measured 367,314 for the same code.
+- **`zodJitlessByDefault`,** in the same file, because splitting broke phase 0's way of setting `jitless`. The entry's `config({ jitless: true })`
+  runs after the shared chunk it imports, whose top-level object schemas already ran Zod's `new Function` probe: a CSP violation on every page,
+  which the Chromium suite caught. Making the first import a module of its own would not help, since it imports `config` from that same chunk. So
+  the build starts Zod's global configuration `jitless`, in every chunk, and the file is checked as above. `src/zod-jitless.ts` stays for a
+  page built as one chunk, the accelerator page.
+- **What moved behind the dynamic import,** so the shell stays under: everything the app commands do but their
+  definitions (`apps/operations.ts`), the two internal commands, and `LAYOUT_DEFAULTS_V0`, which has its own module in
+  `manifest` so that it does not bring the catalogs. With no app listed, `EMPTY_APPS` answers. `budget`'s row for the
+  page's JavaScript now has 206 bytes left.
+
+**The interface**
+
+- **`KernelPortsV1.baseUrl`.** 9.1 said a port's URLs are absolute, "resolved against the document's base by the kernel's
+  caller", and the kernel has no document, and is itself the caller of a port. So the host gives the base with the
+  ports, and `webPorts(document)` sets it from `document.baseURI`.
+- **No ports.** `ports` is optional, and `createKernel` rejects only as phase 0 does, so a deployment with no ports refuses
+  each app with `APP_PACKAGE_UNAVAILABLE`.
+- **`app-nested-refuse`** is the second internal command, because section 10 has a nested mutation's refusal journaled, and
+  `app-call-refuse` is always `CALL_NOT_GRANTED`.
+- **`statusItems` in `app-get`.** Nothing in 9.1 lets the chrome read a value `status-item-set` wrote. A value stays
+  across a switch, since an app has no callback for coming back, and the chrome renders the active app's alone.
+- **`port.store`** is for the chrome and tests, and an app's surface never gets it: a write there is not journaled.
+- **A refused request from a frame.** `onRequest`'s handler rejects with a `LoamKernelError`, whose `details.rpcCode` is the
+  JSON-RPC code. So step 5's host sends that code, with `data: { code, suggestion }`, which is what the SDK reads
+  (11.2). `HANDLER_NO_CALL` is `-32600`, a store with no grant `-32601` and a hidden command `-32602`, both `VIEW_CALL_REFUSED`
+  rather than `CALL_NOT_GRANTED`, which is always journaled, and malformed parameters `-32602`.
+- **Handlers.** A native handler that throws or answers no `CommandResult` gets the frame's codes, `HANDLER_THREW` and
+  `HANDLER_RESULT_INVALID`. A native throw's message goes to the page's `reportError`, not the result or the journal, as AFD's engine
+  does; a frame's `HANDLER_THREW` still carries it (11.2). A frame's call that rejects otherwise, as an abort does, is `CALL_ABORTED`.
+- **`deactivate` is the chrome's,** since `activate` is: a module loaded only by a command never activated, and the kernel cannot tell.
+  So step 4's `AppSurfaces` runs it at disposal, for what it activated, and 5.5's row holds there.
+- **A failed `apps` chunk** rejects `createKernel`, and the host shows "Loam cannot start": no app can load, and nothing in the kernel can list them.
+- **A path that leaves its package** (`native.entry`, `ui.resources[].path`, `view.handlers`) is refused at run time as well,
+  since a manifest is untrusted input and the reader sees a path only as `app pack` left it.
+- **`load()`** on a view or mounted app rejects with `APP_NOT_READY`: only a native app has a module in the page.
+
+**The rules**
+
+- **Undeclared parts start closed,** so `layout-get` says what the chrome shows, and `layout-set`'s refusal is never a success
+  that changes nothing. `layout-reset` restores the instance's first layout, not the phase 0 default. The refusal also covers
+  `view-state-set`, which could otherwise bypass it, and `compact.drawer` and `compact.sheet`, which open the same parts.
+- **A chord that needs input** is not bound, and `app-get`'s notices say so: `KEYBINDING_NEEDS_INPUT`. `KEYBINDING_CONFLICT` is a notice too,
+  since each is a binding refused and not an app.
+- **A deployment entry** is checked as `loam deployment check` checks it, with its messages: the codes of 11.2 and `APP_CONFIG_INVALID`,
+  in the order `DEPLOYMENT_APP_MISMATCH`, the kind's own, then the domain or prefix, the instance's name and the config. As there, every
+  entry claims its domain in deployment order, whatever else refuses it. A refused instance is left out of `startInstances`.
+- **A mounted instance before step 7** is read and listed: its prefix is checked, and it has its notices. It is `failed` with
+  `MOUNT_TRANSPORT_UNAVAILABLE`, whose message says discovery arrives in step 7, and `app-instance-refresh` answers the same.
+- **Replay: what the page decided.** Besides 7.6's, a failure the kernel marks in `error.details["dev.loam/page-decided"]` answers from its
+  record: `APP_NOT_READY`, `APP_ACTIVATION_FAILED`, `HANDLER_READY_TIMEOUT`, `HANDLER_TIMEOUT` and `CALL_ABORTED`. A marker and not the code,
+  since an app may return those codes itself, and that is an ordinary result to compare. A handler that had written before its call timed out
+  shows as a difference later, which is right: a timed-out call is not deterministic.
+- **Replay: nested calls.** A nested call matches the next entry with that `parent` on its command and what its input names; a schema may fill a default in the
+  journal's copy. One refused before the middleware, by exposure or validation, left no entry, and runs again. Any other that differs, and a recorded call that no longer
+  happens, marks the outer entry `different` even if its result is the same.
+- **Replay: a journal across reloads.** The web host's journal outlives the page, and overlays, their counter, selections and status values do not. A replay
+  forgets them where the trace IDs' base changes, as the reload did. The active app and layouts are persisted, so they carry over.
+
+**The test kit**
+
+- **Watching the global registry.** A definition arrives already imported, so `@lushly-dev/loam-testing` watches from its own import, and
+  an app's test imports it first. Under Node it installs stand-ins for `customElements` and `HTMLElement`, since neither exists there and a
+  module defining an element would otherwise fail with a bare `ReferenceError`. `definition` may also be a function that imports it. The failure is
+  `APP_GLOBAL_ELEMENT`, once, so the next app is not blamed.
+- **For step 4:** there is no stand-in `document`, and `@lushly-dev/fast-element` reads it on import. So a module with handlers must import its
+  FAST elements dynamically, in `activate`, for the kit to load it under Node. That is what 5.1 asks of its top level anyway.
+- **Beyond 5.2:** `config`, `journal`, a manifest the kernel refuses as a rejection with its code, and `grants` as the subset of the manifest's
+  to keep. A mounted manifest is refused: it has no handler.
+- **`createFixturePorts`** is in `@lushly-dev/loam-kernel/testing`, with `probe` (`src/testing-probe.ts`), because the kernel's tests and the test
+  kit both need it.
+- **E13's scaffold test runs in `testing`,** not in `web`: it spawns Vitest over a scaffold in a temporary directory, with this unit's `node_modules`
+  linked in and itself aliased to its `dist`. `web` takes a dev dependency on it, as on the CLI (11.2), so `pnpm -F "@lushly-dev/loam-web..." build`
+  builds what that test needs and the workflow's build line does not change.
 
 ## 10. Failure modes and error codes
 
@@ -1876,14 +1981,15 @@ to `LoamKernelErrorCode`. Each row is covered by a unit test or an exit test.
 | `APP_HANDLER_MISSING` | The module's handlers do not match the manifest | `failed` at first load | Add the handler, or remove the command |
 | `APP_ACTIVATION_FAILED` | The import or `activate` threw | `failed` | Read the error; fix the app |
 | `APP_ELEMENT_UNDEFINED` | A surface names an element the app did not define | Shown in the mount | Define it in `activate` |
+| `APP_GLOBAL_ELEMENT` | Importing a definition in the test kit defined a global element | The test kit fails | Define the element in `activate`, in `context.registry` |
 | `APP_NOT_FOUND` | `app-open` or `app-get` of an unknown instance | A failure result | `app-list` |
 | `APP_NOT_READY` | A call into a command of a `failed` or `loading` app. `app-open` of a `failed` or `refused` app succeeds, and main explains it | A failure result, retryable when `loading` | `app-instance-list`, or fix the app |
 | `CALL_NOT_GRANTED` | [4.3](#43-grants) | A failure result, journaled | `calls` arrives in phase 5 |
-| `STATUS_ITEM_UNKNOWN`, `LAYOUT_PART_UNDECLARED`, `KEYBINDING_CONFLICT`, `OVERLAY_*` | As defined | A failure result, or a reported binding | Per row |
+| `STATUS_ITEM_UNKNOWN`, `LAYOUT_PART_UNDECLARED`, `KEYBINDING_CONFLICT`, `KEYBINDING_NEEDS_INPUT`, `OVERLAY_*` | As defined | A failure result, or a reported binding | Per row |
 | `VIEW_SANDBOX_ORIGIN_INVALID` | [6.1](#61-the-sandbox-proxy) | `failed` | Deploy the proxy on a second origin |
 | `VIEW_RESOURCE_UNAVAILABLE` | The resource file cannot be fetched | Main shows the failure | `app pack` |
 | `VIEW_READY_TIMEOUT` | No `initialized` in 15 seconds | The frame is removed and main shows the failure | Reopen; check the view calls `ui/initialize` |
-| `HANDLER_READY_TIMEOUT`, `HANDLER_TIMEOUT`, `HANDLER_RESULT_INVALID`, `HANDLER_NO_CALL` | [6.3](#63-the-handler-frame) | A failure result | Per row |
+| `HANDLER_READY_TIMEOUT`, `HANDLER_TIMEOUT`, `HANDLER_RESULT_INVALID`, `HANDLER_NO_CALL`, `HANDLER_THREW`, `CALL_ABORTED` | [6.3](#63-the-handler-frame), [9.5](#95-decided-by-step-3) | A failure result | Per row |
 | `NESTED_MUTATION_REFUSED` | [5.3](#53-the-app-port) | A failure result, journaled | Do the mutation from the surface, or move it into this command's handler |
 | `VIEW_STATE_READ_ONLY` | `view-state-set` on `loam.apps` | A failure result, journaled | `app-open` |
 | `MOUNT_UNREACHABLE` | A network error, a 404, 405 or 502, a response that is not MCP (a static host's HTML), or a relay absent | `failed`, retryable | "Is the instance running? A browser reaches it through the hosted server." |
@@ -2151,7 +2257,7 @@ lists by frame and directive (E2's `fetch` from a view).
 | E10 | **The console is every new app's first UI** (D48) | Chromium: `loam app new demo --kind native` in a temporary directory, built with Vite's API with the Loam units aliased to the workspace's `dist` (`test/browser/bundle.ts`), packed and deployed, shows the console with its command, and the form runs it. `renderForm`'s unit table covers every row of 7.7, including a nested object as JSON and an invalid JSON refusal. A failing command shows its code and suggestion. An XSS string in a server's result renders as text |
 | E11 | **Accessibility and captures** | Specimen captures of each new element in the three themes and two densities, each with an ARIA snapshot, including the rail's unavailable entry. Axe with phase 0's tags on the shell with hello native open, with the console open, with a toast and a modal, in each theme and density and under `forcedColors: 'active'`, and in the compact class with the tab bar's app entries, zero violations. The rail's entries are reachable and operable by keyboard; a modal traps and returns focus; F6's order is unchanged |
 | E12 | **Budgets** | `budget` passes every row of 9.2; A1 to A3 stay within budget |
-| E13 | **`app new`, `app check`, the test kit** | CLI units: each kind scaffolds and passes `app check`; each refusal path exits 1 with JSON; `app check` runs no app code (a module that throws on import still checks); `createAppTestKernel` runs hello's scenario and replays it, and fails a definition whose import defines a global element; the scaffold's own test passes, run by Vitest from `web` with the Loam units aliased to the workspace's `dist`. `app check` on a mounted manifest prints D55's notice. `app pack` refuses a symlink leaving the root. `deployment write` refuses `command` reaching the projection (a schema test) |
+| E13 | **`app new`, `app check`, the test kit** | CLI units: each kind scaffolds and passes `app check`; each refusal path exits 1 with JSON; `app check` runs no app code (a module that throws on import still checks); `createAppTestKernel` runs hello's scenario and replays it, and fails a definition whose import defines a global element; the scaffold's own test passes, run by Vitest from `testing` ([9.5](#95-decided-by-step-3)) over the workspace's `dist`. `app check` on a mounted manifest prints D55's notice. `app pack` refuses a symlink leaving the root. `deployment write` refuses `command` reaching the projection (a schema test) |
 
 ## 15. Implementation plan
 

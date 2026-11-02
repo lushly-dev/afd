@@ -30,6 +30,8 @@
 		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/afd-view-state": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
+		"@lushly-dev/loam-manifest": "workspace:*",
+		"@lushly-dev/loam-sdk": "workspace:*",
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {

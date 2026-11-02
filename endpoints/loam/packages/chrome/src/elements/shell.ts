@@ -18,7 +18,7 @@ import {
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	type LoamKernelV0,
+	type LoamKernelV1,
 	type PaletteItem,
 } from '@lushly-dev/loam-kernel';
 import {
@@ -301,7 +301,7 @@ export class LoamShell extends FASTElement {
 	declare panelHandle: LoamResizeHandle;
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
-	kernel: LoamKernelV0 | null = null;
+	kernel: LoamKernelV1 | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
 	readonly mac: boolean;
@@ -368,14 +368,14 @@ export class LoamShell extends FASTElement {
 	}
 
 	/** Bind to a kernel and read its state. */
-	start(kernel: LoamKernelV0): Promise<void> {
+	start(kernel: LoamKernelV1): Promise<void> {
 		this.kernel = kernel;
 		if (!this.$fastController.isConnected) return Promise.resolve();
 		this.#started ??= this.#start(kernel);
 		return this.#started;
 	}
 
-	async #start(kernel: LoamKernelV0): Promise<void> {
+	async #start(kernel: LoamKernelV1): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
 			this.failure = {
 				heading: 'Loam cannot start',
