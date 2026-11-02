@@ -15,14 +15,15 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** proposed 2026-11-01, step 0. The proposal and this file are written and are in review
-  in the pull request that adds them.
-  - The proposal was revised after an independent review.
+- **State:** approved 2026-11-01; step 0 is done when this pull request merges.
+  - The owner took every recommendation in
+    [For the owner](plugin-manifest.proposal.md#for-the-owner) and confirmed the `spec/` addition;
+    the coordinator approved it for Loam's phase 1 after two independent reviews. Loam's decision
+    log records this as D54 to D58.
   - It was extended at the owner's request of 2026-11-01: Umbel instances join a Loam instance as
     headless mounted apps.
-  - Six questions are the owner's, including who approves (question 4). Four are for Umbel's owner
-    (U1 to U4) and ten for Loam's phase 1 specification (L1 to L10); see
-    [Open questions](plugin-manifest.proposal.md#open-questions).
+  - Four questions remain for Umbel's owner (U1 to U4) and ten for Loam's phase 1 specification
+    (L1 to L10); see [Open questions](plugin-manifest.proposal.md#open-questions).
   - Nothing is implemented, and steps 1 to 8 are not started.
 - **Last verified:** 2026-11-01 against `main` at `355aa994`. The current state was read from:
   - Umbel: `endpoints/umbel/schemas/plugin-manifest.v2.json` and the examples in

@@ -13,11 +13,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-11-01. Revised the same day after an independent review, and extended at the owner's request with headless apps and several Umbel instances in one Loam instance ([Umbel instances as headless Loam apps](#umbel-instances-as-headless-loam-apps)). Approval of Loam's specifications is delegated to the coordinator after an independent review. This proposal also adds an AFD `spec/` shape and changes the mechanism an Umbel note describes, so the owner decides who approves it (open question 4). Progress is in [STATUS.md](STATUS.md) |
+| Status | Approved 2026-11-01. The owner confirmed the `spec/` addition and took every recommendation in [For the owner](#for-the-owner); the coordinator approved it for Loam's phase 1 after two independent reviews, under the owner's delegation. Extended the same day at the owner's request with headless apps and several Umbel instances in one Loam instance ([Umbel instances as headless Loam apps](#umbel-instances-as-headless-loam-apps)). Progress is in [STATUS.md](STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Loam](../../../../endpoints/loam/docs/STATUS.md), in two places: the follow-up of 2026-10-30, "Write the `docs/features` proposal for the shared plugin manifest, reconciled with Umbel's manifest and Plugin Discovery, before phase 1", and the prerequisites row of [Loam's architecture](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites) (line 774). Also the owner, on 2026-11-01: Umbel instances as first-class headless apps in Loam. Loam D10 and Umbel D37 both name this manifest |
 | Packages | Step 1: `spec/`. Step 2, Loam's phase 1: Loam's packages under `endpoints/loam/packages/`. Step 3, at Umbel's choice: `endpoints/umbel/`. Step 7: `packages/rust` and `endpoints/umbel` for CORS, only if open question U1 is answered yes. Step 6: `packages/server`, only when Plugin Discovery is implemented |
-| Related | [Plugin Discovery](../plugin-discovery/plugin-discovery.proposal.md) and its [spec](../plugin-discovery/plugin-discovery.spec.md); [MCP resources and skills](../../active/mcp-resources-skills/mcp-resources-skills.proposal.md); [Output budgets](../../active/output-budgets/output-budgets.proposal.md); [Hybrid tool strategy](../../active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md); section 2 of Umbel's [phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#2-the-manifest) |
+| Related | [Plugin Discovery](../../proposed/plugin-discovery/plugin-discovery.proposal.md) and its [spec](../../proposed/plugin-discovery/plugin-discovery.spec.md); [MCP resources and skills](../mcp-resources-skills/mcp-resources-skills.proposal.md); [Output budgets](../output-budgets/output-budgets.proposal.md); [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md); section 2 of Umbel's [phase 1 specification](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#2-the-manifest) |
 
 Decision numbers carry their unit: "Umbel D37", "Loam D10". Both logs use D1 upward.
 
@@ -1091,42 +1091,39 @@ Question 3 asks whether that is enough until signing is settled.
 
 ### For the owner
 
-These touch a trust model, another unit's decisions, or approval authority.
+Decided by the owner on 2026-11-01: every recommendation below stands. Loam's decision log records
+them as D54 to D58.
 
-1. **Native Loam apps' trust class.**
-   - Recommendation: trusted, not sandboxed, as Umbel's compiled plugins are (Umbel D42, owner
-     decision 1). `app check` says "trusted, not sandboxed", and untrusted apps ship as views.
-   - A yes amends Loam's architecture lines 296 and 297 and 676 and 677, which read as isolation
-     between apps. The amendment would say isolation is enforced for views and mounted apps, and
-     native apps are trusted code.
-2. **Umbel carrying and projecting `ui`.** Should a later Umbel manifest version carry a `ui` table,
-   serve its views as `ui://` resources, and admit `tool_meta` or derive `_meta.ui.resourceUri`?
-   That is partial UI interpretation, which Umbel D37 excludes.
-   - Recommendation: decide it when Loam's Umbel app is specified, after Umbel's phase 2. Until
-     then, Umbel instances are headless in Loam.
-3. **Signing before W9.**
-   - Recommendation: no. Workspace-store digests and Loam D47's owner approval cover Loam's
-     published apps, `signature` stays reserved, and Loam adds a trajectory row for signing.
-4. **Approval authority.** This proposal adds a shape to AFD's `spec/` contract, and it replaces the
-   mechanism described in Umbel D37's note and Umbel's phase 1 specification. The coordinator's
-   delegation covers Loam's specifications.
-   - Recommendation: the coordinator approves the proposal for Loam's phase 1, and the owner
-     confirms the `spec/` addition. Umbel annotates D37 and "Room for Loam" itself.
+1. **Native Loam apps' trust class.** Decided: trusted, not sandboxed, as Umbel's compiled plugins
+   are (Umbel D42, owner decision 1). `app check` says "trusted, not sandboxed", and untrusted apps
+   ship as views. Isolation is enforced for views and mounted apps. Loam's architecture is amended
+   (Loam D54).
+2. **Umbel carrying and projecting `ui`.** Decided: not now. Decide it when Loam's Umbel app is
+   specified, after Umbel's phase 2. Until then Umbel instances are headless in Loam, which respects
+   Umbel D37's exclusion of UI interpretation.
+3. **Signing before W9.** Decided: no. Workspace-store digests and Loam D47's owner approval cover
+   Loam's published apps, `signature` stays reserved, and Loam adds a trajectory row for signing.
+4. **Approval authority.** Decided: the coordinator approves the proposal for Loam's phase 1, and the
+   owner confirms the `spec/` addition. Umbel annotates D37 and "Room for Loam" itself.
 5. **A multi-member Loam over a single-principal Umbel.** Until Umbel's phase 5, every Loam call to
    an instance reaches Umbel as one loopback principal (Umbel D32). Umbel's per-document access
-   cannot separate Loam members, and its filtering is exact only for embedders (Umbel D53).
-   - A stdio instance on a hosted server is the same, with every member acting as the workspace's
-     local principal (Umbel's phase 0 specification, lines 973 and 974).
-   - Recommendation: accept it until Umbel's phase 5, with access decided in Loam by project
-     membership and the instance's projects. Use HTTP for team instances. Mount a team instance only
-     where every member of those projects may read all of it. `app check` and the console say so.
+   cannot separate Loam members, and its filtering is exact only for embedders (Umbel D53). A stdio
+   instance on a hosted server is the same, with every member acting as the workspace's local
+   principal (Umbel's phase 0 specification, lines 973 and 974).
+   Decided: accept it until Umbel's phase 5, with access decided in Loam by project membership and
+   the instance's projects. Use HTTP for team instances. Mount a team instance only where every
+   member of those projects may read all of it. `app check` and the console say so (Loam D55).
 6. **Stdio instances in Loam.** A stdio child runs as the Loam host's OS user, so on the desktop or
    the hosted server it can read what that user can. Umbel treats its own stdio mounts as trusted as
    compiled plugins (Umbel D43, owner decision 2). An instance entry's `command` is also a command
    line held in workspace data, and Loam's builder works through journaled commands (Loam D47).
-   - Recommendation: a stdio instance is trusted code, as in Umbel. Only a person who owns the
-     workspace on the desktop, or the deployer's configuration on the hosted server, can add or
-     change `command`. No command, app or agent may write it, and the autonomy policy cannot grant it.
+   Decided: a stdio instance is trusted code, as in Umbel. Only a person who owns the workspace on
+   the desktop, or the deployer's configuration on the hosted server, can add or change `command`.
+   No command, app or agent may write it, and the autonomy policy cannot grant it (Loam D56).
+7. **When Umbel first connects.** Decided: Loam's phase 1 proves the mounted-server app kind end to
+   end against a real Umbel instance, shown in the console, and `loam.yml` gains the Rust build this
+   needs (Loam D57). The first-party `umbel` app stays step 8. This question was raised after the
+   reviews, by the coordinator.
 
 ### For Umbel's owner
 
@@ -1178,7 +1175,7 @@ Each is a question, not an assumption. U1 alone would amend a recorded rule (Umb
 |---|---|---|---|
 | 0 | This proposal and its status | `docs/` | Independent review and approval (question 4) |
 | 1 | `spec/plugin-manifest.md`: the keys, meanings, profile contract, rules beyond the schema, shared grant names, instance rules, collisions and the AFD mapping. Also `spec/plugin-manifest.core.v1.json`, `spec/plugin-manifest.json`, `spec/CHANGELOG.md`, and the Python and C++ row in `docs/language-parity.md` | `spec/`, `docs/` | Lands before Loam's phase 1 specification is approved, or in the same pull request ("spec first", Loam's architecture line 774) |
-| 2 | Loam's profile `app-manifest.v1.json`, generated types, standalone validators, a JSON-only kernel reader, `app check` running the core cases, the mounted loader's hybrid discovery, and instance entries (L6). Also `loam.yml`, `EXTRA_INPUTS` and `suites.mjs` | `endpoints/loam/packages/` (Loam's phase 1) | `loam.yml` |
+| 2 | Loam's profile `app-manifest.v1.json`, generated types, standalone validators, a JSON-only kernel reader, `app check` running the core cases, the mounted loader's hybrid discovery, and instance entries (L6). The mounted loader is proven against a real Umbel instance (question 7). Also `loam.yml`, `EXTRA_INPUTS` and `suites.mjs` | `endpoints/loam/packages/` (Loam's phase 1) | `loam.yml` |
 | 3 | Optional, Umbel's choice: the core cases and an examples-conform check in `tests/schemas.rs`; the D37 and "Room for Loam" annotations; later, a manifest version that `$ref`s the core; `ui` per question 2 | `endpoints/umbel/` | `umbel.yml` |
 | 4 | `expose.apps` as core version 2, with Loam D30's AFD proposal | `spec/`, then each language's `ExposeOptions` | Loam's phase 5 |
 | 5 | `grants[].targets`, with the first grant that needs it | `spec/`, the hosts | Loam's phase 5 (`calls`) or Umbel's `http` |
