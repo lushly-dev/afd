@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "store", "store-embedded", "plugins/hello", "plugins/todo", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -37,7 +37,7 @@ testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
 # `kill_on_drop` nor a hook for the bounded stdio reader the result limit needs.
 mounted = [
-	"dep:rmcp", "dep:http", "dep:futures", "dep:regex", "dep:reqwest", "dep:sse-stream",
+	"dep:rmcp", "dep:http", "dep:futures", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
 	"rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest",
 ]
 
@@ -93,7 +93,6 @@ wasmtime-wasi-io = { version = "48.0.8", optional = true, default-features = fal
 # Optional: the `mounted` feature. `reqwest` is named for its client builder (a private root
 # certificate, no redirects) and `sse-stream` for the SSE types the bounded HTTP client returns.
 futures = { version = "0.3", optional = true }
-regex = { version = "1", default-features = false, features = ["std", "perf"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"], optional = true }
 sse-stream = { version = "0.2", optional = true }
 
@@ -108,6 +107,8 @@ umbel-sdk = { path = "sdk" }
 # The store traits and shared types, and (feature `store-embedded`) the embedded backend.
 umbel-store = { path = "store" }
 umbel-store-embedded = { path = "store-embedded", optional = true }
+# Optional: the `mounted` feature scans tool descriptions with the patterns the OKF reader shares.
+umbel-scan = { path = "scan", optional = true }
 
 [dev-dependencies]
 bytes = "1"

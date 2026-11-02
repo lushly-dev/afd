@@ -27,6 +27,31 @@ pub struct ContentEntry {
     pub mtime_ms: i64,
 }
 
+/// One collection of a space as the workspace declares it (`[spaces.<id>.collections.<cid>]`),
+/// without its root: a plugin addresses files by collection and relative path, and no path
+/// outside the collection ever reaches it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionInfo {
+    /// The collection id.
+    pub id: String,
+    /// `markdown` or `code`.
+    pub kind: String,
+    /// Globset patterns of the files to read.
+    pub include: Vec<String>,
+    /// Globset patterns of the files to skip.
+    pub exclude: Vec<String>,
+    /// The default access set of its documents (tokens).
+    pub access: Vec<String>,
+    /// The default sensitivity of its documents.
+    pub sensitivity: String,
+    /// The type of a file without frontmatter or without `type`.
+    pub default_type: String,
+    /// Whether a file whose frontmatter fails the schema is skipped.
+    pub strict: bool,
+    /// The largest file read, in bytes.
+    pub max_file_bytes: u64,
+}
+
 /// The read methods as another principal, from [`Cx::as_reader`]: the same filter the host
 /// builds for that principal in the call's spaces, and nothing that writes.
 pub struct Reader {
@@ -263,6 +288,15 @@ impl Cx {
         self.host()?.content_list(space, collection, after, limit)
     }
 
+    /// Grant `content`: the collections of the space, in configuration order.
+    ///
+    /// # Errors
+    /// See [`HostServices::content_collections`].
+    pub fn content_collections(&self, space: &str) -> Result<Vec<CollectionInfo>, HostError> {
+        self.check_space(space)?;
+        self.host()?.content_collections(space)
+    }
+
     /// Grant `content`: one file of a collection.
     ///
     /// # Errors
@@ -420,6 +454,14 @@ impl SpaceCx<'_> {
         limit: u32,
     ) -> Result<Page<ContentEntry>, HostError> {
         self.cx.content_list(&self.space, collection, after, limit)
+    }
+
+    /// Grant `content`: the collections of the space.
+    ///
+    /// # Errors
+    /// See [`Cx::content_collections`].
+    pub fn content_collections(&self) -> Result<Vec<CollectionInfo>, HostError> {
+        self.cx.content_collections(&self.space)
     }
 
     /// Grant `content`: one file.

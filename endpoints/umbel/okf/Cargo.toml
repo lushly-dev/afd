@@ -1,0 +1,20 @@
+[package]
+name = "umbel-okf"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel OKF: the Open Knowledge Format v0.2 container (frontmatter, markdown structure, link resolution), shared by the knowledge plugins"
+repository = "https://github.com/lushly-dev/afd"
+
+[dependencies]
+# The frontmatter reader only: AFD's public YAML 1.2 core-schema reader, without the server.
+afd = { path = "../../../packages/rust", default-features = false, features = ["frontmatter"] }
+pulldown-cmark = { version = "0.13", default-features = false }
+serde_json = "1"
+umbel-scan = { path = "../scan" }
+umbel-store = { path = "../store" }
+
+[lints]
+workspace = true

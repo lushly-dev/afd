@@ -121,6 +121,17 @@ your plugin and a fixed clock, with `call`, `mcp`, `http`, `cli` and `replay`; t
 `tests/plugin.rs` is a working example. [`plugins/hello`](plugins/hello) is the reference plugin:
 one command, one pack and one skill, built compiled, as a component and mounted.
 
+**Reading files into the stores.** [`plugins/sources-filesystem`](plugins/sources-filesystem) is the
+first plugin that fills the document store (its id is `sources`, so enable `compiled:sources`). It
+reads the markdown and code files of the collections a space declares in `umbel.toml` (version 3),
+with `sources-sync` and `sources-status`. Changes are found by content hash; a symbolic link inside
+a root is never followed; a file over `max_file_bytes` or with malformed frontmatter is skipped and
+counted, not guessed at. Its results give totals for every file and the ids of the documents the
+caller can read, and only a person at the command line also gets paths. Content that looks like
+instructions or hides text is flagged and stored, never blocked. It needs the write grants
+`documents_write` and `records_write` allowed for the space in `umbel.toml`, as the plugin's
+tests show.
+
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
 

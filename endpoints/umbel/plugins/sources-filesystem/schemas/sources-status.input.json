@@ -1,0 +1,16 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space to inspect; default: the workspace's default space"
+		},
+		"collection": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 63,
+			"description": "Inspect only this collection; default: every collection of the space"
+		}
+	},
+	"additionalProperties": false
+}

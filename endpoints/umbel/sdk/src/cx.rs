@@ -9,7 +9,7 @@ use umbel_store::{
     Page, Record, RecordMeta, Rev, Subgraph,
 };
 
-use crate::store::{ContentEntry, Reader};
+use crate::store::{CollectionInfo, ContentEntry, Reader};
 
 /// What the command is called with (WIT `call-context`). The principal is a summary: plugins
 /// never see credentials or tokens.
@@ -153,6 +153,14 @@ pub trait HostServices: Send + Sync {
         _after: Option<&str>,
         _limit: u32,
     ) -> Result<Page<ContentEntry>, HostError> {
+        not_granted("content")
+    }
+    /// Grant `content`: the collections of the space as the workspace declares them, in
+    /// configuration order, without their roots.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`].
+    fn content_collections(&self, _space: &str) -> Result<Vec<CollectionInfo>, HostError> {
         not_granted("content")
     }
     /// Grant `content`: one file of a collection, confined to its root.

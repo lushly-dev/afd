@@ -25,7 +25,7 @@ use super::packs::{PackCopy, PackSet};
 use crate::events::Projector;
 use crate::store::Hub;
 use crate::workspace::{SpaceId, Workspace};
-use umbel_sdk::{ContentEntry, Reader};
+use umbel_sdk::{CollectionInfo, ContentEntry, Reader};
 use umbel_store::{
     Change, ChunkHit, ContentHash, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
     Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
@@ -396,6 +396,10 @@ impl HostServices for CallServices {
         limit: u32,
     ) -> Result<Page<ContentEntry>, ServiceError> {
         self.svc_content_list(space, collection, after, limit)
+    }
+
+    fn content_collections(&self, space: &str) -> Result<Vec<CollectionInfo>, ServiceError> {
+        self.svc_content_collections(space)
     }
 
     fn content_read(
