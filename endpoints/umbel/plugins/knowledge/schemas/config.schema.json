@@ -1,0 +1,26 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"warn_unverified": {
+			"type": "boolean",
+			"default": false,
+			"description": "Warn UNVERIFIED_CONTENT when a hit or an opened document has not been verified by a person"
+		},
+		"verified_only": {
+			"type": "boolean",
+			"default": false,
+			"description": "Search and open only documents a person (a human or an owner) has verified"
+		},
+		"lanes": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": ["bm25"]
+			},
+			"default": ["bm25"],
+			"description": "The retrieval lanes; bm25 is the only one (no embedding model by default)"
+		}
+	},
+	"additionalProperties": false
+}

@@ -1,0 +1,46 @@
+[package]
+name = "umbel-plugin-knowledge"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel knowledge plugin: structure-aware chunking, lexical search, open and find over the document store, and the umbel-knowledge binary"
+repository = "https://github.com/lushly-dev/afd"
+
+[[bin]]
+name = "umbel-knowledge"
+path = "src/bin/umbel-knowledge.rs"
+
+[dependencies]
+# RFC 3339 dates for the index's date fields; the same crate the host reads timestamps with.
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+# `knowledge-find`'s patterns: linear time, no backreferences, a compiled-size limit.
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The ranking pack is a TOML file.
+toml = "1"
+# The binary is the `umbel` command line with the knowledge plugins compiled in: the command line
+# and the embedded stores, and no loader (so no wasmtime), as `umbel-todo` does.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded"] }
+umbel-okf = { path = "../../okf" }
+umbel-plugin-sources-filesystem = { path = "../sources-filesystem" }
+umbel-sdk = { path = "../../sdk" }
+umbel-store = { path = "../../store" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The tests boot a host with collections, readers and allow lists, and seed the graph the way
+# step 7a's indexer will.
+umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+umbel-store-embedded = { path = "../../store-embedded" }
+
+[lints]
+workspace = true

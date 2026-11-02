@@ -277,6 +277,12 @@
 			"family": "umbel",
 			"layer": "endpoint",
 			"publicSurfaces": ["rust-library"]
+		},
+		{
+			"manifest": "endpoints/umbel/plugins/knowledge/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library", "bin:umbel-knowledge"]
 		}
 	],
 	"coverageContract": {
