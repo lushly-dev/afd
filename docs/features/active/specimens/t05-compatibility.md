@@ -4,7 +4,8 @@
 
 - Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
 - Step 2, running retained stories, is done and merged in [#642](https://github.com/lushly-dev/afd/pull/642).
-- Step 3, the plugin points, the FAST-AF plugin and inspection, is implemented on branch `lush/specimens-t05-plugins`.
+- Step 3, the plugin points, the FAST-AF plugin and inspection, is done and merged in [#647](https://github.com/lushly-dev/afd/pull/647).
+- Step 4, the preview-first codemod, is implemented on branch `lush/specimens-t05-migrate`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -244,6 +245,31 @@ A story's play helpers, such as `storybook/test`, are the consumer's own imports
 
 The capture normalizer has been bench code counted as consumer code since T04 moved normalization into the page. It is now counted toward the total. It has no category of its own, and T04's recorded shell figure did not include it (G06).
 
+## Step 4: the preview-first codemod
+
+`bench.migrate()`, the AFD command `specimen-migrate` and `specimen migrate [--files A,B] [--apply]` run the codemod over the configured story files. It is the native host's `migrate` operation, which reads files with the same parser and meta rules as discovery (`host/src/csf/migrate.rs`).
+
+It returns a file-by-file report:
+
+- **Component.** `present` when the meta names its component. `proposed` when the file imports the module the manifest says defines a tag *and* the file is named for that tag. `manual` otherwise, with the candidate tags the imports define and the reason. It never infers a component from a render function or a wrapper. With several candidates, or none, a person decides.
+- **Retained metadata.** Every meta field, kept exactly as written: docs descriptions, `argTypes`, `autodocs` tags and parameters. The codemod removes nothing.
+- **Helper and type imports.** Each `storybook/test` and `@storybook/*` import, with why it stays. Specimen has no native play helpers or `Meta` types yet, so no import is switched.
+- **Manual tasks.**
+- **The change as a unified diff.** Inserting `component` in the file's own indentation and quote style.
+
+The default is a preview that writes nothing. With `apply`, only the proposals are written, and only to a file whose contents are still what was read; the write is atomic. Applying again changes nothing.
+
+Naming the component is not inert in Storybook. The web-components renderer then reads the manifest for that tag: its docs table, and an action arg for each declared event. The codemod reports this; it does not change a story's identity.
+
+Previews over [T01](frozen-inputs-inventory.md)'s frozen snapshots, which wrote nothing:
+
+| Consumer | Files | Already named | Proposed | Manual: ambiguous / no candidate |
+| --- | --- | --- | --- | --- |
+| Lushly `b8906b75` | 147 | 91 | 29 | 16 / 11 |
+| FAST-AF `24e4eb86` | 79 | 18 | 59 | 2 / 0 |
+
+Applied to a scratch copy of FAST-AF's story files, the codemod wrote 59 files. Specimen's index, Storybook's rules ported, gave every story the same id, title, name, tags and play as before. A second apply wrote nothing.
+
 ## Storybook behaviour the next steps reproduce
 
 These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime design. A reference with file locations is kept with the local evidence (`test-results/specimens-t05-compat/storybook-semantics.md`, ignored).
@@ -259,6 +285,6 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 
 1. ~~Discovery, identity and static validation.~~ Merged in #634.
 2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Merged in #642.
-3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Implemented on branch.
-4. **The preview-first codemod** (`specimen-migrate`), with a file-by-file report.
+3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Merged in #647.
+4. ~~The preview-first codemod.~~ Implemented on branch.
 5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. FAST-AF's own components, with the FAST-AF plugin, are the plugin points' first consumer. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.

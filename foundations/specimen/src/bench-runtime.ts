@@ -60,7 +60,7 @@ interface HostRender {
 export async function createInProcessBench(
 	options: BenchOptions,
 	validatedConfig?: LoadedConfig
-): Promise<Omit<SpecimenBench, 'validate'>> {
+): Promise<Omit<SpecimenBench, 'validate' | 'migrate'>> {
 	const createTrace = startTrace('bench-create');
 	const config =
 		validatedConfig ?? (await traced(createTrace, 'load-config', () => loadConfig(options)));

@@ -1,6 +1,6 @@
 # Specimens
 
-Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
@@ -74,6 +74,18 @@ Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on
 5. Run the accessibility check with axe-core 4.13.0 over the body, under the story's `parameters.a11y` policy.
 
 A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
+
+## Migrate retained stories
+
+`migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:
+- whether the meta names its component;
+- the component it can name: only when the file imports the module the manifest says defines that tag, and the file is named for it;
+- the metadata it keeps, which is all of it;
+- the Storybook imports it leaves in place;
+- the manual tasks left;
+- the change as a diff.
+
+It writes only with `apply: true`, and only to files unchanged since they were read.
 
 ## Plugins and inspection
 

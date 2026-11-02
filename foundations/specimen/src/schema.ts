@@ -213,3 +213,41 @@ export const inspectResultSchema = z.strictObject({
 		})
 	),
 });
+export const migrateRequestSchema = z.strictObject({
+	files: z.array(z.string().min(1)).min(1).optional(),
+	apply: z.boolean().optional(),
+});
+export const migrationReportSchema = z.strictObject({
+	mode: z.enum(['preview', 'apply']),
+	files: z.array(
+		z.strictObject({
+			importPath: z.string(),
+			component: z.strictObject({
+				status: z.enum(['present', 'proposed', 'manual']),
+				tag: z.string().optional(),
+				reason: z.string(),
+				candidates: z.array(z.string()),
+			}),
+			retained: z.array(z.string()),
+			imports: z.array(
+				z.strictObject({
+					source: z.string(),
+					names: z.array(z.string()),
+					typeOnly: z.boolean(),
+					reason: z.string(),
+				})
+			),
+			manual: z.array(z.string()),
+			diff: z.string().optional(),
+			applied: z.boolean(),
+		})
+	),
+	problems: z.array(z.string()),
+	summary: z.strictObject({
+		files: z.number().int().nonnegative(),
+		present: z.number().int().nonnegative(),
+		proposed: z.number().int().nonnegative(),
+		manual: z.number().int().nonnegative(),
+		applied: z.number().int().nonnegative(),
+	}),
+});
