@@ -88,12 +88,15 @@ export function shellFixture(
 }
 
 /**
- * Wait, a frame at a time, until `check` holds; fail after about two seconds. A check that throws
- * is not ready yet (a lazily loaded part may not exist on the first frames), so it is retried.
+ * Wait, a frame at a time, until `check` holds; fail after `timeoutMs` (8 s), measured in time
+ * rather than frames so a loaded machine loading a lazy chunk does not run it out; it stays under
+ * Specimen's 10 s render timeout so this clearer error is the one reported. A check that
+ * throws is not ready yet (a lazily loaded part may not exist on the first frames), so it is retried.
  */
-export async function until(check: () => boolean): Promise<void> {
+export async function until(check: () => boolean, timeoutMs = 8_000): Promise<void> {
 	let last: unknown;
-	for (let attempt = 0; attempt < 120; attempt++) {
+	const deadline = performance.now() + timeoutMs;
+	while (performance.now() < deadline) {
 		try {
 			if (check()) return;
 		} catch (error) {

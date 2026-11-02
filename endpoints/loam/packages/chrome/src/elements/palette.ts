@@ -260,7 +260,10 @@ export class LoamPalette extends FASTElement {
 
 	/** Open with a query and search it. */
 	async open(query = ''): Promise<void> {
-		if (!this.dialog) return;
+		// Defined lazily, the element may not have rendered its dialog on the frame it upgrades.
+		for (let attempt = 0; attempt < 60 && typeof this.dialog?.show !== 'function'; attempt++)
+			await Updates.next();
+		if (typeof this.dialog?.show !== 'function') return;
 		this.failure = null;
 		this.field.value = query;
 		if (!this.dialog.open) this.dialog.show();
