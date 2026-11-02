@@ -436,6 +436,59 @@ export const profileRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+export const coverageRequestSchema = z.strictObject({
+	component: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	timeoutMs: suiteRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+const coverageLevelSchema = z.enum(['verified', 'asserted', 'represented', 'missing', 'unknown']);
+const coverageCountsSchema = z.strictObject({
+	verified: z.number(),
+	asserted: z.number(),
+	represented: z.number(),
+	missing: z.number(),
+	unknown: z.number(),
+});
+export const coverageRunSchema = z.strictObject({
+	obligations: z.string().min(1),
+	complete: z.boolean(),
+	components: z.array(
+		z.strictObject({
+			tag: z.string().min(1),
+			sources: z.array(z.string()),
+			cases: z.number(),
+			obligations: z.array(
+				z.strictObject({
+					id: z.string().min(1),
+					kind: z.enum(['default', 'property', 'slot', 'event', 'command', 'form']),
+					level: coverageLevelSchema,
+					evidence: z.array(
+						z.strictObject({
+							specimen: z.string(),
+							checkpoint: z.string(),
+							target: z.string(),
+						})
+					),
+					evidenceCount: z.number(),
+					reason: z.string().optional(),
+				})
+			),
+			counts: coverageCountsSchema,
+			openEnded: z.array(z.string()),
+			unknownToSchema: z.array(z.string()),
+		})
+	),
+	counts: coverageCountsSchema,
+	cases: z.strictObject({
+		total: z.number(),
+		passed: z.number(),
+		failed: z.array(z.strictObject({ id: z.string(), message: z.string() })),
+		skipped: z.number(),
+	}),
+	workers: z.number(),
+	elapsedMs: z.number(),
+});
 export const matrixRequestSchema = z.strictObject({
 	id: z.string().min(1),
 	// Each axis's values are what the same context field accepts.

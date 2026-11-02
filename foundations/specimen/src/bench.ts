@@ -8,6 +8,8 @@ import type {
 	BaselineRequest,
 	BenchOptions,
 	CaptureRequest,
+	CoverageRequest,
+	CoverageRun,
 	InspectRequest,
 	InspectResult,
 	MatrixRequest,
@@ -29,6 +31,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuiteRequest,
@@ -69,6 +72,12 @@ export interface SpecimenBench {
 	 * what axe could not decide, and the exceptions that applied. A story keeps its effective policy.
 	 */
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	/**
+	 * Run the cases a filter selects and report each component's required partitions at the level
+	 * those runs earn: represented, asserted, verified, missing or unknown. A schema alone proves
+	 * nothing, and an obligation nothing could show stays unknown.
+	 */
+	coverage(request?: CoverageRequest): Promise<CoverageRun>;
 	/**
 	 * Measure entries at a checkpoint over a few fresh runs, one at a time: paint and load timings,
 	 * ready and capture time, DOM size, requests, heap and console counts, flags and, when a
@@ -117,6 +126,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'run'
 		| 'runSuite'
 		| 'a11y'
+		| 'coverage'
 		| 'profile'
 		| 'matrix'
 		| 'recordBaseline'
@@ -239,6 +249,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			ensureDiscovered();
 			const request = parseBaselineRequest(rawRequest);
 			return enqueue((client) => client.recordBaseline(request));
+		},
+		async coverage(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseCoverageRequest(rawRequest);
+			return enqueue((client) => client.coverage(request));
 		},
 		async a11y(rawRequest = {}) {
 			ensureDiscovered();

@@ -1,0 +1,40 @@
+{
+	"manifest": "./custom-elements.json",
+	"specimens": [
+		{
+			"id": "panel-default",
+			"title": "Coverage/Default",
+			"module": "./coverage.specimens.ts",
+			"exportName": "Default",
+			"component": "fixture-panel"
+		},
+		{
+			"id": "panel-disabled",
+			"title": "Coverage/Disabled",
+			"module": "./coverage.specimens.ts",
+			"exportName": "Disabled",
+			"component": "fixture-panel"
+		},
+		{
+			"id": "panel-filled",
+			"title": "Coverage/Filled",
+			"module": "./coverage.specimens.ts",
+			"exportName": "Filled",
+			"component": "fixture-panel"
+		},
+		{
+			"id": "panel-changed",
+			"title": "Coverage/Changed",
+			"module": "./coverage.specimens.ts",
+			"exportName": "Changed",
+			"component": "fixture-panel"
+		},
+		{
+			"id": "panel-broken",
+			"title": "Coverage/Broken",
+			"module": "./coverage.specimens.ts",
+			"exportName": "Broken",
+			"component": "fixture-panel"
+		}
+	]
+}

@@ -11,7 +11,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.5',
+			captureVersion: '0.6',
 			normalizationVersion: '0.2',
 			specimenId: 'button',
 			capturedUtc: '2026-11-01T00:00:00.000Z',
@@ -142,6 +142,15 @@ function bench(): SpecimenCommandBench {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		coverage: vi.fn(async () => ({
+			obligations: 'schema-partitions@1',
+			complete: false,
+			components: [],
+			counts: { verified: 0, asserted: 0, represented: 0, missing: 0, unknown: 0 },
+			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		matrix: vi.fn(async (request) => ({
 			id: request.id,
 			checkpoint: 'after-run',
@@ -226,6 +235,7 @@ describe('specimen commands', () => {
 			'specimen-a11y',
 			'specimen-profile',
 			'specimen-baseline',
+			'specimen-coverage',
 			'specimen-matrix',
 			'specimen-inspect',
 			'specimen-migrate',

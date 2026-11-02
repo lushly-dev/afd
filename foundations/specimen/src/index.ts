@@ -1,4 +1,10 @@
 export { createSpecimenBench, DiscoveryError, type SpecimenBench } from './bench.js';
+export type {
+	ComponentCoverage,
+	CoverageEvidence,
+	CoverageLevel,
+	CoverageObligation,
+} from './coverage.js';
 export { diffObservations } from './diff.js';
 export { finiteValues, readManifest } from './manifest.js';
 export { normalizeDom } from './normalize.js';

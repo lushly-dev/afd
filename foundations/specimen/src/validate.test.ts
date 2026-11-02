@@ -6,6 +6,7 @@ import {
 	baselineRequestSchema,
 	captureRequestSchema,
 	contextSchema,
+	coverageRequestSchema,
 	matrixRequestSchema,
 	profileRequestSchema,
 	suiteRequestSchema,
@@ -16,6 +17,7 @@ import {
 	parseCaptureRequest,
 	parseConfig,
 	parseContext,
+	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuiteRequest,
@@ -368,5 +370,22 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of values) agrees(matrixRequestSchema, parseMatrixRequest, value);
+	});
+
+	it('agrees on coverage requests', () => {
+		const values = [
+			{},
+			{ component: 'x-a' },
+			{ component: '' },
+			{ component: 1 },
+			{ filter: { file: './a.ts' } },
+			{ filter: { other: 1 } },
+			{ timeoutMs: 1 },
+			{ timeoutMs: 60_001 },
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(coverageRequestSchema, parseCoverageRequest, value);
 	});
 });

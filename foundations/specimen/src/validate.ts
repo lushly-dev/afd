@@ -3,6 +3,7 @@ import type {
 	BaselineRequest,
 	BenchConfig,
 	CaptureRequest,
+	CoverageRequest,
 	MatrixAxes,
 	MatrixRequest,
 	ProfileRequest,
@@ -112,6 +113,20 @@ function suiteFilter(value: unknown, path: string): SuiteFilter {
 		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
 		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
 	};
+}
+
+export function parseCoverageRequest(value: unknown): CoverageRequest {
+	const fields = record(value, 'coverage request', ['component', 'filter', 'timeoutMs', 'workers']);
+	const request: CoverageRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'coverage request.component');
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'coverage request.filter');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'coverage request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'coverage request.workers', 1, MAX_SUITE_WORKERS);
+	return request;
 }
 
 export function parseA11yRequest(value: unknown): A11yRequest {

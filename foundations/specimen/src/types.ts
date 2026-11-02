@@ -1,7 +1,8 @@
+import type { ComponentCoverage, CoverageLevel } from './coverage.js';
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.5' as const;
+export const CAPTURE_VERSION = '0.6' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export interface SpecimenContext {
@@ -99,6 +100,8 @@ export interface SpecimenEntry {
 	component?: string;
 	/** Present on retained stories discovered in CSF compatibility mode. */
 	story?: StoryIdentity;
+	/** Sent with a render, not discovered: properties to read live on each tag, for coverage. */
+	observe?: Record<string, string[]>;
 }
 /** What Storybook's index gives a retained story, and what discovery could not read. */
 export interface StoryIdentity {
@@ -254,6 +257,30 @@ export interface SuiteFilter {
 	tags?: string[];
 	/** Text in the story's title and name, in any case. */
 	match?: string;
+}
+export interface CoverageRequest {
+	/** One component's tag; defaults to every component the schemas describe. */
+	component?: string;
+	filter?: SuiteFilter;
+	timeoutMs?: number;
+	workers?: number;
+}
+export interface CoverageRun {
+	/** The obligations required, by version. */
+	obligations: string;
+	/** Whether every required obligation is verified. */
+	complete: boolean;
+	components: ComponentCoverage[];
+	counts: Record<CoverageLevel, number>;
+	/** What the evidence came from: only cases that passed count. */
+	cases: {
+		total: number;
+		passed: number;
+		failed: { id: string; message: string }[];
+		skipped: number;
+	};
+	workers: number;
+	elapsedMs: number;
 }
 export interface SuiteRequest {
 	filter?: SuiteFilter;

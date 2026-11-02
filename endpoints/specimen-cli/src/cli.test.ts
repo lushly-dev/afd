@@ -73,6 +73,15 @@ function harness() {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		coverage: vi.fn(async () => ({
+			obligations: 'schema-partitions@1',
+			complete: false,
+			components: [],
+			counts: { verified: 0, asserted: 0, represented: 0, missing: 0, unknown: 0 },
+			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		matrix: vi.fn(async (request) => ({
 			id: request.id,
 			checkpoint: 'after-run',
@@ -313,6 +322,38 @@ describe('specimen CLI', () => {
 		});
 		expect(await runCli(['--root', root, 'matrix', 'button'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'matrix', '--theme', 'dark'], h.io)).toBe(1);
+	});
+	it('dispatches coverage for one component or all, with a selection', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'coverage'], h.io)).toBe(0);
+		expect(h.bench.coverage).toHaveBeenLastCalledWith({});
+		expect(
+			await runCli(
+				['--root', root, 'coverage', 'violet-button', '--file', './a.stories.ts', '--workers', '2'],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.coverage).toHaveBeenLastCalledWith({
+			component: 'violet-button',
+			filter: { file: './a.stories.ts' },
+			workers: 2,
+		});
+		expect(await runCli(['--root', root, 'coverage', 'a', 'b'], h.io)).toBe(1);
+	});
+	it('exits non-zero when a case behind the coverage failed', async () => {
+		const h = harness();
+		const root = await directory();
+		vi.mocked(h.bench.coverage).mockResolvedValueOnce({
+			obligations: 'schema-partitions@1',
+			complete: false,
+			components: [],
+			counts: { verified: 0, asserted: 0, represented: 0, missing: 0, unknown: 0 },
+			cases: { total: 1, passed: 0, failed: [{ id: 'a', message: 'b' }], skipped: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		});
+		expect(await runCli(['--root', root, 'coverage'], h.io)).toBe(1);
 	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();

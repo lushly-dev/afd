@@ -13,6 +13,8 @@ import {
 	baselineRequestSchema,
 	buildOutputSchema,
 	captureRequestSchema,
+	coverageRequestSchema,
+	coverageRunSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
 	matrixRequestSchema,
@@ -42,6 +44,8 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	CoverageRequest,
+	CoverageRun,
 	InspectRequest,
 	InspectResult,
 	MatrixRequest,
@@ -141,6 +145,7 @@ export interface SpecimenCommandBench {
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	coverage(request: CoverageRequest): Promise<CoverageRun>;
 	matrix(request: MatrixRequest): Promise<MatrixRun>;
 	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
@@ -322,6 +327,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Set profile.baselines in the configuration, and give an id or a filter.'
 			),
 	});
+	const coverage = defineCommand({
+		...common,
+		name: 'specimen-coverage',
+		description:
+			"Run the selected cases and report each component's required partitions, from its schema, at the level those runs earn: represented, asserted, verified, missing or unknown. Unknown never counts as covered, and only verified counts toward complete.",
+		mutation: false,
+		input: coverageRequestSchema,
+		output: coverageRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.coverage(input),
+				coverageRunSchema,
+				'SPECIMEN_COVERAGE_FAILED',
+				'Configure a custom elements manifest that describes the component, and use specimen-list to check the filter.'
+			),
+	});
 	const matrix = defineCommand({
 		...common,
 		name: 'specimen-matrix',
@@ -396,6 +417,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		a11y,
 		profile,
 		baseline,
+		coverage,
 		matrix,
 		inspect,
 		migrate,
@@ -432,6 +454,7 @@ export async function executeSpecimenCommand(
 		a11y,
 		profile,
 		baseline,
+		coverage,
 		matrix,
 		inspect,
 		migrate,
@@ -455,6 +478,8 @@ export async function executeSpecimenCommand(
 			return execute(profile, input);
 		case 'specimen-baseline':
 			return execute(baseline, input);
+		case 'specimen-coverage':
+			return execute(coverage, input);
 		case 'specimen-matrix':
 			return execute(matrix, input);
 		case 'specimen-inspect':

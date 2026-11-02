@@ -214,6 +214,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	let nativeAccessibility: NativeAccessibility | undefined;
 	/** Tags a retained story still had undefined when it settled. */
 	const undefinedTags = new Set<string>();
+	/** The properties a coverage run asked to read live, by tag. */
+	let observed: SpecimenEntry['observe'];
 	/** Whether the mounted native specimen declared a ready hook. */
 	let readyHook = false;
 	/** The installed plugins, once something has asked for them. */
@@ -400,6 +402,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (active)
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			active = true;
+			observed = entry.observe;
 			const { runStory } = await storyRuntime();
 			await mountRetained(entry, context, { settle: false });
 			if (!story?.mounted) throw new Error('A retained story did not mount.');
@@ -414,6 +417,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			const load = loaders[entry.id];
 			if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
 			active = true;
+			observed = entry.observe;
 			if (entry.story) {
 				try {
 					return await mountRetained(entry, context, {});
@@ -495,7 +499,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!active) throw new Error('Mount a specimen before capturing it.');
 			instrumentation.setMotionMode(motion);
 			const observation: BrowserObservation = {
-				...captureDocument(mountRoot, instrumentation.closedHosts),
+				...captureDocument(mountRoot, instrumentation.closedHosts, observed),
 				ready: {
 					steps: ['upgrade', ...(readyHook ? ['ready-hook'] : []), 'fonts', 'frame'],
 					outcome: undefinedTags.size ? 'elements-undefined' : 'ready',
