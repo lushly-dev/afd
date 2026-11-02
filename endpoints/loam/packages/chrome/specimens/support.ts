@@ -87,13 +87,21 @@ export function shellFixture(
 	};
 }
 
-/** Wait, a frame at a time, until `check` holds; fail after about two seconds. */
+/**
+ * Wait, a frame at a time, until `check` holds; fail after about two seconds. A check that throws
+ * is not ready yet (a lazily loaded part may not exist on the first frames), so it is retried.
+ */
 export async function until(check: () => boolean): Promise<void> {
+	let last: unknown;
 	for (let attempt = 0; attempt < 120; attempt++) {
-		if (check()) return;
+		try {
+			if (check()) return;
+		} catch (error) {
+			last = error;
+		}
 		await frame();
 	}
-	throw new Error('The fixture never reached its state');
+	throw new Error('The fixture never reached its state', { cause: last });
 }
 
 /** A test kernel whose `system` theme follows the specimen's media. */
