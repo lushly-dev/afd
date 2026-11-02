@@ -133,6 +133,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			'flake-cap',
 			'capture',
 		]),
+		coverage: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
 		a11y: new Set([
 			'root',
 			'config',
@@ -211,7 +212,9 @@ function validateOptions(parsed: ParsedArguments): void {
 				? 2
 				: 1;
 	const selects = ['run', 'a11y', 'profile', 'baseline'].includes(parsed.action);
-	const suite = selects && parsed.positionals.length === 0;
+	const suite =
+		(selects && parsed.positionals.length === 0) ||
+		(parsed.action === 'coverage' && parsed.positionals.length <= 1);
 	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
 	// How many runs apply to one entry as to many.
 	if (selects && !suite)
@@ -248,9 +251,13 @@ function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
 /** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
 function storiesFailed(result: CommandResult<unknown>): boolean {
 	const data = result.data as
-		| { outcome?: string | { status?: string }; counts?: { failed?: number; errored?: number } }
+		| {
+				cases?: { failed?: unknown[] };
+				outcome?: string | { status?: string };
+				counts?: { failed?: number; errored?: number };
+		  }
 		| undefined;
-	if (data?.counts?.failed || data?.counts?.errored) return true;
+	if (data?.counts?.failed || data?.counts?.errored || data?.cases?.failed?.length) return true;
 	const outcome = data?.outcome;
 	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
 	return outcome?.status === 'failed';
@@ -380,6 +387,11 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 							...suiteInput(parsed),
 						}
 					);
+				} else if (parsed.action === 'coverage') {
+					result = await executeSpecimenCommand(bench, 'specimen-coverage', {
+						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...suiteInput(parsed),
+					});
 				} else if (parsed.action === 'a11y') {
 					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
 						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),

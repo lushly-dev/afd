@@ -168,6 +168,30 @@ An exception excuses only its rule, only on its target and what is inside it, th
 
 A run's capture records its check in `channels.a11y.axe`, and `diffObservations` treats a change in what axe found as a difference.
 
+## Report coverage
+
+`coverage()` (`specimen-coverage`, `specimen coverage [TAG]`) runs the cases a filter selects and reports what they show of each component's required partitions. A schema says which states a component can have, not that anything exercised them, so a level is earned only from what a run observed.
+
+```ts
+const run = await bench.coverage({ component: 'violet-button' });
+// { obligations: 'schema-partitions@1', complete: false, components: [...], counts, cases, ... }
+```
+
+Required of each component the manifest describes: its default state, each value of a finite property or attribute, each slot empty and filled, each event and command, and, when an element is seen to be form-associated, form participation and validity. A member with no finite values is listed as `openEnded`, and nothing is required of it.
+
+| Level | Meaning |
+| --- | --- |
+| `represented` | A case that passed shows an element with this tag in that state |
+| `missing` | No case shows it |
+| `unknown` | The capture could not tell: nothing could read the member, or no case declares the event |
+| `asserted`, `verified` | Reserved for claims linking an expectation to the state |
+
+Only `verified` counts toward `complete`, so a run of plain captures is never complete.
+
+- **Evidence is observed.** Each obligation names the first few cases showing it, with their checkpoint and the element's reference. Slots are read from the slots themselves, and properties live from the element, so a story's args prove nothing on their own.
+- **Any element with the tag counts,** including one inside another component.
+- **A failed case proves nothing.** `cases.failed` names each with its message, and `specimen coverage` exits non-zero when there is one. Unverified coverage alone does not fail the command.
+
 ## Profile
 
 `profile()` (`specimen-profile`, `specimen profile [ID]`) measures entries at a checkpoint over a few fresh runs, one at a time, since a neighbour's work would be in every number. The default checkpoint is `mount`, the ready checkpoint, and the default is 3 runs. Each report has:

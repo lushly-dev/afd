@@ -13,6 +13,12 @@ import {
 	loadConfig,
 	resolveContext,
 } from './config.js';
+import {
+	COVERAGE_OBLIGATIONS,
+	type CoverageCase,
+	computeCoverage,
+	observedProperties,
+} from './coverage.js';
 import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
 import {
@@ -47,6 +53,8 @@ import {
 	CAPTURE_VERSION,
 	type CaptureCheckpoint,
 	type Completeness,
+	type CoverageRequest,
+	type CoverageRun,
 	type InspectRequest,
 	type InspectResult,
 	type MatrixCell,
@@ -73,6 +81,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuiteRequest,
@@ -182,6 +191,7 @@ export async function createInProcessBench(
 			reuseBundle?: boolean;
 			accessibility?: boolean;
 			profile?: boolean;
+			observe?: SpecimenEntry['observe'];
 		} = {}
 	): Promise<{
 		observation: Observation | null;
@@ -213,7 +223,7 @@ export async function createInProcessBench(
 						runtime.request(
 							'render',
 							{
-								entry,
+								entry: options.observe ? { ...entry, observe: options.observe } : entry,
 								context: provisional,
 								checkpoint: request.checkpoint,
 								timeoutMs: request.timeoutMs,
@@ -503,7 +513,11 @@ export async function createInProcessBench(
 	/** One retained story's run, or the outcome that says why it did not run. */
 	async function runStory(
 		parsed: ReturnType<typeof parseCaptureRequest>,
-		options: { capture?: SuiteCapture; reuseBundle?: boolean } = {}
+		options: {
+			capture?: SuiteCapture;
+			reuseBundle?: boolean;
+			observe?: SpecimenEntry['observe'];
+		} = {}
 	): Promise<StoryRun> {
 		const entry = config.entries.find((item) => item.id === parsed.id);
 		if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
@@ -809,6 +823,87 @@ export async function createInProcessBench(
 				reports,
 				counts: profileCounts(reports),
 				orphanedBaselines: [],
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async coverage(rawRequest: CoverageRequest = {}): Promise<CoverageRun> {
+			ensureOpen();
+			const request = parseCoverageRequest(rawRequest);
+			const schemas = request.component
+				? [config.schemas[request.component]].filter((schema) => schema !== undefined)
+				: Object.values(config.schemas);
+			if (request.component && !schemas.length)
+				throw new Error(
+					`No schema describes ${request.component}. Configure a custom elements manifest that does.`
+				);
+			const entries = selectEntries(config.entries, request.filter, config.root);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const timeoutMs = request.timeoutMs;
+			const observe = observedProperties(schemas);
+			const failed: CoverageRun['cases']['failed'] = [];
+			let skipped = 0;
+			const cases: CoverageCase[] = [];
+			await pool(entries, workers, async (entry) => {
+				try {
+					if (entry.story) {
+						const { outcome, observation } = await runStory(
+							{ id: entry.id, ...(timeoutMs ? { timeoutMs } : {}) },
+							{ capture: 'all', reuseBundle: true, observe }
+						);
+						if (outcome.status === 'failed')
+							failed.push({
+								id: entry.id,
+								message: outcome.failures[0]?.message ?? 'The story failed.',
+							});
+						else if (outcome.status !== 'passed' || !observation) skipped++;
+						else cases.push({ id: entry.id, observation });
+					} else {
+						const { observation } = await capture(
+							parseCaptureRequest({
+								id: entry.id,
+								checkpoint: 'after-run',
+								...(timeoutMs ? { timeoutMs } : {}),
+							}),
+							{ reuseBundle: true, observe }
+						);
+						if (observation) cases.push({ id: entry.id, observation });
+					}
+				} catch (error) {
+					failed.push({
+						id: entry.id,
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
+			});
+			const components = computeCoverage(schemas, cases);
+			const counts: CoverageRun['counts'] = {
+				verified: 0,
+				asserted: 0,
+				represented: 0,
+				missing: 0,
+				unknown: 0,
+			};
+			for (const component of components)
+				for (const [level, count] of Object.entries(component.counts))
+					counts[level as keyof typeof counts] += count;
+			return {
+				obligations: COVERAGE_OBLIGATIONS,
+				complete:
+					components.length > 0 &&
+					counts.asserted + counts.represented + counts.missing + counts.unknown === 0,
+				components,
+				counts,
+				cases: {
+					total: entries.length,
+					passed: cases.length,
+					failed: failed.sort((a, b) => a.id.localeCompare(b.id, 'en-US')),
+					skipped,
+				},
+				workers,
 				elapsedMs: performance.now() - started,
 			};
 		},

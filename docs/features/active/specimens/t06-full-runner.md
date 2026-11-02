@@ -1,6 +1,6 @@
 # T06 full runner and operational checks
 
-**State, 2026-11-01:** complete when step 7 merges. All of T06's acceptance is met on the branch.
+**State, 2026-11-01:** complete. All of T06's acceptance is met, on main at `304c7deb`.
 
 - Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
 - Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
@@ -8,7 +8,7 @@
 - Step 4, `specimen-profile` and baselines, is done and merged in [#681](https://github.com/lushly-dev/afd/pull/681).
 - Step 5, `specimen-matrix` and declared event history, is done and merged in [#682](https://github.com/lushly-dev/afd/pull/682).
 - Step 6, budgets, the review page and the consumer's tooling, is done and merged in [#686](https://github.com/lushly-dev/afd/pull/686).
-- Step 7, the declared baseline and the rest of the capture manifest, is implemented on branch `lush/specimens-t06-baseline`.
+- Step 7, the declared baseline and the rest of the capture manifest, is done and merged in [#691](https://github.com/lushly-dev/afd/pull/691).
 
 [What T06 leaves open](#what-t06-leaves-open) is listed at the end.
 
@@ -457,4 +457,4 @@ None.
 4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Merged in #681.
 5. ~~`specimen-matrix` and declared event history.~~ Merged in #682.
 6. ~~CEM and story typechecks, scaffold output, and verified index links and budgets.~~ Merged in #686.
-7. ~~The declared baseline and the rest of the capture manifest.~~ Implemented on branch.
+7. ~~The declared baseline and the rest of the capture manifest.~~ Merged in #691.

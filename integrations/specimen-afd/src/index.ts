@@ -2,6 +2,7 @@ export {
 	a11yRunSchema,
 	buildOutputSchema,
 	contextSchema,
+	coverageRunSchema,
 	inspectResultSchema,
 	matrixRunSchema,
 	observationSchema,

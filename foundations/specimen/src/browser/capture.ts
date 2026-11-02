@@ -90,8 +90,21 @@ function focusedElement(): Element | null {
 	return focused;
 }
 
-function stateOf(element: Element, focused: Element | null): ElementObservation['state'] {
+function stateOf(
+	element: Element,
+	focused: Element | null,
+	observe: readonly string[] | undefined
+): ElementObservation['state'] {
 	const state: ElementObservation['state'] = { focused: element === focused };
+	for (const name of observe ?? []) {
+		try {
+			const value: unknown = Reflect.get(element, name);
+			if (value === null || ['string', 'number', 'boolean'].includes(typeof value))
+				state[`prop:${name}`] = value as string | number | boolean | null;
+		} catch {
+			// A getter that throws says nothing about the state; the member stays unobserved.
+		}
+	}
 	if (element instanceof HTMLInputElement) {
 		state.value = element.value;
 		state.checked = element.checked;
@@ -118,6 +131,16 @@ function stateOf(element: Element, focused: Element | null): ElementObservation[
 		state.disabled = element.disabled;
 	} else if (element instanceof HTMLDetailsElement || element instanceof HTMLDialogElement) {
 		state.open = element.open;
+	}
+	if (element.localName.includes('-')) {
+		if ((element.constructor as { formAssociated?: boolean }).formAssociated === true)
+			state.formAssociated = true;
+		// What each slot actually holds, whatever args the story was given.
+		for (const slot of element.shadowRoot?.querySelectorAll('slot') ?? [])
+			if (slot.getRootNode() === element.shadowRoot)
+				state[`slot:${slot.name}`] = slot
+					.assignedNodes()
+					.filter((node) => node.nodeType !== Node.TEXT_NODE || node.textContent?.trim()).length;
 	}
 	return state;
 }
@@ -194,7 +217,8 @@ function documentResources(): CaptureResources {
 
 export function captureDocument(
 	root: HTMLElement,
-	closedHosts: WeakSet<Element>
+	closedHosts: WeakSet<Element>,
+	observe?: Record<string, string[]>
 ): Omit<BrowserObservation, 'ready' | 'plugins'> {
 	const elements = openElements(root);
 	const refs = new Map<Element, string>([[root, 'root']]);
@@ -260,7 +284,7 @@ export function captureDocument(
 				clientHeight: element.clientHeight,
 			},
 			styles,
-			state: stateOf(element, focused),
+			state: stateOf(element, focused, observe?.[element.localName]),
 		};
 	});
 	return {
