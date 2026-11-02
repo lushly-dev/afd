@@ -89,6 +89,15 @@ function bench(): SpecimenCommandBench {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		runSuite: vi.fn(async () => ({
+			outcome: 'passed' as const,
+			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
+			retry: { ran: false, reason: 'no story failed' },
+			stories: [],
+			workers: 2,
+			elapsedMs: 1,
+			sourcesChanged: false,
+		})),
 		run: vi.fn(async (request) => ({
 			id: request.id,
 			outcome: {
@@ -187,6 +196,28 @@ describe('specimen commands', () => {
 			checkpoint: 'mount',
 		});
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a suite without an id, and refuses an id with suite options', async () => {
+		const instance = bench();
+		const suite = await executeSpecimenCommand(instance, 'specimen-run', {
+			filter: { tags: ['smoke'] },
+			workers: 2,
+			retry: true,
+		});
+		expect(suite.success).toBe(true);
+		expect(instance.runSuite).toHaveBeenCalledWith({
+			filter: { tags: ['smoke'] },
+			workers: 2,
+			retry: true,
+		});
+		expect(suite.data).toMatchObject({ outcome: 'passed', counts: { total: 0 } });
+		const both = await executeSpecimenCommand(instance, 'specimen-run', {
+			id: 'button',
+			workers: 2,
+		});
+		expect(both.success).toBe(false);
+		expect(both.error?.code).toBe('SPECIMEN_RUN_FAILED');
+		expect(instance.run).toHaveBeenCalledTimes(0);
 	});
 	it('lists retained stories with their Storybook identity', async () => {
 		const instance = bench();

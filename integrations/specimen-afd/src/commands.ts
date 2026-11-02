@@ -17,6 +17,8 @@ import {
 	observationSchema,
 	runRequestSchema,
 	storyRunSchema,
+	suiteRequestSchema,
+	suiteRunSchema,
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 
@@ -38,6 +40,8 @@ import type {
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
+	SuiteRequest,
+	SuiteRun,
 	ValidationReport,
 	ValidationTarget,
 } from '@lushly-dev/specimen/types';
@@ -120,10 +124,15 @@ export interface SpecimenCommandBench {
 	validate(target?: ValidationTarget): ValidationReport;
 	render(request: CaptureRequest): Promise<Observation>;
 	run(request: RunRequest): Promise<StoryRun>;
+	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
 }
+
+/** One story by id, or a suite by filter; the handler tells them apart. */
+const runInputSchema = runRequestSchema.partial({ id: true }).extend(suiteRequestSchema.shape);
+const runOutputSchema = z.union([storyRunSchema, suiteRunSchema]);
 
 async function result<T>(
 	operation: () => T | Promise<T>,
@@ -224,16 +233,27 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-run',
 		description:
-			'Run a retained story as its Storybook test runs: render, play, then the accessibility check under its policy',
+			'Run one retained story by id, or a suite of them by filter (no id and no filter runs them all), as their Storybook tests run: render, play, then the accessibility check under each policy. A suite has worker limits, an optional once-only retry and per-story flake ids. A failing story is a successful command: read data.outcome.status for one story and data.outcome for a suite.',
 		mutation: false,
-		input: runRequestSchema,
-		output: storyRunSchema,
+		input: runInputSchema,
+		output: runOutputSchema,
 		handler: async (input) =>
 			result(
-				() => bench.run(input),
-				storyRunSchema,
+				() => {
+					const { id, screenshot, ...suite } = input;
+					if (id === undefined) {
+						if (screenshot !== undefined)
+							throw new Error('A screenshot belongs to one story; give an id, or omit it.');
+						return bench.runSuite(suite);
+					}
+					const { filter, workers, retry, flakeCap, capture, ...single } = suite;
+					if (filter || workers || retry !== undefined || flakeCap !== undefined || capture)
+						throw new Error('Give an id for one story, or suite options, not both.');
+					return bench.run({ id, ...single, ...(screenshot ? { screenshot } : {}) });
+				},
+				runOutputSchema,
 				'SPECIMEN_RUN_FAILED',
-				'Use specimen-list to check the id is a retained story, then validate it and check the browser installation.'
+				'Use specimen-list to check the id or filter names retained stories, then validate them and check the browser installation.'
 			),
 	});
 	const inspect = defineCommand({

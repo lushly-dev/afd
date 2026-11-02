@@ -4,6 +4,7 @@ export {
 	inspectResultSchema,
 	observationSchema,
 	storyRunSchema,
+	suiteRunSchema,
 } from '@lushly-dev/specimen/schema';
 export {
 	createSpecimenCommands,

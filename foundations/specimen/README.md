@@ -82,6 +82,28 @@ Two things consumers' stories rely on are available:
 - `staticDirs` serves directories at the page's origin, as Storybook's option does: `"staticDirs": ["./public", { "from": "./site", "to": "/site" }]`. Paths are relative to the configuration and inside the root.
 - `userEvent.keyboard` from `vitest/browser` drives the real keyboard, with testing-library's key syntax. A retained play gets this one method; any other on `userEvent` throws. On a page without the host, such as a static preview, `userEvent` is undefined.
 
+### Suites
+
+`runSuite()` (`specimen-run` without an `id`, `specimen run` without an `ID`) runs many stories against one snapshot of the sources:
+
+```ts
+const suite = await bench.runSuite({
+  filter: { tags: ['smoke'], file: 'src/button.stories.ts', match: 'disabled', ids: ['a--b'] },
+  workers: 2,
+  retry: true,
+  flakeCap: 2,
+  capture: 'failed',
+});
+```
+
+- `filter` selects stories, and every condition given must hold. No filter selects them all.
+- `workers` limits how many run at once. It defaults to `test.workers` in the configuration, then 2.
+- `retry` retries failures once, one at a time, if no more than `flakeCap` stories failed (default 2). A failure that passes its retry is `flaky`. The suite's `outcome` is then `passed-with-flake` if every retried story passed, or `failed-after-retry` if any failed again.
+- `timeoutMs` is each story's deadline. It defaults to `test.timeoutMs` in the configuration, then 15,000 ms, Vitest's browser default.
+- `capture` chooses which stories keep an observation: `failed` (the default), `all` or `none`. A capture costs more than some stories' runs.
+
+Each story reports its `attempts` and a `flakeId` in the form `storybook:<file>::<name>`, the key a consumer's flake records already use. `sourcesChanged` is true if a bundled source changed during the run, in which case the stories ran against the sources as they were when it started.
+
 ## Migrate retained stories
 
 `migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:

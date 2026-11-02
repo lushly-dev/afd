@@ -13,10 +13,12 @@ import type {
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
+	SuiteRequest,
+	SuiteRun,
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
-import { parseCaptureRequest } from './validate.js';
+import { parseCaptureRequest, parseSuiteRequest } from './validate.js';
 
 /** Discovery found stories it cannot index; `validate()` reports each problem. */
 export class DiscoveryError extends Error {
@@ -43,6 +45,11 @@ export interface SpecimenBench {
 	 * accessibility check under its effective policy. A story that fails to render fails its run.
 	 */
 	run(request: RunRequest): Promise<StoryRun>;
+	/**
+	 * Run a suite of retained stories against one snapshot of the sources, with worker limits and
+	 * an optional once-only retry of failures.
+	 */
+	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	/**
 	 * Resolve one specimen or retained story without capturing it: its args, its context and
 	 * its component's schema, from the manifest and the plugins' schema sources.
@@ -71,7 +78,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	Object.freeze(config);
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
-	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'inspect' | 'build' | 'close'>;
+	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'runSuite' | 'inspect' | 'build' | 'close'>;
 	let backend: Backend | undefined;
 	let closed = false;
 	let closing: Promise<void> | undefined;
@@ -166,6 +173,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.run(request));
+		},
+		async runSuite(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseSuiteRequest(rawRequest);
+			return enqueue((client) => client.runSuite(request));
 		},
 		async inspect(rawRequest) {
 			const snapshot = ensureDiscovered();

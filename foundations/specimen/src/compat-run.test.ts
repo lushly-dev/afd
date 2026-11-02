@@ -187,3 +187,72 @@ describe('retained stories end the same way in both runners', () => {
 		]);
 	}, 300_000);
 });
+
+describe('a suite of retained stories', () => {
+	it('ends each story as its single run does, with two workers', async () => {
+		const bench = await createSpecimenBench({ root: compat });
+		try {
+			const suite = await bench.runSuite({ workers: 2 });
+			expect(suite.outcome).toBe('passed');
+			expect(suite.workers).toBe(2);
+			// A bundle's own generated entry is not a source that changed during the run.
+			expect(suite.sourcesChanged).toBe(false);
+			expect(suite.stories.map((story) => story.id)).toEqual(
+				bench
+					.list()
+					.filter((entry) => entry.story)
+					.map((entry) => entry.id)
+			);
+			const single = await bench.run({ id: suite.stories[0]?.id ?? '' });
+			expect(suite.stories[0]?.status).toBe(single.outcome.status);
+			const counts = suite.counts;
+			expect(counts.passed + counts.skipped + counts.excluded).toBe(counts.total);
+			expect(counts).toMatchObject({ skipped: 1, excluded: 1, failed: 0, flaky: 0 });
+			// A passing story keeps no capture by default, and its id is the incumbent's key.
+			const primary = suite.stories.find((story) => story.status === 'passed');
+			expect(primary?.observation).toBeNull();
+			expect(primary?.flakeId).toBe(`storybook:${primary?.file}::${primary?.name}`);
+			const filtered = await bench.runSuite({
+				filter: { match: 'Smoke Only' },
+				capture: 'all',
+				workers: 1,
+			});
+			expect(filtered.stories.map((story) => story.name)).toEqual(['Smoke Only']);
+			expect(filtered.stories[0]?.observation?.manifest.specimenId).toBe(filtered.stories[0]?.id);
+			await expect(bench.runSuite({ filter: { match: 'no such story' } })).rejects.toThrow(
+				'No retained story matches the filter.'
+			);
+		} finally {
+			await bench.close();
+		}
+	}, 300_000);
+
+	it('keeps real failures through a retry, with a capture of each', async () => {
+		const bench = await createSpecimenBench({ root: join(compat, 'failing') });
+		try {
+			const overCap = await bench.runSuite({ retry: true });
+			expect(overCap.outcome).toBe('failed');
+			expect(overCap.retry.ran).toBe(false);
+			expect(overCap.retry.reason).toContain('cannot pass as flakes');
+			const failing = overCap.stories.filter((story) => story.status === 'failed');
+			expect(failing.map((story) => story.name)).toEqual([
+				'Interaction Failure',
+				'Accessibility Failure',
+				'Render Failure',
+			]);
+			expect(failing[0]?.observation).not.toBeNull();
+			const retried = await bench.runSuite({
+				filter: { match: 'Interaction Failure' },
+				retry: true,
+			});
+			expect(retried.outcome).toBe('failed-after-retry');
+			expect(retried.retry).toEqual({ ran: true });
+			expect(retried.stories[0]?.attempts.map((attempt) => attempt.status)).toEqual([
+				'failed',
+				'failed',
+			]);
+		} finally {
+			await bench.close();
+		}
+	}, 300_000);
+});

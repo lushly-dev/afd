@@ -473,12 +473,19 @@ async fn bundle(
     let output = built?;
     let mut files = HashMap::new();
     let mut sources = Vec::new();
+    // Module ids are resolved paths, and a temporary directory can sit behind a symlink, as
+    // macOS's `/var` does. Without this the bundle's own generated entry counts as a source
+    // written during the build, and every render rebuilds.
+    let work = source
+        .work
+        .canonicalize()
+        .unwrap_or_else(|_| source.work.clone());
     for asset in &output.assets {
         let name = asset.filename().to_string();
         if let rolldown_common::Output::Chunk(chunk) = asset {
             for id in &chunk.module_ids {
                 let path = PathBuf::from(id.as_str().split(['?', '#']).next().unwrap_or(""));
-                if path.is_absolute() && !path.starts_with(&source.work) {
+                if path.is_absolute() && !path.starts_with(&work) {
                     sources.push(path);
                 }
             }

@@ -45,6 +45,15 @@ function harness() {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		runSuite: vi.fn(async () => ({
+			outcome: 'passed' as const,
+			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
+			retry: { ran: false, reason: 'no story failed' },
+			stories: [],
+			workers: 2,
+			elapsedMs: 1,
+			sourcesChanged: false,
+		})),
 		run: vi.fn(async (request) => ({
 			id: request.id,
 			outcome: {
@@ -127,6 +136,52 @@ describe('specimen CLI', () => {
 			data: { id: 'button', outcome: { status: 'skipped' }, observation: null },
 		});
 		expect(await runCli(['--root', root, 'run', 'button', '--checkpoint', 'mount'], h.io)).toBe(1);
+	});
+	it('runs a suite without an id, and exits nonzero when its stories failed', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'run',
+					'--tag',
+					'smoke,keyboard',
+					'--match',
+					'Button',
+					'--workers',
+					'4',
+					'--retry',
+					'--flake-cap',
+					'1',
+					'--capture',
+					'none',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.runSuite).toHaveBeenCalledWith({
+			context: {},
+			filter: { tags: ['smoke', 'keyboard'], match: 'Button' },
+			workers: 4,
+			retry: true,
+			flakeCap: 1,
+			capture: 'none',
+		});
+		h.bench.runSuite = vi.fn(async () => ({
+			outcome: 'failed-after-retry' as const,
+			counts: { total: 1, passed: 0, failed: 1, flaky: 0, skipped: 0, excluded: 0 },
+			retry: { ran: true },
+			stories: [],
+			workers: 2,
+			elapsedMs: 1,
+			sourcesChanged: false,
+		}));
+		expect(await runCli(['--root', root, 'run'], h.io)).toBe(1);
+		// Suite options need the suite: with a story id they are a mistake, not ignored.
+		expect(await runCli(['--root', root, 'run', 'button', '--workers', '2'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'run', '--workers', 'many'], h.io)).toBe(1);
 	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();

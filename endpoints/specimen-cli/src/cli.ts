@@ -44,8 +44,13 @@ const valueOptions = new Set([
 	'id',
 	'file',
 	'files',
+	'tag',
+	'match',
+	'workers',
+	'flake-cap',
+	'capture',
 ]);
-const flagOptions = new Set(['require-visual', 'apply']);
+const flagOptions = new Set(['require-visual', 'apply', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -118,6 +123,13 @@ function validateOptions(parsed: ParsedArguments): void {
 			'reduced-motion',
 			'motion',
 			'screenshot',
+			'file',
+			'tag',
+			'match',
+			'workers',
+			'retry',
+			'flake-cap',
+			'capture',
 		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
 		build: new Set(['root', 'config', 'output']),
@@ -134,10 +146,44 @@ function validateOptions(parsed: ParsedArguments): void {
 			: parsed.action === 'diff'
 				? 2
 				: 1;
-	if (parsed.positionals.length !== expected)
+	const suite = parsed.action === 'run' && parsed.positionals.length === 0;
+	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
+	if (parsed.action === 'run' && !suite)
+		for (const option of suiteOptions)
+			if (parsed.options.has(option) || parsed.flags.has(option))
+				throw new Error(`Option --${option} selects a suite; omit the story id to use it`);
+	if (!suite && parsed.positionals.length !== expected)
 		throw new Error(
 			`${parsed.action} expects ${expected} positional argument${expected === 1 ? '' : 's'}`
 		);
+}
+/** What selects and shapes a suite, from `specimen run` without a story id. */
+function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
+	const filter = {
+		...(parsed.options.has('file') ? { file: parsed.options.get('file') } : {}),
+		...(parsed.options.has('tag')
+			? { tags: (parsed.options.get('tag') ?? '').split(',').filter(Boolean) }
+			: {}),
+		...(parsed.options.has('match') ? { match: parsed.options.get('match') } : {}),
+	};
+	const whole = (option: string) => {
+		const value = Number(parsed.options.get(option));
+		if (!Number.isInteger(value)) throw new Error(`--${option} expects a whole number`);
+		return value;
+	};
+	return {
+		...(Object.keys(filter).length ? { filter } : {}),
+		...(parsed.options.has('workers') ? { workers: whole('workers') } : {}),
+		...(parsed.flags.has('retry') ? { retry: true } : {}),
+		...(parsed.options.has('flake-cap') ? { flakeCap: whole('flake-cap') } : {}),
+		...(parsed.options.has('capture') ? { capture: parsed.options.get('capture') } : {}),
+	};
+}
+/** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
+function storiesFailed(result: CommandResult<unknown>): boolean {
+	const outcome = (result.data as { outcome?: string | { status?: string } } | undefined)?.outcome;
+	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
+	return outcome?.status === 'failed';
 }
 const resultCapture = z.object({ success: z.literal(true), data: observationSchema }).passthrough();
 async function readCapture(file: string): Promise<unknown> {
@@ -219,25 +265,32 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value) raw[field] = value;
 				}
-				const input = {
-					id: parsed.positionals[0],
-					context: { ...context, ...raw },
-					...(parsed.options.has('checkpoint')
-						? { checkpoint: parsed.options.get('checkpoint') }
-						: {}),
-					...(parsed.options.has('screenshot')
-						? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
-						: {}),
-				};
-				result = await executeSpecimenCommand(
-					bench,
-					parsed.action === 'run'
-						? 'specimen-run'
-						: parsed.action === 'inspect'
-							? 'specimen-inspect'
-							: 'specimen-render',
-					input
-				);
+				if (parsed.action === 'run' && parsed.positionals.length === 0)
+					result = await executeSpecimenCommand(bench, 'specimen-run', {
+						context: { ...context, ...raw },
+						...suiteInput(parsed),
+					});
+				else {
+					const input = {
+						id: parsed.positionals[0],
+						context: { ...context, ...raw },
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...(parsed.options.has('screenshot')
+							? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
+							: {}),
+					};
+					result = await executeSpecimenCommand(
+						bench,
+						parsed.action === 'run'
+							? 'specimen-run'
+							: parsed.action === 'inspect'
+								? 'specimen-inspect'
+								: 'specimen-render',
+						input
+					);
+				}
 			}
 		}
 		await bench?.close();
@@ -268,5 +321,5 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 		}
 	}
 	stdout(`${JSON.stringify(result)}\n`);
-	return result.success ? 0 : 1;
+	return result.success && !storiesFailed(result) ? 0 : 1;
 }

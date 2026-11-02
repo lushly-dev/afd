@@ -2,7 +2,8 @@
 
 **State, 2026-11-01:** in progress.
 
-- Step 1, exact agreement on both consumers' full retained suites, is implemented on branch `lush/specimens-t06-full-suites`.
+- Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
+- Step 2, suites with filters, worker limits and the once-only retry, is implemented on branch `lush/specimens-t06-run-suites`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -90,12 +91,14 @@ Lushly's keyboard journeys use `userEvent.keyboard` from `vitest/browser` for tr
 
 ### Speed
 
+[Step 2](#step-2-suites) measures and closes most of this. The figures at this step:
+
 | Consumer | Storybook, 2 workers | Specimen, one story at a time | Per story |
 | --- | --- | --- | --- |
 | Lushly | 112 s | 599 s | 686 ms |
 | FAST-AF | 14 s | 157 s | 385 ms |
 
-Specimen is 5 to 11 times slower over a full suite in this shape. Each story pays for a fresh browser context, the page's load and axe's fetch, while Storybook shares a page across a file's stories and runs two workers. How the time divides is not measured yet. These are single timings on a shared host, not a [T04](resource-budget-validation.md)-style measurement. Step 2 owns worker limits, and T08's qualifying pairs have to carry this.
+Specimen is 5 to 11 times slower over a full suite in this shape. Each story pays for a fresh browser context, the page's load and axe's fetch, while Storybook shares a page across a file's stories and runs two workers. These are single timings on a shared host, not a [T04](resource-budget-validation.md)-style measurement.
 
 ### Evidence
 
@@ -111,10 +114,79 @@ Local evidence is in `~/.cache/afd-specimens/t06-20261101/evidence/`. It is igno
 | `fast-af-full-3/retained.json` | `e5424e9864b5fbb24bb398d589604b4513403d7ed23304f17481614820c81246` |
 | `axe413/report.json`, before compression | `c22f7c8974df380cb3acb43db6de6340cb4e0d4232fa8e7c4c9016f26ebe15b9` |
 
+## Step 2: suites
+
+`bench.runSuite()`, `specimen-run` without an `id` and `specimen run` without an `ID` run many retained stories against one snapshot of the sources. The [README](../../../../foundations/specimen/README.md#suites) documents the options.
+
+### The rules
+
+| Obligation | What a suite does |
+| --- | --- |
+| Filter | `ids`, `file`, `tags`, `match`; every condition given must hold, and matching nothing is an error |
+| Worker limit | `workers`, defaulting to `test.workers` in the configuration, then 2, Lushly's cap |
+| Once-only retry | With `retry`, up to `flakeCap` failures (default 2, Lushly's `FLAKE_CAP`) rerun once, one at a time. More failures than that are not retried: they cannot pass as flakes |
+| Classification | As Lushly's `classifyRerun`: `passed-with-flake` only when every retried story passes, otherwise `failed-after-retry` |
+| Flake identity | `storybook:<file>::<name>`, Lushly's exact key, so its records stay valid. Vitest's titles here are flat: no ancestors, the story's name |
+| Deadline | 15,000 ms per story, or `test.timeoutMs`: Vitest's browser `testTimeout`, which neither consumer overrides. Specimen's was 10,000 ms |
+| Exit status | `specimen run` exits 1 when the stories failed, for one story or a suite; the command itself still succeeded |
+
+Lushly's flake ledger, stage plan and issue filing stay Lushly's; [T08](implementation.md#ordered-implementation-queue) points them at this output.
+
+### Where the time went
+
+Instrumenting a 59-story Lushly sample, one at a time, at 546 ms per story:
+
+| Step | Mean |
+| --- | --- |
+| Checking the bundle's sources | 208 ms |
+| Play and accessibility check | 110 ms |
+| Story modules and axe | 86 ms |
+| Capture | 81 ms |
+| Opening the page | 51 ms |
+| The rest | About 10 ms |
+
+The largest item was a bug. The source check takes 2.6 ms for 1,272 files; the other 205 ms was a **full rebuild of the bundle on every render on macOS**. The bundle's own generated entry sits in a temporary directory that the code skips by path prefix, but module ids are resolved (`/private/var/…`) and the configured path is not (`/var/…`, a symlink). So the entry looked like a source written during the build, and the generation was always stale. The comparison now uses the resolved path.
+
+[T04](resource-budget-validation.md)'s macOS figures included that rebuild for its smaller wrappers, so they overstate warm-render cost. They were not remeasured; its gate passed regardless. Linux has no such symlink under `/tmp`.
+
+Three more changes:
+
+- A suite keeps a capture only of failures by default, since it costs more than some stories' runs. `capture` can ask for all or none.
+- Workers really do run at once: a suite is one bench operation with its own pool, since `run` is serialized.
+- A retained story no longer asks its page to dispose. It has nothing to dispose in the page, Storybook has no such step, and the context closes next. On a heavy story, a busy page could not answer within the 1 s budget, which failed stories that had passed.
+
+### Results
+
+Single runs, one at a time on the same 59-story sample, went from 546 ms to 342 ms per story on Lushly.
+
+| Consumer | Storybook, 2 workers | Specimen before, 1 at a time | Specimen, 2 workers | Specimen, 4 workers |
+| --- | --- | --- | --- | --- |
+| Lushly | 112 s | 599 s | 161 s | 129 s (load about 13) |
+| FAST-AF | 14 s | 157 s | 41 s | 48 s (load about 13) |
+
+The first two columns come from the end of step 1, and the 2-worker runs from a quieter period (load 4 to 9). A later pair under load of about 13 took 166–173 s against 209–228 s on Lushly, and 19–20 s against 74–82 s on FAST-AF. These are single timings on a shared host. Lushly is now within about 1.4 times Storybook's wall clock, and FAST-AF about 3 to 4 times. Each Specimen story still has a fresh browser context, a fresh page load and its own fetch of axe, while Storybook shares a page across a file's stories. Whether to narrow that further is open.
+
+Three more passes of both suites through both runners, using this API with two workers, agreed on every story and every identity. In the second, on Lushly, both runners failed the same one story. The third ran on the final code, with the 15 s deadline, under load of about 9: 873 of 873 and 407 of 407 passed in both, in 169 s against Storybook's 107 s on Lushly and 58 s against 19 s on FAST-AF.
+
+### Finding: a load-sensitive story in the incumbent
+
+`lushly-site-site-surface--hover-rim` is heavy: the site surface's stories took 4 to 8 s each in Storybook under load. In that pass, under load of about 14, its Storybook test ran 16.6 s and failed its deadline, and Specimen's stopped with a script blocking the page. Its 4-worker run failed the same story in the accessibility check. This is the flake the once-only retry is for, and T08's qualifying pairs will have to carry it. The deadline in those runs was still 10 s on Specimen's side, shorter than Storybook's 15 s; it now matches.
+
+### Evidence
+
+| File, in `~/.cache/afd-specimens/t06-20261101/evidence/` | SHA-256 |
+| --- | --- |
+| `lushly-suite-4/retained.json` | `ad71c09855ed57dbf80777a645f29a595fd787b5fcd9bf35647402c0c05c8c47` |
+| `fast-af-suite-4/retained.json` | `8dce1751ce3b59dd8b27b0148fa977859781ca0e7188dda69d8e620bc88c0fd1` |
+| `lushly-suite-5/retained.json` | `ae83a2743cf0f73a9a56b52d6b46163a7ae61b5d8f3cf1a14d447807ca11770f` |
+| `fast-af-suite-5/retained.json` | `8ab78b352279e89bc795b280777e0e16afab3923fc57442d27fcfa96a697a129` |
+| `lushly-suite-6/retained.json`, the final code | `80c924a7cc0b75b3f71989c3e4fc93c7c8641f62f3af96301fda532bed6760a6` |
+| `fast-af-suite-6/retained.json`, the final code | `91738286787e13fd1774ab8db2b9651710466f9327bd8d31a6e59328b6e019c7` |
+
 ## Remaining steps
 
-1. ~~Exact agreement on both consumers' full suites.~~ Implemented on branch.
-2. **`specimen-run` over a filter,** with worker limits, the once-only retry and flake identities keyed by file and title, and the per-story cost above.
+1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
+2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Implemented on branch.
 3. **`specimen-a11y`:** checkpoints, incomplete checks and scoped exceptions.
 4. **`specimen-profile`:** browser metrics and ready-checkpoint timing, and baseline comparison.
 5. **`specimen-matrix` and declared event history.**

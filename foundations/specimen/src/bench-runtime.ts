@@ -1,5 +1,6 @@
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import type { SpecimenBench } from './bench.js';
 import {
 	bundled,
@@ -11,6 +12,7 @@ import {
 } from './config.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
+import { DEFAULT_FLAKE_CAP, DEFAULT_SUITE_WORKERS, executeSuite, selectStories } from './suite.js';
 import { startTrace, traced } from './trace.js';
 import {
 	type BenchOptions,
@@ -25,8 +27,11 @@ import {
 	type SpecimenContext,
 	type StoryOutcome,
 	type StoryRun,
+	type SuiteCapture,
+	type SuiteRequest,
+	type SuiteRun,
 } from './types.js';
-import { parseCaptureRequest } from './validate.js';
+import { parseCaptureRequest, parseSuiteRequest } from './validate.js';
 
 function coverage(
 	status: Completeness['status'],
@@ -37,10 +42,15 @@ function coverage(
 }
 /** Bundling, Chromium's startup (bounded at 10 s) and two seconds of cleanup, beyond a deadline. */
 const HOST_GRACE = 30_000;
+/** A retained story's deadline: Vitest's `testTimeout` in browser mode, its incumbent's runner. */
+const DEFAULT_STORY_TIMEOUT_MS = 15_000;
+/** Bundling a whole suite's stories has no render's deadline; this covers a host that hangs. */
+const BUNDLE_GRACE = 300_000;
 /** What the native host returns for one render. */
 interface HostRender {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
-	captured: BrowserObservation & { normalized: string };
+	/** `null` when a suite's capture mode left this story without one. */
+	captured: (BrowserObservation & { normalized: string }) | null;
 	snapshot: string;
 	screenshot: string | null;
 	console: { errors: string[]; warnings: string[] };
@@ -100,8 +110,9 @@ export async function createInProcessBench(
 		})());
 	/** One capture through the host; a retained story's context comes back settled. */
 	async function capture(
-		parsed: ReturnType<typeof parseCaptureRequest>
-	): Promise<{ observation: Observation; outcome: StoryOutcome | null }> {
+		parsed: ReturnType<typeof parseCaptureRequest>,
+		options: { capture?: SuiteCapture; reuseBundle?: boolean } = {}
+	): Promise<{ observation: Observation | null; outcome: StoryOutcome | null }> {
 		const request = {
 			...parsed,
 			checkpoint: parsed.checkpoint ?? 'mount',
@@ -118,7 +129,7 @@ export async function createInProcessBench(
 			const runtime = await traced(trace, host ? 'host-ready' : 'host-start', ensureHost);
 			const screenshot = request.screenshot ? resolve(config.root, request.screenshot) : null;
 			// Source and lockfile identity are read while the page renders.
-			const [rendered, [source, dependencies]] = await Promise.all([
+			const [rendered, identity] = await Promise.all([
 				traced(
 					trace,
 					'host-render',
@@ -134,15 +145,24 @@ export async function createInProcessBench(
 								...(entry.story
 									? { requested: request.context ?? {}, defaults: defaultContext }
 									: {}),
+								...(options.capture ? { capture: options.capture } : {}),
+								...(options.reuseBundle ? { reuseBundle: true } : {}),
 							},
 							// The host bounds the render itself; this covers a host that stops answering.
 							request.timeoutMs + HOST_GRACE
 						) as Promise<HostRender>
 				),
-				traced(trace, 'provenance', () =>
-					Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
-				),
+				// A suite reads this once for the stories it keeps a capture of, below.
+				options.capture
+					? null
+					: traced(trace, 'provenance', () =>
+							Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
+						),
 			]);
+			if (!rendered.captured) return { observation: null, outcome: rendered.outcome ?? null };
+			const [source, dependencies] =
+				identity ??
+				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
 			const { captured, snapshot, loaded } = rendered;
 			const context = entry.story ? rendered.context : provisional;
 			trace?.record({ resources: loaded.length });
@@ -211,6 +231,78 @@ export async function createInProcessBench(
 		}
 	}
 
+	/** One retained story's run, or the outcome that says why it did not run. */
+	async function runStory(
+		parsed: ReturnType<typeof parseCaptureRequest>,
+		options: { capture?: SuiteCapture; reuseBundle?: boolean } = {}
+	): Promise<StoryRun> {
+		const entry = config.entries.find((item) => item.id === parsed.id);
+		if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
+		if (!entry.story)
+			throw new Error(
+				`${entry.id} is a native specimen; run applies to retained stories. Render its checkpoints instead.`
+			);
+		// The Vitest addon's selection: include and exclude test the index's tags (with `play-fn`,
+		// without `manifest`), and skip tests the runtime's (without either).
+		const tags = entry.story.tags.filter((tag) => tag !== 'manifest');
+		const selection = config.config.test ?? {};
+		const include = selection.include ?? ['test'];
+		const unselected =
+			(include.length > 0 && !include.some((tag) => tags.includes(tag))) ||
+			(selection.exclude ?? []).some((tag) => tags.includes(tag));
+		const skipped = (selection.skip ?? []).some((tag) => tag !== 'play-fn' && tags.includes(tag));
+		if (unselected || skipped)
+			return {
+				id: entry.id,
+				outcome: {
+					status: unselected ? 'excluded' : 'skipped',
+					play: 'none',
+					failures: [],
+					a11y: {
+						status: 'not-run',
+						policy: 'error',
+						reason: unselected
+							? 'the story is not a test under the include and exclude tags'
+							: 'the story has a skip tag',
+						violations: [],
+						incomplete: 0,
+					},
+				},
+				observation: null,
+			};
+		try {
+			const { observation, outcome } = await capture(
+				{
+					...parsed,
+					checkpoint: 'after-run',
+					timeoutMs: parsed.timeoutMs ?? config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS,
+				},
+				options
+			);
+			if (!outcome) throw new Error('The host returned no outcome for the run');
+			return { id: entry.id, outcome, observation };
+		} catch (error) {
+			// A story that fails to compose or render fails its run, as its test does.
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				id: entry.id,
+				outcome: {
+					status: 'failed',
+					play: 'none',
+					failures: [{ category: 'render', message }],
+					a11y: {
+						status: 'not-run',
+						policy: 'error',
+						reason: 'the story did not render',
+						violations: [],
+						incomplete: 0,
+					},
+				},
+				observation: null,
+			};
+		}
+	}
+
 	return {
 		list() {
 			ensureOpen();
@@ -228,7 +320,7 @@ export async function createInProcessBench(
 		},
 		async render(rawRequest) {
 			ensureOpen();
-			return (await capture(parseCaptureRequest(rawRequest))).observation;
+			return (await capture(parseCaptureRequest(rawRequest))).observation as Observation;
 		},
 		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
 			ensureOpen();
@@ -258,65 +350,46 @@ export async function createInProcessBench(
 		},
 		async run(rawRequest: RunRequest): Promise<StoryRun> {
 			ensureOpen();
-			const parsed = parseCaptureRequest(rawRequest);
-			const entry = config.entries.find((item) => item.id === parsed.id);
-			if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
-			if (!entry.story)
-				throw new Error(
-					`${entry.id} is a native specimen; run applies to retained stories. Render its checkpoints instead.`
-				);
-			// The Vitest addon's selection: include and exclude test the index's tags (with `play-fn`,
-			// without `manifest`), and skip tests the runtime's (without either).
-			const tags = entry.story.tags.filter((tag) => tag !== 'manifest');
-			const selection = config.config.test ?? {};
-			const include = selection.include ?? ['test'];
-			const unselected =
-				(include.length > 0 && !include.some((tag) => tags.includes(tag))) ||
-				(selection.exclude ?? []).some((tag) => tags.includes(tag));
-			const skipped = (selection.skip ?? []).some((tag) => tag !== 'play-fn' && tags.includes(tag));
-			if (unselected || skipped)
-				return {
-					id: entry.id,
-					outcome: {
-						status: unselected ? 'excluded' : 'skipped',
-						play: 'none',
-						failures: [],
-						a11y: {
-							status: 'not-run',
-							policy: 'error',
-							reason: unselected
-								? 'the story is not a test under the include and exclude tags'
-								: 'the story has a skip tag',
-							violations: [],
-							incomplete: 0,
+			return runStory(parseCaptureRequest(rawRequest));
+		},
+		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
+			ensureOpen();
+			const request = parseSuiteRequest(rawRequest);
+			const stories = selectStories(config.entries, request.filter, config.root);
+			if (!stories.length) throw new Error('No retained story matches the filter.');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			// One snapshot of the sources for the whole suite, so that a change during the run cannot
+			// mix two generations; `sourcesChanged` reports one.
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const suite = await executeSuite(
+				config.root,
+				stories,
+				async (entry) => {
+					const { outcome, observation } = await runStory(
+						{
+							id: entry.id,
+							...(request.context ? { context: request.context } : {}),
+							...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
 						},
-					},
-					observation: null,
-				};
-			try {
-				const { observation, outcome } = await capture({ ...parsed, checkpoint: 'after-run' });
-				if (!outcome) throw new Error('The host returned no outcome for the run');
-				return { id: entry.id, outcome, observation };
-			} catch (error) {
-				// A story that fails to compose or render fails its run, as its test does.
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					id: entry.id,
-					outcome: {
-						status: 'failed',
-						play: 'none',
-						failures: [{ category: 'render', message }],
-						a11y: {
-							status: 'not-run',
-							policy: 'error',
-							reason: 'the story did not render',
-							violations: [],
-							incomplete: 0,
-						},
-					},
-					observation: null,
-				};
-			}
+						{ capture: request.capture ?? 'failed', reuseBundle: true }
+					);
+					return { outcome, observation };
+				},
+				{
+					workers,
+					retry: request.retry ?? false,
+					flakeCap: request.flakeCap ?? DEFAULT_FLAKE_CAP,
+				}
+			);
+			const { stale } = (await runtime.request('stale', {}, HOST_GRACE)) as { stale: boolean };
+			return {
+				...suite,
+				workers,
+				elapsedMs: performance.now() - started,
+				sourcesChanged: stale,
+			};
 		},
 		close() {
 			closing ??= (async () => {
