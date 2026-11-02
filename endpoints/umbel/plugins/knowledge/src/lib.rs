@@ -26,11 +26,13 @@
 //!   proposals as decision traces; `knowledge-approve`, `-reject` and `-verify` are for a person at a
 //!   terminal, and applying a proposal writes the file and the document with the proposal as lineage.
 //!
-//! Code symbols and the eval harness are later steps of the phase.
+//! Code symbols (the `code` feature) turn a source file into chunks per definition and `defines` and
+//! `mentions` edges; the eval harness is a later step of the phase.
 #![forbid(unsafe_code)]
 
 mod budget;
 pub mod chunk;
+pub mod code;
 mod describe;
 mod doc;
 mod expand;

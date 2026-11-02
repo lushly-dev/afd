@@ -184,7 +184,7 @@ async fn the_index_is_journaled_as_a_mutation_with_a_record() {
 }
 
 #[tokio::test]
-async fn code_documents_are_indexed_as_plain_text() {
+async fn code_documents_are_indexed_and_found_by_their_text() {
     let fx = Fx::new();
     fx.write(
         "spaces/main/code/src/lib.rs",
@@ -205,5 +205,11 @@ async fn code_documents_are_indexed_as_plain_text() {
             json!({ "doc": "code/src/lib.rs" }),
         )
         .await;
-    assert_eq!(data(&described)["codeIndexing"], "plain-text");
+    // By symbol with the `code` feature (step 7b); as plain text without it.
+    let expected = if cfg!(feature = "code") {
+        "symbols"
+    } else {
+        "plain-text"
+    };
+    assert_eq!(data(&described)["codeIndexing"], expected);
 }

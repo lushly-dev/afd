@@ -1,0 +1,53 @@
+//! The rollback module.
+
+use std::fmt;
+
+/// A rollback plan.
+///
+/// It lists the steps in order.
+#[derive(Debug, Default)]
+pub struct RollbackPlan {
+    steps: Vec<String>,
+}
+
+impl RollbackPlan {
+    /// Build an empty plan.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn apply_step(&mut self, step: &str) {
+        fn helper() {}
+        self.steps.push(step.to_owned());
+    }
+}
+
+impl fmt::Display for RollbackPlan {
+    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(out, "{}", self.steps.len())
+    }
+}
+
+pub trait Planner {
+    fn plan(&self) -> RollbackPlan;
+}
+
+pub enum Mode {
+    Fast,
+    Safe,
+}
+
+pub const LIMIT: usize = 3;
+static NAME: &str = "plan";
+pub type Steps = Vec<String>;
+
+mod inner {
+    pub fn deep() {}
+}
+
+macro_rules! shout {
+    () => {};
+}
+
+// Not a doc comment, but directly above.
+pub fn free_function() {}

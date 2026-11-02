@@ -175,17 +175,32 @@ pub fn markdown(text: &str, structure: &Structure) -> Chunked {
     chunked
 }
 
-/// Chunk a code file as plain text, [`PLAIN_LINES`] lines at a time (the code feature's symbol
-/// chunking, step 7b, replaces this for the languages it knows). A chunk never passes
+/// Chunk a code file as plain text, [`PLAIN_LINES`] lines at a time (what a code file becomes
+/// without symbols, or when the symbol parse is degraded). A chunk never passes
 /// [`MAX_CHUNK_BYTES`]: a line over that is cut into units that share its line number.
 #[must_use]
 pub fn plain(text: &str) -> Chunked {
+    let mut spans = plain_spans(text, 0, 1);
+    if spans.is_empty() {
+        spans.push((0..0, (1, 1)));
+    }
+    from_spans(text, spans)
+}
+
+/// The byte and line ranges of `region` (which begins at byte `base` and line `first_line` of its
+/// file) as plain-text chunks: [`PLAIN_LINES`] lines at a time, none over [`MAX_CHUNK_BYTES`].
+/// An empty region has none.
+pub(crate) fn plain_spans(
+    region: &str,
+    base: usize,
+    first_line: usize,
+) -> Vec<(Range<usize>, (usize, usize))> {
     let mut spans: Vec<(Range<usize>, (usize, usize))> = Vec::new();
     // The chunk being built: first byte, end byte, first line, last line, distinct lines.
     let mut open: Option<(usize, usize, usize, usize, usize)> = None;
-    let mut at = 0usize;
-    for (index, raw) in text.split_inclusive('\n').enumerate() {
-        let line = index + 1;
+    let mut at = base;
+    for (index, raw) in region.split_inclusive('\n').enumerate() {
+        let line = first_line + index;
         let mut rest = raw;
         while !rest.is_empty() {
             let take = cut_at_boundary(rest, MAX_CHUNK_BYTES);
@@ -219,9 +234,11 @@ pub fn plain(text: &str) -> Chunked {
     if let Some((start, end, first, last, _)) = open {
         spans.push((start..end, (first, last)));
     }
-    if spans.is_empty() {
-        spans.push((0..0, (1, 1)));
-    }
+    spans
+}
+
+/// Chunks of `text` at the given byte and line ranges, in order; the first [`MAX_CHUNKS`] are kept.
+pub(crate) fn from_spans(text: &str, spans: Vec<(Range<usize>, (usize, usize))>) -> Chunked {
     let mut chunked = Chunked {
         limited: spans.len() > MAX_CHUNKS,
         ..Chunked::default()

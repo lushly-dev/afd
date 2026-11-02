@@ -14,6 +14,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::code::{self, MAX_MENTION_SPANS, Symbol};
 use umbel_okf::Structure;
 use umbel_okf::links::{Target, resolve};
 use umbel_store::{DocGraph, Document, Edge, Node};
@@ -102,7 +103,13 @@ pub(crate) fn successor(value: &str, from: &str, collections: &[String]) -> Opti
 
 /// The contribution of `document`, whose parsed `structure` is empty for a document that has none
 /// (code). `collections` are the space's collection ids, for links into other collections.
-pub(crate) fn build(document: &Document, structure: &Structure, collections: &[String]) -> Built {
+pub(crate) fn build(
+    document: &Document,
+    structure: &Structure,
+    collections: &[String],
+    symbols: &[Symbol],
+    mentions: bool,
+) -> Built {
     let id = document.id.as_str();
     let me = doc_node(id);
     let mut found = Collector::default();
@@ -220,6 +227,46 @@ pub(crate) fn build(document: &Document, structure: &Structure, collections: &[S
         for second in &cited[at + 1..] {
             found.edge(&doc_node(first), &doc_node(second), "co_cited", 1);
             found.edge(&doc_node(second), &doc_node(first), "co_cited", 1);
+        }
+    }
+
+    // Code: the symbols this file defines.
+    for symbol in symbols {
+        let node = symbol.node_id();
+        if usable(&node) {
+            // The label is the qualified name and nothing of the file, so a symbol that several
+            // documents define reads the same to every reader.
+            found.node(
+                node.clone(),
+                "symbol",
+                clean(&symbol.qualified, &symbol.qualified),
+            );
+            found.edge(&me, &node, "defines", 1);
+        }
+    }
+
+    // Mentions: an inline code span that could be a symbol's qualified name. The edge is this
+    // document's; the symbol's node is its definer's, so the edge is served only to a reader who
+    // can read both documents (and counts from the day the symbol exists).
+    if mentions {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let mut spans: BTreeMap<&str, u64> = BTreeMap::new();
+        for span in &structure.code_spans {
+            let text = span.text.trim();
+            if spans.len() >= MAX_MENTION_SPANS && !spans.contains_key(text) {
+                continue;
+            }
+            *spans.entry(text).or_insert(0) += 1;
+        }
+        for (text, count) in spans {
+            for target in code::mention_targets(text) {
+                if usable(&target) {
+                    *counts.entry(target).or_insert(0) += count;
+                }
+            }
+        }
+        for (target, count) in counts {
+            found.edge(&me, &target, "mentions", count.min(MAX_LINK_WEIGHT));
         }
     }
 

@@ -238,8 +238,33 @@ fn render(space: &str, loaded: &Loaded, facts: &Facts, level: &Level) -> Outcome
         map.insert("indexApplied".to_owned(), json!(facts.index_applied));
         map.insert("graphApplied".to_owned(), json!(facts.graph_applied));
         if loaded.is_code() {
-            // Symbol chunking is the `code` feature's; without it code is plain text.
-            map.insert("codeIndexing".to_owned(), json!("plain-text"));
+            // How the file is indexed: by symbol, or as plain text and why. The same parse the
+            // indexer runs, under the same budgets, on the stored bytes.
+            let analysis = crate::code::analyse(
+                &loaded.doc.path,
+                &loaded.text,
+                &crate::code::Budget::default(),
+            );
+            match analysis.mode {
+                crate::code::Mode::Symbols => {
+                    map.insert("codeIndexing".to_owned(), json!("symbols"));
+                    map.insert(
+                        "code".to_owned(),
+                        json!({
+                            "language": analysis.language,
+                            "symbols": analysis.symbols.len(),
+                            "parseErrorBytes": analysis.error_bytes,
+                        }),
+                    );
+                }
+                crate::code::Mode::PlainText(reason) => {
+                    map.insert("codeIndexing".to_owned(), json!("plain-text"));
+                    map.insert(
+                        "code".to_owned(),
+                        json!({ "language": analysis.language, "reason": reason.code() }),
+                    );
+                }
+            }
         }
         map.insert("trust".to_owned(), json!("content"));
     }

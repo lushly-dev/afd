@@ -29,6 +29,7 @@ use umbel_sdk::{Cx, HostError, Outcome, failure, success};
 use umbel_store::{ChangeKind, Document, GraphBatch, IndexChunk, StoreError};
 
 use crate::chunk::{self, Chunked};
+use crate::code::{self, Budget, Mode};
 use crate::doc::{label, readable};
 use crate::fail;
 use crate::graph;
@@ -97,6 +98,11 @@ struct Totals {
     broken_links: usize,
     /// Whether the link targets looked up reached [`TARGET_LOOKUPS`].
     broken_partial: bool,
+    /// Code files read by this run (index or graph), the symbols they define, and the files whose
+    /// symbol parse was degraded to plain text, each with its reason.
+    code_files: usize,
+    code_symbols: usize,
+    degraded: Vec<(String, &'static str)>,
 }
 
 fn build(
@@ -153,10 +159,10 @@ fn build(
 
     // 4. Build every document's chunks and graph contribution in memory. A store whose applied
     // revision is already at or past a document's last change skips it.
-    let collections = cx
-        .content_collections(space)
-        .map(|found| found.into_iter().map(|c| c.id).collect::<Vec<_>>())
-        .unwrap_or_default();
+    let found = cx.content_collections(space).unwrap_or_default();
+    let collections = found.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
+    // Mentions of symbols are stored only in a space that has a code collection.
+    let mentions = found.iter().any(|c| c.kind == "code");
     let mut totals = Totals::default();
     let mut batch = GraphBatch::default();
     let mut present: BTreeMap<String, bool> = BTreeMap::new();
@@ -165,9 +171,27 @@ fn build(
         let graph_needs = rebuild || *last > graph_applied;
         match cx.derive_document(space, id)? {
             Some(document) => {
-                let (chunked, structure) = analyse(&document);
+                let analysed = analyse(&document);
+                if let Some(facts) = &analysed.code
+                    && (index_needs || graph_needs)
+                {
+                    totals.code_files += 1;
+                    totals.code_symbols += facts.symbols.len();
+                    if let Mode::PlainText(reason) = facts.mode
+                        && reason.degraded()
+                    {
+                        totals.degraded.push((id.clone(), reason.code()));
+                    }
+                }
+                let Analysed {
+                    chunked,
+                    structure,
+                    code_fields,
+                    code,
+                } = analysed;
                 if index_needs {
-                    let built = index_chunks(&document, &chunked, &ranking.index.filterable);
+                    let built =
+                        index_chunks(&document, &chunked, &code_fields, &ranking.index.filterable);
                     totals.chunks += built.len();
                     if chunked.limited {
                         totals.limited.push(id.clone());
@@ -176,7 +200,14 @@ fn build(
                     totals.indexed += 1;
                 }
                 if graph_needs {
-                    let built = graph::build(&document, &structure, &collections);
+                    let symbols = code.as_ref().map_or(&[][..], |facts| &facts.symbols[..]);
+                    let built = graph::build(
+                        &document,
+                        &structure,
+                        &collections,
+                        symbols,
+                        mentions && code.is_none(),
+                    );
                     totals.graphed += 1;
                     totals.nodes += built.graph.nodes.len();
                     totals.edges += built.graph.edges.len();
@@ -240,7 +271,7 @@ fn build(
 
     // What the caller may be told.
     let (listed, more, truncated) = readable_ids(cx, space, from, to, &totals)?;
-    let mut outcome = success(json!({
+    let mut data = json!({
         "space": space,
         "rebuild": rebuild,
         "fromRev": from,
@@ -262,7 +293,20 @@ fn build(
         "idsMore": more,
         "idsComplete": !truncated,
         "remaining": remaining,
-    }))
+    });
+    if totals.code_files > 0
+        && let Some(map) = data.as_object_mut()
+    {
+        map.insert(
+            "code".to_owned(),
+            json!({
+                "documents": totals.code_files,
+                "symbols": totals.code_symbols,
+                "degraded": totals.degraded.len(),
+            }),
+        );
+    }
+    let mut outcome = success(data)
     .with_reasoning(&format!(
         "Indexed {} and removed {} documents of `{space}` from revision {from} to {to}; the graph holds {} contributions rebuilt.",
         totals.indexed, totals.removed, totals.graphed
@@ -279,6 +323,22 @@ fn build(
         "dev.umbel/index",
         json!({ space: { "applied": index_after, "head": head, "schema": 1 } }),
     );
+    if !totals.degraded.is_empty() {
+        let mut files = Vec::new();
+        for (id, reason) in totals.degraded.iter().take(20) {
+            if readable(cx, space, id)? {
+                files.push(json!({ "id": id, "reason": reason }));
+            }
+        }
+        outcome = outcome.with_warning_details(
+            "CODE_PARSE_DEGRADED",
+            &format!(
+                "{} code file(s) were indexed as plain text because their parse exceeded a budget or failed; the reason of each readable one is listed",
+                totals.degraded.len()
+            ),
+            json!({ "count": totals.degraded.len(), "files": files }),
+        );
+    }
     if remaining {
         outcome = outcome.with_warning_details(
             "INDEX_REMAINING",
@@ -379,17 +439,31 @@ fn readable_ids(
     Ok((listed, more, false))
 }
 
-/// A document's chunks and the markdown structure they came from (empty for text that has none),
-/// so the graph is built from the same parse.
-fn analyse(document: &Document) -> (Chunked, Structure) {
+/// What reading a document found: its chunks, the markdown structure they came from (empty for
+/// text that has none), and for a code file the symbols and the `code` field of each chunk.
+struct Analysed {
+    chunked: Chunked,
+    structure: Structure,
+    /// Per chunk, aligned with `chunked.chunks`; empty strings when there are no symbols.
+    code_fields: Vec<String>,
+    /// Present for a code document.
+    code: Option<code::Analysis>,
+}
+
+/// Read a document once, so the index and the graph are built from the same parse.
+fn analyse(document: &Document) -> Analysed {
     if document.doc_type == "code" {
         let text = String::from_utf8_lossy(&document.bytes);
-        return (
-            chunk::plain(text.strip_prefix('\u{feff}').unwrap_or(&text)),
-            Structure::default(),
-        );
+        let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+        let mut analysis = code::analyse(&document.path, text, &Budget::default());
+        return Analysed {
+            chunked: std::mem::take(&mut analysis.chunked),
+            structure: Structure::default(),
+            code_fields: std::mem::take(&mut analysis.code),
+            code: Some(analysis),
+        };
     }
-    match split(&document.bytes) {
+    let (chunked, structure) = match split(&document.bytes) {
         Ok(parts) => {
             let body = structure(parts.text, parts.body_offset);
             (chunk::markdown(parts.text, &body), body)
@@ -398,6 +472,12 @@ fn analyse(document: &Document) -> (Chunked, Structure) {
             let text = String::from_utf8_lossy(&document.bytes);
             (chunk::plain(&text), Structure::default())
         }
+    };
+    Analysed {
+        chunked,
+        structure,
+        code_fields: Vec::new(),
+        code: None,
     }
 }
 
@@ -405,9 +485,10 @@ fn analyse(document: &Document) -> (Chunked, Structure) {
 pub(crate) fn index_chunks(
     document: &Document,
     chunked: &Chunked,
+    code_fields: &[String],
     filterable: &[String],
 ) -> Vec<IndexChunk> {
-    let code = document.doc_type == "code";
+    let is_code = document.doc_type == "code";
     let updated = document
         .envelope
         .generated
@@ -438,7 +519,10 @@ pub(crate) fn index_chunks(
             title: document.title.clone(),
             aliases: document.aliases.clone(),
             description: document.description.clone(),
-            code: None,
+            code: code_fields
+                .get(chunk.ordinal as usize)
+                .filter(|names| !names.is_empty())
+                .cloned(),
             tags: document.tags.clone(),
             owners: document.owners.clone(),
             doc_type: document.doc_type.clone(),
@@ -446,7 +530,9 @@ pub(crate) fn index_chunks(
             status: label(&document.status),
             verified: label(&document.verification.tier),
             sensitivity: label(&document.sensitivity),
-            lang: code.then(|| language(&document.path)).flatten(),
+            lang: is_code
+                .then(|| code::language_of(&document.path).map(str::to_owned))
+                .flatten(),
             path: document.path.clone(),
             updated: updated.clone(),
             stale_after: stale_after.clone(),
@@ -461,17 +547,4 @@ fn rfc3339(text: &str) -> Option<String> {
     DateTime::parse_from_rfc3339(text)
         .ok()
         .map(|time| time.to_utc().to_rfc3339_opts(SecondsFormat::Secs, true))
-}
-
-/// The language of a code file, by extension.
-fn language(path: &str) -> Option<String> {
-    let extension = path.rsplit_once('.')?.1;
-    let name = match extension {
-        "rs" => "rust",
-        "py" => "python",
-        "ts" | "tsx" => "typescript",
-        "js" | "jsx" | "mjs" => "javascript",
-        _ => return None,
-    };
-    Some(name.to_owned())
 }
