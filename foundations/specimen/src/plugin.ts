@@ -67,6 +67,8 @@ export interface CommandRunner {
 
 export interface SpecimenPlugin {
 	id: string;
+	/** Recorded in each capture's manifest, as `null` when a plugin does not say. */
+	version?: string;
 	/** Enrich a component's schema; `schema` is core's, or `undefined` when the manifest lacks the tag. */
 	schema?(
 		tag: string,

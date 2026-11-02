@@ -202,7 +202,7 @@ import * as schema from '@lushly-dev/specimen/schema';
 assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
-assert.equal(CAPTURE_VERSION, '0.4');
+assert.equal(CAPTURE_VERSION, '0.5');
 assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);

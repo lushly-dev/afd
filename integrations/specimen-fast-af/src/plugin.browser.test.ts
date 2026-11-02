@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createSpecimenBench, type SpecimenBench } from '@lushly-dev/specimen';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -36,6 +37,10 @@ describe('the FAST-AF plugin', () => {
 
 	it('runs a command step through the FAST-AF runner', async () => {
 		const capture = await bench.render({ id: 'press-pressed', checkpoint: 'pressed' });
+		const own = JSON.parse(
+			await readFile(resolve(import.meta.dirname, '../package.json'), 'utf8')
+		) as { version: string };
+		expect(capture.manifest.bench.plugins).toEqual([{ id: 'fast-af', version: own.version }]);
 		const press = capture.channels.elements.find((item) => item.tag === 'fixture-press');
 		expect(press?.attributes).toHaveProperty('data-presses', '1');
 		await expect(

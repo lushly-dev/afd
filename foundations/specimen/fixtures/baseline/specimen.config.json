@@ -1,0 +1,16 @@
+{
+	"specimens": [
+		{
+			"id": "random-marker",
+			"title": "Baseline/RandomMarker",
+			"module": "./baseline.specimens.ts",
+			"exportName": "RandomMarker"
+		},
+		{
+			"id": "with-resources",
+			"title": "Baseline/WithResources",
+			"module": "./baseline.specimens.ts",
+			"exportName": "WithResources"
+		}
+	]
+}

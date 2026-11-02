@@ -103,6 +103,8 @@ Capture 0.1 records the source revision, dirty state and loaded-resource digest;
 | `manifest.checkpoint.baseline` | Clock (`real` or fixed instant), random source (`native` or seeded), initial storage and fixture digest | Requires clock and random control; T06 |
 | Violet snapshot and name-map ids | As in the proposal | T09 |
 
+[T06 step 7](t06-full-runner.md#step-7-the-declared-baseline-and-the-capture-manifest) delivered these in capture 0.5, and records where they differ from this table. Capture 0.2 itself shipped without them.
+
 ## Comparison condition (G01, G12)
 
 The owner chose the following on 2026-10-31:

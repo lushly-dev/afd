@@ -11,19 +11,43 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.4',
+			captureVersion: '0.5',
 			normalizationVersion: '0.2',
 			specimenId: 'button',
-			checkpoint: 'mount',
+			capturedUtc: '2026-11-01T00:00:00.000Z',
+			bench: { name: '@lushly-dev/specimen', version: '1.0.0', plugins: [] },
+			driver: { name: 'host', emulates: [] },
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				ready: { steps: ['upgrade', 'fonts', 'frame'], outcome: 'ready', deadlineMs: 10_000 },
+				baseline: {
+					clock: 'real',
+					random: { source: 'seeded', seed: 1 },
+					storage: 'empty',
+				},
+			},
 			source: { revision: null, digest: 'source', dirty: null },
 			dependencies: 'lock',
-			browser: { name: 'chromium', version: '1' },
+			browser: { name: 'chromium', version: '1', platform: 'linux-x64', build: null },
 			context: {
 				viewport: { width: 800, height: 600 },
 				theme: 'light',
 				locale: 'en-US',
 				reducedMotion: 'no-preference',
 				motion: 'natural',
+				pixelRatio: 1,
+				observed: {
+					width: 800,
+					height: 600,
+					media: false,
+					colorScheme: 'light',
+					contrast: 'no-preference',
+					reducedMotion: 'no-preference',
+					language: 'en-US',
+					devicePixelRatio: 1,
+				},
+				resources: { fonts: [], remote: [] },
 			},
 		},
 		channels: {
@@ -427,7 +451,7 @@ describe('specimen commands', () => {
 		const result = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
 		expect(result.success).toBe(true);
 		expect(result.data).toMatchObject({ status: 'changed' });
-		right.manifest.checkpoint = 'different';
+		right.manifest.checkpoint.name = 'different';
 		const mismatch = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
 		expect(mismatch.error?.code).toBe('SPECIMEN_DIFF_FAILED');
 	});

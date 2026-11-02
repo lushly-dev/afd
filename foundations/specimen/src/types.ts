@@ -1,7 +1,7 @@
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.4' as const;
+export const CAPTURE_VERSION = '0.5' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export interface SpecimenContext {
@@ -337,16 +337,52 @@ export interface BrowserObservation {
 		language: string;
 		devicePixelRatio: number;
 	};
+	/** The readiness the page applied, ending with how it came out. */
+	ready: { steps: string[]; outcome: 'ready' | 'elements-undefined' };
+	/** The plugins installed, with the version each declares. */
+	plugins: { id: string; version: string | null }[];
+	resources: CaptureResources;
+}
+/** What the page loaded beyond the bench's own files, whose digests are in `source.digest`. */
+export interface CaptureResources {
+	/** Each font face the document knows, and how it ended up. */
+	fonts: { family: string; weight: string; style: string; status: string }[];
+	/** Each URL on another origin the page asked for; status 0 when it failed or did not say. */
+	remote: { url: string; status: number }[];
+}
+/** What a capture records of its context: the one resolved, and what the document made of it. */
+export interface RecordedContext extends SpecimenContext {
+	/** The device pixel ratio requested; the bench fixes 1. */
+	pixelRatio: number;
+	observed: BrowserObservation['viewport'];
+	resources: CaptureResources;
+}
+export interface CaptureCheckpoint {
+	name: string;
+	/** How the page got there: nothing, the host's real input, or a retained story's play. */
+	actionMode: 'none' | 'real-input' | 'play';
+	ready: BrowserObservation['ready'] & { deadlineMs: number };
+	/** What each case starts from. Fixtures are the files the page loaded: `source.digest`. */
+	baseline: {
+		clock: 'real';
+		random: { source: 'seeded'; seed: number };
+		storage: 'empty';
+	};
 }
 export interface CaptureManifest {
 	captureVersion: string;
 	normalizationVersion: string;
 	specimenId: string;
-	checkpoint: string;
+	capturedUtc: string;
+	bench: { name: string; version: string; plugins: BrowserObservation['plugins'] };
+	/** What drove the page, and the context axes it emulates rather than only requests. */
+	driver: { name: 'host'; emulates: string[] };
+	checkpoint: CaptureCheckpoint;
 	source: { revision: string | null; digest: string; dirty: boolean | null };
 	dependencies: string;
-	browser: { name: string; version: string };
-	context: SpecimenContext;
+	/** `build` is a digest of the executable's path, when one other than the bundled build ran. */
+	browser: { name: string; version: string; platform: string; build: string | null };
+	context: RecordedContext;
 }
 export interface Observation {
 	manifest: CaptureManifest;

@@ -1,15 +1,16 @@
 # T06 full runner and operational checks
 
-**State, 2026-11-01:** in progress.
+**State, 2026-11-01:** complete when step 7 merges. All of T06's acceptance is met on the branch.
 
 - Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
 - Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
 - Step 3, `specimen-a11y` and native accessibility exceptions, is done and merged in [#679](https://github.com/lushly-dev/afd/pull/679).
 - Step 4, `specimen-profile` and baselines, is done and merged in [#681](https://github.com/lushly-dev/afd/pull/681).
 - Step 5, `specimen-matrix` and declared event history, is done and merged in [#682](https://github.com/lushly-dev/afd/pull/682).
-- Step 6, budgets, the review page and the consumer's tooling, is implemented on branch `lush/specimens-t06-operations`.
+- Step 6, budgets, the review page and the consumer's tooling, is done and merged in [#686](https://github.com/lushly-dev/afd/pull/686).
+- Step 7, the declared baseline and the rest of the capture manifest, is implemented on branch `lush/specimens-t06-baseline`.
 
-The remaining step is listed [below](#remaining-steps).
+[What T06 leaves open](#what-t06-leaves-open) is listed at the end.
 
 T06's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): run, accessibility, profile, declared event history and the required context and matrix behaviour over the common lifecycle, with retained plays and helpers, axe policy and exceptions, and ready-checkpoint metrics. CEM and typechecks, scaffold output, flake identities, retry and worker limits are preserved. Exact discovered sets and pass, fail and skip categories MUST agree, and index links and budgets MUST be verified.
 
@@ -369,7 +370,7 @@ Findings on the consumers:
 - **Lushly's canvas follows the browser's color scheme.** A dark link gives a light canvas on 43 of the 44 sampled stories, because a static page cannot emulate `prefers-color-scheme`. The page already says so in its notice, and the host's render of the same story is dark. The same links on FAST-AF show dark.
 - **Three sampled plays failed in a headless preview.** Both of Lushly's keyboard journeys assert that a real keyboard exists when `navigator.webdriver` is set, and show that message in the frame. The third, `lushly-site-pressure-facts--saved-refresh-error`, failed an assertion on this pass and passed on the one before, so it varies in the preview. Not investigated further: all three pass under the host, where every suite decision is made.
 
-**Reopening a link does not always give the same DOM,** and this matters beyond the preview. FAST writes a marker into its template comments, chosen with `Math.random` once per page load. So two host renders of an unchanged FAST story report `dom` as changed, and `specimen-diff` and `specimen-matrix` inherit that. The proposal requires a declared baseline for randomness, and [T03's record](driver-context-validation.md#provenance-fields) assigns that to T06. It was not done, so it is step 7 below.
+**Reopening a link does not always give the same DOM,** and this matters beyond the preview. FAST writes a marker into its template comments, chosen with `Math.random` once per page load. So two host renders of an unchanged FAST story report `dom` as changed, and `specimen-diff` and `specimen-matrix` inherit that. The proposal requires a declared baseline for randomness, and [T03's record](driver-context-validation.md#provenance-fields) assigns that to T06. It was not done, so it became [step 7](#step-7-the-declared-baseline-and-the-capture-manifest).
 
 ### The consumer's tooling
 
@@ -391,12 +392,69 @@ Specimen edits nothing in a consumer, so its typecheck and CEM check are unaffec
 
 T08 needs this recorded: these stories' types and helpers still come from Storybook (`Meta` and `StoryObj` from `@storybook/web-components-vite`, `expect` and `fn` from `storybook/test`). Removing Storybook needs a native helper entry and types first. A Specimen-native generator is T07's `specimen-suggest`.
 
+## Step 7: the declared baseline and the capture manifest
+
+Step 6 found that two renders of an unchanged FAST story compared as changed. FAST writes a marker into its template comments, drawn from `Math.random` once per page, so `specimen-diff` and `specimen-matrix` saw a different DOM every time. The proposal requires each case to get a "declared baseline for storage, clocks, randomness and fixtures", and [T03](driver-context-validation.md#provenance-fields) assigned that to T06. T03 also defined other manifest fields the proposal's envelope requires, owned by "capture 0.2", that never landed: that version shipped the ARIA snapshot change without them.
+
+### Randomness
+
+Each bench page now starts `Math.random` from a fixed seed before any consumer module loads, including in the static preview. A framework's marker comes out the same on every page, and consecutive draws in one page still differ.
+
+| Check | FAST-AF `24e4eb86` | Lushly `0eede7f0` |
+| --- | --- | --- |
+| Full suites in both runners, disagreements | 0 of 407 | 0 of 873 |
+| Every 20th story reopened to the same DOM, before | 15 of 21 | 11 of 44 |
+| The same, after | 21 of 21 | 40 of 44 |
+| Every 10th story rendered twice by the host (`experiments/check-repeat.mjs`): unchanged | 36 of 41 | 85 of 88 |
+| The same: `insufficient-evidence` | 5 | 2 |
+| The same: `changed` | 0 | 1 |
+
+Seeding changed no story's outcome. The exceptions:
+
+- **The `insufficient-evidence` stories are working as specified.** These are the ones with running animations, such as a spinner or a streaming block, and the proposal says a natural-motion sample must not count as a stable baseline.
+- **The other five differences were timing, not randomness.** Lushly's one `changed` story differed only in its ARIA snapshot, and four reopened stories differed in their DOM. All five came out identical when run again on a quiet host. These runs share a host at load 3 to 11, and a story whose content arrives asynchronously after readiness can be captured at a different moment. This is a real limit of comparing such stories; it is not hidden by the seed.
+
+### The manifest
+
+`CAPTURE_VERSION` is 0.5. A capture from before this step is refused with a request to recapture.
+
+| Field | What it records | Differs from T03's definition |
+| --- | --- | --- |
+| `capturedUtc` | ISO time of the capture | |
+| `bench` | Package name and version, and each plugin's id and version, `null` when a plugin does not declare one | Plugins gain an optional `version`, and the FAST-AF plugin sets it |
+| `driver` | `host`, and the axes it emulates | T04's native host replaced T03's three drivers |
+| `browser.platform`, `browser.build` | OS and architecture; a digest of the executable's path when `executablePath` chose one | |
+| `checkpoint.name` | The name that `checkpoint` held until now | `checkpoint` is now an object |
+| `checkpoint.actionMode` | `none`, `real-input` or `play` | A retained story's play replaces "a Testing Library mode later" |
+| `checkpoint.ready` | Steps applied, the deadline, and `ready` or `elements-undefined` | |
+| `checkpoint.baseline` | Clock `real`, random `seeded` with its seed, storage `empty` | Fixtures are not a separate field: they are what the page loaded, which `source.digest` covers |
+| `context.pixelRatio` | The ratio requested, always 1 | |
+| `context.observed` | The page's viewport, media preferences, language and pixel ratio | |
+| `context.resources` | Each font face with its status, and each other origin's URL the page asked for, with its status | No font digest (see below) |
+
+Comparison follows the proposal. It refuses captures whose `browser`, checkpoint name, action mode, baseline or pixel ratio differ. Readiness steps and deadlines do not count, and neither does what the document observed. Different fonts are reported as a limitation of the result, because they can change layout with no change to the component. Remote URLs are not compared, because a recorded font server's port varies.
+
+## What T06 leaves open
+
+Every item of T06's acceptance is met. These stay open, each with an owner:
+
+- **The clock is recorded, not controlled.** Every capture says `clock: real`, and a story showing today's date will differ tomorrow. A fixed instant needs a clock mock in the page. No retained story requires one to agree with its incumbent, so it waits for a consumer that does.
+- **Only `Math.random` is seeded.** `crypto.randomUUID` and `crypto.getRandomValues` stay native. Nothing in the 129 stories rendered twice depended on them.
+- **`context.resources` has no font digests.** The page can name a font and its status but cannot read its bytes, and T04 recorded the digests through its harness. A capture does show any remote URL it loaded, which is what makes a live font visible.
+- **Wall-clock time.** Specimen took 179 s against Storybook's 86 s on Lushly, and 40 s against 10 s on FAST-AF, in this step's runs. Each story pays for a fresh page, as the proposal requires. Resource measurement of full runs belongs to T08 (G03).
+- **The accounting of Storybook's runtime** is [recorded above](#budgets) for the owner to check, and T08 must measure it again.
+- **Owner questions:** whether to offer a settled accessibility check after cutover, from [step 1's finding](#step-1-the-full-suites-through-both-runners).
+
+No consumer gate is wired to any of this yet. That is T07 and T08 (G08).
+
 ## Remaining steps
+
+None.
 
 1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
 2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Merged in #676.
 3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Merged in #679.
 4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Merged in #681.
 5. ~~`specimen-matrix` and declared event history.~~ Merged in #682.
-6. ~~CEM and story typechecks, scaffold output, and verified index links and budgets.~~ Implemented on branch.
-7. **The declared baseline and the rest of the capture manifest.** Seed `Math.random` so an unchanged FAST story compares as unchanged, and record clock, randomness, storage and fixtures in `manifest.checkpoint.baseline`. [T03](driver-context-validation.md#provenance-fields) also defined fields the proposal's envelope requires and that never landed: the bench and plugin versions, driver, platform, pixel ratio, resources, action mode and readiness outcome.
+6. ~~CEM and story typechecks, scaffold output, and verified index links and budgets.~~ Merged in #686.
+7. ~~The declared baseline and the rest of the capture manifest.~~ Implemented on branch.
