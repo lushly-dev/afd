@@ -38,8 +38,8 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
 | AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; the manifest proposal (phase 1) and the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest proposal before phase 1; see the phase detail |
-| 0. Kernel, chrome and design foundation | Specification approved 2026-11-01; implementation in progress (see the steps below) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md) | The next unstarted steps in the phase 0 block below |
-| 1. App contract | Not started | None | None | Phase 0 exit criterion met |
+| 0. Kernel, chrome and design foundation | Exited 2026-11-01: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md); follow-ups filed as #655 to #664 | None; phase 1 may start |
+| 1. App contract | Not started | None | None | Phase 0 exit criterion met (2026-11-01); the shared plugin manifest proposal, then the phase 1 specification |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
 | 4. Settings, experiments, notifications, overlays | Not started | None | None | Phase 2 exit criterion met |
@@ -114,10 +114,11 @@ should never have to scan the codebase to learn what is current.
 
 ### 0. Kernel, chrome and design foundation
 
-- **State:** specification approved by the owner on 2026-11-01;
-  implementation in progress. Last verified 2026-11-01 against `main` at
-  `85d938bf`; the specification's evidence is listed in its
-  [status block](phases/0-kernel-chrome/spec.md#status).
+- **State:** exited 2026-11-01. Every exit test, E1 to E10, passes in
+  `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963), at `1405e3c0`, after step 7 merged).
+  Last verified 2026-11-01 against `main` at `1405e3c0`; the measured
+  results are in the specification's
+  [section 11.1](phases/0-kernel-chrome/spec.md#111-results-of-step-7-2026-11-01).
 - **Done:** the [specification](phases/0-kernel-chrome/spec.md), deciding
   D50 to D53.
 - **Steps** ([plan](phases/0-kernel-chrome/spec.md#12-implementation-plan);
@@ -161,7 +162,9 @@ should never have to scan the codebase to learn what is current.
     chords, layout classes, router seam and theme application, the web host
     over IndexedDB, the Chromium suite passing E1 to E10 locally, and the
     budget with measured values; decisions in sections 7.1, 8.1 and 11.1.
-  - 8, exit: not started.
+  - 8, exit: merged in [#665](https://github.com/lushly-dev/afd/pull/665).
+    The exit run is [run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) on `main`; the open follow-ups are filed as
+    issues #655 to #664 and linked from the specification's Follow-ups table.
 
 Phases 1 to 8 have no detail yet; add a heading in this shape when one
 starts.
@@ -223,3 +226,4 @@ starts.
 | 2026-11-01 | Phase 0 step 3 | The shared components on Loam's Violet themes in [#639](https://github.com/lushly-dev/afd/pull/639) (D50): `theme:export-components` writes `violet-elements/tokens/violet-theme.export.json` (108 component ids per theme), its `theme:build` generates the presets from it with the same exports and selectors plus `high-contrast`, the two JSONC registries are retired in place, `token-registry.ts` and the foundations story read the export, and `theme:check` compares the export and scans the fallbacks: 183 of 655 in 26 files differed from light and were rewritten. Every edited file is in the FAST-AF provenance. Decisions are recorded under "Decided by step 3" in section 2.4. Verified with `pnpm verify` (check, `fast-af.yml`, `health-dashboard.yml` and `loam.yml` suites), `theme:check` and the pre-push hook on 2026-11-01 |
 | 2026-11-01 | Phase 0 follow-up | The resting field border in [#645](https://github.com/lushly-dev/afd/pull/645), for the theme and the components together: `color.field.border` aliases `color.border.strong` in light and dark (3.15:1 and 3.06:1 on the two field backgrounds in light, 3.34:1 and 3.19:1 in dark), `color.field.border.hover` is one step stronger, `color.field.border.invalid` aliases `color.state.danger.text`, and high contrast keeps its values; `pairs.ts` holds the resting, hover and invalid borders to 3:1 in every theme. The eight `violet-elements` field components draw their resting and hover borders from the field tokens, the export, presets and manifest are regenerated, and the edited FAST-AF files are in its provenance. The spec's follow-up row is done, and design.md and the `loam-design` skill record it. A new follow-up row covers the focus border and the other text inputs the decision did not reach. Verified with `theme:check`, `pnpm verify` (the Health dashboard's browser suite passed on a re-run after one file-picker keyboard test timed out) and the pre-push hook on 2026-11-01 |
 | 2026-11-01 | Phase 0 step 7 | The chrome and the web host in [#653](https://github.com/lushly-dev/afd/pull/653): every part as a FAST-AF element under the component checklist, the palette (loaded after first paint), the chords and F6, the layout classes with overlay and modal drawers and the sheet, the router seam, theme application, the IndexedDB host with the second-tab notice, Specimen fixtures and the committed `session-50` journal, and the Chromium suite: E1 to E10 and A1 to A3 pass locally (A1 p95 2.6 ms, A2 250 ms, A3 132 ms). The budget holds on Vite's build (300,077 bytes of JavaScript before first paint, 86,116 gzip); 8.1's kernel ceiling is amended to 231,360 bytes, Zod being 178,126 of them, and the CSS ceiling lowered to 8,496. Two independent reviews (general and accessibility); their fixes and the follow-ups are in the specification. Verified 2026-11-01 with `pnpm check`, the `loam.yml` suite locally, `auth-browser`, `hosted-fixtures` and `alfred` |
+| 2026-11-01 | Phase 0 exit | Phase 0 exited: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`, step 7's merge). The ten open follow-ups were filed as issues #655 to #664 and linked from the specification. Also delivered beyond the plan: the resting field border at 3:1 ([#645](https://github.com/lushly-dev/afd/pull/645)). Next: the shared plugin manifest proposal, then the phase 1 specification, which the owner's grant lets the coordinator approve after an independent review |
