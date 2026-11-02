@@ -142,8 +142,12 @@ sync and then the index. Every part of a result that came from a document is lab
 budget (fewer hits, a shorter window, and a warning that says so). The `umbel-knowledge` binary is
 the `umbel` command line with `sources` and `knowledge` compiled in (the stock `umbel` binary
 compiles in no plugin); enable both with `plugins.enabled = ["sources", "knowledge"]`, and allow
-`index_write` and `records_write` for the space (`[plugins.knowledge.grants.index_write] allow =
-["main"]`, and the same under `records_write`).
+`index_write`, `graph_write` and `records_write` for the space
+(`[plugins.knowledge.grants.index_write] allow = ["main"]`, and the same under `graph_write` and
+`records_write`). `knowledge-index` also builds the structural graph (the directory hierarchy,
+headings, links and backlinks, tags, owners, supersession and co-citation); `knowledge-search`
+expands along it, and `knowledge-neighbors`, `-related`, `-path`, `-outline` and `-stale` read it,
+all only over the documents the caller can read.
 
 **Changing them by proposal.** The knowledge base changes only by proposal. `knowledge-propose`
 (create, update, deprecate or verify a document, with a rationale and evidence) stores a decision

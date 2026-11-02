@@ -189,6 +189,11 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             "Run store-check.",
         );
     }
+    // Best-effort WAL checkpoint after a run (specification section 3.2; a run that wrote nothing
+    // leaves the WAL empty); a busy store is not a failure.
+    if !dry_run {
+        let _ = cx.checkpoint(&space);
+    }
     render(cx, &space, wanted, dry_run, limit, &reports)
 }
 

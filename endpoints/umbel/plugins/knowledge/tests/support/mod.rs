@@ -48,6 +48,8 @@ source = "compiled:knowledge"
 
 [plugins.knowledge.grants.index_write]
 allow = ["main", "beta"]
+[plugins.knowledge.grants.graph_write]
+allow = ["main", "beta"]
 [plugins.knowledge.grants.records_write]
 allow = ["main", "beta"]
 [plugins.knowledge.grants.documents_write]
@@ -326,41 +328,4 @@ pub fn never_mentions(value: &Value, needles: &[&str]) {
             "`{needle}` appears in {rendered}"
         );
     }
-}
-
-/// Seed `space`'s graph the way step 7a's indexer will: for each `(origin, targets)`, the origin's
-/// document node and a `links_to` edge to each target document, with the origin as the edge's
-/// origin (so it is readable through the origin document's access set).
-pub fn seed_links(fx: &Fx, space: &str, links: &[(&str, &[&str])]) {
-    use umbel_store::{DocGraph, DocumentStore, Edge, GraphBatch, GraphStore, Node};
-    use umbel_store_embedded::{SqliteStore, StoreOptions};
-
-    let store = SqliteStore::open(&fx.state_dir(space), space, StoreOptions::default()).unwrap();
-    let head = store.head().unwrap();
-    let node = |doc: &str| Node {
-        id: format!("doc:{doc}"),
-        kind: "document".to_owned(),
-        label: doc.to_owned(),
-    };
-    let batch = GraphBatch {
-        entries: links
-            .iter()
-            .map(|(origin, targets)| {
-                let mut nodes = vec![node(origin)];
-                nodes.extend(targets.iter().map(|target| node(target)));
-                let edges = targets
-                    .iter()
-                    .map(|target| Edge {
-                        from: format!("doc:{origin}"),
-                        to: format!("doc:{target}"),
-                        kind: "links_to".to_owned(),
-                        weight: 1,
-                    })
-                    .collect();
-                ((*origin).to_owned(), Some(DocGraph { nodes, edges }))
-            })
-            .collect(),
-    };
-    let applied = store.applied().unwrap().max(head);
-    store.apply(batch, applied).unwrap();
 }

@@ -4,6 +4,7 @@
 //! A document the caller may not read is `DOCUMENT_NOT_FOUND`. Backlinks are `links_to` edges
 //! read in the incoming direction from the graph store, which counts only the origins the
 //! caller's reader filter admits, so a restricted document's links never add to the count.
+//! The co-citation cap is a property of the document's own text, so it is reported from there.
 
 use serde_json::{Value, json};
 use umbel_okf::links::{Target, resolve};
@@ -87,7 +88,8 @@ struct Facts {
     backlinks_at_least: bool,
     chunks: usize,
     index_applied: u64,
-    graph_available: bool,
+    graph_applied: u64,
+    co_cited_targets: usize,
 }
 
 impl Facts {
@@ -101,6 +103,7 @@ impl Facts {
             .unwrap_or_else(|_| vec![doc.collection.clone()]);
         let structure = loaded.structure();
         let (mut resolved, mut broken, mut external) = (Vec::new(), Vec::new(), Vec::new());
+        let mut cited: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for link in structure.links.iter().take(FULL * 5) {
             match resolve(&link.target, &doc.id, &collections) {
                 Target::External(url) => {
@@ -114,6 +117,9 @@ impl Facts {
                     }
                 }
                 Target::Document { id, fragment } => {
+                    if id != doc.id {
+                        cited.insert(id.clone());
+                    }
                     // A document the caller cannot read looks like a document that is not there:
                     // a broken link names only what the link says, never the id it resolved to.
                     if readable(cx, space, &id)? {
@@ -150,7 +156,8 @@ impl Facts {
             backlinks_at_least: edges.len() >= 1000,
             chunks,
             index_applied: cx.index_applied(space)?,
-            graph_available: true,
+            graph_applied: cx.graph_applied(space)?,
+            co_cited_targets: cited.len(),
         })
     }
 }
@@ -211,6 +218,13 @@ fn render(space: &str, loaded: &Loaded, facts: &Facts, level: &Level) -> Outcome
                 "resolved": take(&facts.resolved),
                 "broken": take(&facts.broken),
                 "external": take(&facts.external),
+                // Pairs of the first `limit` distinct documents the text links to are co-cited;
+                // a longer list is capped so one document cannot flood the graph.
+                "coCitation": {
+                    "targets": facts.co_cited_targets,
+                    "limit": crate::graph::CO_CITATION_TARGETS,
+                    "capped": facts.co_cited_targets > crate::graph::CO_CITATION_TARGETS,
+                },
             }),
         );
         map.insert(
@@ -218,11 +232,11 @@ fn render(space: &str, loaded: &Loaded, facts: &Facts, level: &Level) -> Outcome
             json!({
                 "count": facts.backlinks,
                 "atLeast": facts.backlinks_at_least,
-                "graph": facts.graph_available,
             }),
         );
         map.insert("chunks".to_owned(), json!(facts.chunks));
         map.insert("indexApplied".to_owned(), json!(facts.index_applied));
+        map.insert("graphApplied".to_owned(), json!(facts.graph_applied));
         if loaded.is_code() {
             // Symbol chunking is the `code` feature's; without it code is plain text.
             map.insert("codeIndexing".to_owned(), json!("plain-text"));
