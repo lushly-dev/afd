@@ -397,15 +397,14 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
 - `journal-file-shared` - `FileJournalSink::shared`: several sinks and processes append to one
   journal file under an exclusive OS file lock (`lock`, `append_locked`, `JournalFileLock`), reading
   the last `seq` from the end of the file instead of caching it. **It needs Rust 1.89**
-  (`std::fs::File::lock`); the rest of the crate keeps the 1.82 minimum. Local file systems only.
+  (`std::fs::File::lock`); the rest of the crate keeps the 1.85 minimum. Local file systems only.
 - `approval` (default) - The approval middleware (`create_approval_middleware`): a command whose
   `ApprovalPolicy` holds the call fails with `APPROVAL_REQUIRED` and an HMAC-SHA256 token bound to
   the command, the validated input and the actor, until trusted code retries it with
   `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
   across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
   `_meta.approval`) need no feature. With `wasm`, the token nonce comes from
-  `crypto.getRandomValues`; `wasm` with `approval` needs Rust 1.85 (getrandom 0.4; on older
-  toolchains getrandom 0.3 also needs `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`).
+  `crypto.getRandomValues`.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection
@@ -436,7 +435,7 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   hook set wins; undeclared keys are dropped; `tools/list` never varies by them), and
   `server/discover` lists them under `_meta["dev.afd/context-fields"]`. `with_resources` and
   `with_skills` serve MCP resources and the Skills extension (below). **The `server` feature
-  needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
+  needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.85 minimum.
 
 `with_resources(provider)` and `with_skills(catalog)` serve MCP resources and the Skills extension
 (`spec/mcp-resources.md`). A provider lists `ResourceEntry` values and reads their content; a

@@ -2,12 +2,12 @@
 name = "afd"
 version = "0.2.1"
 edition = "2021"
-# The minimum supported Rust version: 1.81 lacks `Option::is_none_or`. With dependencies resolved
-# for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.82.0 check` passes for
+# The minimum supported Rust version: `hmac` 0.13 and `sha2` 0.11.0 need 1.85. With dependencies
+# resolved for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.85.0 check` passes for
 # every feature set except `server`, whose `rmcp` dependency needs Rust 1.88, and
 # `journal-file-shared`, whose file locks (`std::fs::File::lock`) need Rust 1.89. Clippy's
 # `incompatible_msrv` lint flags std APIs newer than this.
-rust-version = "1.82"
+rust-version = "1.85"
 description = "Agent-First Development - Core types and utilities for Rust"
 license = "MIT"
 repository = "https://github.com/lushly-dev/afd"
@@ -82,8 +82,7 @@ saphyr-parser = { version = "0.3", optional = true }
 http = { version = "1", optional = true }
 # `server` feature: the per-process key that signs confirmation `requestState`; `approval`
 # feature: the approval token's nonce.
-# 0.3 and 0.4 share `getrandom::fill`; 0.4 needs Rust 1.85, so the MSRV resolver falls back to
-# 0.3 (the `server` feature needs 1.88 and gets 0.4).
+# 0.3 and 0.4 share `getrandom::fill`; a resolve at the 1.85 minimum selects 0.4.
 getrandom = { version = ">=0.3, <0.5", optional = true }
 
 [dev-dependencies]
