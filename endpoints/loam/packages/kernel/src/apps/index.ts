@@ -18,7 +18,7 @@ import type { AppsRuntime, CommandOwner } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { type AppKeybinding, needsInput } from '../keybindings.js';
 import type { AppPortV1, KernelPortsV1 } from '../types.js';
-import { defineAppCommand, type ManifestCommand, visibilityOf } from './definitions.js';
+import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
 	baseRecord,
 	configRefusal,
@@ -30,12 +30,13 @@ import {
 	refusalError,
 	transportOf,
 } from './entry.js';
-import { createFrameHost, type FrameHost } from './handler-frame.js';
+import { createFrameHost, type FrameHost, visibleToApp } from './handler-frame.js';
 import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
 import { pageDecided } from './support.js';
 import type { AppsHost } from './types.js';
+import { createViewBroker } from './view-broker.js';
 
 export {
 	CALL_META_KEY,
@@ -102,6 +103,14 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 	): { port: AppPortV1; invoke: NativeHost['invoke'] } {
 		const names = (manifest.commands ?? []).map((command) => command.name);
 		let native: NativeHost | undefined;
+		const viewHost =
+			record.kind === 'view'
+				? createViewBroker({
+						manifest,
+						sandboxOrigin: deployment.sandbox_origin,
+						port: () => port,
+					})
+				: undefined;
 		const { port, nestedClient } = createAppPort({
 			record,
 			manifest,
@@ -120,6 +129,7 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 					})
 				);
 			},
+			...(viewHost ? { view: viewHost.broker } : {}),
 		});
 		if (record.kind === 'native') {
 			const entryPath = manifest.native?.entry;
@@ -143,15 +153,18 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 			granted,
 			commands: names,
 			readHandlersHtml: () => port.readResource(manifest.view?.handlers ?? ''),
-			visibleToApp(name) {
-				const command = manifest.commands?.find((candidate) => candidate.name === name);
-				const visibility = command === undefined ? undefined : visibilityOf(command);
-				return visibility === undefined || visibility.includes('app');
-			},
+			visibleToApp: (name) => visibleToApp(manifest, name),
 			nestedClient,
 		});
 		hosts.push(frame);
-		return { port, invoke: frame.invoke };
+		return {
+			port,
+			async invoke(name, input, context) {
+				const result = await frame.invoke(name, input, context);
+				viewHost?.notifyCall(name, input, result, context.signal);
+				return result;
+			},
+		};
 	}
 
 	/** Guard each call on the app's state, and set the state for a call into a failed app (10). */

@@ -12,6 +12,7 @@ import {
 	type AppPortV1,
 	type CallOptionsV1,
 	type KernelPortsV1,
+	type ViewBrokerV1,
 } from '../types.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
@@ -29,6 +30,7 @@ export interface AppPortOptions {
 	ports: KernelPortsV1;
 	granted: ReadonlySet<string>;
 	load(): Promise<AppDefinitionV1>;
+	view?: ViewBrokerV1;
 }
 
 /** A path of the package as an absolute URL, or undefined when it would leave the package. */
@@ -127,6 +129,7 @@ export function createAppPort(options: AppPortOptions): {
 					}),
 				}
 			: {}),
+		...(options.view ? { view: options.view } : {}),
 	};
 	return {
 		port,

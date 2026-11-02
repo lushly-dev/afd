@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
 import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
-import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
+import type { Browser, BrowserContext, BrowserContextOptions, Frame, Page } from 'playwright';
 
 export const DIST = resolve(fileURLToPath(new URL('../../dist', import.meta.url)));
 
@@ -28,13 +28,17 @@ export interface LoggedRequest {
 
 /** Serves a directory over loopback HTTP, so the page's CSP applies as deployed. */
 async function serveDirectory(
-	root: string
+	root: string,
+	options: { only?: string; headers?: () => Record<string, string> } = {}
 ): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> }> {
 	const log: LoggedRequest[] = [];
 	const server: Server = createServer(async (request, response) => {
 		const path = new URL(request.url ?? '/', 'http://localhost').pathname;
 		const file = normalize(join(root, path === '/' ? 'index.html' : path));
-		if (file !== root && !file.startsWith(root + sep)) {
+		if (
+			(file !== root && !file.startsWith(root + sep)) ||
+			(options.only !== undefined && !path.startsWith(options.only))
+		) {
 			response.writeHead(403).end();
 			return;
 		}
@@ -43,6 +47,7 @@ async function serveDirectory(
 			log.push({ path, bytes: body.length, status: 200 });
 			response.writeHead(200, {
 				'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
+				...options.headers?.(),
 			});
 			response.end(body);
 		} catch {
@@ -72,20 +77,24 @@ export const APPS = resolve(fileURLToPath(new URL('../../../../apps', import.met
 const packed = new Map<string, Promise<string>>();
 
 /** `loam app pack` on an app's built source, once a run, in a temporary directory. */
-export function packApp(app: 'hello' | 'tally'): Promise<string> {
-	const held = packed.get(app);
+export function packApp(
+	app: 'hello' | 'tally',
+	kind: 'native' | 'view' = 'native'
+): Promise<string> {
+	const key = `${app}-${kind}`;
+	const held = packed.get(key);
 	if (held) return held;
 	const pack = (async () => {
-		const out = join(await mkdtemp(join(tmpdir(), `loam-pack-${app}-`)), 'package');
+		const out = join(await mkdtemp(join(tmpdir(), `loam-pack-${key}-`)), 'package');
 		const result = await appPack({
 			dir: join(APPS, app),
-			...(app === 'hello' ? { manifest: 'manifests/native.toml' } : {}),
+			...(app === 'hello' ? { manifest: `manifests/${kind}.toml` } : {}),
 			out,
 		});
 		if (!result.out) throw new Error(JSON.stringify(result.report.refusals));
 		return out;
 	})();
-	packed.set(app, pack);
+	packed.set(key, pack);
 	return pack;
 }
 
@@ -95,27 +104,49 @@ export interface DeploymentSite {
 	/** The directory `writeDeployment` wrote. */
 	out: string;
 	projection: ProjectionV1;
+	/** With `sandbox: true`, the second origin that serves `sandbox/`, and its log. */
+	sandbox?: { origin: string; log: LoggedRequest[] };
 	close: () => Promise<void>;
 }
 
 /**
  * `writeDeployment` into a temporary directory, then served, as a deployer does (phase 1 specification,
  * section 14). `config` is the file's text: a relative `package` is relative to that directory, so a
- * test names an absolute one. Step 5 adds the sandbox origin, and step 7 the relay.
+ * test names an absolute one. `sandbox: true` serves `sandbox/` on a second loopback origin, with
+ * `frame-ancestors` naming the shell's, as a deployer does (6.1). Step 7 adds the relay.
  */
-export async function serveDeployment(options: { config: string }): Promise<DeploymentSite> {
+export async function serveDeployment(options: {
+	config: string;
+	sandbox?: true;
+}): Promise<DeploymentSite> {
 	const directory = await mkdtemp(join(tmpdir(), 'loam-deployment-'));
 	const config = join(directory, 'loam.deployment.toml');
-	await writeFile(config, options.config);
 	const out = join(directory, 'site');
+	let shellOrigin = '';
+	// A port is known before the file is written, and the shell's only after it is served.
+	const sandbox = options.sandbox
+		? await serveDirectory(out, {
+				only: '/sandbox/',
+				headers: () => ({ 'content-security-policy': `frame-ancestors ${shellOrigin}` }),
+			})
+		: undefined;
+	await writeFile(
+		config,
+		sandbox
+			? `${options.config}\n[sandbox]\norigin = ${JSON.stringify(sandbox.origin)}\n`
+			: options.config
+	);
 	const written = await writeDeployment({ config, dist: DIST, out });
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
 	const site = await serveDirectory(out);
+	shellOrigin = site.origin;
 	return {
 		...site,
 		out,
 		projection: written.projection,
+		...(sandbox ? { sandbox: { origin: sandbox.origin, log: sandbox.log } } : {}),
 		async close() {
+			await sandbox?.close();
 			await site.close();
 			await rm(directory, { recursive: true, force: true });
 		},
@@ -146,13 +177,17 @@ export interface ShellPage {
 	page: Page;
 	/** CSP violations reported by the page, `directive blockedURI`. */
 	violations: string[];
+	/** The same violations, by the frame that reported each, for those a test provokes on purpose. */
+	violationFrames: Array<{ frame: string; violation: string }>;
 	/** Page errors and console errors. */
 	errors: string[];
 }
 
 export const CSP_PROBE = () => {
 	document.addEventListener('securitypolicyviolation', (event) =>
-		console.error(`CSP violation: ${event.violatedDirective} ${event.blockedURI}`)
+		console.error(
+			`CSP violation: ${event.violatedDirective} ${event.blockedURI} @ ${location.href}`
+		)
 	);
 };
 
@@ -166,12 +201,21 @@ export async function openPage(
 	const owned =
 		context ?? (await browser.newContext({ viewport: { width: 1280, height: 800 }, ...options }));
 	const page = await owned.newPage();
-	const watched: ShellPage = { context: owned, page, violations: [], errors: [] };
+	const watched: ShellPage = {
+		context: owned,
+		page,
+		violations: [],
+		violationFrames: [],
+		errors: [],
+	};
 	page.on('pageerror', (error) => watched.errors.push(error.message));
 	page.on('console', (message) => {
 		if (message.type() !== 'error') return;
-		if (message.text().startsWith('CSP violation')) watched.violations.push(message.text());
-		else watched.errors.push(message.text());
+		if (message.text().startsWith('CSP violation')) {
+			const [violation = '', frame = ''] = message.text().split(' @ ');
+			watched.violations.push(violation);
+			watched.violationFrames.push({ frame, violation });
+		} else watched.errors.push(message.text());
 	});
 	await page.addInitScript(CSP_PROBE);
 	await page.goto(url);
@@ -207,6 +251,9 @@ export interface EntrySummary {
 	success: boolean;
 	actor?: { kind: string; id?: string; label?: string };
 	interface?: string;
+	/** The context fields a journal keeps, such as `caller`. */
+	context?: Record<string, unknown>;
+	error?: { code?: string; message?: string };
 }
 
 /** The journal's entries, read through the shell's journal reader. */
@@ -223,6 +270,10 @@ export function journal(page: Page): Promise<EntrySummary[]> {
 			success: (entry.result as { success: boolean }).success,
 			...(entry.actor ? { actor: entry.actor as EntrySummary['actor'] } : {}),
 			interface: (entry.contextDigest as { interface?: string } | undefined)?.interface,
+			...(entry.context ? { context: entry.context as Record<string, unknown> } : {}),
+			...((entry.result as { error?: unknown }).error
+				? { error: (entry.result as { error: { code?: string; message?: string } }).error }
+				: {}),
 		}));
 	});
 }
@@ -336,10 +387,10 @@ export interface AxeViolation {
 	nodes: { target: unknown[] }[];
 }
 
-/** Axe with the Health dashboard's tags (E4), over the whole document. */
-export async function axe(page: Page): Promise<AxeViolation[]> {
+/** Axe with the Health dashboard's tags (E4), over the whole document of a page or a frame. */
+export async function axe(page: Page | Frame, except: string[] = []): Promise<AxeViolation[]> {
 	await page.evaluate(await axeSource);
-	return page.evaluate(async () => {
+	return page.evaluate(async (except) => {
 		const runner = (
 			window as unknown as {
 				axe: {
@@ -352,6 +403,7 @@ export async function axe(page: Page): Promise<AxeViolation[]> {
 				type: 'tag',
 				values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'],
 			},
+			rules: Object.fromEntries(except.map((id) => [id, { enabled: false }])),
 		});
 		return result.violations.map(({ id, impact, help, nodes }) => ({
 			id,
@@ -359,7 +411,7 @@ export async function axe(page: Page): Promise<AxeViolation[]> {
 			help,
 			nodes: nodes.map((node) => ({ target: node.target })),
 		}));
-	});
+	}, except);
 }
 
 /** The deepest focused element, through shadow roots: its tag, its host's tag and its role. */

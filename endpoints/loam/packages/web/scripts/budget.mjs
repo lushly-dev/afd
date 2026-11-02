@@ -9,7 +9,7 @@
  * dynamically loads later). It also builds `@lushly-dev/loam-kernel` alone, minified with its
  * dependencies, as Vite bundles it for the browser. What a deployment that lists an app adds has rows of
  * its own (phase 1 specification, 9.2 and 9.5): the kernel's `src/apps/` with the readers and validators,
- * and the chrome's surfaces. Hello's and tally's bundles are recorded and not limited. It fails when a
+ * the chrome's surfaces, and its view host. Hello's and tally's bundles are recorded and not limited. It fails when a
  * measure is over its ceiling. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -35,6 +35,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 231_360,
 	appsMinified: 300_000,
 	surfacesMinified: 85_000,
+	viewMinified: 24_904,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -105,6 +106,15 @@ async function measurePage() {
 		for (const imported of chunks.get(fileName)?.imports ?? []) visitSurfaces(imported);
 	};
 	for (const name of chunks.keys()) if (/^assets\/surfaces-/.test(name)) visitSurfaces(name);
+	// What a view app adds when one opens: the view host, and what nothing above has loaded.
+	const view = new Set();
+	const visitView = (fileName) => {
+		if (initial.has(fileName) || surfaces.has(fileName) || view.has(fileName)) return;
+		view.add(fileName);
+		for (const imported of chunks.get(fileName)?.imports ?? []) visitView(imported);
+	};
+	for (const name of chunks.keys()) if (/^assets\/view-/.test(name)) visitView(name);
+	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
@@ -117,6 +127,10 @@ async function measurePage() {
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
 		surfacesMinified: [...surfaces].reduce(
+			(sum, name) => sum + Buffer.byteLength(chunks.get(name).code),
+			0
+		),
+		viewMinified: [...view].reduce(
 			(sum, name) => sum + Buffer.byteLength(chunks.get(name).code),
 			0
 		),
@@ -183,6 +197,7 @@ const ROWS = [
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod'],
 	['appsMinified', "The kernel's `apps` chunks, minified, with the readers"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
+	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
 ];
 
 export async function measure() {

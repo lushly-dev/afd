@@ -2,19 +2,20 @@
 	"name": "@lushly-dev/loam-app-hello",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's reference app: one handler module, native in this step and a view and mounted app later",
+	"description": "Loam's reference app: one handler module, native and a sandboxed view, and a mounted app later",
 	"license": "MIT",
 	"type": "module",
 	"engines": {
 		"node": ">=22.12.0"
 	},
 	"scripts": {
-		"build": "vite build",
+		"build": "vite build && vite build --mode view-main && vite build --mode view-handlers",
 		"clean": "rimraf dist coverage",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run",
 		"lint:tokens": "loam-lint-tokens \"src/**/*.ts\"",
-		"pack": "loam app pack . --manifest manifests/native.toml --out dist/package"
+		"pack": "loam app pack . --manifest manifests/native.toml --out dist/package",
+		"pack:view": "loam app pack . --manifest manifests/view.toml --out dist/package-view"
 	},
 	"dependencies": {
 		"@lushly-dev/fast-element": "workspace:*",

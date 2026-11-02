@@ -19,7 +19,12 @@ const CANNOT_START = 'Loam cannot start';
 /** What reads the deployment did not load: each app is listed with the reason, and the shell runs (D66). */
 async function readApps(raw: unknown): Promise<HostKernelOptions['apps'] | string> {
 	try {
-		const read = (await import('./deployment.js')).readOrNotice(raw, document);
+		// Named here because this chunk has the bundler's dynamic import helper, and that one does not.
+		const read = (await import('./deployment.js')).readOrNotice(
+			raw,
+			document,
+			() => import('@lushly-dev/loam-chrome/view')
+		);
 		return read.ok ? read.apps : read.message;
 	} catch (error) {
 		reportError(error);

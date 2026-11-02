@@ -25,6 +25,7 @@ import { type LoamPartHeader, PART_ACTION_EVENT } from '../elements/part-header.
 import type { LoamShell, ShellApps } from '../elements/shell.js';
 import { type LoamStatusAction, STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { LoamStatusItem } from '../elements/status-item.js';
+import type { LoamViewFrame } from '../view/view-frame.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
@@ -89,7 +90,8 @@ const mainWithApp = css`
 		display: none;
 	}
 	::slotted(loam-mount),
-	::slotted(loam-notice) {
+	::slotted(loam-notice),
+	::slotted(loam-view-frame) {
 		flex: 1 1 auto;
 		min-block-size: 0;
 	}
@@ -389,7 +391,9 @@ export class AppSurfaces implements ShellApps {
 			...this.#inspectorElements,
 			...this.#statusElements,
 		]) {
-			element.remove();
+			// A view is told first, and goes when it has answered (6.2).
+			if (element.localName === 'loam-view-frame') (element as LoamViewFrame).leave();
+			else element.remove();
 		}
 		this.#mainElements = [];
 		this.#inspectorElements = [];
@@ -640,12 +644,19 @@ export class AppSurfaces implements ShellApps {
 			main.append(mount);
 			this.#mainElements.push(mount);
 			main.removeAttribute('aria-busy');
+		} else if (manifest.plugin.kind === 'view' && surfaces.main?.resource !== undefined) {
+			await this.#openView(
+				port,
+				detail.title,
+				surfaces.main.resource,
+				surfaces.main.command,
+				stale
+			);
+			if (stale()) return;
 		} else {
 			this.#explain(
 				detail.title,
-				manifest.plugin.kind === 'view' && surfaces.main
-					? 'A sandboxed view opens in phase 1 step 5.'
-					: 'This app declares no main surface. The console, its first UI, arrives in phase 1 step 6.',
+				'This app declares no main surface. The console, its first UI, arrives in phase 1 step 6.',
 				undefined,
 				'Run its commands from the command palette until then.'
 			);
@@ -706,6 +717,51 @@ export class AppSurfaces implements ShellApps {
 		});
 	}
 
+	/** The view host is its own chunk, so a shell with no view app loads none of it (9.2). */
+	async #openView(
+		port: AppPortV1,
+		title: string,
+		resource: string,
+		command: string | undefined,
+		stale: () => boolean
+	): Promise<void> {
+		const main = this.#part<HTMLElement>('main');
+		let view: typeof import('../view/view.js');
+		try {
+			view = await import('../view/view.js');
+			await view.defineViewFrame();
+		} catch (cause) {
+			reportError(cause);
+			if (!stale()) {
+				this.#explain(
+					title,
+					'The view host could not load.',
+					'APP_RUNTIME_UNAVAILABLE',
+					'Reload; check that the deployment serves its assets.'
+				);
+			}
+			return;
+		}
+		if (stale()) return;
+		const frame = this.#create<LoamViewFrame>('loam-view-frame');
+		frame.configure({
+			port,
+			source: view.packageViewSource(port),
+			heading: title,
+			hostVersion: String(this.#kernel.version),
+			resource,
+			...(command !== undefined ? { command } : {}),
+			theme: () => (this.#shell.appearance.resolved === 'dark' ? 'dark' : 'light'),
+			onSettled: (failed) => {
+				if (stale()) return;
+				main.removeAttribute('aria-busy');
+				if (failed) this.#overlays.announce(`${title} is unavailable`);
+			},
+		});
+		main.append(frame);
+		this.#mainElements.push(frame);
+	}
+
 	#needsInput(): Map<string, boolean | undefined> {
 		return new Map(this.#kernel.listCommands().map(({ name, needsInput }) => [name, needsInput]));
 	}
@@ -750,6 +806,7 @@ export class AppSurfaces implements ShellApps {
 		if (list) list.selected = id;
 		for (const element of [...this.#mainElements, ...this.#inspectorElements]) {
 			if (element.localName === 'loam-mount') (element as LoamMount).selection = id;
+			else if (element.localName === 'loam-view-frame') (element as LoamViewFrame).selection = id;
 		}
 	}
 

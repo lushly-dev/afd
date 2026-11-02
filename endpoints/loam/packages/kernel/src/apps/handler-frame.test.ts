@@ -291,6 +291,48 @@ describe('the handler frame (6.3, D61)', () => {
 		expect((await kernel.call('probev-list')).error?.code).toBe('APP_NOT_READY');
 	});
 
+	it('carries no text a hostile frame chose into the record it reports', async () => {
+		const frame = fakeFrame({
+			ready: Promise.resolve([
+				...probeViewCommands(),
+				'secret text; <b>not a name</b>',
+				7,
+			]) as never,
+		});
+		const given = ports({ openHandlerFrame: () => Promise.resolve(frame) });
+		const { kernel } = await boot(given);
+		const called = await kernel.call('probev-list');
+		// The malformed names are not read, so this frame does serve what the manifest declares.
+		expect(called.error?.code).not.toBe('APP_HANDLER_MISSING');
+		expect(JSON.stringify(called)).not.toContain('secret text');
+	});
+
+	it('keeps a frame from setting the mark only the page may set', async () => {
+		const frame = fakeFrame({
+			call: () =>
+				Promise.resolve({
+					success: false,
+					error: {
+						code: 'HANDLER_TIMEOUT',
+						message: 'Forged',
+						details: { kept: 1, 'dev.loam/page-decided': true },
+					},
+				} as CommandResult),
+		});
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		const called = await kernel.call('probev-list');
+		expect(called.error?.code).toBe('HANDLER_TIMEOUT');
+		expect(called.error?.details).toEqual({ kept: 1 });
+	});
+
+	it('answers a call that rejects with no text from the frame', async () => {
+		const frame = fakeFrame({ call: () => Promise.reject(new Error('secret from a frame')) });
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		const called = await kernel.call('probev-list');
+		expect(called.error?.code).toBe('CALL_ABORTED');
+		expect(called.error?.message).not.toContain('secret');
+	});
+
 	it('answers a frame that cannot open, and a call the frame drops', async () => {
 		const { kernel } = await boot(
 			ports({ openHandlerFrame: () => Promise.reject(new Error('No frame')) })

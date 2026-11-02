@@ -355,10 +355,13 @@ export function inProcessFrame(definition: AppDefinitionV1): HandlerFrameV1 {
 					...(grants.includes('store') ? { store } : {}),
 				});
 			} catch (cause) {
+				// As `serveHandlers` answers: what it threw stays in the frame's console (9.6).
+				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 				return failure({
 					code: 'HANDLER_THREW',
-					message: cause instanceof Error ? cause.message : String(cause),
-					suggestion: 'A handler returns `failure(...)`; fix the code that threw.',
+					message: `The handler of \`${command}\` threw.`,
+					suggestion:
+						"A handler returns `failure(...)`; read the handler frame's console, and fix the code that threw.",
 				});
 			}
 		},

@@ -186,6 +186,34 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 	appsUnavailable?: string;
 }
 
+/** A call of one of a view app's commands, for the view its `tool_meta.ui.resourceUri` names (6.2). */
+export interface LinkedCallV1 {
+	command: string;
+	input: unknown;
+	result: McpToolCallResult;
+	/** The call's own signal, so the view that started a bound call can tell that call from another. */
+	signal?: AbortSignal;
+}
+
+/**
+ * What a view's requests reach, and the boundary they cross (6.2; D54). Each runs in the kernel, since
+ * a view's input is untrusted. A refusal rejects as a frame's does ({@link HandlerFrameV1.onRequest}).
+ */
+export interface ViewBrokerV1 {
+	/** `deployment.sandbox_origin`. Null only for an app that is `failed` with `VIEW_SANDBOX_ORIGIN_INVALID`. */
+	readonly sandboxOrigin: string | null;
+	/** `tools/call`, through the port's checks. */
+	toolsCall(params: unknown): Promise<McpToolCallResult>;
+	/** `resources/read`: only the app's own `ui.resources`. */
+	resourcesRead(params: unknown): Promise<{
+		contents: Array<{ uri: string; mimeType: string; text: string }>;
+	}>;
+	/** The main surface's bound command, with `{}`, as the app, so its result carries no `seq`. */
+	runBound(command: string, signal: AbortSignal): Promise<McpToolCallResult>;
+	/** Hear each finished call of a command linked to `uri`, from any interface. */
+	onLinkedCall(uri: string, listener: (call: LinkedCallV1) => void): () => void;
+}
+
 /** The kernel's object for one app instance, which the chrome turns into the SDK's objects (5.3). */
 export interface AppPortV1 {
 	readonly instance: string;
@@ -207,6 +235,8 @@ export interface AppPortV1 {
 	waitOverlay(overlayId: string): Promise<OverlayResultV1>;
 	/** For the chrome and tests, never given to an app's surface: a write here is not journaled. */
 	readonly store?: AppStoreV1;
+	/** A view app's broker. Absent for any other kind. */
+	readonly view?: ViewBrokerV1;
 }
 
 /** What an app may call besides its own commands, until the `calls` grant in phase 5 (D68). */

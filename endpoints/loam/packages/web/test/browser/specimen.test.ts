@@ -128,6 +128,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-modal', 'Say hello?'],
 	['app-modal-danger', 'Delete this?'],
 	['app-notice-embedded', 'heading "Hello"'],
+	['app-view-frame-loading', 'Opening Hello'],
+	['app-view-frame-failed', 'VIEW_READY_TIMEOUT'],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string],
 	[`${id}-compact`, expected] as [string, string],

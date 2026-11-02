@@ -156,3 +156,5 @@ The values above landed, for the theme and the components together:
   `loam-part-header`, `loam-app-entry`, `loam-status-action`, `loam-toast-region`,
   `loam-toast` and `loam-modal` join the chrome behind a dynamic import, with no
   new token.
+- **2026-11-02. Sandboxed views (phase 1 step 5).** `loam-view-frame` joins the chrome in a chunk
+  of its own, with no new token. A view reads the contract's component ids through `dev.loam/tokens`.

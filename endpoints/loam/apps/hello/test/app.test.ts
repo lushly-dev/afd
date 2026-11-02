@@ -18,6 +18,30 @@ const boot = async (config?: Record<string, unknown>) =>
 		...(config !== undefined ? { config } : {}),
 	});
 
+const VIEW_MANIFEST = 'manifests/view.toml';
+
+describe('hello as a view', () => {
+	it('runs the same handlers, and a journal with them replays with no iframe', async () => {
+		const { kernel, replay } = await createAppTestKernel({
+			manifest: await readAppManifest(ROOT, VIEW_MANIFEST),
+			definition: () => import('../src/native.js'),
+			config: { default_name: 'friend' },
+		});
+		const named = await kernel.call<{ greeting: string }>('hello-greet', { name: 'Ada' });
+		expect(named.data?.greeting).toBe('Hello, Ada!');
+		const unnamed = await kernel.agent.call<{ greeting: string }>('hello-greet');
+		expect(unnamed.data?.greeting).toBe('Hello, friend!');
+		const { report } = await replay();
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+	});
+
+	it('is sandboxed in app check, with its pages one file each', async () => {
+		const report = await appCheck({ dir: ROOT, manifest: VIEW_MANIFEST });
+		expect(report.refusals).toEqual([]);
+		expect(report.trust?.code).toBe('SANDBOXED');
+	});
+});
+
 describe('hello', () => {
 	it('greets, lists and forgets, from a person and an agent, and replays', async () => {
 		const { kernel, replay } = await boot({ default_name: 'friend' });

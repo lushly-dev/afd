@@ -14,6 +14,7 @@ import {
 	type LoamPartHeader,
 	type LoamToast,
 } from '../dist/apps/index.js';
+import { defineViewFrame, type LoamViewFrame } from '../dist/view/view.js';
 import { type Density, themePart } from './support.js';
 
 type Box = { inline: string; block: string };
@@ -247,4 +248,31 @@ export const [NoticeEmbedded, NoticeEmbeddedCompact] = both(
 		wrapper.append(element);
 	},
 	{ inline: '640px', block: 'auto' }
+);
+
+/** With no second origin here, a view frame's own states: an open view is E2's, in real frames. */
+const viewFrame = (render: (element: LoamViewFrame) => void) => async (wrapper: HTMLElement) => {
+	await defineViewFrame();
+	const element = document.createElement('loam-view-frame') as LoamViewFrame;
+	element.heading = 'Hello';
+	render(element);
+	wrapper.append(element);
+};
+
+export const [ViewFrameLoading, ViewFrameLoadingCompact] = both(
+	'loam-view-frame',
+	viewFrame(() => {}),
+	{ inline: '640px', block: '240px' }
+);
+export const [ViewFrameFailed, ViewFrameFailedCompact] = both(
+	'loam-view-frame',
+	viewFrame((element) => {
+		element.failure = {
+			code: 'VIEW_READY_TIMEOUT',
+			message: 'Hello did not start in time.',
+			suggestion: 'Reopen it, and check that the view calls ui/initialize.',
+		};
+		element.state = 'failed';
+	}),
+	{ inline: '640px', block: '240px' }
 );

@@ -12,7 +12,7 @@
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
   under the owner's delegation, after that review (D17). Implementation is in progress: steps 0a, 0b, 1,
-  2, 3 and 4 are merged, and each step's state is one line in STATUS.md's phase 1 block.
+  2, 3, 4 and 5 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -120,7 +120,8 @@
   [9.5](#95-decided-by-step-3) records what it decided. Step 4 delivered the chrome's app surfaces, the web
   host's deployment read, hello native and tally, E1, E5, E6, E7's browser part, E9's Chromium part and E11
   so far, with hello's own scenario and `app check` on it for E8 and E13; [9.6](#96-decided-by-step-4) records
-  what it decided.
+  what it decided. Step 5 delivered the proxy, `loam-view-frame`, the broker, the handler frame, hello view and E2 with
+  its conformance fixture; [9.7](#97-decided-by-step-5) records what it decided and what the browser disproved.
 - **Not done:** the rest of the [implementation plan](#15-implementation-plan). E11's console part waits for
   step 6, and E9's mounted part for step 7.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
@@ -1192,6 +1193,9 @@ and "The Sandbox MUST have ... `allow-scripts`, `allow-same-origin`". D62 follow
   <!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
   ```
 
+  A `srcdoc` document holds the proxy's policy as well as this one, so the stricter of each directive wins:
+  `base-uri` is `'none'` for a view in practice, and one violation reports twice ([9.7](#97-decided-by-step-5)).
+
   This is MCP Apps' default CSP. **Phase 1 serves no `_meta.ui.csp`**: a resource's
   declared domains (`ui.resources[].csp`) are ignored, `hostCapabilities.sandbox.csp` is empty, and `app check`
   warns `VIEW_CSP_IGNORED`. No `permissions` are granted. Phase 7 sets the sandbox policy
@@ -1270,7 +1274,7 @@ The `ui/initialize` result:
 
 - `tools/call { name, arguments }` becomes `port.call(name, arguments)` on the view's own
   app port, so the checks of [5.3](#53-the-app-port) apply. This is a boundary for a
-  view (D54).
+  view (D54). The checks are in the kernel, in `port.view` ([9.7](#97-decided-by-step-5)).
 - **Visibility.** A command whose `tool_meta.ui.visibility` omits `app` is refused
   `-32602`. One that omits `model` is registered with `expose.agent = false`.
 - **The result** is `{ content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -1819,7 +1823,7 @@ new commands are small and the rest is lazy:
 | `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays, and what it imports that first paint has not loaded, such as the listbox | When a deployment lists an app, or the first toast or modal on a shell with none | 85,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 76,622 |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
-| `view` chunk: the view host | When a view app opens | 60,000 |
+| `view` chunk: the view host | When a view app opens, or a view app's command is first called | 24,904. Step 5 measured 22,640, under 70% of the first ceiling of 60,000, so it is lowered by phase 0's rule ([9.7](#97-decided-by-step-5)) |
 | `kit` chunks | Per element, on `kit.define` | None |
 | Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,024 (gzip 17,897) and 79,167 (21,338), each with its own FAST |
 
@@ -1921,7 +1925,7 @@ What the sections above left open, and what the code showed. Later steps build o
   rather than `CALL_NOT_GRANTED`, which is always journaled, and malformed parameters `-32602`.
 - **Handlers.** A native handler that throws or answers no `CommandResult` gets the frame's codes, `HANDLER_THREW` and
   `HANDLER_RESULT_INVALID`. A native throw's message goes to the page's `reportError`, not the result or the journal, as AFD's engine
-  does; a frame's `HANDLER_THREW` still carries it (11.2). A frame's call that rejects otherwise, as an abort does, is `CALL_ABORTED`.
+  does; a frame's `HANDLER_THREW` still carries it (11.2), superseded by [9.7](#97-decided-by-step-5): neither carries it. A frame's call that rejects otherwise, as an abort does, is `CALL_ABORTED`.
 - **`deactivate` is the chrome's,** since `activate` is: a module loaded only by a command never activated, and the kernel cannot tell.
   So step 4's `AppSurfaces` runs it at disposal, for what it activated, and 5.5's row holds there.
 - **A failed `apps` chunk** rejects `createKernel`, and the host shows "Loam cannot start": no app can load, and nothing in the kernel can list them. Superseded by [9.6](#96-decided-by-step-4): this went against D66.
@@ -1970,7 +1974,7 @@ What the sections above left open, and what the code showed. Later steps build o
 ### 9.6 Decided by step 4
 
 What the sections above left open, and what the browser showed. Later steps build on these. **The sandbox's
-assumptions get their test in step 5; the scoped-registry assumptions got theirs here, and they held in
+assumptions got their test in step 5 ([9.7](#97-decided-by-step-5)); the scoped-registry assumptions got theirs here, and they held in
 Chromium 156, natively,** with the two corrections below.
 
 **The budget**
@@ -2069,8 +2073,114 @@ A native handler's, an import's or `activate`'s thrown message **does not go thr
 reaches the journal**. A throw from a handler or an import goes to `reportError`; a throw from `activate` goes to `reportError` and
 to main's notice, in that page alone. The kernel's record, which `app-get` reports and so journals, says only that it threw.
 `redact` stays what section 12 says, the removal of a known field, because it cannot recognise a secret in free text. A failure
-an app returns is its own result, and is journaled as any result is. A view frame's `HANDLER_THREW` still carries the
-handler's message into the journal (11.2): step 5 decides that one, and this says what it should weigh.
+an app returns is its own result, and is journaled as any result is. A view frame's `HANDLER_THREW` still carried the
+handler's message into the journal (11.2) until step 5, which [decided the same rule for it](#97-decided-by-step-5).
+
+### 9.7 Decided by step 5
+
+What the sections above left open, and what real frames showed. This was the sandbox's first test: a second origin,
+`allow-scripts allow-same-origin allow-forms` on the proxy, an opaque inner iframe, `/view` over real frames and the
+handler frame, in Chromium 156. E2 holds all of it.
+
+**What held**
+
+- **6.1 as written.** The frame's origin is the sandbox's, the inner document's `self.origin` is `null`, and from
+  inside it `parent.document`, `top.document`, `document.cookie`, `localStorage` and `indexedDB` throw `SecurityError`,
+  `fetch` fails, and neither `top` nor `parent` can be navigated. `window.open` answers `null`.
+- **The prefix.** `<!doctype html><meta ...>` before a view's own `<!doctype html><html lang="en"><head>`: the parser
+  ignores the second doctype and head, and adds `lang` to the element it already made, so the view's language survives
+  and the policy is the head's first child.
+- **`/view`,** but for the decision below, and **`@modelcontextprotocol/ext-apps` 2.0.4's `App`**: it connects, passes
+  its own schema on `ui/initialize` with `dev.loam/tokens` in `hostContext`, calls a tool and answers teardown. A test
+  also parses the result with `McpUiInitializeResultSchema` directly.
+- **A hidden frame runs.** `hidden` on the outer iframe, so `display: none`, stops neither frame's script or messages.
+
+**What the browser disproved, or added**
+
+- **Section 12 was wrong about navigation,** and is amended. A view's `location.href` to another origin is refused by
+  the proxy's `frame-src 'self'`, as a `frame-src` violation, with no request sent; the inner frame shows an error page.
+  To the sandbox's own origin the request goes out and `frame-ancestors` refuses to render the response. Either way the
+  frame is dead until the app is switched, which then takes the 500 ms path, since it cannot answer.
+- **A `srcdoc` document holds two policies,** the proxy's and its own. So one `fetch` reports two `connect-src`
+  violations, which is why E2 lists the provoked one twice, and the inner policy's `base-uri 'self'` has no effect:
+  the proxy's `'none'` refuses a `<base>`. 6.1 is amended; the inner policy stays MCP Apps' default, word for word.
+- **A view built on `App` needs Zod `jitless`, or it reports a violation.** Zod's `new Function` probe runs under a CSP
+  with no `unsafe-eval`, and reports two `script-src eval` violations and goes on. So the conformance fixture is built
+  with `zodJitlessByDefault`, as the shell is. Nothing Loam can do from outside changes it; a view's author sees it in
+  the console. Phase 5's foreign views should say so.
+- **Axe runs per document.** The page's `h1` is in the view's document, as 9.3 has it, and axe does not see through a
+  frame it was not injected into. So the run around the frame disables `page-has-heading-one` alone, and the run inside
+  the frame has it on.
+- **A request id is not a kind.** The shell's own requests count from 1 in their own space, so a view's `id` 1 and the
+  shell's `id` 1 can both be live. A hand-written view must tell a response from a request by `method`; a fixture that
+  did not lost its teardown. The SDK and `App` already do.
+
+**Text a frame chose (D54, D66, section 12)**
+
+- **`HANDLER_THREW` from a frame follows the native rule.** `serveHandlers` sends what was thrown to the frame's own
+  `reportError` and answers `` The handler of `x` threw. ``, so the message never reaches the journal. The spec gives no
+  reason for a view to be less guarded: its text is less trusted, and a thrown message is the one kind of text an app
+  did not choose to report. Debugging it costs opening the frame's console. The test kit's in-process frame answers the
+  same, and E2 scans the journal for a thrown string.
+- **That rule is about accidents, not hostility.** A hostile frame can return `failure({ message })` with any text, and
+  that is its own result, journaled as any is: what it can put there is bounded by nothing but what its app holds. So
+  the kernel does not try to tell one failure from another.
+- **The kernel takes no free text from a frame besides that result.** `CALL_ABORTED` no longer holds a cause's message.
+  A JSON-RPC error answered to `dev.loam/handler-call` is `HANDLER_RESULT_INVALID`, since it is no result, and its text
+  goes nowhere. `handlers-ready`'s names are read only if they look like command names, and the mismatch message names
+  only those, up to 512 characters, because `markFailed`'s record reaches `app-get` and so the journal.
+- **`dev.loam/page-decided` is stripped** from what a frame returns. 9.5 made it a marker because "an app may return those
+  codes itself, and that is an ordinary result to compare"; a frame that set it could otherwise hide its results from
+  a replay.
+
+**The interface**
+
+- **`AppPortV1.view`, `ViewBrokerV1`,** which 5.3 did not list: `sandboxOrigin`, `toolsCall`, `resourcesRead`, `runBound`
+  and `onLinkedCall`. The chrome speaks the protocol and the kernel does the checks, so a boundary has no DOM in it and is
+  tested without a browser (`kernel/src/apps/view-broker.ts`). `resources/read` checks `ui.resources` itself, since
+  `port.readResource` also serves `view.handlers` for the kernel.
+- **The bound command runs through the port,** with `caller` set, so it is journaled as the app's and its result carries
+  no `dev.loam/seq`, which `kernel.call`'s would, and which a view must not see (9.1).
+- **A linked call is heard where the handler returns,** in the lazy chunk, so `run` in the first-paint kernel is
+  unchanged and `KernelEventV1` carries no input or result. A call refused before the handler, by validation, pushes
+  nothing. A bound command may also link to its own resource, as an MCP tool does; it is told apart by its `signal`,
+  so it is one push.
+- **Reading the theme.** `MutationObserver` on `data-loam-theme` and `data-loam-density`, since `appearance-*`'s event
+  precedes the shell's re-read and applying it, and a change of system preference is covered too. `theme` reads
+  `loam-shell`'s `appearance.resolved`, as 6.2 says, so forced colors with a dark setting still says `dark`.
+- **A change before `initialized`** is held, and sent once as one `host-context-changed` before the bound call's pushes.
+- **`loam-view-frame.leave()`.** Removing or moving an iframe ends it, so on a switch the element is `hidden`, told, and
+  removed after the answer or 500 ms. `AppSurfaces` calls this and not `remove()`. `aria-busy` stays on main until
+  `initialized` or a failure, and the frame is `visibility: hidden` until then, so nothing unstyled shows.
+- **`ViewSource` and `packageViewSource`,** as section 13 reserved, are in `chrome/src/view/`. The element also has
+  `heading`, `state` and `failure`, for its Specimen fixtures of the loading and failed states; an open view needs a
+  second origin, so it is E2's.
+- **The handler frame's parent** is `document.body`, beside the shell, not in a part: it has no surface, and a part's
+  contents move and park. A handler frame is one per instance, and the page's only other iframe is the open view.
+
+**The budget: nothing of this step loads for an empty shell or a native-only deployment**
+
+- **E2 holds it:** a native-only deployment and an empty shell request no `view-*` chunk and nothing under `sandbox/`,
+  and hold no iframe.
+- **First paint** is 317,981 of 320,000 and 94,046 of 95,000 gzip, 59 and 22 more than step 4: the entry names one more
+  chunk. It was 318,100 and 94,344 until two things moved, which later steps should also watch for:
+  - `ports.ts`'s own dynamic import put the bundler's preload helper in a chunk of its own, because the `deployment`
+    chunk needed it without the shell's. So `main.ts` names the import and passes it to `readOrNotice`, as `loadView`.
+  - `ref` in the view frame split `ref` out of the shared chunk. It queries its shadow root instead.
+- **Rows.** `view` is 22,640, so its ceiling falls from 60,000 to 24,904 by phase 0's rule. `surfaces` is 77,5xx of 85,000,
+  and `apps` 267,164 of 300,000. `budget` fails if the build has no `view-*` chunk.
+
+**The repository**
+
+- **Hello's pages are in `src/pages/`,** so each Vite build's `root` holds one page and `dist/main.html` is named by
+  11.1. `pnpm build` runs three builds, the native one first since it empties `dist`.
+- **`hello-greet` links to `ui://hello/main`** in `view.toml`, so an agent's or the palette's greeting reaches an open
+  view. 11.1's list has no status item, inspector or header for a view, and neither does the manifest.
+- **`dist/sandbox/` also lands on the shell's origin,** since `deployment write` copies `--dist` whole. It is unused
+  there, and harmless: `proxy.js` opens nothing on its own, and what it renders is opaque. A deployer serves it on the
+  second origin too, as 6.1 says.
+- **`web` takes dev dependencies** on `@modelcontextprotocol/ext-apps`, pinned at 2.0.4, and `@lushly-dev/loam-sdk`, for
+  the fixtures in `test/browser/pages/`. No workflow, `scripts/affected/` or root manifest changed.
 
 ## 10. Failure modes and error codes
 
@@ -2175,6 +2285,7 @@ src/handlers.ts      # defineApp: hello-greet, hello-forget, hello-list. Written
 src/native.ts        # default-exports it, with activate defining hello-main and hello-inspector
 src/view-main.ts     # connectView; compiled into dist/main.html
 src/view-handlers.ts # serveHandlers(handlers); compiled into dist/handlers.html
+src/pages/           # main.html and handlers.html, the pages Vite needs to reach those two (9.7)
 schemas/, skills/hello-guide/
 test/app.test.ts
 ```
@@ -2267,10 +2378,11 @@ What the sections above left open, and what the code showed. Later steps build o
 
 - **Changed from 5.2 as first written:** `handlers` takes `AppCommandHandlerV1<never>`, since under `strict` a handler that typed its input could
   not be assigned to one taking `unknown`, and the caller casts; and `onToolCancelled` is added, since 6.2 pushes `tool-cancelled` and nothing heard it.
-- **`/view`** is written and unit-tested over a fake parent window here. It first meets real frames in step 5's E2, which may amend it.
+- **`/view`** is written and unit-tested over a fake parent window here. It first met real frames in step 5's E2, which changed only `HANDLER_THREW`.
 - **Codes.** A refused `tools/call` is a failure, not a rejection. It takes the code in the JSON-RPC error's `data.code` when the host
   names one, otherwise `VIEW_CALL_REFUSED`. So step 5's broker sends `HANDLER_NO_CALL` as `data: { code, suggestion }`. An answer with no
-  result is `VIEW_RESULT_INVALID`, an aborted call is `CALL_ABORTED`, and a frame's handler that throws is `HANDLER_THREW`.
+  result is `VIEW_RESULT_INVALID`, an aborted call is `CALL_ABORTED`, and a frame's handler that throws is `HANDLER_THREW`,
+  with a fixed message since step 5 ([9.7](#97-decided-by-step-5)).
 - **Early pushes.** `connectView` holds a `tool-input`, `tool-result` or context change until its first listener, since a view may await
   something else after connecting.
 - **Exports beyond 5.2:** `KIT_ELEMENT_NAMES_V1`, the list behind `KitElementNameV1`, for the chrome's loader, and `mulberry32` from
@@ -2311,11 +2423,16 @@ The manifest is untrusted input, and trust comes from the kind (the proposal's S
 - **Message channels.** The chrome and the proxy check `source` and `origin` on every message ([6.1](#61-the-sandbox-proxy)).
   A proxy framed by another site can only render that site's own HTML in an opaque iframe. A deployer
   sets `frame-ancestors` on `sandbox/`.
-- **What the sandbox does not stop.** A view may navigate its own frame, with data in the URL: the
-  `connect-src 'none'` rule does not cover it, and `navigate-to` is gone from CSP. So a view is isolated from
-  the shell and other apps, and is not a data diode for what it was given. The broker gives it only its own
-  app's commands, so what it can leak is what its own app holds. Phase 7's sandbox policy for drafts
-  revisits this.
+- **What the sandbox does not stop.** As first written, this said a view may navigate its own frame with data in
+  the URL. In Chromium the proxy's `frame-src 'self'` refuses that for any other origin, and the view has only
+  replaced itself with an error page. It may still navigate to the sandbox's own origin, which sends that origin
+  a request with data in the URL and renders nothing, since `frame-ancestors` lists the shell alone: what reaches a
+  deployer's own log ([9.7](#97-decided-by-step-5)). `navigate-to` is gone from CSP, so this rests on `frame-src`.
+  A view is isolated from the shell and other apps. The broker gives it only its own app's commands, so what it can
+  leak is what its own app holds, to that log at most. Phase 7's sandbox policy for drafts revisits this, and the
+  browsers phase 6 adds must pass the same test.
+- **What a frame says.** A frame is untrusted, so what it says is treated as text it chose: see the rule on thrown
+  messages, command names and the page's marker in [9.7](#97-decided-by-step-5).
 - **Personal data.** Phase 1 adds none beyond the Mock email and what apps store. Journal entries carry the
   input of each call, as phase 0's do; `redact` is where phase 3 extends.
 - **Prompt injection through mounted content** is phase 5's, with the copilot: phase 1 has no model. The

@@ -4,11 +4,13 @@
  * test passes one that runs the same definition in process.
  */
 
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
+import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import type { AppStoreV1, LoamClientV1 } from '@lushly-dev/loam-sdk';
-import { kernelFailure, LoamKernelError } from '../errors.js';
-import type { HandlerFrameV1, KernelPortsV1 } from '../types.js';
+import { kernelFailure, LoamKernelError, PAGE_DECIDED } from '../errors.js';
+import type { HandlerFrameV1, KernelPortsV1, McpToolCallResult } from '../types.js';
+import { visibilityOf } from './definitions.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
 import {
@@ -59,12 +61,41 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 /** The MCP shape the broker answers `tools/call` with (6.2). */
-export function toolCallResult(result: CommandResult) {
+export function toolCallResult(result: CommandResult): McpToolCallResult {
 	return {
 		content: [{ type: 'text', text: JSON.stringify(result) }],
 		structuredContent: result,
 		isError: !result.success,
 	};
+}
+
+/** Whether a view may call the app's own `name`: its `tool_meta.ui.visibility` leaves out `app` (6.2). */
+export function visibleToApp(manifest: ManifestV1, name: string): boolean {
+	const command = manifest.commands?.find((candidate) => candidate.name === name);
+	const visibility = command === undefined ? undefined : visibilityOf(command);
+	return visibility === undefined || visibility.includes('app');
+}
+
+/** A command name, as a frame may report one: anything else is not text to carry into a record. */
+const COMMAND_NAME = /^[a-z][a-z0-9-]{0,127}$/;
+
+/** What a frame says it serves. The frame is untrusted, so only well-formed names are read (D54). */
+function namesOf(reported: unknown): string[] {
+	if (!Array.isArray(reported)) return [];
+	return reported.filter(
+		(name): name is string => typeof name === 'string' && COMMAND_NAME.test(name)
+	);
+}
+
+/**
+ * The page's marker is the kernel's to set (9.5): a frame that set it could hide what it returned from a
+ * replay's comparison.
+ */
+function withoutPageDecided(result: CommandResult): CommandResult {
+	const details = result.error?.details;
+	if (!details || !(PAGE_DECIDED in details)) return result;
+	const { [PAGE_DECIDED]: _marker, ...kept } = details;
+	return { ...result, error: { ...(result.error as CommandError), details: kept } };
 }
 
 export function createFrameHost(options: FrameHostOptions): FrameHost {
@@ -174,7 +205,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		current = frame;
 		let names: string[];
 		try {
-			names = await withDeadline(frame.ready, HANDLER_READY_TIMEOUT_MS);
+			names = namesOf(await withDeadline(frame.ready, HANDLER_READY_TIMEOUT_MS));
 		} catch (cause) {
 			discard(frame);
 			throw cause;
@@ -185,7 +216,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 			const error = markFailed(
 				record,
 				'APP_HANDLER_MISSING',
-				`The handler frame does not match the manifest: ${[...missing, ...extra].join(', ')}`,
+				`The handler frame does not match the manifest: ${[...missing, ...extra].join(', ').slice(0, 512)}`,
 				'Add the handler, or remove the command from the manifest'
 			);
 			discard(frame);
@@ -260,7 +291,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 					),
 					HANDLER_CALL_TIMEOUT_MS
 				);
-				return isCommandResult(result) ? result : resultInvalid(name);
+				return isCommandResult(result) ? withoutPageDecided(result) : resultInvalid(name);
 			} catch (cause) {
 				if (cause instanceof FrameDeadline) {
 					discard(target);
@@ -273,7 +304,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 				}
 				return kernelFailure(
 					'CALL_ABORTED',
-					`The call of '${name}' did not finish: ${cause instanceof Error ? cause.message : String(cause)}`,
+					`The call of '${name}' did not finish`,
 					'Retry the call',
 					{ retryable: true, details: pageDecided() }
 				);
