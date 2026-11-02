@@ -68,6 +68,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [MCP Tasks](./proposed/mcp-tasks/mcp-tasks.proposal.md) | Long-running commands as `io.modelcontextprotocol/tasks` tasks (MCP follow-on, rank 4; wait) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
+| [Shared Plugin Manifest](./proposed/plugin-manifest/plugin-manifest.proposal.md) | One manifest format for Loam apps and Umbel plugins: a host-neutral core of JSON Schema `$defs` in `spec/` with vectors, and one closed profile per host; Umbel's `umbel-plugin.toml` conforms unchanged, Loam's phase 1 writes the second profile; headless apps and several Umbel instances mounted in one Loam instance; reconciled with Plugin Discovery. Proposed 2026-11-01 for Loam's phase 1; status in [STATUS.md](./proposed/plugin-manifest/STATUS.md) |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
