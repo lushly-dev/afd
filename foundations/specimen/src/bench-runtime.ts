@@ -1,7 +1,9 @@
 import { readFile, rename, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { RANDOM_SEED } from './baseline.js';
 import type { SpecimenBench } from './bench.js';
 import {
 	bundled,
@@ -43,6 +45,7 @@ import {
 	type BenchOptions,
 	type BrowserObservation,
 	CAPTURE_VERSION,
+	type CaptureCheckpoint,
 	type Completeness,
 	type InspectRequest,
 	type InspectResult,
@@ -86,6 +89,19 @@ function coverage(
 const HOST_GRACE = 30_000;
 /** A retained story's deadline: Vitest's `testTimeout` in browser mode, its incumbent's runner. */
 const DEFAULT_STORY_TIMEOUT_MS = 15_000;
+/** The context axes the host emulates over CDP, so a story sees them as a real browser would. */
+const HOST_EMULATES = [
+	'viewport',
+	'pixel-ratio',
+	'color-scheme',
+	'contrast',
+	'reduced-motion',
+	'locale',
+];
+const bench = createRequire(import.meta.url)('../package.json') as {
+	name: string;
+	version: string;
+};
 /** Bundling a whole suite's stories has no render's deadline; this covers a host that hangs. */
 const BUNDLE_GRACE = 300_000;
 /** What the native host returns for one render. */
@@ -130,6 +146,7 @@ export async function createInProcessBench(
 	const ensureOpen = () => {
 		if (closed) throw new Error('Specimen bench is closed');
 	};
+	const browserBuild = options.executablePath ? digest(options.executablePath) : null;
 	// Started by the first render; Chromium launches while the first bundle builds.
 	const ensureHost = () =>
 		(host ??= (async () => {
@@ -243,14 +260,40 @@ export async function createInProcessBench(
 					captureVersion: CAPTURE_VERSION,
 					normalizationVersion: NORMALIZATION_VERSION,
 					specimenId: entry.id,
-					checkpoint: request.checkpoint,
+					capturedUtc: new Date().toISOString(),
+					bench: { name: bench.name, version: bench.version, plugins: captured.plugins },
+					driver: { name: 'host' as const, emulates: HOST_EMULATES },
+					checkpoint: {
+						name: request.checkpoint,
+						actionMode: (request.checkpoint === 'mount'
+							? 'none'
+							: entry.story
+								? 'play'
+								: 'real-input') as CaptureCheckpoint['actionMode'],
+						ready: { ...captured.ready, deadlineMs: request.timeoutMs },
+						baseline: {
+							clock: 'real' as const,
+							random: { source: 'seeded' as const, seed: RANDOM_SEED },
+							storage: 'empty' as const,
+						},
+					},
 					source: {
 						...source,
 						digest: digest([config.digest, ...loaded].join('\n')),
 					},
 					dependencies,
-					browser: { name: 'chromium', version: rendered.browser },
-					context,
+					browser: {
+						name: 'chromium',
+						version: rendered.browser,
+						platform: `${process.platform}-${process.arch}`,
+						build: browserBuild,
+					},
+					context: {
+						...context,
+						pixelRatio: 1,
+						observed: captured.viewport,
+						resources: captured.resources,
+					},
 				},
 				channels: {
 					dom: { raw: captured.dom, normalized: captured.normalized },

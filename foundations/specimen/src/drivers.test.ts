@@ -103,7 +103,11 @@ describe('one context and lifecycle contract across drivers', () => {
 		it('reaches the specimen unchanged through the bench', async () => {
 			const capture = await bench.render({ id: 'context-probe', context });
 			expect(reportOf(capture)).toEqual(expectedReport(context));
-			expect(capture.manifest.context).toEqual(context);
+			const { pixelRatio, observed, resources, ...requested } = capture.manifest.context;
+			expect(requested).toEqual(context);
+			expect(pixelRatio).toBe(1);
+			expect(observed.width).toBe(context.viewport.width);
+			expect(resources.remote).toEqual([]);
 			expect(capture.completeness.layout).toMatchObject({ status: 'complete', reasons: [] });
 		});
 

@@ -215,6 +215,9 @@ node experiments/check-index.mjs --dir BUILD --out FILE
 # The DOM normalizer against the parse5 reference it replaced, on every story's capture.
 node experiments/check-normalizer.mjs --root SNAPSHOT --config FILE --out FILE
 
+# Every 10th story rendered twice by the host, and the two captures compared.
+node experiments/check-repeat.mjs --root SNAPSHOT --config FILE --out FILE
+
 # Lushly's CEM check, typecheck and scaffold on a throwaway clone, and the new story in both runners.
 node experiments/check-scaffold.mjs --snapshot SNAPSHOT --fonts DIR --out DIR
 ```

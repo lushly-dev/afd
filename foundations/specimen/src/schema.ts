@@ -102,6 +102,9 @@ const eventsChannelSchema = z.strictObject({
 		})
 	),
 });
+const pluginVersionsSchema = z.array(
+	z.object({ id: z.string().min(1), version: z.string().min(1).nullable() }).strict()
+);
 export const observationSchema = z
 	.object({
 		manifest: z
@@ -109,7 +112,35 @@ export const observationSchema = z
 				captureVersion: z.string().min(1),
 				normalizationVersion: z.string().min(1),
 				specimenId: z.string().min(1),
-				checkpoint: z.string().min(1),
+				capturedUtc: z.string().min(1),
+				bench: z
+					.object({
+						name: z.string().min(1),
+						version: z.string().min(1),
+						plugins: pluginVersionsSchema,
+					})
+					.strict(),
+				driver: z.object({ name: z.literal('host'), emulates: z.array(z.string()) }).strict(),
+				checkpoint: z
+					.object({
+						name: z.string().min(1),
+						actionMode: z.enum(['none', 'real-input', 'play']),
+						ready: z
+							.object({
+								steps: z.array(z.string()),
+								outcome: z.enum(['ready', 'elements-undefined']),
+								deadlineMs: z.number().positive(),
+							})
+							.strict(),
+						baseline: z
+							.object({
+								clock: z.literal('real'),
+								random: z.object({ source: z.literal('seeded'), seed: z.number() }).strict(),
+								storage: z.literal('empty'),
+							})
+							.strict(),
+					})
+					.strict(),
 				source: z
 					.object({
 						revision: z.string().nullable(),
@@ -118,8 +149,44 @@ export const observationSchema = z
 					})
 					.strict(),
 				dependencies: z.string().min(1),
-				browser: z.object({ name: z.string().min(1), version: z.string().min(1) }).strict(),
-				context: recordedContextSchema,
+				browser: z
+					.object({
+						name: z.string().min(1),
+						version: z.string().min(1),
+						platform: z.string().min(1),
+						build: z.string().min(1).nullable(),
+					})
+					.strict(),
+				context: recordedContextSchema.extend({
+					pixelRatio: z.number().positive(),
+					observed: z
+						.object({
+							width: z.number(),
+							height: z.number(),
+							media: z.boolean(),
+							colorScheme: z.enum(['light', 'dark']),
+							contrast: z.enum(['more', 'less', 'custom', 'no-preference']),
+							reducedMotion: z.enum(['reduce', 'no-preference']),
+							language: z.string(),
+							devicePixelRatio: z.number(),
+						})
+						.strict(),
+					resources: z
+						.object({
+							fonts: z.array(
+								z
+									.object({
+										family: z.string(),
+										weight: z.string(),
+										style: z.string(),
+										status: z.string(),
+									})
+									.strict()
+							),
+							remote: z.array(z.object({ url: z.string(), status: z.number() }).strict()),
+						})
+						.strict(),
+				}),
 			})
 			.strict(),
 		channels: z

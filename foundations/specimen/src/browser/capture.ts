@@ -1,4 +1,9 @@
-import type { BrowserObservation, ElementObservation, SpecimenContext } from '../types.js';
+import type {
+	BrowserObservation,
+	CaptureResources,
+	ElementObservation,
+	SpecimenContext,
+} from '../types.js';
 
 const properties = [
 	'display',
@@ -168,10 +173,29 @@ function serialize(root: Element, elements: Element[]): string {
 	return Array.from(root.childNodes, serializeNode).join('');
 }
 
+/** The fonts and other origins' URLs this document has asked for, in a stable order. */
+function documentResources(): CaptureResources {
+	const fonts = [...document.fonts]
+		.map(({ family, weight, style, status }) => ({ family, weight, style, status }))
+		.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en-US'));
+	const remote = new Map<string, number>();
+	for (const entry of performance.getEntriesByType('resource') as PerformanceResourceTiming[]) {
+		const url = new URL(entry.name);
+		if (url.origin !== location.origin && /^https?:$/.test(url.protocol))
+			remote.set(entry.name, entry.responseStatus);
+	}
+	return {
+		fonts,
+		remote: [...remote]
+			.map(([url, status]) => ({ url, status }))
+			.sort((a, b) => a.url.localeCompare(b.url, 'en-US')),
+	};
+}
+
 export function captureDocument(
 	root: HTMLElement,
 	closedHosts: WeakSet<Element>
-): BrowserObservation {
+): Omit<BrowserObservation, 'ready' | 'plugins'> {
 	const elements = openElements(root);
 	const refs = new Map<Element, string>([[root, 'root']]);
 	const limitations: string[] = [];
@@ -256,6 +280,7 @@ export function captureDocument(
 			language: navigator.language,
 			devicePixelRatio,
 		},
+		resources: documentResources(),
 	};
 }
 

@@ -5,6 +5,9 @@ import { type FastComponentSchema, mergeFastSchema } from './schema.js';
 
 export { type FastComponentSchema, mergeFastSchema } from './schema.js';
 
+/** This package's version, which each capture's manifest records; a test holds it to the package's. */
+const PLUGIN_VERSION = '0.1.0';
+
 /** A FAST-AF theme module's presets, as `@lushly-dev/violet-elements`' theme exports them. */
 export interface FastAfThemes {
 	presets: readonly string[];
@@ -39,6 +42,7 @@ export function fastAf(options: FastAfOptions = {}): SpecimenPlugin {
 		};
 	return {
 		id: 'fast-af',
+		version: PLUGIN_VERSION,
 		schema(tag, base) {
 			const fast = getSchema(tag) as FastComponentSchema | undefined;
 			return fast ? mergeFastSchema(tag, base, fast) : base;

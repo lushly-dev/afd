@@ -1,5 +1,7 @@
+import { RANDOM_SEED } from '../baseline.js';
 import { normalizeDom } from '../normalize.js';
 import type {
+	BrowserObservation,
 	EventDeclaration,
 	InspectResult,
 	MountHandle,
@@ -88,9 +90,24 @@ function toHandle(value: unknown): MountHandle {
 	throw new Error('A specimen renderer must return an HTMLElement or a mount handle.');
 }
 
+/**
+ * Start `Math.random` from a fixed seed (mulberry32). A framework may draw a marker from it once
+ * per page, as FAST does, and an unchanged component should serialize the same way twice.
+ */
+function seedRandom(seed: number): void {
+	let state = seed;
+	Math.random = () => {
+		state = (state + 0x6d2b79f5) | 0;
+		let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+		mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
 /** Install before specimen imports so closed roots and motion have an explicit scope. */
 export function installRuntime(loaders: Record<string, () => Promise<SpecimenModule>>): void {
 	if (window.__specimen) throw new Error('The Specimens runtime is already installed.');
+	seedRandom(RANDOM_SEED);
 	const instrumentation = installInstrumentation();
 	const root = document.querySelector<HTMLElement>('#specimen-root');
 	if (!root) throw new Error('The bench page must contain #specimen-root.');
@@ -102,7 +119,13 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	// Installed once, before any specimen or story module loads.
 	let installed: Promise<InstalledPlugins> | undefined;
 	const plugins = () => {
-		installed ??= installPlugins(loaders);
+		installed ??= installPlugins(loaders).then((registry) => {
+			installedPlugins = registry.plugins.map(({ id, version }) => ({
+				id,
+				version: version ?? null,
+			}));
+			return registry;
+		});
 		return installed;
 	};
 
@@ -191,6 +214,10 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	let nativeAccessibility: NativeAccessibility | undefined;
 	/** Tags a retained story still had undefined when it settled. */
 	const undefinedTags = new Set<string>();
+	/** Whether the mounted native specimen declared a ready hook. */
+	let readyHook = false;
+	/** The installed plugins, once something has asked for them. */
+	let installedPlugins: BrowserObservation['plugins'] = [];
 
 	async function settle(): Promise<void> {
 		const tags = new Set<string>();
@@ -443,6 +470,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				for (const element of openElements(mountRoot)) {
 					if (element.localName.includes('-')) await customElements.whenDefined(element.localName);
 				}
+				readyHook = handle.ready !== undefined || specimen.ready !== undefined;
 				await handle.ready;
 				await specimen.ready?.();
 				await settle();
@@ -466,7 +494,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		capture() {
 			if (!active) throw new Error('Mount a specimen before capturing it.');
 			instrumentation.setMotionMode(motion);
-			const observation = captureDocument(mountRoot, instrumentation.closedHosts);
+			const observation: BrowserObservation = {
+				...captureDocument(mountRoot, instrumentation.closedHosts),
+				ready: {
+					steps: ['upgrade', ...(readyHook ? ['ready-hook'] : []), 'fonts', 'frame'],
+					outcome: undefinedTags.size ? 'elements-undefined' : 'ready',
+				},
+				plugins: installedPlugins,
+			};
 			if (eventRecorder) observation.events = eventRecorder.read();
 			observation.limitations.push(...instrumentation.limitations);
 			for (const tag of undefinedTags)

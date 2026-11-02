@@ -101,7 +101,7 @@ describe('native specimen feasibility in Chromium', () => {
 		).toBe(true);
 		const activated = await bench.render({ id: 'activated', checkpoint: 'checked' });
 		expect(element(activated, 'input').state.checked).toBe(true);
-		expect(activated.manifest.checkpoint).toBe('checked');
+		expect(activated.manifest.checkpoint.name).toBe('checked');
 	});
 
 	it('includes next-frame click and fill updates at action checkpoints', async () => {
@@ -370,7 +370,7 @@ export const Good = {
 			);
 			// Role targets name ARIA's `img`, which Chromium calls `image`.
 			const pictured = await importBench.render({ id: 'pictured', checkpoint: 'hovered' });
-			expect(pictured.manifest.checkpoint).toBe('hovered');
+			expect(pictured.manifest.checkpoint.name).toBe('hovered');
 			await expect(importBench.render({ id: 'broken' })).rejects.toThrow(/Bundling failed/);
 			// Fixing the module rebuilds the bench.
 			await writeFile(

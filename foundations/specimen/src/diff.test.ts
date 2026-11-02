@@ -31,16 +31,40 @@ function capture(): Observation {
 			captureVersion: CAPTURE_VERSION,
 			normalizationVersion: NORMALIZATION_VERSION,
 			specimenId: 'baseline',
-			checkpoint: 'mount',
+			capturedUtc: '2026-11-01T00:00:00.000Z',
+			bench: { name: '@lushly-dev/specimen', version: '1.0.0', plugins: [] },
+			driver: { name: 'host', emulates: [] },
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				ready: { steps: ['upgrade', 'fonts', 'frame'], outcome: 'ready', deadlineMs: 10_000 },
+				baseline: {
+					clock: 'real',
+					random: { source: 'seeded', seed: 1 },
+					storage: 'empty',
+				},
+			},
 			source: { revision: 'a', digest: 'a', dirty: false },
 			dependencies: 'lock-a',
-			browser: { name: 'chromium', version: '151' },
+			browser: { name: 'chromium', version: '151', platform: 'darwin-arm64', build: null },
 			context: {
 				viewport: { width: 1200, height: 900 },
 				theme: 'light',
 				locale: 'en-US',
 				reducedMotion: 'no-preference',
 				motion: 'settled',
+				pixelRatio: 1,
+				observed: {
+					width: 1200,
+					height: 900,
+					media: false,
+					colorScheme: 'light',
+					contrast: 'no-preference',
+					reducedMotion: 'no-preference',
+					language: 'en-US',
+					devicePixelRatio: 1,
+				},
+				resources: { fonts: [], remote: [] },
 			},
 		},
 		channels: {
@@ -182,6 +206,41 @@ describe('diffObservations', () => {
 		expect(result.limitations.join(' ')).toContain('cannot be attributed to source changes alone');
 	});
 
+	it('refuses captures from different baselines or checkpoints, not different readiness', () => {
+		const left = capture();
+		const seeded = capture();
+		seeded.manifest.checkpoint.baseline.random.seed = 2;
+		expect(() => diffObservations(left, seeded)).toThrow('Incompatible captures: checkpoint');
+		const acted = capture();
+		acted.manifest.checkpoint.actionMode = 'play';
+		expect(() => diffObservations(left, acted)).toThrow('Incompatible captures: checkpoint');
+		const slower = capture();
+		slower.manifest.checkpoint.ready.deadlineMs = 20_000;
+		slower.manifest.checkpoint.ready.outcome = 'elements-undefined';
+		expect(diffObservations(left, slower).status).toBe('no-change-observed');
+	});
+
+	it('compares the requested pixel ratio, and only reports what a page observed or loaded', () => {
+		const left = capture();
+		const denser = capture();
+		denser.manifest.context.pixelRatio = 2;
+		expect(() => diffObservations(left, denser)).toThrow('context.pixelRatio');
+		const observed = capture();
+		observed.manifest.context.observed.width = 1;
+		expect(diffObservations(left, observed).status).toBe('no-change-observed');
+		const fonts = capture();
+		fonts.manifest.context.resources.fonts = [
+			{ family: 'A', weight: '400', style: 'normal', status: 'loaded' },
+		];
+		const result = diffObservations(left, fonts);
+		expect(result.status).toBe('no-change-observed');
+		expect(result.limitations.join(' ')).toContain('different fonts');
+		// Remote URLs vary with where a recorded font server listens, so they do not count.
+		const remote = capture();
+		remote.manifest.context.resources.remote = [{ url: 'http://a/', status: 200 }];
+		expect(diffObservations(left, remote).limitations.join(' ')).not.toContain('different fonts');
+	});
+
 	it.each(['captureVersion', 'normalizationVersion'] as const)(
 		'rejects unsupported %s even when both captures use it',
 		(key) => {
@@ -200,7 +259,7 @@ describe('diffObservations', () => {
 				observation.manifest.browser.version = '152';
 			},
 			(observation: Observation) => {
-				observation.manifest.checkpoint = 'after-click';
+				observation.manifest.checkpoint.name = 'after-click';
 			},
 			(observation: Observation) => {
 				observation.manifest.context.viewport.width = 375;
