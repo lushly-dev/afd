@@ -12,6 +12,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./apps": {
+			"types": "./dist/apps/index.d.ts",
+			"import": "./dist/apps/index.js"
 		}
 	},
 	"scripts": {
@@ -32,6 +36,7 @@
 	"dependencies": {
 		"@lushly-dev/fast-element": "workspace:*",
 		"@lushly-dev/loam-kernel": "workspace:*",
+		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
 		"@lushly-dev/violet-elements": "workspace:*"
 	},

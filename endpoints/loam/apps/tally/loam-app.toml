@@ -1,0 +1,52 @@
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "tally"
+title = "Tally"
+version = "0.1.0"
+description = "A counter on main, with its history in a panel and its total in the status bar."
+kind = "native"
+domains = ["tally"]
+license = "MIT"
+
+[native]
+entry = "dist/native.js"
+
+[[grants]]
+name = "store"
+reason = "Keeps the total and its history."
+
+[[commands]]
+name = "tally-add"
+title = "Add to the tally"
+description = "Add to the tally, by one unless a number is given, and return the new total."
+category = "tally"
+effects = ["store-write"]
+input_schema = "schemas/tally-add.input.json"
+
+[[commands]]
+name = "tally-get"
+title = "Read the tally"
+description = "Read the tally's total and the amounts that were added to it."
+category = "tally"
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[ui.layout]
+panel = { open = true }
+
+[ui.surfaces.rail]
+label = "Tally"
+icon = "system/checkmark"
+order = 20
+
+[ui.surfaces.main]
+element = "tally-main"
+
+[ui.surfaces.panel]
+views = [{ id = "history", title = "History", element = "tally-history" }]
+
+[ui.surfaces.status]
+items = [{ id = "total", label = "Total", command = "tally-add" }]

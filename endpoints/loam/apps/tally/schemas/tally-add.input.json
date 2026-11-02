@@ -1,0 +1,12 @@
+{
+	"type": "object",
+	"properties": {
+		"by": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 1000,
+			"description": "How much to add; one when left out"
+		}
+	},
+	"additionalProperties": false
+}

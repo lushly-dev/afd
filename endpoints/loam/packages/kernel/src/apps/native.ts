@@ -75,12 +75,14 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 		try {
 			definition = await ports.importNative(entryUrl);
 		} catch (cause) {
+			// To the page's console and not the record, which `app-get` reports, and so journals (9.6).
+			(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 			throw asError(
 				markFailed(
 					record,
 					'APP_ACTIVATION_FAILED',
-					`The app's module could not be imported: ${cause instanceof Error ? cause.message : String(cause)}`,
-					'Read the error; fix the app, and check that `native.entry` was built'
+					"The app's module could not be imported; read the page's console for why",
+					'Fix the app, and check that `native.entry` was built'
 				)
 			);
 		}

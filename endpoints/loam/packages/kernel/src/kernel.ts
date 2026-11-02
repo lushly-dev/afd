@@ -23,7 +23,12 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { createAppCommands } from './app-commands.js';
-import { type AppCommandRowV1, type AppsRuntime, EMPTY_APPS } from './apps-runtime.js';
+import {
+	type AppCommandRowV1,
+	type AppsRuntime,
+	EMPTY_APPS,
+	unavailableApps,
+} from './apps-runtime.js';
 import { createShellCommands, INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { LoamKernelError } from './errors.js';
@@ -312,35 +317,45 @@ export async function createKernelParts(
 	}
 
 	// `apps/` loads only for a deployment that lists an app, so the empty shell never fetches it.
-	if ((options.deployment?.apps.length ?? 0) > 0) {
-		const { loadApps } = await import('./apps/index.js');
-		apps = await loadApps({
-			deployment: options.deployment as NonNullable<KernelOptionsV1['deployment']>,
-			...(options.ports !== undefined ? { ports: options.ports } : {}),
-			store: options.store,
-			taken: new Set(fixed.map((command) => command.name)),
-			state,
-			viewState,
-			overlays,
-			owners: () => apps.owners,
-			isMutation: (name) => mutations.get(name) === true,
-			commandRows(instance) {
-				const summaries = new Map(summarize(registries.palette).map((row) => [row.name, row]));
-				return registries.palette
-					.listCommands()
-					.filter((command) => apps.owners.get(command.name)?.instance === instance)
-					.map(
-						(command): AppCommandRowV1 => ({
-							...(summaries.get(command.name) as CommandSummaryV1),
-							inputSchema: command.inputSchema,
-							...(command.destructive !== undefined ? { destructive: command.destructive } : {}),
-						})
-					);
-			},
-			runAs: (name, input, callOptions, fields) => run('palette', name, input, callOptions, fields),
-			clock: () => options.clock?.() ?? Date.now(),
-		});
-		keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
+	const listed = options.deployment as NonNullable<KernelOptionsV1['deployment']> | undefined;
+	if (options.appsUnavailable !== undefined) {
+		apps = unavailableApps(listed, state, options.appsUnavailable);
+	} else if (listed && listed.apps.length > 0) {
+		try {
+			const { loadApps } = await import('./apps/index.js');
+			apps = await loadApps({
+				deployment: listed,
+				...(options.ports !== undefined ? { ports: options.ports } : {}),
+				store: options.store,
+				taken: new Set(fixed.map((command) => command.name)),
+				state,
+				viewState,
+				overlays,
+				owners: () => apps.owners,
+				isMutation: (name) => mutations.get(name) === true,
+				commandRows(instance) {
+					const summaries = new Map(summarize(registries.palette).map((row) => [row.name, row]));
+					return registries.palette
+						.listCommands()
+						.filter((command) => apps.owners.get(command.name)?.instance === instance)
+						.map(
+							(command): AppCommandRowV1 => ({
+								...(summaries.get(command.name) as CommandSummaryV1),
+								inputSchema: command.inputSchema,
+								...(command.destructive !== undefined ? { destructive: command.destructive } : {}),
+							})
+						);
+				},
+				runAs: (name, input, callOptions, fields) =>
+					run('palette', name, input, callOptions, fields),
+				clock: () => options.clock?.() ?? Date.now(),
+			});
+			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
+		} catch (cause) {
+			// A chunk that does not load refuses every app, and never the shell (D66).
+			reportKernelError(cause);
+			apps = unavailableApps(listed, state, String((cause as Error)?.message ?? cause));
+		}
 	}
 	setAppCommands(apps.commands);
 

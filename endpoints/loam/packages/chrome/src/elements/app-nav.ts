@@ -13,7 +13,8 @@ import { partHost } from './styles.js';
 export const SETTINGS_TOOLTIP = 'Settings arrive in phase 4';
 
 const template = html<LoamAppNav>`
-	<ul class="entries">
+	<ul class="entries" role="list">
+		<slot></slot>
 		<li
 			class="entry-item"
 			@mouseleave="${(x) => x.resetTip()}"

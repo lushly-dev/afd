@@ -29,7 +29,13 @@ const CONTEXT: Partial<SpecimenContext> = {
  * Specimen's ARIA snapshot is empty while a modal dialog is open (a follow-up in the
  * specification); the palette's capture is checked through its DOM, and axe covers it open.
  */
-const MODAL = new Set(['shell-palette']);
+const MODAL = new Set([
+	'shell-palette',
+	'app-modal',
+	'app-modal-compact',
+	'app-modal-danger',
+	'app-modal-danger-compact',
+]);
 
 function expectClean(observation: Observation, id = observation.manifest.specimenId) {
 	expect(observation.channels.console.errors, id).toEqual([]);
@@ -106,6 +112,40 @@ const CAPTURES: [string, string][] = [
 	['status-item', 'Journal'],
 	['notice', 'heading "Loam is open in another tab"'],
 ];
+
+/** E11 (phase 1 specification, section 14): what apps add, comfortable and compact. */
+const APP_CAPTURES: [string, string][] = [
+	['app-mount', 'An app surface, in its own registry'],
+	['app-mount-undefined', 'APP_ELEMENT_UNDEFINED'],
+	['app-list', 'listbox "Greetings"'],
+	['app-list-empty', 'Nothing here yet.'],
+	['app-list-failed', 'The list could not be read'],
+	['app-part-header', 'button "Greet"'],
+	['app-rail-apps', 'button "Tray (unavailable)"'],
+	['app-tabbar-apps', 'button "Tray (unavailable)"'],
+	['app-status-action', 'button "Total 3"'],
+	['app-toasts', 'status "Notifications"'],
+	['app-modal', 'Say hello?'],
+	['app-modal-danger', 'Delete this?'],
+	['app-notice-embedded', 'heading "Hello"'],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string],
+	[`${id}-compact`, expected] as [string, string],
+]);
+
+describe('E11: Specimen captures of what apps add', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of APP_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				const channel = MODAL.has(id)
+					? observation.channels.dom.normalized
+					: observation.channels.a11y.snapshot;
+				expect(channel, id).toContain(expected);
+			}
+		}, 300_000);
+});
 
 describe('E4: Specimen captures of each part and the whole shell', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)

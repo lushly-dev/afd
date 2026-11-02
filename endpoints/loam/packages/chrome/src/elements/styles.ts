@@ -105,6 +105,10 @@ export const quietButton = css`
 		.quiet:focus-visible {
 			outline-color: Highlight;
 		}
+		.quiet:hover:focus-visible,
+		.quiet[aria-pressed='true']:focus-visible {
+			outline-color: HighlightText;
+		}
 		.quiet[aria-disabled='true'],
 		.quiet:disabled {
 			color: GrayText;

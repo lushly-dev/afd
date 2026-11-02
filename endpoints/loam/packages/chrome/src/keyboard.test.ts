@@ -90,6 +90,33 @@ describe('reserved chords', () => {
 		expect(nextPart([], 'main', 'next')).toBeUndefined();
 	});
 
+	it('matches an app chord after the reserved band, and a digit by its physical key', () => {
+		const bindings = [
+			...SHELL_KEYBINDINGS_V0,
+			{ chord: 'Mod+Shift+H', command: 'hello-greet' },
+			{ chord: 'Mod+Shift+1', command: 'hello-list' },
+			{ chord: 'Mod+K', command: 'hello-forget' },
+		];
+		expect(
+			matchKeybinding(
+				key({ key: 'H', code: 'KeyH', ctrlKey: true, shiftKey: true }),
+				false,
+				bindings
+			)?.command
+		).toBe('hello-greet');
+		expect(
+			matchKeybinding(
+				key({ key: '!', code: 'Digit1', ctrlKey: true, shiftKey: true }),
+				false,
+				bindings
+			)?.command
+		).toBe('hello-list');
+		// A reserved chord wins, and the kernel refuses a manifest's anyway.
+		expect(
+			matchKeybinding(key({ key: 'k', code: 'KeyK', ctrlKey: true }), false, bindings)?.command
+		).toBe('palette-open');
+	});
+
 	it('detects the macOS platform', () => {
 		expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
 		expect(isMacPlatform({ platform: 'Linux x86_64', userAgent: 'X11' })).toBe(false);

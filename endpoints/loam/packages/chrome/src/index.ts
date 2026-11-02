@@ -8,6 +8,7 @@
 export {
 	CHROME_ELEMENTS,
 	defineChrome,
+	defineNotice,
 	definePalette,
 	type MountShellOptions,
 	mountShell,
@@ -18,7 +19,8 @@ export { LoamAppNav, LoamRail, LoamTabbar, SETTINGS_TOOLTIP } from './elements/a
 export { LoamEmptyState } from './elements/empty-state.js';
 export { ACTION_EVENT, type ChromeAction } from './elements/events.js';
 export { LoamMain } from './elements/main.js';
-export { LoamNotice } from './elements/notice.js';
+// As the palette's: it loads when one is needed (defineNotice).
+export type { LoamNotice } from './elements/notice.js';
 // The palette's class stays out of the root graph: it loads after first paint (definePalette).
 export type {
 	LoamPalette,
@@ -27,8 +29,13 @@ export type {
 	PaletteResult,
 } from './elements/palette.js';
 export { LoamPanel } from './elements/panel.js';
-export { LoamResizeHandle } from './elements/resize-handle.js';
-export { type JournalReader, LoamShell, MOCK_SIGN_IN_EMAIL } from './elements/shell.js';
+export type { LoamResizeHandle } from './elements/resize-handle.js';
+export {
+	type JournalReader,
+	LoamShell,
+	MOCK_SIGN_IN_EMAIL,
+	type ShellApps,
+} from './elements/shell.js';
 export { LoamInspector, LoamSidebar, LoamSidePart } from './elements/side-part.js';
 export { LoamStatusItem } from './elements/status-item.js';
 export { LoamStatusbar } from './elements/statusbar.js';

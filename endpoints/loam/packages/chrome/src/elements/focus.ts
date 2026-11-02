@@ -59,3 +59,21 @@ export function trapTab(event: KeyboardEvent, container: Node): void {
 		first.focus();
 	}
 }
+
+/**
+ * Focus a part's host for F6. A shadow host with a negative `tabindex` takes its whole shadow
+ * tree out of the Tab order, so the part has one only while it holds focus itself: Tab, or focus
+ * moving anywhere, removes it, and Tab then continues into the part.
+ */
+export function focusPart(element: HTMLElement): void {
+	element.setAttribute('tabindex', '-1');
+	const clear = (event: Event) => {
+		if (event instanceof KeyboardEvent && event.key !== 'Tab') return;
+		element.removeAttribute('tabindex');
+		element.removeEventListener('keydown', clear);
+		element.removeEventListener('blur', clear);
+	};
+	element.addEventListener('keydown', clear);
+	element.addEventListener('blur', clear);
+	element.focus();
+}

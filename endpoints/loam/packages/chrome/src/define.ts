@@ -9,9 +9,9 @@ import type { LoamKernelV1 } from '@lushly-dev/loam-kernel';
 import { LoamRail, LoamTabbar, railDefinition, tabbarDefinition } from './elements/app-nav.js';
 import { emptyStateDefinition, LoamEmptyState } from './elements/empty-state.js';
 import { LoamMain, mainDefinition } from './elements/main.js';
-import { LoamNotice, noticeDefinition } from './elements/notice.js';
+import type { LoamNotice } from './elements/notice.js';
+import { defineNotice } from './elements/notice-loader.js';
 import { LoamPanel, panelDefinition } from './elements/panel.js';
-import { LoamResizeHandle, resizeHandleDefinition } from './elements/resize-handle.js';
 import { type JournalReader, LoamShell, shellDefinition } from './elements/shell.js';
 import {
 	inspectorDefinition,
@@ -27,8 +27,6 @@ import { applyThemeStylesheet } from './theme.js';
 const ELEMENTS: [typeof FASTElement, { name: string }][] = [
 	[LoamEmptyState, emptyStateDefinition],
 	[LoamStatusItem, statusItemDefinition],
-	[LoamNotice, noticeDefinition],
-	[LoamResizeHandle, resizeHandleDefinition],
 	[LoamTitlebar, titlebarDefinition],
 	[LoamRail, railDefinition],
 	[LoamTabbar, tabbarDefinition],
@@ -40,17 +38,28 @@ const ELEMENTS: [typeof FASTElement, { name: string }][] = [
 	[LoamShell, shellDefinition],
 ];
 
-/** Every element the chrome defines, by tag name; `loam-palette` loads after first paint. */
+/** Every element the chrome defines, by tag name; the last ones load when they are needed. */
 export const CHROME_ELEMENTS: readonly string[] = Object.freeze([
 	...ELEMENTS.map(([, definition]) => definition.name),
 	'loam-palette',
+	'loam-resize-handle',
+	'loam-notice',
+	'loam-mount',
+	'loam-list',
+	'loam-part-header',
+	'loam-app-entry',
+	'loam-status-action',
+	'loam-toast-region',
+	'loam-toast',
+	'loam-modal',
 ]);
 
 let defined: Promise<void> | null = null;
 
+export { defineNotice } from './elements/notice-loader.js';
 export { definePalette } from './elements/palette-loader.js';
 
-/** Define every chrome element once, but the palette, which the shell loads when idle. */
+/** Define every chrome element once, but those that load after first paint (`definePalette`). */
 export function defineChrome(): Promise<void> {
 	defined ??= (async () => {
 		for (const [type, definition] of ELEMENTS) {
@@ -68,6 +77,8 @@ export interface MountShellOptions {
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
 	journal?: JournalReader;
+	/** Whether the deployment lists an app, so the app surfaces load before first paint. */
+	apps?: boolean;
 	/**
 	 * The path main's "Nothing here" links home to. Default: the document's base path. Fixtures
 	 * served under a path of their own set it, so two renders compare equal.
@@ -86,6 +97,7 @@ export async function mountShell(
 	shell.kernel = options.kernel;
 	shell.journal = options.journal ?? null;
 	if (options.home !== undefined) shell.home = options.home;
+	if (options.apps) shell.hasApps = true;
 	container.append(shell);
 	await shell.ready;
 	return shell;
@@ -104,6 +116,7 @@ export async function renderNotice(
 ): Promise<LoamNotice> {
 	applyThemeStylesheet(container.ownerDocument, options.themeCss);
 	await defineChrome();
+	await defineNotice();
 	const notice = container.ownerDocument.createElement('loam-notice') as LoamNotice;
 	notice.heading = options.heading;
 	notice.message = options.message;

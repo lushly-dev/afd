@@ -358,8 +358,9 @@ boundary on main's side, so it is inside the part's landmark.
   `shell.size.focus`, so their ring stays 2px in high contrast.
 - **Moving focus:** F6 and Shift+F6 move between the present parts, in the
   order title bar, rail or tab bar, sidebar, main, inspector, panel, status
-  bar (spec section 7). A modal (the palette, a compact drawer) traps focus
-  and returns it to its opener when it closes.
+  bar (spec section 7). A modal (the palette, a compact drawer, an app's modal)
+  traps focus and returns it to its opener when it closes. When a surface
+  holding focus leaves on an app switch, focus moves to main.
 
 ### States
 
@@ -432,7 +433,8 @@ root (spec 5.3, D33):
 - **Layers** for anything else: `z-index.raised` for a card lifted on hover,
   `z-index.sticky` for sticky headers inside a part, `z-index.popover` for
   tooltips and popovers, `z-index.toast` for toasts.
-- **At most one modal.** Opening the palette closes a compact drawer first.
+- **At most one modal.** Opening the palette closes a compact drawer first, and
+  an app's modal closes the palette and a compact drawer first.
 - **Logical properties.** Use `inline-start`, `inline-end`, `block-start`
   and `block-end`, never `left` and `right`, so a right-to-left document
   mirrors the shell.
@@ -471,7 +473,8 @@ How a pull request shows each item:
 One line per component of Loam's kit and chrome: its element, what it is,
 and the pull request that merged it under the checklist. Phase 0's kit is
 only what the empty shell uses (spec section 7); step 7 built them. Each has
-a fixture in `packages/chrome/specimens/chrome.specimens.ts`.
+a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps add, in
+`packages/chrome/specimens/apps.specimens.ts`, in both densities.
 
 | Element | What | Merged |
 | --- | --- | --- |
@@ -488,7 +491,15 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`.
 | `loam-palette` | A `violet-dialog` with a `combobox` field and a `violet-listbox` of results; Enter runs, failures show in its `status` footer; loads after first paint | Step 7 (this pull request) |
 | `loam-empty-state` | `violet-empty-state` as parts use it: one sentence saying what will appear there | Step 7 (this pull request) |
 | `loam-status-item` | One item of the status bar: an optional muted label before its value | Step 7 (this pull request) |
-| `loam-notice` | A full-page notice in place of the shell ("Loam is open in another tab", a kernel version mismatch): `main` with an `h1`; it sets the font family itself, since no shell is present | Step 7 (this pull request) |
+| `loam-notice` | A full-page notice in place of the shell ("Loam is open in another tab", a kernel version mismatch): `main` with an `h1`; it sets the font family itself, since no shell is present. With `embedded`, main's explanation of a refused or failed app: a `region` with its `h1`, its message and a suggestion. It loads when one is shown | Step 7 (this pull request); `embedded` in phase 1 step 4 |
+| `loam-mount` | The mount contract: a plain element whose shadow root uses one app's scoped registry, `all: initial` so tokens flow and inherited styles do not; shows `APP_ELEMENT_UNDEFINED` itself. It does not animate | Phase 1 step 4 |
+| `loam-list` | A `list` sidebar, and a kit element: a `violet-listbox` over `{ items }`, with `aria-busy` and "Loading…" while reading, one line for empty and `role="alert"` for a failed read; the active row has the focus ring, and a selection the control colors and a start-edge bar | Phase 1 step 4 |
+| `loam-part-header` | Main's header surface: a title, not a heading, since an app's main holds its `h1`, and up to three actions, the first primary; one that needs input is `aria-disabled` | Phase 1 step 4 |
+| `loam-app-entry` | One app in the rail or the tab bar: `aria-current="page"` with the selected colors and a start-edge bar, "(unavailable)" and `system/warning` for a failed or refused app, `aria-busy` while loading; in the rail its label is `aria-label` and a tooltip that Escape dismisses | Phase 1 step 4 |
+| `loam-status-action` | A status item with a command: a compact button showing the same muted label and value as `loam-status-item` | Phase 1 step 4 |
+| `loam-toast-region` | `role="status"`, "Notifications", in the top layer with `popover="manual"` at the inline-end block-end corner, open while empty so it is a live region before its text arrives | Phase 1 step 4 |
+| `loam-toast` | One toast: its tone as an icon and a word (visible for warning and danger) as well as `color.state.*` over `color.surface.floating`, `shadow.floating`, a dismiss button; `role="alert"` when `danger`; its timer stops while hovered, focused or behind a modal; opacity only for motion | Phase 1 step 4 |
+| `loam-modal` | An overlay's modal: a native `<dialog>` from `showModal()`, title in `h2`, a body and two buttons as text; focus on cancel when `danger`, otherwise confirm; Escape cancels, Tab wraps, focus returns to the invoker | Phase 1 step 4 |
 
 ## Open questions
 
@@ -630,3 +641,7 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`.
     `inert`; main stays in the tree.
   - **No flash at boot.** The shell renders its parts only after the first
     `appearance-get`, so the theme is on the document before anything paints.
+- **2026-11-02. Native apps (phase 1 step 4).** `loam-mount`, `loam-list`,
+  `loam-part-header`, `loam-app-entry`, `loam-status-action`, `loam-toast-region`,
+  `loam-toast` and `loam-modal` join the chrome behind a dynamic import, with no
+  new token. The contract stays version 1.

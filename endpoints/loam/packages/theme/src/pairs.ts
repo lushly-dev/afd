@@ -54,6 +54,16 @@ const FIELD_BACKGROUNDS = ['color.field.background', 'color.field.background.rea
 const HIGH_CONTRAST = ['high-contrast'] as const;
 
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
+	// An app's entry and a selected row: the ring inside a selected or a hovered item (phase 1, step 4).
+	...on(
+		['color.focus.ring'],
+		[
+			'color.control.selected.background',
+			'color.action.secondary.hover',
+			'color.action.secondary.pressed',
+		],
+		'non-text'
+	),
 	// Text on surfaces.
 	...on(['color.text.primary', 'color.text.secondary', 'color.text.muted'], SURFACES, 'text'),
 	// Action text on action backgrounds, in every state.
