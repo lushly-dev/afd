@@ -9,6 +9,7 @@ import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
 import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
 import type { Browser, BrowserContext, BrowserContextOptions, Frame, Page } from 'playwright';
+import { createMountRelay, type MountRelay } from '../mounted/mount-relay';
 
 export const DIST = resolve(fileURLToPath(new URL('../../dist', import.meta.url)));
 
@@ -30,10 +31,15 @@ export interface LoggedRequest {
 /** Serves a directory over loopback HTTP, so the page's CSP applies as deployed. */
 async function serveDirectory(
 	root: string,
-	options: { only?: string; headers?: () => Record<string, string> } = {}
+	options: {
+		only?: string;
+		headers?: () => Record<string, string>;
+		relay?: () => MountRelay | undefined;
+	} = {}
 ): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> }> {
 	const log: LoggedRequest[] = [];
 	const server: Server = createServer(async (request, response) => {
+		if (options.relay?.()?.handle(request, response)) return;
 		const path = new URL(request.url ?? '/', 'http://localhost').pathname;
 		const file = normalize(join(root, path === '/' ? 'index.html' : path));
 		if (
@@ -93,7 +99,7 @@ const packed = new Map<string, Promise<string>>();
 /** `loam app pack` on an app's built source, once a run, in a temporary directory. */
 export function packApp(
 	app: 'hello' | 'tally',
-	kind: 'native' | 'view' = 'native'
+	kind: 'native' | 'view' | 'mounted' = 'native'
 ): Promise<string> {
 	const key = `${app}-${kind}`;
 	const held = packed.get(key);
@@ -120,6 +126,8 @@ export interface DeploymentSite {
 	projection: ProjectionV1;
 	/** With `sandbox: true`, the second origin that serves `sandbox/`, and its log. */
 	sandbox?: { origin: string; log: LoggedRequest[] };
+	/** With `mounts: true`, the test-only relay at `mounts/<instance>/mcp`, and its log. */
+	relay?: MountRelay;
 	close: () => Promise<void>;
 }
 
@@ -127,11 +135,13 @@ export interface DeploymentSite {
  * `writeDeployment` into a temporary directory, then served, as a deployer does (phase 1 specification,
  * section 14). `config` is the file's text: a relative `package` is relative to that directory, so a
  * test names an absolute one. `sandbox: true` serves `sandbox/` on a second loopback origin, with
- * `frame-ancestors` naming the shell's, as a deployer does (6.1). Step 7 adds the relay.
+ * `frame-ancestors` naming the shell's, as a deployer does (6.1). `mounts: true` serves the test-only
+ * relay at `mounts/<instance>/mcp` (7.1), with `writeDeployment`'s `mounts`, held in memory.
  */
 export async function serveDeployment(options: {
 	config: string;
 	sandbox?: true;
+	mounts?: true;
 }): Promise<DeploymentSite> {
 	const directory = await mkdtemp(join(tmpdir(), 'loam-deployment-'));
 	const config = join(directory, 'loam.deployment.toml');
@@ -152,14 +162,18 @@ export async function serveDeployment(options: {
 	);
 	const written = await writeDeployment({ config, dist: DIST, out });
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
-	const site = await serveDirectory(out);
+	const relay = options.mounts ? createMountRelay(written.mounts) : undefined;
+	const site = await serveDirectory(out, { relay: () => relay });
 	shellOrigin = site.origin;
+	relay?.setOrigin(site.origin);
 	return {
 		...site,
 		out,
 		projection: written.projection,
 		...(sandbox ? { sandbox: { origin: sandbox.origin, log: sandbox.log } } : {}),
+		...(relay ? { relay } : {}),
 		async close() {
+			relay?.abort();
 			await sandbox?.close();
 			await site.close();
 			await rm(directory, { recursive: true, force: true });

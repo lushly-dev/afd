@@ -12,6 +12,7 @@ const command = (over: Partial<ConsoleCommand>): ConsoleCommand => ({
 	name: 'demo-ping',
 	mutation: false,
 	destructive: false,
+	approval: false,
 	inputSchema: {},
 	...over,
 });
@@ -37,6 +38,7 @@ describe('readCommands: a row may be a mounted server', () => {
 				description: 'D',
 				mutation: true,
 				destructive: true,
+				approval: false,
 				inputSchema: { type: 'object' },
 			},
 		]);
@@ -52,6 +54,7 @@ describe('readCommands: a row may be a mounted server', () => {
 			name: 'a-b',
 			mutation: false,
 			destructive: false,
+			approval: false,
 			inputSchema: undefined,
 		});
 	});
@@ -87,5 +90,26 @@ describe('the filter', () => {
 		expect(filterStatus(2, 2, '')).toBe('');
 		expect(filterStatus(2, 1, ' a ')).toBe('1 of 2 commands');
 		expect(filterStatus(2, 0, ' a ')).toBe('No command matches "a".');
+	});
+});
+
+describe('a reported approval', () => {
+	it('is read only as the word the protocol uses', () => {
+		const [named, other] = readCommands([
+			{ name: 'a-b', approval: 'required' },
+			{ name: 'c-d', approval: { create: 1 } },
+		]);
+		expect(named?.approval).toBe(true);
+		expect(other?.approval).toBe(false);
+	});
+
+	it('is said in words, beside what else a row says', () => {
+		expect(rowFlag(command({ approval: true }))).toBe('Needs approval');
+		expect(rowFlag(command({ mutation: true, approval: true }))).toBe(
+			'Changes data, Needs approval'
+		);
+		expect(rowFlag(command({ destructive: true, approval: true }))).toBe(
+			'Destructive, Needs approval'
+		);
 	});
 });

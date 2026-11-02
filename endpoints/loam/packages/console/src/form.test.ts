@@ -326,3 +326,58 @@ describe('a hostile schema', () => {
 		expect(only(model).required).toBe(false);
 	});
 });
+
+describe('an untrusted pattern is not run where it could stall the tab', () => {
+	const checked = (pattern: string, value: string) => {
+		const model = form({ a: { type: 'string', pattern } });
+		return readForm(model, { a: value }).ok;
+	};
+
+	it('still checks an ordinary one', () => {
+		expect(checked('^[a-z]+$', 'abc')).toBe(true);
+		expect(checked('^[a-z]+$', 'ABC')).toBe(false);
+		expect(checked('^[a-z]+-[a-z]+$', 'ab-cd')).toBe(true);
+		expect(checked('^[a-z]+-[a-z]+$', 'abcd')).toBe(false);
+		expect(checked('^a{2,4}$', 'a')).toBe(false);
+	});
+
+	it.each([
+		['a quantified group', '^(a+)+$'],
+		['a quantified alternation', '^(a|a)*$'],
+		['a bounded quantified group', '^(a+){2,}$'],
+		['a backreference', '^(a)\\1$'],
+		['a lookahead', '^(?=a)a$'],
+		['three quantifiers', '^a*a*a*b$'],
+		['a chain of alternations', `^${'(a|a)'.repeat(50)}$`],
+		['a chain of alternations on anything', `^${'(.|.)'.repeat(50)}$`],
+		['a chain of optionals', `^a*${'a?'.repeat(30)}$`],
+		['three bounded quantifiers', '^a{1,1000}a{1,1000}a{1,1000}$'],
+		['one past the length it reads', `^${'a'.repeat(300)}$`],
+	])('skips %s, and leaves it to the server', (_name, pattern) => {
+		const started = performance.now();
+		expect(checked(pattern, `${'a'.repeat(60)}!`)).toBe(true);
+		expect(performance.now() - started).toBeLessThan(1_000);
+	});
+
+	it('counts neither a quantifier in a character class nor an escaped one', () => {
+		expect(checked('^[+*]+[(+)]+$', '+(')).toBe(true);
+		expect(checked('^[+*]+[(+)]+$', 'ab')).toBe(false);
+		expect(checked('^\\+\\*\\(\\)a+$', '+*()')).toBe(false);
+	});
+
+	it('takes at most a moment over what it does run', () => {
+		const started = performance.now();
+		expect(checked('^a*a*$', `${'a'.repeat(999)}!`)).toBe(false);
+		expect(performance.now() - started).toBeLessThan(2_000);
+	});
+
+	it('leaves a value past the length it reads to the server', () => {
+		const long = `${'a'.repeat(1_001)}!`;
+		expect(checked('^a+$', long)).toBe(true);
+	});
+
+	it('still says what the pattern asks, whether or not it runs', () => {
+		const [field] = form({ a: { type: 'string', pattern: '^(a+)+$' } }).fields;
+		expect(field?.help).toContain('^(a+)+$');
+	});
+});

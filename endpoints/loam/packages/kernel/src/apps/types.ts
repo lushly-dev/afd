@@ -5,6 +5,7 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
@@ -29,6 +30,8 @@ export interface AppsHost {
 	isMutation(name: string): boolean;
 	/** The palette registry's commands of `instance`. */
 	commandRows(instance: string): AppCommandRowV1[];
+	/** A discovery changed the apps' commands: build the registries again (7.3). */
+	setCommands(commands: readonly ZodCommandDefinition[]): void;
 	/** Run a command on the palette registry with fields set by trusted code. */
 	runAs<T>(
 		name: string,

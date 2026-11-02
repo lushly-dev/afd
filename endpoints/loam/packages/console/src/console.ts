@@ -67,6 +67,7 @@ interface InstanceReading {
 	commands: number;
 	hidden: number;
 	error?: Failure;
+	warnings?: Array<{ code: string; message: string }>;
 }
 
 const failureText = (failure: Failure): string => `Failed: ${failure.message} (${failure.code})`;
@@ -75,9 +76,10 @@ const failureText = (failure: Failure): string => `Failed: ${failure.message} ($
 function outcomeText(name: string, result: CommandResult): string {
 	if (result.success === true) return `${name} succeeded`;
 	const { code, message, suggestion } = result.error ?? {};
-	const parts = [String(code ?? 'no error given')];
-	if (message !== undefined) parts.push(String(message));
-	if (suggestion !== undefined) parts.push(String(suggestion));
+	// Only text: a frame's or a server's other shapes may not even have a `toString`.
+	const parts = [typeof code === 'string' ? code : 'no error given'];
+	if (typeof message === 'string') parts.push(message);
+	if (typeof suggestion === 'string') parts.push(suggestion);
 	return `${name} failed: ${parts.join('. ')}`;
 }
 
@@ -156,6 +158,7 @@ const template = html<LoamConsole>`
 					<p class="secondary" ?hidden="${(x) => (x.mounted?.hidden ?? 0) === 0}">
 						${(x) => `${x.mounted?.hidden ?? 0} hidden: the deployer exposes these`}
 					</p>
+					${repeat((x) => x.mounted?.warnings ?? [], noticeTemplate)}
 				</div>
 			`
 		)}
@@ -339,6 +342,11 @@ export class LoamConsole extends FASTElement {
 		this.#applyFilter();
 		const kept = this.commands.find(({ name }) => name === this.selected?.name);
 		this.#select(kept ?? this.commands[0] ?? null);
+	}
+
+	/** A discovery from elsewhere, an agent's or the automatic one. Its own Refresh re-reads when it ends. */
+	async reload(): Promise<void> {
+		if (!this.refreshing) await this.load();
 	}
 
 	// ─── The list ──────────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ import {
 	transportOf,
 } from './entry.js';
 import { createFrameHost, type FrameHost, visibleToApp } from './handler-frame.js';
+import { createMountedHost } from './mounted.js';
 import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
@@ -216,19 +217,31 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 			if (transport === 'stdio') {
 				record.notices.push({ code: 'STDIO_TRUSTED_CODE', message: NOTICES_V1.STDIO_TRUSTED_CODE });
 			}
-			return settle(
+			if (transport === 'stdio') {
+				return settle(
+					record,
+					'failed',
+					errorOf(
+						'MOUNT_TRANSPORT_UNAVAILABLE',
+						'A browser host cannot start a process, so a `stdio` instance cannot run here.',
+						'Use `http`, or the desktop or hosted lane.'
+					)
+				);
+			}
+			// Its commands arrive with `startInstances`, in the background after first paint (7.3).
+			record.state = 'loading';
+			record.mounted = createMountedHost({
 				record,
-				'failed',
-				errorOf(
-					'MOUNT_TRANSPORT_UNAVAILABLE',
-					transport === 'stdio'
-						? 'A browser host cannot start a process, so a `stdio` instance cannot run here.'
-						: 'This kernel does not discover mounted instances yet: phase 1 step 7 adds it.',
-					transport === 'stdio'
-						? 'Use `http`, or the desktop or hosted lane.'
-						: 'Wait for phase 1 step 7, which serves the route `mounts/<instance>/mcp`.'
-				)
-			);
+				entry,
+				manifest,
+				host,
+				ports,
+				commands,
+				owners,
+			});
+			hosts.push(record.mounted);
+			records.set(record.instance, record);
+			return undefined;
 		}
 
 		const held = (manifest.commands ?? []).find((command) => host.taken.has(command.name));

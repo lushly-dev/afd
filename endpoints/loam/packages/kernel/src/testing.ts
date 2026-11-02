@@ -308,6 +308,13 @@ export async function replayKernel(
 				const entry = byTrace.get(context.traceId);
 				if (entry && answeredFromRecord(entry)) {
 					recorded.push(entry.seq);
+					if (entry.command === 'app-instance-refresh' && entry.result.success) {
+						const { instance, catalog } = entry.result.data as {
+							instance?: unknown;
+							catalog?: unknown;
+						};
+						if (typeof instance === 'string') parts.applyCatalog(instance, catalog);
+					}
 					return entry.result;
 				}
 				const { registries } = parts;

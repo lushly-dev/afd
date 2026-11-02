@@ -37,6 +37,7 @@ export const CEILINGS = Object.freeze({
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,
+	mountMinified: 238_268,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -119,6 +120,8 @@ async function measurePage() {
 	const view = closure(/^assets\/view-/, afterSurfaces);
 	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
+	const mount = closure(/^assets\/mount-/, afterSurfaces);
+	if (mount.size === 0) throw new Error('budget: the build has no `mount` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -135,6 +138,7 @@ async function measurePage() {
 		surfacesMinified: sizeOf(surfaces),
 		viewMinified: sizeOf(view),
 		consoleMinified: sizeOf(consoleFiles),
+		mountMinified: sizeOf(mount),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
 		cssMinified:
@@ -200,6 +204,7 @@ const ROWS = [
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
 	['consoleMinified', 'The `console` chunk and its imports, minified'],
+	['mountMinified', 'The `mount` chunk and its imports, minified: the MCP client'],
 ];
 
 export async function measure() {

@@ -8,6 +8,7 @@ import { NodeStreamableHTTPServerTransport, toNodeHandler } from '@modelcontextp
 import { createMcpHandler, Server } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { McpClient } from './client.js';
+import { StreamableHttpTransport } from './streamable-http-transport.js';
 import { createTransport } from './transport.js';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -74,6 +75,30 @@ function client(url: string, extra: Partial<ConstructorParameters<typeof McpClie
 }
 
 describe('streamable-http transport', () => {
+	it('sends every request through a fetch it is given', async () => {
+		const url = await legacyOnlyServer();
+		const seen: string[] = [];
+		const transport = new StreamableHttpTransport(url, {
+			clientName: 'test',
+			clientVersion: '1',
+			mode: 'legacy',
+			fetch: (input, init) => {
+				seen.push(init?.method ?? 'GET');
+				return fetch(input, init);
+			},
+		});
+		await transport.connect();
+		cleanups.push(async () => transport.disconnect());
+		const listed = await transport.send({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/list',
+			params: {},
+		} as never);
+		expect((listed.result as { tools: unknown[] }).tools).toHaveLength(1);
+		expect(seen.filter((method) => method === 'POST').length).toBeGreaterThanOrEqual(2);
+	});
+
 	it('is the default for a /mcp URL and negotiates MCP 2026-07-28 with a dual-era server', async () => {
 		const url = await dualEraServer();
 		// No transport option: a URL that does not end in /sse selects streamable-http.

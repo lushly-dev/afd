@@ -4,8 +4,9 @@
  * empty shell loads neither the readers nor the validators, and holds only {@link EMPTY_APPS}.
  */
 
-import { type CommandResult, success } from '@lushly-dev/afd-core';
+import { type CommandResult, type JournalRecord, success } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
 import type { ShellState } from './shell-state.js';
@@ -21,6 +22,8 @@ import type {
 export interface CommandOwner {
 	app: string;
 	instance: string;
+	/** A mounted command: its call is recorded, and a replay does not reach the server (7.6). */
+	recorded?: true;
 }
 
 /** One row of `app-command-list`. */
@@ -28,6 +31,8 @@ export type AppCommandRowV1 = CommandSummaryV1 & {
 	inputSchema: unknown;
 	destructive?: boolean;
 	replay?: 'recorded';
+	/** Reported by a mounted server. Displayed: enforcement is the server's own until phase 5 (7.4). */
+	approval?: 'required';
 };
 
 /** What the app commands do, once `apps/` has loaded. */
@@ -51,8 +56,14 @@ export interface AppsRuntime {
 	close(): CommandResult<{ active: null; previous: string | null }>;
 	commandList(instance: string): CommandResult<{ commands: AppCommandRowV1[]; hidden: number }>;
 	instances(): AppInstanceV1[];
-	/** `app-instance-refresh`: discovery arrives with step 7, so this answers why it cannot run. */
+	/** `app-instance-refresh`: a mounted instance's discovery, or why it cannot run. */
 	refreshInstance(instance: string): Promise<CommandResult>;
+	/** What a call of `name` carries in its context: who owns it, and whether it is recorded (7.6). */
+	contextOf(name: string, input: unknown): KernelFieldContext;
+	/** A journal entry as it is kept: a mounted server's result is bounded (7.6). */
+	redact(record: JournalRecord): JournalRecord;
+	/** Register a catalog a journal recorded, with no network. Only a replay has one. */
+	applyCatalog(instance: string, catalog: unknown): void;
 	selection(instance: string): CommandResult<{ id: string | null }>;
 	setSelection(instance: string, id: string | null): CommandResult<{ id: string | null }>;
 	setStatusItem(
@@ -96,6 +107,9 @@ export const EMPTY_APPS: AppsRuntime = Object.freeze({
 	commandList: unknownApp,
 	instances: () => [],
 	refreshInstance: (instance: string) => Promise.resolve(unknownApp(instance)),
+	contextOf: () => ({}),
+	redact: (record: JournalRecord) => record,
+	applyCatalog() {},
 	selection: unknownApp,
 	setSelection: unknownApp,
 	setStatusItem: () =>

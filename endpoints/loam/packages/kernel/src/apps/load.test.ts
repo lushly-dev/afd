@@ -342,7 +342,7 @@ describe('mounted instances before discovery', () => {
 			...extra,
 		});
 
-	it('lists an instance as failed, with no location or credential, and says why', async () => {
+	it('lists an instance as loading until it is discovered, with no location or credential', async () => {
 		const { kernel, journal } = await boot(
 			[mounted('work', { prefix: 'work', audience: 'team' })],
 			{ 'apps/work/': { manifest: mountedManifest() } }
@@ -355,7 +355,7 @@ describe('mounted instances before discovery', () => {
 				prefix: 'work',
 				audience: 'team',
 				transport: 'http',
-				state: 'failed',
+				state: 'loading',
 				commands: 0,
 			}),
 		]);
@@ -364,7 +364,7 @@ describe('mounted instances before discovery', () => {
 			'TEAM_INSTANCE_SINGLE_PRINCIPAL',
 		]);
 		const refresh = await kernel.call('app-instance-refresh', { instance: 'work' });
-		expect(refresh.error?.code).toBe('MOUNT_TRANSPORT_UNAVAILABLE');
+		expect(refresh.error?.code).toBe('MOUNT_UNREACHABLE');
 		await kernel.startInstances();
 		const refreshes = (await journal.read()).filter(
 			(journalEntry) => journalEntry.command === 'app-instance-refresh'

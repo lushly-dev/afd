@@ -80,11 +80,25 @@ export const SUITES = [
 	},
 	{
 		workflow: 'loam.yml',
-		tools: ['chromium'],
+		tools: ['chromium', 'cargo'],
 		steps: [
-			{ gate: 'run', run: 'pnpm -F "@lushly-dev/loam-web..." build' },
-			{ gate: 'run', run: 'pnpm -F "./endpoints/loam/packages/*" test --coverage' },
+			{ gate: 'mounted', run: 'pnpm -F "@lushly-dev/loam-web..." build' },
+			{
+				gate: 'run',
+				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" typecheck',
+			},
+			{
+				gate: 'run',
+				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage',
+			},
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
+			{
+				gate: 'run',
+				run: 'pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally lint:tokens',
+			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:browser' },
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
+			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
 		],
 	},
 	{

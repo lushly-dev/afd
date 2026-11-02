@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-app-hello",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's reference app: one handler module, native and a sandboxed view, and a mounted app later",
+	"description": "Loam's reference app: one handler module, native and a sandboxed view, and mounted from a server",
 	"license": "MIT",
 	"type": "module",
 	"engines": {
@@ -15,7 +15,8 @@
 		"test": "vitest run",
 		"lint:tokens": "loam-lint-tokens \"src/**/*.ts\"",
 		"pack": "loam app pack . --manifest manifests/native.toml --out dist/package",
-		"pack:view": "loam app pack . --manifest manifests/view.toml --out dist/package-view"
+		"pack:view": "loam app pack . --manifest manifests/view.toml --out dist/package-view",
+		"pack:mounted": "loam app pack . --manifest manifests/mounted.toml --out dist/package-mounted"
 	},
 	"dependencies": {
 		"@lushly-dev/fast-element": "workspace:*",
