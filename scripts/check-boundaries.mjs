@@ -193,7 +193,9 @@ function imports(text, file) {
 }
 
 function publicImport(target, specifier) {
-	const subpath = specifier === target.name ? '.' : `.${specifier.slice(target.name.length)}`;
+	// A bundler query (Vite's `?inline`, `?raw`, `?url`) names how to load the file, not another one.
+	const bare = specifier.replace(/\?.*$/, '');
+	const subpath = bare === target.name ? '.' : `.${bare.slice(target.name.length)}`;
 	if (!target.data.exports) return subpath === '.';
 	return exportEntries(target.data.exports).some((entry) => {
 		if (!entry.export.includes('*')) return entry.export === subpath;

@@ -113,6 +113,12 @@ importers:
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/violet-elements
     devDependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/specimen':
+        specifier: workspace:*
+        version: link:../../../../foundations/specimen
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -193,6 +199,12 @@ importers:
 
   endpoints/loam/packages/web:
     dependencies:
+      '@lushly-dev/afd-auth':
+        specifier: workspace:*
+        version: link:../../../../packages/auth
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
       '@lushly-dev/loam-chrome':
         specifier: workspace:*
         version: link:../chrome
@@ -202,6 +214,12 @@ importers:
       '@lushly-dev/loam-theme':
         specifier: workspace:*
         version: link:../theme
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@lushly-dev/specimen':
         specifier: workspace:*
@@ -212,12 +230,21 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@vitest/browser':
+        specifier: 4.1.12
+        version: 4.1.12(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: ^4.1.12
+        version: 4.1.12(playwright@1.64.0)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
       '@vitest/coverage-v8':
         specifier: ^4.1.12
         version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
       axe-core:
         specifier: 4.13.0
         version: 4.13.0
+      fake-indexeddb:
+        specifier: ^6.2.7
+        version: 6.2.7
       playwright:
         specifier: ^1.64.0
         version: 1.64.0

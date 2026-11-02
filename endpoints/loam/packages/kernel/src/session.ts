@@ -49,6 +49,39 @@ export interface RecordedSession {
 
 const SESSION_START = Date.UTC(2026, 0, 1);
 
+export interface TestKernelOptions {
+	/** Default: one that matches no media query. */
+	environment?: KernelEnvironmentV0;
+	commands?: ZodCommandDefinition[];
+	clock?: () => number;
+	random?: () => number;
+}
+
+export interface TestKernel {
+	kernel: LoamKernelV0;
+	journal: MemoryJournalSink;
+}
+
+/**
+ * A kernel over `MemoryAdapter`, `MemoryJournalSink` and `MockAuthAdapter`, with host `test`: what
+ * a chrome fixture or test renders against (added by step 7).
+ */
+export async function createTestKernel(options: TestKernelOptions = {}): Promise<TestKernel> {
+	const journal = new MemoryJournalSink();
+	const { kernel } = await createKernelParts({
+		store: new MemoryAdapter(),
+		storeKind: 'memory',
+		journal,
+		auth: new MockAuthAdapter(),
+		environment: options.environment ?? createFixedEnvironment(),
+		host: 'test',
+		...(options.commands !== undefined ? { commands: options.commands } : {}),
+		...(options.clock !== undefined ? { clock: options.clock } : {}),
+		...(options.random !== undefined ? { random: options.random } : {}),
+	});
+	return { kernel, journal };
+}
+
 /** A clock that advances one millisecond per reading, from `start`. */
 export function createSteppingClock(start = SESSION_START): () => number {
 	let now = start;

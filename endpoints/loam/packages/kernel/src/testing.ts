@@ -19,7 +19,7 @@ import { LoamKernelError } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { createFixedEnvironment } from './session.js';
-import type { KernelEnvironmentV0 } from './types.js';
+import type { KernelEnvironmentV0, LoamKernelV0 } from './types.js';
 
 export {
 	createReferenceWorkspace,
@@ -30,12 +30,15 @@ export {
 	createFixedEnvironment,
 	createSeededRandom,
 	createSteppingClock,
+	createTestKernel,
 	type RecordedSession,
 	type RecordSessionOptions,
 	recordSession,
 	runSession,
 	SESSION_50,
 	type SessionCall,
+	type TestKernel,
+	type TestKernelOptions,
 } from './session.js';
 
 // ─── Replay ─────────────────────────────────────────────────────────────────────
@@ -63,6 +66,11 @@ export interface ReplayKernelOptions {
 	commands?: ZodCommandDefinition[];
 	/** Result paths left out besides {@link REPLAY_IGNORE}. */
 	ignore?: readonly string[];
+	/**
+	 * Keep the replayed kernel and return it as `kernel`, for a chrome to render; the caller
+	 * disposes it. Added by step 7 for E2's replay fixture.
+	 */
+	keep?: boolean;
 }
 
 export interface ReplayKernelResult {
@@ -71,6 +79,8 @@ export interface ReplayKernelResult {
 	layout: LayoutStateV0;
 	/** `appearance-get` after the last entry. */
 	appearance: AppearanceV0;
+	/** The replayed kernel, when `keep` was set; the caller disposes it. */
+	kernel?: LoamKernelV0;
 }
 
 /** The first difference of a report, for a divergence message. */
@@ -119,6 +129,7 @@ export async function replayKernel(
 		host: 'test',
 		...(options.commands !== undefined ? { commands: options.commands } : {}),
 	});
+	let kept = false;
 	try {
 		const target: JournalReplayTarget = {
 			execute(name: string, input: unknown, context: CommandContext = {}) {
@@ -143,13 +154,16 @@ export async function replayKernel(
 		}
 		const layout = await kernel.call<LayoutStateV0>('layout-get');
 		const appearance = await kernel.call<AppearanceV0>('appearance-get');
+		kept = options.keep === true;
 		return {
 			report,
 			layout: layout.data as LayoutStateV0,
 			appearance: appearance.data as AppearanceV0,
+			...(options.keep ? { kernel } : {}),
 		};
 	} finally {
-		await kernel.dispose();
+		// A kept kernel is the caller's; one that diverged is disposed here all the same.
+		if (!kept) await kernel.dispose();
 	}
 }
 
