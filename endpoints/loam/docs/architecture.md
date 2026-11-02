@@ -250,6 +250,9 @@ for what happens when the active app changes.
 | project-summary | A command returning counts, recent items and links for a project | Shell, rendered in the projects section | Stays |
 | account | Sections in the account area, as settings | Shell | Stays |
 
+Catalog version 1 and what phase 1 serves of it are in the
+[phase 1 specification](phases/1-app-contract/spec.md#4-surfaces-grants-and-compositions) (D67).
+
 ### Overlay policy
 
 | Kind | Lifetime | On app switch | Placement | Limit |
@@ -346,12 +349,14 @@ sequenceDiagram
   `presence`, `thread`, `copilot`, `run`, `automation`, `autonomy`,
   `approval`, `agent`, `pack`, `view-state`, `layout`, `toast`, `dialog`,
   `modal`, `popover`, `prompt`, `overlay`, `appearance`, `palette`,
-  `setting`, `experiment`,
+  `status`, `setting`, `experiment`,
   `notification`, `event`, `account`, `persona`, `session` and the `auth-*`
   commands from the auth adapter. An app's domain is its id. A mounted
   server's tools are renamed into the rule under the mount's prefix, with
   the original name kept in `_meta`.
-- **Shell commands, minimum.** `app-list`, `app-open`; `project-create`,
+- **Shell commands, minimum.** `app-list`, `app-get`, `app-open`, `app-close`,
+  `app-command-list`, `app-instance-list`, `app-instance-refresh`,
+  `app-selection-get`, `app-selection-set`; `status-item-set`; `project-create`,
   `project-list`, `project-get`, `project-update`, `project-archive`;
   `scope-get`, `scope-set`; `view-state-get`, `view-state-set`,
   `view-state-list`; `layout-get`, `layout-set`, `layout-reset`;
@@ -517,7 +522,9 @@ sequenceDiagram
   Apps HTML profile rendered in a sandboxed iframe; the shell is the host,
   withholds data until the view reports ready, pushes tool input and
   results, and brokers the view's tool calls through the registry under the
-  app's grants. A native Loam view may be exported as the same resource.
+  app's grants. As a web host, the shell renders each view through a sandbox
+  proxy on a second origin (D62). A native Loam view may be exported as the
+  same resource.
 - **CLI.** The hosted server's registry as commands and subcommands, JSON
   out, the AFD CLI's exit codes, the workspace doctor, `app new` and `app
   check`.
@@ -706,7 +713,8 @@ flowchart TD
   if one emerges, goes under `foundations/`. Loam's units are endpoint
   units by path, as Botcore's and Health's are; `architecture.json` lists
   foundation families only, so nothing is added there, while
-  `pnpm-workspace.yaml` gains the glob `endpoints/loam/packages/*` and
+  `pnpm-workspace.yaml` gains the globs `endpoints/loam/packages/*` and
+  `endpoints/loam/apps/*` and
   the release inventory gains the units when the first manifest lands.
   Every unit starts quarantined under the
   [platform migration](../../../docs/features/active/platform-monorepo/)
@@ -763,7 +771,8 @@ phase 3's hosted criterion and phase 5's MCP criterion, while the desktop
 lane and distribution gate nothing before phase 7. `notes` is phase 2's
 reference document type; Violet and Health are part of phase 5's exit;
 Specimen attaches after phase 5 and the Umbel app after Umbel's phase 2;
-phase 1 proves the mounted-server app kind against a real Umbel instance (D57).
+phase 1 proves the mounted-server app kind against a real Umbel instance (D57),
+through a test-only relay until the hosted lane serves that route (D64).
 A2UI rendered from the kit (D43) follows the MCP Apps view, in phase 5 or
 later. The collaboration service, sync, presence, sharing and threads for
 every document type and run, has its own specification after phases 2 and

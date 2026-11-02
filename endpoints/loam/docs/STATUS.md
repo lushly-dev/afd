@@ -27,7 +27,7 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | The through line; drafted 2026-10-30 and 2026-10-31, revised after review; the owner read the whole set and approved the direction on 2026-11-01 | [#524](https://github.com/lushly-dev/afd/pull/524), the set and the review fixes | 2026-10-31: three independent reviews (AFD and repository accuracy, cross-document coherence, external facts); every relative link and anchor resolved; portability gate passed |
 | [Proposal](proposal.md) | Rationale; the architecture wins where they differ | Same | Same |
-| [Decision log](decisions.md) | D1 to D49; D22 decided by the owner on 2026-10-30, D25 to D49 on 2026-10-31; no decision open; review corrections marked in consequences | Same | Same |
+| [Decision log](decisions.md) | D1 to D68; D22 decided by the owner on 2026-10-30, D25 to D49 on 2026-10-31, D50 to D58 on 2026-11-01; D59 to D68 proposed with the [phase 1 specification](phases/1-app-contract/spec.md); no decision open; review corrections marked in consequences | Same | Same |
 | [Landscape](landscape.md) | Opportunities OP1 to OP12 with dispositions; OP1 to OP8 closed as D39 to D46, OP12 as D47 to D49 | Same | 2026-10-31: primary pages read for the platform, product and standards claims; secondary claims marked |
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-31; movements 1 to 8, R1 to R18, W1 to W28 | Same | External claims fact-checked against primary sources on 2026-10-31 |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-31; S01 to S79 | Same | Same |
@@ -37,9 +37,9 @@ should never have to scan the codebase to learn what is current.
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
-| AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; phase 1's manifest row approved 2026-11-01 ([shared plugin manifest](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md)); its `spec/` core (step 1, spec first) and Loam's profile (step 2) are still to be done, with phase 1; the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest's step 1 (`spec/`) lands before or with the phase 1 specification; see the phase detail |
+| AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; phase 1's manifest row approved 2026-11-01 ([shared plugin manifest](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md)); its `spec/` core (step 1, spec first) is done ([`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), [#677](https://github.com/lushly-dev/afd/pull/677), `9be3ad12`), and Loam's profile (step 2) is specified in the [phase 1 specification](phases/1-app-contract/spec.md) and not built, with phase 1; the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest's step 1 (`spec/`) lands before or with the phase 1 specification; see the phase detail |
 | 0. Kernel, chrome and design foundation | Exited 2026-11-01: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md); follow-ups filed as #655 to #664 | None; phase 1 may start |
-| 1. App contract | Not started | None | None | Phase 0 exit criterion met (2026-11-01); the shared plugin manifest proposal written (2026-11-01); its step 1 in `spec/` and the phase 1 specification next |
+| 1. App contract | Specification approved 2026-11-01; implementation in progress (see the steps below) | Phase 1 agent | [Phase 1 specification](phases/1-app-contract/spec.md); the [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md), approved 2026-11-01 | Steps 0a, 0b and 1; the proposal's step 1 merged 2026-11-01 ([#677](https://github.com/lushly-dev/afd/pull/677), `9be3ad12`) |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
 | 4. Settings, experiments, notifications, overlays | Not started | None | None | Phase 2 exit criterion met |
@@ -173,7 +173,29 @@ should never have to scan the codebase to learn what is current.
     The exit run is [run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) on `main`; the open follow-ups are filed as
     issues #655 to #664 and linked from the specification's Follow-ups table.
 
-Phases 1 to 8 have no detail yet; add a heading in this shape when one
+### 1. App contract
+
+- **State:** specification approved 2026-11-01 by the coordinator under the owner's
+  delegation, after an independent review. Implementation in progress. Last verified 2026-11-01 against `main` at
+  `9be3ad12`, which holds the proposal's step 1.
+- **Done:** the [specification](phases/1-app-contract/spec.md), deciding D59 to
+  D68 and deciding L1 to L10 of the shared plugin manifest proposal.
+- **Not done:** every step below. The mounted proof (D57) runs through a
+  test-only relay (D64), and the exit record must say so.
+- **Steps** ([plan](phases/1-app-contract/spec.md#15-implementation-plan); one
+  line each, so parallel pull requests touch different lines):
+  - 0a, AFD browser-safe MCP transport: not started.
+  - 0b, AFD adapters without inline styles: not started.
+  - 1, manifest package: not started; the proposal's step 1 it builds on merged in [#677](https://github.com/lushly-dev/afd/pull/677).
+  - 2, SDK and CLI: not started.
+  - 3, kernel version 1: not started.
+  - 4, chrome and web, native apps: not started.
+  - 5, sandboxed view: not started.
+  - 6, console: not started.
+  - 7, mounted, against Umbel: not started.
+  - 8, exit: not started.
+
+Phases 2 to 8 have no detail yet; add a heading in this shape when one
 starts.
 
 ## Follow-ups not yet issues
@@ -190,7 +212,7 @@ starts.
 | 2026-10-30 | Design session | Port the view-state commands to the `afd` crate or specify them for the kernel; the TypeScript package stays the contract | Closed 2026-10-31 by D25: the kernel is TypeScript and uses the package directly |
 | 2026-10-30 | Design session | Reconcile vocabulary with Umbel: "surface" means a shell UI region here and a transport there; add the cross-reference from Umbel's glossary, which does not mention Loam yet | Open |
 | 2026-10-30 | Design session | When packages land, add a `pnpm-workspace.yaml` glob for `endpoints/loam/*` and the units to the release inventory; `architecture.json` lists foundation families only, so it needs nothing (D14, corrected 2026-10-31); units start quarantined | Open |
-| 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W1, W2 and W6 ahead of phase 1 | Open, recurring |
+| 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W1, W2 and W6 ahead of phase 1 | Open, recurring; done for phase 1 on 2026-11-01 in its specification |
 | 2026-10-30 | Design session | The Lushly support application is specified in Lushly's repository; record here only the generic shell needs it surfaces, as they appear | Open, recurring |
 | 2026-10-31 | Discussion with the owner | Move `violet-elements` onto Violet themes through the runtime in place of its local theme registries (D28), with baked-in defaults and every edit recorded in `foundations/fast-af/provenance/adaptations.json`; coordinate with Lushly's transition to Violet throughout, specified in Lushly's repository; a phase 0 deliverable until an issue owns it | Specified 2026-11-01 as step 3 of the [phase 0 specification](phases/0-kernel-chrome/spec.md), as data and custom properties rather than through the runtime (D50). Closed 2026-11-01 by step 3, [#639](https://github.com/lushly-dev/afd/pull/639); Lushly's own tree remains a follow-up in the specification |
 | 2026-10-31 | Discussion with the owner | Write the Loam design document and its authoring skill, declared in `skills/exports.json`, before the chrome grows past a skeleton (D26); add the token-only lint and the component checklist to the phase 0 specification | Specified 2026-11-01 in the phase 0 specification (sections 2.5 to 2.7, step 4); open until step 4 merges |
@@ -237,3 +259,5 @@ starts.
 | 2026-11-01 | Design sub-agent | The [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md) and its status written: a host-neutral core of `$defs` in `spec/` and closed host profiles. Umbel's manifest conforms unchanged. Loam's profile owns the kind sections, the non-UI `app` section (`app.scope_levels`, never `scopes`) and `ui`. Umbel instances join as headless mounted apps, with instance prefixes, the conflict policy `error` and a connection per Loam host. Collisions C1 to C12 resolved; six owner questions, four for Umbel's owner and ten for the phase 1 specification recorded. Two independent reviews ran, and their findings were fixed. The 2026-10-30 follow-up closed; the prerequisites row and the phase 1 gate updated |
 | 2026-11-01 | Owner's decisions | The owner took every recommendation on the shared plugin manifest: D54 (native apps are trusted code), D55 (team Umbel instances under a read-all rule until Umbel's phase 5), D56 (only the owner or deployer sets a stdio command), D57 (phase 1 proves the mounted-server kind against a real Umbel instance) and D58 (the core and profiles, with Umbel instances as headless mounted apps). The proposal moved to `docs/features/active/` and the architecture is amended |
 | 2026-11-01 | Plugin manifest step 1 | [`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), the core and its cases, in [#677](https://github.com/lushly-dev/afd/pull/677). Loam's profile (step 2) is checked against them; a profile needs `type` and `"domains": true` to compile under Ajv's `strict: true`, as the corrected sketch in the proposal shows |
+| 2026-11-01 | Phase 1 specification | The [phase 1 specification](phases/1-app-contract/spec.md) written and reviewed independently: the manifest profile, a deployment file with a browser projection, the surface catalog and grants, the three loader kinds with a sandbox proxy on a second origin and a handler frame, the minimal console, toast and modal, kernel interface 1 and the SDK, `app new` and `app check`, and the proof against a real Umbel through a test-only relay. D59 to D68 proposed; L1 to L10 decided; the trajectory refreshed, with W29 and W30 added. Documents only: nothing implemented |
+| 2026-11-01 | Phase 1 approval | The coordinator approved the phase 1 specification under the owner's delegation, after an independent review (35 findings, all addressed), deciding D59 to D68. Steps 0a, 0b and 1 start next |

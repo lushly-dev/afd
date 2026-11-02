@@ -24,7 +24,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   - It was extended at the owner's request of 2026-11-01: Umbel instances join a Loam instance as
     headless mounted apps.
   - Four questions remain for Umbel's owner (U1 to U4) and ten for Loam's phase 1 specification
-    (L1 to L10); see [Open questions](plugin-manifest.proposal.md#open-questions).
+    (L1 to L10), which it answers; see [Resolutions](#resolutions-of-l1-to-l10) and
+    [Open questions](plugin-manifest.proposal.md#open-questions).
   - No host reads the core yet, and steps 2 to 8 are not started.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, with the results under
   [Step 1 verification](#step-1-verification). The proposal's state was read earlier, at `355aa994`,
@@ -73,7 +74,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   additions did. No changeset: no publishable package changes.
 - **Not done:** steps 2 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
   No host or package reads the core, and the Rust check of the cases is not a permanent test. The
-  owner's questions are decided; U1 to U4 and L1 to L10 are not answered.
+  owner's questions are decided; U1 to U4 are not answered, and L1 to L10 are answered by Loam's phase 1
+  specification ([Resolutions](#resolutions-of-l1-to-l10)).
 
 ## Steps
 
@@ -81,7 +83,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | --- | --- | --- | --- |
 | 0. Proposal | Done 2026-11-01 | Design sub-agent | [#669](https://github.com/lushly-dev/afd/pull/669) |
 | 1. `spec/` core, cases, changelog, parity row | Done 2026-11-01 | Implementation sub-agent | [#677](https://github.com/lushly-dev/afd/pull/677); [Step 1 verification](#step-1-verification) |
-| 2. Loam's profile, reader, `app check`, drift test against Umbel's examples | Not started | Loam's phase 1 agent | None |
+| 2. Loam's profile, reader, `app check`, drift test against Umbel's examples | Specified 2026-11-01, not started | Loam's phase 1 agent | [Phase 1 specification](../../../../endpoints/loam/docs/phases/1-app-contract/spec.md) |
 | 3. Umbel adopts the core (optional) | Not started | Umbel's owning agent, at its choice | None |
 | 4. `expose.apps`, core version 2 | Not started | D30's AFD proposal | None |
 | 5. `grants[].targets` | Not started | The first grant that needs it | None |
@@ -277,6 +279,25 @@ up. All were fixed:
 - **Nits.** (16) to (23): the citations for the Origin check and the agent surface, the renaming
   rule's steps, how the loader reaches `afd-help`, the hypothetical skill name, absolute paths in
   argv, the deliberate difference from Umbel D50's stdio default, and the plan's last line.
+
+## Resolutions of L1 to L10
+
+Decided 2026-11-01 by [Loam's phase 1 specification](../../../../endpoints/loam/docs/phases/1-app-contract/spec.md),
+which proposes them as Loam D59 to D66. They stand when that specification is approved. It carries out
+step 2 of the plan in its steps 1, 2 and 7.
+
+| Question | Resolution | Loam decision |
+| --- | --- | --- |
+| L1 | `loam-app.toml` for authors; a packed `app-manifest.json` at runtime, which the kernel alone reads | D59 |
+| L2 | `native`, `view`, `mounted` | D59 |
+| L3 | AFD's defaults for app commands; the instance entry for mounted ones | D65 |
+| L4 | `error`, against the shell and across apps and instances | D66 |
+| L5 | A module beside the view, in a hidden sandboxed handler frame (`view.handlers`) | D61 |
+| L6 | The deployer's `loam.deployment.toml`, one `[apps.<instance>]` per instance, with a browser projection holding no location, credential or command line. Discovery runs at boot, on `app-instance-refresh`, and once after a `COMMAND_NOT_FOUND` | D63 |
+| L7 | Always the same-origin route `mounts/<instance>/mcp`; the static CSP gains no instance origin. Phase 1 proves it through a test-only relay until the hosted lane serves it | D64 |
+| L8 | Warn | D66 |
+| L9 | Pinned | D65 |
+| L10 | Display and defaults; an unreported command is a mutation, hidden until the entry names it; the entry overrides | D65 |
 
 ## Follow-ups not yet issues
 
