@@ -42,18 +42,6 @@ async fn fixture() -> Fx {
         "---\ntitle: Other links\n---\n# Other\n\nSee [the report](pub.md).\n",
     );
     fx.refresh("main").await;
-    seed_links(
-        &fx,
-        "main",
-        &[
-            ("handbook/secret-links", &["handbook/pub"]),
-            ("handbook/other-links", &["handbook/pub"]),
-            (
-                "handbook/pub",
-                &["handbook/secret-plan", "handbook/other-links"],
-            ),
-        ],
-    );
     fx
 }
 
@@ -96,7 +84,9 @@ async fn an_outsider_never_finds_a_restricted_document_by_any_field() {
     }
     // The same queries find it for a member.
     for query in ["xylophone", "title:acquisition", "tags:mergertag"] {
-        let result = fx.search(member(), json!({ "query": query })).await;
+        let result = fx
+            .search(member(), json!({ "query": query, "expand": false }))
+            .await;
         assert_eq!(
             hit_ids(&result),
             ["handbook/secret-plan"],
@@ -111,7 +101,7 @@ async fn a_search_that_matches_both_shows_only_the_readable_one_without_traces()
     let result = fx
         .search(
             outsider(),
-            json!({ "query": "zebra", "format": "detailed" }),
+            json!({ "query": "zebra", "format": "detailed", "expand": false }),
         )
         .await;
     assert_eq!(hit_ids(&result), ["handbook/pub"], "{result}");
@@ -122,7 +112,9 @@ async fn a_search_that_matches_both_shows_only_the_readable_one_without_traces()
         warning(&result, "CONTENT_FLAGGED").is_none(),
         "the flagged document is not named: {result}"
     );
-    let member_result = fx.search(member(), json!({ "query": "zebra" })).await;
+    let member_result = fx
+        .search(member(), json!({ "query": "zebra", "expand": false }))
+        .await;
     assert_eq!(hit_ids(&member_result).len(), 2);
     assert!(warning(&member_result, "CONTENT_FLAGGED").is_some());
 }

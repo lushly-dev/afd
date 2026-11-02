@@ -1,33 +1,37 @@
-//! `knowledge-index` (specification section 8.7): the index maintenance procedure, index only.
-//! (The graph is built in the same run by step 7a; until then the index is the only derived
-//! store this command writes.)
+//! `knowledge-index` (specification section 8.7): the index maintenance procedure, for the
+//! search index and the structural graph.
 //!
 //! Several processes may run it for one space at once; the procedure makes them take turns and
 //! never lowers what the index reflects:
 //!
 //! 1. take the index writer first (bounded wait, else `STORE_BUSY`);
-//! 2. only then read the applied revision;
+//! 2. only then read the index's and the graph's applied revisions; the run starts after the
+//!    smaller;
 //! 3. read the changes after it with a derivation read, and for each changed document build its
-//!    chunks in memory;
-//! 4. stage the replacements in the writer session;
-//! 5. commit with `max(applied, to)` and release the writer.
+//!    chunks and its graph contribution in memory, skipping a store that already reflects the
+//!    change;
+//! 4. stage the index replacements in the writer session and build one graph batch;
+//! 5. commit the graph (one transaction), then the index, each with `max(applied, to)`, release
+//!    the writer and checkpoint the store.
 //!
 //! The result gives totals for every document and the ids the caller can read: the command sees
 //! every document, so an id appears only when the caller's reader filter admits it (owner
 //! decision 1).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
+use umbel_okf::Structure;
 use umbel_okf::frontmatter::split;
 use umbel_okf::structure;
 use umbel_sdk::{Cx, HostError, Outcome, failure, success};
-use umbel_store::{ChangeKind, Document, IndexChunk, StoreError};
+use umbel_store::{ChangeKind, Document, GraphBatch, IndexChunk, StoreError};
 
 use crate::chunk::{self, Chunked};
 use crate::doc::{label, readable};
 use crate::fail;
+use crate::graph;
 use crate::settings::Ranking;
 
 /// The most changes one derivation read returns.
@@ -38,6 +42,8 @@ const DEFAULT_LIMIT: u64 = 10_000;
 const LISTED: usize = 100;
 /// The most candidate ids the result examines for readability.
 const EXAMINED: usize = 5000;
+/// The most distinct link targets one run looks up to judge whether a link is broken.
+const TARGET_LOOKUPS: usize = 10_000;
 
 pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     let cx: &Cx = cx;
@@ -84,6 +90,13 @@ struct Totals {
     chunks: usize,
     limited: Vec<String>,
     kinds: BTreeMap<String, &'static str>,
+    /// Documents whose graph contribution was replaced or removed.
+    graphed: usize,
+    nodes: usize,
+    edges: usize,
+    broken_links: usize,
+    /// Whether the link targets looked up reached [`TARGET_LOOKUPS`].
+    broken_partial: bool,
 }
 
 fn build(
@@ -95,17 +108,24 @@ fn build(
 ) -> Result<Outcome, Stop> {
     // 1. The writer first: holding it serialises indexers across threads and processes.
     let mut writer = cx.index_writer(space)?;
-    // 2. Only then the applied revision.
-    let applied = writer.applied().map_err(host_error)?;
-    let from = if rebuild { 0 } else { applied };
+    // 2. Only then the applied revisions; the run starts after the smaller, so a run after a crash
+    // between the two commits redoes only the store that lags.
+    let index_applied = writer.applied().map_err(host_error)?;
+    let graph_applied = cx.graph_applied(space)?;
+    let from = if rebuild {
+        0
+    } else {
+        index_applied.min(graph_applied)
+    };
     if rebuild {
         writer.clear().map_err(host_error)?;
     }
 
-    // 3. The changes after `from`. A rebuild reads every change in one run (a commit never
-    // lowers the applied revision, so a rebuild cannot stop part way).
+    // 3. The changes after `from`, each document with the last revision that changed it. A rebuild
+    // reads every change in one run (a commit never lowers the applied revision, so a rebuild
+    // cannot stop part way).
     let budget = if rebuild { u64::MAX } else { limit };
-    let mut touched: BTreeSet<String> = BTreeSet::new();
+    let mut touched: BTreeMap<String, u64> = BTreeMap::new();
     let mut to = from;
     let mut seen = 0u64;
     let mut remaining = false;
@@ -118,7 +138,7 @@ fn build(
         for change in &page {
             to = change.rev;
             if matches!(change.kind, ChangeKind::Put | ChangeKind::Delete) {
-                touched.insert(change.target.clone());
+                touched.insert(change.target.clone(), change.rev);
             }
         }
         seen += page.len() as u64;
@@ -131,36 +151,92 @@ fn build(
         }
     }
 
-    // 4. Build every document's chunks in memory and stage them.
+    // 4. Build every document's chunks and graph contribution in memory. A store whose applied
+    // revision is already at or past a document's last change skips it.
+    let collections = cx
+        .content_collections(space)
+        .map(|found| found.into_iter().map(|c| c.id).collect::<Vec<_>>())
+        .unwrap_or_default();
     let mut totals = Totals::default();
-    for id in &touched {
+    let mut batch = GraphBatch::default();
+    let mut present: BTreeMap<String, bool> = BTreeMap::new();
+    for (id, last) in &touched {
+        let index_needs = rebuild || *last > index_applied;
+        let graph_needs = rebuild || *last > graph_applied;
         match cx.derive_document(space, id)? {
             Some(document) => {
-                let chunked = chunks_of(&document);
-                let built = index_chunks(&document, &chunked, &ranking.index.filterable);
-                totals.chunks += built.len();
-                if chunked.limited {
-                    totals.limited.push(id.clone());
+                let (chunked, structure) = analyse(&document);
+                if index_needs {
+                    let built = index_chunks(&document, &chunked, &ranking.index.filterable);
+                    totals.chunks += built.len();
+                    if chunked.limited {
+                        totals.limited.push(id.clone());
+                    }
+                    writer.replace(id, built).map_err(host_error)?;
+                    totals.indexed += 1;
                 }
-                writer.replace(id, built).map_err(host_error)?;
-                totals.indexed += 1;
+                if graph_needs {
+                    let built = graph::build(&document, &structure, &collections);
+                    totals.graphed += 1;
+                    totals.nodes += built.graph.nodes.len();
+                    totals.edges += built.graph.edges.len();
+                    totals.broken_links += built.unresolved;
+                    for target in &built.targets {
+                        if present.len() >= TARGET_LOOKUPS && !present.contains_key(target) {
+                            totals.broken_partial = true;
+                            continue;
+                        }
+                        let here = match present.get(target) {
+                            Some(here) => *here,
+                            None => {
+                                let here = cx.derive_document(space, target)?.is_some();
+                                present.insert(target.clone(), here);
+                                here
+                            }
+                        };
+                        if !here {
+                            totals.broken_links += 1;
+                        }
+                    }
+                    batch.entries.push((id.clone(), Some(built.graph)));
+                }
                 totals.kinds.insert(id.clone(), "indexed");
             }
             None => {
-                writer.replace(id, Vec::new()).map_err(host_error)?;
-                totals.removed += 1;
+                if index_needs {
+                    writer.replace(id, Vec::new()).map_err(host_error)?;
+                    totals.removed += 1;
+                }
+                if graph_needs {
+                    totals.graphed += 1;
+                    batch.entries.push((id.clone(), None));
+                }
                 totals.kinds.insert(id.clone(), "removed");
             }
         }
     }
 
-    // 5. Commit, never lowering the revision; nothing to say when nothing moved.
-    let after = applied.max(to);
-    if rebuild || after > applied {
-        writer.commit(after).map_err(host_error)?;
+    // 5. Commit the graph in one transaction, then the index, neither ever lowering its revision;
+    // nothing to say when nothing moved.
+    let graph_after = graph_applied.max(to);
+    let index_after = index_applied.max(to);
+    let wrote_graph = rebuild || !batch.entries.is_empty() || graph_after > graph_applied;
+    if wrote_graph {
+        cx.graph_apply(space, batch, graph_after)?;
+    }
+    let wrote_index = rebuild || index_after > index_applied;
+    if wrote_index {
+        writer.commit(index_after).map_err(host_error)?;
     } else {
         writer.abort();
     }
+    // 6. Best-effort WAL checkpoint after a run that wrote; a busy store is not a failure.
+    if wrote_graph || wrote_index {
+        let _ = cx.checkpoint(space);
+    }
+    // The true head: this command is a derivation read, so it may count what the caller cannot
+    // read (the totals already do, section 6).
+    let head = cx.derive_head(space)?.max(index_after);
 
     // What the caller may be told.
     let (listed, more, truncated) = readable_ids(cx, space, from, to, &totals)?;
@@ -169,25 +245,39 @@ fn build(
         "rebuild": rebuild,
         "fromRev": from,
         "toRev": to,
-        "applied": after,
+        "applied": index_after,
+        "indexApplied": index_after,
+        "graphApplied": graph_after,
+        "head": head,
         "documents": { "indexed": totals.indexed, "removed": totals.removed },
         "chunks": totals.chunks,
+        "graph": {
+            "documents": totals.graphed,
+            "nodes": totals.nodes,
+            "edges": totals.edges,
+            "brokenLinks": totals.broken_links,
+            "brokenLinksComplete": !totals.broken_partial,
+        },
         "ids": listed,
         "idsMore": more,
         "idsComplete": !truncated,
         "remaining": remaining,
     }))
     .with_reasoning(&format!(
-        "Indexed {} and removed {} documents of `{space}` from revision {from} to {to}.",
-        totals.indexed, totals.removed
+        "Indexed {} and removed {} documents of `{space}` from revision {from} to {to}; the graph holds {} contributions rebuilt.",
+        totals.indexed, totals.removed, totals.graphed
     ))
     .with_metadata(
         "dev.umbel/record",
-        json!({ "kind": "index", "id": space, "version": after }),
+        json!({ "kind": "index", "id": space, "version": index_after }),
     )
     .with_metadata(
         "dev.umbel/provenance",
         json!({ "origin": "document-derived", "access": ["space"], "sensitivity": "internal" }),
+    )
+    .with_metadata(
+        "dev.umbel/index",
+        json!({ space: { "applied": index_after, "head": head, "schema": 1 } }),
     );
     if remaining {
         outcome = outcome.with_warning_details(
@@ -289,20 +379,24 @@ fn readable_ids(
     Ok((listed, more, false))
 }
 
-/// A document's chunks: markdown by structure, code as plain text.
-pub(crate) fn chunks_of(document: &Document) -> Chunked {
+/// A document's chunks and the markdown structure they came from (empty for text that has none),
+/// so the graph is built from the same parse.
+fn analyse(document: &Document) -> (Chunked, Structure) {
     if document.doc_type == "code" {
         let text = String::from_utf8_lossy(&document.bytes);
-        return chunk::plain(text.strip_prefix('\u{feff}').unwrap_or(&text));
+        return (
+            chunk::plain(text.strip_prefix('\u{feff}').unwrap_or(&text)),
+            Structure::default(),
+        );
     }
     match split(&document.bytes) {
         Ok(parts) => {
             let body = structure(parts.text, parts.body_offset);
-            chunk::markdown(parts.text, &body)
+            (chunk::markdown(parts.text, &body), body)
         }
         Err(_) => {
             let text = String::from_utf8_lossy(&document.bytes);
-            chunk::plain(&text)
+            (chunk::plain(&text), Structure::default())
         }
     }
 }

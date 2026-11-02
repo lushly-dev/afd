@@ -1,0 +1,42 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"as_of": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"description": "RFC 3339 time to judge stale_after against; default now"
+		},
+		"collection": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 63
+		},
+		"reasons": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": ["past-stale-after", "deprecated-without-successor", "never-verified"]
+			},
+			"maxItems": 3,
+			"description": "Only these reasons; default all"
+		},
+		"after": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "Continue after this document id (nextAfter of the last page)"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 200,
+			"default": 50
+		}
+	},
+	"additionalProperties": false
+}

@@ -1,6 +1,5 @@
 //! `knowledge-search` (specification section 8.2): aggregation per document, order and ties,
-//! snippets, sources, warnings, formats, status handling and `verified_only`. (The expansion cases
-//! arrive with the structural graph in step 7a.)
+//! snippets, sources, warnings, formats, status handling, `verified_only` and the graph expansion.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -478,15 +477,6 @@ async fn search_and_open_are_the_first_class_suggestions() {
 }
 
 #[tokio::test]
-async fn expand_is_accepted_and_not_yet_applied() {
-    let fx = indexed(&[("a.md", "# A\n\ncanary\n")]).await;
-    let result = fx
-        .search(human("local"), json!({ "query": "canary", "expand": true }))
-        .await;
-    assert_eq!(data(&result)["expanded"], false);
-}
-
-#[tokio::test]
 async fn the_refresh_pipeline_reads_files_then_indexes() {
     let fx = Fx::new();
     fx.handbook("a.md", "# A\n\ncanary\n");
@@ -522,4 +512,179 @@ async fn the_refresh_pipeline_exists_only_beside_the_sources_plugin() {
         .search(human("local"), json!({ "query": "canary" }))
         .await;
     assert_eq!(found["success"], true, "{found}");
+}
+
+fn score_of(result: &Value, doc: &str) -> f64 {
+    hits(result)
+        .iter()
+        .find(|hit| hit["doc"] == doc)
+        .unwrap_or_else(|| panic!("{doc} not in {result}"))["score"]
+        .as_f64()
+        .unwrap()
+}
+
+fn matched(result: &Value, doc: &str) -> bool {
+    hits(result).iter().find(|hit| hit["doc"] == doc).unwrap()["matched"]
+        .as_bool()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn expansion_adds_the_readable_neighbours_of_the_top_documents_unmatched() {
+    let fx = indexed(&[
+        ("a.md", "# A\n\ncanary rollout\n\nSee [b](b.md).\n"),
+        ("b.md", "# B\n\nunrelated words\n"),
+        ("c.md", "# C\n\nlinks to [a](a.md).\n"),
+        ("d.md", "# D\n\nnothing to do with it\n"),
+    ])
+    .await;
+    let plain = fx
+        .search(
+            human("local"),
+            json!({ "query": "canary", "expand": false }),
+        )
+        .await;
+    assert_eq!(hit_ids(&plain), ["handbook/a"]);
+    assert_eq!(data(&plain)["expanded"], false);
+    let result = fx
+        .search(human("local"), json!({ "query": "canary" }))
+        .await;
+    assert_eq!(data(&result)["expanded"], true);
+    // A link out and a backlink both receive 0.3 x the parent's score; ties by id.
+    assert_eq!(hit_ids(&result), ["handbook/a", "handbook/b", "handbook/c"]);
+    let parent = score_of(&result, "handbook/a");
+    assert_eq!(parent, score_of(&plain, "handbook/a"));
+    let share = (0.3 * parent * 10_000.0).round() / 10_000.0;
+    assert_eq!(score_of(&result, "handbook/b"), share);
+    assert_eq!(score_of(&result, "handbook/c"), share);
+    assert!(matched(&result, "handbook/a"));
+    assert!(!matched(&result, "handbook/b"));
+    // An unmatched hit has its first chunk and no snippet; it is still a citation.
+    let b = &hits(&result)[1];
+    assert!(b.get("snippet").is_none(), "{b}");
+    assert_eq!(b["trust"], "content");
+    assert_eq!(result["sources"].as_array().unwrap().len(), 3);
+    // `limit` applies after expansion.
+    let one = fx
+        .search(human("local"), json!({ "query": "canary", "limit": 1 }))
+        .await;
+    assert_eq!(hit_ids(&one), ["handbook/a"]);
+}
+
+#[tokio::test]
+async fn a_neighbour_that_matched_adds_the_share_to_its_own_score() {
+    let fx = indexed(&[
+        ("a.md", "# A\n\ncanary canary\n\nSee [b](b.md).\n"),
+        ("b.md", "# B\n\ncanary\n"),
+    ])
+    .await;
+    let plain = fx
+        .search(
+            human("local"),
+            json!({ "query": "canary", "expand": false }),
+        )
+        .await;
+    let result = fx
+        .search(human("local"), json!({ "query": "canary" }))
+        .await;
+    assert!(matched(&result, "handbook/b"));
+    assert!(score_of(&result, "handbook/b") > score_of(&plain, "handbook/b"));
+}
+
+#[tokio::test]
+async fn expansion_never_surfaces_or_counts_an_unreadable_neighbour() {
+    let fx = Fx::new();
+    fx.handbook(
+        "open.md",
+        "# Open\n\ncanary rollout, see [the other one](memo.md) and [visible](visible.md).\n",
+    );
+    fx.handbook(
+        "memo.md",
+        "---\ntitle: The merger memo\naccess: [group:platform]\n---\n# Merger\n\nlinks to [open](open.md).\n",
+    );
+    fx.handbook("visible.md", "# Visible\n\nplain\n");
+    fx.refresh("main").await;
+    let outside = fx.search(outsider(), json!({ "query": "canary" })).await;
+    assert_eq!(hit_ids(&outside), ["handbook/open", "handbook/visible"]);
+    assert_eq!(data(&outside)["count"], 2);
+    never_mentions(&outside, &["memo", "merger"]);
+    let inside = fx.search(member(), json!({ "query": "canary" })).await;
+    assert_eq!(
+        hit_ids(&inside),
+        ["handbook/open", "handbook/memo", "handbook/visible"]
+    );
+    assert!(!matched(&inside, "handbook/memo"));
+}
+
+#[tokio::test]
+async fn expansion_drops_deprecated_neighbours_and_respects_the_filters() {
+    let fx = indexed(&[
+        (
+            "a.md",
+            "---\ntags: [ops]\n---\n# A\n\ncanary rollout [old](old.md) [b](b.md) [t](tagged.md)\n",
+        ),
+        ("old.md", "---\nstatus: deprecated\n---\n# Old\n\nstale\n"),
+        ("b.md", "# B\n\nuntagged\n"),
+        ("tagged.md", "---\ntags: [ops]\n---\n# Tagged\n\nops\n"),
+    ])
+    .await;
+    let result = fx
+        .search(human("local"), json!({ "query": "canary" }))
+        .await;
+    assert_eq!(
+        hit_ids(&result),
+        ["handbook/a", "handbook/b", "handbook/tagged"]
+    );
+    let with_old = fx
+        .search(
+            human("local"),
+            json!({ "query": "canary", "filters": { "include_deprecated": true } }),
+        )
+        .await;
+    assert!(hit_ids(&with_old).contains(&"handbook/old".to_owned()));
+    // A structured filter binds an expanded document as it binds a matched one.
+    let tagged = fx
+        .search(
+            human("local"),
+            json!({ "query": "canary", "filters": { "tags": ["ops"] } }),
+        )
+        .await;
+    assert_eq!(hit_ids(&tagged), ["handbook/a", "handbook/tagged"]);
+}
+
+#[tokio::test]
+async fn co_citation_and_supersession_expand_with_their_own_factors() {
+    let fx = indexed(&[
+        ("x.md", "# X\n\nxenon\n"),
+        ("y.md", "# Y\n\nplain y\n"),
+        ("z.md", "# Z\n\nplain z\n"),
+        ("c1.md", "# C1\n\n[x](x.md) [y](y.md)\n"),
+        ("c2.md", "# C2\n\n[x](x.md) [y](y.md)\n"),
+        ("c3.md", "# C3\n\n[x](x.md) [z](z.md)\n"),
+        (
+            "gone.md",
+            "---\nstatus: deprecated\nsuperseded_by: handbook/x\n---\n# Gone\n\nold\n",
+        ),
+    ])
+    .await;
+    let result = fx
+        .search(
+            human("local"),
+            json!({ "query": "xenon", "filters": { "include_deprecated": true } }),
+        )
+        .await;
+    let parent = score_of(&result, "handbook/x");
+    let round = |value: f64| (value * 10_000.0).round() / 10_000.0;
+    // y is cited with x by two citers (0.5); z by one (not expanded); the three citers link x
+    // (1.0, backlinks); the deprecated document x supersedes (0.8).
+    assert_eq!(score_of(&result, "handbook/y"), round(0.3 * parent * 0.5));
+    assert!(
+        !hit_ids(&result).contains(&"handbook/z".to_owned()),
+        "{result}"
+    );
+    assert_eq!(score_of(&result, "handbook/c1"), round(0.3 * parent));
+    assert_eq!(
+        score_of(&result, "handbook/gone"),
+        round(0.3 * parent * 0.8)
+    );
 }

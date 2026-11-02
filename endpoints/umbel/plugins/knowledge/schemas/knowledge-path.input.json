@@ -1,0 +1,35 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"from": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"description": "A document id or a node id"
+		},
+		"to": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"description": "A document id or a node id"
+		},
+		"max_hops": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 6,
+			"default": 4
+		},
+		"kinds": {
+			"type": "array",
+			"items": { "type": "string", "minLength": 1, "maxLength": 64 },
+			"maxItems": 16,
+			"description": "Edge kinds to follow; default every kind but contains"
+		}
+	},
+	"required": ["from", "to"],
+	"additionalProperties": false
+}

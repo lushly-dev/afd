@@ -1,0 +1,34 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "A document id, for its heading tree; give this or collection"
+		},
+		"collection": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 63,
+			"description": "A collection id, for its directory tree; give this or doc"
+		},
+		"prefix": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "With collection: only documents whose id starts with this"
+		},
+		"after": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "With collection: continue after this document id (truncatedAt of the last tree)"
+		}
+	},
+	"additionalProperties": false
+}
