@@ -1,0 +1,2769 @@
+{
+	"description": "Loam's profile refusals, each a base manifest with `set` and `remove` applied by RFC 6901 pointer, run through readManifest. `code` and `key` are the refusal's, `suggestion` a part of its text. spec/plugin-manifest.json holds the core's cases; these hold what Loam narrows.",
+	"bases": {
+		"native": {
+			"manifest_version": 1,
+			"protocol": 1,
+			"afd_contract": "1.0",
+			"plugin": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "One command, a sidebar list and a main view: the reference app.",
+				"kind": "native",
+				"domains": ["hello"],
+				"license": "MIT"
+			},
+			"native": {
+				"entry": "dist/native.js"
+			},
+			"app": {
+				"scope_levels": ["workspace", "project"]
+			},
+			"grants": [
+				{
+					"name": "store",
+					"reason": "Keeps the names greeted."
+				},
+				{
+					"name": "clock",
+					"reason": "Stamps each greeting with the command context's clock."
+				}
+			],
+			"commands": [
+				{
+					"name": "hello-greet",
+					"title": "Greet someone",
+					"description": "Greet someone and remember the name.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": ["name"],
+						"additionalProperties": false
+					},
+					"undoable": true
+				},
+				{
+					"name": "hello-list",
+					"title": "List greetings",
+					"description": "List the names greeted, as a sidebar list.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {},
+						"additionalProperties": false
+					}
+				},
+				{
+					"name": "hello-forget",
+					"title": "Forget a name",
+					"description": "Remove a greeted name; the undo of hello-greet.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": ["name"],
+						"additionalProperties": false
+					}
+				}
+			],
+			"skills": [
+				{
+					"name": "hello-guide",
+					"path": "skills/hello-guide"
+				}
+			],
+			"config": {
+				"schema": {
+					"type": "object",
+					"properties": {
+						"default_name": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"ui": {
+				"compositions": ["list-detail"],
+				"layout": {
+					"sidebar": {
+						"open": true,
+						"width": 260
+					},
+					"inspector": {
+						"open": false
+					}
+				},
+				"surfaces": {
+					"rail": {
+						"label": "Hello",
+						"icon": "system/document",
+						"order": 10
+					},
+					"sidebar": {
+						"shape": "list",
+						"command": "hello-list"
+					},
+					"main": {
+						"element": "hello-main"
+					},
+					"inspector": {
+						"element": "hello-inspector"
+					},
+					"keybindings": [
+						{
+							"chord": "Mod+Shift+H",
+							"command": "hello-greet"
+						}
+					]
+				}
+			}
+		},
+		"view": {
+			"manifest_version": 1,
+			"protocol": 1,
+			"afd_contract": "1.0",
+			"plugin": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "One command, a sidebar list and a main view: the reference app.",
+				"kind": "view",
+				"domains": ["hello"],
+				"license": "MIT"
+			},
+			"view": {
+				"handlers": "views/handlers.html"
+			},
+			"app": {
+				"scope_levels": ["workspace", "project"]
+			},
+			"grants": [
+				{
+					"name": "store",
+					"reason": "Keeps the names greeted."
+				},
+				{
+					"name": "clock",
+					"reason": "Stamps each greeting with the command context's clock."
+				}
+			],
+			"commands": [
+				{
+					"name": "hello-greet",
+					"title": "Greet someone",
+					"description": "Greet someone and remember the name.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": ["name"],
+						"additionalProperties": false
+					},
+					"undoable": true
+				},
+				{
+					"name": "hello-list",
+					"title": "List greetings",
+					"description": "List the names greeted, as a sidebar list.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {},
+						"additionalProperties": false
+					}
+				},
+				{
+					"name": "hello-forget",
+					"title": "Forget a name",
+					"description": "Remove a greeted name; the undo of hello-greet.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": ["name"],
+						"additionalProperties": false
+					}
+				}
+			],
+			"config": {
+				"schema": {
+					"type": "object",
+					"properties": {
+						"default_name": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"ui": {
+				"compositions": ["list-detail"],
+				"resources": [
+					{
+						"uri": "ui://hello/main",
+						"path": "views/main.html",
+						"title": "Hello"
+					}
+				],
+				"surfaces": {
+					"rail": {
+						"label": "Hello",
+						"icon": "system/document"
+					},
+					"sidebar": {
+						"shape": "list",
+						"command": "hello-list"
+					},
+					"main": {
+						"resource": "ui://hello/main",
+						"command": "hello-list"
+					},
+					"keybindings": [
+						{
+							"chord": "Mod+Shift+H",
+							"command": "hello-list"
+						}
+					]
+				}
+			}
+		},
+		"mounted": {
+			"manifest_version": 1,
+			"protocol": 1,
+			"afd_contract": "1.0",
+			"plugin": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "One command, a sidebar list and a main view: the reference app.",
+				"kind": "mounted",
+				"domains": ["hello"],
+				"license": "MIT"
+			},
+			"mount": {
+				"prefix": "hello",
+				"transport": "http",
+				"only": ["hello-greet"],
+				"tools": [
+					{
+						"tool": "hello-greet",
+						"effects": ["plugin-state"]
+					}
+				]
+			},
+			"app": {
+				"scope_levels": ["workspace"]
+			},
+			"ui": {
+				"surfaces": {
+					"rail": {
+						"label": "Hello"
+					}
+				}
+			}
+		},
+		"umbel": {
+			"manifest_version": 1,
+			"protocol": 1,
+			"afd_contract": "1.0",
+			"plugin": {
+				"id": "umbel",
+				"title": "Umbel",
+				"version": "0.1.0",
+				"description": "An Umbel host: knowledge, memory and context tools from its enabled plugins.",
+				"kind": "mounted",
+				"domains": ["umbel"],
+				"homepage": "https://afd.dev/umbel"
+			},
+			"mount": {
+				"prefix": "umbel",
+				"transport": "http"
+			},
+			"app": {
+				"scope_levels": ["workspace", "project"]
+			}
+		}
+	},
+	"cases": [
+		{
+			"id": "accepts-native",
+			"base": "native",
+			"accepted": true
+		},
+		{
+			"id": "accepts-view",
+			"base": "view",
+			"accepted": true
+		},
+		{
+			"id": "accepts-mounted",
+			"base": "mounted",
+			"accepted": true
+		},
+		{
+			"id": "accepts-umbel",
+			"base": "umbel",
+			"accepted": true
+		},
+		{
+			"id": "closed-root",
+			"base": "native",
+			"set": {
+				"/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-plugin",
+			"base": "native",
+			"set": {
+				"/plugin/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "plugin.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-native",
+			"base": "native",
+			"set": {
+				"/native/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "native.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-view",
+			"base": "view",
+			"set": {
+				"/view/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "view.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-app",
+			"base": "native",
+			"set": {
+				"/app/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "app.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-command",
+			"base": "native",
+			"set": {
+				"/commands/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "commands[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-expose",
+			"base": "native",
+			"set": {
+				"/commands/0/expose": {
+					"pallete": true
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "commands[0].expose.pallete",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-example",
+			"base": "native",
+			"set": {
+				"/commands/0/examples": [
+					{
+						"title": "x",
+						"input": {},
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "commands[0].examples[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-grant",
+			"base": "native",
+			"set": {
+				"/grants/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "grants[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-context",
+			"base": "native",
+			"set": {
+				"/contexts": [
+					{
+						"name": "hello-main",
+						"description": "x",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "contexts[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-skill",
+			"base": "native",
+			"set": {
+				"/skills/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "skills[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-config",
+			"base": "native",
+			"set": {
+				"/config/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "config.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-mount",
+			"base": "mounted",
+			"set": {
+				"/mount/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "mount.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-mountTool",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "mount.tools[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-ui",
+			"base": "native",
+			"set": {
+				"/ui/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-rail",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/rail/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.rail.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-sidebar",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.sidebar.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-header",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/header": {
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.header.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-headerAction",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/header": {
+					"actions": [
+						{
+							"command": "hello-list",
+							"label": "List",
+							"bogus": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.header.actions[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-main",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/main/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.main.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-inspector",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.inspector.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-panel",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": [
+						{
+							"id": "a",
+							"title": "A",
+							"element": "hello-a"
+						}
+					],
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.panel.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-panelView",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": [
+						{
+							"id": "a",
+							"title": "A",
+							"element": "hello-a",
+							"bogus": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.panel.views[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-status",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/status": {
+					"items": [],
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.status.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-statusItem",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/status": {
+					"items": [
+						{
+							"id": "a",
+							"label": "A",
+							"bogus": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.status.items[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-keybinding",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.surfaces.keybindings[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-layout",
+			"base": "native",
+			"set": {
+				"/ui/layout/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.layout.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-layoutSide",
+			"base": "native",
+			"set": {
+				"/ui/layout/sidebar/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.layout.sidebar.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-layoutPanel",
+			"base": "native",
+			"set": {
+				"/ui/layout/panel": {
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.layout.panel.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-resource",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.resources[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-resourceCsp",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/csp": {
+					"bogus": []
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.resources[0].csp.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-resourcePermissions",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/permissions": {
+					"bogus": {}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.resources[0].permissions.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-resourcePermission",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/permissions": {
+					"camera": {
+						"bogus": 1
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.resources[0].permissions.camera.bogus",
+			"suggestion": "No keys are admitted here"
+		},
+		{
+			"id": "closed-surfaces",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/tray": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_SURFACE",
+			"key": "ui.surfaces.tray",
+			"suggestion": "`keybindings`"
+		},
+		{
+			"id": "did-you-mean-palette",
+			"base": "native",
+			"set": {
+				"/commands/0/expose": {
+					"pallete": true
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "commands[0].expose.pallete",
+			"suggestion": "Did you mean `palette`?"
+		},
+		{
+			"id": "reserved-connectors",
+			"base": "native",
+			"set": {
+				"/connectors": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "connectors",
+			"suggestion": "connectors"
+		},
+		{
+			"id": "reserved-backends",
+			"base": "native",
+			"set": {
+				"/backends": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "backends",
+			"suggestion": "backends"
+		},
+		{
+			"id": "reserved-dependencies",
+			"base": "native",
+			"set": {
+				"/dependencies": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "dependencies",
+			"suggestion": "dependencies"
+		},
+		{
+			"id": "reserved-signature",
+			"base": "native",
+			"set": {
+				"/signature": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "signature",
+			"suggestion": "signature"
+		},
+		{
+			"id": "reserved-scopes",
+			"base": "native",
+			"set": {
+				"/scopes": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "scopes",
+			"suggestion": "scopes"
+		},
+		{
+			"id": "reserved-on_conflict",
+			"base": "native",
+			"set": {
+				"/on_conflict": "error"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "on_conflict",
+			"suggestion": "on_conflict"
+		},
+		{
+			"id": "reserved-component",
+			"base": "native",
+			"set": {
+				"/component": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "component",
+			"suggestion": "component"
+		},
+		{
+			"id": "reserved-packs",
+			"base": "native",
+			"set": {
+				"/packs": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "packs",
+			"suggestion": "packs"
+		},
+		{
+			"id": "reserved-commands-scopes",
+			"base": "native",
+			"set": {
+				"/commands/0/scopes": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "commands[0].scopes",
+			"suggestion": "scopes"
+		},
+		{
+			"id": "reserved-commands-mutation",
+			"base": "native",
+			"set": {
+				"/commands/0/mutation": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "commands[0].mutation",
+			"suggestion": "mutation"
+		},
+		{
+			"id": "reserved-commands-confirm",
+			"base": "native",
+			"set": {
+				"/commands/0/confirm": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "commands[0].confirm",
+			"suggestion": "confirm"
+		},
+		{
+			"id": "reserved-grants-allow",
+			"base": "native",
+			"set": {
+				"/grants/0/allow": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "grants[0].allow",
+			"suggestion": "allow"
+		},
+		{
+			"id": "reserved-grants-targets",
+			"base": "native",
+			"set": {
+				"/grants/0/targets": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "grants[0].targets",
+			"suggestion": "targets"
+		},
+		{
+			"id": "reserved-expose-apps",
+			"base": "native",
+			"set": {
+				"/commands/0/expose": {
+					"apps": true
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "commands[0].expose.apps",
+			"suggestion": "apps"
+		},
+		{
+			"id": "reserved-mount-url",
+			"base": "mounted",
+			"set": {
+				"/mount/url": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.url",
+			"suggestion": "url"
+		},
+		{
+			"id": "reserved-mount-bearer_env",
+			"base": "mounted",
+			"set": {
+				"/mount/bearer_env": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.bearer_env",
+			"suggestion": "bearer_env"
+		},
+		{
+			"id": "reserved-mount-command",
+			"base": "mounted",
+			"set": {
+				"/mount/command": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.command",
+			"suggestion": "command"
+		},
+		{
+			"id": "reserved-mount-cwd",
+			"base": "mounted",
+			"set": {
+				"/mount/cwd": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.cwd",
+			"suggestion": "cwd"
+		},
+		{
+			"id": "reserved-mount-env",
+			"base": "mounted",
+			"set": {
+				"/mount/env": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.env",
+			"suggestion": "env"
+		},
+		{
+			"id": "reserved-mount-bearer",
+			"base": "mounted",
+			"set": {
+				"/mount/bearer": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.bearer",
+			"suggestion": "bearer"
+		},
+		{
+			"id": "reserved-bind-space",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/bind_space": true
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESERVED_KEY",
+			"key": "mount.tools[0].bind_space",
+			"suggestion": "bind_space"
+		},
+		{
+			"id": "later-ui-documents",
+			"base": "native",
+			"set": {
+				"/ui/documents": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents",
+			"suggestion": "phase 2"
+		},
+		{
+			"id": "later-ui-new",
+			"base": "native",
+			"set": {
+				"/ui/new": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.new",
+			"suggestion": "phase 2"
+		},
+		{
+			"id": "later-ui-project_summary",
+			"base": "native",
+			"set": {
+				"/ui/project_summary": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.project_summary",
+			"suggestion": "phase 2"
+		},
+		{
+			"id": "later-ui-account",
+			"base": "native",
+			"set": {
+				"/ui/account": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.account",
+			"suggestion": "phase 3"
+		},
+		{
+			"id": "later-ui-settings",
+			"base": "native",
+			"set": {
+				"/ui/settings": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.settings",
+			"suggestion": "phase 4"
+		},
+		{
+			"id": "later-ui-experiments",
+			"base": "native",
+			"set": {
+				"/ui/experiments": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.experiments",
+			"suggestion": "phase 4"
+		},
+		{
+			"id": "later-ui-menus",
+			"base": "native",
+			"set": {
+				"/ui/menus": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.menus",
+			"suggestion": "phase 4"
+		},
+		{
+			"id": "later-ui-automations",
+			"base": "native",
+			"set": {
+				"/ui/automations": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.automations",
+			"suggestion": "phase 7"
+		},
+		{
+			"id": "later-agent",
+			"base": "native",
+			"set": {
+				"/agent": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "agent",
+			"suggestion": "phase 5"
+		},
+		{
+			"id": "catalog-id-under-surfaces",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/documents": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.documents",
+			"suggestion": "`ui.documents`"
+		},
+		{
+			"id": "catalog-id-palette-under-surfaces",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/palette": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.palette",
+			"suggestion": "expose.palette"
+		},
+		{
+			"id": "sidebar-tree",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "tree"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "phase 2"
+		},
+		{
+			"id": "sidebar-shape-bogus",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "grid"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.sidebar.shape"
+		},
+		{
+			"id": "refused-confirm-prompt",
+			"base": "native",
+			"set": {
+				"/commands/0/confirm_prompt": "Sure?"
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIRM_UNAVAILABLE",
+			"key": "commands[0].confirm_prompt",
+			"suggestion": "phase 4"
+		},
+		{
+			"id": "refused-output-budget",
+			"base": "native",
+			"set": {
+				"/commands/0/output_budget": {
+					"default_bytes": 1,
+					"max_bytes": 2
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_BUDGET_UNAVAILABLE",
+			"key": "commands[0].output_budget",
+			"suggestion": "output_budget"
+		},
+		{
+			"id": "refused-output-budget-bad-value",
+			"base": "native",
+			"set": {
+				"/commands/0/output_budget": {
+					"default_bytes": 0
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_BUDGET_UNAVAILABLE",
+			"key": "commands[0].output_budget",
+			"suggestion": "output_budget"
+		},
+		{
+			"id": "refused-first-class",
+			"base": "native",
+			"set": {
+				"/commands/0/first_class": true
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEY_REFUSED",
+			"key": "commands[0].first_class",
+			"suggestion": "first_class"
+		},
+		{
+			"id": "refused-pipelines",
+			"base": "native",
+			"set": {
+				"/pipelines": [
+					{
+						"name": "hello-both",
+						"description": "x",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object",
+							"properties": {},
+							"additionalProperties": false
+						},
+						"steps": []
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEY_REFUSED",
+			"key": "pipelines",
+			"suggestion": "pipelines"
+		},
+		{
+			"id": "refused-approval-required",
+			"base": "native",
+			"set": {
+				"/commands/0/approval": "required"
+			},
+			"accepted": false,
+			"code": "MANIFEST_APPROVAL_UNAVAILABLE",
+			"key": "commands[0].approval",
+			"suggestion": "phase 5"
+		},
+		{
+			"id": "approval-none",
+			"base": "native",
+			"set": {
+				"/commands/0/approval": "none"
+			},
+			"accepted": true
+		},
+		{
+			"id": "refused-mount-tool-confirm_prompt",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/confirm_prompt": "Sure?"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEY_REFUSED",
+			"key": "mount.tools[0].confirm_prompt",
+			"suggestion": "confirm_prompt"
+		},
+		{
+			"id": "refused-mount-tool-approval",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/approval": "none"
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEY_REFUSED",
+			"key": "mount.tools[0].approval",
+			"suggestion": "approval"
+		},
+		{
+			"id": "refused-mount-tool-first_class",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/first_class": true
+			},
+			"accepted": false,
+			"code": "MANIFEST_KEY_REFUSED",
+			"key": "mount.tools[0].first_class",
+			"suggestion": "first_class"
+		},
+		{
+			"id": "refused-workspace-write",
+			"base": "native",
+			"set": {
+				"/commands/0/effects": ["workspace-write"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_EFFECT_REFUSED",
+			"key": "commands[0].effects[0]",
+			"suggestion": "plugin-state"
+		},
+		{
+			"id": "refused-workspace-write-mount-tool",
+			"base": "mounted",
+			"set": {
+				"/mount/tools/0/effects": ["workspace-write"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_EFFECT_REFUSED",
+			"key": "mount.tools[0].effects[0]",
+			"suggestion": "plugin-state"
+		},
+		{
+			"id": "kind-compiled",
+			"base": "native",
+			"set": {
+				"/plugin/kind": "compiled"
+			},
+			"remove": ["/native"],
+			"accepted": false,
+			"code": "MANIFEST_KIND_UNKNOWN",
+			"key": "plugin.kind",
+			"suggestion": "`native`, `view` or `mounted`"
+		},
+		{
+			"id": "kind-umbel",
+			"base": "native",
+			"set": {
+				"/plugin/kind": "component"
+			},
+			"remove": ["/native"],
+			"accepted": false,
+			"code": "MANIFEST_KIND_UNKNOWN",
+			"key": "plugin.kind",
+			"suggestion": "Umbel"
+		},
+		{
+			"id": "kind-pack",
+			"base": "native",
+			"set": {
+				"/plugin/kind": "pack"
+			},
+			"remove": ["/native"],
+			"accepted": false,
+			"code": "MANIFEST_KIND_UNKNOWN",
+			"key": "plugin.kind",
+			"suggestion": "Umbel"
+		},
+		{
+			"id": "id-shell-domain",
+			"base": "umbel",
+			"set": {
+				"/plugin/id": "layout",
+				"/plugin/domains": ["layout"],
+				"/mount/prefix": "layout"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id",
+			"suggestion": "another id"
+		},
+		{
+			"id": "id-status",
+			"base": "umbel",
+			"set": {
+				"/plugin/id": "status",
+				"/plugin/domains": ["status"],
+				"/mount/prefix": "status"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id",
+			"suggestion": "another id"
+		},
+		{
+			"id": "id-afd",
+			"base": "umbel",
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id",
+			"suggestion": "another id",
+			"set": {
+				"/plugin/id": "afd",
+				"/plugin/domains": ["other"],
+				"/mount/prefix": "other"
+			}
+		},
+		{
+			"id": "id-view-state-fails-the-pattern-too",
+			"base": "umbel",
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id",
+			"suggestion": "another id",
+			"set": {
+				"/plugin/id": "view-state"
+			}
+		},
+		{
+			"id": "id-bad-pattern",
+			"base": "umbel",
+			"set": {
+				"/plugin/id": "Umbel"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "plugin.id"
+		},
+		{
+			"id": "id-view-is-not-a-shell-domain",
+			"base": "umbel",
+			"set": {
+				"/plugin/id": "view",
+				"/plugin/domains": ["view"],
+				"/mount/prefix": "view"
+			},
+			"accepted": true
+		},
+		{
+			"id": "domains-missing",
+			"base": "native",
+			"remove": ["/plugin/domains"],
+			"accepted": false,
+			"code": "MANIFEST_DOMAIN_INVALID",
+			"key": "plugin.domains",
+			"suggestion": "[plugin.id]"
+		},
+		{
+			"id": "domains-not-the-id",
+			"base": "umbel",
+			"set": {
+				"/plugin/domains": ["umbel", "other"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DOMAIN_INVALID",
+			"key": "plugin.domains",
+			"suggestion": "[\"umbel\"]"
+		},
+		{
+			"id": "domains-empty",
+			"base": "umbel",
+			"set": {
+				"/plugin/domains": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_DOMAIN_INVALID",
+			"key": "plugin.domains",
+			"suggestion": "[plugin.id]"
+		},
+		{
+			"id": "version-two",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2
+			},
+			"accepted": false,
+			"code": "MANIFEST_VERSION_UNSUPPORTED",
+			"key": "manifest_version",
+			"suggestion": "manifest_version = 1"
+		},
+		{
+			"id": "protocol-two",
+			"base": "native",
+			"set": {
+				"/protocol": 2
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "protocol"
+		},
+		{
+			"id": "native-section-missing",
+			"base": "native",
+			"remove": ["/native"],
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "native",
+			"suggestion": "[native]"
+		},
+		{
+			"id": "native-on-view",
+			"base": "view",
+			"set": {
+				"/native": {
+					"entry": "a.js"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "native",
+			"suggestion": "plugin.kind"
+		},
+		{
+			"id": "view-on-native",
+			"base": "native",
+			"set": {
+				"/view": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "view",
+			"suggestion": "plugin.kind"
+		},
+		{
+			"id": "resources-on-native",
+			"base": "native",
+			"set": {
+				"/ui/resources": [
+					{
+						"uri": "ui://hello/a",
+						"path": "a.html"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "ui.resources",
+			"suggestion": "plugin.kind"
+		},
+		{
+			"id": "native-entry-not-js",
+			"base": "native",
+			"set": {
+				"/native/entry": "native.ts"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "native.entry"
+		},
+		{
+			"id": "view-handlers-missing",
+			"base": "view",
+			"remove": ["/view"],
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "view.handlers",
+			"suggestion": "handlers"
+		},
+		{
+			"id": "view-without-commands-needs-no-handlers",
+			"base": "view",
+			"remove": [
+				"/view",
+				"/commands",
+				"/ui/compositions",
+				"/ui/surfaces/sidebar",
+				"/ui/surfaces/keybindings",
+				"/ui/surfaces/main/command",
+				"/grants"
+			],
+			"accepted": true
+		},
+		{
+			"id": "mounted-without-mount",
+			"base": "mounted",
+			"remove": ["/mount"],
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "mount",
+			"suggestion": "[mount]"
+		},
+		{
+			"id": "mount-on-native",
+			"base": "native",
+			"set": {
+				"/mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "mount",
+			"suggestion": "plugin.kind"
+		},
+		{
+			"id": "mounted-with-commands",
+			"base": "mounted",
+			"set": {
+				"/commands": [
+					{
+						"name": "hello-greet",
+						"title": "Greet someone",
+						"description": "Greet someone and remember the name.",
+						"effects": ["store-write"],
+						"input_schema": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["name"],
+							"additionalProperties": false
+						},
+						"undoable": true
+					},
+					{
+						"name": "hello-list",
+						"title": "List greetings",
+						"description": "List the names greeted, as a sidebar list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object",
+							"properties": {},
+							"additionalProperties": false
+						}
+					},
+					{
+						"name": "hello-forget",
+						"title": "Forget a name",
+						"description": "Remove a greeted name; the undo of hello-greet.",
+						"effects": ["store-write"],
+						"input_schema": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["name"],
+							"additionalProperties": false
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SECTION_KIND",
+			"key": "commands",
+			"suggestion": "commands"
+		},
+		{
+			"id": "mount-prefix-other",
+			"base": "mounted",
+			"set": {
+				"/mount/prefix": "other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_MOUNT_PREFIX",
+			"key": "mount.prefix",
+			"suggestion": "plugin.domains"
+		},
+		{
+			"id": "scope-level-unknown",
+			"base": "native",
+			"set": {
+				"/app/scope_levels": ["galaxy"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "app.scope_levels[0]"
+		},
+		{
+			"id": "name-other-domain",
+			"base": "native",
+			"set": {
+				"/commands/1/name": "other-list",
+				"/ui/surfaces/sidebar/command": "hello-greet"
+			},
+			"accepted": false,
+			"code": "MANIFEST_NAME_DOMAIN",
+			"key": "commands[1].name",
+			"suggestion": "hello"
+		},
+		{
+			"id": "context-other-domain",
+			"base": "native",
+			"set": {
+				"/contexts": [
+					{
+						"name": "other",
+						"description": "x"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_NAME_DOMAIN",
+			"key": "contexts[0].name",
+			"suggestion": "hello"
+		},
+		{
+			"id": "duplicate-command",
+			"base": "native",
+			"set": {
+				"/commands/2/name": "hello-list"
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "commands[2].name",
+			"suggestion": "own name"
+		},
+		{
+			"id": "duplicate-grant",
+			"base": "native",
+			"set": {
+				"/grants/1/name": "store"
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "grants[1].name",
+			"suggestion": "own name"
+		},
+		{
+			"id": "context-undeclared",
+			"base": "native",
+			"set": {
+				"/commands/0/contexts": ["hello-main"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONTEXT_UNDECLARED",
+			"key": "commands[0].contexts[0]",
+			"suggestion": "contexts"
+		},
+		{
+			"id": "text-control",
+			"base": "native",
+			"set": {
+				"/plugin/title": "Hello\u0007"
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "plugin.title",
+			"suggestion": "control character"
+		},
+		{
+			"id": "text-control-in-a-label",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/rail/label": "Hello\u0007"
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.surfaces.rail.label",
+			"suggestion": "control character"
+		},
+		{
+			"id": "input-schema-not",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"not": {
+						"const": 1
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "type: object"
+		},
+		{
+			"id": "input-schema-if",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"if": {
+						"type": "object"
+					},
+					"then": {
+						"type": "object"
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema"
+		},
+		{
+			"id": "input-schema-unevaluated",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"unevaluatedProperties": false
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema"
+		},
+		{
+			"id": "config-schema-open",
+			"base": "native",
+			"set": {
+				"/config/schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
+			"key": "config.schema",
+			"suggestion": "additionalProperties"
+		},
+		{
+			"id": "config-schema-zod-refuses",
+			"base": "native",
+			"set": {
+				"/config/schema": {
+					"type": "object",
+					"additionalProperties": false,
+					"not": {
+						"const": 1
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
+			"key": "config.schema",
+			"suggestion": "additionalProperties"
+		},
+		{
+			"id": "skill-name",
+			"base": "native",
+			"set": {
+				"/skills/0": {
+					"name": "other",
+					"path": "skills/other"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SKILL_NAME",
+			"key": "skills[0].name",
+			"suggestion": "hello"
+		},
+		{
+			"id": "skill-path",
+			"base": "native",
+			"set": {
+				"/skills/0/path": "skills/other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SKILL_NAME",
+			"key": "skills[0].path",
+			"suggestion": "hello-guide"
+		},
+		{
+			"id": "tool-meta-afd",
+			"base": "native",
+			"set": {
+				"/commands/0/tool_meta": {
+					"dev.afd/outputBudget": {}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_TOOL_META_INVALID",
+			"key": "commands[0].tool_meta[\"dev.afd/outputBudget\"]",
+			"suggestion": "prefix"
+		},
+		{
+			"id": "tool-meta-loam",
+			"base": "native",
+			"set": {
+				"/commands/0/tool_meta": {
+					"dev.loam/trust": "trusted"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_TOOL_META_INVALID",
+			"key": "commands[0].tool_meta[\"dev.loam/trust\"]",
+			"suggestion": "prefix"
+		},
+		{
+			"id": "tool-meta-resource-unknown",
+			"base": "view",
+			"set": {
+				"/commands/0/tool_meta": {
+					"ui": {
+						"resourceUri": "ui://hello/other"
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_UNKNOWN",
+			"key": "commands[0].tool_meta.ui",
+			"suggestion": "ui.resources"
+		},
+		{
+			"id": "tool-meta-resource-known",
+			"base": "view",
+			"set": {
+				"/commands/0/tool_meta": {
+					"ui": {
+						"resourceUri": "ui://hello/main"
+					}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "requires-unknown-warns",
+			"base": "native",
+			"set": {
+				"/commands/0/requires": ["hello-other"]
+			},
+			"accepted": true,
+			"warnings": [
+				{
+					"code": "MANIFEST_REQUIRES_UNKNOWN",
+					"key": "commands[0].requires[0]"
+				}
+			]
+		},
+		{
+			"id": "afd-contract-other-major",
+			"base": "native",
+			"set": {
+				"/afd_contract": "2.0"
+			},
+			"accepted": false,
+			"code": "MANIFEST_AFD_CONTRACT",
+			"key": "afd_contract",
+			"suggestion": "1.x"
+		},
+		{
+			"id": "not-packed-input",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": "schemas/hello-greet.input.json"
+			},
+			"accepted": false,
+			"code": "MANIFEST_NOT_PACKED",
+			"key": "commands[0].input_schema",
+			"suggestion": "loam app pack"
+		},
+		{
+			"id": "not-packed-returns",
+			"base": "native",
+			"set": {
+				"/commands/0/returns": "schemas/out.json"
+			},
+			"accepted": false,
+			"code": "MANIFEST_NOT_PACKED",
+			"key": "commands[0].returns",
+			"suggestion": "loam app pack"
+		},
+		{
+			"id": "not-packed-config",
+			"base": "native",
+			"set": {
+				"/config/schema": "schemas/config.json"
+			},
+			"accepted": false,
+			"code": "MANIFEST_NOT_PACKED",
+			"key": "config.schema",
+			"suggestion": "loam app pack"
+		},
+		{
+			"id": "grant-unknown",
+			"base": "native",
+			"set": {
+				"/grants/1": {
+					"name": "teleport",
+					"reason": "x"
+				}
+			},
+			"accepted": false,
+			"code": "GRANT_UNKNOWN",
+			"key": "grants[1].name",
+			"suggestion": "store"
+		},
+		{
+			"id": "grant-required-unserved",
+			"base": "native",
+			"set": {
+				"/grants/1": {
+					"name": "projects",
+					"reason": "x"
+				}
+			},
+			"accepted": false,
+			"code": "GRANT_UNAVAILABLE",
+			"key": "grants[1].name",
+			"suggestion": "phase 2"
+		},
+		{
+			"id": "grant-required-collaboration",
+			"base": "native",
+			"set": {
+				"/grants/1": {
+					"name": "collaboration",
+					"reason": "x"
+				}
+			},
+			"accepted": false,
+			"code": "GRANT_UNAVAILABLE",
+			"key": "grants[1].name",
+			"suggestion": "collaboration specification"
+		},
+		{
+			"id": "grant-optional-unserved-loads",
+			"base": "native",
+			"set": {
+				"/grants/1": {
+					"name": "projects",
+					"reason": "x",
+					"required": false
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "grant-on-mounted",
+			"base": "mounted",
+			"set": {
+				"/grants": [
+					{
+						"name": "store",
+						"reason": "x"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "GRANT_NOT_APPLICABLE",
+			"key": "grants[0]",
+			"suggestion": "Remove the grant"
+		},
+		{
+			"id": "store-write-without-store",
+			"base": "native",
+			"set": {
+				"/grants": [
+					{
+						"name": "clock",
+						"reason": "x"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "GRANT_REQUIRED",
+			"key": "commands[0].effects",
+			"suggestion": "name = \"store\"",
+			"alsoKeys": ["commands[2].effects"]
+		},
+		{
+			"id": "external-without-http",
+			"base": "native",
+			"set": {
+				"/commands/1/effects": ["external"]
+			},
+			"accepted": false,
+			"code": "GRANT_REQUIRED",
+			"key": "commands[1].effects",
+			"suggestion": "name = \"http\""
+		},
+		{
+			"id": "external-with-unserved-http-refused",
+			"base": "native",
+			"set": {
+				"/commands/1/effects": ["external"],
+				"/grants/1": {
+					"name": "http",
+					"reason": "x"
+				}
+			},
+			"accepted": false,
+			"code": "GRANT_UNAVAILABLE",
+			"key": "grants[1].name",
+			"suggestion": "phase 5"
+		},
+		{
+			"id": "inspector-on-view",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/inspector": {
+					"element": "hello-inspector"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.inspector",
+			"suggestion": "native"
+		},
+		{
+			"id": "panel-on-view",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": [
+						{
+							"id": "a",
+							"title": "A",
+							"element": "hello-a"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.panel",
+			"suggestion": "native"
+		},
+		{
+			"id": "header-on-mounted",
+			"base": "mounted",
+			"set": {
+				"/ui/surfaces/header": {
+					"title": "Hello"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.header",
+			"suggestion": "only `ui.surfaces.rail`"
+		},
+		{
+			"id": "custom-sidebar-on-view",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "custom",
+					"element": "hello-side"
+				},
+				"/ui/compositions": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "list"
+		},
+		{
+			"id": "element-main-on-view",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/main": {
+					"element": "hello-main"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.main",
+			"suggestion": "resource"
+		},
+		{
+			"id": "resource-main-on-native",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/main": {
+					"element": "hello-main",
+					"resource": "ui://hello/main"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.main",
+			"suggestion": "Remove",
+			"alsoKeys": ["ui.surfaces.main.resource"]
+		},
+		{
+			"id": "native-main-without-element",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/main": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.surfaces.main.element",
+			"suggestion": "console"
+		},
+		{
+			"id": "element-invalid-0",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/element": "hello"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.inspector.element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "element-invalid-1",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/element": "Hello-main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.inspector.element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "element-invalid-2",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/element": "loam-main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.inspector.element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "element-invalid-3",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/element": "violet-button"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.inspector.element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "element-invalid-4",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/inspector/element": "annotation-xml"
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.inspector.element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "element-in-a-panel-view",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": [
+						{
+							"id": "a",
+							"title": "A",
+							"element": "nohyphen"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.surfaces.panel.views[0].element",
+			"suggestion": "hyphen"
+		},
+		{
+			"id": "sidebar-command-unknown",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar/command": "hello-other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.surfaces.sidebar.command",
+			"suggestion": "commands"
+		},
+		{
+			"id": "binding-command-unknown",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/command": "hello-other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.surfaces.keybindings[0].command",
+			"suggestion": "commands"
+		},
+		{
+			"id": "action-command-unknown",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/header": {
+					"actions": [
+						{
+							"command": "hello-other",
+							"label": "x"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.surfaces.header.actions[0].command",
+			"suggestion": "commands"
+		},
+		{
+			"id": "status-command-unknown",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/status": {
+					"items": [
+						{
+							"id": "a",
+							"label": "A",
+							"command": "hello-other"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.surfaces.status.items[0].command",
+			"suggestion": "commands"
+		},
+		{
+			"id": "main-command-unknown",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/main/command": "hello-other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.surfaces.main.command",
+			"suggestion": "commands"
+		},
+		{
+			"id": "main-resource-unknown",
+			"base": "view",
+			"set": {
+				"/ui/surfaces/main/resource": "ui://hello/other"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_UNKNOWN",
+			"key": "ui.surfaces.main.resource",
+			"suggestion": "ui.resources"
+		},
+		{
+			"id": "resource-outside-its-namespace",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/uri": "ui://other/main",
+				"/ui/surfaces/main/resource": "ui://other/main"
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_UNKNOWN",
+			"key": "ui.resources[0].uri",
+			"suggestion": "ui://hello/"
+		},
+		{
+			"id": "resource-repeated",
+			"base": "view",
+			"set": {
+				"/ui/resources/1": {
+					"uri": "ui://hello/main",
+					"path": "views/two.html"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.resources[1].uri",
+			"suggestion": "own URI"
+		},
+		{
+			"id": "resource-csp-warns",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/csp": {
+					"connectDomains": ["https://example.com"]
+				}
+			},
+			"accepted": true,
+			"warnings": [
+				{
+					"code": "VIEW_CSP_IGNORED",
+					"key": "ui.resources[0].csp"
+				}
+			]
+		},
+		{
+			"id": "panel-view-repeated",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": [
+						{
+							"id": "a",
+							"title": "A",
+							"element": "hello-a"
+						},
+						{
+							"id": "a",
+							"title": "B",
+							"element": "hello-b"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.surfaces.panel.views[1].id",
+			"suggestion": "own id"
+		},
+		{
+			"id": "status-item-repeated",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/status": {
+					"items": [
+						{
+							"id": "a",
+							"label": "A"
+						},
+						{
+							"id": "a",
+							"label": "B"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.surfaces.status.items[1].id",
+			"suggestion": "own id"
+		},
+		{
+			"id": "chord-repeated",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/1": {
+					"chord": "Mod+Shift+H",
+					"command": "hello-list"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_DUPLICATE",
+			"key": "ui.surfaces.keybindings[1].chord",
+			"suggestion": "own id"
+		},
+		{
+			"id": "chord-reserved-Mod+K",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+K"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-reserved-Mod+B",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+B"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-reserved-Mod+Alt+B",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+Alt+B"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-reserved-Mod+J",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Mod+J"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-reserved-F6",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "F6"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-reserved-Shift+F6",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Shift+F6"
+			},
+			"accepted": false,
+			"code": "KEYBINDING_RESERVED",
+			"key": "ui.surfaces.keybindings[0].chord",
+			"suggestion": "another chord"
+		},
+		{
+			"id": "chord-without-mod",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "Shift+H"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.keybindings[0].chord"
+		},
+		{
+			"id": "chord-function-key",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/keybindings/0/chord": "F7"
+			},
+			"accepted": true
+		},
+		{
+			"id": "layout-sidebar-small",
+			"base": "native",
+			"set": {
+				"/ui/layout/sidebar/width": 10
+			},
+			"accepted": false,
+			"code": "MANIFEST_LAYOUT_INVALID",
+			"key": "ui.layout.sidebar.width",
+			"suggestion": "200 to 480"
+		},
+		{
+			"id": "layout-inspector-large",
+			"base": "native",
+			"set": {
+				"/ui/layout/inspector/width": 900
+			},
+			"accepted": false,
+			"code": "MANIFEST_LAYOUT_INVALID",
+			"key": "ui.layout.inspector.width",
+			"suggestion": "240 to 520"
+		},
+		{
+			"id": "layout-panel-small",
+			"base": "native",
+			"set": {
+				"/ui/layout/panel": {
+					"height": 10
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_LAYOUT_INVALID",
+			"key": "ui.layout.panel.height",
+			"suggestion": "at least 120"
+		},
+		{
+			"id": "composition-board",
+			"base": "native",
+			"set": {
+				"/ui/compositions": ["board"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMPOSITION_UNAVAILABLE",
+			"key": "ui.compositions[0]",
+			"suggestion": "later phase"
+		},
+		{
+			"id": "composition-boards",
+			"base": "native",
+			"set": {
+				"/ui/compositions": ["boards"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMPOSITION_UNKNOWN",
+			"key": "ui.compositions[0]",
+			"suggestion": "`board`"
+		},
+		{
+			"id": "composition-console",
+			"base": "native",
+			"set": {
+				"/ui/compositions": ["console"]
+			},
+			"accepted": true
+		},
+		{
+			"id": "composition-list-detail-needs-a-list",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "custom",
+					"element": "hello-side"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMPOSITION_INCOMPLETE",
+			"key": "ui.compositions[0]",
+			"suggestion": "list"
+		},
+		{
+			"id": "composition-list-detail-needs-main",
+			"base": "native",
+			"remove": ["/ui/surfaces/main"],
+			"accepted": false,
+			"code": "MANIFEST_COMPOSITION_INCOMPLETE",
+			"key": "ui.compositions[0]",
+			"suggestion": "ui.surfaces.main"
+		},
+		{
+			"id": "icon-unknown",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/rail/icon": "system/rocket"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.rail.icon"
+		},
+		{
+			"id": "status-five-items",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/status": {
+					"items": [
+						{
+							"id": "ia",
+							"label": "x"
+						},
+						{
+							"id": "ib",
+							"label": "x"
+						},
+						{
+							"id": "ic",
+							"label": "x"
+						},
+						{
+							"id": "id",
+							"label": "x"
+						},
+						{
+							"id": "ie",
+							"label": "x"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.status.items"
+		},
+		{
+			"id": "header-four-actions",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/header": {
+					"actions": [
+						{
+							"command": "hello-list",
+							"label": "x"
+						},
+						{
+							"command": "hello-list",
+							"label": "x"
+						},
+						{
+							"command": "hello-list",
+							"label": "x"
+						},
+						{
+							"command": "hello-list",
+							"label": "x"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.header.actions"
+		},
+		{
+			"id": "panel-no-views",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/panel": {
+					"views": []
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.panel.views"
+		},
+		{
+			"id": "sidebar-list-without-command",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "list"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.sidebar.command"
+		},
+		{
+			"id": "sidebar-custom-without-element",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "custom"
+				},
+				"/ui/compositions": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.sidebar.element"
+		},
+		{
+			"id": "domains-item-bad",
+			"base": "umbel",
+			"set": {
+				"/plugin/domains": ["Bad"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DOMAIN_INVALID",
+			"key": "plugin.domains[0]",
+			"suggestion": "[plugin.id]"
+		},
+		{
+			"id": "domains-item-afd",
+			"base": "umbel",
+			"set": {
+				"/plugin/domains": ["afd"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DOMAIN_INVALID",
+			"key": "plugin.domains[0]",
+			"suggestion": "[plugin.id]"
+		},
+		{
+			"id": "layout-fractional",
+			"base": "native",
+			"set": {
+				"/ui/layout/sidebar/width": 260.5
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.layout.sidebar.width"
+		},
+		{
+			"id": "resource-permissions-warns",
+			"base": "view",
+			"set": {
+				"/ui/resources/0/permissions": {
+					"camera": {}
+				}
+			},
+			"accepted": true,
+			"warnings": [
+				{
+					"code": "VIEW_CSP_IGNORED",
+					"key": "ui.resources[0].permissions"
+				}
+			]
+		},
+		{
+			"id": "native-not-a-table",
+			"base": "native",
+			"set": {
+				"/native": "x"
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "native"
+		},
+		{
+			"id": "effect-outside-the-core",
+			"base": "native",
+			"set": {
+				"/commands/1/effects": ["bogus"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_EFFECT_REFUSED",
+			"key": "commands[1].effects[0]",
+			"suggestion": "plugin-state"
+		},
+		{
+			"id": "numeric-surface",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/1": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_SURFACE",
+			"key": "ui.surfaces[1]",
+			"suggestion": "`keybindings`"
+		}
+	]
+}

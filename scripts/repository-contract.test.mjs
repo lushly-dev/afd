@@ -224,7 +224,7 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
-test('Loam is four private, route-less endpoints under endpoints/loam/packages', async () => {
+test('Loam is private, route-less endpoints under endpoints/loam/packages and apps', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'
 	);
@@ -233,7 +233,8 @@ test('Loam is four private, route-less endpoints under endpoints/loam/packages',
 	const { dependencies, errors } = checkBoundaries(repoRoot);
 	assert.deepEqual(errors, []);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/packages\/\*"$/m);
-	const loam = ['theme', 'kernel', 'chrome', 'web'];
+	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/apps\/\*"$/m);
+	const loam = ['manifest', 'theme', 'kernel', 'chrome', 'web'];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
 		assert.equal(unit.family, 'loam');
@@ -334,8 +335,9 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	assert.match(manifest, /^publish = false$/m);
 	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/packages\/rust"/m);
 	assert.match(read('.gitignore'), /^!endpoints\/umbel\/Cargo\.lock$/m);
+	// Loam's mounted proof runs against a real Umbel (Loam D57), so loam.yml's filters name it.
 	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
-		if (workflow !== 'umbel.yml')
+		if (workflow !== 'umbel.yml' && workflow !== 'loam.yml')
 			assert.doesNotMatch(
 				read(`.github/workflows/${workflow}`),
 				/endpoints\/umbel|unit umbel/,

@@ -7,6 +7,7 @@ packages:
   - "integrations/*"
   - "endpoints/*"
   - "endpoints/loam/packages/*"
+  - "endpoints/loam/apps/*"
   - "packages/auth/hosted/convex"
   - "packages/examples/_shared/*"
   - "packages/examples/chat"

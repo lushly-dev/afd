@@ -1,8 +1,8 @@
 /**
  * The shared plugin manifest (spec/plugin-manifest.md): the core compiles, every case in
- * spec/plugin-manifest.json gets its answer from Ajv's 2020-12 build, and Umbel's profile and
- * manifests conform to the core. The rules beyond the schema run through a reference check here;
- * no reader exists yet.
+ * spec/plugin-manifest.json gets its answer from Ajv's 2020-12 build, and Umbel's and Loam's profiles
+ * conform to the core. The rules beyond the schema run through a reference check here; Loam's reader,
+ * `@lushly-dev/loam-manifest`, runs the same sections in its own test.
  *
  * Ajv is the Health dashboard's dependency, resolved from there, so the root manifest and the
  * whole-workspace scope it would select stay out of a spec change.
@@ -332,7 +332,7 @@ function checkRules(manifest, { pluginRoot, hostContract } = {}) {
 	}
 	const callable = new Set();
 	const named = (name, pointer) => {
-		if (!mounted && !domains.includes(first(name))) refused.push(pointer);
+		if (!domains.includes(first(name))) refused.push(pointer);
 		once(callable, name, pointer);
 	};
 	const grants = new Set();
@@ -613,15 +613,28 @@ function deref(document, schema) {
 	return node;
 }
 
-/** Where a profile's definition admits a value the core's refuses. */
-function widenings(profile, profileNode, coreNode, path, found = []) {
-	const narrow = deref(profile, profileNode);
+/**
+ * Where a profile's definition admits a value the core's refuses. A node that holds a `$ref` to the
+ * core, and everything under it, also answers to that definition, so what it leaves out it inherits;
+ * what it states must still be no wider.
+ */
+function widenings(profile, profileNode, coreNode, path, found = [], closing = false) {
+	let narrow = deref(profile, profileNode);
 	const wide = deref(core, coreNode);
+	if (narrow === false) return found;
 	if (wide === false) {
 		found.push(`${path}: the core refuses this key`);
 		return found;
 	}
-	if (wide === true || wide === undefined || narrow === undefined) return found;
+	if (wide === true || wide === undefined || narrow === undefined || narrow === true) return found;
+	const inherits = closing || narrow.$ref?.startsWith(`${core.$id}#`);
+	if (inherits) {
+		narrow = {
+			...wide,
+			...narrow,
+			required: [...(wide.required ?? []), ...(narrow.required ?? [])],
+		};
+	}
 	if (wide.type && narrow.type !== wide.type && !(narrow.const !== undefined || narrow.enum)) {
 		found.push(`${path}: type ${narrow.type}, the core's ${wide.type}`);
 	}
@@ -662,9 +675,10 @@ function widenings(profile, profileNode, coreNode, path, found = []) {
 	if (wide.not && !narrow.not) found.push(`${path}: the core's not is missing`);
 	for (const [key, schema] of Object.entries(wide.properties ?? {})) {
 		const own = narrow.properties?.[key];
-		if (own !== undefined) widenings(profile, own, schema, `${path}.${key}`, found);
+		if (own !== undefined) widenings(profile, own, schema, `${path}.${key}`, found, inherits);
 	}
-	if (wide.items && narrow.items) widenings(profile, narrow.items, wide.items, `${path}[]`, found);
+	if (wide.items && narrow.items && narrow.items !== wide.items)
+		widenings(profile, narrow.items, wide.items, `${path}[]`, found, inherits);
 	return found;
 }
 
@@ -764,6 +778,106 @@ test('the comparison notices a profile that widens the core', () => {
 		"manifest.commands[].approval: maybe is outside the core's values",
 		'manifest.grants[].allow: the core refuses this key',
 		READER_ONLY,
+		"manifest.plugin.title: maxLength above the core's",
+	]);
+});
+
+// ─── Loam's profile conforms to the core ─────────────────────────────────────
+
+const loamProfile = json('endpoints/loam/packages/manifest/schemas/app-manifest.v1.json');
+// Where a core definition has a closing definition of the same name in Loam's profile.
+const LOAM_CLOSES = [
+	'plugin',
+	'command',
+	'expose',
+	'example',
+	'grant',
+	'context',
+	'skill',
+	'config',
+	'mount',
+	'mountTool',
+];
+
+test("Loam's profile adds only the keys its profile owns", () => {
+	const top = Object.keys(loamProfile.properties).filter(
+		(key) => !(key in core.$defs.manifest.properties)
+	);
+	assert.deepEqual(top.sort(), ['app', 'native', 'view']);
+	for (const definition of LOAM_CLOSES) {
+		const added = Object.keys(loamProfile.$defs[definition].properties ?? {}).filter(
+			(key) => !(key in core.$defs[definition].properties)
+		);
+		assert.deepEqual(added, [], definition);
+	}
+});
+
+test("Loam's profile closes every object it admits, by P1's shape", () => {
+	const walk = (node, at) => {
+		if (typeof node !== 'object' || node === null) return;
+		if (node.properties) {
+			assert.equal(node.unevaluatedProperties, false, `${at} is not closed`);
+			assert.equal(node.type, 'object', `${at} has no type`);
+		}
+		for (const keyword of ['if', 'then', 'else', 'dependentSchemas'])
+			assert.equal(node[keyword], undefined, `${at} holds ${keyword} beside its closing`);
+		for (const [key, value] of Object.entries(node)) {
+			// A conditional's branches only narrow; the object they sit in closes it.
+			if (key !== 'allOf') walk(value, `${at}/${key}`);
+		}
+	};
+	const { $defs, ...root } = loamProfile;
+	walk(root, '');
+	for (const [name, definition] of Object.entries($defs)) walk(definition, `/$defs/${name}`);
+	assert.equal(loamProfile.$ref, `${core.$id}#/$defs/manifest`);
+	for (const definition of LOAM_CLOSES) {
+		assert.equal(loamProfile.$defs[definition].$ref, `${core.$id}#/$defs/${definition}`);
+		assert.equal(loamProfile.$defs[definition].unevaluatedProperties, false);
+	}
+	// Every core object the profile admits is closed, or refused with false.
+	assert.equal(loamProfile.properties.pipelines, false);
+	assert.equal(loamProfile.$defs.command.properties.output_budget, false);
+});
+
+test("Loam's profile compiles under Ajv strict mode", () => {
+	const ajv = new Ajv2020({ strict: true, allErrors: true });
+	ajv.addSchema(core);
+	assert.equal(typeof ajv.compile(loamProfile), 'function');
+});
+
+test("Loam's profile admits nothing the core refuses", () => {
+	assert.deepEqual(widenings(loamProfile, loamProfile, core.$defs.manifest, 'manifest'), []);
+});
+
+test("Loam's profile refuses every core refusal, naming the same key", () => {
+	const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });
+	ajv.addSchema(core);
+	ajv.addSchema(loamProfile);
+	const missed = [];
+	for (const item of spec.cases) {
+		const definition = item.against.match(/^core#\/\$defs\/(.+)$/)?.[1];
+		if (item.accepted || !definition) continue;
+		const closed = definition === 'manifest' || LOAM_CLOSES.includes(definition);
+		if (!closed) continue;
+		const pointer = definition === 'manifest' ? '#' : `#/$defs/${definition}`;
+		const validate = ajv.compile({ $ref: `${loamProfile.$id}${pointer}` });
+		validate(item.fragment);
+		const keys = (validate.errors ?? []).map(refusedKey);
+		// A key Loam refuses as a whole holds the core's deeper pointer inside it.
+		const named = keys.some((key) => key === item.pointer || item.pointer.startsWith(`${key}/`));
+		if (!named) missed.push(`${item.id}: ${keys.join(', ') || 'accepted'}`);
+	}
+	assert.deepEqual(missed, []);
+});
+
+test('the comparison notices a profile that widens the core, closing by $ref', () => {
+	const widened = structuredClone(loamProfile);
+	widened.$defs.plugin.properties.title = { type: 'string', maxLength: 81 };
+	widened.$defs.grant.properties = { allow: { type: 'array' } };
+	widened.$defs.command.properties.approval.enum.push('maybe');
+	assert.deepEqual(widenings(widened, widened, core.$defs.manifest, 'manifest').sort(), [
+		"manifest.commands[].approval: maybe is outside the core's values",
+		'manifest.grants[].allow: the core refuses this key',
 		"manifest.plugin.title: maxLength above the core's",
 	]);
 });
