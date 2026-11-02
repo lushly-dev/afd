@@ -118,6 +118,26 @@ export const FormAssociated: Story = {
 /** A story with no play: a smoke test that renders and passes the accessibility check. */
 export const SmokeOnly: Story = {};
 
+/** The preview's `import.meta.glob` calls, expanded as Vite expands them. */
+export const GlobImport: Story = {
+	play: async () => {
+		const glob = (
+			globalThis as {
+				__fixtureGlob?: {
+					urls: Record<string, string>;
+					values: Record<string, unknown>;
+					lazy: string[];
+				};
+			}
+		).__fixtureGlob;
+		await expect(glob?.lazy).toEqual(['../data/one.json']);
+		await expect(glob?.values).toEqual({ '../data/one.json': { label: 'one' } });
+		const url = glob?.urls['../data/one.json'];
+		await expect(typeof url).toBe('string');
+		await expect(await (await fetch(url as string)).json()).toEqual({ label: 'one' });
+	},
+};
+
 /** Skipped through the runner's skip tags: listed, never run. */
 export const Skipped: Story = {
 	tags: ['skip-me'],

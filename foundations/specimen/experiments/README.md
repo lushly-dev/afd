@@ -190,3 +190,16 @@ node foundations/specimen/experiments/run-resources.mjs \
 ```
 
 Each resource report records `speedProbe.before` and `speedProbe.after`: fixed single-threaded work in a separate process, outside the measured family. On a contended host its CPU seconds rise along with job CPU. It shows when two receipts ran under different host conditions; it does not correct them. See the [CPU attribution record](../../../docs/features/active/specimens/cpu-attribution-validation.md): whole-job CPU from different sessions is not comparable without this control.
+
+## Retained stories through both runners (T05)
+
+`run-retained.mjs` checks one consumer's retained stories on a prepared snapshot, as T01's inputs describe it. Specimen discovers the consumer's whole story set with its preview and manifest, and each identity must equal the consumer's `storybook index`. Then the consumer's own Storybook Vitest config runs T04's selection with recorded fonts, Specimen runs the same stories, and each story must end the same way in both. With `--plugin`, the FAST-AF plugin is installed and each component the selection names is inspected:
+
+```sh
+node foundations/specimen/experiments/run-retained.mjs --consumer fast-af \
+  --snapshot /path/to/snapshot/fast-af --index /path/to/fast-af-index.json \
+  --fonts /path/to/fonts/fast-af --plugin integrations/specimen-fast-af/dist \
+  --out /path/to/empty-evidence
+```
+
+Specimen is configured from the evidence directory, so the snapshot is not edited. The exceptions are the Vite caches the incumbent writes and, with `--plugin`, a `.specimen-t05/` directory holding the plugin module, which must be inside the bench root. Lushly's Vitest config lists tracked files with `git ls-files`, so its snapshot needs a Git index of the pinned tree. `--mode identities` stops after the identity check. See the [T05 record](../../../docs/features/active/specimens/t05-compatibility.md#step-5-the-consumers-stories-through-both-runners) for results.

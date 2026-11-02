@@ -1,13 +1,14 @@
 # T05 retained-CSF compatibility slice
 
-**State, 2026-11-01:** in progress.
+**State, 2026-11-01:** done on branch. T05 is complete when step 5 merges.
 
 - Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
 - Step 2, running retained stories, is done and merged in [#642](https://github.com/lushly-dev/afd/pull/642).
 - Step 3, the plugin points, the FAST-AF plugin and inspection, is done and merged in [#647](https://github.com/lushly-dev/afd/pull/647).
-- Step 4, the preview-first codemod, is implemented on branch `lush/specimens-t05-migrate`.
+- Step 4, the preview-first codemod, is done and merged in [#654](https://github.com/lushly-dev/afd/pull/654).
+- Step 5, the consumers' stories through both runners and the refreshed Lushly inventory, is implemented on branch `lush/specimens-t05-consumers`.
 
-The remaining steps are listed [below](#remaining-steps).
+How the steps meet the acceptance is [below](#acceptance).
 
 T05 lets Specimen run the consumers' existing Storybook stories (CSF files) without rewriting them. Its acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue) and the proposal's [CSF compatibility contract](../../proposed/specimens/specimens.proposal.md#csf-compatibility-contract):
 
@@ -172,7 +173,7 @@ A run's outcome is `passed`, `failed`, `skipped` or `excluded`. A failure is cat
 
 | Fixture | Both runners |
 | --- | --- |
-| Custom renderer, args/parameters/decorator precedence, global theme, responsive (`mobile1`, 320×568), default viewport (1200×900), form-associated element (FormData through `userEvent.type`), smoke-only, and the step 1 identity stories | Passed. The play of each asserts the behaviour it is about. |
+| Custom renderer, args/parameters/decorator precedence, global theme, responsive (`mobile1`, 320×568), default viewport (1200×900), form-associated element (FormData through `userEvent.type`), smoke-only, the preview's `import.meta.glob` results (step 5), and the step 1 identity stories | Passed. The play of each asserts the behaviour it is about. |
 | A `skip-me` story under `test.skip` | Skipped |
 | A `!test` story | No incumbent test; Specimen reports it `excluded` |
 | Play assertion fails | Failed: play |
@@ -188,7 +189,7 @@ Storybook shares one document across a file's stories and tears each canvas down
 
 The host now bundles stories and the preview. Imported source modules always run, even inside a package that declares `"sideEffects": false`, as under Vite's development server. A story's `import './element.js'` that only registers a custom element is therefore never shaken away. Dependencies under `node_modules` keep their own rules. FAST-AF declares `sideEffects: true` and Lushly declares none, so neither consumer was affected. Specimen's own package was: its fixtures live inside it.
 
-The story runtime loads lazily, so native pages and the static shell do not carry it.
+The story runtime loads lazily, so native pages and the static shell do not carry it. Step 5 adds Vite's `import.meta.glob` to the host, as [Lushly's preview](#vites-importmetaglob) needs it.
 
 ## Step 3: plugins and inspection
 
@@ -270,7 +271,84 @@ Previews over [T01](frozen-inputs-inventory.md)'s frozen snapshots, which wrote 
 
 Applied to a scratch copy of FAST-AF's story files, the codemod wrote 59 files. Specimen's index, Storybook's rules ported, gave every story the same id, title, name, tags and play as before. A second apply wrote nothing.
 
-## Storybook behaviour the next steps reproduce
+## Step 5: the consumers' stories through both runners
+
+`foundations/specimen/experiments/run-retained.mjs` checks one consumer on a prepared snapshot outside every repository:
+
+1. Specimen discovers the consumer's whole story set with its preview and manifest. Every identity must equal the consumer's own `storybook index`.
+2. The incumbent runs [T04](resource-budget-validation.md)'s representative selection through the consumer's own Storybook Vitest config, with T04's recorded fonts. Specimen runs the same stories. Each story must end the same way in both, for the same kind of reason.
+3. With `--plugin`, the FAST-AF plugin is installed and every component the selection names is inspected.
+
+The inputs:
+
+- **Lushly `0eede7f0`,** its main on 2026-11-01. A `git archive` snapshot, installed and prepared as [T01](frozen-inputs-inventory.md#reproduce) did. Two additions:
+  - a Git index of the same tree, because its Vitest config lists tracked files with `git ls-files`;
+  - the `@lushly/core`, `@lushly/site-renderer` and `@lushly/weather` builds its Storybook type check makes first, without which its Vite dependency scan fails (T04).
+- **FAST-AF `24e4eb86`,** whose main has not moved. A copy-on-write clone of T01's snapshot, so the plugin module can sit inside the bench root without touching T01's copy.
+
+| Consumer | Identities against its own index | Selection | Storybook | Specimen | Plays run | Accessibility (`error` policy) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lushly `0eede7f0` | 873 / 873 | 8 stories in 4 files | 8 passed | 8 passed | 5 | Every story passed axe |
+| FAST-AF `24e4eb86` | 407 / 407 | 19 stories in 4 files | 19 passed | 19 passed | 7 | Every story passed axe |
+| FAST-AF after the codemod | 407 / 407 | 19 stories in 4 files | 19 passed | 19 passed | 7 | Every story passed axe |
+
+Every story agrees, and no test is left without a story. The play counts are the ones T04 recorded for the same selections.
+
+### The refreshed Lushly inventory
+
+Lushly's main grew from 858 stories at `b8906b75` to 873 at `0eede7f0`. All 873 identities match its `storybook index`, and static validation passes with 14 values only a run can settle (FAST-AF: 2).
+
+### FAST-AF's components with the FAST-AF plugin
+
+Before the codemod, only `violet-alert`'s meta in the selection names its component. Applying the codemod to the clone wrote the same 59 files as the step 4 scratch copy, and Storybook's index of the result is byte-identical to T01's. The selection's four components are then named, and both runners still agree on all 19 stories.
+
+With the plugin, each schema lists the `manifest` and `fast-af` sources:
+
+| Component | Properties | With finite values | Events |
+| --- | --- | --- | --- |
+| `violet-button` | 11 | 2 | 0 |
+| `violet-text-field` | 26 | 7 | 2 |
+| `violet-alert` | 10 | 7 | 1 |
+| `violet-theme` | 1 | 0 | 0 |
+
+FAST's Definition Schema agrees with the manifest on every property of the four. The plugin adds what the manifest cannot say: that none of them declares a command, where core alone reports commands as unknown. No FAST-AF component declares an `@command` at `24e4eb86`, so the command-runner point is exercised only by step 3's fixture element.
+
+### Vite's `import.meta.glob`
+
+Lushly's preview finds its manifest's URL with `import.meta.glob('../custom-elements.json', { eager: true, import: 'default', query: '?url' })`. Rolldown has no glob transform of its own, so a preview like this failed before its first story. The host now expands literal calls as Vite does (`host/src/glob.rs`):
+
+- a pattern, or an array of patterns where `!` excludes, relative to the importing file or, with a leading `/`, to the bench root;
+- the `eager`, `import` and `query` options, with Vite's keys and its lazy and eager forms;
+- a module never globs itself, and `node_modules` and dot-directories are skipped.
+
+Any other argument fails the module with an error naming it: a computed pattern, an alias, or another option. Unlike Vite's development server, the bench does not watch a globbed directory: a file added to it is seen when the bench is created again. The `compat/` preview uses all three forms, and a `Glob Import` story checks their results in both runners in CI.
+
+### Evidence
+
+Local evidence is in `~/.cache/afd-specimens/t05-20261101/evidence/`. It is ignored, local and not publication evidence.
+
+| File | SHA-256 |
+| --- | --- |
+| `lushly-index.json` (Storybook's index at `0eede7f0`) | `ebb4a7166e0a97dc656806cb8153b57d50399f324067152cdc1b04989bb9b814` |
+| `fast-af-index.json` (T01's) and `fast-af-migrated-index.json` | `99308c4dab555b6bf2dd83ac8bf932fb32ede4c5fe709f0ce49df0d460adcf06` |
+| `lushly-identities/retained.json` | `dcd0907d88b157b9eebc00432a5332f9894aa42b5b6e61baad5e8b7316172cd7` |
+| `fast-af-identities/retained.json` | `5d35793a5b42db598fc1d807428649c0669cf67a0e8254d3f22ea5678ee94964` |
+| `lushly-run1/retained.json` | `530253e6e966ab7a4a3f3b6d99392e58c46f4d3347aadf1f19acf537449a0b0b` |
+| `fast-af-run1/retained.json` | `37ed3a1683e4fa2492b87b47ba2af58c27c0c7bf45c862dd6a911c0016c7effb` |
+| `fast-af-migrated/retained.json` | `2d7dad7496cf5ea145836f455d665efb6b8d70950172a6e3cf453843aa503c69` |
+
+```sh
+pnpm -F @lushly-dev/specimen build && pnpm -F @lushly-dev/specimen build:host
+pnpm -F @lushly-dev/specimen-fast-af build
+node foundations/specimen/experiments/run-retained.mjs --consumer fast-af \
+  --snapshot /path/to/snapshot/fast-af --index /path/to/evidence/fast-af-index.json \
+  --fonts /path/to/t04/fonts/fast-af --plugin integrations/specimen-fast-af/dist \
+  --out /path/to/empty-evidence-directory
+```
+
+Lushly uses `--consumer lushly` and no `--plugin`. `--mode identities` stops after the identity check.
+
+## Storybook behaviour the steps reproduce
 
 These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime design. A reference with file locations is kept with the local evidence (`test-results/specimens-t05-compat/storybook-semantics.md`, ignored).
 
@@ -281,10 +359,26 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 - **Teardown.** A story's canvas is cleaned up when the next story starts, not after its own test.
 - **Viewport.** The addon's `responsive` viewport resolves to its 1200×900 default, as [T03](driver-context-validation.md) measured.
 
-## Remaining steps
+## Acceptance
 
 1. ~~Discovery, identity and static validation.~~ Merged in #634.
 2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Merged in #642.
 3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Merged in #647.
-4. ~~The preview-first codemod.~~ Implemented on branch.
-5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. FAST-AF's own components, with the FAST-AF plugin, are the plugin points' first consumer. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.
+4. ~~The preview-first codemod.~~ Merged in #654.
+5. ~~The consumers' representative stories through both runners, and the refreshed Lushly inventory.~~ Implemented on branch.
+
+| Acceptance | Where it is met |
+| --- | --- |
+| The four plugin points, specified and exercised | [Step 3](#the-four-plugin-points) on a fixture plugin. On FAST-AF's own components, the [schema source](#fast-afs-components-with-the-fast-af-plugin) (step 5) |
+| FAST-AF's theme and schema integration | [Step 3](#the-fast-af-plugin) on a FAST element; [step 5](#fast-afs-components-with-the-fast-af-plugin) on four FAST-AF components |
+| Identity and field-specific annotation precedence | [Step 1](#the-indexer)'s identities; [step 2](#composition)'s composition, with a precedence story in both runners |
+| `validate` / `inspect` and a preview-first codemod that keeps metadata | [Step 1](#validation), [step 3](#inspection), [step 4](#step-4-the-preview-first-codemod) |
+| Both runners agree on the representative positive cases | The `compat/` slice in CI ([step 2](#agreement-1)), and each consumer's selection ([step 5](#step-5-the-consumers-stories-through-both-runners)) |
+| Both runners agree on the deliberately failing cases | Interaction, a11y, render and cleanup in CI ([step 2](#agreement-1)); identity collisions and missing exports in CI ([step 1](#agreement)); context mismatches labelled by Specimen ([step 2](#agreement-1)) |
+| Unsupported active semantics fail validation | [Step 1](#validation) |
+
+What T05 leaves to later tasks:
+
+- [T06](implementation.md#ordered-implementation-queue): full suites, profiles, event history, the context matrix and flake identities.
+- G06's open question: whether the lazy capture normalizer belongs under the shell ceiling.
+- Commands: no FAST-AF component declares one yet.
