@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** written 2026-11-02 and revised the same day after two independent reviews (see [Review](#review-2026-11-02)). Awaiting the coordinator's approval. Nothing is implemented.
+- **State:** written 2026-11-02 and revised the same day after two independent reviews (see [Review](#review-2026-11-02)). Approved 2026-11-02 by the coordinator under the owner's delegation, with the condition that the step building 3.6's surface port gets a review focused on that boundary. Nothing is implemented; each step's state is one line in STATUS.md's phase 2 block.
 - **Last verified:** 2026-11-02 against `main` at `980cc1aa`. Evidence read beyond the [scope and projects specification's](../2-scope-projects/spec.md#status):
   - `endpoints/loam/packages/manifest/src/catalogs.ts:58-81`, `:145-151` (`documents`, `new`, `editor`, `embed` and `project-summary` served from 2);
   - `endpoints/loam/packages/manifest/src/refusal-map.ts:103-105`;

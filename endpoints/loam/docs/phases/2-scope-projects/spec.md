@@ -10,7 +10,7 @@
 ## Status
 
 - **State:** written 2026-11-02 and revised the same day after two independent reviews (see
-  [Review](#review-2026-11-02)). Awaiting the coordinator's approval. Nothing is implemented.
+  [Review](#review-2026-11-02)). Approved 2026-11-02 by the coordinator under the owner's delegation, with the condition that the step building 3.6's surface port gets a review focused on that boundary. Nothing is implemented; each step's state is one line in STATUS.md's phase 2 block.
 - **Last verified:** 2026-11-02 against `main` at `980cc1aa`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `kernel.ts:231-234` (one journal middleware), `:240-258` (`setAppCommands` rebuilds both registries),
@@ -64,7 +64,7 @@
   every mutation is an event; 15, AFD first.
 - **Decisions:** D4 and D31 for scope; D5 and D29 for the rail; D32 for a single tenant; D55 and D56 for instances; D63 for the workspace store; D65 for a pinned space; D66
   for failures; D67 for the catalog; D68 for the app port.
-- **New decisions this specification and its sibling propose:** D69 to D83, listed in
+- **New decisions this specification and its sibling decide:** D69 to D83, listed in
   [Amendments](#amendments-to-the-architecture-and-the-decision-log) and added to the decision log by this pull request. The coordinator approves them by approving the
   specifications. None changes a trust model or D54 to D58.
 - **Carried from phase 1, handled here:**
