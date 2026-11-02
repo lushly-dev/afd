@@ -1,5 +1,38 @@
 # @lushly-dev/afd-client
 
+## 2.3.0
+
+### Minor Changes
+
+- [#585](https://github.com/lushly-dev/afd/pull/585) [`8e2e46f`](https://github.com/lushly-dev/afd/commit/8e2e46f4283d7c9fb3cafbfd0006efbe09495c42) Thanks [@Falkicon](https://github.com/Falkicon)! - Add an optional command `title` (`spec/command-metadata.md`, "Tool titles", [#466](https://github.com/lushly-dev/afd/issues/466)). `defineCommand({ title })` and core `CommandDefinition.title` set a short display label. A command's own MCP tool (individual, and first-class under `hybrid`) carries it as the tool `title`, `afd-detail` reports it, `afd-help` reports it in the `full` format, and `DirectRegistry.listCommands()` includes it. Nothing is derived from the name, so a command without `title` lists exactly as before, and it never appears in `_meta`; grouped tools carry none. The five meta-tools now carry fixed titles from `spec/meta-tools.json`, such as `Call a command` for `afd-call`. `McpTool` gains `title`.
+
+- [#571](https://github.com/lushly-dev/afd/pull/571) [`43c6fc7`](https://github.com/lushly-dev/afd/commit/43c6fc79e71c17eae2ed3286b1756f6543b4694d) Thanks [@Falkicon](https://github.com/Falkicon)! - Bring AFD contexts and the MCP tool surface to the in-process registry ([#527](https://github.com/lushly-dev/afd/issues/527), part 3).
+
+  `createDirectRegistry(commands, { contexts })` takes the same context definitions as `createMcpServer`. The active context is per-call input, never registry state: `registry.execute(name, input, context, { activeContext })` scopes one call, including the commands it runs through `afd-call`, `afd-batch` and `afd-pipe`. An unknown context fails with `CONTEXT_NOT_FOUND` and a command outside it with `COMMAND_NOT_IN_CONTEXT`; without `activeContext` every command is available, as on MCP with no context selected.
+
+  `createDirectToolSurface({ strategy?, firstClassTools?, bootstrap? })`, from `@lushly-dev/afd-server/direct` and the root, is passed as `createDirectRegistry(commands, { tools })`. The registry then gains `listTools({ strategy?, activeContext? })`, which returns the MCP server's own tool list for every strategy, and routes the meta-tools and, under `grouped`, grouped tools through the server's tool router. It registers the context tools when `contexts` is set, which behave as on the stateless MCP 2026-07-28 lane (`persisted: false`), and the bootstrap tools with `bootstrap: true`. The surface lists and routes the commands exposed to the registry's `interface`, where the server uses `expose.mcp`. Without `tools`, `listTools` throws a `TypeError`, and a host that does not import the surface does not bundle the router. Refusals from a registry without a surface no longer point to `afd-discover` or the context tools, which it does not serve.
+
+  `DirectClient` passes a call's `activeContext` to the registry as that call option, on every `pipe()` step and on the approval retry, and never puts it in the command context. `DirectClient.listTools(options?)` forwards to `registry.listTools` with the `allow` predicate applied, and `DirectRegistry` gains the optional `listTools` and the `execute` call option.
+
+  The confirmation gate moved out of `confirmations.ts` into an internal module, so the tool router and the tool list load no Node.js built-in. No public export changed.
+
+### Patch Changes
+
+- [#581](https://github.com/lushly-dev/afd/pull/581) [`2ab549a`](https://github.com/lushly-dev/afd/commit/2ab549a40614f998c9004fe8a103c62e8a8597c2) Thanks [@Falkicon](https://github.com/Falkicon)! - Enforce `DirectClient`'s `allow` on every command a routed tool runs ([#577](https://github.com/lushly-dev/afd/issues/577)).
+
+  Before, `allow` checked only the tool name a call named. With a registry tool surface, a client that allowed `afd-call`, `afd-batch`, `afd-pipe` or a grouped tool could run every command the registry exposed, including commands `allow` refused by name, and `afd-discover` and `afd-detail` described commands the client could not call.
+
+  `createDirectRegistry`'s `execute` takes a new, optional `allow` call option beside `activeContext`: a trusted, in-process predicate over names. When it is set, the registry refuses the name called and every command the call runs that the predicate rejects (the `afd-call` target, each `afd-batch` item, each `afd-pipe` step, a grouped tool's action, and a command a handler runs by passing its own context to `execute`) with the same `COMMAND_NOT_ALLOWED` failure `DirectClient` gives. A grouped tool resolves its action among the permitted commands only, so a refused action reads as unknown (`COMMAND_NOT_FOUND`) and cannot make another ambiguous, and a group with no permitted action is refused as a whole. A throwing predicate denies. `afd-discover`, `afd-detail` and the bootstrap tools leave refused commands out, and `registry.listTools({ allow })` lists neither those commands nor the tool names the predicate rejects. The predicate travels on the call's context as an opaque token under a private symbol, so handlers cannot read or replace it and tool arguments cannot carry one. Without `allow`, nothing changes, and the MCP server is unchanged.
+
+  `DirectClient` passes its `allow` check as that call option on `call()`, on every `pipe()` step and on the approval retry, and to `registry.listTools`, so a grouped tool lists only the actions it permits. A client without `allow` passes nothing. `DirectExecuteOptions` gains `allow`.
+
+  Also fixed: `afd-context-list` sorted the host's contexts array in place; it now sorts a copy. `DirectTransport` answers `tools/list` from the registry's `listTools()` when it has a tool surface, so `McpClient` with `transport: 'direct'` lists the meta-tools and grouped tools it can call, and falls back to one tool per command otherwise.
+
+  `@lushly-dev/afd-core` adds the internal `./internal/direct-allow` subpath, which holds the one `COMMAND_NOT_ALLOWED` refusal both packages give. It is not public API.
+
+- Updated dependencies [[`dc3e085`](https://github.com/lushly-dev/afd/commit/dc3e085a51e2a8a2e1b8b693f1ed1de69d949d65), [`8e2e46f`](https://github.com/lushly-dev/afd/commit/8e2e46f4283d7c9fb3cafbfd0006efbe09495c42), [`5f11192`](https://github.com/lushly-dev/afd/commit/5f111922eee6240e116cbb267bc4d410ba2f2743), [`2ab549a`](https://github.com/lushly-dev/afd/commit/2ab549a40614f998c9004fe8a103c62e8a8597c2), [`c80a9b4`](https://github.com/lushly-dev/afd/commit/c80a9b4dc9078f408876ab0250d8d82c40653dc2), [`13c2a8f`](https://github.com/lushly-dev/afd/commit/13c2a8f4294518e4f9b2587206f82a88700a2303)]:
+  - @lushly-dev/afd-core@2.3.0
+
 ## 2.2.1
 
 ### Patch Changes

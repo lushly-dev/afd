@@ -1,5 +1,25 @@
 # @lushly-dev/afd-cli
 
+## 2.3.0
+
+### Minor Changes
+
+- [#556](https://github.com/lushly-dev/afd/pull/556) [`0d9720a`](https://github.com/lushly-dev/afd/commit/0d9720a152313e5fdee4a19fde78da70f4d05d6f) Thanks [@Falkicon](https://github.com/Falkicon)! - Add the `hybrid` tool strategy ([`spec/tool-strategies.md`](https://github.com/lushly-dev/afd/blob/main/spec/tool-strategies.md#hybrid)).
+
+  `createMcpServer` and `createMcpHandler` take `toolStrategy: 'hybrid'` with `firstClassTools`, an ordered list of at most 8 commands. `tools/list` is the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), then the `afd-context-*` tools when `contexts` are configured, then the first-class commands as individual tools. The list never varies by the active context, so `ttlMs` keeps its 300,000 default under `contexts`; a first-class command called outside its context answers `COMMAND_NOT_IN_CONTEXT`. Server creation throws, naming the entry, for an entry that is unregistered, not MCP-exposed, a meta-tool or context tool, repeated or beyond the cap, and for `firstClassTools` with any other strategy. Commands outside the set run by name and through `afd-call`, `afd-batch` and `afd-pipe`.
+
+  `afd-help` now reports `toolStrategy` on every strategy and, on hybrid servers, `firstClassTools` and `firstClass: true`. The server also exports `ToolStrategy` and `MAX_FIRST_CLASS_TOOLS`.
+
+  `afd validate --surface` completes a hybrid listing with `afd-discover` and `afd-detail`, and warns about a first-class command that declares `contexts`.
+
+### Patch Changes
+
+- Updated dependencies [[`dc3e085`](https://github.com/lushly-dev/afd/commit/dc3e085a51e2a8a2e1b8b693f1ed1de69d949d65), [`8e2e46f`](https://github.com/lushly-dev/afd/commit/8e2e46f4283d7c9fb3cafbfd0006efbe09495c42), [`5f11192`](https://github.com/lushly-dev/afd/commit/5f111922eee6240e116cbb267bc4d410ba2f2743), [`560c603`](https://github.com/lushly-dev/afd/commit/560c6033cc32d1b2b6f18e3329c057466175b4c7), [`2ab549a`](https://github.com/lushly-dev/afd/commit/2ab549a40614f998c9004fe8a103c62e8a8597c2), [`43c6fc7`](https://github.com/lushly-dev/afd/commit/43c6fc79e71c17eae2ed3286b1756f6543b4694d), [`0d9720a`](https://github.com/lushly-dev/afd/commit/0d9720a152313e5fdee4a19fde78da70f4d05d6f), [`c80a9b4`](https://github.com/lushly-dev/afd/commit/c80a9b4dc9078f408876ab0250d8d82c40653dc2), [`550bf0c`](https://github.com/lushly-dev/afd/commit/550bf0ce016c00ad8b67ad62799444ec4e79fe78), [`13c2a8f`](https://github.com/lushly-dev/afd/commit/13c2a8f4294518e4f9b2587206f82a88700a2303), [`0e8fbcf`](https://github.com/lushly-dev/afd/commit/0e8fbcffc9838e7f90817fdf65bf57562e201b31), [`280f65f`](https://github.com/lushly-dev/afd/commit/280f65f4a488139eb7f80d2e5347d3a16f9b9957)]:
+  - @lushly-dev/afd-core@2.3.0
+  - @lushly-dev/afd-server@2.3.0
+  - @lushly-dev/afd-client@2.3.0
+  - @lushly-dev/afd-testing@2.3.0
+
 ## 2.2.1
 
 ### Patch Changes
