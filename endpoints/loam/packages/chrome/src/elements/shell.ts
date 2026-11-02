@@ -6,7 +6,7 @@
  * command.
  */
 
-import { css, FASTElement, html, observable, ref, when } from '@lushly-dev/fast-element';
+import { css, FASTElement, html, observable, ref, Updates, when } from '@lushly-dev/fast-element';
 import {
 	APPEARANCE_QUERIES,
 	type AppearanceV0,
@@ -621,7 +621,12 @@ export class LoamShell extends FASTElement {
 		await this.#closeDrawer();
 		const query = this.#pendingQuery;
 		this.#pendingQuery = '';
-		const palette = await this.preparePalette();
+		let palette = await this.preparePalette();
+		// The shell may not have rendered its palette yet; preparePalette forgets a miss, so retry.
+		for (let attempt = 0; attempt < 60 && !palette; attempt++) {
+			await Updates.next();
+			palette = await this.preparePalette();
+		}
 		await palette?.open(query);
 	}
 
