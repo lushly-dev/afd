@@ -89,7 +89,7 @@ jobs:
       - name: Token-only lint
         run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome lint:tokens
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
-      # Specimen's native host renders the chrome's fixtures for E2 and E4.
+      # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -97,8 +97,6 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: foundations/specimen/host
-      - name: Specimen native host release build
-        run: pnpm -F @lushly-dev/specimen build:host
       - name: Chromium suite against the built shell (E1 to E10, A1 to A3)
         run: pnpm -F @lushly-dev/loam-web test:browser
       - name: Bundle budget

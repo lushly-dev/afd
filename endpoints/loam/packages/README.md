@@ -19,8 +19,7 @@ pnpm -F "@lushly-dev/loam-web..." build      # the web host and everything it ne
 pnpm -F "./endpoints/loam/packages/*" test   # browser-free units (also run by pnpm check)
 pnpm -F @lushly-dev/loam-theme theme:check   # the committed token contract and layout defaults against the tree
 pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome lint:tokens   # token-only lint (needs the build)
-pnpm -F @lushly-dev/specimen build:host      # Specimen's native host, for E2 and E4 (Rust)
-pnpm -F @lushly-dev/loam-web test:browser    # Chromium against dist/ (needs the build and the host)
+pnpm -F @lushly-dev/loam-web test:browser    # builds Specimen's native host (Rust), then Chromium against dist/ (needs the build)
 pnpm -F @lushly-dev/loam-web budget          # the bundle budget of spec 8.1
 pnpm -F @lushly-dev/loam-chrome session:record   # regenerate E2's journal fixture after SESSION_50 changes
 ```
