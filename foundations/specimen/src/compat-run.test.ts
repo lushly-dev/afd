@@ -130,6 +130,10 @@ describe('retained stories end the same way in both runners', () => {
 			'Real Keyboard': 'passed',
 			'Next Frame': 'passed',
 			'Undefined Element': 'passed',
+			// `claim` does nothing under Storybook, so these end the same way in both.
+			'Disabled In Play': 'passed',
+			'Form In Play': 'passed',
+			'False In Play': 'passed',
 			Skipped: 'skipped',
 			'Not A Test': 'excluded',
 			Made: 'passed',

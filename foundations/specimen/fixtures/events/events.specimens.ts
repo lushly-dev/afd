@@ -169,3 +169,29 @@ export const LocaleLimited = {
 		return element;
 	},
 };
+
+/** A disabled button does not click: being disabled is one claim, and staying inert another. */
+export const StaysInert = {
+	render: () => {
+		const element = button('Save');
+		element.disabled = true;
+		return element;
+	},
+	targets: { control: { selector: 'button' } },
+	events: [{ type: 'click', target: 'control' }],
+	scenario: [
+		{ id: 'focused', action: { focus: 'control' } },
+		{ id: 'inert', expect: { event: 'click', target: 'control', since: 'focused', absent: true } },
+	],
+};
+
+/** The same claim on a button that does click must fail. */
+export const NotInert = {
+	render: () => button('Save'),
+	targets: save,
+	events: [{ type: 'click', target: 'control' }],
+	scenario: [
+		{ id: 'activate', action: { click: 'control' } },
+		{ id: 'inert', expect: { event: 'click', target: 'control', since: 'activate', absent: true } },
+	],
+};

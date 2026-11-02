@@ -77,6 +77,18 @@
 			"title": "Matrix/LocaleLimited",
 			"module": "./events.specimens.ts",
 			"exportName": "LocaleLimited"
+		},
+		{
+			"id": "stays-inert",
+			"title": "Events/StaysInert",
+			"module": "./events.specimens.ts",
+			"exportName": "StaysInert"
+		},
+		{
+			"id": "not-inert",
+			"title": "Events/NotInert",
+			"module": "./events.specimens.ts",
+			"exportName": "NotInert"
 		}
 	]
 }

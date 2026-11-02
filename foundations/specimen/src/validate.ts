@@ -382,6 +382,28 @@ function profileConfig(value: unknown): NonNullable<BenchConfig['profile']> {
 		: { baselines: text(fields.baselines, 'configuration.profile.baselines') };
 }
 
+function coverageConfig(value: unknown): NonNullable<BenchConfig['coverage']> {
+	const fields = record(value, 'configuration.coverage', ['waivers']);
+	if (fields.waivers === undefined) return {};
+	const waivers = record(fields.waivers, 'configuration.coverage.waivers', ['version', 'entries']);
+	if (!Array.isArray(waivers.entries))
+		fail('configuration.coverage.waivers.entries', 'expected an array');
+	return {
+		waivers: {
+			version: text(waivers.version, 'configuration.coverage.waivers.version'),
+			entries: waivers.entries.map((item, index) => {
+				const path = `configuration.coverage.waivers.entries[${index}]`;
+				const entry = record(item, path, ['component', 'obligation', 'reason']);
+				return {
+					component: text(entry.component, `${path}.component`),
+					obligation: text(entry.obligation, `${path}.obligation`),
+					reason: text(entry.reason, `${path}.reason`),
+				};
+			}),
+		},
+	};
+}
+
 export function parseConfig(value: unknown): BenchConfig {
 	const fields = record(value, 'configuration', [
 		'specimens',
@@ -392,6 +414,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'plugins',
 		'manifest',
 		'profile',
+		'coverage',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
@@ -418,5 +441,6 @@ export function parseConfig(value: unknown): BenchConfig {
 			? {}
 			: { manifest: text(fields.manifest, 'configuration.manifest') }),
 		...(fields.profile === undefined ? {} : { profile: profileConfig(fields.profile) }),
+		...(fields.coverage === undefined ? {} : { coverage: coverageConfig(fields.coverage) }),
 	};
 }

@@ -35,6 +35,59 @@
 			"module": "./coverage.specimens.ts",
 			"exportName": "Broken",
 			"component": "fixture-panel"
+		},
+		{
+			"id": "claimed-open",
+			"title": "Coverage/ClaimedOpen",
+			"module": "./coverage.specimens.ts",
+			"exportName": "ClaimedOpen"
+		},
+		{
+			"id": "claimed-closed",
+			"title": "Coverage/ClaimedClosed",
+			"module": "./coverage.specimens.ts",
+			"exportName": "ClaimedClosed"
+		},
+		{
+			"id": "claimed-other-target",
+			"title": "Coverage/ClaimedOtherTarget",
+			"module": "./coverage.specimens.ts",
+			"exportName": "ClaimedOtherTarget"
+		},
+		{
+			"id": "claimed-wrong-state",
+			"title": "Coverage/ClaimedWrongState",
+			"module": "./coverage.specimens.ts",
+			"exportName": "ClaimedWrongState"
+		},
+		{
+			"id": "in-form",
+			"title": "Coverage/InForm",
+			"module": "./coverage.specimens.ts",
+			"exportName": "InForm"
+		},
+		{
+			"id": "bad-claim",
+			"title": "Coverage/BadClaim",
+			"module": "./coverage.specimens.ts",
+			"exportName": "BadClaim"
 		}
-	]
+	],
+	"coverage": {
+		"waivers": {
+			"version": "2026-11-01",
+			"entries": [
+				{
+					"component": "fixture-simple",
+					"obligation": "default",
+					"reason": "Identical to the closed state."
+				},
+				{
+					"component": "fixture-simple",
+					"obligation": "property:gone=true",
+					"reason": "The member was removed."
+				}
+			]
+		}
+	}
 }

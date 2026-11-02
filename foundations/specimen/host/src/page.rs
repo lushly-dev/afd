@@ -654,8 +654,27 @@ impl Page<'_> {
                 continue;
             }
             if let Some(expectation) = step.get("expect") {
-                self.evaluate(&format!("window.__specimen.expectEvent({expectation})"))
-                    .await?;
+                // An event expectation reads the history; any other reads its target.
+                match expectation
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .filter(|_| expectation.get("event").is_none())
+                {
+                    Some(name) => {
+                        let target = targets.get(name).cloned().unwrap_or(Value::Null);
+                        let object = self.target(name, &target).await?;
+                        self.call(
+                            &object,
+                            "function (expectation) { return window.__specimen.expect(expectation, this); }",
+                            json!([{ "value": expectation }]),
+                        )
+                        .await?;
+                    }
+                    None => {
+                        self.evaluate(&format!("window.__specimen.expect({expectation})"))
+                            .await?;
+                    }
+                }
                 continue;
             }
             if events_declared {

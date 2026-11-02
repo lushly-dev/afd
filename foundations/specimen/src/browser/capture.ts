@@ -218,8 +218,9 @@ function documentResources(): CaptureResources {
 export function captureDocument(
 	root: HTMLElement,
 	closedHosts: WeakSet<Element>,
-	observe?: Record<string, string[]>
-): Omit<BrowserObservation, 'ready' | 'plugins'> {
+	observe?: Record<string, string[]>,
+	referenced: readonly Element[] = []
+): Omit<BrowserObservation, 'ready' | 'plugins' | 'evidence'> & { references: (string | null)[] } {
 	const elements = openElements(root);
 	const refs = new Map<Element, string>([[root, 'root']]);
 	const limitations: string[] = [];
@@ -305,6 +306,7 @@ export function captureDocument(
 			devicePixelRatio,
 		},
 		resources: documentResources(),
+		references: referenced.map((element) => refs.get(element) ?? null),
 	};
 }
 

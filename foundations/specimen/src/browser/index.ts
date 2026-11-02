@@ -2,7 +2,9 @@ import { RANDOM_SEED } from '../baseline.js';
 import { normalizeDom } from '../normalize.js';
 import type {
 	BrowserObservation,
+	CoverageClaim,
 	EventDeclaration,
+	ExpectationRecord,
 	InspectResult,
 	MountHandle,
 	NativeAccessibility,
@@ -18,7 +20,7 @@ import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
 import { describe, enrichSchema, type InstalledPlugins, installPlugins } from './plugins.js';
 import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
-import { validateSpecimen } from './validate.js';
+import { needsScenarioSupport, validateSpecimen } from './validate.js';
 
 /**
  * Let a component's pending promises settle, as the awaits in Storybook's render phases do before
@@ -102,6 +104,15 @@ function seedRandom(seed: number): void {
 		mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
 		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
 	};
+}
+
+/** A specimen export, read with scenario support only when it needs that. */
+async function validated(module: SpecimenModule, exportName: string) {
+	return validateSpecimen(
+		module,
+		exportName,
+		needsScenarioSupport(module[exportName]) ? await import('./expectations.js') : undefined
+	);
 }
 
 /** Install before specimen imports so closed roots and motion have an explicit scope. */
@@ -214,6 +225,21 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	let nativeAccessibility: NativeAccessibility | undefined;
 	/** Tags a retained story still had undefined when it settled. */
 	const undefinedTags = new Set<string>();
+	/** The expectations that held, and the targets and commands they concern. */
+	const expectations: ExpectationRecord[] = [];
+	const namedTargets = new Map<string, Element>();
+	const commandsRun: string[] = [];
+	/** A specimen's declared claims, and those a play made as it ran. */
+	let declaredClaims: CoverageClaim[] = [];
+	const playClaims: { element: Element; obligation: string; expectation: string }[] = [];
+	(globalThis as { __specimenClaim?: unknown }).__specimenClaim = (
+		element: Element,
+		obligation: string,
+		expectation: string
+	) => {
+		playClaims.push({ element, obligation, expectation });
+		expectations.push({ id: expectation, kind: 'play', target: element.localName });
+	};
 	/** The properties a coverage run asked to read live, by tag. */
 	let observed: SpecimenEntry['observe'];
 	/** Whether the mounted native specimen declared a ready hook. */
@@ -317,7 +343,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			} else {
 				const load = loaders[entry.id];
 				if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
-				const { meta, specimen } = validateSpecimen(await load(), entry.exportName);
+				const { meta, specimen } = await validated(await load(), entry.exportName);
 				component = entry.component ?? meta.component;
 				args = { ...meta.args, ...specimen.args };
 				context = { ...defaults, ...requestedContext } as SpecimenContext;
@@ -349,17 +375,38 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		async command(element, runner, name, input) {
 			const registered = (await plugins()).runners.get(runner);
 			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
-			return registered.runner.run(element, name, input);
+			const result = await registered.runner.run(element, name, input);
+			commandsRun.push(name);
+			return result;
 		},
 		bindEventTarget(name, element) {
+			namedTargets.set(name, element);
 			eventRecorder?.bind(name, element);
 		},
 		stepStarted(id) {
 			eventRecorder?.stepStarted(id);
 		},
-		async expectEvent(expectation) {
-			if (!eventRecorder) throw new Error('This specimen declares no events to expect.');
-			await eventRecorder.expect(expectation);
+		async expect(expectation, element) {
+			let detail: unknown;
+			let kind: ExpectationRecord['kind'] = 'event';
+			if ('event' in expectation) {
+				if (!eventRecorder) throw new Error('This specimen declares no events to expect.');
+				await eventRecorder.expect(expectation);
+			} else {
+				if (!element) throw new Error(`Target '${expectation.target}' did not resolve.`);
+				namedTargets.set(expectation.target, element);
+				const { expectOf } = await import('./expectations.js');
+				detail = await expectOf(element, expectation);
+				kind = 'state' in expectation ? 'state' : 'form' in expectation ? 'form' : 'validity';
+			}
+			if (expectation.id)
+				expectations.push({
+					id: expectation.id,
+					kind,
+					target: expectation.target ?? null,
+					...('event' in expectation ? { event: expectation.event } : {}),
+					...(detail === undefined ? {} : { detail }),
+				});
 		},
 		async profileMetrics() {
 			const readyMs = performance.now();
@@ -435,8 +482,9 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 					if (typeof undo === 'function') disposers.push(undo as Disposer);
 				}
 				const module = await load();
-				const { meta, specimen } = validateSpecimen(module, entry.exportName);
+				const { meta, specimen } = await validated(module, entry.exportName);
 				nativeAccessibility = specimen.a11y;
+				declaredClaims = specimen.coverage ?? [];
 				if (specimen.events?.length) {
 					// Before the specimen exists, so that nothing it does while mounting is missed.
 					const recorder = recordEvents(mountRoot, specimen.events);
@@ -498,13 +546,42 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		capture() {
 			if (!active) throw new Error('Mount a specimen before capturing it.');
 			instrumentation.setMotionMode(motion);
+			const named = declaredClaims.map((claim) => namedTargets.get(claim.target));
+			const { references, ...document } = captureDocument(
+				mountRoot,
+				instrumentation.closedHosts,
+				observed,
+				[...named, ...playClaims.map((claim) => claim.element)].filter(
+					(element): element is Element => element !== undefined
+				)
+			);
+			const refs = [...references];
 			const observation: BrowserObservation = {
-				...captureDocument(mountRoot, instrumentation.closedHosts, observed),
+				...document,
 				ready: {
 					steps: ['upgrade', ...(readyHook ? ['ready-hook'] : []), 'fonts', 'frame'],
 					outcome: undefinedTags.size ? 'elements-undefined' : 'ready',
 				},
 				plugins: installedPlugins,
+				evidence: {
+					expectations: [...expectations],
+					claims: [
+						...declaredClaims.map((claim, index) => ({
+							...claim,
+							ref: named[index] ? (refs.shift() ?? null) : null,
+							source: 'declared' as const,
+						})),
+						...playClaims.map(({ element, obligation, expectation }) => ({
+							target: element.localName,
+							ref: refs.shift() ?? null,
+							obligation,
+							checkpoint: 'after-run',
+							expectations: [expectation],
+							source: 'play' as const,
+						})),
+					],
+					commands: [...commandsRun],
+				},
 			};
 			if (eventRecorder) observation.events = eventRecorder.read();
 			observation.limitations.push(...instrumentation.limitations);

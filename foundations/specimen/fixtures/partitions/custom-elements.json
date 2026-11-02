@@ -11,23 +11,94 @@
 					"customElement": true,
 					"tagName": "fixture-panel",
 					"members": [
-						{ "kind": "field", "name": "mode", "type": { "text": "'a' | 'b'" }, "default": "'a'" },
-						{ "kind": "field", "name": "broken", "type": { "text": "boolean" } },
-						{ "kind": "field", "name": "note", "type": { "text": "string" } }
+						{
+							"kind": "field",
+							"name": "mode",
+							"type": {
+								"text": "'a' | 'b'"
+							},
+							"default": "'a'"
+						},
+						{
+							"kind": "field",
+							"name": "broken",
+							"type": {
+								"text": "boolean"
+							}
+						},
+						{
+							"kind": "field",
+							"name": "note",
+							"type": {
+								"text": "string"
+							}
+						}
 					],
 					"attributes": [
-						{ "name": "disabled", "type": { "text": "boolean" }, "default": "false" },
-						{ "name": "size", "type": { "text": "'small' | 'large'" }, "default": "'small'" }
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"name": "size",
+							"type": {
+								"text": "'small' | 'large'"
+							},
+							"default": "'small'"
+						}
 					],
-					"slots": [{ "name": "" }, { "name": "after" }],
-					"events": [{ "name": "changed" }]
+					"slots": [
+						{
+							"name": ""
+						},
+						{
+							"name": "after"
+						}
+					],
+					"events": [
+						{
+							"name": "changed"
+						}
+					]
 				},
 				{
 					"kind": "class",
 					"name": "FixtureUnused",
 					"customElement": true,
 					"tagName": "fixture-unused",
-					"attributes": [{ "name": "open", "type": { "text": "boolean" } }]
+					"attributes": [
+						{
+							"name": "open",
+							"type": {
+								"text": "boolean"
+							}
+						}
+					]
+				},
+				{
+					"kind": "class",
+					"name": "FixtureSimple",
+					"customElement": true,
+					"tagName": "fixture-simple",
+					"attributes": [
+						{
+							"name": "open",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				},
+				{
+					"kind": "class",
+					"name": "FixtureField",
+					"customElement": true,
+					"tagName": "fixture-claimed-field",
+					"attributes": []
 				}
 			]
 		}

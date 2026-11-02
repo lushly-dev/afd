@@ -18,6 +18,7 @@ export interface EventRecorder {
 }
 
 const DEFAULT_EXPECT_TIMEOUT_MS = 1000;
+const DEFAULT_ABSENT_WAIT_MS = 100;
 
 export function recordEvents(root: Element, declared: EventDeclaration[]): EventRecorder {
 	const history: (EventRecord & { interval: number })[] = [];
@@ -78,7 +79,7 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 			step = id;
 			if (id) intervals.set(id, interval);
 		},
-		async expect({ event, target, since, timeoutMs }) {
+		async expect({ event, target, since, timeoutMs, absent }) {
 			const start = intervals.get(since);
 			if (start === undefined) throw new Error(`Step '${since}' has not run.`);
 			const found = () =>
@@ -88,6 +89,15 @@ export function recordEvents(root: Element, declared: EventDeclaration[]): Event
 						item.interval >= start &&
 						(target === undefined || item.target === target)
 				);
+			if (absent) {
+				// Long enough for what it would have caused, not for a second per expectation.
+				await new Promise((resolve) => setTimeout(resolve, timeoutMs ?? DEFAULT_ABSENT_WAIT_MS));
+				if (found())
+					throw new Error(
+						`Expected no event '${event}'${target ? ` on '${target}'` : ''} since step '${since}'; one fired.`
+					);
+				return;
+			}
 			const deadline = performance.now() + (timeoutMs ?? DEFAULT_EXPECT_TIMEOUT_MS);
 			while (!found()) {
 				if (performance.now() >= deadline) {
