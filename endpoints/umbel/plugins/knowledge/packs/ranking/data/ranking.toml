@@ -18,3 +18,17 @@ rrf_k = 60
 [index]
 # Frontmatter keys the index makes searchable as meta.<key> (scalars only).
 filterable = []
+
+[expansion]
+# Graph expansion of a search: for each of the top documents, its readable neighbours receive
+# expansion_weight x the document's score x the edge factor below. A neighbour already in the
+# results adds it; one that is not enters with it and is marked matched: false.
+expansion_weight = 0.3
+# Edge factors: links_to (either direction), co_cited and supersedes (to the deprecated document).
+links = 1.0
+co_cited = 0.5
+supersedes = 0.8
+# A co_cited pair expands only when the citers the reader can read sum to at least this weight.
+co_cited_min_weight = 2
+# The most neighbours one document expands to, by weight and then id.
+max_per_document = 20

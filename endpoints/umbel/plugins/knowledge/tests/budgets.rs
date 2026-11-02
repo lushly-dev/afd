@@ -55,6 +55,27 @@ async fn the_default_budgets_are_the_manifests() {
         ),
         ("knowledge-list", json!({}), 16_000),
         ("knowledge-changes", json!({}), 16_000),
+        (
+            "knowledge-neighbors",
+            json!({ "doc": "handbook/doc-000" }),
+            16_000,
+        ),
+        (
+            "knowledge-related",
+            json!({ "doc": "handbook/doc-000" }),
+            16_000,
+        ),
+        (
+            "knowledge-path",
+            json!({ "from": "handbook/doc-000", "to": "handbook/doc-000" }),
+            16_000,
+        ),
+        (
+            "knowledge-outline",
+            json!({ "doc": "handbook/doc-000" }),
+            16_000,
+        ),
+        ("knowledge-stale", json!({}), 16_000),
     ] {
         let result = fx.as_actor(human("local"), command, input).await;
         assert_eq!(limit(&result), default, "{command}: {result}");
@@ -307,4 +328,76 @@ async fn find_list_changes_and_describe_fit_by_structure() {
     assert_eq!(describe["success"], true, "{describe}");
     assert!(data(&describe).get("frontmatter").is_none(), "{describe}");
     assert!(warning(&describe, "RESULTS_LIMITED").is_some());
+}
+
+#[tokio::test]
+async fn the_graph_commands_fit_by_structure_and_say_so() {
+    let fx = Fx::new();
+    let mut links = String::from("# Hub\n\n");
+    for n in 0..60 {
+        fx.handbook(
+            &format!("leaf-{n:02}.md"),
+            &format!("---\ntitle: Leaf number {n} of the long running series\n---\n# Leaf {n}\n"),
+        );
+        links.push_str(&format!("- [leaf {n}](leaf-{n:02}.md)\n"));
+    }
+    fx.handbook("hub.md", &links);
+    fx.refresh("main").await;
+
+    let neighbors = fx
+        .with_budget(
+            human("local"),
+            "knowledge-neighbors",
+            json!({ "doc": "handbook/hub", "kinds": ["links_to"], "limit": 60 }),
+            3_000,
+        )
+        .await;
+    let shown = data(&neighbors)["edges"].as_array().unwrap().len();
+    assert!(shown > 0 && shown < 60, "{shown}");
+    assert!(used(&neighbors) <= 3_000);
+    assert!(warning(&neighbors, "RESULTS_LIMITED").is_some());
+
+    let related = fx
+        .with_budget(
+            human("local"),
+            "knowledge-related",
+            json!({ "doc": "handbook/hub", "limit": 50 }),
+            2_000,
+        )
+        .await;
+    assert!(used(&related) <= 2_000, "{related}");
+    assert!(warning(&related, "RESULTS_LIMITED").is_some());
+
+    let tree = fx
+        .with_budget(
+            human("local"),
+            "knowledge-outline",
+            json!({ "collection": "handbook" }),
+            2_500,
+        )
+        .await;
+    assert!(used(&tree) <= 2_500, "{tree}");
+    let cursor = data(&tree)["truncatedAt"].as_str().unwrap().to_owned();
+    assert!(warning(&tree, "RESULTS_LIMITED").is_some());
+    // The next call continues from the cursor.
+    let rest = fx
+        .with_budget(
+            human("local"),
+            "knowledge-outline",
+            json!({ "collection": "handbook", "after": cursor }),
+            2_500,
+        )
+        .await;
+    assert_eq!(rest["success"], true, "{rest}");
+
+    let stale = fx
+        .with_budget(
+            human("local"),
+            "knowledge-stale",
+            json!({ "limit": 60 }),
+            2_500,
+        )
+        .await;
+    assert!(used(&stale) <= 2_500, "{stale}");
+    assert!(data(&stale)["nextAfter"].is_string());
 }

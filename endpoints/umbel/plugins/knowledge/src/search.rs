@@ -9,7 +9,10 @@
 //! 1. the index returns the best `min(400, limit × 8)` chunks;
 //! 2. a document's score is its best chunk's plus `secondary_weight ×` the sum of its next best
 //!    `secondary_count`; a draft is multiplied by `draft_factor`;
-//! 3. the order is the score at four decimals, then the document id.
+//! 3. when the request asks for it, the readable neighbours of the top documents (links, backlinks,
+//!    supersession, co-citation) receive a share of their parents' scores, and one that was not
+//!    matched enters with `matched: false`;
+//! 4. the order is the score at four decimals, then the document id.
 //!
 //! A multi-space search runs each space with that space's own reader filter and fuses the
 //! per-space rankings by reciprocal rank, because BM25 scores of different indexes are not
@@ -24,6 +27,7 @@ use umbel_store::{ChangeKind, ChunkHit, DocMeta, IndexFilters, IndexQuery};
 
 use crate::budget::fit_count;
 use crate::doc::{label, meta};
+use crate::expand;
 use crate::fail;
 use crate::locator;
 use crate::settings::{Ranking, Settings};
@@ -44,12 +48,17 @@ struct Request {
     include_deprecated: bool,
     limit: usize,
     detailed: bool,
+    expand: bool,
 }
 
 /// One document of one space, ranked.
 struct Ranked {
     space: String,
     doc: String,
+    /// Whether the query matched it; an expanded neighbour did not.
+    matched: bool,
+    /// The aggregated chunk score before the status adjustment and expansion, at four decimals.
+    raw: f64,
     /// The document's score in its own space, at four decimals.
     score: f64,
     chunks: Vec<ChunkHit>,
@@ -63,8 +72,11 @@ struct SpaceResult {
     space: String,
     ranked: Vec<Ranked>,
     applied: u64,
+    /// The store revision the graph reflects, when the request expands along it.
+    graph_applied: Option<u64>,
     head: u64,
     stale: bool,
+    expanded: bool,
 }
 
 pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
@@ -189,6 +201,7 @@ fn parse(input: &Value) -> Result<Request, Outcome> {
         include_deprecated,
         limit: usize::try_from(limit).unwrap_or(10),
         detailed: input.get("format").and_then(Value::as_str) == Some("detailed"),
+        expand: input.get("expand").and_then(Value::as_bool).unwrap_or(true),
     })
 }
 
@@ -206,13 +219,24 @@ fn search_space(
 ) -> Result<SpaceResult, Outcome> {
     let scoped = cx.in_space(space).map_err(|error| fail::host(&error))?;
     let applied = scoped.index_applied().map_err(|error| fail::host(&error))?;
-    let (stale, head) = pending(cx, space, applied).map_err(|error| fail::host(&error))?;
+    // Expansion reads the graph, so a graph behind the documents is as stale as an index is. The
+    // head is the highest revision of a change the caller can read: the true head counts changes
+    // they cannot, which only a derivation read may see.
+    let graph_applied = if request.expand {
+        Some(scoped.graph_applied().map_err(|error| fail::host(&error))?)
+    } else {
+        None
+    };
+    let behind = graph_applied.map_or(applied, |graph| graph.min(applied));
+    let (stale, head) = pending(cx, space, behind).map_err(|error| fail::host(&error))?;
     let mut result = SpaceResult {
         space: space.to_owned(),
         ranked: Vec::new(),
         applied,
+        graph_applied,
         head: head.max(applied),
         stale,
+        expanded: false,
     };
 
     let mut filters = request.filters.clone();
@@ -255,7 +279,7 @@ fn search_space(
         by_doc.entry(hit.doc.clone()).or_default().push(hit);
     }
 
-    let mut scored: Vec<(String, f64, Vec<ChunkHit>)> = by_doc
+    let mut scored: Vec<(String, f64, f64, Vec<ChunkHit>)> = by_doc
         .into_iter()
         .map(|(doc, mut chunks)| {
             // Best first; ties by ordinal.
@@ -271,16 +295,17 @@ fn search_space(
                 .take(ranking.aggregation.secondary_count)
                 .map(|hit| f64::from(hit.score))
                 .sum();
-            let mut score = best + ranking.aggregation.secondary_weight * rest;
+            let raw = round4(best + ranking.aggregation.secondary_weight * rest);
+            let mut score = raw;
             if chunks[0].chunk.status == "draft" {
-                score *= ranking.status.draft_factor;
+                score = round4(raw * ranking.status.draft_factor);
             }
-            (doc, round4(score), chunks)
+            (doc, raw, score, chunks)
         })
         .collect();
-    scored.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    scored.sort_by(|a, b| b.2.total_cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
 
-    for (doc, score, chunks) in scored {
+    for (doc, raw, score, chunks) in scored {
         if result.ranked.len() >= request.limit {
             break;
         }
@@ -292,13 +317,112 @@ fn search_space(
         result.ranked.push(Ranked {
             space: space.to_owned(),
             doc,
+            matched: true,
+            raw,
             score,
             shown: score,
             chunks,
             meta: current,
         });
     }
+    if request.expand && graph_applied.is_some_and(|graph| graph > 0) {
+        expand_into(
+            cx,
+            space,
+            request,
+            ranking,
+            settings,
+            wants_deprecated,
+            &mut result,
+        )?;
+    }
     Ok(result)
+}
+
+/// Graph expansion (step 3 of section 8.2): the readable neighbours of the results receive a share
+/// of their parents' scores. Neighbours come from the graph grant, which serves only what the
+/// caller can read, and each is read again through the document store before it is shown.
+fn expand_into(
+    cx: &Cx,
+    space: &str,
+    request: &Request,
+    ranking: &Ranking,
+    settings: &Settings,
+    wants_deprecated: bool,
+    result: &mut SpaceResult,
+) -> Result<(), Outcome> {
+    let host = |error: HostError| fail::host(&error);
+    let parents: Vec<(String, f64)> = result
+        .ranked
+        .iter()
+        .map(|item| (item.doc.clone(), item.raw))
+        .collect();
+    let shares = expand::shares(cx, space, &parents, &ranking.expansion).map_err(host)?;
+    result.expanded = true;
+    let scoped = cx.in_space(space).map_err(host)?;
+    let draft = |status: &str, score: f64| {
+        round4(if status == "draft" {
+            score * ranking.status.draft_factor
+        } else {
+            score
+        })
+    };
+    let present: std::collections::BTreeSet<String> =
+        result.ranked.iter().map(|item| item.doc.clone()).collect();
+    for item in &mut result.ranked {
+        if let Some(share) = shares.get(&item.doc) {
+            item.score = draft(&item.chunks[0].chunk.status, item.raw + share);
+            item.shown = item.score;
+        }
+    }
+    let named = request.filters.doc_type.as_deref();
+    for (doc, share) in &shares {
+        if present.contains(doc) {
+            continue;
+        }
+        let Some(current) = meta(cx, space, doc).map_err(host)? else {
+            continue;
+        };
+        if label(&current.status) == "deprecated" && !wants_deprecated {
+            continue;
+        }
+        if RESERVED_TYPES.contains(&current.doc_type.as_str())
+            && named != Some(current.doc_type.as_str())
+        {
+            continue;
+        }
+        let Some(first) = scoped.index_chunks(doc).map_err(host)?.into_iter().next() else {
+            continue;
+        };
+        if !expand::passes(&first, &request.filters) {
+            continue;
+        }
+        if settings.verified_only && !matches!(first.verified.as_str(), "human" | "owner") {
+            continue;
+        }
+        let score = draft(&first.status, *share);
+        result.ranked.push(Ranked {
+            space: space.to_owned(),
+            doc: doc.clone(),
+            matched: false,
+            raw: 0.0,
+            score,
+            shown: score,
+            chunks: vec![ChunkHit {
+                doc: doc.clone(),
+                ordinal: first.ordinal,
+                score: 0.0,
+                snippet: None,
+                chunk: first,
+            }],
+            meta: current,
+        });
+    }
+    result
+        .ranked
+        .sort_by(|a, b| b.score.total_cmp(&a.score).then_with(|| a.doc.cmp(&b.doc)));
+    result.ranked.truncate(request.limit);
+    Ok(())
 }
 
 /// Whether the caller can see a document change the index has not caught up with, and the
@@ -375,7 +499,7 @@ fn render(
             "title": item.meta.title,
             "type": item.meta.doc_type,
             "score": item.shown,
-            "matched": true,
+            "matched": item.matched,
             "locator": locator::string(&item.space, &item.doc, lines.0, lines.1, item.meta.content_hash.as_str()),
             "status": label(&item.meta.status),
             "verification": verification,
@@ -458,7 +582,7 @@ fn render(
         "spaces": searched,
         "hits": hits,
         "count": ranked.len(),
-        "expanded": false,
+        "expanded": spaces.iter().any(|result| result.expanded),
     }))
     .with_sources(sources)
     .with_metadata("dev.umbel/index", Value::Object(index))
@@ -475,7 +599,12 @@ fn render(
                 "the index of `{}` is behind the documents; run knowledge-refresh",
                 result.space
             ),
-            json!({ "space": result.space, "applied": result.applied, "head": result.head }),
+            json!({
+                "space": result.space,
+                "applied": result.applied,
+                "graphApplied": result.graph_applied,
+                "head": result.head,
+            }),
         );
     }
     let named = |ids: &[String]| ids.iter().take(WARNED).cloned().collect::<Vec<_>>();

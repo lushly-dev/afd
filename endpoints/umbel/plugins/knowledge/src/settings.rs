@@ -33,6 +33,40 @@ pub(crate) struct Ranking {
     pub(crate) status: StatusAdjustment,
     pub(crate) fusion: Fusion,
     pub(crate) index: IndexSettings,
+    pub(crate) expansion: Expansion,
+}
+
+/// How a search expands along the structural graph (specification section 8.2, step 3).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub(crate) struct Expansion {
+    /// The share of a parent's score a neighbour receives, before the edge factor.
+    #[serde(rename = "expansion_weight")]
+    pub(crate) weight: f64,
+    /// The edge factor of `links_to` (either direction).
+    pub(crate) links: f64,
+    /// The edge factor of `co_cited`.
+    pub(crate) co_cited: f64,
+    /// The edge factor of `supersedes`.
+    pub(crate) supersedes: f64,
+    /// The least weight, summed over the citers the reader can read, of a `co_cited` pair that
+    /// expands.
+    pub(crate) co_cited_min_weight: u64,
+    /// The most neighbours one document expands to.
+    pub(crate) max_per_document: usize,
+}
+
+impl Default for Expansion {
+    fn default() -> Self {
+        Self {
+            weight: 0.3,
+            links: 1.0,
+            co_cited: 0.5,
+            supersedes: 0.8,
+            co_cited_min_weight: 2,
+            max_per_document: 20,
+        }
+    }
 }
 
 /// How a document's chunks make its score.
@@ -128,6 +162,21 @@ impl Ranking {
         }
         finite("status.draft_factor", self.status.draft_factor, 0.0, 1.0)?;
         finite("fusion.rrf_k", self.fusion.rrf_k, 1.0, 1000.0)?;
+        finite(
+            "expansion.expansion_weight",
+            self.expansion.weight,
+            0.0,
+            1.0,
+        )?;
+        finite("expansion.links", self.expansion.links, 0.0, 2.0)?;
+        finite("expansion.co_cited", self.expansion.co_cited, 0.0, 2.0)?;
+        finite("expansion.supersedes", self.expansion.supersedes, 0.0, 2.0)?;
+        if self.expansion.co_cited_min_weight == 0 || self.expansion.co_cited_min_weight > 1000 {
+            return Err("expansion.co_cited_min_weight must be from 1 to 1000".into());
+        }
+        if self.expansion.max_per_document > 200 {
+            return Err("expansion.max_per_document must be at most 200".into());
+        }
         if self.index.filterable.len() > 32
             || self
                 .index
