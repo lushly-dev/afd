@@ -176,6 +176,17 @@ opt-level = 2
 opt-level = 2
 [profile.dev.package.frostem]
 opt-level = 2
+# tree-sitter's parser and the grammars' generated C are slow unoptimised, and the code-symbol
+# tests parse hostile files against wall-time budgets (specification section 7.4). The test
+# profile inherits these from dev.
+[profile.dev.package.tree-sitter]
+opt-level = 2
+[profile.dev.package.tree-sitter-rust]
+opt-level = 2
+[profile.dev.package.tree-sitter-python]
+opt-level = 2
+[profile.dev.package.tree-sitter-typescript]
+opt-level = 2
 
 [lints]
 workspace = true

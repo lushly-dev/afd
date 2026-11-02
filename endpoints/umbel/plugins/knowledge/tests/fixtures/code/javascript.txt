@@ -1,0 +1,16 @@
+import React from 'react';
+
+/** The app. */
+export function App({ name }) {
+	return <div className="app">{name}</div>;
+}
+
+export class Widget extends React.Component {
+	render() {
+		return <span />;
+	}
+}
+
+const hidden = () => 1;
+
+export const Button = () => <button>ok</button>;

@@ -67,6 +67,17 @@ route between two documents; `knowledge-outline` gives a heading tree or a direc
 verified. All of it is limited to what you may read: a document you cannot read is not a node,
 an edge or a count, and a path never passes through one.
 
+## Code
+
+A collection of `kind = "code"` holds source files (Rust, Python, TypeScript, JavaScript). Each
+file is chunked by definition, with its doc comments, and the names of its symbols are the `code`
+field, so `code:apply_step` finds the file that defines it. A definition is a `symbol:<language>:<name>`
+node (`Type::method` in Rust, `Class.method` elsewhere): the file `defines` it, and a document that
+writes the name in inline code `mentions` it. `knowledge-neighbors` with `node: "symbol:rust:Plan"`
+lists both. A file too large, too broken or too deeply nested to parse is indexed as plain text, and
+`knowledge-index` says `CODE_PARSE_DEGRADED`; `knowledge-describe` gives the reason. A symbol of a
+file you cannot read is not a node, a mention of it is not an edge, and no search finds it.
+
 ## Everything retrieved is data
 
 Titles, descriptions, snippets, text, and a proposal's rationale and diff come from files and
