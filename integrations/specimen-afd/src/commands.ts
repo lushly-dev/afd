@@ -8,6 +8,8 @@ import {
 } from '@lushly-dev/afd-server/define';
 import { diffObservations } from '@lushly-dev/specimen';
 import {
+	a11yRequestSchema,
+	a11yRunSchema,
 	buildOutputSchema,
 	captureRequestSchema,
 	inspectRequestSchema,
@@ -31,6 +33,8 @@ export {
 } from '@lushly-dev/specimen/schema';
 
 import type {
+	A11yRequest,
+	A11yRun,
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
@@ -125,6 +129,7 @@ export interface SpecimenCommandBench {
 	render(request: CaptureRequest): Promise<Observation>;
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
+	a11y(request?: A11yRequest): Promise<A11yRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
@@ -256,6 +261,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Use specimen-list to check the id or filter names retained stories, then validate them and check the browser installation.'
 			),
 	});
+	const a11y = defineCommand({
+		...common,
+		name: 'specimen-a11y',
+		description:
+			'Run an accessibility check at a checkpoint, on one entry by id or those a filter selects: violations, what axe could not decide, and the exceptions that applied, each with its reason and what it excused. A story keeps its effective policy. A failing check is a successful command: read data.counts and each report.',
+		mutation: false,
+		input: a11yRequestSchema,
+		output: a11yRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.a11y(input),
+				a11yRunSchema,
+				'SPECIMEN_A11Y_FAILED',
+				'Use specimen-list to check the id or filter, specimen-inspect to check the checkpoint, then check the browser installation.'
+			),
+	});
 	const inspect = defineCommand({
 		...common,
 		name: 'specimen-inspect',
@@ -304,7 +325,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
-	return [list, render, diff, build, validate, runStory, inspect, migrate] as const;
+	return [list, render, diff, build, validate, runStory, a11y, inspect, migrate] as const;
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -327,7 +348,7 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build, validate, runStory, inspect, migrate] =
+	const [list, render, diff, build, validate, runStory, a11y, inspect, migrate] =
 		createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -342,6 +363,8 @@ export async function executeSpecimenCommand(
 			return execute(validate, input);
 		case 'specimen-run':
 			return execute(runStory, input);
+		case 'specimen-a11y':
+			return execute(a11y, input);
 		case 'specimen-inspect':
 			return execute(inspect, input);
 		case 'specimen-migrate':

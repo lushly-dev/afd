@@ -100,6 +100,7 @@ impl Bench {
             "console": { "errors": outcome.errors, "warnings": outcome.warnings },
             "context": outcome.context,
             "outcome": outcome.outcome,
+            "accessibility": outcome.accessibility,
             "loaded": loaded,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))

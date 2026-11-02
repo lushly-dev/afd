@@ -104,6 +104,34 @@ const suite = await bench.runSuite({
 
 Each story reports its `attempts` and a `flakeId` in the form `storybook:<file>::<name>`, the key a consumer's flake records already use. `sourcesChanged` is true if a bundled source changed during the run, in which case the stories ran against the sources as they were when it started.
 
+## Check accessibility
+
+`a11y()` (`specimen-a11y`, `specimen a11y [ID]`) runs axe at a checkpoint, on one entry by `id` or those a `filter` selects. The default checkpoint, `after-run`, is a native scenario's end or a retained story's play. Each report lists:
+
+- `violations`, with axe's explanation per target;
+- `incompleteChecks`, what axe could not decide and a person must, such as contrast over an image;
+- `exceptions`, each with its reason and what it excused;
+- `failures`, what stopped the run before the check, such as a story's play.
+
+A retained story keeps its effective `parameters.a11y` policy. A native specimen's check covers its mount root, and its `a11y` field declares any exclusion:
+
+```ts
+export const Legacy: SpecimenDefinition = {
+  render,
+  a11y: {
+    exceptions: [{ rule: 'image-alt', target: '[data-legacy]', reason: 'Replaced in the next release.' }],
+  },
+};
+export const BrokenState: SpecimenDefinition = {
+  render,
+  a11y: { disabled: { reason: 'A fixture of the broken state itself.' } },
+};
+```
+
+An exception excuses only its rule, only on its target and what is inside it, through shadow roots. An exclusion without a reason, or an exception without a target, fails the specimen. An exception that excused nothing reports `matched: []`, so a stale one is visible. There are no schema checks yet: the proposal asks for what is available, and no schema source declares any.
+
+A run's capture records its check in `channels.a11y.axe`, and `diffObservations` treats a change in what axe found as a difference.
+
 ## Migrate retained stories
 
 `migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:

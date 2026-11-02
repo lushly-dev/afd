@@ -21,7 +21,14 @@ const outcome = (status: StoryOutcome['status']): StoryAttempt => ({
 		status,
 		play: 'none',
 		failures: status === 'failed' ? [{ category: 'play', message: 'no' }] : [],
-		a11y: { status: 'not-run', policy: 'error', violations: [], incomplete: 0 },
+		a11y: {
+			status: 'not-run',
+			policy: 'error',
+			violations: [],
+			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
+		},
 	},
 	observation: null,
 });

@@ -12,9 +12,20 @@ import {
 } from './config.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
-import { DEFAULT_FLAKE_CAP, DEFAULT_SUITE_WORKERS, executeSuite, selectStories } from './suite.js';
+import {
+	DEFAULT_FLAKE_CAP,
+	DEFAULT_SUITE_WORKERS,
+	executeSuite,
+	pool,
+	selectEntries,
+	selectStories,
+} from './suite.js';
 import { startTrace, traced } from './trace.js';
 import {
+	type A11yReport,
+	type A11yRequest,
+	type A11yRun,
+	type AxeOutcome,
 	type BenchOptions,
 	type BrowserObservation,
 	CAPTURE_VERSION,
@@ -25,13 +36,14 @@ import {
 	type Observation,
 	type RunRequest,
 	type SpecimenContext,
+	type SpecimenEntry,
 	type StoryOutcome,
 	type StoryRun,
 	type SuiteCapture,
 	type SuiteRequest,
 	type SuiteRun,
 } from './types.js';
-import { parseCaptureRequest, parseSuiteRequest } from './validate.js';
+import { parseA11yRequest, parseCaptureRequest, parseSuiteRequest } from './validate.js';
 
 function coverage(
 	status: Completeness['status'],
@@ -61,6 +73,8 @@ interface HostRender {
 	context: SpecimenContext;
 	/** A retained story's run, at the after-run checkpoint. */
 	outcome: StoryOutcome | null;
+	/** An accessibility check the request asked for. */
+	accessibility?: AxeOutcome | null;
 }
 /**
  * The bench runtime. Rendering runs in the native host (`host/`): it bundles the bench with
@@ -111,8 +125,12 @@ export async function createInProcessBench(
 	/** One capture through the host; a retained story's context comes back settled. */
 	async function capture(
 		parsed: ReturnType<typeof parseCaptureRequest>,
-		options: { capture?: SuiteCapture; reuseBundle?: boolean } = {}
-	): Promise<{ observation: Observation | null; outcome: StoryOutcome | null }> {
+		options: { capture?: SuiteCapture; reuseBundle?: boolean; accessibility?: boolean } = {}
+	): Promise<{
+		observation: Observation | null;
+		outcome: StoryOutcome | null;
+		accessibility: AxeOutcome | null;
+	}> {
 		const request = {
 			...parsed,
 			checkpoint: parsed.checkpoint ?? 'mount',
@@ -147,6 +165,7 @@ export async function createInProcessBench(
 									: {}),
 								...(options.capture ? { capture: options.capture } : {}),
 								...(options.reuseBundle ? { reuseBundle: true } : {}),
+								...(options.accessibility ? { accessibility: true } : {}),
 							},
 							// The host bounds the render itself; this covers a host that stops answering.
 							request.timeoutMs + HOST_GRACE
@@ -159,7 +178,10 @@ export async function createInProcessBench(
 							Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
 						),
 			]);
-			if (!rendered.captured) return { observation: null, outcome: rendered.outcome ?? null };
+			const accessibility = rendered.accessibility ?? null;
+			if (!rendered.captured)
+				return { observation: null, outcome: rendered.outcome ?? null, accessibility };
+			const axe = accessibility ?? rendered.outcome?.a11y;
 			const [source, dependencies] =
 				identity ??
 				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
@@ -189,7 +211,7 @@ export async function createInProcessBench(
 				},
 				channels: {
 					dom: { raw: captured.dom, normalized: captured.normalized },
-					a11y: { snapshot, axe: 'not-run' },
+					a11y: { snapshot, axe: axe && axe.status !== 'not-run' ? axe : 'not-run' },
 					elements: captured.elements,
 					console: rendered.console,
 					visual: { path: rendered.screenshot },
@@ -202,7 +224,10 @@ export async function createInProcessBench(
 						'light DOM and accessible open shadow roots',
 						limitations.filter((value) => value.toLowerCase().includes('closed'))
 					),
-					a11y: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
+					a11y:
+						axe && axe.status !== 'not-run'
+							? coverage('complete', 'ARIA snapshot and axe', [])
+							: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
 					layout: coverage(
 						contextual.length ? 'partial' : 'complete',
 						'boxes and scroll extents of accessible elements; pseudo-element geometry excluded',
@@ -225,9 +250,56 @@ export async function createInProcessBench(
 					]),
 				},
 			} satisfies Observation;
-			return { observation, outcome: rendered.outcome ?? null };
+			return { observation, outcome: rendered.outcome ?? null, accessibility };
 		} finally {
 			await trace?.flush();
+		}
+	}
+
+	/** One entry's check at a checkpoint: a story's play comes first, and its policy governs. */
+	async function accessibilityReport(
+		entry: SpecimenEntry,
+		request: A11yRequest
+	): Promise<A11yReport> {
+		const checkpoint = request.checkpoint ?? 'after-run';
+		try {
+			const { outcome, accessibility } = await capture(
+				{
+					id: entry.id,
+					checkpoint,
+					...(request.context ? { context: request.context } : {}),
+					timeoutMs:
+						request.timeoutMs ??
+						(entry.story ? (config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS) : 10_000),
+				},
+				{ capture: 'none', reuseBundle: true, accessibility: true }
+			);
+			const axe = accessibility ?? outcome?.a11y;
+			if (!axe) throw new Error('The host returned no accessibility check');
+			return {
+				...axe,
+				id: entry.id,
+				checkpoint,
+				failures: (outcome?.failures ?? []).flatMap((failure) =>
+					failure.category === 'a11y'
+						? []
+						: [{ category: failure.category, message: failure.message }]
+				),
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				status: 'not-run',
+				policy: 'error',
+				reason: 'it did not reach the check',
+				violations: [],
+				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
+				id: entry.id,
+				checkpoint,
+				failures: [{ category: 'render', message }],
+			};
 		}
 	}
 
@@ -266,6 +338,8 @@ export async function createInProcessBench(
 							: 'the story has a skip tag',
 						violations: [],
 						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
 					},
 				},
 				observation: null,
@@ -296,6 +370,8 @@ export async function createInProcessBench(
 						reason: 'the story did not render',
 						violations: [],
 						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
 					},
 				},
 				observation: null,
@@ -351,6 +427,34 @@ export async function createInProcessBench(
 		async run(rawRequest: RunRequest): Promise<StoryRun> {
 			ensureOpen();
 			return runStory(parseCaptureRequest(rawRequest));
+		},
+		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
+			ensureOpen();
+			const request = parseA11yRequest(rawRequest);
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: selectEntries(config.entries, request.filter, config.root);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const reports = await pool(entries, workers, (entry) => accessibilityReport(entry, request));
+			const count = (status: A11yReport['status']) =>
+				reports.filter((report) => report.status === status).length;
+			return {
+				reports,
+				counts: {
+					total: reports.length,
+					passed: count('passed'),
+					warning: count('warning'),
+					failed: count('failed'),
+					notRun: count('not-run'),
+				},
+				workers,
+				elapsedMs: performance.now() - started,
+			};
 		},
 		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
 			ensureOpen();

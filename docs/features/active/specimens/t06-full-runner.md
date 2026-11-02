@@ -3,7 +3,8 @@
 **State, 2026-11-01:** in progress.
 
 - Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
-- Step 2, suites with filters, worker limits and the once-only retry, is implemented on branch `lush/specimens-t06-run-suites`.
+- Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
+- Step 3, `specimen-a11y` and native accessibility exceptions, is implemented on branch `lush/specimens-t06-a11y`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -183,11 +184,34 @@ Three more passes of both suites through both runners, using this API with two w
 | `lushly-suite-6/retained.json`, the final code | `80c924a7cc0b75b3f71989c3e4fc93c7c8641f62f3af96301fda532bed6760a6` |
 | `fast-af-suite-6/retained.json`, the final code | `91738286787e13fd1774ab8db2b9651710466f9327bd8d31a6e59328b6e019c7` |
 
+## Step 3: `specimen-a11y`
+
+`bench.a11y()`, `specimen-a11y` and `specimen a11y [ID]` run axe at a checkpoint, on one entry or those a filter selects. The [README](../../../../foundations/specimen/README.md#check-accessibility) documents the surface.
+
+What the consumers need here is narrow. T01's inventories record no per-story accessibility overrides in either consumer, and no story file sets `a11y`: every story takes the project's `test: 'error'`. So retained stories keep their effective policy through this path, exactly as `run` applies it, and the new work is the proposal's native contract:
+
+| Obligation | What it does |
+| --- | --- |
+| A check at a checkpoint | Native: any scenario checkpoint, defaulting to its end. Retained: `after-run`, with the play first, or `mount`. A play that fails stops the run, so the report says `not-run` and names the failure |
+| Incomplete checks | `incompleteChecks` lists what axe could not decide, per target, without passing or failing it. `run` had only a count |
+| Scoped exceptions | `a11y.exceptions` on a native specimen excuses one rule on one target and what is inside it, through shadow roots. The same rule elsewhere still fails, as does another rule on that target |
+| Reasons in reports | An exclusion without a reason, or an exception without a target, fails the specimen. Each report lists its exceptions, their reasons and what they excused |
+| Disabled checks | `a11y.disabled` requires a reason, and the report says `not-run` with it |
+| Native policy cannot override a story | The `a11y` field exists only on native specimens. A retained story's report always has `exceptions: []` |
+
+An exception that excused nothing reports `matched: []` rather than failing, so a stale one is visible without breaking anything. Whether a stale exception should fail belongs with T07's rule retirement.
+
+The proposal says "axe and available schema checks". No schema source declares a check, so there are none to run; T07's coverage is where such obligations arrive.
+
+The capture also tells the truth now. `channels.a11y.axe` was the literal `'not-run'` even when `run` had just run axe. It now records the outcome, the channel's completeness is `complete` when a check ran, and `diffObservations` reports a change in the rules and targets axe found. An unrun check on either side is a limitation, not a difference. `CAPTURE_VERSION` moves to `0.3`.
+
+Failure fixtures are in `fixtures/accessibility/` and `compat/failing/`, tested by `src/a11y.test.ts` in CI.
+
 ## Remaining steps
 
 1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
-2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Implemented on branch.
-3. **`specimen-a11y`:** checkpoints, incomplete checks and scoped exceptions.
+2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Merged in #676.
+3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Implemented on branch.
 4. **`specimen-profile`:** browser metrics and ready-checkpoint timing, and baseline comparison.
 5. **`specimen-matrix` and declared event history.**
 6. **CEM and story typechecks, scaffold output,** and verified index links and budgets.

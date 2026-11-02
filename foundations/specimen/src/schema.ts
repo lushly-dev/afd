@@ -63,6 +63,31 @@ const element = z
 		state: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
 	})
 	.strict();
+const axeFindingSchema = z.strictObject({
+	id: z.string(),
+	impact: z.string().nullable(),
+	help: z.string(),
+	targets: z.array(z.string()),
+	details: z.array(z.string()),
+});
+const axeOutcomeShape = {
+	status: z.enum(['passed', 'warning', 'failed', 'not-run']),
+	policy: z.enum(['error', 'todo', 'off', 'disabled', 'manual']),
+	reason: z.string().optional(),
+	violations: z.array(axeFindingSchema),
+	incomplete: z.number().int().nonnegative(),
+	incompleteChecks: z.array(axeFindingSchema),
+	exceptions: z.array(
+		z.strictObject({
+			rule: z.string(),
+			target: z.string(),
+			reason: z.string(),
+			matched: z.array(z.string()),
+		})
+	),
+	engine: z.string().optional(),
+};
+const axeOutcomeSchema = z.strictObject(axeOutcomeShape);
 export const observationSchema = z
 	.object({
 		manifest: z
@@ -86,7 +111,9 @@ export const observationSchema = z
 		channels: z
 			.object({
 				dom: z.object({ raw: z.string(), normalized: z.string() }).strict(),
-				a11y: z.object({ snapshot: z.string(), axe: z.literal('not-run') }).strict(),
+				a11y: z
+					.object({ snapshot: z.string(), axe: z.union([z.literal('not-run'), axeOutcomeSchema]) })
+					.strict(),
 				elements: z.array(element),
 				console: z.object({ errors: z.array(z.string()), warnings: z.array(z.string()) }).strict(),
 				visual: z.object({ path: z.string().nullable() }).strict(),
@@ -137,22 +164,7 @@ const storyOutcomeSchema = z.strictObject({
 	failures: z.array(
 		z.strictObject({ category: z.enum(['render', 'play', 'a11y']), message: z.string() })
 	),
-	a11y: z.strictObject({
-		status: z.enum(['passed', 'warning', 'failed', 'not-run']),
-		policy: z.enum(['error', 'todo', 'off', 'disabled', 'manual']),
-		reason: z.string().optional(),
-		violations: z.array(
-			z.strictObject({
-				id: z.string(),
-				impact: z.string().nullable(),
-				help: z.string(),
-				targets: z.array(z.string()),
-				details: z.array(z.string()),
-			})
-		),
-		incomplete: z.number().int().nonnegative(),
-		engine: z.string().optional(),
-	}),
+	a11y: axeOutcomeSchema,
 });
 export const storyRunSchema = z.strictObject({
 	id: z.string(),
@@ -194,6 +206,36 @@ export const suiteRunSchema = z.strictObject({
 	workers: z.number().int().positive(),
 	elapsedMs: z.number().nonnegative(),
 	sourcesChanged: z.boolean(),
+});
+
+export const a11yRequestSchema = z.strictObject({
+	id: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	checkpoint: z.string().min(1).optional(),
+	context: captureRequestSchema.shape.context,
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+export const a11yRunSchema = z.strictObject({
+	reports: z.array(
+		z.strictObject({
+			...axeOutcomeShape,
+			id: z.string(),
+			checkpoint: z.string(),
+			failures: z.array(
+				z.strictObject({ category: z.enum(['render', 'play']), message: z.string() })
+			),
+		})
+	),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		passed: z.number().int().nonnegative(),
+		warning: z.number().int().nonnegative(),
+		failed: z.number().int().nonnegative(),
+		notRun: z.number().int().nonnegative(),
+	}),
+	workers: z.number().int().positive(),
+	elapsedMs: z.number().nonnegative(),
 });
 
 /** A component's schema from the manifest, enriched by plugins' schema sources. */

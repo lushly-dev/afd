@@ -5,7 +5,7 @@
  * never imported here; the story's own imports, such as `storybook/test`, are the consumer's.
  */
 import type { ElementContext, RunOptions, Spec } from 'axe-core';
-import type { SpecimenContext, StoryOutcome } from '../types.js';
+import type { AxeFinding, NativeAccessibility, SpecimenContext, StoryOutcome } from '../types.js';
 import {
 	type Annotations,
 	type ComposedStory,
@@ -382,6 +382,8 @@ async function checkAccessibility(composed: ComposedStory): Promise<Accessibilit
 			reason: `parameters.a11y ${policy}`,
 			violations: [],
 			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
 		};
 	if (parameter.element !== undefined)
 		throw new Error('parameters.a11y.element is not supported; use parameters.a11y.context.');
@@ -412,20 +414,110 @@ async function checkAccessibility(composed: ComposedStory): Promise<Accessibilit
 		options.rules = { ...disabled, ...((options.rules as Fields | undefined) ?? {}) };
 	}
 	const result = await axe.run(context as unknown as ElementContext, options as RunOptions);
-	const violations = result.violations.map((violation) => ({
-		id: violation.id,
-		impact: violation.impact ?? null,
-		help: violation.help,
-		targets: violation.nodes.map((node) => node.target.map(String).join(' ')),
-		details: violation.nodes.map((node) => node.failureSummary ?? ''),
-	}));
+	const violations = result.violations.map((rule) => finding(rule, rule.nodes));
 	return {
 		status: violations.length ? (policy === 'todo' ? 'warning' : 'failed') : 'passed',
 		policy,
 		violations,
 		incomplete: result.incomplete.length,
+		incompleteChecks: result.incomplete.map((rule) => finding(rule, rule.nodes)),
+		exceptions: [],
 		engine: result.testEngine.version,
 	};
+}
+
+/** One axe rule's result over some of its nodes. */
+function finding(
+	rule: { id: string; impact?: string | null; help: string },
+	nodes: { target: unknown[]; failureSummary?: string }[]
+): AxeFinding {
+	return {
+		id: rule.id,
+		impact: rule.impact ?? null,
+		help: rule.help,
+		targets: nodes.map((node) => node.target.map(String).join(' ')),
+		details: nodes.map((node) => node.failureSummary ?? ''),
+	};
+}
+
+/** Whether `element` is `selector`'s match or inside one, through shadow roots. */
+function withinTarget(element: Element | undefined, selector: string): boolean {
+	let current: Element | null | undefined = element;
+	while (current) {
+		if (current.closest(selector)) return true;
+		const root = current.getRootNode();
+		current = root instanceof ShadowRoot ? root.host : null;
+	}
+	return false;
+}
+
+/** The check `specimen-a11y` runs on what is mounted now. */
+export async function checkMountedStory(mounted: MountedStory): Promise<AccessibilityResult> {
+	const resume = pauseAnimations();
+	try {
+		return await checkAccessibility(mounted.prepared.composed);
+	} finally {
+		resume();
+	}
+}
+
+/**
+ * A native specimen's check, over its mount root. An exception excuses only its rule on its
+ * target, so a violation elsewhere still fails, and each exception reports what it excused.
+ */
+export async function checkNativeSpecimen(
+	root: HTMLElement,
+	declared: NativeAccessibility | undefined
+): Promise<AccessibilityResult> {
+	if (declared?.disabled)
+		return {
+			status: 'not-run',
+			policy: 'disabled',
+			reason: declared.disabled.reason,
+			violations: [],
+			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
+		};
+	const axe = axeEngine ?? (await loadAxe());
+	const resume = pauseAnimations();
+	try {
+		axe.reset();
+		axe.configure({ rules: [{ id: 'region', enabled: false }] } as unknown as Spec);
+		const result = await axe.run(
+			{ include: root } as unknown as ElementContext,
+			{ elementRef: true } as RunOptions
+		);
+		const exceptions = (declared?.exceptions ?? []).map((exception) => ({
+			...exception,
+			matched: [] as string[],
+		}));
+		const violations: AxeFinding[] = [];
+		for (const rule of result.violations) {
+			const remaining = rule.nodes.filter((node) => {
+				const target = node.target.map(String).join(' ');
+				const excuses = exceptions.filter(
+					(exception) =>
+						exception.rule === rule.id &&
+						withinTarget(node.element as Element | undefined, exception.target)
+				);
+				for (const exception of excuses) exception.matched.push(target);
+				return excuses.length === 0;
+			});
+			if (remaining.length) violations.push(finding(rule, remaining));
+		}
+		return {
+			status: violations.length ? 'failed' : 'passed',
+			policy: 'error',
+			violations,
+			incomplete: result.incomplete.length,
+			incompleteChecks: result.incomplete.map((rule) => finding(rule, rule.nodes)),
+			exceptions,
+			engine: result.testEngine.version,
+		};
+	} finally {
+		resume();
+	}
 }
 
 /**
@@ -456,6 +548,8 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 					reason: 'the play failed',
 					violations: [],
 					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
 				},
 			};
 		}
@@ -474,6 +568,8 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 				reason: message(error),
 				violations: [],
 				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
 			};
 			failures.push({
 				category: 'a11y',

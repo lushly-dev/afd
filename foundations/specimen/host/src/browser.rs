@@ -228,6 +228,9 @@ pub struct RenderRequest {
     /// Use the built bundle without checking its sources, as a suite does after checking once.
     #[serde(default)]
     pub reuse_bundle: bool,
+    /// Run an accessibility check at the checkpoint, as `specimen-a11y` asks.
+    #[serde(default)]
+    pub accessibility: bool,
     /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
     #[serde(default)]
     pub inspect: Option<Value>,
@@ -243,6 +246,8 @@ pub struct RenderOutcome {
     pub context: Value,
     /// A retained story's run: its play and accessibility check.
     pub outcome: Option<Value>,
+    /// An accessibility check the request asked for, apart from a retained story's run.
+    pub accessibility: Option<Value>,
 }
 
 /// What one attempt produced before its context was disposed.
@@ -252,6 +257,7 @@ struct Attempted {
     screenshot: Option<String>,
     context: Value,
     outcome: Option<Value>,
+    accessibility: Option<Value>,
 }
 
 /// A failure the client re-raises: one message, or the render and disposal failures together.
@@ -403,6 +409,7 @@ impl Browser {
                 warnings,
                 context: attempted.context,
                 outcome: attempted.outcome,
+                accessibility: attempted.accessibility,
             }),
             (Ok(_), Err(failure)) => Err(failure.into()),
             // The page's own errors usually explain a render that failed or never became ready.
@@ -519,6 +526,7 @@ impl Browser {
                 screenshot: None,
                 context,
                 outcome: None,
+                accessibility: None,
             });
         }
         let mut context = request.context.clone();
@@ -578,6 +586,16 @@ impl Browser {
             attempt.enter("running the specimen's scenario");
             page.steps(&mounted, &request.checkpoint).await?;
         }
+        // A retained story's run has its own check, under its policy, in its outcome.
+        let accessibility = if request.accessibility && outcome.is_none() {
+            attempt.enter("running the accessibility check");
+            Some(
+                page.evaluate("window.__specimen.checkAccessibility()")
+                    .await?,
+            )
+        } else {
+            None
+        };
         let story_status = outcome
             .as_ref()
             .and_then(|outcome| outcome.get("status"))
@@ -594,6 +612,7 @@ impl Browser {
                 screenshot: None,
                 context,
                 outcome,
+                accessibility,
             });
         }
         attempt.enter("capturing the result");
@@ -617,6 +636,7 @@ impl Browser {
             screenshot,
             context,
             outcome,
+            accessibility,
         })
     }
 }

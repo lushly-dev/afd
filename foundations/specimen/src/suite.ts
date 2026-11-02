@@ -39,22 +39,34 @@ export function flakeId(file: string, titles: readonly string[]): string {
 	return `storybook:${file}::${titles.join(' › ')}`;
 }
 
-/** The retained stories a filter selects, in discovery order. No filter selects them all. */
+/** The entries a filter selects, in discovery order. A native specimen has no tags to match. */
+export function selectEntries(
+	entries: readonly SpecimenEntry[],
+	filter: SuiteFilter | undefined,
+	root: string
+): SpecimenEntry[] {
+	const ids = filter?.ids && new Set(filter.ids);
+	const file = filter?.file && resolve(root, filter.file);
+	return entries.filter(
+		(entry) =>
+			(!ids || ids.has(entry.id)) &&
+			(!file || resolve(root, entry.module) === file) &&
+			(!filter?.tags || filter.tags.some((tag) => entry.story?.tags.includes(tag))) &&
+			(!filter?.match ||
+				`${entry.title} ${entry.story?.name ?? entry.exportName}`
+					.toLowerCase()
+					.includes(filter.match.toLowerCase()))
+	);
+}
+
+/** The retained stories a filter selects. No filter selects them all. */
 export function selectStories(
 	entries: readonly SpecimenEntry[],
 	filter: SuiteFilter | undefined,
 	root: string
 ): StoryEntry[] {
-	const stories = entries.filter((entry): entry is StoryEntry => entry.story !== undefined);
-	const ids = filter?.ids && new Set(filter.ids);
-	const file = filter?.file && resolve(root, filter.file);
-	return stories.filter(
-		(entry) =>
-			(!ids || ids.has(entry.id)) &&
-			(!file || resolve(root, entry.module) === file) &&
-			(!filter?.tags || filter.tags.some((tag) => entry.story.tags.includes(tag))) &&
-			(!filter?.match ||
-				`${entry.title} ${entry.story.name}`.toLowerCase().includes(filter.match.toLowerCase()))
+	return selectEntries(entries, filter, root).filter(
+		(entry): entry is StoryEntry => entry.story !== undefined
 	);
 }
 
