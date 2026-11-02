@@ -49,6 +49,8 @@ const valueOptions = new Set([
 	'workers',
 	'flake-cap',
 	'capture',
+	'runs',
+	'note',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -147,6 +149,39 @@ function validateOptions(parsed: ParsedArguments): void {
 			'match',
 			'workers',
 		]),
+		profile: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'runs',
+		]),
+		baseline: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'runs',
+			'note',
+		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
 		build: new Set(['root', 'config', 'output']),
 	};
@@ -162,9 +197,10 @@ function validateOptions(parsed: ParsedArguments): void {
 			: parsed.action === 'diff'
 				? 2
 				: 1;
-	const selects = parsed.action === 'run' || parsed.action === 'a11y';
+	const selects = ['run', 'a11y', 'profile', 'baseline'].includes(parsed.action);
 	const suite = selects && parsed.positionals.length === 0;
 	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
+	// How many runs apply to one entry as to many.
 	if (selects && !suite)
 		for (const option of suiteOptions)
 			if (parsed.options.has(option) || parsed.flags.has(option))
@@ -199,9 +235,9 @@ function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
 /** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
 function storiesFailed(result: CommandResult<unknown>): boolean {
 	const data = result.data as
-		| { outcome?: string | { status?: string }; counts?: { failed?: number } }
+		| { outcome?: string | { status?: string }; counts?: { failed?: number; errored?: number } }
 		| undefined;
-	if (data?.counts?.failed) return true;
+	if (data?.counts?.failed || data?.counts?.errored) return true;
 	const outcome = data?.outcome;
 	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
 	return outcome?.status === 'failed';
@@ -286,7 +322,26 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value) raw[field] = value;
 				}
-				if (parsed.action === 'a11y') {
+				if (parsed.action === 'profile' || parsed.action === 'baseline') {
+					const runs = parsed.options.get('runs');
+					if (runs !== undefined && !Number.isInteger(Number(runs)))
+						throw new Error('--runs expects a whole number');
+					const note = parsed.options.get('note');
+					result = await executeSpecimenCommand(
+						bench,
+						parsed.action === 'profile' ? 'specimen-profile' : 'specimen-baseline',
+						{
+							...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
+							context: { ...context, ...raw },
+							...(parsed.options.has('checkpoint')
+								? { checkpoint: parsed.options.get('checkpoint') }
+								: {}),
+							...(runs === undefined ? {} : { runs: Number(runs) }),
+							...(note === undefined ? {} : { notes: [note] }),
+							...suiteInput(parsed),
+						}
+					);
+				} else if (parsed.action === 'a11y') {
 					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
 						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
 						context: { ...context, ...raw },

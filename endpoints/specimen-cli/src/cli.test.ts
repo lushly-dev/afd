@@ -45,6 +45,34 @@ function harness() {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		profile: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
+		recordBaseline: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
 		a11y: vi.fn(async () => ({
 			reports: [],
 			counts: { total: 0, passed: 0, warning: 0, failed: 0, notRun: 0 },
@@ -212,6 +240,34 @@ describe('specimen CLI', () => {
 		}));
 		expect(await runCli(['--root', root, 'a11y'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'a11y', 'button', '--workers', '2'], h.io)).toBe(1);
+	});
+	it('dispatches profile and baseline, and exits nonzero on a failed budget or a broken run', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'profile', 'button', '--runs', '5'], h.io)).toBe(0);
+		expect(h.bench.profile).toHaveBeenCalledWith({ id: 'button', context: {}, runs: 5 });
+		expect(await runCli(['--root', root, 'profile'], h.io)).toBe(0);
+		expect(h.bench.profile).toHaveBeenLastCalledWith({ context: {} });
+		expect(
+			await runCli(['--root', root, 'baseline', 'button', '--note', 'After cutover'], h.io)
+		).toBe(0);
+		expect(h.bench.recordBaseline).toHaveBeenCalledWith({
+			id: 'button',
+			context: {},
+			notes: ['After cutover'],
+		});
+		const counts = { total: 1, passed: 0, warnings: 0, notComparable: 0, noBaseline: 0 };
+		const result = (failed: number, errored: number) => ({
+			reports: [],
+			counts: { ...counts, failed, errored },
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		});
+		h.bench.profile = vi.fn(async () => result(1, 0));
+		expect(await runCli(['--root', root, 'profile', 'button'], h.io)).toBe(1);
+		h.bench.profile = vi.fn(async () => result(0, 1));
+		expect(await runCli(['--root', root, 'profile', 'button'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'profile', 'button', '--runs', 'many'], h.io)).toBe(1);
 	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();

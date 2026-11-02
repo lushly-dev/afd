@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { readManifest } from './manifest.js';
 import type { ComponentSchema } from './plugin.js';
 import { type Discovery, discoverStories } from './stories.js';
@@ -33,6 +33,8 @@ export interface LoadedConfig {
 	schemas: Record<string, ComponentSchema>;
 	/** Directories served at the page's origin, as absolute paths and URL prefixes. */
 	staticDirs: { from: string; to: string }[];
+	/** The performance baselines file, which recording may create. */
+	baselines?: string;
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
@@ -127,10 +129,20 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		const { from, to } = typeof entry === 'string' ? { from: entry, to: '/' } : entry;
 		staticDirs.push({ from: inside(root, await realpath(resolve(dirname(file), from)), from), to });
 	}
+	const baselines = config.profile?.baselines;
 	return {
 		root,
 		file,
 		config,
+		...(baselines
+			? {
+					baselines: inside(
+						root,
+						join(await realpath(dirname(resolve(dirname(file), baselines))), basename(baselines)),
+						baselines
+					),
+				}
+			: {}),
 		entries,
 		modules,
 		digest: digest(text),

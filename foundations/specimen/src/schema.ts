@@ -238,6 +238,122 @@ export const a11yRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+const metricSummarySchema = z
+	.strictObject({ min: z.number(), median: z.number(), max: z.number() })
+	.nullable();
+const profileRequestShape = {
+	id: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	runs: z.number().int().min(1).max(7).optional(),
+	checkpoint: z.string().min(1).optional(),
+	context: captureRequestSchema.shape.context,
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+};
+export const profileRequestSchema = z.strictObject(profileRequestShape);
+export const baselineRequestSchema = z.strictObject({
+	...profileRequestShape,
+	notes: z.array(z.string().min(1)).optional(),
+});
+const profileFindingSchema = z.strictObject({
+	code: z.string(),
+	metric: z.string(),
+	current: z.number(),
+	allowed: z.number(),
+	message: z.string(),
+});
+export const profileRunSchema = z.strictObject({
+	reports: z.array(
+		z.strictObject({
+			id: z.string(),
+			checkpoint: z.string(),
+			runs: z.number().int().positive(),
+			viewport: z.string().nullable(),
+			browser: z.string().nullable(),
+			samples: z.array(
+				z.strictObject({
+					firstContentfulPaintMs: z.number().nullable(),
+					domContentLoadedMs: z.number(),
+					loadMs: z.number(),
+					readyMs: z.number(),
+					captureMs: z.number(),
+					totalElements: z.number(),
+					customElements: z.number(),
+					shadowHosts: z.number(),
+					requestCount: z.number(),
+					transferSizeBytes: z.number(),
+					usedJSHeapSizeBytes: z.number(),
+					consoleErrors: z.number(),
+					consoleWarnings: z.number(),
+				})
+			),
+			summary: z
+				.strictObject({
+					paints: z.strictObject({ firstContentfulPaintMs: metricSummarySchema }),
+					timings: z.strictObject({
+						domContentLoadedMs: metricSummarySchema,
+						loadMs: metricSummarySchema,
+						readyMs: metricSummarySchema,
+						captureMs: metricSummarySchema,
+					}),
+					dom: z.strictObject({
+						totalElements: metricSummarySchema,
+						customElements: metricSummarySchema,
+						shadowHosts: metricSummarySchema,
+					}),
+					resources: z.strictObject({
+						requestCount: metricSummarySchema,
+						transferSizeBytes: metricSummarySchema,
+					}),
+					memory: z.strictObject({ usedJSHeapSizeBytes: metricSummarySchema }),
+					console: z.strictObject({
+						errorCount: z.number().int().nonnegative(),
+						warningCount: z.number().int().nonnegative(),
+					}),
+				})
+				.nullable(),
+			flags: z.array(
+				z.strictObject({
+					code: z.string(),
+					severity: z.enum(['warning', 'high']),
+					message: z.string(),
+				})
+			),
+			comparison: z
+				.strictObject({
+					status: z.enum(['passed', 'warnings', 'failed', 'not-comparable']),
+					reason: z.string().optional(),
+					baseline: z.strictObject({
+						capturedAt: z.string(),
+						runs: z.number(),
+						runner: z.string().nullable(),
+					}),
+					errors: z.array(profileFindingSchema),
+					warnings: z.array(profileFindingSchema),
+				})
+				.nullable(),
+			provenance: z.strictObject({
+				runner: z.string(),
+				capturedAt: z.string(),
+				source: z
+					.strictObject({ revision: z.string().nullable(), dirty: z.boolean().nullable() })
+					.nullable(),
+			}),
+			error: z.string().optional(),
+		})
+	),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		passed: z.number().int().nonnegative(),
+		warnings: z.number().int().nonnegative(),
+		failed: z.number().int().nonnegative(),
+		notComparable: z.number().int().nonnegative(),
+		noBaseline: z.number().int().nonnegative(),
+		errored: z.number().int().nonnegative(),
+	}),
+	orphanedBaselines: z.array(z.string()),
+	elapsedMs: z.number().nonnegative(),
+});
+
 /** A component's schema from the manifest, enriched by plugins' schema sources. */
 export const componentSchemaSchema = z.strictObject({
 	tag: z.string(),

@@ -1,7 +1,9 @@
 import type {
 	A11yRequest,
+	BaselineRequest,
 	BenchConfig,
 	CaptureRequest,
+	ProfileRequest,
 	SpecimenContext,
 	SuiteFilter,
 	SuiteRequest,
@@ -141,6 +143,35 @@ export function parseA11yRequest(value: unknown): A11yRequest {
 	return request;
 }
 
+function profileFields(fields: Record<string, unknown>, path: string): ProfileRequest {
+	const request: ProfileRequest = {};
+	if (fields.id !== undefined) request.id = text(fields.id, `${path}.id`);
+	if (fields.filter !== undefined) request.filter = suiteFilter(fields.filter, `${path}.filter`);
+	if (request.id !== undefined && request.filter !== undefined)
+		fail(path, 'give an id or a filter, not both');
+	if (fields.runs !== undefined) request.runs = integer(fields.runs, `${path}.runs`, 1, 7);
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, `${path}.checkpoint`);
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	return request;
+}
+
+const PROFILE_FIELDS = ['id', 'filter', 'runs', 'checkpoint', 'context', 'timeoutMs'];
+
+export function parseProfileRequest(value: unknown): ProfileRequest {
+	return profileFields(record(value, 'profile request', PROFILE_FIELDS), 'profile request');
+}
+
+export function parseBaselineRequest(value: unknown): BaselineRequest {
+	const fields = record(value, 'baseline request', [...PROFILE_FIELDS, 'notes']);
+	const request: BaselineRequest = profileFields(fields, 'baseline request');
+	if (fields.notes !== undefined) request.notes = tagList(fields.notes, 'baseline request.notes');
+	return request;
+}
+
 export function parseSuiteRequest(value: unknown): SuiteRequest {
 	const fields = record(value, 'suite request', [
 		'filter',
@@ -271,6 +302,13 @@ function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
 	});
 }
 
+function profileConfig(value: unknown): NonNullable<BenchConfig['profile']> {
+	const fields = record(value, 'configuration.profile', ['baselines']);
+	return fields.baselines === undefined
+		? {}
+		: { baselines: text(fields.baselines, 'configuration.profile.baselines') };
+}
+
 export function parseConfig(value: unknown): BenchConfig {
 	const fields = record(value, 'configuration', [
 		'specimens',
@@ -280,6 +318,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'test',
 		'plugins',
 		'manifest',
+		'profile',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
@@ -305,5 +344,6 @@ export function parseConfig(value: unknown): BenchConfig {
 		...(fields.manifest === undefined
 			? {}
 			: { manifest: text(fields.manifest, 'configuration.manifest') }),
+		...(fields.profile === undefined ? {} : { profile: profileConfig(fields.profile) }),
 	};
 }

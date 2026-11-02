@@ -89,6 +89,34 @@ function bench(): SpecimenCommandBench {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		profile: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
+		recordBaseline: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
 		a11y: vi.fn(async () => ({
 			reports: [
 				{
@@ -163,6 +191,8 @@ describe('specimen commands', () => {
 			'specimen-validate',
 			'specimen-run',
 			'specimen-a11y',
+			'specimen-profile',
+			'specimen-baseline',
 			'specimen-inspect',
 			'specimen-migrate',
 		]);
@@ -239,6 +269,30 @@ describe('specimen commands', () => {
 			reports: [{ id: 'button', status: 'failed', violations: [{ id: 'image-alt' }] }],
 		});
 		const invalid = await executeSpecimenCommand(instance, 'specimen-a11y', { other: true });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('profiles without changing anything, and records a baseline as a mutation', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const mutation = (name: string) => commands.find((command) => command.name === name)?.mutation;
+		expect(mutation('specimen-profile')).toBe(false);
+		expect(mutation('specimen-baseline')).toBe(true);
+		const profiled = await executeSpecimenCommand(instance, 'specimen-profile', {
+			id: 'button',
+			runs: 3,
+		});
+		expect(profiled.success).toBe(true);
+		expect(instance.profile).toHaveBeenCalledWith({ id: 'button', runs: 3 });
+		const recorded = await executeSpecimenCommand(instance, 'specimen-baseline', {
+			id: 'button',
+			notes: ['After the page cutover.'],
+		});
+		expect(recorded.success).toBe(true);
+		expect(instance.recordBaseline).toHaveBeenCalledWith({
+			id: 'button',
+			notes: ['After the page cutover.'],
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-profile', { runs: 9 });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('runs a suite without an id, and refuses an id with suite options', async () => {

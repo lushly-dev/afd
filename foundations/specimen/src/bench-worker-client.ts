@@ -6,10 +6,13 @@ import type { LoadedConfig } from './config.js';
 import type {
 	A11yRequest,
 	A11yRun,
+	BaselineRequest,
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
 	Observation,
+	ProfileRequest,
+	ProfileRun,
 	RunRequest,
 	StoryRun,
 	SuiteRequest,
@@ -22,6 +25,8 @@ type WorkerOperation =
 	| { operation: 'run'; request: RunRequest }
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
+	| { operation: 'profile'; request: ProfileRequest }
+	| { operation: 'recordBaseline'; request: BaselineRequest }
 	| { operation: 'inspect'; request: InspectRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
@@ -219,6 +224,14 @@ export class BenchWorkerClient {
 			{ operation: 'run', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as StoryRun;
+	}
+	async profile(request: ProfileRequest): Promise<ProfileRun> {
+		await this.ready;
+		return (await this.request({ operation: 'profile', request }, 3_600_000)) as ProfileRun;
+	}
+	async recordBaseline(request: BaselineRequest): Promise<ProfileRun> {
+		await this.ready;
+		return (await this.request({ operation: 'recordBaseline', request }, 3_600_000)) as ProfileRun;
 	}
 	async a11y(request: A11yRequest): Promise<A11yRun> {
 		await this.ready;

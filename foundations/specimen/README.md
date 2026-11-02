@@ -132,6 +132,24 @@ An exception excuses only its rule, only on its target and what is inside it, th
 
 A run's capture records its check in `channels.a11y.axe`, and `diffObservations` treats a change in what axe found as a difference.
 
+## Profile
+
+`profile()` (`specimen-profile`, `specimen profile [ID]`) measures entries at a checkpoint over a few fresh runs, one at a time, since a neighbour's work would be in every number. The default checkpoint is `mount`, the ready checkpoint, and the default is 3 runs. Each report has:
+
+- `samples` and a `summary` of min, median and max: first contentful paint, DOMContentLoaded, load, ready and capture time, elements, custom elements, shadow hosts, requests, transfer size and heap, with console counts totalled;
+- `flags` for a slow paint, a large DOM, many shadow hosts or console messages;
+- `provenance`: when, with what source, and which browser.
+
+`profile.baselines` in the configuration names a baselines file, in the shape FAST-AF's `story-performance-baselines.jsonc` already has. `recordBaseline()` (`specimen-baseline`, `specimen baseline ID`) writes it, defaulting to 5 runs, keeping budgets a person set. A failed run records nothing. With no id or filter, `profile()` checks everything that has a baseline, and `orphanedBaselines` lists any that name no current entry.
+
+A comparison's `status` is one of:
+
+- `passed`, or `warnings` past a metric's tolerance: first paint and heap 1.2 times the baseline, elements and transfer 1.15, requests 1.1;
+- `failed` past an absolute budget, or with more console errors than allowed;
+- `not-comparable` with a `reason`, when the baseline came from another page, viewport, checkpoint or browser. A baseline from Storybook's page never reads as a regression or a pass. A budget still applies, since it is absolute.
+
+Chromium only.
+
 ## Migrate retained stories
 
 `migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:

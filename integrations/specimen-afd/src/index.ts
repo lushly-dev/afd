@@ -4,6 +4,7 @@ export {
 	contextSchema,
 	inspectResultSchema,
 	observationSchema,
+	profileRunSchema,
 	storyRunSchema,
 	suiteRunSchema,
 } from '@lushly-dev/specimen/schema';
