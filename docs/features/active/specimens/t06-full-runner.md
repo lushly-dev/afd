@@ -4,7 +4,8 @@
 
 - Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
 - Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
-- Step 3, `specimen-a11y` and native accessibility exceptions, is implemented on branch `lush/specimens-t06-a11y`.
+- Step 3, `specimen-a11y` and native accessibility exceptions, is done and merged in [#679](https://github.com/lushly-dev/afd/pull/679).
+- Step 4, `specimen-profile` and baselines, is implemented on branch `lush/specimens-t06-profile`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -207,11 +208,52 @@ The capture also tells the truth now. `channels.a11y.axe` was the literal `'not-
 
 Failure fixtures are in `fixtures/accessibility/` and `compat/failing/`, tested by `src/a11y.test.ts` in CI.
 
+## Step 4: `specimen-profile`
+
+`bench.profile()`, `specimen-profile` and `specimen profile [ID]` measure entries at a checkpoint, and `bench.recordBaseline()`, `specimen-baseline` and `specimen baseline ID` record the results. The [README](../../../../foundations/specimen/README.md#profile) documents the surface.
+
+The incumbent here is FAST-AF's Fastbot plugin, `fastaf_profile_story` and its siblings, over Storybook's iframe, and the rules are ported from it:
+
+| Obligation | What Specimen does |
+| --- | --- |
+| Metrics | First contentful paint, DOMContentLoaded, load, elements, custom elements, shadow hosts, requests, transfer size, heap and console counts. New: `readyMs`, navigation start to the checkpoint, and `captureMs`. `violetElements` is left out as consumer-specific |
+| Runs | Medians over 1 to 7 fresh browser contexts, default 3, one at a time |
+| Flags | Fastbot's codes and thresholds: paint over 1,600 and 2,500 ms, elements over 450 and 700, shadow hosts over 35, console messages |
+| Tolerances | Fastbot's: paint and heap 1.2 times the baseline, elements and transfer 1.15, requests 1.1 |
+| Budgets | An absolute budget failing is an error, and always applies. Console counts hold to the budget, or else the baseline |
+| Baseline format | FAST-AF's `story-performance-baselines.jsonc`, extended with `runner`, `checkpoint`, `browser` and `source`, so a record says where it came from |
+
+Differences from Fastbot:
+
+- **The ready checkpoint is explicit.** `mount` waits for the specimen's readiness, fonts and a frame, and any scenario checkpoint can be profiled instead. Fastbot waits on Storybook's page.
+- **Metric compatibility is checked.** A baseline from another page, viewport, checkpoint or browser is `not-comparable`, with its reason, and never reads as a regression or a pass. The proposal requires this: new baselines are dated and attributable to the page cutover.
+- **A recording replacing a Storybook baseline says so in its notes,** and keeps budgets a person set.
+- **Heap comes from CDP's `Runtime.getHeapUsage`,** not `performance.memory`, which Chromium quantizes.
+- **No trace capture or screenshots.** `render` takes screenshots, and Fastbot's optional trace is not ported. Fastbot's suite validator maps to `profile()` without an id or filter.
+
+A retained story loads axe only when a check will run, so a profile at `mount` does not count its bytes. At `after-run`, its play and check are part of what is measured.
+
+### Findings on the consumers
+
+**FAST-AF's only recorded baseline is orphaned.** It names `foundations-violet-foundations--reference-kit-lab`, and that story's id is now under `foundations-overview--…`, so it has compared against nothing since the rename. `profile()` reports it in `orphanedBaselines`. Lushly has no story performance baselines, and neither consumer's hooks, CI or scripts call the profile validators. So no gate relies on a profile comparison today, and recording new baselines at cutover loses nothing.
+
+**`lushly-site-site-surface--hover-rim` is heavy after it is ready.** Ready in 183 ms, its capture took 5.1 s in one run and over 10 s in another. It's the story both runners failed under load in step 2, and this suggests where its time goes, though not why.
+
+Real measurements at `mount` on this host, under load of about 9, with Chromium 156. These illustrate the output; they are not baselines:
+
+| Story | First paint | Ready | Elements | Shadow hosts | Requests | Transfer | Heap | Flags |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `foundations-overview--overview` | 184 ms | 165 ms | 1,593 | 0 | 19 | 3.2 MB | 6.4 MB | Large DOM, console warnings |
+| `components-listbox--disabled` | 160 ms | 150 ms | 60 | 5 | 12 | 2.6 MB | 5.8 MB | Console warnings |
+| `lushly-detail-plant-detail--all-fields` | 188 ms | 408 ms | 371 | 47 | 33 | 5.3 MB | 8.8 MB | Many shadow hosts, console warnings |
+
+Each page's bundle is unminified, as under a development server, so transfer sizes are larger than a build's.
+
 ## Remaining steps
 
 1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
 2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Merged in #676.
-3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Implemented on branch.
-4. **`specimen-profile`:** browser metrics and ready-checkpoint timing, and baseline comparison.
+3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Merged in #679.
+4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Implemented on branch.
 5. **`specimen-matrix` and declared event history.**
 6. **CEM and story typechecks, scaffold output,** and verified index links and budgets.

@@ -10,6 +10,7 @@ import { diffObservations } from '@lushly-dev/specimen';
 import {
 	a11yRequestSchema,
 	a11yRunSchema,
+	baselineRequestSchema,
 	buildOutputSchema,
 	captureRequestSchema,
 	inspectRequestSchema,
@@ -17,6 +18,8 @@ import {
 	migrateRequestSchema,
 	migrationReportSchema,
 	observationSchema,
+	profileRequestSchema,
+	profileRunSchema,
 	runRequestSchema,
 	storyRunSchema,
 	suiteRequestSchema,
@@ -35,12 +38,15 @@ export {
 import type {
 	A11yRequest,
 	A11yRun,
+	BaselineRequest,
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	ProfileRequest,
+	ProfileRun,
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
@@ -130,6 +136,8 @@ export interface SpecimenCommandBench {
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
@@ -277,6 +285,38 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Use specimen-list to check the id or filter, specimen-inspect to check the checkpoint, then check the browser installation.'
 			),
 	});
+	const profile = defineCommand({
+		...common,
+		name: 'specimen-profile',
+		description:
+			'Measure entries at a checkpoint over a few fresh runs, one at a time: paint and load timings, ready and capture time, DOM size, requests, heap and console counts, with flags and a comparison when a recorded baseline describes the same measurement. No id or filter profiles everything with a baseline. Chromium only. Read each comparison, including not-comparable and its reason; a failed budget is a successful command.',
+		mutation: false,
+		input: profileRequestSchema,
+		output: profileRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.profile(input),
+				profileRunSchema,
+				'SPECIMEN_PROFILE_FAILED',
+				'Use specimen-list to check the id or filter. To compare, record a baseline with specimen-baseline and set profile.baselines in the configuration.'
+			),
+	});
+	const baseline = defineCommand({
+		...common,
+		name: 'specimen-baseline',
+		description:
+			'Profile entries and record the results in the baselines file the configuration names, dated and with their browser and source. Replaces what is recorded for those entries, keeping budgets a person set and noting a baseline from another page. A run that fails records nothing.',
+		mutation: true,
+		input: baselineRequestSchema,
+		output: profileRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.recordBaseline(input),
+				profileRunSchema,
+				'SPECIMEN_BASELINE_FAILED',
+				'Set profile.baselines in the configuration, and give an id or a filter.'
+			),
+	});
 	const inspect = defineCommand({
 		...common,
 		name: 'specimen-inspect',
@@ -325,7 +365,19 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
-	return [list, render, diff, build, validate, runStory, a11y, inspect, migrate] as const;
+	return [
+		list,
+		render,
+		diff,
+		build,
+		validate,
+		runStory,
+		a11y,
+		profile,
+		baseline,
+		inspect,
+		migrate,
+	] as const;
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -348,7 +400,7 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build, validate, runStory, a11y, inspect, migrate] =
+	const [list, render, diff, build, validate, runStory, a11y, profile, baseline, inspect, migrate] =
 		createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -365,6 +417,10 @@ export async function executeSpecimenCommand(
 			return execute(runStory, input);
 		case 'specimen-a11y':
 			return execute(a11y, input);
+		case 'specimen-profile':
+			return execute(profile, input);
+		case 'specimen-baseline':
+			return execute(baseline, input);
 		case 'specimen-inspect':
 			return execute(inspect, input);
 		case 'specimen-migrate':

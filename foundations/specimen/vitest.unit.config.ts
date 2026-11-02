@@ -6,6 +6,7 @@ import base from './vitest.config.js';
  * native suite, including these Chromium and process-worker suites, in specimen.yml.
  */
 export const browserSuites = [
+	'src/profile-bench.test.ts',
 	'src/a11y.test.ts',
 	'src/bench-worker.test.ts',
 	'src/compat.test.ts',

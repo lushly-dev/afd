@@ -111,6 +111,8 @@ export interface BenchConfig {
 		/** A retained story's deadline, as Vitest's `testTimeout`. Defaults to 15,000 ms, as Vitest's. */
 		timeoutMs?: number;
 	};
+	/** Recorded performance baselines, relative to the configuration and inside the root. */
+	profile?: { baselines?: string };
 	/** Plugin modules, relative to the configuration: each default-exports a plugin or an array of them. */
 	plugins?: string[];
 	/** The custom elements manifest core reads component schemas from, relative to the configuration. */
@@ -400,6 +402,144 @@ export interface A11yRun {
 	workers: number;
 	elapsedMs: number;
 }
+export interface MetricSummary {
+	min: number;
+	median: number;
+	max: number;
+}
+/** One run's measurements at its checkpoint, in a fresh browser context. */
+export interface ProfileSample {
+	/** `null` when nothing painted in time, such as an empty render. */
+	firstContentfulPaintMs: number | null;
+	domContentLoadedMs: number;
+	loadMs: number;
+	/** Navigation start to the checkpoint. */
+	readyMs: number;
+	/** How long the capture at the checkpoint took. */
+	captureMs: number;
+	totalElements: number;
+	customElements: number;
+	shadowHosts: number;
+	requestCount: number;
+	transferSizeBytes: number;
+	usedJSHeapSizeBytes: number;
+	consoleErrors: number;
+	consoleWarnings: number;
+}
+export interface ProfileSummary {
+	paints: { firstContentfulPaintMs: MetricSummary | null };
+	timings: {
+		domContentLoadedMs: MetricSummary | null;
+		loadMs: MetricSummary | null;
+		readyMs: MetricSummary | null;
+		captureMs: MetricSummary | null;
+	};
+	dom: {
+		totalElements: MetricSummary | null;
+		customElements: MetricSummary | null;
+		shadowHosts: MetricSummary | null;
+	};
+	resources: { requestCount: MetricSummary | null; transferSizeBytes: MetricSummary | null };
+	memory: { usedJSHeapSizeBytes: MetricSummary | null };
+	console: { errorCount: number; warningCount: number };
+}
+export interface ProfileFlag {
+	code: string;
+	severity: 'warning' | 'high';
+	message: string;
+}
+export interface ProfileFinding {
+	code: string;
+	metric: string;
+	current: number;
+	allowed: number;
+	message: string;
+}
+/** A baselines file's entry. A record from another tool has no `runner`. */
+export interface ProfileBaseline {
+	storyId?: string;
+	runner?: string;
+	baseUrl?: string;
+	viewport: string;
+	checkpoint?: string;
+	browser?: string;
+	runs: number;
+	capturedAt: string;
+	source?: { revision: string | null; dirty: boolean | null };
+	summary: {
+		[Section in keyof ProfileSummary]?: Partial<ProfileSummary[Section]>;
+	};
+	budgets: {
+		firstContentfulPaintMs?: number | null;
+		totalElements?: number | null;
+		requestCount?: number | null;
+		transferSizeBytes?: number | null;
+		usedJSHeapSizeBytes?: number | null;
+		consoleErrorCount?: number | null;
+		consoleWarningCount?: number | null;
+	};
+	notes: string[];
+}
+export interface ProfileBaselines {
+	version?: string;
+	description?: string;
+	stories: Record<string, ProfileBaseline>;
+}
+export interface ProfileComparison {
+	/** `not-comparable`: the baseline does not describe this measurement; see `reason`. */
+	status: 'passed' | 'warnings' | 'failed' | 'not-comparable';
+	reason?: string;
+	baseline: { capturedAt: string; runs: number; runner: string | null };
+	errors: ProfileFinding[];
+	warnings: ProfileFinding[];
+}
+/** Profile one entry by `id`, or those a `filter` selects; neither profiles what has a baseline. */
+export interface ProfileRequest {
+	id?: string;
+	filter?: SuiteFilter;
+	/** Runs per entry, 1 to 7. Each is a fresh browser context, one at a time. */
+	runs?: number;
+	/** Defaults to `mount`, the ready checkpoint. */
+	checkpoint?: string;
+	context?: Partial<SpecimenContext>;
+	timeoutMs?: number;
+}
+export interface BaselineRequest extends ProfileRequest {
+	notes?: string[];
+}
+export interface ProfileReport {
+	id: string;
+	checkpoint: string;
+	runs: number;
+	viewport: string | null;
+	browser: string | null;
+	samples: ProfileSample[];
+	summary: ProfileSummary | null;
+	flags: ProfileFlag[];
+	comparison: ProfileComparison | null;
+	provenance: {
+		runner: string;
+		capturedAt: string;
+		source: { revision: string | null; dirty: boolean | null } | null;
+	};
+	/** A run that failed; the report then has no summary. */
+	error?: string;
+}
+export interface ProfileRun {
+	reports: ProfileReport[];
+	counts: {
+		total: number;
+		passed: number;
+		warnings: number;
+		failed: number;
+		notComparable: number;
+		noBaseline: number;
+		errored: number;
+	};
+	/** Recorded baselines that name no current entry, such as after a story was renamed. */
+	orphanedBaselines: string[];
+	elapsedMs: number;
+}
 /** What a retained story's run found: the play, then the accessibility check. */
 export interface StoryOutcome {
 	/** `excluded`: no test exists for the story under the include and exclude tags. */
@@ -416,7 +556,8 @@ export interface BrowserRuntime {
 	resolve(
 		entry: SpecimenEntry,
 		requested: Partial<SpecimenContext>,
-		defaults: SpecimenContext
+		defaults: SpecimenContext,
+		options?: { check?: boolean }
 	): Promise<{ context: SpecimenContext; limitations: string[] } | null>;
 	mount(
 		entry: SpecimenEntry,
@@ -424,6 +565,8 @@ export interface BrowserRuntime {
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
 	/** Check what is mounted, at this point: a retained story under its policy, or a specimen. */
 	checkAccessibility(): Promise<AxeOutcome>;
+	/** What a profile reads from the page at its checkpoint. */
+	profileMetrics(): Promise<Record<string, number | null>>;
 	/** Render a retained story, then run its play and accessibility check, with no task between. */
 	mountAndRun(entry: SpecimenEntry, context: SpecimenContext): Promise<StoryOutcome>;
 	/** Resolve an entry without rendering it: args, context and the component's enriched schema. */

@@ -5,6 +5,7 @@ import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
 	A11yRun,
+	BaselineRequest,
 	BenchOptions,
 	CaptureRequest,
 	InspectRequest,
@@ -12,6 +13,8 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	ProfileRequest,
+	ProfileRun,
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
@@ -20,7 +23,13 @@ import type {
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
-import { parseA11yRequest, parseCaptureRequest, parseSuiteRequest } from './validate.js';
+import {
+	parseA11yRequest,
+	parseBaselineRequest,
+	parseCaptureRequest,
+	parseProfileRequest,
+	parseSuiteRequest,
+} from './validate.js';
 
 /** Discovery found stories it cannot index; `validate()` reports each problem. */
 export class DiscoveryError extends Error {
@@ -58,6 +67,15 @@ export interface SpecimenBench {
 	 */
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	/**
+	 * Measure entries at a checkpoint over a few fresh runs, one at a time: paint and load timings,
+	 * ready and capture time, DOM size, requests, heap and console counts, flags and, when a
+	 * baseline describes the same measurement, a comparison. Neither id nor filter profiles
+	 * everything with a baseline. Chromium only.
+	 */
+	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	/** Profile and record the results in `profile.baselines`, keeping budgets a person set. */
+	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
+	/**
 	 * Resolve one specimen or retained story without capturing it: its args, its context and
 	 * its component's schema, from the manifest and the plugins' schema sources.
 	 */
@@ -87,7 +105,15 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
 	type Backend = Pick<
 		SpecimenBench,
-		'render' | 'run' | 'runSuite' | 'a11y' | 'inspect' | 'build' | 'close'
+		| 'render'
+		| 'run'
+		| 'runSuite'
+		| 'a11y'
+		| 'profile'
+		| 'recordBaseline'
+		| 'inspect'
+		| 'build'
+		| 'close'
 	>;
 	let backend: Backend | undefined;
 	let closed = false;
@@ -183,6 +209,16 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.run(request));
+		},
+		async profile(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseProfileRequest(rawRequest);
+			return enqueue((client) => client.profile(request));
+		},
+		async recordBaseline(rawRequest) {
+			ensureDiscovered();
+			const request = parseBaselineRequest(rawRequest);
+			return enqueue((client) => client.recordBaseline(request));
 		},
 		async a11y(rawRequest = {}) {
 			ensureDiscovered();

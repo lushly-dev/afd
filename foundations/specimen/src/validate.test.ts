@@ -55,6 +55,7 @@ const configSchema = z
 			.optional(),
 		plugins: z.array(z.string().min(1)).optional(),
 		manifest: z.string().min(1).optional(),
+		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
@@ -199,6 +200,10 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], plugins: [''] },
 			{ specimens: [entry], plugins: './plugins.ts' },
 			{ specimens: [entry], manifest: '' },
+			{ specimens: [entry], profile: { baselines: './baselines.jsonc' } },
+			{ specimens: [entry], profile: {} },
+			{ specimens: [entry], profile: { baselines: '' } },
+			{ specimens: [entry], profile: { other: 'x' } },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});

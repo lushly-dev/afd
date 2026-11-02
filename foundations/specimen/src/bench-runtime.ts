@@ -1,3 +1,4 @@
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -11,6 +12,16 @@ import {
 	resolveContext,
 } from './config.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
+import {
+	BASELINE_RUNNER,
+	compareProfile,
+	DEFAULT_BASELINE_RUNS,
+	DEFAULT_PROFILE_RUNS,
+	parseBaselines,
+	profileFlags,
+	summarizeProfile,
+	withBaseline,
+} from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
 import {
 	DEFAULT_FLAKE_CAP,
@@ -26,6 +37,7 @@ import {
 	type A11yRequest,
 	type A11yRun,
 	type AxeOutcome,
+	type BaselineRequest,
 	type BenchOptions,
 	type BrowserObservation,
 	CAPTURE_VERSION,
@@ -34,6 +46,12 @@ import {
 	type InspectResult,
 	NORMALIZATION_VERSION,
 	type Observation,
+	type ProfileBaseline,
+	type ProfileBaselines,
+	type ProfileReport,
+	type ProfileRequest,
+	type ProfileRun,
+	type ProfileSample,
 	type RunRequest,
 	type SpecimenContext,
 	type SpecimenEntry,
@@ -43,7 +61,13 @@ import {
 	type SuiteRequest,
 	type SuiteRun,
 } from './types.js';
-import { parseA11yRequest, parseCaptureRequest, parseSuiteRequest } from './validate.js';
+import {
+	parseA11yRequest,
+	parseBaselineRequest,
+	parseCaptureRequest,
+	parseProfileRequest,
+	parseSuiteRequest,
+} from './validate.js';
 
 function coverage(
 	status: Completeness['status'],
@@ -59,6 +83,9 @@ const DEFAULT_STORY_TIMEOUT_MS = 15_000;
 /** Bundling a whole suite's stories has no render's deadline; this covers a host that hangs. */
 const BUNDLE_GRACE = 300_000;
 /** What the native host returns for one render. */
+/** A sample's measurements, as the page and host report them, before its console counts. */
+type PageMeasurements = Omit<ProfileSample, 'consoleErrors' | 'consoleWarnings'>;
+
 interface HostRender {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
 	/** `null` when a suite's capture mode left this story without one. */
@@ -75,6 +102,8 @@ interface HostRender {
 	outcome: StoryOutcome | null;
 	/** An accessibility check the request asked for. */
 	accessibility?: AxeOutcome | null;
+	/** The page's measurements at the checkpoint, when the request asked for them. */
+	profile?: PageMeasurements | null;
 }
 /**
  * The bench runtime. Rendering runs in the native host (`host/`): it bundles the bench with
@@ -125,11 +154,17 @@ export async function createInProcessBench(
 	/** One capture through the host; a retained story's context comes back settled. */
 	async function capture(
 		parsed: ReturnType<typeof parseCaptureRequest>,
-		options: { capture?: SuiteCapture; reuseBundle?: boolean; accessibility?: boolean } = {}
+		options: {
+			capture?: SuiteCapture;
+			reuseBundle?: boolean;
+			accessibility?: boolean;
+			profile?: boolean;
+		} = {}
 	): Promise<{
 		observation: Observation | null;
 		outcome: StoryOutcome | null;
 		accessibility: AxeOutcome | null;
+		profile: PageMeasurements | null;
 	}> {
 		const request = {
 			...parsed,
@@ -166,6 +201,7 @@ export async function createInProcessBench(
 								...(options.capture ? { capture: options.capture } : {}),
 								...(options.reuseBundle ? { reuseBundle: true } : {}),
 								...(options.accessibility ? { accessibility: true } : {}),
+								...(options.profile ? { profile: true } : {}),
 							},
 							// The host bounds the render itself; this covers a host that stops answering.
 							request.timeoutMs + HOST_GRACE
@@ -179,8 +215,9 @@ export async function createInProcessBench(
 						),
 			]);
 			const accessibility = rendered.accessibility ?? null;
+			const profile = rendered.profile ?? null;
 			if (!rendered.captured)
-				return { observation: null, outcome: rendered.outcome ?? null, accessibility };
+				return { observation: null, outcome: rendered.outcome ?? null, accessibility, profile };
 			const axe = accessibility ?? rendered.outcome?.a11y;
 			const [source, dependencies] =
 				identity ??
@@ -250,10 +287,111 @@ export async function createInProcessBench(
 					]),
 				},
 			} satisfies Observation;
-			return { observation, outcome: rendered.outcome ?? null, accessibility };
+			return { observation, outcome: rendered.outcome ?? null, accessibility, profile };
 		} finally {
 			await trace?.flush();
 		}
+	}
+
+	async function readBaselines(): Promise<ProfileBaselines | null> {
+		if (!config.baselines) return null;
+		const text = await readFile(config.baselines, 'utf8').catch((error: NodeJS.ErrnoException) => {
+			if (error.code === 'ENOENT') return null;
+			throw error;
+		});
+		return text === null ? null : parseBaselines(text, config.baselines);
+	}
+
+	/** One entry's runs at its checkpoint, each a fresh browser context, one after another. */
+	async function profileEntry(
+		entry: SpecimenEntry,
+		request: ProfileRequest,
+		runs: number,
+		baseline: ProfileBaseline | undefined
+	): Promise<ProfileReport> {
+		const checkpoint = request.checkpoint ?? 'mount';
+		const samples: ProfileSample[] = [];
+		const report = {
+			id: entry.id,
+			checkpoint,
+			runs,
+			provenance: {
+				runner: BASELINE_RUNNER,
+				capturedAt: new Date().toISOString(),
+				source: null as { revision: string | null; dirty: boolean | null } | null,
+			},
+		};
+		let viewport: string | null = null;
+		let browser: string | null = null;
+		try {
+			for (let run = 0; run < runs; run++) {
+				const { observation, profile } = await capture(
+					{
+						id: entry.id,
+						checkpoint,
+						...(request.context ? { context: request.context } : {}),
+						timeoutMs:
+							request.timeoutMs ??
+							(entry.story ? (config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS) : 10_000),
+					},
+					{ reuseBundle: true, profile: true }
+				);
+				if (!observation || !profile) throw new Error('The host returned no measurements');
+				const size = observation.manifest.context.viewport;
+				viewport = `${size.width}x${size.height}`;
+				browser = observation.manifest.browser.version;
+				report.provenance.source = {
+					revision: observation.manifest.source.revision,
+					dirty: observation.manifest.source.dirty,
+				};
+				samples.push({
+					...profile,
+					consoleErrors: observation.channels.console.errors.length,
+					consoleWarnings: observation.channels.console.warnings.length,
+				});
+			}
+		} catch (error) {
+			return {
+				...report,
+				viewport,
+				browser,
+				samples,
+				summary: null,
+				flags: [],
+				comparison: null,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+		const summary = summarizeProfile(samples);
+		return {
+			...report,
+			viewport,
+			browser,
+			samples,
+			summary,
+			flags: profileFlags(summary),
+			comparison: baseline
+				? compareProfile(baseline, summary, {
+						viewport: viewport as string,
+						checkpoint,
+						browser: browser as string,
+					})
+				: null,
+		};
+	}
+
+	function profileCounts(reports: readonly ProfileReport[]): ProfileRun['counts'] {
+		const count = (status: NonNullable<ProfileReport['comparison']>['status']) =>
+			reports.filter((report) => report.comparison?.status === status).length;
+		return {
+			total: reports.length,
+			passed: count('passed'),
+			warnings: count('warnings'),
+			failed: count('failed'),
+			notComparable: count('not-comparable'),
+			noBaseline: reports.filter((report) => !report.comparison && !report.error).length,
+			errored: reports.filter((report) => report.error !== undefined).length,
+		};
 	}
 
 	/** One entry's check at a checkpoint: a story's play comes first, and its policy governs. */
@@ -427,6 +565,106 @@ export async function createInProcessBench(
 		async run(rawRequest: RunRequest): Promise<StoryRun> {
 			ensureOpen();
 			return runStory(parseCaptureRequest(rawRequest));
+		},
+		async profile(rawRequest: ProfileRequest = {}): Promise<ProfileRun> {
+			ensureOpen();
+			const request = parseProfileRequest(rawRequest);
+			const baselines = await readBaselines();
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: request.filter
+					? selectEntries(config.entries, request.filter, config.root)
+					: config.entries.filter((entry) => baselines?.stories[entry.id]);
+			const orphaned = Object.keys(baselines?.stories ?? {}).filter(
+				(id) => !config.entries.some((entry) => entry.id === id)
+			);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length)
+				throw new Error(
+					request.filter
+						? 'No specimen or retained story matches the filter.'
+						: `No entry has a recorded baseline${orphaned.length ? `, and ${orphaned.length} name no current entry (${orphaned.join(', ')})` : ''}. Give an id or a filter, or record one with specimen-baseline.`
+				);
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const reports: ProfileReport[] = [];
+			// One at a time: a neighbour's work would be in every measurement.
+			for (const entry of entries)
+				reports.push(
+					await profileEntry(
+						entry,
+						request,
+						request.runs ?? DEFAULT_PROFILE_RUNS,
+						baselines?.stories[entry.id]
+					)
+				);
+			return {
+				reports,
+				counts: profileCounts(reports),
+				orphanedBaselines: orphaned,
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async recordBaseline(rawRequest: BaselineRequest): Promise<ProfileRun> {
+			ensureOpen();
+			const request = parseBaselineRequest(rawRequest);
+			if (!config.baselines)
+				throw new Error(
+					'Set profile.baselines in the configuration to say where baselines are kept.'
+				);
+			if (!request.id && !request.filter)
+				throw new Error('Give an id or a filter; recording replaces what is there.');
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: selectEntries(config.entries, request.filter, config.root);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const runs = request.runs ?? DEFAULT_BASELINE_RUNS;
+			const reports: ProfileReport[] = [];
+			let text = await readFile(config.baselines, 'utf8').catch((error: NodeJS.ErrnoException) => {
+				if (error.code === 'ENOENT') return null;
+				throw error;
+			});
+			let changed = false;
+			for (const entry of entries) {
+				const report = await profileEntry(entry, request, runs, undefined);
+				reports.push(report);
+				// A failed run records nothing, so it cannot replace a good baseline.
+				if (report.summary === null) continue;
+				text = withBaseline(
+					text,
+					config.baselines,
+					entry.id,
+					{
+						storyId: entry.id,
+						runner: BASELINE_RUNNER,
+						viewport: report.viewport as string,
+						checkpoint: report.checkpoint,
+						browser: report.browser as string,
+						runs,
+						capturedAt: report.provenance.capturedAt,
+						...(report.provenance.source ? { source: report.provenance.source } : {}),
+						summary: report.summary,
+					},
+					request.notes ?? []
+				);
+				changed = true;
+			}
+			if (changed && text !== null) {
+				const temporary = `${config.baselines}.${process.pid}.tmp`;
+				await writeFile(temporary, text);
+				await rename(temporary, config.baselines);
+			}
+			return {
+				reports,
+				counts: profileCounts(reports),
+				orphanedBaselines: [],
+				elapsedMs: performance.now() - started,
+			};
 		},
 		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
 			ensureOpen();

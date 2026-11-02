@@ -24,6 +24,26 @@ async function afterMicrotasks(): Promise<void> {
 	for (let turn = 0; turn < 32; turn++) await null;
 }
 
+/** The first contentful paint, waiting briefly for one; `null` when nothing painted. */
+function firstContentfulPaint(): Promise<number | null> {
+	const read = () => performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null;
+	const painted = read();
+	if (painted !== null) return Promise.resolve(painted);
+	return new Promise((resolve) => {
+		const finish = () => {
+			observer.disconnect();
+			clearTimeout(limit);
+			resolve(read());
+		};
+		// `first-paint` arrives first and says nothing about content, so wait for the one asked for.
+		const observer = new PerformanceObserver(() => {
+			if (read() !== null) finish();
+		});
+		observer.observe({ type: 'paint' });
+		const limit = setTimeout(finish, 2000);
+	});
+}
+
 /** How long a retained story waits for its custom elements to be defined before capture. */
 const UNDEFINED_ELEMENT_GRACE_MS = 250;
 
@@ -218,11 +238,12 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 
 	window.__specimen = {
-		async resolve(entry, requestedContext, defaults) {
+		async resolve(entry, requestedContext, defaults, options = {}) {
 			if (!entry.story) return null;
 			const prepared = await prepareRetained(entry, requestedContext);
 			const { prepareAccessibility, storyRenderContext } = await storyRuntime();
-			await prepareAccessibility(prepared);
+			// Only a run has a check to prepare for; a profile at mount should not count axe's bytes.
+			if (options.check) await prepareAccessibility(prepared);
 			story = { prepared };
 			return {
 				context: storyRenderContext(prepared, requestedContext, defaults),
@@ -290,6 +311,34 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			const registered = (await plugins()).runners.get(runner);
 			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
 			return registered.runner.run(element, name, input);
+		},
+		async profileMetrics() {
+			const readyMs = performance.now();
+			const firstContentfulPaintMs = await firstContentfulPaint();
+			const navigation = performance.getEntriesByType('navigation')[0] as
+				| PerformanceNavigationTiming
+				| undefined;
+			const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+			const tree = { totalElements: 0, customElements: 0, shadowHosts: 0 };
+			const roots: ParentNode[] = [document];
+			for (const root of roots)
+				for (const element of root.querySelectorAll('*')) {
+					tree.totalElements += 1;
+					if (element.localName.includes('-')) tree.customElements += 1;
+					if (element.shadowRoot) {
+						tree.shadowHosts += 1;
+						roots.push(element.shadowRoot);
+					}
+				}
+			return {
+				readyMs,
+				firstContentfulPaintMs,
+				domContentLoadedMs: navigation?.domContentLoadedEventEnd ?? 0,
+				loadMs: navigation?.loadEventEnd ?? 0,
+				...tree,
+				requestCount: resources.length,
+				transferSizeBytes: resources.reduce((sum, entry) => sum + entry.transferSize, 0),
+			};
 		},
 		async checkAccessibility() {
 			const runtime = await storyRuntime();

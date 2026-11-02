@@ -231,6 +231,9 @@ pub struct RenderRequest {
     /// Run an accessibility check at the checkpoint, as `specimen-a11y` asks.
     #[serde(default)]
     pub accessibility: bool,
+    /// Measure the page at the checkpoint, as `specimen-profile` asks.
+    #[serde(default)]
+    pub profile: bool,
     /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
     #[serde(default)]
     pub inspect: Option<Value>,
@@ -248,6 +251,8 @@ pub struct RenderOutcome {
     pub outcome: Option<Value>,
     /// An accessibility check the request asked for, apart from a retained story's run.
     pub accessibility: Option<Value>,
+    /// The page's measurements at the checkpoint, when the request asked for them.
+    pub profile: Option<Value>,
 }
 
 /// What one attempt produced before its context was disposed.
@@ -258,6 +263,7 @@ struct Attempted {
     context: Value,
     outcome: Option<Value>,
     accessibility: Option<Value>,
+    profile: Option<Value>,
 }
 
 /// A failure the client re-raises: one message, or the render and disposal failures together.
@@ -410,6 +416,7 @@ impl Browser {
                 context: attempted.context,
                 outcome: attempted.outcome,
                 accessibility: attempted.accessibility,
+                profile: attempted.profile,
             }),
             (Ok(_), Err(failure)) => Err(failure.into()),
             // The page's own errors usually explain a render that failed or never became ready.
@@ -527,6 +534,7 @@ impl Browser {
                 context,
                 outcome: None,
                 accessibility: None,
+                profile: None,
             });
         }
         let mut context = request.context.clone();
@@ -540,9 +548,10 @@ impl Browser {
             }
             // The story settles its own viewport and theme; emulate what it resolves to.
             attempt.enter("loading the story's modules");
+            let check = request.checkpoint == "after-run" || request.accessibility;
             let resolved = page
                 .evaluate(&format!(
-                    "window.__specimen.resolve({}, {}, {})",
+                    "window.__specimen.resolve({}, {}, {}, {{ check: {check} }})",
                     request.entry,
                     request.requested.clone().unwrap_or(json!({})),
                     request
@@ -596,6 +605,15 @@ impl Browser {
         } else {
             None
         };
+        let mut profile = if request.profile {
+            attempt.enter("measuring the page");
+            let mut metrics = page.evaluate("window.__specimen.profileMetrics()").await?;
+            let heap = page.send("Runtime.getHeapUsage", json!({})).await?;
+            metrics["usedJSHeapSizeBytes"] = heap.get("usedSize").cloned().unwrap_or(Value::Null);
+            Some(metrics)
+        } else {
+            None
+        };
         let story_status = outcome
             .as_ref()
             .and_then(|outcome| outcome.get("status"))
@@ -613,9 +631,11 @@ impl Browser {
                 context,
                 outcome,
                 accessibility,
+                profile,
             });
         }
         attempt.enter("capturing the result");
+        let capture_started = std::time::Instant::now();
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
         let captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
@@ -630,6 +650,9 @@ impl Browser {
             Some(path) => Some(screenshot(&page, path, &viewport).await?),
             None => None,
         };
+        if let Some(profile) = profile.as_mut() {
+            profile["captureMs"] = json!(capture_started.elapsed().as_secs_f64() * 1000.0);
+        }
         Ok(Attempted {
             captured,
             snapshot,
@@ -637,6 +660,7 @@ impl Browser {
             context,
             outcome,
             accessibility,
+            profile,
         })
     }
 }

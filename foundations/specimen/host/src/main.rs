@@ -101,6 +101,7 @@ impl Bench {
             "context": outcome.context,
             "outcome": outcome.outcome,
             "accessibility": outcome.accessibility,
+            "profile": outcome.profile,
             "loaded": loaded,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))
