@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -23,6 +23,10 @@ import { fileURLToPath } from 'node:url';
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const outputIndex = process.argv.indexOf('--output');
 const consumers = await realpath(await mkdtemp(join(tmpdir(), 'afd-specimen-consumers-')));
+// A failed run keeps its consumers for inspection; a passing one leaves nothing behind.
+process.on('exit', (code) => {
+	if (code === 0) rmSync(consumers, { recursive: true, force: true });
+});
 const output = outputIndex > 0 ? resolve(process.argv[outputIndex + 1]) : consumers;
 const artifacts = join(consumers, 'artifacts');
 await mkdir(artifacts, { recursive: true });

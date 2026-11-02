@@ -6,13 +6,15 @@
  * representative selection through the consumer's Storybook Vitest path (incumbent.mjs), with
  * recorded fonts, and Specimen runs the same stories; each must end the same way in both, for
  * the same kind of reason. `--plugin` installs the FAST-AF plugin and inspects every component
- * in the selection. `--mode identities` stops after the identity check.
+ * in the selection. `--mode identities` stops after the identity check; `--mode full` runs
+ * every story instead of the selection, with `--workers` (default 2) capping the incumbent's.
  *
  * The snapshot stays read-only apart from the Vite caches the incumbent writes and, with
  * `--plugin`, `.specimen-t05/`: a plugin module must be inside the bench root.
  */
 import { cp, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { incumbents, runIncumbent, writeWrapperConfig } from './incumbent.mjs';
 import { startFontServer } from './inputs/remote-fonts.mjs';
@@ -35,6 +37,10 @@ const consumers = {
 		stories: ['apps/web/src/components/**/*.stories.ts'],
 		preview: '.storybook/preview.ts',
 		manifest: 'custom-elements.json',
+		staticDirs: [
+			{ from: 'apps/web/public/site', to: '/site' },
+			{ from: 'apps/web/public/field-notes', to: '/field-notes' },
+		],
 	},
 };
 
@@ -48,7 +54,9 @@ const output = resolve(option('--out', `test-results/specimens-t05-retained-${Da
 const plugin = option('--plugin');
 const api = option('--api', new URL('../dist/index.js', import.meta.url).href);
 const mode = option('--mode', 'all');
-if (mode !== 'all' && mode !== 'identities') throw new Error('--mode must be all or identities');
+if (!['all', 'identities', 'full'].includes(mode))
+	throw new Error('--mode must be all, identities or full');
+const workers = option('--workers', '2');
 await mkdir(output, { recursive: true });
 if ((await readdir(output)).length) throw new Error('Evidence output must be empty');
 
@@ -71,6 +79,14 @@ async function bench(stories, plugins) {
 		stories: stories.map((path) => join(snapshot, path)),
 		preview: join(snapshot, declared.preview),
 		manifest: join(snapshot, declared.manifest),
+		...(declared.staticDirs
+			? {
+					staticDirs: declared.staticDirs.map(({ from, to }) => ({
+						from: join(snapshot, from),
+						to,
+					})),
+				}
+			: {}),
 		...(plugins.length ? { plugins } : {}),
 	});
 	const { createSpecimenBench } = await import(api);
@@ -143,6 +159,7 @@ async function incumbent() {
 			report,
 			fonts: { record: fontRecord, base: fonts.url },
 			env: { STORYBOOK_DISABLE_TELEMETRY: '1' },
+			...(mode === 'full' ? { files: [], extraArgs: [`--maxWorkers=${workers}`] } : {}),
 		});
 		const results = JSON.parse(
 			await readFile(report, 'utf8').catch(() => {
@@ -171,11 +188,28 @@ async function incumbent() {
 
 /** Specimen's run of the same stories, and with the plugin, each component's inspection. */
 async function candidate(plugins) {
-	const selected = await bench(incumbents[consumer].files, plugins);
+	const startedAt = performance.now();
+	const selected = await bench(
+		mode === 'full' ? declared.stories : incumbents[consumer].files,
+		plugins
+	);
 	try {
 		const stories = [];
-		for (const entry of selected.list()) {
-			const { outcome } = await selected.run({ id: entry.id });
+		const entries = selected.list();
+		for (const [index, entry] of entries.entries()) {
+			if (index % 50 === 0) console.log(`Specimen: ${index} of ${entries.length}`);
+			let outcome;
+			try {
+				({ outcome } = await selected.run({ id: entry.id }));
+			} catch (error) {
+				// A run that throws is a finding of its own; the rest of the suite still runs.
+				outcome = {
+					status: 'error',
+					play: 'none',
+					failures: [{ category: 'host', message: String(error?.message ?? error) }],
+					a11y: { status: 'not-run', policy: 'manual', violations: [] },
+				};
+			}
 			stories.push({
 				id: entry.id,
 				file: entry.module,
@@ -213,7 +247,7 @@ async function candidate(plugins) {
 				});
 			}
 		}
-		return { stories, inspected };
+		return { stories, inspected, elapsedMs: performance.now() - startedAt };
 	} finally {
 		await selected.close();
 	}
@@ -231,7 +265,8 @@ if (mode === 'identities') {
 // One runner at a time, to keep the shared host's load bounded.
 const reference = await incumbent();
 const plugins = plugin ? [await pluginModule()] : [];
-const { stories, inspected } = await candidate(plugins);
+const { stories, inspected, elapsedMs } = await candidate(plugins);
+result.candidate = { elapsedMs };
 result.incumbent = { run: reference.run, fonts: reference.fonts, tests: reference.tests.length };
 result.stories = stories.map((story) => {
 	const test = reference.tests.find((item) => item.file === story.file && item.name === story.name);

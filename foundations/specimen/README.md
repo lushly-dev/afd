@@ -75,6 +75,13 @@ Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on
 
 A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
 
+A story runs in one chain, as under Storybook's runner: render, then play, then the accessibility check, with no frame between them, so a component that renders on its next frame is seen as Storybook's run sees it. A custom element a story leaves undefined does not hold it up; the capture records it.
+
+Two things consumers' stories rely on are available:
+
+- `staticDirs` serves directories at the page's origin, as Storybook's option does: `"staticDirs": ["./public", { "from": "./site", "to": "/site" }]`. Paths are relative to the configuration and inside the root.
+- `userEvent.keyboard` from `vitest/browser` drives the real keyboard, with testing-library's key syntax. A retained play gets this one method; any other on `userEvent` throws. On a page without the host, such as a static preview, `userEvent` is undefined.
+
 ## Migrate retained stories
 
 `migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:

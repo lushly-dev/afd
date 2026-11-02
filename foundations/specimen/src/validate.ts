@@ -166,11 +166,24 @@ function testTags(value: unknown): NonNullable<BenchConfig['test']> {
 	return result;
 }
 
+function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
+	if (!Array.isArray(value)) fail('configuration.staticDirs', 'expected an array of directories');
+	return value.map((item, index) => {
+		const path = `configuration.staticDirs[${index}]`;
+		if (typeof item === 'string') return text(item, path);
+		const fields = record(item, path, ['from', 'to']);
+		const to = text(fields.to, `${path}.to`);
+		if (!to.startsWith('/')) fail(`${path}.to`, 'expected a path starting with /');
+		return { from: text(fields.from, `${path}.from`), to };
+	});
+}
+
 export function parseConfig(value: unknown): BenchConfig {
 	const fields = record(value, 'configuration', [
 		'specimens',
 		'stories',
 		'preview',
+		'staticDirs',
 		'test',
 		'plugins',
 		'manifest',
@@ -187,6 +200,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		...(fields.preview === undefined
 			? {}
 			: { preview: text(fields.preview, 'configuration.preview') }),
+		...(fields.staticDirs === undefined ? {} : { staticDirs: staticDirs(fields.staticDirs) }),
 		...(fields.test === undefined ? {} : { test: testTags(fields.test) }),
 		...(fields.plugins === undefined
 			? {}

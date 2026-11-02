@@ -1,12 +1,12 @@
 # T05 retained-CSF compatibility slice
 
-**State, 2026-11-01:** done on branch. T05 is complete when step 5 merges.
+**State, 2026-11-01:** done and merged.
 
 - Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
 - Step 2, running retained stories, is done and merged in [#642](https://github.com/lushly-dev/afd/pull/642).
 - Step 3, the plugin points, the FAST-AF plugin and inspection, is done and merged in [#647](https://github.com/lushly-dev/afd/pull/647).
 - Step 4, the preview-first codemod, is done and merged in [#654](https://github.com/lushly-dev/afd/pull/654).
-- Step 5, the consumers' stories through both runners and the refreshed Lushly inventory, is implemented on branch `lush/specimens-t05-consumers`.
+- Step 5, the consumers' stories through both runners and the refreshed Lushly inventory, is done and merged in [#670](https://github.com/lushly-dev/afd/pull/670).
 
 How the steps meet the acceptance is [below](#acceptance).
 
@@ -365,7 +365,7 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Merged in #642.
 3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Merged in #647.
 4. ~~The preview-first codemod.~~ Merged in #654.
-5. ~~The consumers' representative stories through both runners, and the refreshed Lushly inventory.~~ Implemented on branch.
+5. ~~The consumers' representative stories through both runners, and the refreshed Lushly inventory.~~ Merged in #670.
 
 | Acceptance | Where it is met |
 | --- | --- |
@@ -379,6 +379,6 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 
 What T05 leaves to later tasks:
 
-- [T06](implementation.md#ordered-implementation-queue): full suites, profiles, event history, the context matrix and flake identities.
+- [T06](t06-full-runner.md): full suites, profiles, event history, the context matrix and flake identities.
 - G06's open question: whether the lazy capture normalizer belongs under the shell ceiling.
 - Commands: no FAST-AF component declares one yet.

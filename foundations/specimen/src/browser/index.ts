@@ -14,6 +14,18 @@ import { describe, enrichSchema, type InstalledPlugins, installPlugins } from '.
 import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
 import { validateSpecimen } from './validate.js';
 
+/**
+ * Let a component's pending promises settle, as the awaits in Storybook's render phases do before
+ * a play. Microtask turns only: any task would let a frame that is already due run first, and a
+ * component that renders on its next frame would be ahead of where Storybook's play finds it.
+ */
+async function afterMicrotasks(): Promise<void> {
+	for (let turn = 0; turn < 32; turn++) await null;
+}
+
+/** How long a retained story waits for its custom elements to be defined before capture. */
+const UNDEFINED_ELEMENT_GRACE_MS = 250;
+
 export { installPage } from './page.js';
 
 type Disposer = () => void | Promise<void>;
@@ -147,10 +159,24 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 
 	/** Upgrade, fonts and a frame: the native readiness contract. */
+	/** Tags a retained story still had undefined when it settled. */
+	const undefinedTags = new Set<string>();
+
 	async function settle(): Promise<void> {
+		const tags = new Set<string>();
 		for (const element of openElements(mountRoot)) {
-			if (element.localName.includes('-')) await customElements.whenDefined(element.localName);
+			if (element.localName.includes('-')) tags.add(element.localName);
 		}
+		const defined = Promise.all([...tags].map((tag) => customElements.whenDefined(tag)));
+		if (story) {
+			// A component may define an element only on intent, such as opening a disclosure, so a
+			// story can hold a tag that stays undefined. Storybook does not wait for one either.
+			await Promise.race([
+				defined,
+				new Promise((resolve) => setTimeout(resolve, UNDEFINED_ELEMENT_GRACE_MS)),
+			]);
+			for (const tag of tags) if (!customElements.get(tag)) undefinedTags.add(tag);
+		} else await defined;
 		instrumentation.setMotionMode(motion);
 		await document.fonts.ready;
 		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -191,7 +217,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		async resolve(entry, requestedContext, defaults) {
 			if (!entry.story) return null;
 			const prepared = await prepareRetained(entry, requestedContext);
-			const { storyRenderContext } = await storyRuntime();
+			const { prepareAccessibility, storyRenderContext } = await storyRuntime();
+			await prepareAccessibility(prepared);
 			story = { prepared };
 			return {
 				context: storyRenderContext(prepared, requestedContext, defaults),
@@ -260,14 +287,22 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
 			return registered.runner.run(element, name, input);
 		},
-		async run() {
-			if (!story?.mounted) throw new Error('Mount a retained story before running it.');
+		async mountAndRun(entry, context) {
+			// One chain with no frame between the render and the play and no import after the
+			// render, as Storybook's runner has it: a play and an accessibility check see a
+			// component that renders on its next frame as Storybook does. The frame comes after.
+			if (active)
+				throw new Error('A specimen is already mounted; dispose it before mounting another.');
+			active = true;
 			const { runStory } = await storyRuntime();
+			await mountRetained(entry, context, { settle: false });
+			if (!story?.mounted) throw new Error('A retained story did not mount.');
+			await afterMicrotasks();
 			const outcome = await runStory(story.mounted);
 			await settle();
 			return outcome;
 		},
-		async mount(entry, context, options = {}) {
+		async mount(entry, context) {
 			if (active)
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			const load = loaders[entry.id];
@@ -275,7 +310,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			active = true;
 			if (entry.story) {
 				try {
-					return await mountRetained(entry, context, options);
+					return await mountRetained(entry, context, {});
 				} catch (error) {
 					active = false;
 					throw error;
@@ -343,6 +378,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			instrumentation.setMotionMode(motion);
 			const observation = captureDocument(mountRoot, instrumentation.closedHosts);
 			observation.limitations.push(...instrumentation.limitations);
+			for (const tag of undefinedTags)
+				observation.limitations.push(`Custom element <${tag}> was still undefined when captured.`);
 			if (requested)
 				observation.limitations.push(...contextMismatches(requested, observation.viewport));
 			if (story) observation.limitations.push(...story.prepared.mismatches);

@@ -356,6 +356,20 @@ function accessibilityPolicy(composed: ComposedStory): AccessibilityResult['poli
 }
 
 /** The a11y addon's axe run: the whole body, `region` disabled, the story's config and options. */
+const loadAxe = async () => (await import('axe-core')).default;
+let axeEngine: Awaited<ReturnType<typeof loadAxe>> | undefined;
+
+/**
+ * Load axe before the story renders when its policy runs a check. A dynamic import always yields
+ * a task, and a real fetch takes long enough for a frame, so importing it after the render would
+ * let a component that renders on its next frame update before the check. Storybook's runner has
+ * the module already loaded for all but a file's first story.
+ */
+export async function prepareAccessibility(prepared: PreparedStory): Promise<void> {
+	const policy = accessibilityPolicy(prepared.composed);
+	if (policy === 'error' || policy === 'todo') axeEngine = await loadAxe();
+}
+
 async function checkAccessibility(composed: ComposedStory): Promise<AccessibilityResult> {
 	const parameter = (
 		isPlainObject(composed.parameters.a11y) ? composed.parameters.a11y : {}
@@ -371,7 +385,7 @@ async function checkAccessibility(composed: ComposedStory): Promise<Accessibilit
 		};
 	if (parameter.element !== undefined)
 		throw new Error('parameters.a11y.element is not supported; use parameters.a11y.context.');
-	const { default: axe } = await import('axe-core');
+	const axe = axeEngine ?? (await loadAxe());
 	const context: Fields = {
 		include: document.body,
 		exclude: ['.sb-wrapper', '#storybook-docs', '#storybook-highlights-root'],
@@ -403,6 +417,7 @@ async function checkAccessibility(composed: ComposedStory): Promise<Accessibilit
 		impact: violation.impact ?? null,
 		help: violation.help,
 		targets: violation.nodes.map((node) => node.target.map(String).join(' ')),
+		details: violation.nodes.map((node) => node.failureSummary ?? ''),
 	}));
 	return {
 		status: violations.length ? (policy === 'todo' ? 'warning' : 'failed') : 'passed',
@@ -421,6 +436,11 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 	const { prepared, context } = mounted;
 	const play = prepared.composed.play;
 	const failures: StoryOutcome['failures'] = [];
+	const stage = (name: 'play' | 'accessibility') => {
+		// Read by the host if this run reaches its deadline.
+		(globalThis as { __specimenStage?: string }).__specimenStage = name;
+	};
+	stage('play');
 	if (play) {
 		try {
 			await play(context);
@@ -440,6 +460,7 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 			};
 		}
 	}
+	stage('accessibility');
 	const resume = pauseAnimations();
 	try {
 		let a11y: AccessibilityResult;

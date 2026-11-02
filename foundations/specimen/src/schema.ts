@@ -133,6 +133,7 @@ export const storyRunSchema = z.strictObject({
 					impact: z.string().nullable(),
 					help: z.string(),
 					targets: z.array(z.string()),
+					details: z.array(z.string()),
 				})
 			),
 			incomplete: z.number().int().nonnegative(),

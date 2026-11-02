@@ -87,6 +87,7 @@ export async function createInProcessBench(
 						defaults: defaultContext,
 						executable,
 						work: tmpdir(),
+						staticDirs: config.staticDirs,
 					},
 					HOST_GRACE
 				)) as { browserPid: number };
