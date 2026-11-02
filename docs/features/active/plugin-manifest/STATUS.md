@@ -26,9 +26,10 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   - Four questions remain for Umbel's owner (U1 to U4) and ten for Loam's phase 1 specification
     (L1 to L10), which it answers; see [Resolutions](#resolutions-of-l1-to-l10) and
     [Open questions](plugin-manifest.proposal.md#open-questions).
-  - Step 2 is in progress with Loam's phase 1: `@lushly-dev/loam-manifest` holds Loam's profile and its
-    reader, and `@lushly-dev/loam-cli` holds `app check`, `app pack` and the `rules` cases that need files.
-    Nothing loads an app through them yet, and steps 3 to 8 are not started.
+  - Step 2 is done, with Loam's phase 1, which exited 2026-11-02 ([run 41452945001](https://github.com/lushly-dev/afd/actions/runs/41452945001)): Loam's profile in
+    `@lushly-dev/loam-manifest`, `app check` and `app pack` in `@lushly-dev/loam-cli`, the kernel's read, and the
+    mounted loader's discovery and instances, proven against a real Umbel through a test-only relay (Loam D64).
+    Steps 3 to 8 are not started.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, with the results under
   [Step 1 verification](#step-1-verification). The proposal's state was read earlier, at `355aa994`,
   from:
@@ -74,9 +75,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `scripts/plugin-manifest.test.mjs` in the tooling tests. `spec/VERSION` stays `1.0-rc`: the core has
   its own version, and no fixture, vector, wire field or error code changes, as earlier `spec/`
   additions did. No changeset: no publishable package changes.
-- **Not done:** the rest of step 2 (the kernel's read, the mounted loader's discovery and instance
-  entries) and steps 3 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
-  No host or package reads the core, and the Rust check of the cases is not a permanent test. The
+- **Not done:** steps 3 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
+  Loam's profile conforms to the core and Umbel's does not read it yet (step 3), and the Rust check of the cases is not a permanent test. The
   owner's questions are decided; U1 to U4 are not answered, and L1 to L10 are answered by Loam's phase 1
   specification ([Resolutions](#resolutions-of-l1-to-l10)).
 
