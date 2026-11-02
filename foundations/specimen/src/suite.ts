@@ -1,6 +1,8 @@
 import { relative, resolve } from 'node:path';
 import type {
+	MatrixAxes,
 	Observation,
+	SpecimenContext,
 	SpecimenEntry,
 	StoryOutcome,
 	SuiteFilter,
@@ -37,6 +39,23 @@ export interface StoryAttempt {
  */
 export function flakeId(file: string, titles: readonly string[]): string {
 	return `storybook:${file}::${titles.join(' › ')}`;
+}
+
+/** More cells than this is rarely meant, and each is a browser context. */
+export const MAX_MATRIX_CELLS = 64;
+
+/** Every combination of the axes' values, in axis order; the first value of each comes first. */
+export function matrixCells(axes: MatrixAxes): Partial<SpecimenContext>[] {
+	let cells: Partial<SpecimenContext>[] = [{}];
+	for (const [axis, values] of Object.entries(axes))
+		cells = cells.flatMap((cell) =>
+			(values as unknown[]).map((value) => ({ ...cell, [axis]: value }))
+		);
+	if (cells.length > MAX_MATRIX_CELLS)
+		throw new Error(
+			`The axes make ${cells.length} cells; ${MAX_MATRIX_CELLS} is the most a matrix runs. Narrow an axis.`
+		);
+	return cells;
 }
 
 /** The entries a filter selects, in discovery order. A native specimen has no tags to match. */

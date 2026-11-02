@@ -11,7 +11,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.3',
+			captureVersion: '0.4',
 			normalizationVersion: '0.1',
 			specimenId: 'button',
 			checkpoint: 'mount',
@@ -29,6 +29,7 @@ function observation(): Observation {
 		channels: {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
+			events: { declared: [], history: [] },
 			elements: [],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -117,6 +118,14 @@ function bench(): SpecimenCommandBench {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		matrix: vi.fn(async (request) => ({
+			id: request.id,
+			checkpoint: 'after-run',
+			axes: Object.keys(request.axes),
+			cells: [],
+			counts: { total: 0, captured: 0, unavailable: 0, changed: 0, unchanged: 0, insufficient: 0 },
+			elapsedMs: 1,
+		})),
 		a11y: vi.fn(async () => ({
 			reports: [
 				{
@@ -193,6 +202,7 @@ describe('specimen commands', () => {
 			'specimen-a11y',
 			'specimen-profile',
 			'specimen-baseline',
+			'specimen-matrix',
 			'specimen-inspect',
 			'specimen-migrate',
 		]);
@@ -293,6 +303,21 @@ describe('specimen commands', () => {
 			notes: ['After the page cutover.'],
 		});
 		const invalid = await executeSpecimenCommand(instance, 'specimen-profile', { runs: 9 });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a matrix over explicit axes', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-matrix', {
+			id: 'button',
+			axes: { theme: ['light', 'dark'] },
+		});
+		expect(result.success).toBe(true);
+		expect(instance.matrix).toHaveBeenCalledWith({
+			id: 'button',
+			axes: { theme: ['light', 'dark'] },
+		});
+		expect(result.data).toMatchObject({ id: 'button', axes: ['theme'] });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-matrix', { id: 'button' });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('runs a suite without an id, and refuses an id with suite options', async () => {

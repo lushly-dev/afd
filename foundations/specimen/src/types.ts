@@ -1,7 +1,7 @@
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.3' as const;
+export const CAPTURE_VERSION = '0.4' as const;
 export const NORMALIZATION_VERSION = '0.1' as const;
 
 export interface SpecimenContext {
@@ -34,7 +34,37 @@ export type ScenarioStep =
 			/** An explicit command through a named plugin runner, on a declared target. */
 			command: { runner: string; name: string; target: string; input?: unknown };
 	  }
+	| {
+			id?: string;
+			/** An event must have been observed in the interval that began at step `since`. */
+			expect: EventExpectation;
+	  }
 	| { capture: string };
+/** A declared event, on a declared target or, with none, anywhere its listener can see. */
+export interface EventDeclaration {
+	type: string;
+	target?: string;
+}
+export interface EventExpectation {
+	event: string;
+	target?: string;
+	/** The step whose start begins the interval, so an earlier event cannot satisfy this. */
+	since: string;
+	/** How long to wait for it, within the render's deadline. Defaults to 1,000 ms. */
+	timeoutMs?: number;
+}
+export interface EventRecord {
+	type: string;
+	/** The declared target it was on; `null` when none was declared or known yet. */
+	target: string | null;
+	/** The named step whose interval it fell in; `null` for mount or an unnamed step. */
+	step: string | null;
+	composed: boolean;
+	bubbles: boolean;
+	trusted: boolean;
+	/** A `CustomEvent`'s `detail`, with functions and nodes described rather than serialized. */
+	detail: unknown;
+}
 export interface MountHandle {
 	element: HTMLElement;
 	ready?: Promise<void>;
@@ -50,6 +80,7 @@ export interface SpecimenDefinition {
 	ready?: () => void | Promise<void>;
 	dispose?: () => void | Promise<void>;
 	a11y?: NativeAccessibility;
+	events?: EventDeclaration[];
 }
 export interface SpecimenModule {
 	default?: {
@@ -294,6 +325,7 @@ export interface BrowserObservation {
 	dom: string;
 	elements: ElementObservation[];
 	limitations: string[];
+	events: { declared: EventDeclaration[]; history: EventRecord[]; unresolved: string[] };
 	/** What the specimen document observes, compared with the requested context at capture. */
 	viewport: {
 		width: number;
@@ -321,6 +353,7 @@ export interface Observation {
 	channels: {
 		dom: { raw: string; normalized: string };
 		a11y: { snapshot: string; axe: 'not-run' | AxeOutcome };
+		events: { declared: EventDeclaration[]; history: EventRecord[] };
 		elements: ElementObservation[];
 		console: { errors: string[]; warnings: string[] };
 		visual: { path: string | null };
@@ -331,7 +364,7 @@ export interface Observation {
 	>;
 }
 export interface ChannelDifference {
-	channel: 'dom' | 'a11y' | 'layout' | 'styles' | 'state';
+	channel: 'dom' | 'a11y' | 'layout' | 'styles' | 'state' | 'events';
 	target?: string;
 	property?: string;
 	left: unknown;
@@ -540,6 +573,56 @@ export interface ProfileRun {
 	orphanedBaselines: string[];
 	elapsedMs: number;
 }
+/** One value per axis gives a cell; a cell is every axis's combination. */
+export interface MatrixAxes {
+	theme?: string[];
+	viewport?: { width: number; height: number }[];
+	container?: { width: number; height?: number }[];
+	locale?: string[];
+	reducedMotion?: ('reduce' | 'no-preference')[];
+	motion?: ('natural' | 'settled')[];
+}
+export interface MatrixRequest {
+	id: string;
+	axes: MatrixAxes;
+	checkpoint?: string;
+	/** What every cell shares. An axis takes precedence over it. */
+	context?: Partial<SpecimenContext>;
+	timeoutMs?: number;
+	workers?: number;
+	/** Keep each cell's observation. A capture is large, so the default keeps only the diff. */
+	observations?: boolean;
+}
+export interface MatrixCell {
+	/** This cell's value on each axis. */
+	context: Partial<SpecimenContext>;
+	/** `unavailable`: no capture could be made for this cell, and `reason` says why. */
+	status: 'captured' | 'unavailable';
+	reason?: string;
+	/** Compared with the first captured cell; `null` for that cell, or one with no capture. */
+	diff: {
+		status: ObservationDiff['status'];
+		channels: string[];
+		differences: number;
+		limitations: string[];
+	} | null;
+	observation?: Observation;
+}
+export interface MatrixRun {
+	id: string;
+	checkpoint: string;
+	axes: string[];
+	cells: MatrixCell[];
+	counts: {
+		total: number;
+		captured: number;
+		unavailable: number;
+		changed: number;
+		unchanged: number;
+		insufficient: number;
+	};
+	elapsedMs: number;
+}
 /** What a retained story's run found: the play, then the accessibility check. */
 export interface StoryOutcome {
 	/** `excluded`: no test exists for the story under the include and exclude tags. */
@@ -562,9 +645,17 @@ export interface BrowserRuntime {
 	mount(
 		entry: SpecimenEntry,
 		context: SpecimenContext
-	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
+	): Promise<{
+		targets: Record<string, Target>;
+		scenario: ScenarioStep[];
+		events: EventDeclaration[];
+	}>;
 	/** Check what is mounted, at this point: a retained story under its policy, or a specimen. */
 	checkAccessibility(): Promise<AxeOutcome>;
+	/** A declared event target's element, once the host has resolved it. */
+	bindEventTarget(name: string, element: Element): void;
+	stepStarted(id: string | null): void;
+	expectEvent(expectation: EventExpectation): Promise<void>;
 	/** What a profile reads from the page at its checkpoint. */
 	profileMetrics(): Promise<Record<string, number | null>>;
 	/** Render a retained story, then run its play and accessibility check, with no task between. */

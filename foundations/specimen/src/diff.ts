@@ -197,6 +197,15 @@ function normalizedDom(raw: string): string {
  * feasibility comparator; missing structural evidence can never mean unchanged.
  * Screenshots are review artifacts, not pixel comparison evidence.
  */
+/** The declared events in order, by type, target and interval; `null` when none were declared. */
+function eventHistory(observation: Observation): string | null {
+	const { status } = observation.completeness.events;
+	if (status === 'not-requested' || status === 'unsupported') return null;
+	return observation.channels.events.history
+		.map((event) => `${event.type} ${event.target ?? '-'} ${event.step ?? '-'}`)
+		.join('\n');
+}
+
 /** What axe found in a capture, as sorted rule and target pairs; `null` when it did not run. */
 function axeFindings(observation: Observation): string | null {
 	const { axe } = observation.channels.a11y;
@@ -224,6 +233,10 @@ export function diffObservations(
 			right: right.channels.a11y.snapshot,
 		});
 	}
+	const leftEvents = eventHistory(left);
+	const rightEvents = eventHistory(right);
+	if (leftEvents !== null && rightEvents !== null && leftEvents !== rightEvents)
+		differences.push({ channel: 'events', left: leftEvents, right: rightEvents });
 	const leftAxe = axeFindings(left);
 	const rightAxe = axeFindings(right);
 	if (leftAxe !== null && rightAxe !== null && leftAxe !== rightAxe)

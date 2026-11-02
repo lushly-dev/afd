@@ -1,4 +1,5 @@
 import type {
+	EventDeclaration,
 	NativeAccessibility,
 	ScenarioStep,
 	SpecimenDefinition,
@@ -15,6 +16,7 @@ const specimenFields = new Set([
 	'targets',
 	'scenario',
 	'a11y',
+	'events',
 ]);
 const metaFields = new Set(['title', 'description', 'component', 'args', 'render']);
 // Playwright 1.64's getByRole contract; abstract/unknown roles are not accepted.
@@ -183,7 +185,28 @@ function targets(value: unknown): Record<string, Target> {
 	return result;
 }
 
-function scenario(value: unknown, availableTargets: Record<string, Target>): ScenarioStep[] {
+function events(
+	value: unknown,
+	availableTargets: Record<string, Target>
+): EventDeclaration[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value)) throw new Error('specimen.events must be an array.');
+	return value.map((raw, index) => {
+		const path = `specimen.events[${index}]`;
+		const item = record(raw, path);
+		fields(item, new Set(['type', 'target']), path);
+		const target = optionalText(item.target, `${path}.target`);
+		if (target !== undefined && !Object.hasOwn(availableTargets, target))
+			throw new Error(`${path}.target refers to undeclared target '${target}'.`);
+		return { type: text(item.type, `${path}.type`), ...(target ? { target } : {}) };
+	});
+}
+
+function scenario(
+	value: unknown,
+	availableTargets: Record<string, Target>,
+	declaredEvents: EventDeclaration[] = []
+): ScenarioStep[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value)) throw new Error('specimen.scenario must be an array.');
 	const ids = new Set<string>();
@@ -200,6 +223,43 @@ function scenario(value: unknown, availableTargets: Record<string, Target>): Sce
 			if (captures.has(capture)) throw new Error(`Duplicate scenario checkpoint '${capture}'.`);
 			captures.add(capture);
 			return { capture };
+		}
+		if (Object.hasOwn(step, 'expect')) {
+			fields(step, new Set(['id', 'expect']), path);
+			const id = optionalText(step.id, `${path}.id`);
+			if (id && ids.has(id)) throw new Error(`Duplicate scenario step id '${id}'.`);
+			const expectation = record(step.expect, `${path}.expect`);
+			fields(expectation, new Set(['event', 'target', 'since', 'timeoutMs']), `${path}.expect`);
+			const event = text(expectation.event, `${path}.expect.event`);
+			const target = optionalText(expectation.target, `${path}.expect.target`);
+			const since = optionalText(expectation.since, `${path}.expect.since`);
+			if (!since)
+				throw new Error(`${path}.expect.since must name the step that begins its interval.`);
+			if (!ids.has(since))
+				throw new Error(`${path}.expect.since refers to '${since}', which no earlier step is.`);
+			// An event nobody listens for could never be credited, so it fails before running.
+			if (
+				!declaredEvents.some(
+					(item) =>
+						item.type === event && (target === undefined || item.target === target || !item.target)
+				)
+			)
+				throw new Error(
+					`${path}.expect expects event '${event}'${target ? ` on '${target}'` : ''}, which specimen.events does not declare.`
+				);
+			const timeoutMs = expectation.timeoutMs;
+			if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || timeoutMs < 0))
+				throw new Error(`${path}.expect.timeoutMs must be a number of milliseconds.`);
+			if (id) ids.add(id);
+			return {
+				...(id === undefined ? {} : { id }),
+				expect: {
+					event,
+					since,
+					...(target === undefined ? {} : { target }),
+					...(timeoutMs === undefined ? {} : { timeoutMs }),
+				},
+			};
 		}
 		if (Object.hasOwn(step, 'command')) {
 			fields(step, new Set(['id', 'command']), path);
@@ -303,6 +363,7 @@ export function validateSpecimen(
 	fields(raw, specimenFields, 'specimen');
 	optionalText(raw.name, 'specimen.name');
 	const availableTargets = targets(raw.targets);
+	const declaredEvents = events(raw.events, availableTargets);
 	return {
 		meta,
 		specimen: {
@@ -311,8 +372,9 @@ export function validateSpecimen(
 			ready: hook(raw.ready, 'specimen.ready'),
 			dispose: hook(raw.dispose, 'specimen.dispose'),
 			targets: availableTargets,
-			scenario: scenario(raw.scenario, availableTargets),
+			scenario: scenario(raw.scenario, availableTargets, declaredEvents),
 			a11y: accessibility(raw.a11y),
+			events: declaredEvents,
 		},
 	};
 }

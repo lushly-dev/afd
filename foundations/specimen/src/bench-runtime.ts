@@ -11,6 +11,7 @@ import {
 	loadConfig,
 	resolveContext,
 } from './config.js';
+import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
 import {
 	BASELINE_RUNNER,
@@ -27,6 +28,7 @@ import {
 	DEFAULT_FLAKE_CAP,
 	DEFAULT_SUITE_WORKERS,
 	executeSuite,
+	matrixCells,
 	pool,
 	selectEntries,
 	selectStories,
@@ -44,6 +46,9 @@ import {
 	type Completeness,
 	type InspectRequest,
 	type InspectResult,
+	type MatrixCell,
+	type MatrixRequest,
+	type MatrixRun,
 	NORMALIZATION_VERSION,
 	type Observation,
 	type ProfileBaseline,
@@ -65,6 +70,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuiteRequest,
 } from './validate.js';
@@ -249,6 +255,10 @@ export async function createInProcessBench(
 				channels: {
 					dom: { raw: captured.dom, normalized: captured.normalized },
 					a11y: { snapshot, axe: axe && axe.status !== 'not-run' ? axe : 'not-run' },
+					events: {
+						declared: captured.events.declared,
+						history: captured.events.history,
+					},
 					elements: captured.elements,
 					console: rendered.console,
 					visual: { path: rendered.screenshot },
@@ -276,9 +286,15 @@ export async function createInProcessBench(
 						contextual
 					),
 					tokens: coverage('unsupported', 'token dependencies', ['TOKEN_DETECTOR_NOT_IMPLEMENTED']),
-					events: coverage('unsupported', 'declared event history', [
-						'EVENT_CAPTURE_NOT_IMPLEMENTED',
-					]),
+					events: captured.events.declared.length
+						? coverage(
+								captured.events.unresolved.length ? 'partial' : 'complete',
+								'declared events on their targets and roots',
+								captured.events.unresolved.map(
+									(target) => `Declared event target '${target}' did not resolve.`
+								)
+							)
+						: coverage('not-requested', 'declared event history', ['NO_EVENTS_DECLARED']),
 					visual: coverage(rendered.screenshot ? 'partial' : 'not-requested', 'appearance', [
 						...limitations,
 						...(rendered.screenshot
@@ -565,6 +581,93 @@ export async function createInProcessBench(
 		async run(rawRequest: RunRequest): Promise<StoryRun> {
 			ensureOpen();
 			return runStory(parseCaptureRequest(rawRequest));
+		},
+		async matrix(rawRequest: MatrixRequest): Promise<MatrixRun> {
+			ensureOpen();
+			const request = parseMatrixRequest(rawRequest);
+			const entry = config.entries.find((item) => item.id === request.id);
+			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			const cells = matrixCells(request.axes);
+			const axes = Object.keys(request.axes) as (keyof SpecimenContext)[];
+			const checkpoint = request.checkpoint ?? (entry.story ? 'mount' : 'after-run');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			// Each cell is a capture of its own, in its own browser context.
+			const captures = await pool(cells, workers, async (cell) => {
+				try {
+					const { observation } = await capture(
+						{
+							id: entry.id,
+							checkpoint,
+							context: { ...request.context, ...cell },
+							...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
+						},
+						{ reuseBundle: true }
+					);
+					return { observation: observation as Observation };
+				} catch (error) {
+					return { reason: error instanceof Error ? error.message : String(error) };
+				}
+			});
+			const baseline = captures.find((item) => item.observation)?.observation;
+			const results: MatrixCell[] = cells.map((context, index) => {
+				const { observation, reason } = captures[index] as {
+					observation?: Observation;
+					reason?: string;
+				};
+				if (!observation)
+					return { context, status: 'unavailable', reason: reason as string, diff: null };
+				const kept = request.observations ? { observation } : {};
+				if (observation === baseline) return { context, status: 'captured', diff: null, ...kept };
+				try {
+					const diff = diffObservations(baseline as Observation, observation, {
+						allowContextDifferences: axes,
+					});
+					return {
+						context,
+						status: 'captured',
+						diff: {
+							status: diff.status,
+							channels: [...new Set(diff.differences.map((item) => item.channel))],
+							differences: diff.differences.length,
+							limitations: diff.limitations,
+						},
+						...kept,
+					};
+				} catch (error) {
+					// Captured, but not comparable with the first: a story may settle its own context.
+					return {
+						context,
+						status: 'captured',
+						diff: {
+							status: 'insufficient-evidence',
+							channels: [],
+							differences: 0,
+							limitations: [error instanceof Error ? error.message : String(error)],
+						},
+						...kept,
+					};
+				}
+			});
+			const count = (status: NonNullable<MatrixCell['diff']>['status']) =>
+				results.filter((cell) => cell.diff?.status === status).length;
+			return {
+				id: entry.id,
+				checkpoint,
+				axes,
+				cells: results,
+				counts: {
+					total: results.length,
+					captured: results.filter((cell) => cell.status === 'captured').length,
+					unavailable: results.filter((cell) => cell.status === 'unavailable').length,
+					changed: count('changed'),
+					unchanged: count('no-change-observed'),
+					insufficient: count('insufficient-evidence'),
+				},
+				elapsedMs: performance.now() - started,
+			};
 		},
 		async profile(rawRequest: ProfileRequest = {}): Promise<ProfileRun> {
 			ensureOpen();

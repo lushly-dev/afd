@@ -10,6 +10,8 @@ import type {
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
+	MatrixRequest,
+	MatrixRun,
 	MigrateRequest,
 	MigrationReport,
 	Observation,
@@ -27,6 +29,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseMatrixRequest,
 	parseProfileRequest,
 	parseSuiteRequest,
 } from './validate.js';
@@ -73,6 +76,11 @@ export interface SpecimenBench {
 	 * everything with a baseline. Chromium only.
 	 */
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	/**
+	 * One isolated capture per combination of the context axes. Comparable cells diff against the
+	 * first; a cell that could not be captured stays visible, with its reason.
+	 */
+	matrix(request: MatrixRequest): Promise<MatrixRun>;
 	/** Profile and record the results in `profile.baselines`, keeping budgets a person set. */
 	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
 	/**
@@ -110,6 +118,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'runSuite'
 		| 'a11y'
 		| 'profile'
+		| 'matrix'
 		| 'recordBaseline'
 		| 'inspect'
 		| 'build'
@@ -209,6 +218,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.run(request));
+		},
+		async matrix(rawRequest) {
+			ensureDiscovered();
+			const request = parseMatrixRequest(rawRequest);
+			return enqueue((client) => client.matrix(request));
 		},
 		async profile(rawRequest = {}) {
 			ensureDiscovered();

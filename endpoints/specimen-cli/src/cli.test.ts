@@ -73,6 +73,14 @@ function harness() {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		matrix: vi.fn(async (request) => ({
+			id: request.id,
+			checkpoint: 'after-run',
+			axes: Object.keys(request.axes),
+			cells: [],
+			counts: { total: 0, captured: 0, unavailable: 0, changed: 0, unchanged: 0, insufficient: 0 },
+			elapsedMs: 1,
+		})),
 		a11y: vi.fn(async () => ({
 			reports: [],
 			counts: { total: 0, passed: 0, warning: 0, failed: 0, notRun: 0 },
@@ -268,6 +276,43 @@ describe('specimen CLI', () => {
 		h.bench.profile = vi.fn(async () => result(0, 1));
 		expect(await runCli(['--root', root, 'profile', 'button'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'profile', 'button', '--runs', 'many'], h.io)).toBe(1);
+	});
+	it('dispatches matrix with its axes as lists', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'matrix',
+					'button',
+					'--theme',
+					'light,dark',
+					'--viewport',
+					'375x812,1280x720',
+					'--locale',
+					'en-US,de',
+					'--workers',
+					'3',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.matrix).toHaveBeenCalledWith({
+			id: 'button',
+			axes: {
+				theme: ['light', 'dark'],
+				viewport: [
+					{ width: 375, height: 812 },
+					{ width: 1280, height: 720 },
+				],
+				locale: ['en-US', 'de'],
+			},
+			workers: 3,
+		});
+		expect(await runCli(['--root', root, 'matrix', 'button'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'matrix', '--theme', 'dark'], h.io)).toBe(1);
 	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();

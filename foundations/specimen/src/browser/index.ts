@@ -1,4 +1,5 @@
 import type {
+	EventDeclaration,
 	InspectResult,
 	MountHandle,
 	NativeAccessibility,
@@ -9,6 +10,7 @@ import type {
 	Target,
 } from '../types.js';
 import { captureDocument, colorSchemeOf, contextMismatches, openElements } from './capture.js';
+import { type EventRecorder, recordEvents } from './events.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
 import { describe, enrichSchema, type InstalledPlugins, installPlugins } from './plugins.js';
@@ -138,6 +140,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		instrumentation.setMotionMode('natural');
 		requested = undefined;
 		nativeAccessibility = undefined;
+		eventRecorder = undefined;
 		active = false;
 		if (errors.length) {
 			const details = errors
@@ -181,6 +184,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 
 	/** Upgrade, fonts and a frame: the native readiness contract. */
+	/** The mounted native specimen's declared events, when it has any. */
+	let eventRecorder: EventRecorder | undefined;
 	/** The mounted native specimen's accessibility policy. */
 	let nativeAccessibility: NativeAccessibility | undefined;
 	/** Tags a retained story still had undefined when it settled. */
@@ -215,7 +220,11 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		entry: SpecimenEntry,
 		context: SpecimenContext,
 		options: { settle?: boolean }
-	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }> {
+	): Promise<{
+		targets: Record<string, Target>;
+		scenario: ScenarioStep[];
+		events: EventDeclaration[];
+	}> {
 		if (!story) throw new Error(`Resolve ${entry.id} before mounting it.`);
 		if (mountRoot.localName !== 'div') {
 			const canvas = document.createElement('div');
@@ -234,7 +243,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		const { mountStory } = await storyRuntime();
 		story.mounted = mountStory(story.prepared, mountRoot, abort.signal);
 		if (options.settle !== false) await settle();
-		return { targets: {}, scenario: [] };
+		return { targets: {}, scenario: [], events: [] };
 	}
 
 	window.__specimen = {
@@ -312,6 +321,16 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
 			return registered.runner.run(element, name, input);
 		},
+		bindEventTarget(name, element) {
+			eventRecorder?.bind(name, element);
+		},
+		stepStarted(id) {
+			eventRecorder?.stepStarted(id);
+		},
+		async expectEvent(expectation) {
+			if (!eventRecorder) throw new Error('This specimen declares no events to expect.');
+			await eventRecorder.expect(expectation);
+		},
 		async profileMetrics() {
 			const readyMs = performance.now();
 			const firstContentfulPaintMs = await firstContentfulPaint();
@@ -386,6 +405,12 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				const module = await load();
 				const { meta, specimen } = validateSpecimen(module, entry.exportName);
 				nativeAccessibility = specimen.a11y;
+				if (specimen.events?.length) {
+					// Before the specimen exists, so that nothing it does while mounting is missed.
+					const recorder = recordEvents(mountRoot, specimen.events);
+					eventRecorder = recorder;
+					disposers.push(() => recorder.dispose());
+				}
 				for (const step of specimen.scenario ?? [])
 					if ('command' in step && !registry.runners.has(step.command.runner))
 						throw new Error(
@@ -420,7 +445,11 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				await handle.ready;
 				await specimen.ready?.();
 				await settle();
-				return { targets: specimen.targets ?? {}, scenario: specimen.scenario ?? [] };
+				return {
+					targets: specimen.targets ?? {},
+					scenario: specimen.scenario ?? [],
+					events: specimen.events ?? [],
+				};
 			} catch (error) {
 				try {
 					await dispose();
@@ -437,6 +466,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!active) throw new Error('Mount a specimen before capturing it.');
 			instrumentation.setMotionMode(motion);
 			const observation = captureDocument(mountRoot, instrumentation.closedHosts);
+			if (eventRecorder) observation.events = eventRecorder.read();
 			observation.limitations.push(...instrumentation.limitations);
 			for (const tag of undefinedTags)
 				observation.limitations.push(`Custom element <${tag}> was still undefined when captured.`);

@@ -598,7 +598,39 @@ impl Page<'_> {
         Ok(())
     }
 
+    /// Give the page the declared event targets that exist now. One that does not exist yet may
+    /// by a later step; one that never does is reported with the capture.
+    async fn bind_event_targets(&self, mounted: &Value, targets: &Value) -> Result<()> {
+        let declared = mounted.get("events").and_then(Value::as_array);
+        for name in declared
+            .into_iter()
+            .flatten()
+            .filter_map(|event| event.get("target").and_then(Value::as_str))
+        {
+            let Some(target) = targets.get(name) else {
+                continue;
+            };
+            if let Ok(object) = self.target(name, target).await {
+                self.call(
+                    &object,
+                    "function (name) { window.__specimen.bindEventTarget(name, this); }",
+                    json!([{ "value": name }]),
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn steps(&self, mounted: &Value, checkpoint: &str) -> Result<()> {
+        let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
+        let events_declared = mounted
+            .get("events")
+            .and_then(Value::as_array)
+            .is_some_and(|events| !events.is_empty());
+        if events_declared {
+            self.bind_event_targets(mounted, &targets).await?;
+        }
         if checkpoint == "mount" {
             return Ok(());
         }
@@ -607,7 +639,6 @@ impl Page<'_> {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
         if checkpoint != "after-run"
             && !steps
                 .iter()
@@ -621,6 +652,17 @@ impl Page<'_> {
                     return Ok(());
                 }
                 continue;
+            }
+            if let Some(expectation) = step.get("expect") {
+                self.evaluate(&format!("window.__specimen.expectEvent({expectation})"))
+                    .await?;
+                continue;
+            }
+            if events_declared {
+                let id = step.get("id").cloned().unwrap_or(Value::Null);
+                self.bind_event_targets(mounted, &targets).await?;
+                self.evaluate(&format!("window.__specimen.stepStarted({id})"))
+                    .await?;
             }
             if let Some(command) = step.get("command") {
                 self.command(command, &targets).await?;

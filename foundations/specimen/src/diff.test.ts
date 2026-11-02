@@ -41,6 +41,7 @@ function capture(): Observation {
 		channels: {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
+			events: { declared: [], history: [] },
 			elements: [element()],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -332,6 +333,32 @@ describe('diffObservations', () => {
 		const saved = structuredClone([left, right]);
 		diffObservations(left, right);
 		expect([left, right]).toEqual(saved);
+	});
+	it('treats a change in the declared events as a difference, when both record them', () => {
+		const withEvents = (types: string[]) => {
+			const value = capture();
+			value.completeness.events = { status: 'complete', scope: 'declared events', reasons: [] };
+			value.channels.events.declared = [{ type: 'click' }];
+			value.channels.events.history = types.map((type) => ({
+				type,
+				target: null,
+				step: 'activate',
+				composed: true,
+				bubbles: true,
+				trusted: true,
+				detail: null,
+			}));
+			return value;
+		};
+		expect(diffObservations(withEvents(['click']), withEvents(['click'])).differences).toEqual([]);
+		expect(diffObservations(withEvents(['click']), withEvents([])).differences).toEqual([
+			{ channel: 'events', left: 'click - activate', right: '' },
+		]);
+		expect(
+			diffObservations(capture(), withEvents(['click'])).differences.filter(
+				(difference) => difference.channel === 'events'
+			)
+		).toEqual([]);
 	});
 	it('treats a change in what axe found as a difference, and an unrun check as no evidence', () => {
 		const withAxe = (violations: { id: string; targets: string[] }[]) => {

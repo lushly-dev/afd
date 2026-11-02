@@ -15,6 +15,8 @@ import {
 	captureRequestSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
+	matrixRequestSchema,
+	matrixRunSchema,
 	migrateRequestSchema,
 	migrationReportSchema,
 	observationSchema,
@@ -42,6 +44,8 @@ import type {
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
+	MatrixRequest,
+	MatrixRun,
 	MigrateRequest,
 	MigrationReport,
 	Observation,
@@ -137,6 +141,7 @@ export interface SpecimenCommandBench {
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	matrix(request: MatrixRequest): Promise<MatrixRun>;
 	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
@@ -317,6 +322,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Set profile.baselines in the configuration, and give an id or a filter.'
 			),
 	});
+	const matrix = defineCommand({
+		...common,
+		name: 'specimen-matrix',
+		description:
+			'Capture one entry once per combination of explicit context axes, each in its own browser context. Comparable cells diff against the first captured cell, and a cell that could not be captured stays visible with its reason. Read data.counts and each cell; an unavailable cell is a successful command.',
+		mutation: false,
+		input: matrixRequestSchema,
+		output: matrixRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.matrix(input),
+				matrixRunSchema,
+				'SPECIMEN_MATRIX_FAILED',
+				'Use specimen-list to check the id, and narrow an axis if there are too many cells.'
+			),
+	});
 	const inspect = defineCommand({
 		...common,
 		name: 'specimen-inspect',
@@ -375,6 +396,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		a11y,
 		profile,
 		baseline,
+		matrix,
 		inspect,
 		migrate,
 	] as const;
@@ -400,8 +422,20 @@ export async function executeSpecimenCommand(
 	name: string,
 	input: unknown
 ): Promise<CommandResult<unknown>> {
-	const [list, render, diff, build, validate, runStory, a11y, profile, baseline, inspect, migrate] =
-		createSpecimenCommands(bench);
+	const [
+		list,
+		render,
+		diff,
+		build,
+		validate,
+		runStory,
+		a11y,
+		profile,
+		baseline,
+		matrix,
+		inspect,
+		migrate,
+	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
 			return execute(list, input);
@@ -421,6 +455,8 @@ export async function executeSpecimenCommand(
 			return execute(profile, input);
 		case 'specimen-baseline':
 			return execute(baseline, input);
+		case 'specimen-matrix':
+			return execute(matrix, input);
 		case 'specimen-inspect':
 			return execute(inspect, input);
 		case 'specimen-migrate':
