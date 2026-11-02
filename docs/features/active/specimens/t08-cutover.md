@@ -1,6 +1,6 @@
 # T08 consumer cutover and distribution
 
-**State, 2026-11-02:** in progress, on [the owner's decisions](#the-owners-decisions). Native helpers and types are done, and [AFD's FAST-AF stories now run here on Specimen](#afds-fast-af-stories), with no Storybook. Lushly has not changed, and nothing has been published.
+**State, 2026-11-02:** done for AFD's FAST-AF stories, which now run only on Specimen, and open for Lushly. Specimen is marked as a preview. [Three qualifying pairs](#qualifying-pairs) agree exactly on main. Lushly's move is [its issue](https://github.com/lushly-dev/lushly/issues/2116), blocked until the packages can be installed. Nothing has been published.
 
 T08's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): three consecutive qualifying full runner pairs on accepted consumer main snapshots with no migration change between them, normal consumer gates passing, review, scaffold and flake behaviour preserved, legacy Fluent exceptions accounted for, and exact rollback checkpoints. Package admission and main delivery go through their normal workflows.
 
@@ -8,16 +8,16 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 
 | Requirement | State | Who |
 | --- | --- | --- |
-| Three consecutive pairs agree exactly | Rehearsed on both consumers, [below](#the-rehearsal) | Must be repeated on the accepted snapshots at cutover |
+| Three consecutive pairs agree exactly | FAST-AF: [qualified on AFD's main](#qualifying-pairs). Lushly: [rehearsed](#the-rehearsal) | Lushly's, at its cutover |
 | Resource gate | **On a first measurement, full suites use more CPU than Storybook.** [The owner accepts that for now](#the-owners-decisions) | Done for now, stays open as a follow-up |
 | Budgets | Met on both consumers, including Lushly's upgrade, and [lower on native helpers](#native-helpers-and-types) | Done, re-measured each change |
 | Replacement gates | Every story rule has its evidence and retirement record ([T07](t07-coverage.md#retirement-records)). [`specimen contract` now gates AFD's stories](#afds-fast-af-stories) | Done here. Lushly has no story contract to replace |
 | Native helpers and types | [Done](#native-helpers-and-types) | Done |
 | Normal consumer gates, with no root Storybook | FAST-AF: [done here](#afds-fast-af-stories). Lushly: not started | Lushly's repository |
-| Rollback checkpoints | Not started | At each consumer's cutover |
-| Legacy Fluent exceptions | Not started | Lushly |
-| Human review of the index | Links verified ([T06](t06-full-runner.md#the-review-page)); no person has reviewed it | **Owner** |
-| Distribution | All Specimen units quarantined; the FAST-AF plugin is private | **Owner** |
+| Rollback checkpoints | FAST-AF: [recorded](#rollback-for-afds-stories). Lushly: not started | Lushly's, at its cutover |
+| Legacy Fluent exceptions | None here: those components were not imported. Lushly: not started | Lushly's |
+| Human review of the index | All 407 links verified on AFD's stories; no person has reviewed it yet | **Owner** |
+| Distribution | Marked as a preview in the docs. All Specimen units stay quarantined, and the FAST-AF plugin stays private | **Owner**: Lushly cannot install it until this changes |
 
 ## The rehearsal
 
@@ -31,7 +31,7 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 
 Lushly's snapshot was refreshed for this, six commits past the one T06 used, and those brought Storybook 10.6.5, Playwright 1.64 and new stories. Parity held through the upgrade with no change to Specimen, and its budgets did not move: shell 45,329, interaction support 595,647, accessibility 586,666, total 1,227,642.
 
-**These are not yet the qualifying runs.** They ran in AFD's harness on read-only snapshots, not through each consumer's authoritative validation path, and nobody has accepted these snapshots. Lushly's main moved six commits in a day, so the proposal's rule that relevant consumer changes invalidate evidence means qualification has to happen at cutover. This shows the work is ready for that, and is stable when repeated.
+**These were not the qualifying runs.** They ran in AFD's harness on read-only snapshots, not through each consumer's authoritative validation path, and nobody has accepted these snapshots. Lushly's main moved six commits in a day, so the proposal's rule that relevant consumer changes invalidate evidence means its qualification has to happen at its cutover. FAST-AF's is [below](#qualifying-pairs).
 
 ## Resources
 
@@ -68,7 +68,7 @@ Made on 2026-11-02, in answer to this record's first version.
 | `violet-calendar`'s `Disabled` story | Fix it | In AFD's copy, since FAST-AF now lives here |
 | Distribution | Once it works end to end, the docs mark it as a preview | Lifting quarantine and publishing are still separate, and still the owner's |
 | Fastbot's adapter and rule retirement | Do it here: "FAST-AF moved into the AFD repo" | Fastbot itself was not imported, so `specimen contract` is the gate here, with no adapter to install |
-| Lushly's migration | An issue for Lushbot | Filed once there is something to migrate to |
+| Lushly's migration | An issue for Lushbot | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), in Lushly's repository, where the work lands |
 | Where AFD's FAST-AF stories run (G12) | The owner asked for a recommendation | Here, on Specimen, in AFD's FAST-AF gates. Upstream's Storybook configuration was never imported, and these stories are the ones AFD owns |
 | Human review of the index | The owner reviews it when ready | On AFD's own stories, once they run here |
 
@@ -142,17 +142,32 @@ The [`Disabled` story that disabled nothing](t07-coverage.md#finding-a-disabled-
 
 **Fixing the story found a real bug in the component.** A disabled calendar disabled only its 2 navigation buttons. Its 42 day buttons stayed enabled and focusable, doing nothing when pressed, and the whole calendar was dimmed, which failed axe's contrast check. `violet-calendar` now passes its `disabled` state into the grid, so every day button is really disabled, and the dimming on the root is gone, since disabled buttons already dim themselves. A spec covers disabling and re-enabling. An accessibility exception would have hidden this.
 
-### Pairs on AFD's stories
+### Qualifying pairs
 
 `experiments/run-afd-pairs.mjs` compares the two runners on AFD's exact stories and components. AFD has no Storybook, so that side is an overlay outside the repository: upstream's Storybook configuration and dependencies, with AFD's `src`, tokens, manifest and built packages over them, and Storybook's helpers restored in each story. Specimen's side is AFD's own configuration. So the two sides share no helper code.
 
-**A first dry run disagreed on one story, and the reason is already on record.** `components-switch--disabled` failed axe on a cold Storybook run, at 3.17:1 on disabled text, and passed on Specimen. This is [T06's finding](t06-full-runner.md#finding-storybooks-check-can-miss-a-components-rendered-state): both runners normally check before a FAST component applies its args, and a frame slipping through on a cold start shows the settled state. With warm caches, two more pairs agreed on all 407.
+Three consecutive pairs on AFD's main at `7b26afb4`, with a clean tree, one build of Specimen, two workers and no retries:
+
+| Pair | Stories | Passed in both | Disagreements | Identity mismatches |
+| --- | --- | --- | --- | --- |
+| 1 | 407 | 407 | 0 | 0 |
+| 2 | 407 | 407 | 0 | 0 |
+| 3 | 407 | 407 | 0 | 0 |
+
+Identities are checked against Storybook's own `storybook index` of the overlay. The normal gates passed on the same change, in `pnpm verify` and on the pull request, including the new `stories` job. `experiments/check-index.mjs` opened every link of the review page: 407 of 407, with no failed requests, page errors or empty previews.
+
+**A dry run before these disagreed on one story, and the reason was already on record.** `components-switch--disabled` failed axe on a cold Storybook run, at 3.17:1 on disabled text, and passed on Specimen. This is [T06's finding](t06-full-runner.md#finding-storybooks-check-can-miss-a-components-rendered-state): both runners normally check before a FAST component applies its args, and a frame slipping through on a cold start shows the settled state. So these pairs ran with Storybook's caches warm, and a cold start could disagree in this one way.
+
+### Rollback for AFD's stories
+
+Reverting [#717](https://github.com/lushly-dev/afd/pull/717) (`7b26afb4`) takes AFD's stories back to frozen and unrun. Its parent, `7fc226e6`, is the checkpoint for source, lockfile and configuration, and [#716](https://github.com/lushly-dev/afd/pull/716) can stay, since nothing but these stories uses its helpers.
 
 ## What is left
 
-- The qualifying pairs on AFD's main, once this is merged, and on Lushly's at its cutover.
-- The docs marking Specimen as a preview.
-- An issue for Lushbot, and the owner's review of the index.
+- **Lushly's move:** [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) has the steps, including what the codemod cannot reach, and Lushly's own qualifying pairs.
+- **For the owner, publishing.** That issue is blocked until the packages can be installed, which means lifting quarantine and giving the FAST-AF plugin a supported distribution if Lushly needs it.
+- **For the owner, the review of the index.**
 - **For the owner, from T06:** because of that timing, AFD's gate cannot see this contrast problem on disabled text, in this story or in the listbox's two. [Whether to offer a settled check](STATUS.md) is still open.
+- **A follow-up, since the extra CPU is accepted only for now:** measure full suites under T04's policy, and profile where the per-story time goes.
 
 T09 to T11 are optional additions and are not prerequisites for cutover.

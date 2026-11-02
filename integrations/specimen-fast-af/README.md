@@ -1,5 +1,7 @@
 # Specimen FAST-AF plugin
 
+**Preview,** like [Specimen](../../foundations/specimen/README.md).
+
 `@lushly-dev/specimen-fast-af` adds FAST-AF's knowledge to a Specimen bench through three of Specimen's plugin points:
 
 - **Schema source.** It enables FAST's Definition Schema and merges each FAST element's definition into the schema core reads from the custom elements manifest: properties and their finite values, slots, events, CSS properties and `@command` commands. Where the manifest already states something, the manifest's statement stays.

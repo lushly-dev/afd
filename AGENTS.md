@@ -60,10 +60,10 @@ packages/
 python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
 alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 endpoints/botcore/  # Reusable Python tooling and managed host; imported units remain quarantined
-foundations/specimen/       # @lushly-dev/specimen — native component observation bench (no AFD dependency); quarantined
-integrations/specimen-afd/  # @lushly-dev/specimen-afd — AFD command bindings for Specimen; quarantined
-integrations/specimen-fast-af/  # @lushly-dev/specimen-fast-af — FAST-AF plugin for Specimen (Definition Schema, @command runner, theme presets); private, quarantined
-endpoints/specimen-cli/     # @lushly-dev/specimen-cli — the `specimen` JSON CLI; quarantined
+foundations/specimen/       # @lushly-dev/specimen — native component observation bench (no AFD dependency); preview, quarantined
+integrations/specimen-afd/  # @lushly-dev/specimen-afd — AFD command bindings for Specimen; preview, quarantined
+integrations/specimen-fast-af/  # @lushly-dev/specimen-fast-af — FAST-AF plugin for Specimen (Definition Schema, @command runner, theme presets); preview, private, quarantined
+endpoints/specimen-cli/     # @lushly-dev/specimen-cli — the `specimen` JSON CLI; preview, quarantined
 foundations/fast-af/        # FAST-AF, upstream layout and provenance; quarantined, no AFD/Specimen/Violet dependency
 ├── packages/element/packages/fast-element/  # @lushly-dev/fast-element — web component runtime (38 exports)
 └── packages/violet-elements/                # @lushly-dev/violet-elements — FAST-AF components (private upstream)
