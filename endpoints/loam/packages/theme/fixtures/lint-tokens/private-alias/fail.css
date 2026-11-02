@@ -1,0 +1,5 @@
+:host {
+	--_loop: var(--_other);
+	padding: var(--_inset);
+	margin: var(--_loop);
+}

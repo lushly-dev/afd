@@ -1,26 +1,94 @@
+import { readFile, rename, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
+import { RANDOM_SEED } from './baseline.js';
 import type { SpecimenBench } from './bench.js';
 import {
+	bundled,
 	defaultContext,
 	digest,
 	type LoadedConfig,
 	loadConfig,
-	renderable,
 	resolveContext,
 } from './config.js';
+import { runContract } from './contract.js';
+import { runCoverage } from './coverage-run.js';
+import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
+import {
+	BASELINE_RUNNER,
+	compareProfile,
+	DEFAULT_BASELINE_RUNS,
+	DEFAULT_PROFILE_RUNS,
+	parseBaselines,
+	profileFlags,
+	summarizeProfile,
+	withBaseline,
+} from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
+import { suggestSpecimens } from './suggest.js';
+import {
+	DEFAULT_FLAKE_CAP,
+	DEFAULT_SUITE_WORKERS,
+	executeSuite,
+	matrixCells,
+	pool,
+	selectEntries,
+	selectStories,
+} from './suite.js';
 import { startTrace, traced } from './trace.js';
 import {
+	type A11yReport,
+	type A11yRequest,
+	type A11yRun,
+	type AxeOutcome,
+	type BaselineRequest,
 	type BenchOptions,
 	type BrowserObservation,
 	CAPTURE_VERSION,
+	type CaptureCheckpoint,
 	type Completeness,
+	type ContractRequest,
+	type ContractRun,
+	type CoverageRequest,
+	type CoverageRun,
+	type InspectRequest,
+	type InspectResult,
+	type MatrixCell,
+	type MatrixRequest,
+	type MatrixRun,
 	NORMALIZATION_VERSION,
 	type Observation,
+	type ProfileBaseline,
+	type ProfileBaselines,
+	type ProfileReport,
+	type ProfileRequest,
+	type ProfileRun,
+	type ProfileSample,
+	type RunRequest,
+	type SpecimenContext,
+	type SpecimenEntry,
+	type StoryOutcome,
+	type StoryRun,
+	type SuggestRequest,
+	type SuggestRun,
+	type SuiteCapture,
+	type SuiteRequest,
+	type SuiteRun,
 } from './types.js';
-import { parseCaptureRequest } from './validate.js';
+import {
+	parseA11yRequest,
+	parseBaselineRequest,
+	parseCaptureRequest,
+	parseContractRequest,
+	parseCoverageRequest,
+	parseMatrixRequest,
+	parseProfileRequest,
+	parseSuggestRequest,
+	parseSuiteRequest,
+} from './validate.js';
 
 function coverage(
 	status: Completeness['status'],
@@ -31,16 +99,45 @@ function coverage(
 }
 /** Bundling, Chromium's startup (bounded at 10 s) and two seconds of cleanup, beyond a deadline. */
 const HOST_GRACE = 30_000;
+/** A retained story's deadline: Vitest's `testTimeout` in browser mode, its incumbent's runner. */
+const DEFAULT_STORY_TIMEOUT_MS = 15_000;
+/** The context axes the host emulates over CDP, so a story sees them as a real browser would. */
+const HOST_EMULATES = [
+	'viewport',
+	'pixel-ratio',
+	'color-scheme',
+	'contrast',
+	'reduced-motion',
+	'locale',
+];
+const bench = createRequire(import.meta.url)('../package.json') as {
+	name: string;
+	version: string;
+};
+/** Bundling a whole suite's stories has no render's deadline; this covers a host that hangs. */
+const BUNDLE_GRACE = 300_000;
 /** What the native host returns for one render. */
+/** A sample's measurements, as the page and host report them, before its console counts. */
+type PageMeasurements = Omit<ProfileSample, 'consoleErrors' | 'consoleWarnings'>;
+
 interface HostRender {
 	/** The page's capture, with its DOM normalized in the page by `normalizeDom`. */
-	captured: BrowserObservation & { normalized: string };
+	/** `null` when a suite's capture mode left this story without one. */
+	captured: (BrowserObservation & { normalized: string }) | null;
 	snapshot: string;
 	screenshot: string | null;
 	console: { errors: string[]; warnings: string[] };
 	/** `file:digest` for every bundle file the page loaded, sorted. */
 	loaded: string[];
 	browser: string;
+	/** The context the page rendered in; a retained story settles its own. */
+	context: SpecimenContext;
+	/** A retained story's run, at the after-run checkpoint. */
+	outcome: StoryOutcome | null;
+	/** An accessibility check the request asked for. */
+	accessibility?: AxeOutcome | null;
+	/** The page's measurements at the checkpoint, when the request asked for them. */
+	profile?: PageMeasurements | null;
 }
 /**
  * The bench runtime. Rendering runs in the native host (`host/`): it bundles the bench with
@@ -50,7 +147,7 @@ interface HostRender {
 export async function createInProcessBench(
 	options: BenchOptions,
 	validatedConfig?: LoadedConfig
-): Promise<Omit<SpecimenBench, 'validate'>> {
+): Promise<Omit<SpecimenBench, 'validate' | 'migrate'>> {
 	const createTrace = startTrace('bench-create');
 	const config =
 		validatedConfig ?? (await traced(createTrace, 'load-config', () => loadConfig(options)));
@@ -61,6 +158,7 @@ export async function createInProcessBench(
 	const ensureOpen = () => {
 		if (closed) throw new Error('Specimen bench is closed');
 	};
+	const browserBuild = options.executablePath ? digest(options.executablePath) : null;
 	// Started by the first render; Chromium launches while the first bundle builds.
 	const ensureHost = () =>
 		(host ??= (async () => {
@@ -72,11 +170,12 @@ export async function createInProcessBench(
 					{
 						root: config.root,
 						runtime: browserRuntimePath(),
-						modules: Object.entries(renderable(config).modules),
-						entries: renderable(config).entries,
+						modules: Object.entries(bundled(config).modules),
+						entries: bundled(config).entries,
 						defaults: defaultContext,
 						executable,
 						work: tmpdir(),
+						staticDirs: config.staticDirs,
 					},
 					HOST_GRACE
 				)) as { browserPid: number };
@@ -87,7 +186,415 @@ export async function createInProcessBench(
 				throw error;
 			}
 		})());
-	return {
+	/** One capture through the host; a retained story's context comes back settled. */
+	async function capture(
+		parsed: ReturnType<typeof parseCaptureRequest>,
+		options: {
+			capture?: SuiteCapture;
+			reuseBundle?: boolean;
+			accessibility?: boolean;
+			profile?: boolean;
+			observe?: SpecimenEntry['observe'];
+		} = {}
+	): Promise<{
+		observation: Observation | null;
+		outcome: StoryOutcome | null;
+		accessibility: AxeOutcome | null;
+		profile: PageMeasurements | null;
+	}> {
+		const request = {
+			...parsed,
+			checkpoint: parsed.checkpoint ?? 'mount',
+			timeoutMs: parsed.timeoutMs ?? 10_000,
+		};
+		const entry = config.entries.find((item) => item.id === request.id);
+		if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+		// A retained story settles its own context in the page, starting from the request.
+		const provisional: SpecimenContext = entry.story
+			? resolveContext({ ...request.context, themeMedia: 'browser-default' })
+			: resolveContext(request.context);
+		const trace = startTrace('render', { id: entry.id, checkpoint: request.checkpoint });
+		try {
+			const runtime = await traced(trace, host ? 'host-ready' : 'host-start', ensureHost);
+			const screenshot = request.screenshot ? resolve(config.root, request.screenshot) : null;
+			// Source and lockfile identity are read while the page renders.
+			const [rendered, identity] = await Promise.all([
+				traced(
+					trace,
+					'host-render',
+					() =>
+						runtime.request(
+							'render',
+							{
+								entry: options.observe ? { ...entry, observe: options.observe } : entry,
+								context: provisional,
+								checkpoint: request.checkpoint,
+								timeoutMs: request.timeoutMs,
+								screenshot,
+								...(entry.story
+									? { requested: request.context ?? {}, defaults: defaultContext }
+									: {}),
+								...(options.capture ? { capture: options.capture } : {}),
+								...(options.reuseBundle ? { reuseBundle: true } : {}),
+								...(options.accessibility ? { accessibility: true } : {}),
+								...(options.profile ? { profile: true } : {}),
+							},
+							// The host bounds the render itself; this covers a host that stops answering.
+							request.timeoutMs + HOST_GRACE
+						) as Promise<HostRender>
+				),
+				// A suite reads this once for the stories it keeps a capture of, below.
+				options.capture
+					? null
+					: traced(trace, 'provenance', () =>
+							Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
+						),
+			]);
+			const accessibility = rendered.accessibility ?? null;
+			const profile = rendered.profile ?? null;
+			if (!rendered.captured)
+				return { observation: null, outcome: rendered.outcome ?? null, accessibility, profile };
+			const axe = accessibility ?? rendered.outcome?.a11y;
+			const [source, dependencies] =
+				identity ??
+				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
+			const { captured, snapshot, loaded } = rendered;
+			const context = entry.story ? rendered.context : provisional;
+			trace?.record({ resources: loaded.length });
+			const limitations = captured.limitations;
+			const unstable = limitations.filter((value) => value.includes('time-dependent'));
+			// Layout and styles observed under a context other than the manifest's are not evidence for it.
+			const contextual = [
+				...unstable,
+				...limitations.filter((value) => value.startsWith('Context mismatch')),
+			];
+			const observation = {
+				manifest: {
+					captureVersion: CAPTURE_VERSION,
+					normalizationVersion: NORMALIZATION_VERSION,
+					specimenId: entry.id,
+					capturedUtc: new Date().toISOString(),
+					bench: { name: bench.name, version: bench.version, plugins: captured.plugins },
+					driver: { name: 'host' as const, emulates: HOST_EMULATES },
+					checkpoint: {
+						name: request.checkpoint,
+						actionMode: (request.checkpoint === 'mount'
+							? 'none'
+							: entry.story
+								? 'play'
+								: 'real-input') as CaptureCheckpoint['actionMode'],
+						ready: { ...captured.ready, deadlineMs: request.timeoutMs },
+						baseline: {
+							clock: 'real' as const,
+							random: { source: 'seeded' as const, seed: RANDOM_SEED },
+							storage: 'empty' as const,
+						},
+					},
+					source: {
+						...source,
+						digest: digest([config.digest, ...loaded].join('\n')),
+					},
+					dependencies,
+					browser: {
+						name: 'chromium',
+						version: rendered.browser,
+						platform: `${process.platform}-${process.arch}`,
+						build: browserBuild,
+					},
+					context: {
+						...context,
+						pixelRatio: 1,
+						observed: captured.viewport,
+						resources: captured.resources,
+					},
+				},
+				channels: {
+					dom: { raw: captured.dom, normalized: captured.normalized },
+					a11y: { snapshot, axe: axe && axe.status !== 'not-run' ? axe : 'not-run' },
+					events: {
+						declared: captured.events.declared,
+						history: captured.events.history,
+					},
+					evidence: captured.evidence,
+					elements: captured.elements,
+					console: rendered.console,
+					visual: { path: rendered.screenshot },
+				},
+				completeness: {
+					dom: coverage(
+						limitations.some((value) => value.toLowerCase().includes('closed'))
+							? 'partial'
+							: 'complete',
+						'light DOM and accessible open shadow roots',
+						limitations.filter((value) => value.toLowerCase().includes('closed'))
+					),
+					a11y:
+						axe && axe.status !== 'not-run'
+							? coverage('complete', 'ARIA snapshot and axe', [])
+							: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
+					layout: coverage(
+						contextual.length ? 'partial' : 'complete',
+						'boxes and scroll extents of accessible elements; pseudo-element geometry excluded',
+						contextual
+					),
+					styles: coverage(
+						contextual.length ? 'partial' : 'complete',
+						'versioned selected computed CSS properties on accessible elements',
+						contextual
+					),
+					tokens: coverage('unsupported', 'token dependencies', ['TOKEN_DETECTOR_NOT_IMPLEMENTED']),
+					events: captured.events.declared.length
+						? coverage(
+								captured.events.unresolved.length ? 'partial' : 'complete',
+								'declared events on their targets and roots',
+								captured.events.unresolved.map(
+									(target) => `Declared event target '${target}' did not resolve.`
+								)
+							)
+						: coverage('not-requested', 'declared event history', ['NO_EVENTS_DECLARED']),
+					visual: coverage(rendered.screenshot ? 'partial' : 'not-requested', 'appearance', [
+						...limitations,
+						...(rendered.screenshot
+							? ['PIXEL_COMPARISON_NOT_IMPLEMENTED']
+							: ['SCREENSHOT_NOT_REQUESTED']),
+					]),
+				},
+			} satisfies Observation;
+			return { observation, outcome: rendered.outcome ?? null, accessibility, profile };
+		} finally {
+			await trace?.flush();
+		}
+	}
+
+	async function readBaselines(): Promise<ProfileBaselines | null> {
+		if (!config.baselines) return null;
+		const text = await readFile(config.baselines, 'utf8').catch((error: NodeJS.ErrnoException) => {
+			if (error.code === 'ENOENT') return null;
+			throw error;
+		});
+		return text === null ? null : parseBaselines(text, config.baselines);
+	}
+
+	/** One entry's runs at its checkpoint, each a fresh browser context, one after another. */
+	async function profileEntry(
+		entry: SpecimenEntry,
+		request: ProfileRequest,
+		runs: number,
+		baseline: ProfileBaseline | undefined
+	): Promise<ProfileReport> {
+		const checkpoint = request.checkpoint ?? 'mount';
+		const samples: ProfileSample[] = [];
+		const report = {
+			id: entry.id,
+			checkpoint,
+			runs,
+			provenance: {
+				runner: BASELINE_RUNNER,
+				capturedAt: new Date().toISOString(),
+				source: null as { revision: string | null; dirty: boolean | null } | null,
+			},
+		};
+		let viewport: string | null = null;
+		let browser: string | null = null;
+		try {
+			for (let run = 0; run < runs; run++) {
+				const { observation, profile } = await capture(
+					{
+						id: entry.id,
+						checkpoint,
+						...(request.context ? { context: request.context } : {}),
+						timeoutMs:
+							request.timeoutMs ??
+							(entry.story ? (config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS) : 10_000),
+					},
+					{ reuseBundle: true, profile: true }
+				);
+				if (!observation || !profile) throw new Error('The host returned no measurements');
+				const size = observation.manifest.context.viewport;
+				viewport = `${size.width}x${size.height}`;
+				browser = observation.manifest.browser.version;
+				report.provenance.source = {
+					revision: observation.manifest.source.revision,
+					dirty: observation.manifest.source.dirty,
+				};
+				samples.push({
+					...profile,
+					consoleErrors: observation.channels.console.errors.length,
+					consoleWarnings: observation.channels.console.warnings.length,
+				});
+			}
+		} catch (error) {
+			return {
+				...report,
+				viewport,
+				browser,
+				samples,
+				summary: null,
+				flags: [],
+				comparison: null,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+		const summary = summarizeProfile(samples);
+		return {
+			...report,
+			viewport,
+			browser,
+			samples,
+			summary,
+			flags: profileFlags(summary),
+			comparison: baseline
+				? compareProfile(baseline, summary, {
+						viewport: viewport as string,
+						checkpoint,
+						browser: browser as string,
+					})
+				: null,
+		};
+	}
+
+	function profileCounts(reports: readonly ProfileReport[]): ProfileRun['counts'] {
+		const count = (status: NonNullable<ProfileReport['comparison']>['status']) =>
+			reports.filter((report) => report.comparison?.status === status).length;
+		return {
+			total: reports.length,
+			passed: count('passed'),
+			warnings: count('warnings'),
+			failed: count('failed'),
+			notComparable: count('not-comparable'),
+			noBaseline: reports.filter((report) => !report.comparison && !report.error).length,
+			errored: reports.filter((report) => report.error !== undefined).length,
+		};
+	}
+
+	/** One entry's check at a checkpoint: a story's play comes first, and its policy governs. */
+	async function accessibilityReport(
+		entry: SpecimenEntry,
+		request: A11yRequest
+	): Promise<A11yReport> {
+		const checkpoint = request.checkpoint ?? 'after-run';
+		try {
+			const { outcome, accessibility } = await capture(
+				{
+					id: entry.id,
+					checkpoint,
+					...(request.context ? { context: request.context } : {}),
+					timeoutMs:
+						request.timeoutMs ??
+						(entry.story ? (config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS) : 10_000),
+				},
+				{ capture: 'none', reuseBundle: true, accessibility: true }
+			);
+			const axe = accessibility ?? outcome?.a11y;
+			if (!axe) throw new Error('The host returned no accessibility check');
+			return {
+				...axe,
+				id: entry.id,
+				checkpoint,
+				failures: (outcome?.failures ?? []).flatMap((failure) =>
+					failure.category === 'a11y'
+						? []
+						: [{ category: failure.category, message: failure.message }]
+				),
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				status: 'not-run',
+				policy: 'error',
+				reason: 'it did not reach the check',
+				violations: [],
+				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
+				id: entry.id,
+				checkpoint,
+				failures: [{ category: 'render', message }],
+			};
+		}
+	}
+
+	/** One retained story's run, or the outcome that says why it did not run. */
+	async function runStory(
+		parsed: ReturnType<typeof parseCaptureRequest>,
+		options: {
+			capture?: SuiteCapture;
+			reuseBundle?: boolean;
+			observe?: SpecimenEntry['observe'];
+		} = {}
+	): Promise<StoryRun> {
+		const entry = config.entries.find((item) => item.id === parsed.id);
+		if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
+		if (!entry.story)
+			throw new Error(
+				`${entry.id} is a native specimen; run applies to retained stories. Render its checkpoints instead.`
+			);
+		// The Vitest addon's selection: include and exclude test the index's tags (with `play-fn`,
+		// without `manifest`), and skip tests the runtime's (without either).
+		const tags = entry.story.tags.filter((tag) => tag !== 'manifest');
+		const selection = config.config.test ?? {};
+		const include = selection.include ?? ['test'];
+		const unselected =
+			(include.length > 0 && !include.some((tag) => tags.includes(tag))) ||
+			(selection.exclude ?? []).some((tag) => tags.includes(tag));
+		const skipped = (selection.skip ?? []).some((tag) => tag !== 'play-fn' && tags.includes(tag));
+		if (unselected || skipped)
+			return {
+				id: entry.id,
+				outcome: {
+					status: unselected ? 'excluded' : 'skipped',
+					play: 'none',
+					failures: [],
+					a11y: {
+						status: 'not-run',
+						policy: 'error',
+						reason: unselected
+							? 'the story is not a test under the include and exclude tags'
+							: 'the story has a skip tag',
+						violations: [],
+						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
+					},
+				},
+				observation: null,
+			};
+		try {
+			const { observation, outcome } = await capture(
+				{
+					...parsed,
+					checkpoint: 'after-run',
+					timeoutMs: parsed.timeoutMs ?? config.config.test?.timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS,
+				},
+				options
+			);
+			if (!outcome) throw new Error('The host returned no outcome for the run');
+			return { id: entry.id, outcome, observation };
+		} catch (error) {
+			// A story that fails to compose or render fails its run, as its test does.
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				id: entry.id,
+				outcome: {
+					status: 'failed',
+					play: 'none',
+					failures: [{ category: 'render', message }],
+					a11y: {
+						status: 'not-run',
+						policy: 'error',
+						reason: 'the story did not render',
+						violations: [],
+						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
+					},
+				},
+				observation: null,
+			};
+		}
+	}
+
+	const api: Omit<SpecimenBench, 'migrate' | 'validate'> = {
 		list() {
 			ensureOpen();
 			return config.entries.map((entry) => ({ ...entry }));
@@ -104,115 +611,354 @@ export async function createInProcessBench(
 		},
 		async render(rawRequest) {
 			ensureOpen();
+			return (await capture(parseCaptureRequest(rawRequest))).observation as Observation;
+		},
+		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
+			ensureOpen();
 			const parsed = parseCaptureRequest(rawRequest);
-			const request = {
-				...parsed,
-				checkpoint: parsed.checkpoint ?? 'mount',
-				timeoutMs: parsed.timeoutMs ?? 10_000,
-			};
+			const entry = config.entries.find((item) => item.id === parsed.id);
+			if (!entry) throw new Error(`Specimen not found: ${parsed.id}`);
+			const timeoutMs = parsed.timeoutMs ?? 10_000;
+			const provisional = entry.story
+				? resolveContext({ ...parsed.context, themeMedia: 'browser-default' })
+				: resolveContext(parsed.context);
+			const runtime = await ensureHost();
+			const inspected = (await runtime.request(
+				'render',
+				{
+					entry,
+					context: provisional,
+					checkpoint: 'mount',
+					timeoutMs,
+					screenshot: null,
+					requested: parsed.context ?? {},
+					defaults: provisional,
+					inspect: { schema: (entry.component && config.schemas[entry.component]) || null },
+				},
+				timeoutMs + HOST_GRACE
+			)) as HostRender;
+			return inspected.captured as unknown as InspectResult;
+		},
+		async run(rawRequest: RunRequest): Promise<StoryRun> {
+			ensureOpen();
+			return runStory(parseCaptureRequest(rawRequest));
+		},
+		async matrix(rawRequest: MatrixRequest): Promise<MatrixRun> {
+			ensureOpen();
+			const request = parseMatrixRequest(rawRequest);
 			const entry = config.entries.find((item) => item.id === request.id);
 			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
-			if (entry.story)
-				throw Object.assign(
-					new Error(
-						`${entry.id} is a retained story; rendering stories in compatibility mode is not available yet`
-					),
-					{ code: 'STORY_RENDER_UNAVAILABLE' }
-				);
-			const context = resolveContext(request.context);
-			const trace = startTrace('render', { id: entry.id, checkpoint: request.checkpoint });
-			try {
-				const runtime = await traced(trace, host ? 'host-ready' : 'host-start', ensureHost);
-				const screenshot = request.screenshot ? resolve(config.root, request.screenshot) : null;
-				// Source and lockfile identity are read while the page renders.
-				const [rendered, [source, dependencies]] = await Promise.all([
-					traced(
-						trace,
-						'host-render',
-						() =>
-							runtime.request(
-								'render',
-								{
-									entry,
-									context,
-									checkpoint: request.checkpoint,
-									timeoutMs: request.timeoutMs,
-									screenshot,
-								},
-								// The host bounds the render itself; this covers a host that stops answering.
-								request.timeoutMs + HOST_GRACE
-							) as Promise<HostRender>
-					),
-					traced(trace, 'provenance', () =>
-						Promise.all([sourceState(config.root), dependencyIdentity(config.root)])
-					),
-				]);
-				const { captured, snapshot, loaded } = rendered;
-				trace?.record({ resources: loaded.length });
-				const limitations = captured.limitations;
-				const unstable = limitations.filter((value) => value.includes('time-dependent'));
-				// Layout and styles observed under a context other than the manifest's are not evidence for it.
-				const contextual = [
-					...unstable,
-					...limitations.filter((value) => value.startsWith('Context mismatch')),
-				];
-				return {
-					manifest: {
-						captureVersion: CAPTURE_VERSION,
-						normalizationVersion: NORMALIZATION_VERSION,
-						specimenId: entry.id,
-						checkpoint: request.checkpoint,
-						source: {
-							...source,
-							digest: digest([config.digest, ...loaded].join('\n')),
+			const cells = matrixCells(request.axes);
+			const axes = Object.keys(request.axes) as (keyof SpecimenContext)[];
+			const checkpoint = request.checkpoint ?? (entry.story ? 'mount' : 'after-run');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			// Each cell is a capture of its own, in its own browser context.
+			const captures = await pool(cells, workers, async (cell) => {
+				try {
+					const { observation } = await capture(
+						{
+							id: entry.id,
+							checkpoint,
+							context: { ...request.context, ...cell },
+							...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
 						},
-						dependencies,
-						browser: { name: 'chromium', version: rendered.browser },
+						{ reuseBundle: true }
+					);
+					return { observation: observation as Observation };
+				} catch (error) {
+					return { reason: error instanceof Error ? error.message : String(error) };
+				}
+			});
+			const baseline = captures.find((item) => item.observation)?.observation;
+			const results: MatrixCell[] = cells.map((context, index) => {
+				const { observation, reason } = captures[index] as {
+					observation?: Observation;
+					reason?: string;
+				};
+				if (!observation)
+					return { context, status: 'unavailable', reason: reason as string, diff: null };
+				const kept = request.observations ? { observation } : {};
+				if (observation === baseline) return { context, status: 'captured', diff: null, ...kept };
+				try {
+					const diff = diffObservations(baseline as Observation, observation, {
+						allowContextDifferences: axes,
+					});
+					return {
 						context,
+						status: 'captured',
+						diff: {
+							status: diff.status,
+							channels: [...new Set(diff.differences.map((item) => item.channel))],
+							differences: diff.differences.length,
+							limitations: diff.limitations,
+						},
+						...kept,
+					};
+				} catch (error) {
+					// Captured, but not comparable with the first: a story may settle its own context.
+					return {
+						context,
+						status: 'captured',
+						diff: {
+							status: 'insufficient-evidence',
+							channels: [],
+							differences: 0,
+							limitations: [error instanceof Error ? error.message : String(error)],
+						},
+						...kept,
+					};
+				}
+			});
+			const count = (status: NonNullable<MatrixCell['diff']>['status']) =>
+				results.filter((cell) => cell.diff?.status === status).length;
+			return {
+				id: entry.id,
+				checkpoint,
+				axes,
+				cells: results,
+				counts: {
+					total: results.length,
+					captured: results.filter((cell) => cell.status === 'captured').length,
+					unavailable: results.filter((cell) => cell.status === 'unavailable').length,
+					changed: count('changed'),
+					unchanged: count('no-change-observed'),
+					insufficient: count('insufficient-evidence'),
+				},
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async profile(rawRequest: ProfileRequest = {}): Promise<ProfileRun> {
+			ensureOpen();
+			const request = parseProfileRequest(rawRequest);
+			const baselines = await readBaselines();
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: request.filter
+					? selectEntries(config.entries, request.filter, config.root)
+					: config.entries.filter((entry) => baselines?.stories[entry.id]);
+			const orphaned = Object.keys(baselines?.stories ?? {}).filter(
+				(id) => !config.entries.some((entry) => entry.id === id)
+			);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length)
+				throw new Error(
+					request.filter
+						? 'No specimen or retained story matches the filter.'
+						: `No entry has a recorded baseline${orphaned.length ? `, and ${orphaned.length} name no current entry (${orphaned.join(', ')})` : ''}. Give an id or a filter, or record one with specimen-baseline.`
+				);
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const reports: ProfileReport[] = [];
+			// One at a time: a neighbour's work would be in every measurement.
+			for (const entry of entries)
+				reports.push(
+					await profileEntry(
+						entry,
+						request,
+						request.runs ?? DEFAULT_PROFILE_RUNS,
+						baselines?.stories[entry.id]
+					)
+				);
+			return {
+				reports,
+				counts: profileCounts(reports),
+				orphanedBaselines: orphaned,
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async recordBaseline(rawRequest: BaselineRequest): Promise<ProfileRun> {
+			ensureOpen();
+			const request = parseBaselineRequest(rawRequest);
+			if (!config.baselines)
+				throw new Error(
+					'Set profile.baselines in the configuration to say where baselines are kept.'
+				);
+			if (!request.id && !request.filter)
+				throw new Error('Give an id or a filter; recording replaces what is there.');
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: selectEntries(config.entries, request.filter, config.root);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const runs = request.runs ?? DEFAULT_BASELINE_RUNS;
+			const reports: ProfileReport[] = [];
+			let text = await readFile(config.baselines, 'utf8').catch((error: NodeJS.ErrnoException) => {
+				if (error.code === 'ENOENT') return null;
+				throw error;
+			});
+			let changed = false;
+			for (const entry of entries) {
+				const report = await profileEntry(entry, request, runs, undefined);
+				reports.push(report);
+				// A failed run records nothing, so it cannot replace a good baseline.
+				if (report.summary === null) continue;
+				text = withBaseline(
+					text,
+					config.baselines,
+					entry.id,
+					{
+						storyId: entry.id,
+						runner: BASELINE_RUNNER,
+						viewport: report.viewport as string,
+						checkpoint: report.checkpoint,
+						browser: report.browser as string,
+						runs,
+						capturedAt: report.provenance.capturedAt,
+						...(report.provenance.source ? { source: report.provenance.source } : {}),
+						summary: report.summary,
 					},
-					channels: {
-						dom: { raw: captured.dom, normalized: captured.normalized },
-						a11y: { snapshot, axe: 'not-run' },
-						elements: captured.elements,
-						console: rendered.console,
-						visual: { path: rendered.screenshot },
-					},
-					completeness: {
-						dom: coverage(
-							limitations.some((value) => value.toLowerCase().includes('closed'))
-								? 'partial'
-								: 'complete',
-							'light DOM and accessible open shadow roots',
-							limitations.filter((value) => value.toLowerCase().includes('closed'))
-						),
-						a11y: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
-						layout: coverage(
-							contextual.length ? 'partial' : 'complete',
-							'boxes and scroll extents of accessible elements; pseudo-element geometry excluded',
-							contextual
-						),
-						styles: coverage(
-							contextual.length ? 'partial' : 'complete',
-							'versioned selected computed CSS properties on accessible elements',
-							contextual
-						),
-						tokens: coverage('unsupported', 'token dependencies', [
-							'TOKEN_DETECTOR_NOT_IMPLEMENTED',
-						]),
-						events: coverage('unsupported', 'declared event history', [
-							'EVENT_CAPTURE_NOT_IMPLEMENTED',
-						]),
-						visual: coverage(rendered.screenshot ? 'partial' : 'not-requested', 'appearance', [
-							...limitations,
-							...(rendered.screenshot
-								? ['PIXEL_COMPARISON_NOT_IMPLEMENTED']
-								: ['SCREENSHOT_NOT_REQUESTED']),
-						]),
-					},
-				} satisfies Observation;
-			} finally {
-				await trace?.flush();
+					request.notes ?? []
+				);
+				changed = true;
 			}
+			if (changed && text !== null) {
+				const temporary = `${config.baselines}.${process.pid}.tmp`;
+				await writeFile(temporary, text);
+				await rename(temporary, config.baselines);
+			}
+			return {
+				reports,
+				counts: profileCounts(reports),
+				orphanedBaselines: [],
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async suggest(rawRequest: SuggestRequest): Promise<SuggestRun> {
+			ensureOpen();
+			const started = performance.now();
+			const { component, gaps, ...limits } = parseSuggestRequest(rawRequest);
+			const known = config.schemas[component];
+			if (!known) throw new Error(`The manifest does not describe ${component}.`);
+			// Only a run can say what is unverified, unless the caller already knows.
+			const wanted =
+				gaps ??
+				(await api.coverage({ component, ...limits })).components
+					.flatMap((item) => item.obligations)
+					.filter((item) => item.level !== 'verified' && !item.waiver)
+					.map((item) => item.id);
+			return {
+				...suggestSpecimens(known, wanted),
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async contract(rawRequest: ContractRequest = {}): Promise<ContractRun> {
+			ensureOpen();
+			return runContract(
+				{
+					config,
+					prepare: async () => {
+						const runtime = await ensureHost();
+						await runtime.request('prepare', {}, BUNDLE_GRACE);
+					},
+					inspect: (id) => api.inspect({ id }),
+					runStory: (id, timeoutMs, observe) =>
+						runStory(
+							{ id, ...(timeoutMs ? { timeoutMs } : {}) },
+							{ capture: 'all', reuseBundle: true, observe }
+						),
+				},
+				parseContractRequest(rawRequest)
+			);
+		},
+		async coverage(rawRequest: CoverageRequest = {}): Promise<CoverageRun> {
+			ensureOpen();
+			return runCoverage(
+				{
+					config,
+					prepare: async () => {
+						const runtime = await ensureHost();
+						await runtime.request('prepare', {}, BUNDLE_GRACE);
+					},
+					inspect: async (id) => (await api.inspect({ id })).schema,
+					runStory: (id, timeoutMs, observe) =>
+						runStory(
+							{ id, ...(timeoutMs ? { timeoutMs } : {}) },
+							{ capture: 'all', reuseBundle: true, observe }
+						),
+					render: async (id, checkpoint, timeoutMs, observe) =>
+						(
+							await capture(
+								parseCaptureRequest({ id, checkpoint, ...(timeoutMs ? { timeoutMs } : {}) }),
+								{ reuseBundle: true, observe }
+							)
+						).observation,
+				},
+				parseCoverageRequest(rawRequest)
+			);
+		},
+		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
+			ensureOpen();
+			const request = parseA11yRequest(rawRequest);
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: selectEntries(config.entries, request.filter, config.root);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const reports = await pool(entries, workers, (entry) => accessibilityReport(entry, request));
+			const count = (status: A11yReport['status']) =>
+				reports.filter((report) => report.status === status).length;
+			return {
+				reports,
+				counts: {
+					total: reports.length,
+					passed: count('passed'),
+					warning: count('warning'),
+					failed: count('failed'),
+					notRun: count('not-run'),
+				},
+				workers,
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
+			ensureOpen();
+			const request = parseSuiteRequest(rawRequest);
+			const stories = selectStories(config.entries, request.filter, config.root);
+			if (!stories.length) throw new Error('No retained story matches the filter.');
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			// One snapshot of the sources for the whole suite, so that a change during the run cannot
+			// mix two generations; `sourcesChanged` reports one.
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const suite = await executeSuite(
+				config.root,
+				stories,
+				async (entry) => {
+					const { outcome, observation } = await runStory(
+						{
+							id: entry.id,
+							...(request.context ? { context: request.context } : {}),
+							...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
+						},
+						{ capture: request.capture ?? 'failed', reuseBundle: true }
+					);
+					return { outcome, observation };
+				},
+				{
+					workers,
+					retry: request.retry ?? false,
+					flakeCap: request.flakeCap ?? DEFAULT_FLAKE_CAP,
+				}
+			);
+			const { stale } = (await runtime.request('stale', {}, HOST_GRACE)) as { stale: boolean };
+			return {
+				...suite,
+				workers,
+				elapsedMs: performance.now() - started,
+				sourcesChanged: stale,
+			};
 		},
 		close() {
 			closing ??= (async () => {
@@ -223,4 +969,5 @@ export async function createInProcessBench(
 			return closing;
 		},
 	};
+	return api;
 }

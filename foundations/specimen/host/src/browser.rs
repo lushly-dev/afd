@@ -7,7 +7,8 @@
 use crate::aria;
 use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
-use crate::page::{Page, Viewport, prepare};
+use crate::keyboard::Keyboard;
+use crate::page::{Page, Viewport, emulate, prepare};
 use anyhow::{Result, anyhow};
 use base64::Engine;
 use serde::Deserialize;
@@ -216,6 +217,26 @@ pub struct RenderRequest {
     pub checkpoint: String,
     pub timeout_ms: u64,
     pub screenshot: Option<String>,
+    /// A retained story's requested context, which the page completes from the story.
+    #[serde(default)]
+    pub requested: Option<Value>,
+    #[serde(default)]
+    pub defaults: Option<Value>,
+    /// A suite's capture mode: `all`, `failed` or `none`. Absent, every render captures.
+    #[serde(default)]
+    pub capture: Option<String>,
+    /// Use the built bundle without checking its sources, as a suite does after checking once.
+    #[serde(default)]
+    pub reuse_bundle: bool,
+    /// Run an accessibility check at the checkpoint, as `specimen-a11y` asks.
+    #[serde(default)]
+    pub accessibility: bool,
+    /// Measure the page at the checkpoint, as `specimen-profile` asks.
+    #[serde(default)]
+    pub profile: bool,
+    /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
+    #[serde(default)]
+    pub inspect: Option<Value>,
 }
 
 pub struct RenderOutcome {
@@ -224,6 +245,25 @@ pub struct RenderOutcome {
     pub screenshot: Option<String>,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    /// The context the page rendered in: the request's, or a retained story's own.
+    pub context: Value,
+    /// A retained story's run: its play and accessibility check.
+    pub outcome: Option<Value>,
+    /// An accessibility check the request asked for, apart from a retained story's run.
+    pub accessibility: Option<Value>,
+    /// The page's measurements at the checkpoint, when the request asked for them.
+    pub profile: Option<Value>,
+}
+
+/// What one attempt produced before its context was disposed.
+struct Attempted {
+    captured: Value,
+    snapshot: String,
+    screenshot: Option<String>,
+    context: Value,
+    outcome: Option<Value>,
+    accessibility: Option<Value>,
+    profile: Option<Value>,
 }
 
 /// A failure the client re-raises: one message, or the render and disposal failures together.
@@ -252,6 +292,49 @@ struct Attempt {
     session: Mutex<Option<String>>,
     collector: Mutex<Option<Collector>>,
     ready: std::sync::atomic::AtomicBool,
+    /// What the attempt is doing, for the deadline's message.
+    phase: Mutex<&'static str>,
+}
+
+/// The binding `vitest/browser`'s stand-in calls, in `src/browser/vitest-browser.ts`.
+const INPUT_BINDING: &str = "__specimenInput";
+
+#[derive(serde::Deserialize)]
+struct InputCall {
+    id: u64,
+    keys: String,
+}
+
+const RUN_PHASE: &str = "running the story's play and accessibility check";
+
+impl Attempt {
+    fn enter(&self, phase: &'static str) {
+        *self.phase.lock().unwrap() = phase;
+    }
+
+    /// The phase for a deadline's message. A story's run asks the page which stage it reached;
+    /// a page that does not answer has a script blocking it.
+    async fn deadline_phase(&self, cdp: &crate::cdp::Cdp) -> &'static str {
+        let phase = *self.phase.lock().unwrap();
+        let session = self.session.lock().unwrap().clone();
+        let (RUN_PHASE, Some(session)) = (phase, session) else {
+            return phase;
+        };
+        let page = Page { cdp, session };
+        match timeout(
+            Duration::from_millis(500),
+            page.evaluate("window.__specimenStage ?? null"),
+        )
+        .await
+        {
+            Err(_) => "running the story, with a script blocking the page",
+            Ok(Ok(Value::String(stage))) if stage == "accessibility" => {
+                "running the accessibility check"
+            }
+            Ok(Ok(Value::String(stage))) if stage == "play" => "running the story's play",
+            _ => phase,
+        }
+    }
 }
 
 impl Browser {
@@ -275,14 +358,20 @@ impl Browser {
         {
             Ok(result) => result,
             Err(_) => Err(anyhow!(
-                "Specimen deadline exceeded after {}ms",
-                request.timeout_ms
+                "Specimen deadline exceeded after {}ms while {}",
+                request.timeout_ms,
+                attempt.deadline_phase(&self.cdp).await
             )),
         };
         let session = attempt.session.lock().unwrap().clone();
         let dispose_budget = request.timeout_ms.min(1000);
+        // A retained story has nothing of its own to dispose: Storybook has no such step, and the
+        // context closes next. Asking a page still busy with a heavy story would only time out.
+        let retained = request.entry.get("story").is_some_and(Value::is_object);
         let disposal = match &session {
-            Some(session) if attempt.ready.load(std::sync::atomic::Ordering::SeqCst) => {
+            Some(session)
+                if !retained && attempt.ready.load(std::sync::atomic::Ordering::SeqCst) =>
+            {
                 let page = Page {
                     cdp: &self.cdp,
                     session: session.clone(),
@@ -318,14 +407,24 @@ impl Browser {
             let _ = timeout(Duration::from_millis(1000), close).await;
         }
         match (outcome, disposal) {
-            (Ok((captured, snapshot, screenshot)), Ok(())) => Ok(RenderOutcome {
-                captured,
-                snapshot,
-                screenshot,
+            (Ok(attempted), Ok(())) => Ok(RenderOutcome {
+                captured: attempted.captured,
+                snapshot: attempted.snapshot,
+                screenshot: attempted.screenshot,
                 errors,
                 warnings,
+                context: attempted.context,
+                outcome: attempted.outcome,
+                accessibility: attempted.accessibility,
+                profile: attempted.profile,
             }),
-            (Ok(_), Err(failure)) | (Err(failure), Ok(())) => Err(failure.into()),
+            (Ok(_), Err(failure)) => Err(failure.into()),
+            // The page's own errors usually explain a render that failed or never became ready.
+            (Err(failure), Ok(())) if !errors.is_empty() => Err(RenderFailure::from(anyhow!(
+                "{failure:#}; page errors: {}",
+                errors.join("; ")
+            ))),
+            (Err(failure), Ok(())) => Err(failure.into()),
             (Err(render), Err(disposal)) => Err(RenderFailure {
                 message: format!("Specimen render and disposal failed: {render:#}; {disposal:#}"),
                 causes: vec![format!("{render:#}"), format!("{disposal:#}")],
@@ -338,7 +437,8 @@ impl Browser {
         attempt: &Attempt,
         url: &str,
         request: &RenderRequest,
-    ) -> Result<(Value, String, Option<String>)> {
+    ) -> Result<Attempted> {
+        attempt.enter("opening the page");
         let context = self
             .cdp
             .send(
@@ -379,12 +479,28 @@ impl Browser {
             session,
         };
         let viewport = prepare(&page, &request.context).await?;
+        let mut input = None;
         page.mouse("mouseMoved", -1.0, -1.0).await?;
+        // Storybook's test helpers instrument themselves only inside an iframe, as its Vitest
+        // runner has them, unless the URL asks; a retained story's play runs them the same way.
+        let retained = request.entry.get("story").is_some_and(Value::is_object);
+        if retained {
+            input = Some(self.cdp.subscribe_bindings(&page.session));
+            page.send("Runtime.addBinding", json!({ "name": INPUT_BINDING }))
+                .await?;
+        }
+        let address = format!(
+            "{url}specimen.html?automation=1{}",
+            if retained { "&instrument=true" } else { "" }
+        );
         let navigated = page
-            .send("Page.navigate", json!({ "url": format!("{url}specimen.html?automation=1"), "referrerPolicy": "unsafeUrl" }))
+            .send(
+                "Page.navigate",
+                json!({ "url": address, "referrerPolicy": "unsafeUrl" }),
+            )
             .await?;
         if let Some(error) = navigated.get("errorText").and_then(Value::as_str) {
-            return Err(anyhow!("{error} at {url}specimen.html?automation=1"));
+            return Err(anyhow!("{error} at {address}"));
         }
         // A reply from the document being replaced is retried in the navigated one.
         while page.evaluate(RUNTIME_READY).await.ok() != Some(Value::Bool(true)) {
@@ -393,13 +509,133 @@ impl Browser {
         attempt
             .ready
             .store(true, std::sync::atomic::Ordering::SeqCst);
-        let mounted = page
-            .evaluate(&format!(
-                "window.__specimen.mount({}, {})",
-                request.entry, request.context
-            ))
-            .await?;
-        page.steps(&mounted, &request.checkpoint).await?;
+        if let Some(inspect) = &request.inspect {
+            let schema = inspect.get("schema").cloned().unwrap_or(Value::Null);
+            let inspected = page
+                .evaluate(&format!(
+                    "window.__specimen.inspect({}, {}, {}, {})",
+                    request.entry,
+                    request.requested.clone().unwrap_or(json!({})),
+                    request
+                        .defaults
+                        .clone()
+                        .unwrap_or_else(|| request.context.clone()),
+                    schema
+                ))
+                .await?;
+            let context = inspected
+                .get("context")
+                .cloned()
+                .unwrap_or_else(|| request.context.clone());
+            return Ok(Attempted {
+                captured: inspected,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome: None,
+                accessibility: None,
+                profile: None,
+            });
+        }
+        let mut context = request.context.clone();
+        let mut outcome = None;
+        if retained {
+            if !matches!(request.checkpoint.as_str(), "mount" | "after-run") {
+                return Err(anyhow!(
+                    "A retained story has the mount and after-run checkpoints, not '{}'",
+                    request.checkpoint
+                ));
+            }
+            // The story settles its own viewport and theme; emulate what it resolves to.
+            attempt.enter("loading the story's modules");
+            let check = request.checkpoint == "after-run" || request.accessibility;
+            let resolved = page
+                .evaluate(&format!(
+                    "window.__specimen.resolve({}, {}, {}, {{ check: {check} }})",
+                    request.entry,
+                    request.requested.clone().unwrap_or(json!({})),
+                    request
+                        .defaults
+                        .clone()
+                        .unwrap_or_else(|| request.context.clone())
+                ))
+                .await?;
+            context = resolved
+                .get("context")
+                .cloned()
+                .ok_or_else(|| anyhow!("The page did not resolve the story's context"))?;
+            emulate(&page, &context).await?;
+            if request.checkpoint == "after-run" {
+                attempt.enter(RUN_PHASE);
+                let expression = format!(
+                    "window.__specimen.mountAndRun({}, {})",
+                    request.entry, context
+                );
+                let run = page.evaluate(&expression);
+                outcome = Some(match input.as_mut() {
+                    Some(input) => run_with_input(&page, run, input).await?,
+                    None => run.await?,
+                });
+            } else {
+                attempt.enter("rendering the story");
+                page.evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, context
+                ))
+                .await?;
+            }
+        } else {
+            attempt.enter("mounting the specimen");
+            let mounted = page
+                .evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, request.context
+                ))
+                .await?;
+            attempt.enter("running the specimen's scenario");
+            page.steps(&mounted, &request.checkpoint).await?;
+        }
+        // A retained story's run has its own check, under its policy, in its outcome.
+        let accessibility = if request.accessibility && outcome.is_none() {
+            attempt.enter("running the accessibility check");
+            Some(
+                page.evaluate("window.__specimen.checkAccessibility()")
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let mut profile = if request.profile {
+            attempt.enter("measuring the page");
+            let mut metrics = page.evaluate("window.__specimen.profileMetrics()").await?;
+            let heap = page.send("Runtime.getHeapUsage", json!({})).await?;
+            metrics["usedJSHeapSizeBytes"] = heap.get("usedSize").cloned().unwrap_or(Value::Null);
+            Some(metrics)
+        } else {
+            None
+        };
+        let story_status = outcome
+            .as_ref()
+            .and_then(|outcome| outcome.get("status"))
+            .and_then(Value::as_str);
+        let keep = match request.capture.as_deref() {
+            Some("none") => false,
+            Some("failed") => story_status == Some("failed"),
+            _ => true,
+        };
+        if !keep {
+            return Ok(Attempted {
+                captured: Value::Null,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome,
+                accessibility,
+                profile,
+            });
+        }
+        attempt.enter("capturing the result");
+        let capture_started = std::time::Instant::now();
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
         let captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
@@ -407,11 +643,52 @@ impl Browser {
         let root = page.root_backend_id().await?;
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
         let snapshot = aria::snapshot(&tree, root);
+        let viewport: Viewport =
+            serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
+                .unwrap_or(viewport);
         let screenshot = match &request.screenshot {
             Some(path) => Some(screenshot(&page, path, &viewport).await?),
             None => None,
         };
-        Ok((captured, snapshot, screenshot))
+        if let Some(profile) = profile.as_mut() {
+            profile["captureMs"] = json!(capture_started.elapsed().as_secs_f64() * 1000.0);
+        }
+        Ok(Attempted {
+            captured,
+            snapshot,
+            screenshot,
+            context,
+            outcome,
+            accessibility,
+            profile,
+        })
+    }
+}
+
+/// Run a retained story, answering its `userEvent.keyboard` calls while it runs.
+async fn run_with_input(
+    page: &Page<'_>,
+    run: impl std::future::Future<Output = Result<Value>>,
+    input: &mut tokio::sync::mpsc::UnboundedReceiver<crate::cdp::Event>,
+) -> Result<Value> {
+    tokio::pin!(run);
+    let mut keyboard = Keyboard::default();
+    loop {
+        tokio::select! {
+            result = &mut run => return result,
+            Some(event) = input.recv() => {
+                let call: InputCall = serde_json::from_str(
+                    event.params.get("payload").and_then(Value::as_str).unwrap_or(""),
+                )?;
+                let error = keyboard.press(page, &call.keys).await.err().map(|error| error.to_string());
+                page.evaluate(&format!(
+                    "window.__specimenInputDone({}, {})",
+                    call.id,
+                    serde_json::to_string(&error)?
+                ))
+                .await?;
+            }
+        }
     }
 }
 

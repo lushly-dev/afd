@@ -7,6 +7,7 @@ use anyhow::{Result, anyhow};
 use rolldown::{
     BundlerOptions, InputItem, ModuleType, OutputFormat, Platform, ResolveOptions, TsConfig,
 };
+use rolldown_common::{InnerOptions, ModuleSideEffects, TreeshakeOptions};
 use rolldown_plugin::{
     HookLoadArgs, HookLoadOutput, HookLoadReturn, HookUsage, Plugin, SharedLoadPluginContext,
 };
@@ -110,6 +111,19 @@ fn guard_top_level_throws(path: &str, source: &str) -> Option<String> {
     Some(guarded)
 }
 
+/// The `vitest/browser` stand-in, beside the browser runtime and in the same form.
+fn vitest_browser(runtime: &str) -> String {
+    let runtime = Path::new(runtime);
+    let extension = runtime
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("js");
+    runtime
+        .with_file_name(format!("vitest-browser.{extension}"))
+        .display()
+        .to_string()
+}
+
 /// Files the load hook emits, such as `?url` imports and assets a stylesheet references,
 /// served as `assets/<name>-<hash>.<extension>`.
 type Assets = Arc<Mutex<BTreeMap<String, Vec<u8>>>>;
@@ -197,11 +211,13 @@ fn stylesheet(path: &Path, assets: &Assets, seen: &mut Vec<PathBuf>) -> Result<S
 
 /// Vite's import forms for non-script files: `.css` imports inject a style element, as Vite's
 /// development server does, `?inline` CSS and `?raw` files become strings, and `?url` imports
-/// emit the file and resolve to its served path. Project modules have their top-level `throw`s
-/// guarded (`guard_top_level_throws`).
+/// emit the file and resolve to its served path. Project modules have their `import.meta.glob`
+/// calls expanded (`glob.rs`) and their top-level `throw`s guarded (`guard_top_level_throws`).
 #[derive(Debug)]
 struct SpecimenLoad {
     assets: Assets,
+    /// The bench root, which a `/` glob pattern starts from.
+    root: PathBuf,
 }
 
 impl SpecimenLoad {
@@ -270,12 +286,14 @@ impl Plugin for SpecimenLoad {
         let Ok(source) = std::fs::read_to_string(path) else {
             return Ok(None);
         };
-        Ok(
-            guard_top_level_throws(path, &source).map(|code| HookLoadOutput {
-                code: code.into(),
-                ..Default::default()
-            }),
-        )
+        let globbed = crate::glob::import_globs(path, &source, &self.root)?;
+        let expanded = globbed.is_some();
+        let source = globbed.unwrap_or(source);
+        let code = guard_top_level_throws(path, &source).or(expanded.then_some(source));
+        Ok(code.map(|code| HookLoadOutput {
+            code: code.into(),
+            ..Default::default()
+        }))
     }
 
     fn register_hook_usage(&self) -> HookUsage {
@@ -315,7 +333,7 @@ fn content_type(file: &str) -> &'static str {
     }
 }
 
-fn served(body: Vec<u8>, file: &str) -> ServedFile {
+pub fn served(body: Vec<u8>, file: &str) -> ServedFile {
     let digest = format!("{:x}", Sha256::digest(&body));
     ServedFile {
         body: Arc::new(body),
@@ -362,6 +380,19 @@ struct Output {
     sources: Vec<PathBuf>,
 }
 
+/// Every imported source module runs, as under Vite's development server, even inside a
+/// package that declares `"sideEffects": false`: a story's `import './element.js'` that only
+/// registers a custom element must not be shaken away. Dependencies keep their own rules.
+fn source_side_effects() -> TreeshakeOptions {
+    TreeshakeOptions::Option(InnerOptions {
+        module_side_effects: ModuleSideEffects::Function(Arc::new(|id: &str, external: bool| {
+            let source = !external && !id.contains("/node_modules/");
+            Box::pin(async move { Ok(source.then_some(true)) })
+        })),
+        ..Default::default()
+    })
+}
+
 /// One Rolldown build of the page with the given modules, the rest rejected with their errors.
 async fn bundle(
     source: &BenchSource,
@@ -402,6 +433,11 @@ async fn bundle(
         }),
         define: Some(define),
         resolve: Some(ResolveOptions {
+            // A retained play may reach for Vitest's real keyboard; the stand-in provides it.
+            alias: Some(vec![(
+                "vitest/browser".to_string(),
+                vec![Some(vitest_browser(&source.runtime))],
+            )]),
             condition_names: Some(
                 ["development", "module", "browser", "import", "default"]
                     .map(String::from)
@@ -409,11 +445,13 @@ async fn bundle(
             ),
             ..Default::default()
         }),
+        treeshake: source_side_effects(),
         ..Default::default()
     };
     let assets: Assets = Arc::default();
     let plugin = SpecimenLoad {
         assets: assets.clone(),
+        root: source.root.clone(),
     };
     let built = async {
         let mut bundler =
@@ -435,12 +473,19 @@ async fn bundle(
     let output = built?;
     let mut files = HashMap::new();
     let mut sources = Vec::new();
+    // Module ids are resolved paths, and a temporary directory can sit behind a symlink, as
+    // macOS's `/var` does. Without this the bundle's own generated entry counts as a source
+    // written during the build, and every render rebuilds.
+    let work = source
+        .work
+        .canonicalize()
+        .unwrap_or_else(|_| source.work.clone());
     for asset in &output.assets {
         let name = asset.filename().to_string();
         if let rolldown_common::Output::Chunk(chunk) = asset {
             for id in &chunk.module_ids {
                 let path = PathBuf::from(id.as_str().split(['?', '#']).next().unwrap_or(""));
-                if path.is_absolute() && !path.starts_with(&source.work) {
+                if path.is_absolute() && !path.starts_with(&work) {
                     sources.push(path);
                 }
             }

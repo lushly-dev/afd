@@ -1,0 +1,370 @@
+{
+	"description": "Access fixture, phase 2 section 3.1: 40 documents across four collections with six access shapes, links and tags. The suite derives the graph from it (a doc node and tag node per document, links_to, tagged and per-citer co_cited edges) and checks every read path against an independent oracle for three readers.",
+	"readers": {
+		"outsider": ["space"],
+		"engineer": ["space", "group:eng"],
+		"ada": ["space", "principal:human:ada", "group:ops"]
+	},
+	"documents": [
+		{
+			"id": "handbook/doc-00",
+			"collection": "handbook",
+			"title": "Title handbook-doc-00 q000",
+			"access": ["space"],
+			"tags": ["t0"],
+			"type": "note",
+			"links": ["handbook/doc-01", "handbook/doc-03", "handbook/doc-02"]
+		},
+		{
+			"id": "handbook/doc-01",
+			"collection": "handbook",
+			"title": "Title handbook-doc-01 q919",
+			"access": ["space"],
+			"tags": ["t1"],
+			"type": "runbook",
+			"links": ["handbook/doc-02", "handbook/doc-04", "handbook/doc-09"]
+		},
+		{
+			"id": "handbook/doc-02",
+			"collection": "handbook",
+			"title": "Title handbook-doc-02 q838",
+			"access": ["group:eng"],
+			"tags": ["t2"],
+			"type": "policy",
+			"links": ["handbook/doc-03", "handbook/doc-05", "runbooks/doc-04"]
+		},
+		{
+			"id": "handbook/doc-03",
+			"collection": "handbook",
+			"title": "Title handbook-doc-03 q757",
+			"access": ["space"],
+			"tags": ["t3"],
+			"type": "person",
+			"links": ["handbook/doc-04", "handbook/doc-06", "people/doc-01"]
+		},
+		{
+			"id": "handbook/doc-04",
+			"collection": "handbook",
+			"title": "Title handbook-doc-04 q676",
+			"access": ["group:ops"],
+			"tags": ["t4"],
+			"type": "note",
+			"links": ["handbook/doc-05", "handbook/doc-07", "finance/doc-00"]
+		},
+		{
+			"id": "handbook/doc-05",
+			"collection": "handbook",
+			"title": "Title handbook-doc-05 q595",
+			"access": ["group:eng", "group:ops"],
+			"tags": ["t0"],
+			"type": "runbook",
+			"links": ["handbook/doc-06", "handbook/doc-08", "finance/doc-07"]
+		},
+		{
+			"id": "handbook/doc-06",
+			"collection": "handbook",
+			"title": "Title handbook-doc-06 q514",
+			"access": ["principal:human:ada"],
+			"tags": ["t1"],
+			"type": "policy",
+			"links": ["handbook/doc-07", "handbook/doc-09", "handbook/doc-04"]
+		},
+		{
+			"id": "handbook/doc-07",
+			"collection": "handbook",
+			"title": "Title handbook-doc-07 q433",
+			"access": ["principal:agent:bot"],
+			"tags": ["t2"],
+			"type": "person",
+			"links": ["handbook/doc-08", "handbook/doc-10", "handbook/doc-11"]
+		},
+		{
+			"id": "handbook/doc-08",
+			"collection": "handbook",
+			"title": "Title handbook-doc-08 q352",
+			"access": ["space"],
+			"tags": ["t3"],
+			"type": "note",
+			"links": ["handbook/doc-09", "handbook/doc-11", "runbooks/doc-06"]
+		},
+		{
+			"id": "handbook/doc-09",
+			"collection": "handbook",
+			"title": "Title handbook-doc-09 q271",
+			"access": ["space"],
+			"tags": ["t4"],
+			"type": "runbook",
+			"links": ["handbook/doc-10", "runbooks/doc-00", "people/doc-03"]
+		},
+		{
+			"id": "handbook/doc-10",
+			"collection": "handbook",
+			"title": "Title handbook-doc-10 q190",
+			"access": ["group:eng"],
+			"tags": ["t0"],
+			"type": "policy",
+			"links": ["handbook/doc-11", "runbooks/doc-01", "finance/doc-02"]
+		},
+		{
+			"id": "handbook/doc-11",
+			"collection": "handbook",
+			"title": "Title handbook-doc-11 q109",
+			"access": ["space"],
+			"tags": ["t1"],
+			"type": "person",
+			"links": ["runbooks/doc-00", "runbooks/doc-02", "finance/doc-09"]
+		},
+		{
+			"id": "runbooks/doc-00",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-00 q028",
+			"access": ["group:ops"],
+			"tags": ["t2"],
+			"type": "note",
+			"links": ["runbooks/doc-01", "runbooks/doc-03", "handbook/doc-06"]
+		},
+		{
+			"id": "runbooks/doc-01",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-01 q947",
+			"access": ["group:eng", "group:ops"],
+			"tags": ["t3"],
+			"type": "runbook",
+			"links": ["runbooks/doc-02", "runbooks/doc-04"]
+		},
+		{
+			"id": "runbooks/doc-02",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-02 q866",
+			"access": ["principal:human:ada"],
+			"tags": ["t4"],
+			"type": "policy",
+			"links": ["runbooks/doc-03", "runbooks/doc-05", "runbooks/doc-08"]
+		},
+		{
+			"id": "runbooks/doc-03",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-03 q785",
+			"access": ["principal:agent:bot"],
+			"tags": ["t0"],
+			"type": "person",
+			"links": ["runbooks/doc-04", "runbooks/doc-06", "people/doc-05"]
+		},
+		{
+			"id": "runbooks/doc-04",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-04 q704",
+			"access": ["space"],
+			"tags": ["t1"],
+			"type": "note",
+			"links": ["runbooks/doc-05", "runbooks/doc-07", "finance/doc-04"]
+		},
+		{
+			"id": "runbooks/doc-05",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-05 q623",
+			"access": ["space"],
+			"tags": ["t2"],
+			"type": "runbook",
+			"links": ["runbooks/doc-06", "runbooks/doc-08", "handbook/doc-01"]
+		},
+		{
+			"id": "runbooks/doc-06",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-06 q542",
+			"access": ["group:eng"],
+			"tags": ["t3"],
+			"type": "policy",
+			"links": ["runbooks/doc-07", "runbooks/doc-09", "handbook/doc-08"]
+		},
+		{
+			"id": "runbooks/doc-07",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-07 q461",
+			"access": ["space"],
+			"tags": ["t4"],
+			"type": "person",
+			"links": ["runbooks/doc-08", "people/doc-00", "runbooks/doc-03"]
+		},
+		{
+			"id": "runbooks/doc-08",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-08 q380",
+			"access": ["group:ops"],
+			"tags": ["t0"],
+			"type": "note",
+			"links": ["runbooks/doc-09", "people/doc-01", "people/doc-00"]
+		},
+		{
+			"id": "runbooks/doc-09",
+			"collection": "runbooks",
+			"title": "Title runbooks-doc-09 q299",
+			"access": ["group:eng", "group:ops"],
+			"tags": ["t1"],
+			"type": "runbook",
+			"links": ["people/doc-00", "people/doc-02", "people/doc-07"]
+		},
+		{
+			"id": "people/doc-00",
+			"collection": "people",
+			"title": "Title people-doc-00 q218",
+			"access": ["principal:human:ada"],
+			"tags": ["t2"],
+			"type": "policy",
+			"links": ["people/doc-01", "people/doc-03", "finance/doc-06"]
+		},
+		{
+			"id": "people/doc-01",
+			"collection": "people",
+			"title": "Title people-doc-01 q137",
+			"access": ["principal:agent:bot"],
+			"tags": ["t3"],
+			"type": "person",
+			"links": ["people/doc-02", "people/doc-04", "handbook/doc-03"]
+		},
+		{
+			"id": "people/doc-02",
+			"collection": "people",
+			"title": "Title people-doc-02 q056",
+			"access": ["space"],
+			"tags": ["t4"],
+			"type": "note",
+			"links": ["people/doc-03", "people/doc-05", "handbook/doc-10"]
+		},
+		{
+			"id": "people/doc-03",
+			"collection": "people",
+			"title": "Title people-doc-03 q975",
+			"access": ["space"],
+			"tags": ["t0"],
+			"type": "runbook",
+			"links": ["people/doc-04", "people/doc-06", "runbooks/doc-05"]
+		},
+		{
+			"id": "people/doc-04",
+			"collection": "people",
+			"title": "Title people-doc-04 q894",
+			"access": ["group:eng"],
+			"tags": ["t1"],
+			"type": "policy",
+			"links": ["people/doc-05", "people/doc-07", "people/doc-02"]
+		},
+		{
+			"id": "people/doc-05",
+			"collection": "people",
+			"title": "Title people-doc-05 q813",
+			"access": ["space"],
+			"tags": ["t2"],
+			"type": "person",
+			"links": ["people/doc-06", "finance/doc-00", "finance/doc-01"]
+		},
+		{
+			"id": "people/doc-06",
+			"collection": "people",
+			"title": "Title people-doc-06 q732",
+			"access": ["group:ops"],
+			"tags": ["t3"],
+			"type": "note",
+			"links": ["people/doc-07", "finance/doc-01", "finance/doc-08"]
+		},
+		{
+			"id": "people/doc-07",
+			"collection": "people",
+			"title": "Title people-doc-07 q651",
+			"access": ["group:eng", "group:ops"],
+			"tags": ["t4"],
+			"type": "runbook",
+			"links": ["finance/doc-00", "finance/doc-02", "handbook/doc-05"]
+		},
+		{
+			"id": "finance/doc-00",
+			"collection": "finance",
+			"title": "Title finance-doc-00 q570",
+			"access": ["principal:human:ada"],
+			"tags": ["t0"],
+			"type": "policy",
+			"links": ["finance/doc-01", "finance/doc-03", "runbooks/doc-00"]
+		},
+		{
+			"id": "finance/doc-01",
+			"collection": "finance",
+			"title": "Title finance-doc-01 q489",
+			"access": ["principal:agent:bot"],
+			"tags": ["t1"],
+			"type": "person",
+			"links": ["finance/doc-02", "finance/doc-04", "runbooks/doc-07"]
+		},
+		{
+			"id": "finance/doc-02",
+			"collection": "finance",
+			"title": "Title finance-doc-02 q408",
+			"access": ["space"],
+			"tags": ["t2"],
+			"type": "note",
+			"links": ["finance/doc-03", "finance/doc-05", "people/doc-04"]
+		},
+		{
+			"id": "finance/doc-03",
+			"collection": "finance",
+			"title": "Title finance-doc-03 q327",
+			"access": ["space"],
+			"tags": ["t3"],
+			"type": "runbook",
+			"links": ["finance/doc-04", "finance/doc-06"]
+		},
+		{
+			"id": "finance/doc-04",
+			"collection": "finance",
+			"title": "Title finance-doc-04 q246",
+			"access": ["group:eng"],
+			"tags": ["t4"],
+			"type": "policy",
+			"links": ["finance/doc-05", "finance/doc-07", "handbook/doc-00"]
+		},
+		{
+			"id": "finance/doc-05",
+			"collection": "finance",
+			"title": "Title finance-doc-05 q165",
+			"access": ["space"],
+			"tags": ["t0"],
+			"type": "person",
+			"links": ["finance/doc-06", "finance/doc-08", "handbook/doc-07"]
+		},
+		{
+			"id": "finance/doc-06",
+			"collection": "finance",
+			"title": "Title finance-doc-06 q084",
+			"access": ["group:ops"],
+			"tags": ["t1"],
+			"type": "note",
+			"links": ["finance/doc-07", "finance/doc-09", "runbooks/doc-02"]
+		},
+		{
+			"id": "finance/doc-07",
+			"collection": "finance",
+			"title": "Title finance-doc-07 q003",
+			"access": ["group:eng", "group:ops"],
+			"tags": ["t2"],
+			"type": "runbook",
+			"links": ["finance/doc-08", "handbook/doc-00", "runbooks/doc-09"]
+		},
+		{
+			"id": "finance/doc-08",
+			"collection": "finance",
+			"title": "Title finance-doc-08 q922",
+			"access": ["principal:human:ada"],
+			"tags": ["t3"],
+			"type": "policy",
+			"links": ["finance/doc-09", "handbook/doc-01", "people/doc-06"]
+		},
+		{
+			"id": "finance/doc-09",
+			"collection": "finance",
+			"title": "Title finance-doc-09 q841",
+			"access": ["principal:agent:bot"],
+			"tags": ["t4"],
+			"type": "person",
+			"links": ["handbook/doc-00", "handbook/doc-02", "finance/doc-05"]
+		}
+	]
+}

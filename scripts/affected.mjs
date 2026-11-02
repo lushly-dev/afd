@@ -222,8 +222,13 @@ function verify(scope, options) {
 function main(argv) {
 	const options = parseArgs(argv);
 	// The lefthook steps diff the branch themselves; a narrower --files scope would disagree.
-	if (options.files && ['check', 'verify'].includes(options.command))
-		throw new Error(`${options.command} uses the branch diff; --files is for list, run and gate`);
+	if (
+		options.files &&
+		(options.command === 'check' || (options.command === 'verify' && !options.list))
+	)
+		throw new Error(
+			`${options.command} uses the branch diff; --files is for list, run, gate and verify --list`
+		);
 	const scope = resolveScope({
 		root,
 		all: options.all,

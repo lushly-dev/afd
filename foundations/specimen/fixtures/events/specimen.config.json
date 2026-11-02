@@ -1,0 +1,94 @@
+{
+	"specimens": [
+		{
+			"id": "clicked",
+			"title": "Events/Clicked",
+			"module": "./events.specimens.ts",
+			"exportName": "Clicked"
+		},
+		{
+			"id": "non-composed",
+			"title": "Events/NonComposed",
+			"module": "./events.specimens.ts",
+			"exportName": "NonComposed"
+		},
+		{
+			"id": "earlier",
+			"title": "Events/Earlier",
+			"module": "./events.specimens.ts",
+			"exportName": "Earlier"
+		},
+		{
+			"id": "other-target",
+			"title": "Events/OtherTarget",
+			"module": "./events.specimens.ts",
+			"exportName": "OtherTarget"
+		},
+		{
+			"id": "never",
+			"title": "Events/Never",
+			"module": "./events.specimens.ts",
+			"exportName": "Never"
+		},
+		{
+			"id": "undeclared",
+			"title": "Events/Undeclared",
+			"module": "./events.specimens.ts",
+			"exportName": "Undeclared"
+		},
+		{
+			"id": "no-interval",
+			"title": "Events/NoInterval",
+			"module": "./events.specimens.ts",
+			"exportName": "NoInterval"
+		},
+		{
+			"id": "unknown-step",
+			"title": "Events/UnknownStep",
+			"module": "./events.specimens.ts",
+			"exportName": "UnknownStep"
+		},
+		{
+			"id": "later-target",
+			"title": "Events/LaterTarget",
+			"module": "./events.specimens.ts",
+			"exportName": "LaterTarget"
+		},
+		{
+			"id": "missing-target",
+			"title": "Events/MissingTarget",
+			"module": "./events.specimens.ts",
+			"exportName": "MissingTarget"
+		},
+		{
+			"id": "plain",
+			"title": "Events/Plain",
+			"module": "./events.specimens.ts",
+			"exportName": "Plain"
+		},
+		{
+			"id": "responsive",
+			"title": "Matrix/Responsive",
+			"module": "./events.specimens.ts",
+			"exportName": "Responsive"
+		},
+		{
+			"id": "locale-limited",
+			"title": "Matrix/LocaleLimited",
+			"module": "./events.specimens.ts",
+			"exportName": "LocaleLimited"
+		},
+		{
+			"id": "stays-inert",
+			"title": "Events/StaysInert",
+			"module": "./events.specimens.ts",
+			"exportName": "StaysInert"
+		},
+		{
+			"id": "not-inert",
+			"title": "Events/NotInert",
+			"module": "./events.specimens.ts",
+			"exportName": "NotInert"
+		}
+	]
+}

@@ -98,6 +98,28 @@ test('type-only coupling, undeclared imports, private subpaths and escaped expor
 	assert.match(errors, /export target escapes package/);
 });
 
+test('a bundler query on an exported subpath is a public import; on a private one it is not', (t) => {
+	const f = fixture(t);
+	f.npm('foundations/afd/theme', '@x/theme', { exports: { './theme.css': './dist/theme.css' } });
+	f.npm(
+		'endpoints/app',
+		'@x/app',
+		{ dependencies: { '@x/theme': '*' } },
+		"import css from '@x/theme/theme.css?inline';"
+	);
+	assert.deepEqual(f.check().errors, []);
+	f.npm(
+		'endpoints/app',
+		'@x/app',
+		{ dependencies: { '@x/theme': '*' } },
+		"import css from '@x/theme/dist/theme.css?inline';"
+	);
+	assert.match(
+		f.check().errors.join('\n'),
+		/non-public package import @x\/theme\/dist\/theme\.css\?inline/
+	);
+});
+
 test('relative and tsconfig alias paths cannot bypass declared public contracts', (t) => {
 	const f = fixture(t);
 	f.npm('foundations/afd/base', '@x/base');

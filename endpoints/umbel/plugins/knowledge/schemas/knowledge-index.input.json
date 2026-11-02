@@ -1,0 +1,22 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"rebuild": {
+			"type": "boolean",
+			"default": false,
+			"description": "Clear the index and derive it again from every document (one run, whatever limit says)"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 100000,
+			"default": 10000,
+			"description": "The most changes to apply in this call; a larger backlog takes several calls, each reporting remaining"
+		}
+	},
+	"additionalProperties": false
+}

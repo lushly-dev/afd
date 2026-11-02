@@ -9,6 +9,7 @@
 // middleware); it is 136 bytes and the signatures are not ours to change.
 #![allow(clippy::result_large_err)]
 
+pub mod access;
 pub mod doctor;
 pub mod events;
 pub mod plugins;
@@ -21,6 +22,7 @@ mod host;
 #[cfg(feature = "cli")]
 mod logging;
 mod middleware;
+mod store;
 mod surfaces;
 mod templates;
 mod versions;
@@ -32,6 +34,7 @@ pub use host::{Host, HostBuilder, HostError, RESERVED_VERBS, SPACE_NOT_FOUND};
 pub use plugins::{
     MANIFEST_VERSION, MANIFEST_VERSIONS, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
 };
+pub use store::{STORE_GRANTS, codes as store_codes};
 pub use versions::{
     CURSOR_VERSION, DOCUMENT_VERSION, EVENT_VERSION, LOCATOR_VERSION, PRINCIPAL_VERSION,
     PROPOSAL_VERSION, PROVENANCE_VERSION, STORE_VERSION,

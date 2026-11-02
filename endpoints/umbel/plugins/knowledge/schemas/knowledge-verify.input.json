@@ -1,0 +1,32 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "A document id, <collection>/<path>"
+		},
+		"note": {
+			"type": "string",
+			"maxLength": 1000,
+			"description": "Kept with the decision, not in the file"
+		},
+		"stale_after": {
+			"type": "string",
+			"maxLength": 64,
+			"description": "An absolute datetime with a UTC offset; written to the document's stale_after"
+		},
+		"apply": {
+			"type": "boolean",
+			"default": true,
+			"description": "Apply at once when you are among the area's approvers; false leaves the verification pending"
+		}
+	},
+	"required": ["doc"],
+	"additionalProperties": false
+}

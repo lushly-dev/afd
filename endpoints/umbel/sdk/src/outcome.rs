@@ -66,8 +66,32 @@ impl Outcome {
         self
     }
 
-    /// Set `result.metadata[key]`, for the keys a command may supply (`dev.umbel/record` and
-    /// `dev.umbel/provenance`); the host removes every other `dev.umbel/` key.
+    /// Add a warning with structured `details` (a warning names ids, never content).
+    #[must_use]
+    pub fn with_warning_details(mut self, code: &str, message: &str, details: Value) -> Self {
+        let warning = json!({ "code": code, "message": message, "details": details });
+        let warnings = self
+            .object()
+            .entry("warnings".to_owned())
+            .or_insert_with(|| Value::Array(Vec::new()));
+        if let Value::Array(list) = warnings {
+            list.push(warning);
+        }
+        self
+    }
+
+    /// Set AFD's `sources` on a successful result: the citations of what the data came from.
+    #[must_use]
+    pub fn with_sources(mut self, sources: Vec<Value>) -> Self {
+        self.object()
+            .insert("sources".to_owned(), Value::Array(sources));
+        self
+    }
+
+    /// Set `result.metadata[key]`, for the keys a command may supply (`dev.umbel/record`,
+    /// `dev.umbel/provenance`, and for compiled and component plugins `dev.umbel/index` and
+    /// `dev.umbel/trust` with the value `"content"`); the host removes every other `dev.umbel/`
+    /// key.
     #[must_use]
     pub fn with_metadata(mut self, key: &str, value: Value) -> Self {
         let metadata = self

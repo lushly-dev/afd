@@ -1,4 +1,9 @@
-import type { BrowserObservation, ElementObservation, SpecimenContext } from '../types.js';
+import type {
+	BrowserObservation,
+	CaptureResources,
+	ElementObservation,
+	SpecimenContext,
+} from '../types.js';
 
 const properties = [
 	'display',
@@ -85,8 +90,21 @@ function focusedElement(): Element | null {
 	return focused;
 }
 
-function stateOf(element: Element, focused: Element | null): ElementObservation['state'] {
+function stateOf(
+	element: Element,
+	focused: Element | null,
+	observe: readonly string[] | undefined
+): ElementObservation['state'] {
 	const state: ElementObservation['state'] = { focused: element === focused };
+	for (const name of observe ?? []) {
+		try {
+			const value: unknown = Reflect.get(element, name);
+			if (value === null || ['string', 'number', 'boolean'].includes(typeof value))
+				state[`prop:${name}`] = value as string | number | boolean | null;
+		} catch {
+			// A getter that throws says nothing about the state; the member stays unobserved.
+		}
+	}
 	if (element instanceof HTMLInputElement) {
 		state.value = element.value;
 		state.checked = element.checked;
@@ -113,6 +131,16 @@ function stateOf(element: Element, focused: Element | null): ElementObservation[
 		state.disabled = element.disabled;
 	} else if (element instanceof HTMLDetailsElement || element instanceof HTMLDialogElement) {
 		state.open = element.open;
+	}
+	if (element.localName.includes('-')) {
+		if ((element.constructor as { formAssociated?: boolean }).formAssociated === true)
+			state.formAssociated = true;
+		// What each slot actually holds, whatever args the story was given.
+		for (const slot of element.shadowRoot?.querySelectorAll('slot') ?? [])
+			if (slot.getRootNode() === element.shadowRoot)
+				state[`slot:${slot.name}`] = slot
+					.assignedNodes()
+					.filter((node) => node.nodeType !== Node.TEXT_NODE || node.textContent?.trim()).length;
 	}
 	return state;
 }
@@ -168,10 +196,31 @@ function serialize(root: Element, elements: Element[]): string {
 	return Array.from(root.childNodes, serializeNode).join('');
 }
 
+/** The fonts and other origins' URLs this document has asked for, in a stable order. */
+function documentResources(): CaptureResources {
+	const fonts = [...document.fonts]
+		.map(({ family, weight, style, status }) => ({ family, weight, style, status }))
+		.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en-US'));
+	const remote = new Map<string, number>();
+	for (const entry of performance.getEntriesByType('resource') as PerformanceResourceTiming[]) {
+		const url = new URL(entry.name);
+		if (url.origin !== location.origin && /^https?:$/.test(url.protocol))
+			remote.set(entry.name, entry.responseStatus);
+	}
+	return {
+		fonts,
+		remote: [...remote]
+			.map(([url, status]) => ({ url, status }))
+			.sort((a, b) => a.url.localeCompare(b.url, 'en-US')),
+	};
+}
+
 export function captureDocument(
 	root: HTMLElement,
-	closedHosts: WeakSet<Element>
-): BrowserObservation {
+	closedHosts: WeakSet<Element>,
+	observe?: Record<string, string[]>,
+	referenced: readonly Element[] = []
+): Omit<BrowserObservation, 'ready' | 'plugins' | 'evidence'> & { references: (string | null)[] } {
 	const elements = openElements(root);
 	const refs = new Map<Element, string>([[root, 'root']]);
 	const limitations: string[] = [];
@@ -236,10 +285,11 @@ export function captureDocument(
 				clientHeight: element.clientHeight,
 			},
 			styles,
-			state: stateOf(element, focused),
+			state: stateOf(element, focused, observe?.[element.localName]),
 		};
 	});
 	return {
+		events: { declared: [], history: [], unresolved: [] },
 		dom: serialize(root, elements),
 		elements: observations,
 		limitations: [...new Set(limitations)],
@@ -255,6 +305,8 @@ export function captureDocument(
 			language: navigator.language,
 			devicePixelRatio,
 		},
+		resources: documentResources(),
+		references: referenced.map((element) => refs.get(element) ?? null),
 	};
 }
 
@@ -298,12 +350,14 @@ export function contextMismatches(
 		reasons.push(
 			`Context mismatch: the viewport is ${observed.width}x${observed.height}, not the requested ${width}x${height}.`
 		);
-	const colorScheme = colorSchemeOf(context.theme);
+	// With browser-default media, the theme is the page's alone and media keep their defaults.
+	const media = context.themeMedia === 'browser-default' ? 'light' : context.theme;
+	const colorScheme = colorSchemeOf(media);
 	if (observed.colorScheme !== colorScheme)
 		reasons.push(
 			`Context mismatch: prefers-color-scheme is ${observed.colorScheme}, not the requested ${colorScheme}; only the theme attribute and color-scheme apply.`
 		);
-	const contrast = contrastOf(context.theme);
+	const contrast = contrastOf(media);
 	if (observed.contrast !== contrast)
 		reasons.push(
 			`Context mismatch: prefers-contrast is ${observed.contrast}, not the requested ${contrast}; only the theme attribute applies.`

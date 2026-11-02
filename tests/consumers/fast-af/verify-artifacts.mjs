@@ -226,6 +226,7 @@ for (const asset of [
 	'tokens/master-semantic.tokens.jsonc',
 	'tokens/theme-presets.jsonc',
 	'tokens/raw-palette.proposal.jsonc',
+	'tokens/violet-theme.export.json',
 	'package.json',
 ]) {
 	const bytes = await readFile(resolveFrom.resolve(`${componentName}/${asset}`));
@@ -240,7 +241,7 @@ const declared = cem.modules.flatMap((module) =>
 	(module.declarations ?? []).filter((item) => item.customElement && item.tagName)
 );
 assert(declared.length > 0);
-passed(`components: manifest, package.json and 3 token assets resolve (${declared.length} tags)`);
+passed(`components: manifest, package.json and 4 token assets resolve (${declared.length} tags)`);
 
 // Vite treats port 0 as its default 5173, which other local suites use; reserve a free port.
 const freePort = () =>

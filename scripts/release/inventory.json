@@ -363,6 +363,27 @@
 			]
 		},
 		{
+			"id": "specimen-fast-af",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "df6eff227fce4ab265a5fe32d3fbaadd60afb6d6",
+			"authority": "none: new integration authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "specimen.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-fast-af",
+					"registry": "npm",
+					"manifest": "integrations/specimen-fast-af/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "fast-element",
 			"family": "fast-af",
 			"protocol": "npm-changesets",
@@ -511,6 +532,90 @@
 			]
 		},
 		{
+			"id": "loam-manifest",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "ae785559bc983a057fc169bb99418906962e657e",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-manifest",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/manifest/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-sdk",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "1953acab54a6f8afb7148d6414d23770ab2a72d8",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-sdk",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/sdk/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-testing",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "d6fb943b70a88665651190efac79e56988144345",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-testing",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/testing/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-cli",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "1953acab54a6f8afb7148d6414d23770ab2a72d8",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-cli",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/cli/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "loam-theme",
 			"family": "loam",
 			"protocol": "npm-changesets",
@@ -546,6 +651,27 @@
 					"name": "@lushly-dev/loam-kernel",
 					"registry": "npm",
 					"manifest": "endpoints/loam/packages/kernel/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-console",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "85d938bf06d87fc9a3ff54af305afea4131c3d61",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-console",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/console/package.json",
 					"format": "npm",
 					"initialVersion": "0.1.0",
 					"private": true
@@ -595,6 +721,48 @@
 			]
 		},
 		{
+			"id": "loam-app-hello",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "a1475ea7b6124f657454a1c5d2e9e130968aa42f",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-app-hello",
+					"registry": "npm",
+					"manifest": "endpoints/loam/apps/hello/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "loam-app-tally",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "a1475ea7b6124f657454a1c5d2e9e130968aa42f",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-app-tally",
+					"registry": "npm",
+					"manifest": "endpoints/loam/apps/tally/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel",
 			"family": "umbel",
 			"protocol": "language-tag-v1",
@@ -637,6 +805,48 @@
 			]
 		},
 		{
+			"id": "umbel-store",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "882206503efae746f8e8f36c7cec967855c9b939",
+			"authority": "none: new store traits crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-store",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/store/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-store-embedded",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "882206503efae746f8e8f36c7cec967855c9b939",
+			"authority": "none: new embedded store backend crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-store-embedded",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/store-embedded/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel-plugin-hello",
 			"family": "umbel",
 			"protocol": "language-tag-v1",
@@ -672,6 +882,90 @@
 					"name": "umbel-plugin-todo",
 					"registry": "crates",
 					"manifest": "endpoints/umbel/plugins/todo/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-scan",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "1663d506c591b4bd16a360ebbf24a83c2de5961e",
+			"authority": "none: new write scan crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-scan",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/scan/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-okf",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "1663d506c591b4bd16a360ebbf24a83c2de5961e",
+			"authority": "none: new Open Knowledge Format container crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-okf",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/okf/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-plugin-sources-filesystem",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "1663d506c591b4bd16a360ebbf24a83c2de5961e",
+			"authority": "none: new filesystem sources plugin crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-sources-filesystem",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/sources-filesystem/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "umbel-plugin-knowledge",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "1663d506c591b4bd16a360ebbf24a83c2de5961e",
+			"authority": "none: new knowledge plugin crate and umbel-knowledge binary authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-knowledge",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/knowledge/Cargo.toml",
 					"format": "rust",
 					"initialVersion": "0.1.0",
 					"private": true

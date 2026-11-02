@@ -1,0 +1,6 @@
+:host {
+	padding: 8px;
+	margin: 0.5rem 1em;
+	max-block-size: calc(100% - 12px);
+	border-width: 2px;
+}

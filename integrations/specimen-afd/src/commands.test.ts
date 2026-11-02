@@ -11,24 +11,57 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.2',
-			normalizationVersion: '0.1',
+			captureVersion: '0.8',
+			normalizationVersion: '0.2',
 			specimenId: 'button',
-			checkpoint: 'mount',
+			capturedUtc: '2026-11-01T00:00:00.000Z',
+			bench: { name: '@lushly-dev/specimen', version: '1.0.0', plugins: [] },
+			driver: { name: 'host', emulates: [] },
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				ready: { steps: ['upgrade', 'fonts', 'frame'], outcome: 'ready', deadlineMs: 10_000 },
+				baseline: {
+					clock: 'real',
+					random: { source: 'seeded', seed: 1 },
+					storage: 'empty',
+				},
+			},
 			source: { revision: null, digest: 'source', dirty: null },
 			dependencies: 'lock',
-			browser: { name: 'chromium', version: '1' },
+			browser: { name: 'chromium', version: '1', platform: 'linux-x64', build: null },
 			context: {
 				viewport: { width: 800, height: 600 },
 				theme: 'light',
 				locale: 'en-US',
 				reducedMotion: 'no-preference',
 				motion: 'natural',
+				pixelRatio: 1,
+				observed: {
+					width: 800,
+					height: 600,
+					media: false,
+					colorScheme: 'light',
+					contrast: 'no-preference',
+					reducedMotion: 'no-preference',
+					language: 'en-US',
+					devicePixelRatio: 1,
+				},
+				resources: { fonts: [], remote: [] },
 			},
 		},
 		channels: {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
+			events: { declared: [], history: [] },
+			evidence: {
+				expectations: [],
+				claims: [],
+				commands: [],
+				formData: [],
+				validity: [],
+				attributesSet: [],
+			},
 			elements: [],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -68,6 +101,148 @@ function bench(): SpecimenCommandBench {
 					: [],
 		})),
 		render: vi.fn(async () => observation()),
+		migrate: vi.fn(async (request) => ({
+			mode: (request?.apply ? 'apply' : 'preview') as 'apply' | 'preview',
+			files: [],
+			problems: [],
+			summary: { files: 0, present: 0, proposed: 0, manual: 0, applied: 0 },
+		})),
+		inspect: vi.fn(async (request) => ({
+			id: request.id,
+			component: 'plain-button',
+			schema: null,
+			args: { label: 'Save' },
+			context: {
+				viewport: { width: 1280, height: 720 },
+				theme: 'light' as const,
+				locale: 'en-US',
+				reducedMotion: 'no-preference' as const,
+				motion: 'natural' as const,
+			},
+			limitations: ['No schema source describes plain-button.'],
+			plugins: [],
+		})),
+		profile: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
+		recordBaseline: vi.fn(async () => ({
+			reports: [],
+			counts: {
+				total: 0,
+				passed: 0,
+				warnings: 0,
+				failed: 0,
+				notComparable: 0,
+				noBaseline: 0,
+				errored: 0,
+			},
+			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
+		suggest: vi.fn(async () => ({
+			component: 'x-a',
+			status: 'unverified' as const,
+			file: 'x-a.specimens.ts',
+			source: '// proposed',
+			entries: [],
+			suggestions: [],
+			skipped: [],
+			elapsedMs: 1,
+		})),
+		contract: vi.fn(async () => ({
+			rules: 'fastbot-parity@1',
+			valid: true,
+			findings: [],
+			counts: { errors: 0, warnings: 0 },
+			stats: { components: 1, storyFiles: 1, scoped: false },
+			cases: { total: 1, passed: 1, failed: [] },
+			workers: 2,
+			elapsedMs: 1,
+		})),
+		coverage: vi.fn(async () => ({
+			obligations: 'schema-partitions@1',
+			complete: false,
+			components: [],
+			counts: { verified: 0, asserted: 0, represented: 0, missing: 0, unknown: 0 },
+			waived: 0,
+			waivers: { version: null, unused: [] },
+			invalidClaims: [],
+			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
+		matrix: vi.fn(async (request) => ({
+			id: request.id,
+			checkpoint: 'after-run',
+			axes: Object.keys(request.axes),
+			cells: [],
+			counts: { total: 0, captured: 0, unavailable: 0, changed: 0, unchanged: 0, insufficient: 0 },
+			elapsedMs: 1,
+		})),
+		a11y: vi.fn(async () => ({
+			reports: [
+				{
+					id: 'button',
+					checkpoint: 'mount',
+					status: 'failed' as const,
+					policy: 'error' as const,
+					violations: [
+						{
+							id: 'image-alt',
+							impact: 'critical',
+							help: 'Images must have alternative text',
+							targets: ['img'],
+							details: ['Fix any of the following'],
+						},
+					],
+					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
+					failures: [],
+				},
+			],
+			counts: { total: 1, passed: 0, warning: 0, failed: 1, notRun: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
+		runSuite: vi.fn(async () => ({
+			outcome: 'passed' as const,
+			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
+			retry: { ran: false, reason: 'no story failed' },
+			stories: [],
+			workers: 2,
+			elapsedMs: 1,
+			sourcesChanged: false,
+		})),
+		run: vi.fn(async (request) => ({
+			id: request.id,
+			outcome: {
+				status: 'passed' as const,
+				play: 'ran' as const,
+				failures: [],
+				a11y: {
+					status: 'passed' as const,
+					policy: 'error' as const,
+					violations: [],
+					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
+					engine: '4.13.0',
+				},
+			},
+			observation: observation(),
+		})),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
 			shellBytes: 1000,
@@ -87,6 +262,16 @@ describe('specimen commands', () => {
 			'specimen-diff',
 			'specimen-build',
 			'specimen-validate',
+			'specimen-run',
+			'specimen-a11y',
+			'specimen-profile',
+			'specimen-baseline',
+			'specimen-contract',
+			'specimen-suggest',
+			'specimen-coverage',
+			'specimen-matrix',
+			'specimen-inspect',
+			'specimen-migrate',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -109,6 +294,120 @@ describe('specimen commands', () => {
 		expect(all.data).toEqual({ valid: true, scope: 'static', checked: 1, issues: [] });
 		const invalid = await executeSpecimenCommand(instance, 'specimen-validate', { name: 'x' });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('previews the codemod by default and applies it only when asked', async () => {
+		const instance = bench();
+		const preview = await executeSpecimenCommand(instance, 'specimen-migrate', {});
+		expect(preview.data).toMatchObject({ mode: 'preview' });
+		const applied = await executeSpecimenCommand(instance, 'specimen-migrate', {
+			files: ['./src/a.stories.ts'],
+			apply: true,
+		});
+		expect(applied.data).toMatchObject({ mode: 'apply' });
+		expect(instance.migrate).toHaveBeenLastCalledWith({
+			files: ['./src/a.stories.ts'],
+			apply: true,
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-migrate', { files: [] });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('inspects a specimen and validates the report against the inspect schema', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-inspect', { id: 'button' });
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({ id: 'button', component: 'plain-button', schema: null });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-inspect', {
+			id: 'button',
+			screenshot: 'x.png',
+		});
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a retained story and returns its outcome and capture', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-run', { id: 'button' });
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({ id: 'button', outcome: { status: 'passed', play: 'ran' } });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-run', {
+			id: 'button',
+			checkpoint: 'mount',
+		});
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('checks accessibility, and reports a failing check as a successful command', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-a11y', {
+			id: 'button',
+			checkpoint: 'mount',
+		});
+		expect(result.success).toBe(true);
+		expect(instance.a11y).toHaveBeenCalledWith({ id: 'button', checkpoint: 'mount' });
+		expect(result.data).toMatchObject({
+			counts: { failed: 1 },
+			reports: [{ id: 'button', status: 'failed', violations: [{ id: 'image-alt' }] }],
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-a11y', { other: true });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('profiles without changing anything, and records a baseline as a mutation', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const mutation = (name: string) => commands.find((command) => command.name === name)?.mutation;
+		expect(mutation('specimen-profile')).toBe(false);
+		expect(mutation('specimen-baseline')).toBe(true);
+		const profiled = await executeSpecimenCommand(instance, 'specimen-profile', {
+			id: 'button',
+			runs: 3,
+		});
+		expect(profiled.success).toBe(true);
+		expect(instance.profile).toHaveBeenCalledWith({ id: 'button', runs: 3 });
+		const recorded = await executeSpecimenCommand(instance, 'specimen-baseline', {
+			id: 'button',
+			notes: ['After the page cutover.'],
+		});
+		expect(recorded.success).toBe(true);
+		expect(instance.recordBaseline).toHaveBeenCalledWith({
+			id: 'button',
+			notes: ['After the page cutover.'],
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-profile', { runs: 9 });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a matrix over explicit axes', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-matrix', {
+			id: 'button',
+			axes: { theme: ['light', 'dark'] },
+		});
+		expect(result.success).toBe(true);
+		expect(instance.matrix).toHaveBeenCalledWith({
+			id: 'button',
+			axes: { theme: ['light', 'dark'] },
+		});
+		expect(result.data).toMatchObject({ id: 'button', axes: ['theme'] });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-matrix', { id: 'button' });
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('runs a suite without an id, and refuses an id with suite options', async () => {
+		const instance = bench();
+		const suite = await executeSpecimenCommand(instance, 'specimen-run', {
+			filter: { tags: ['smoke'] },
+			workers: 2,
+			retry: true,
+		});
+		expect(suite.success).toBe(true);
+		expect(instance.runSuite).toHaveBeenCalledWith({
+			filter: { tags: ['smoke'] },
+			workers: 2,
+			retry: true,
+		});
+		expect(suite.data).toMatchObject({ outcome: 'passed', counts: { total: 0 } });
+		const both = await executeSpecimenCommand(instance, 'specimen-run', {
+			id: 'button',
+			workers: 2,
+		});
+		expect(both.success).toBe(false);
+		expect(both.error?.code).toBe('SPECIMEN_RUN_FAILED');
+		expect(instance.run).toHaveBeenCalledTimes(0);
 	});
 	it('lists retained stories with their Storybook identity', async () => {
 		const instance = bench();
@@ -195,7 +494,7 @@ describe('specimen commands', () => {
 		const result = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
 		expect(result.success).toBe(true);
 		expect(result.data).toMatchObject({ status: 'changed' });
-		right.manifest.checkpoint = 'different';
+		right.manifest.checkpoint.name = 'different';
 		const mismatch = await executeSpecimenCommand(instance, 'specimen-diff', { left, right });
 		expect(mismatch.error?.code).toBe('SPECIMEN_DIFF_FAILED');
 	});

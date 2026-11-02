@@ -101,7 +101,7 @@ describe('native specimen feasibility in Chromium', () => {
 		).toBe(true);
 		const activated = await bench.render({ id: 'activated', checkpoint: 'checked' });
 		expect(element(activated, 'input').state.checked).toBe(true);
-		expect(activated.manifest.checkpoint).toBe('checked');
+		expect(activated.manifest.checkpoint.name).toBe('checked');
 	});
 
 	it('includes next-frame click and fill updates at action checkpoints', async () => {
@@ -370,7 +370,7 @@ export const Good = {
 			);
 			// Role targets name ARIA's `img`, which Chromium calls `image`.
 			const pictured = await importBench.render({ id: 'pictured', checkpoint: 'hovered' });
-			expect(pictured.manifest.checkpoint).toBe('hovered');
+			expect(pictured.manifest.checkpoint.name).toBe('hovered');
 			await expect(importBench.render({ id: 'broken' })).rejects.toThrow(/Bundling failed/);
 			// Fixing the module rebuilds the bench.
 			await writeFile(
@@ -402,12 +402,25 @@ export const Good = {
 			const page = await browser.newPage();
 			const errors: string[] = [];
 			page.on('pageerror', (error) => errors.push(error.message));
+			const report = JSON.parse(await readFile(join(output, 'specimen-build.json'), 'utf8')) as {
+				chunks: { file: string; category: string }[];
+			};
+			const heavy = new Set(
+				report.chunks
+					.filter((chunk) => chunk.category === 'interaction' || chunk.category === 'accessibility')
+					.map((chunk) => chunk.file)
+			);
+			const loaded: string[] = [];
+			page.on('response', (response) => loaded.push(new URL(response.url()).pathname.slice(1)));
 			await page.goto(server.url);
 			expect(await page.getByRole('heading', { name: 'Specimens' }).count()).toBe(1);
 			expect(await page.getByRole('link', { name: /Feasibility\/Baseline/ }).count()).toBe(1);
 			await page.goto(`${server.url}/specimen.html?id=baseline`);
 			await page.frameLocator('iframe').getByRole('button', { name: 'Save' }).waitFor();
 			expect(errors).toEqual([]);
+			// A native specimen loads neither the helpers' runtime nor axe to be listed and mounted.
+			expect(loaded.length).toBeGreaterThan(0);
+			expect(loaded.filter((file) => heavy.has(file))).toEqual([]);
 			await page.goto(`${server.url}/specimen.html?id=viewport&viewport=375x812&theme=dark`);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const frame = page.frames().find((candidate) => candidate.parentFrame());

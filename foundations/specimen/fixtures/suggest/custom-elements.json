@@ -1,0 +1,26 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "fixture-suggest.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "FixtureSuggest",
+					"customElement": true,
+					"tagName": "fixture-suggest",
+					"members": [
+						{ "kind": "field", "name": "mode", "type": { "text": "'a' | 'b'" }, "default": "'a'" }
+					],
+					"attributes": [
+						{ "name": "disabled", "type": { "text": "boolean" }, "default": "false" },
+						{ "name": "size", "type": { "text": "'small' | 'large'" }, "default": "'small'" }
+					],
+					"slots": [{ "name": "" }, { "name": "after" }],
+					"events": [{ "name": "changed" }]
+				}
+			]
+		}
+	]
+}

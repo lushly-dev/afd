@@ -11,7 +11,7 @@ const styles = css`
         display: block;
         --_surface-hover: var(--color-surface-subtle, #f0efe6);
         --_surface-active: var(--color-surface-highlight, #ffffff);
-        --_surface-selected: color-mix(in srgb, var(--color-state-success-background, #dff3e4) 58%, transparent);
+        --_surface-selected: color-mix(in srgb, var(--color-state-success-background, #e3f1e7) 58%, transparent);
         --_selected-border: color-mix(in srgb, var(--color-state-success-foreground, #245c36) 30%, transparent);
         --_option-padding-inline-start: var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5));
         --_option-padding-inline-end: var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5));

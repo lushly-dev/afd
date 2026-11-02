@@ -3,11 +3,43 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { SpecimenBench } from './bench.js';
 import type { LoadedConfig } from './config.js';
-import type { CaptureRequest, Observation } from './types.js';
+import type {
+	A11yRequest,
+	A11yRun,
+	BaselineRequest,
+	CaptureRequest,
+	ContractRequest,
+	ContractRun,
+	CoverageRequest,
+	CoverageRun,
+	InspectRequest,
+	InspectResult,
+	MatrixRequest,
+	MatrixRun,
+	Observation,
+	ProfileRequest,
+	ProfileRun,
+	RunRequest,
+	StoryRun,
+	SuggestRequest,
+	SuggestRun,
+	SuiteRequest,
+	SuiteRun,
+} from './types.js';
 
 type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
+	| { operation: 'run'; request: RunRequest }
+	| { operation: 'runSuite'; request: SuiteRequest }
+	| { operation: 'a11y'; request: A11yRequest }
+	| { operation: 'coverage'; request: CoverageRequest }
+	| { operation: 'contract'; request: ContractRequest }
+	| { operation: 'suggest'; request: SuggestRequest }
+	| { operation: 'profile'; request: ProfileRequest }
+	| { operation: 'matrix'; request: MatrixRequest }
+	| { operation: 'recordBaseline'; request: BaselineRequest }
+	| { operation: 'inspect'; request: InspectRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
 	| { operation: 'abort' };
@@ -197,6 +229,54 @@ export class BenchWorkerClient {
 			{ operation: 'render', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as Observation;
+	}
+	async run(request: RunRequest): Promise<StoryRun> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'run', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as StoryRun;
+	}
+	async matrix(request: MatrixRequest): Promise<MatrixRun> {
+		await this.ready;
+		return (await this.request({ operation: 'matrix', request }, 3_600_000)) as MatrixRun;
+	}
+	async profile(request: ProfileRequest): Promise<ProfileRun> {
+		await this.ready;
+		return (await this.request({ operation: 'profile', request }, 3_600_000)) as ProfileRun;
+	}
+	async recordBaseline(request: BaselineRequest): Promise<ProfileRun> {
+		await this.ready;
+		return (await this.request({ operation: 'recordBaseline', request }, 3_600_000)) as ProfileRun;
+	}
+	async suggest(request: SuggestRequest): Promise<SuggestRun> {
+		await this.ready;
+		return (await this.request({ operation: 'suggest', request }, 3_600_000)) as SuggestRun;
+	}
+	async contract(request: ContractRequest): Promise<ContractRun> {
+		await this.ready;
+		return (await this.request({ operation: 'contract', request }, 3_600_000)) as ContractRun;
+	}
+	async coverage(request: CoverageRequest): Promise<CoverageRun> {
+		await this.ready;
+		return (await this.request({ operation: 'coverage', request }, 3_600_000)) as CoverageRun;
+	}
+	async a11y(request: A11yRequest): Promise<A11yRun> {
+		await this.ready;
+		// As a suite: each entry has its own deadline in the worker.
+		return (await this.request({ operation: 'a11y', request }, 3_600_000)) as A11yRun;
+	}
+	async runSuite(request: SuiteRequest): Promise<SuiteRun> {
+		await this.ready;
+		// Every story has its own deadline in the worker; this covers a worker that stops answering.
+		return (await this.request({ operation: 'runSuite', request }, 3_600_000)) as SuiteRun;
+	}
+	async inspect(request: InspectRequest): Promise<InspectResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'inspect', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as InspectResult;
 	}
 	async build(outDir: string): ReturnType<SpecimenBench['build']> {
 		await this.ready;

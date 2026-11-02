@@ -18,7 +18,9 @@
 		"test/**/*",
 		"vite.config.ts",
 		"vitest.config.ts",
-		"vitest.browser.config.ts"
+		"vitest.browser.config.ts",
+		"vitest.mounted.config.ts",
+		"vitest.conformance.config.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }

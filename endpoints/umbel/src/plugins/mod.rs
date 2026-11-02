@@ -11,10 +11,12 @@ mod compiled;
 #[cfg(feature = "component")]
 mod component;
 mod config;
+mod content;
 mod doctor;
 mod error;
 mod files;
 mod grants;
+mod ledger;
 mod loader;
 mod manifest;
 #[cfg(feature = "mounted")]
@@ -23,6 +25,7 @@ mod packs;
 mod pipelines;
 mod skills;
 mod source;
+mod store_services;
 
 pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
@@ -34,6 +37,7 @@ pub(crate) use doctor::{
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
+pub(crate) use ledger::{CallRecord, Ledger};
 #[cfg(feature = "testkit")]
 pub(crate) use loader::embedded_id;
 pub(crate) use loader::{
@@ -81,15 +85,46 @@ pub const HOST_DOMAINS: &[&str] = &[
     "store",
 ];
 
-/// The grants phase 1 provides.
-pub const GRANTS: &[&str] = &["config", "log", "packs", "events", "clock", "random"];
+/// The grants this host provides: phase 1's six, and phase 2's ten (specification section 3.3).
+/// The store grants are scoped to the instance's spaces and held by compiled plugins only.
+pub const GRANTS: &[&str] = &[
+    "config",
+    "log",
+    "packs",
+    "events",
+    "clock",
+    "random",
+    "content",
+    "content_write",
+    "documents",
+    "documents_write",
+    "records",
+    "records_write",
+    "index",
+    "index_write",
+    "graph",
+    "graph_write",
+];
+
+/// The grants whose use writes, reaches the network or reads secrets: enabling an instance is
+/// not consent to them, so each needs `[plugins.<id>.grants.<grant>] allow = [...]` (D42).
+/// `http` and `secrets` will join them; they are unavailable until then.
+pub const ALLOW_REQUIRED_GRANTS: &[&str] = &[
+    "content_write",
+    "documents_write",
+    "records_write",
+    "index_write",
+    "graph_write",
+];
+
+/// Whether `grant` needs a per-instance allow list.
+pub fn needs_allow_list(grant: &str) -> bool {
+    ALLOW_REQUIRED_GRANTS.contains(&grant)
+}
 
 /// Grants the architecture names and this host refuses until their phase
 /// (`PLUGIN_GRANT_UNAVAILABLE`), each with the phase that adds it.
 pub const RESERVED_GRANTS: &[(&str, &str)] = &[
-    ("documents", "phase 2"),
-    ("index", "phase 2"),
-    ("graph", "phase 2"),
     ("memory", "phase 3"),
     ("http", "the first plugin that needs outbound calls"),
     ("secrets", "the first plugin that needs secrets, by phase 5"),

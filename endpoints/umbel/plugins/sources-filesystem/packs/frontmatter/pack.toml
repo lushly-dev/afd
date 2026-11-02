@@ -1,0 +1,6 @@
+pack_version = 1
+id = "frontmatter"
+plugin = "sources"
+version = "1.0.0"
+title = "Frontmatter schema"
+description = "The JSON Schema a document's frontmatter is checked against: OKF v0.2's keys and Umbel's extensions, with unknown keys allowed."

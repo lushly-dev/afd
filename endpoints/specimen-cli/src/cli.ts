@@ -43,8 +43,18 @@ const valueOptions = new Set([
 	'allow-context',
 	'id',
 	'file',
+	'files',
+	'tag',
+	'match',
+	'workers',
+	'flake-cap',
+	'capture',
+	'runs',
+	'note',
+	'gaps',
+	'out',
 ]);
-const flagOptions = new Set(['require-visual']);
+const flagOptions = new Set(['require-visual', 'apply', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -68,7 +78,8 @@ function parseArguments(args: string[]): ParsedArguments {
 		options.set(key, value);
 	}
 	const action = positionals.shift();
-	if (!action) throw new Error('Choose a command: list, validate, render, diff, or build');
+	if (!action)
+		throw new Error('Choose a command: list, validate, inspect, render, run, diff, or build');
 	return { action, positionals, options, flags };
 }
 function dimensions(value: string): { width: number; height: number } {
@@ -80,6 +91,7 @@ function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
 		list: new Set(['root', 'config', 'output']),
 		validate: new Set(['root', 'config', 'output', 'id', 'file']),
+		migrate: new Set(['root', 'config', 'output', 'files', 'apply']),
 		render: new Set([
 			'root',
 			'config',
@@ -93,6 +105,101 @@ function validateOptions(parsed: ParsedArguments): void {
 			'motion',
 			'screenshot',
 		]),
+		inspect: new Set([
+			'root',
+			'config',
+			'output',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+		]),
+		run: new Set([
+			'root',
+			'config',
+			'output',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'screenshot',
+			'file',
+			'tag',
+			'match',
+			'workers',
+			'retry',
+			'flake-cap',
+			'capture',
+		]),
+		coverage: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
+		contract: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
+		suggest: new Set(['root', 'config', 'output', 'gaps', 'out', 'workers']),
+		a11y: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'workers',
+		]),
+		matrix: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'workers',
+		]),
+		profile: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'runs',
+		]),
+		baseline: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'runs',
+			'note',
+		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
 		build: new Set(['root', 'config', 'output']),
 	};
@@ -103,11 +210,64 @@ function validateOptions(parsed: ParsedArguments): void {
 			throw new Error(`Option --${option} does not apply to ${parsed.action}`);
 	}
 	const expected =
-		parsed.action === 'list' || parsed.action === 'validate' ? 0 : parsed.action === 'diff' ? 2 : 1;
-	if (parsed.positionals.length !== expected)
+		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate'
+			? 0
+			: parsed.action === 'diff'
+				? 2
+				: 1;
+	const selects = ['run', 'a11y', 'profile', 'baseline'].includes(parsed.action);
+	const suite =
+		(selects && parsed.positionals.length === 0) ||
+		((parsed.action === 'coverage' || parsed.action === 'contract') &&
+			parsed.positionals.length <= 1);
+	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
+	// How many runs apply to one entry as to many.
+	if (selects && !suite)
+		for (const option of suiteOptions)
+			if (parsed.options.has(option) || parsed.flags.has(option))
+				throw new Error(`Option --${option} selects many; omit the id to use it`);
+	if (!suite && parsed.positionals.length !== expected)
 		throw new Error(
 			`${parsed.action} expects ${expected} positional argument${expected === 1 ? '' : 's'}`
 		);
+}
+/** What selects and shapes a suite, from `specimen run` without a story id. */
+function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
+	const filter = {
+		...(parsed.options.has('file') ? { file: parsed.options.get('file') } : {}),
+		...(parsed.options.has('tag')
+			? { tags: (parsed.options.get('tag') ?? '').split(',').filter(Boolean) }
+			: {}),
+		...(parsed.options.has('match') ? { match: parsed.options.get('match') } : {}),
+	};
+	const whole = (option: string) => {
+		const value = Number(parsed.options.get(option));
+		if (!Number.isInteger(value)) throw new Error(`--${option} expects a whole number`);
+		return value;
+	};
+	return {
+		...(Object.keys(filter).length ? { filter } : {}),
+		...(parsed.options.has('workers') ? { workers: whole('workers') } : {}),
+		...(parsed.flags.has('retry') ? { retry: true } : {}),
+		...(parsed.options.has('flake-cap') ? { flakeCap: whole('flake-cap') } : {}),
+		...(parsed.options.has('capture') ? { capture: parsed.options.get('capture') } : {}),
+	};
+}
+/** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
+function storiesFailed(result: CommandResult<unknown>): boolean {
+	const data = result.data as
+		| {
+				valid?: boolean;
+				cases?: { failed?: unknown[] };
+				outcome?: string | { status?: string };
+				counts?: { failed?: number; errored?: number };
+		  }
+		| undefined;
+	if (data?.counts?.failed || data?.counts?.errored || data?.cases?.failed?.length) return true;
+	if (data?.valid === false) return true;
+	const outcome = data?.outcome;
+	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
+	return outcome?.status === 'failed';
 }
 const resultCapture = z.object({ success: z.literal(true), data: observationSchema }).passthrough();
 async function readCapture(file: string): Promise<unknown> {
@@ -156,6 +316,13 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			});
 			if (parsed.action === 'list')
 				result = await executeSpecimenCommand(bench, 'specimen-list', {});
+			else if (parsed.action === 'migrate')
+				result = await executeSpecimenCommand(bench, 'specimen-migrate', {
+					...(parsed.options.has('files')
+						? { files: (parsed.options.get('files') ?? '').split(',').filter(Boolean) }
+						: {}),
+					...(parsed.flags.has('apply') ? { apply: true } : {}),
+				});
 			else if (parsed.action === 'validate')
 				result = await executeSpecimenCommand(bench, 'specimen-validate', {
 					...(parsed.options.has('id') ? { id: parsed.options.get('id') } : {}),
@@ -169,8 +336,9 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				const context: Partial<SpecimenContext> = {};
 				const viewport = parsed.options.get('viewport');
 				const container = parsed.options.get('container');
-				if (viewport) context.viewport = dimensions(viewport);
-				if (container) context.container = dimensions(container);
+				// A matrix reads these as lists of axis values, below.
+				if (viewport && parsed.action !== 'matrix') context.viewport = dimensions(viewport);
+				if (container && parsed.action !== 'matrix') context.container = dimensions(container);
 				// Validate raw values through the AFD schema rather than coercing a typo to a context.
 				const raw: Record<string, string> = {};
 				for (const [option, field] of [
@@ -182,17 +350,109 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value) raw[field] = value;
 				}
-				const input = {
-					id: parsed.positionals[0],
-					context: { ...context, ...raw },
-					...(parsed.options.has('checkpoint')
-						? { checkpoint: parsed.options.get('checkpoint') }
-						: {}),
-					...(parsed.options.has('screenshot')
-						? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
-						: {}),
-				};
-				result = await executeSpecimenCommand(bench, 'specimen-render', input);
+				if (parsed.action === 'matrix') {
+					const list = (option: string) =>
+						(parsed.options.get(option) ?? '').split(',').filter(Boolean);
+					const axes = {
+						...(parsed.options.has('theme') ? { theme: list('theme') } : {}),
+						...(parsed.options.has('viewport')
+							? { viewport: list('viewport').map(dimensions) }
+							: {}),
+						...(parsed.options.has('container')
+							? { container: list('container').map(dimensions) }
+							: {}),
+						...(parsed.options.has('locale') ? { locale: list('locale') } : {}),
+						...(parsed.options.has('reduced-motion')
+							? { reducedMotion: list('reduced-motion') }
+							: {}),
+						...(parsed.options.has('motion') ? { motion: list('motion') } : {}),
+					};
+					result = await executeSpecimenCommand(bench, 'specimen-matrix', {
+						id: parsed.positionals[0],
+						axes,
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'profile' || parsed.action === 'baseline') {
+					const runs = parsed.options.get('runs');
+					if (runs !== undefined && !Number.isInteger(Number(runs)))
+						throw new Error('--runs expects a whole number');
+					const note = parsed.options.get('note');
+					result = await executeSpecimenCommand(
+						bench,
+						parsed.action === 'profile' ? 'specimen-profile' : 'specimen-baseline',
+						{
+							...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
+							context: { ...context, ...raw },
+							...(parsed.options.has('checkpoint')
+								? { checkpoint: parsed.options.get('checkpoint') }
+								: {}),
+							...(runs === undefined ? {} : { runs: Number(runs) }),
+							...(note === undefined ? {} : { notes: [note] }),
+							...suiteInput(parsed),
+						}
+					);
+				} else if (parsed.action === 'suggest') {
+					result = await executeSpecimenCommand(bench, 'specimen-suggest', {
+						component: parsed.positionals[0],
+						...(parsed.options.has('gaps')
+							? { gaps: (parsed.options.get('gaps') ?? '').split(',').filter(Boolean) }
+							: {}),
+						...suiteInput(parsed),
+					});
+					const out = parsed.options.get('out');
+					// Never over a file someone may have corrected.
+					if (out && result.success)
+						await writeFile(resolve(root, out), (result.data as { source: string }).source, {
+							flag: 'wx',
+						});
+				} else if (parsed.action === 'contract') {
+					result = await executeSpecimenCommand(bench, 'specimen-contract', {
+						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'coverage') {
+					result = await executeSpecimenCommand(bench, 'specimen-coverage', {
+						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'a11y') {
+					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
+						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
+						context: { ...context, ...raw },
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'run' && parsed.positionals.length === 0)
+					result = await executeSpecimenCommand(bench, 'specimen-run', {
+						context: { ...context, ...raw },
+						...suiteInput(parsed),
+					});
+				else {
+					const input = {
+						id: parsed.positionals[0],
+						context: { ...context, ...raw },
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...(parsed.options.has('screenshot')
+							? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
+							: {}),
+					};
+					result = await executeSpecimenCommand(
+						bench,
+						parsed.action === 'run'
+							? 'specimen-run'
+							: parsed.action === 'inspect'
+								? 'specimen-inspect'
+								: 'specimen-render',
+						input
+					);
+				}
 			}
 		}
 		await bench?.close();
@@ -205,7 +465,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], render ID, diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, migrate [--files A,B] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {
@@ -223,5 +483,5 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 		}
 	}
 	stdout(`${JSON.stringify(result)}\n`);
-	return result.success ? 0 : 1;
+	return result.success && !storiesFailed(result) ? 0 : 1;
 }

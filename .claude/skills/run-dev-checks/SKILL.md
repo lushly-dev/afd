@@ -75,7 +75,7 @@ The browser workflows (FAST-AF, Violet, Specimen, Health dashboard) keep their p
 <rules>
 Remote runner minutes are billed; verify on this machine and let remote CI confirm. Run `pnpm verify` before pushing: `pnpm check`, then the local suites of every path-filtered workflow the change triggers, selected by the workflow's own `pull_request.paths` and `Affected units` gates. `pnpm verify --list` prints the plan and what stays remote-only.
 Every pull-request workflow needs an entry in `scripts/affected/suites.mjs`, and each of its gates must bind a local step; `scripts/affected.test.mjs` fails otherwise.
-Pull-request workflows cancel a run a newer push supersedes. `ci.yml` runs only the `.nvmrc` Node version on pull requests and pushes; the daily and manual runs add the older supported versions.
+Pull-request workflows cancel a run a newer push supersedes. `ci.yml` runs only the `.nvmrc` Node version on pull requests and pushes; the daily and manual runs add the older supported versions. The other slow legs are daily too: C++ TSan, macOS, Windows, packaging, benchmarks, fuzz and Emscripten; Umbel on macOS and MSRV; fast-element on Firefox and WebKit. A failure there surfaces the next morning, not on the pull request.
 </rules>
 
 ### 2. Three Enforcement Layers

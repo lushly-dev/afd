@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "plugins/hello", "plugins/todo", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -22,7 +22,7 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [features]
-default = ["cli", "component", "mounted"]
+default = ["cli", "component", "mounted", "store-embedded"]
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
 # The WebAssembly component loader (specification section 6.2): wasmtime 48 and its WASI 0.2
@@ -37,9 +37,13 @@ testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
 # `kill_on_drop` nor a hook for the bounded stdio reader the result limit needs.
 mounted = [
-	"dep:rmcp", "dep:http", "dep:futures", "dep:regex", "dep:reqwest", "dep:sse-stream",
+	"dep:rmcp", "dep:http", "dep:futures", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
 	"rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest",
 ]
+
+# The embedded reference store (specification section 3.2): SQLite in WAL mode and tantivy. Without
+# it the host links neither, and every store grant answers `PLUGIN_GRANT_UNAVAILABLE`.
+store-embedded = ["dep:umbel-store-embedded"]
 
 [[bin]]
 name = "umbel"
@@ -89,7 +93,6 @@ wasmtime-wasi-io = { version = "48.0.8", optional = true, default-features = fal
 # Optional: the `mounted` feature. `reqwest` is named for its client builder (a private root
 # certificate, no redirects) and `sse-stream` for the SSE types the bounded HTTP client returns.
 futures = { version = "0.3", optional = true }
-regex = { version = "1", default-features = false, features = ["std", "perf"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"], optional = true }
 sse-stream = { version = "0.2", optional = true }
 
@@ -101,6 +104,11 @@ http-body-util = { version = "0.1", optional = true }
 rmcp = { version = "3.7", optional = true, default-features = false, features = ["server", "transport-io"] }
 tempfile = { version = "3", optional = true }
 umbel-sdk = { path = "sdk" }
+# The store traits and shared types, and (feature `store-embedded`) the embedded backend.
+umbel-store = { path = "store" }
+umbel-store-embedded = { path = "store-embedded", optional = true }
+# Optional: the `mounted` feature scans tool descriptions with the patterns the OKF reader shares.
+umbel-scan = { path = "scan", optional = true }
 
 [dev-dependencies]
 bytes = "1"
@@ -117,6 +125,10 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
+# `doctor_stores.rs` damages a store's tables, and `store_commands.rs` opens a backup.
+rusqlite = { version = "0.41", features = ["bundled"] }
+# The store tests build documents and chunks with the conformance suite's own samples.
+umbel-store = { path = "store", features = ["conformance"] }
 
 # Cranelift and wasmtime dominate test time when unoptimized, and the tests compile components.
 # The test profile inherits these from dev. (The component loader, specification section 1.)
@@ -133,6 +145,47 @@ opt-level = 2
 [profile.dev.package.wasmtime-internal-cranelift]
 opt-level = 2
 [profile.dev.package.wasmtime-environ]
+opt-level = 2
+# SQLite's C code is slow unoptimised, and the store tests write thousands of rows (the
+# embedded store, specification section 1). The test profile inherits this from dev.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 2
+[profile.dev.package.sha2]
+opt-level = 2
+# tantivy's indexing and query code is slow unoptimised, and the thousand-document tests run it
+# (specification section 1). The test profile inherits these from dev.
+[profile.dev.package.tantivy]
+opt-level = 2
+[profile.dev.package.tantivy-bitpacker]
+opt-level = 2
+[profile.dev.package.tantivy-columnar]
+opt-level = 2
+[profile.dev.package.tantivy-common]
+opt-level = 2
+[profile.dev.package.tantivy-fst]
+opt-level = 2
+[profile.dev.package.tantivy-query-grammar]
+opt-level = 2
+[profile.dev.package.tantivy-sstable]
+opt-level = 2
+[profile.dev.package.tantivy-stacker]
+opt-level = 2
+[profile.dev.package.tantivy-tokenizer-api]
+opt-level = 2
+[profile.dev.package.lz4_flex]
+opt-level = 2
+[profile.dev.package.frostem]
+opt-level = 2
+# tree-sitter's parser and the grammars' generated C are slow unoptimised, and the code-symbol
+# tests parse hostile files against wall-time budgets (specification section 7.4). The test
+# profile inherits these from dev.
+[profile.dev.package.tree-sitter]
+opt-level = 2
+[profile.dev.package.tree-sitter-rust]
+opt-level = 2
+[profile.dev.package.tree-sitter-python]
+opt-level = 2
+[profile.dev.package.tree-sitter-typescript]
 opt-level = 2
 
 [lints]

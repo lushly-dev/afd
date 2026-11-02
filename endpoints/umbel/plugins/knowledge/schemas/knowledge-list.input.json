@@ -1,0 +1,37 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"collection": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 63
+		},
+		"prefix": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"type": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128
+		},
+		"after": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "Continue after this document id (nextAfter of the last page)"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 500,
+			"default": 50
+		}
+	},
+	"additionalProperties": false
+}

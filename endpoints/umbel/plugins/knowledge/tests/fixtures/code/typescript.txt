@@ -1,0 +1,37 @@
+/** A plan. */
+export interface Plan {
+	name: string;
+	apply(step: string): void;
+}
+
+export type Steps = string[];
+
+export enum Mode {
+	Fast,
+	Safe,
+}
+
+export class Planner implements Plan {
+	name = 'x';
+	apply(step: string): void {}
+	static create(): Planner {
+		return new Planner();
+	}
+}
+
+export function build(): Planner {
+	return new Planner();
+}
+
+export const limit = 3;
+export const make = (n: number) => n;
+
+namespace Inner {
+	export function deep() {}
+}
+
+abstract class Base {
+	abstract run(): void;
+}
+
+function* gen() {}

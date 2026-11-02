@@ -7,6 +7,8 @@
 //! - `{"id", "op": "render", "entry", "context", "checkpoint", "timeoutMs", "screenshot"}`
 //! - `{"id", "op": "index", "root", "base", "stories": [{directory, files, titlePrefix}], "preview"}`
 //!   reads story files statically and replies with their Storybook identities; it needs no `open`.
+//! - `{"id", "op": "migrate", "root", "base", "stories", "manifest", "files", "apply"}` is the
+//!   preview-first codemod over the same files; it writes only with `apply`.
 //! - `{"id", "op": "close"}` waits for accepted renders, stops Chromium and exits.
 //!
 //! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes"}}`.
@@ -18,6 +20,8 @@ mod bundle;
 mod cdp;
 mod console;
 mod csf;
+mod glob;
+mod keyboard;
 mod page;
 mod serve;
 
@@ -32,6 +36,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Mutex, mpsc};
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OpenRequest {
     root: PathBuf,
     runtime: String,
@@ -40,6 +45,8 @@ struct OpenRequest {
     defaults: Value,
     executable: String,
     work: PathBuf,
+    #[serde(default)]
+    static_dirs: Vec<serve::StaticDir>,
 }
 
 struct Bench {
@@ -53,6 +60,14 @@ struct Bench {
 
 impl Bench {
     /// The current bundle, rebuilt when any of its source files changed.
+    /// The built generation without checking its sources, for a suite that checked them once.
+    async fn current_generation(&self) -> Result<Arc<Generation>> {
+        if let Some(generation) = self.generation.lock().await.as_ref() {
+            return Ok(generation.clone());
+        }
+        self.generation().await
+    }
+
     async fn generation(&self) -> Result<Arc<Generation>> {
         let mut current = self.generation.lock().await;
         if let Some(generation) = current.as_ref()
@@ -66,7 +81,10 @@ impl Bench {
     }
 
     async fn render(&self, request: RenderRequest) -> Result<Value, RenderFailure> {
-        let generation = self.generation().await?;
+        let generation = match request.reuse_bundle {
+            true => self.current_generation().await?,
+            false => self.generation().await?,
+        };
         let token = uuid::Uuid::new_v4().to_string();
         self.renders.begin(&token, generation);
         let outcome = self
@@ -80,6 +98,10 @@ impl Bench {
             "snapshot": outcome.snapshot,
             "screenshot": outcome.screenshot,
             "console": { "errors": outcome.errors, "warnings": outcome.warnings },
+            "context": outcome.context,
+            "outcome": outcome.outcome,
+            "accessibility": outcome.accessibility,
+            "profile": outcome.profile,
             "loaded": loaded,
             "browser": self.browser.ready().await.unwrap_or_default(),
         }))
@@ -96,7 +118,7 @@ async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
     std::fs::create_dir_all(&work)?;
     // Chromium starts while the first bundle builds.
     let browser = Browser::spawn(&request.executable, &work)?;
-    let renders = serve::Renders::default();
+    let renders = serve::Renders::new(request.static_dirs);
     let origin = match serve::start(renders.clone()).await {
         Ok(origin) => origin,
         Err(error) => {
@@ -175,6 +197,35 @@ async fn main() -> Result<()> {
                 };
                 let _ = replies.send(reply);
             }
+            Some(operation @ ("prepare" | "stale")) => {
+                let Some(current) = bench.clone() else {
+                    let _ = replies.send(failure(&id, anyhow!("Specimen host is not open").into()));
+                    continue;
+                };
+                let replies = replies.clone();
+                let prepare = operation == "prepare";
+                work.spawn(async move {
+                    // Prepare rebuilds a stale bundle; stale only reports whether it is.
+                    let reply = if prepare {
+                        match current.generation().await {
+                            Ok(_) => json!({ "id": id, "ok": true, "result": {} }),
+                            Err(error) => failure(&id, error.into()),
+                        }
+                    } else {
+                        let stale = match current.generation.lock().await.as_ref() {
+                            Some(generation) => {
+                                let generation = generation.clone();
+                                tokio::task::spawn_blocking(move || generation.stale())
+                                    .await
+                                    .unwrap_or(true)
+                            }
+                            None => false,
+                        };
+                        json!({ "id": id, "ok": true, "result": { "stale": stale } })
+                    };
+                    let _ = replies.send(reply);
+                });
+            }
             Some("render") => {
                 let Some(current) = bench.clone() else {
                     let _ = replies.send(failure(&id, anyhow!("Specimen host is not open").into()));
@@ -212,6 +263,32 @@ async fn main() -> Result<()> {
                             failure(&id, anyhow!("Invalid index request: {error}").into())
                         }
                     };
+                    let _ = replies.send(reply);
+                });
+            }
+            Some("migrate") => {
+                let replies = replies.clone();
+                work.spawn(async move {
+                    let reply =
+                        match serde_json::from_value::<csf::migrate::MigrateRequest>(message) {
+                            Ok(request) => {
+                                match tokio::task::spawn_blocking(move || {
+                                    csf::migrate::migrate(&request)
+                                })
+                                .await
+                                {
+                                    Ok(migration) => {
+                                        json!({ "id": id, "ok": true, "result": migration })
+                                    }
+                                    Err(error) => {
+                                        failure(&id, anyhow!("Migration failed: {error}").into())
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                failure(&id, anyhow!("Invalid migrate request: {error}").into())
+                            }
+                        };
                     let _ = replies.send(reply);
                 });
             }

@@ -1,0 +1,27 @@
+[package]
+name = "umbel-store"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel store traits, version 1: shared types, the document, search and graph traits, and the conformance suite"
+repository = "https://github.com/lushly-dev/afd"
+
+[features]
+# `umbel_store::conformance`: the suite every backend runs (specification section 3.1). It needs
+# `tempfile` for a directory per case; the types and traits build without it.
+conformance = ["dep:tempfile"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = { version = "3", optional = true }
+
+[dev-dependencies]
+# `tests/suite_detects.rs` runs the suite against a deliberately broken fake.
+umbel-store = { path = ".", features = ["conformance"] }
+
+[lints]
+workspace = true

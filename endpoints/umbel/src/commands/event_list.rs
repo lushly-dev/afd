@@ -4,7 +4,9 @@ use super::{
     Builtin, blocking, caller, consumer_arg, consumer_property, expose_everywhere_but_the_palette,
     returns_object, validation_error,
 };
+use crate::access::reader_filter;
 use crate::events::{Cursor, EventsError, Projector, invalid_cursor, read_after, read_cursor};
+use crate::provenance::effective_principal;
 use crate::workspace::{SpaceId, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult};
 use afd::{failure, success};
@@ -67,6 +69,16 @@ fn list(
             caller,
         } = request;
         let events_error = |error: EventsError| error.to_command_error();
+        // Who may read the space, and which of its events (phase 2 specification, section 2.2):
+        // `SPACE_NOT_READABLE` before anything is read.
+        let reader = reader_filter(
+            workspace.config(),
+            space.as_str(),
+            caller
+                .as_ref()
+                .and_then(|(actor, _)| effective_principal(actor))
+                .as_deref(),
+        )?;
         projector.catch_up_if_pending().map_err(events_error)?;
         let head = projector.tail(&space).map_err(events_error)?.seq;
 
@@ -95,8 +107,21 @@ fn list(
             || start.clone(),
             |event| Cursor::new(space.clone(), event.seq),
         );
+        // A version 1 event is returned only when the caller's reader filter holds a token of the
+        // envelope's `access`; a version 0 line carries no access set and is returned as before.
+        // Skipped events leave gaps in `seq`, a count leak accepted with the others (section 6);
+        // the cursor still moves past them.
+        let tokens = reader.token_list().unwrap_or_default();
         let events: Vec<Value> = events
             .iter()
+            .filter(|event| {
+                event.version == 0
+                    || event
+                        .provenance
+                        .access
+                        .iter()
+                        .any(|token| tokens.contains(token))
+            })
             .map(|event| serde_json::to_value(event).unwrap_or(Value::Null))
             .collect();
         Ok(json!({

@@ -44,6 +44,7 @@ codebase to learn what is current.
 | [Status](docs/STATUS.md) | Source of truth for progress: document and phase state, exact done and not-done lists, follow-ups not yet issues, session log |
 | [Architecture](docs/architecture.md) | The through line: vision, principles, system shape, components, the surface catalog, interfaces, libraries and phases. Each phase's owning agent writes a detailed specification against it |
 | [Proposal](docs/proposal.md) | What Loam is, the app contract, how projects and apps relate, documents and multiplayer, surfaces, overlays, the design foundation, identity and agent members, the copilot, the language choice per part, first-party apps, the builder and the first proof |
+| [Design](docs/design.md) | The design record for the chrome and kit: principles, the token contract, type, color and contrast floors, density, the parts, motion, focus and state, icons, layout classes, the component checklist and list, and a dated history; the `loam-design` skill carries the same rules |
 | [Decision log](docs/decisions.md) | Dated decisions each phase specification cites, and the open decisions, all closed on 2026-10-31 |
 | [Trajectory watch](docs/trajectory.md) | Where agent interfaces, the web platform, plugin shells and client-side Rust are heading, what Loam reserves for each, and the dated watchlist |
 | [Research](docs/research.md) | Synthesis of public sources on loved application layouts, plugin shells, isolation and overlays, client runtimes, identity and experiments |

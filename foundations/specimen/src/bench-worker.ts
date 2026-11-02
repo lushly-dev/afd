@@ -7,7 +7,7 @@ import {
 } from './bench-worker-client.js';
 
 // This entrypoint has no public command surface. Only the owning bench has its IPC channel.
-let bench: Omit<SpecimenBench, 'validate'> | undefined;
+let bench: Omit<SpecimenBench, 'validate' | 'migrate'> | undefined;
 let queue: Promise<void> = Promise.resolve();
 let closing = false;
 let shutdown: Promise<void> | undefined;
@@ -44,9 +44,18 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 		return null;
 	}
 	if (!bench) throw new Error('Specimen worker is not initialized');
-	return message.operation === 'render'
-		? bench.render(message.request)
-		: bench.build(message.outDir);
+	if (message.operation === 'render') return bench.render(message.request);
+	if (message.operation === 'run') return bench.run(message.request);
+	if (message.operation === 'runSuite') return bench.runSuite(message.request);
+	if (message.operation === 'a11y') return bench.a11y(message.request);
+	if (message.operation === 'coverage') return bench.coverage(message.request);
+	if (message.operation === 'contract') return bench.contract(message.request);
+	if (message.operation === 'suggest') return bench.suggest(message.request);
+	if (message.operation === 'profile') return bench.profile(message.request);
+	if (message.operation === 'matrix') return bench.matrix(message.request);
+	if (message.operation === 'recordBaseline') return bench.recordBaseline(message.request);
+	if (message.operation === 'inspect') return bench.inspect(message.request);
+	return bench.build(message.outDir);
 }
 function exitAfterCleanup(): void {
 	closing = true;

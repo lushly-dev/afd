@@ -142,16 +142,7 @@ function toKotlinValue(token: ResolvedToken): string {
 
 	// Colors
 	if (category === 'color' || isHexColor(value)) {
-		const hex = String(value).replace('#', '').toUpperCase();
-		// Ensure 6-digit hex for Color
-		const fullHex =
-			hex.length === 3
-				? hex
-						.split('')
-						.map((c) => c + c)
-						.join('')
-				: hex;
-		return `Color(0xFF${fullHex})`;
+		return `Color(0x${toArgbHex(String(value))})`;
 	}
 
 	// Numbers with units
@@ -184,7 +175,44 @@ function toKotlinValue(token: ResolvedToken): string {
 	}
 
 	// Strings
-	return `"${value}"`;
+	return `"${escapeKotlinString(String(value))}"`;
+}
+
+const KOTLIN_ESCAPES: Record<string, string> = {
+	'\\': '\\\\',
+	'"': '\\"',
+	$: '\\$',
+	'\n': '\\n',
+	'\r': '\\r',
+	'\t': '\\t',
+};
+
+/**
+ * Escape a value for a double-quoted Kotlin string literal, including `$`
+ * so it cannot start a string template
+ */
+function escapeKotlinString(str: string): string {
+	return str.replace(/[\\"$\n\r\t]/g, (c) => KOTLIN_ESCAPES[c]);
+}
+
+/**
+ * Convert a CSS hex color (#RGB, #RRGGBB or #RRGGBBAA) to the AARRGGBB digits
+ * a Color(0x...) literal takes: CSS puts alpha last, the literal puts it first
+ */
+function toArgbHex(value: string): string {
+	const hex = value.replace('#', '').toUpperCase();
+	if (hex.length === 8) {
+		return hex.slice(6) + hex.slice(0, 6);
+	}
+	// Expand 3-digit hex to 6 digits
+	const rgb =
+		hex.length === 3
+			? hex
+					.split('')
+					.map((c) => c + c)
+					.join('')
+			: hex;
+	return `FF${rgb}`;
 }
 
 /**

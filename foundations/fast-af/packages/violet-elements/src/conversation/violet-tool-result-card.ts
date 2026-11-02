@@ -14,7 +14,7 @@ const styles = css`
         display: block;
         --_result-font-size: var(--violet-result-font-size, var(--_caption-size, 12px));
         --_result-line-height: var(--violet-result-line-height, var(--_caption-line, 16px));
-        --_success-text: var(--color-state-success-text, rgb(21, 128, 61));
+        --_success-text: var(--color-state-success-text, #166534);
     }
 
     .frame {
@@ -29,7 +29,7 @@ const styles = css`
     }
 
     :host([state="output-available"]) .frame {
-        --violet-card-border-color: var(--color-state-success-border, rgba(22, 163, 74, 0.28));
+        --violet-card-border-color: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
     }
 
     :host([state="output-error"]) .frame {
@@ -71,7 +71,7 @@ const styles = css`
     }
 
     :host([state="output-error"]) .status-icon {
-        color: var(--color-state-danger-text, #dc2626);
+        color: var(--color-state-danger-text, #b42318);
     }
 
     .summary-text {

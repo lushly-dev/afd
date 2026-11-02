@@ -1,0 +1,24 @@
+# The proposal's headless `umbel` manifest, verbatim. A test fixture: the first-party `umbel` app stays
+# after Umbel's phase 2 and Loam's phase 5 (D57).
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "umbel"
+title = "Umbel"
+version = "0.1.0"             # the host version this description was written for
+description = "An Umbel host: knowledge, memory and context tools from its enabled plugins."
+kind = "mounted"
+domains = ["umbel"]
+homepage = "https://afd.dev/umbel"
+
+[mount]
+prefix = "umbel"              # the default instance prefix; the deployer names one per instance
+transport = "http"            # the default; an instance entry may choose stdio where its host can spawn
+
+[app]
+scope_levels = ["workspace", "project"]
+
+# No [[commands]]: they come from the instance, and depend on its enabled plugins.
+# No [ui]: headless. The console is its UI (Loam D48).

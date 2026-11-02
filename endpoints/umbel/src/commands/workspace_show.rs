@@ -72,6 +72,13 @@ impl CommandHandler for Handler {
                 "locator": LOCATOR_VERSION,
                 "proposal": PROPOSAL_VERSION,
             },
+            // How far access filtering holds (phase 2 specification, section 6, owner decision 1
+            // of 2026-11-01): nothing verifies who a stdio or loopback HTTP caller is until
+            // phase 5, so the reader filters are exact only for embedders and tests.
+            "access": {
+                "principals": "unverified",
+                "exact": ["library"],
+            },
             "surfaces": {
                 "toolStrategy": "hybrid",
                 "firstClassTools": self.first_class.get().cloned().unwrap_or_default(),
@@ -99,7 +106,7 @@ pub(crate) fn workspace_show(
     )
     .with_category("workspace")
     .with_returns(returns_object(
-        "name, workspace, defaultSpace, profile, spaces, host, versions, surfaces and plugins",
+        "name, workspace, defaultSpace, profile, spaces, host, versions, access, surfaces and plugins",
     ))
     .with_expose(expose_everywhere_but_the_palette());
     Builtin {

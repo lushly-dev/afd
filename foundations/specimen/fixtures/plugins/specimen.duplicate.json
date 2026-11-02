@@ -1,0 +1,12 @@
+{
+	"specimens": [
+		{
+			"id": "switch-toggled",
+			"title": "Plugins/Switch",
+			"module": "./switch.specimens.ts",
+			"exportName": "Toggled",
+			"component": "plain-switch"
+		}
+	],
+	"plugins": ["./fixture.plugin.ts", "./duplicate.plugin.ts"]
+}

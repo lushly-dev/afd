@@ -1,0 +1,35 @@
+{
+	"specimens": [
+		{
+			"id": "small",
+			"title": "Profile/Small",
+			"module": "./pages.specimens.ts",
+			"exportName": "Small"
+		},
+		{
+			"id": "large",
+			"title": "Profile/Large",
+			"module": "./pages.specimens.ts",
+			"exportName": "Large"
+		},
+		{
+			"id": "noisy",
+			"title": "Profile/Noisy",
+			"module": "./pages.specimens.ts",
+			"exportName": "Noisy"
+		},
+		{
+			"id": "broken",
+			"title": "Profile/Broken",
+			"module": "./pages.specimens.ts",
+			"exportName": "Broken"
+		},
+		{
+			"id": "stepped",
+			"title": "Profile/Stepped",
+			"module": "./pages.specimens.ts",
+			"exportName": "Stepped"
+		}
+	],
+	"profile": { "baselines": "./baselines.jsonc" }
+}

@@ -41,7 +41,7 @@
 		"publish:npm": "node scripts/release-control.mjs publish",
 		"prepare": "lefthook install",
 		"test:hosted:local": "pnpm build && node scripts/run-hosted-local.mjs",
-		"test:specimen": "pnpm -F \"@lushly-dev/specimen-cli...\" build && pnpm -F @lushly-dev/specimen test:browser && node tests/consumers/specimen/verify-artifacts.mjs",
+		"test:specimen": "pnpm -F \"@lushly-dev/specimen-cli...\" -F \"@lushly-dev/specimen-fast-af...\" build && pnpm -F @lushly-dev/specimen test:browser && pnpm -F @lushly-dev/specimen-fast-af test:browser && node tests/consumers/specimen/verify-artifacts.mjs",
 		"test:fast-af": "pnpm -F \"@lushly-dev/violet-elements...\" build && pnpm -F @lushly-dev/fast-element test:chromium && pnpm -F @lushly-dev/violet-elements test:browser && node tests/consumers/fast-af/verify-artifacts.mjs",
 		"test:violet": "pnpm -F \"@lushly-dev/violet-cli...\" -F @lushly-dev/violet-runtime -F @lushly-dev/afd-core build && pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-afd test:db && node tests/consumers/violet/verify-artifacts.mjs"
 	},

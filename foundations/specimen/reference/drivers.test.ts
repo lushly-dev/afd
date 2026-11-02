@@ -71,6 +71,8 @@ async function render(
 describe('the reference driver: the common runtime in Vitest browser mode', () => {
 	const now = Date.now;
 	const random = Math.random;
+	// What installing the runtime leaves: each case's own stub must hand back to this.
+	let seeded: typeof Math.random;
 
 	beforeAll(() => {
 		// The page is part of the context: Vitest's tester body has no margin, while the bench
@@ -88,6 +90,7 @@ describe('the reference driver: the common runtime in Vitest browser mode', () =
 			'readiness-failure': () => import('../fixtures/probe.stories.js'),
 			'disposal-failure': () => import('../fixtures/probe.stories.js'),
 		});
+		seeded = Math.random;
 	});
 
 	afterAll(async () => {
@@ -145,7 +148,7 @@ describe('the reference driver: the common runtime in Vitest browser mode', () =
 		const time = observation.elements.find((entry) => entry.tag === 'time');
 		expect(time?.attributes.datetime).toBe(new Date(FIXED_NOW).toISOString());
 		expect(Date.now()).not.toBe(FIXED_NOW);
-		expect(Math.random).toBe(random);
+		expect(Math.random).toBe(seeded);
 	});
 
 	it('shares one document between cases, so only runtime-owned state is reset', async () => {

@@ -1,0 +1,2558 @@
+[
+	{
+		"seq": 1,
+		"timestamp": "2026-01-01T00:00:00.001Z",
+		"traceId": "loam-mjuohs00-1",
+		"command": "shell-info-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:d1b72634b2164d7618b0ad9092520b101d952d921e0a18461a8be2558ea141c4",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"kernelInterface": 1,
+				"layoutState": 0,
+				"storeInterface": 0,
+				"tokenContract": 1,
+				"manifestVersion": 1,
+				"appProtocol": 1,
+				"surfaceCatalog": 1,
+				"compositionLibrary": 1,
+				"sdk": 1,
+				"host": "test",
+				"store": "memory"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-1"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600002, 1767225600003],
+			"random": []
+		}
+	},
+	{
+		"seq": 2,
+		"timestamp": "2026-01-01T00:00:00.005Z",
+		"traceId": "loam-mjuohs00-2",
+		"command": "layout-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:f4753d747164421877b62a540d8e4b18c46b585959cabb4f562e736d7bd9d4cc",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 260
+				},
+				"inspector": {
+					"open": false,
+					"width": 300
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-2"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600006, 1767225600007],
+			"random": []
+		}
+	},
+	{
+		"seq": 3,
+		"timestamp": "2026-01-01T00:00:00.009Z",
+		"traceId": "loam-mjuohs00-3",
+		"command": "appearance-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:1b9fc2ef02e311dec38dfc538336af431a3cd5fef4f241b56f2fb18d3a2ac2f3",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "system",
+				"density": "comfortable",
+				"resolved": "light"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-3"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600010, 1767225600011],
+			"random": []
+		}
+	},
+	{
+		"seq": 4,
+		"timestamp": "2026-01-01T00:00:00.013Z",
+		"traceId": "loam-mjuohs00-4",
+		"command": "auth-session-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:3289f2950e9974ea36fd48734b6f2bbf12aa756370ef9302fc9ebde6fb68eb4e",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"status": "unauthenticated",
+				"session": null,
+				"user": null
+			},
+			"reasoning": "Current auth status: unauthenticated",
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-4"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600014, 1767225600015],
+			"random": []
+		}
+	},
+	{
+		"seq": 5,
+		"timestamp": "2026-01-01T00:00:00.017Z",
+		"traceId": "loam-mjuohs00-5",
+		"command": "auth-sign-in",
+		"input": {
+			"method": "credentials",
+			"email": "person@example.com"
+		},
+		"contextDigest": {
+			"hash": "sha256:e75aff3e8fa9656743283fdec42b9249d04de368fe6d4d86bc4364d665935ee2",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"status": "authenticated",
+				"session": {
+					"id": "mock-session-1793608037914",
+					"expiresAt": "2026-11-02T09:27:17.914Z"
+				},
+				"user": {
+					"id": "mock-user-1793608037914",
+					"email": "person@example.com",
+					"name": "person"
+				}
+			},
+			"reasoning": "Signed in via credentials as person@example.com",
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-5"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600018, 1767225600019],
+			"random": []
+		}
+	},
+	{
+		"seq": 6,
+		"timestamp": "2026-01-01T00:00:00.021Z",
+		"traceId": "loam-mjuohs00-6",
+		"command": "layout-set",
+		"input": {
+			"sidebar": {
+				"width": 320
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:1432e5f32517441a670facb0a7cdf57c66768356d47d079ef1cc6dfe09ab8c3f",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": false,
+					"width": 300
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"sidebar": {
+					"width": 260
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-6",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600022, 1767225600023],
+			"random": []
+		}
+	},
+	{
+		"seq": 7,
+		"timestamp": "2026-01-01T00:00:00.025Z",
+		"traceId": "loam-mjuohs00-7",
+		"command": "layout-set",
+		"input": {
+			"inspector": {
+				"open": true
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:01dd40588f6e9a93dff063307a946e7371fc3c39215f6aa51fe111af5d7e1d04",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 300
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"inspector": {
+					"open": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-7",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600026, 1767225600027],
+			"random": []
+		}
+	},
+	{
+		"seq": 8,
+		"timestamp": "2026-01-01T00:00:00.029Z",
+		"traceId": "loam-mjuohs00-8",
+		"command": "layout-set",
+		"input": {
+			"inspector": {
+				"width": 400
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:7f28d1d6280a848cb1227d357366754d9eaa6792c15046fcb434c71202e1444c",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"inspector": {
+					"width": 300
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-8",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600030, 1767225600031],
+			"random": []
+		}
+	},
+	{
+		"seq": 9,
+		"timestamp": "2026-01-01T00:00:00.033Z",
+		"traceId": "loam-mjuohs00-9",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"open": true
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:48e250e1df07388dc5d68fa54e03e70e6cae4e9a160565e74dc2343ef8f0f807",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": true,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"panel": {
+					"open": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-9",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600034, 1767225600035],
+			"random": []
+		}
+	},
+	{
+		"seq": 10,
+		"timestamp": "2026-01-01T00:00:00.037Z",
+		"traceId": "loam-mjuohs00-10",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"height": 300
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:f0ea0b0c3049598d182f70f5d40f4b9bfcd1799622d953bf5d094d620a788a85",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"panel": {
+					"height": 240
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-10",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600038, 1767225600039],
+			"random": []
+		}
+	},
+	{
+		"seq": 11,
+		"timestamp": "2026-01-01T00:00:00.041Z",
+		"traceId": "loam-mjuohs00-11",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"maximized": true
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:b1102073c13e9db05f673264fbf746eec8f2369882010e798540ae66958e3734",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": true
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"panel": {
+					"maximized": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-11",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600042, 1767225600043],
+			"random": []
+		}
+	},
+	{
+		"seq": 12,
+		"timestamp": "2026-01-01T00:00:00.045Z",
+		"traceId": "loam-mjuohs00-12",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"maximized": false
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:517a425e6ea2aaac042f0258f0d547c194c3b9058b42203cdbf084fd49854117",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"panel": {
+					"maximized": true
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-12",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600046, 1767225600047],
+			"random": []
+		}
+	},
+	{
+		"seq": 13,
+		"timestamp": "2026-01-01T00:00:00.049Z",
+		"traceId": "loam-mjuohs00-13",
+		"command": "layout-set",
+		"input": {
+			"sidebar": {
+				"width": 900
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:18a525ff602d7ba2108f15964f41741e848a13991ab16cda136d59348444750c",
+			"interface": "palette"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "sidebar.width must be an integer from 200 to 480 CSS pixels; got 900",
+				"suggestion": "Use a whole number from 200 to 480, e.g. 260",
+				"retryable": false,
+				"details": {
+					"field": "sidebar.width",
+					"min": 200,
+					"max": 480,
+					"value": 900
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-13",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600050, 1767225600051],
+			"random": []
+		}
+	},
+	{
+		"seq": 14,
+		"timestamp": "2026-01-01T00:00:00.053Z",
+		"traceId": "loam-mjuohs00-14",
+		"command": "layout-set",
+		"input": {
+			"inspector": {
+				"width": 100
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:1e2630421f8eef58393d70188f55a8e1977d32b27852fe78db5c8ccb9ff1b838",
+			"interface": "palette"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "inspector.width must be an integer from 240 to 520 CSS pixels; got 100",
+				"suggestion": "Use a whole number from 240 to 520, e.g. 300",
+				"retryable": false,
+				"details": {
+					"field": "inspector.width",
+					"min": 240,
+					"max": 520,
+					"value": 100
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-14",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600054, 1767225600055],
+			"random": []
+		}
+	},
+	{
+		"seq": 15,
+		"timestamp": "2026-01-01T00:00:00.057Z",
+		"traceId": "loam-mjuohs00-15",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"height": 80
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:87d29b8cf364eb3ba859e7f8d285b74aac6fdab54bc87ef4e396dcfed0540a0a",
+			"interface": "palette"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "panel.height must be an integer 120 or more CSS pixels; got 80",
+				"suggestion": "Use a whole number 120 or more, e.g. 240",
+				"retryable": false,
+				"details": {
+					"field": "panel.height",
+					"min": 120,
+					"value": 80
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-15",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600058, 1767225600059],
+			"random": []
+		}
+	},
+	{
+		"seq": 16,
+		"timestamp": "2026-01-01T00:00:00.061Z",
+		"traceId": "loam-mjuohs00-16",
+		"command": "palette-open",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:2d9017a594269f04c3afe86dafd239e38bc0a771c9b682c2ccb21a5ccb1f2002",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"open": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-16",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600062, 1767225600063],
+			"random": []
+		}
+	},
+	{
+		"seq": 17,
+		"timestamp": "2026-01-01T00:00:00.065Z",
+		"traceId": "loam-mjuohs00-17",
+		"command": "palette-close",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:ce5cc7cb1a45a36196ad92683326f08f5a10156d11b204fd844fcaefb22661f6",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"open": false
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-17",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600066, 1767225600067],
+			"random": []
+		}
+	},
+	{
+		"seq": 18,
+		"timestamp": "2026-01-01T00:00:00.069Z",
+		"traceId": "loam-mjuohs00-18",
+		"command": "palette-open",
+		"input": {
+			"query": "layout"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:94df3e3b80025bc78ece4a0fe1086880f85cd3e85f807786fbce27b15b904610",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"open": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-18",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600070, 1767225600071],
+			"random": []
+		}
+	},
+	{
+		"seq": 19,
+		"timestamp": "2026-01-01T00:00:00.073Z",
+		"traceId": "loam-mjuohs00-19",
+		"command": "palette-close",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:8ff18d115c3e3cab331e0f8af311d29c8a3521d8f56d1a674b710e49433ff7ba",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"open": false
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-19",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600074, 1767225600075],
+			"random": []
+		}
+	},
+	{
+		"seq": 20,
+		"timestamp": "2026-01-01T00:00:00.077Z",
+		"traceId": "loam-mjuohs00-20",
+		"command": "appearance-set",
+		"input": {
+			"theme": "dark"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:b82255b21b34927ac5133fa71ef07df64b046c175a79fdd43ee225f6dc062fb7",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "dark",
+				"density": "comfortable",
+				"resolved": "dark"
+			},
+			"undoCommand": "appearance-set",
+			"undoArgs": {
+				"theme": "system"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-20",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600078, 1767225600079],
+			"random": []
+		}
+	},
+	{
+		"seq": 21,
+		"timestamp": "2026-01-01T00:00:00.081Z",
+		"traceId": "loam-mjuohs00-21",
+		"command": "appearance-set",
+		"input": {
+			"density": "compact"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:50e783e7ac86466a7039b217a1367495feeb6a01b32d2b16f6826e0a7e78963b",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "dark",
+				"density": "compact",
+				"resolved": "dark"
+			},
+			"undoCommand": "appearance-set",
+			"undoArgs": {
+				"density": "comfortable"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-21",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600082, 1767225600083],
+			"random": []
+		}
+	},
+	{
+		"seq": 22,
+		"timestamp": "2026-01-01T00:00:00.085Z",
+		"traceId": "loam-mjuohs00-22",
+		"command": "appearance-get",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:28ee886929a2a45ed6ad7ab0c17f1a8a2ff82b04877a21c81e08dc7fc40b944c",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "dark",
+				"density": "compact",
+				"resolved": "dark"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-22",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600086, 1767225600087],
+			"random": []
+		}
+	},
+	{
+		"seq": 23,
+		"timestamp": "2026-01-01T00:00:00.089Z",
+		"traceId": "loam-mjuohs00-23",
+		"command": "layout-get",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:b6a174203d24c0549af2e77e0fdccef697b83bfc733930547ceb749459bed604",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 400
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-23",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600090, 1767225600091],
+			"random": []
+		}
+	},
+	{
+		"seq": 24,
+		"timestamp": "2026-01-01T00:00:00.093Z",
+		"traceId": "loam-mjuohs00-24",
+		"command": "view-state-get",
+		"input": {
+			"id": "loam.layout"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:9600e4722c6832b5030bbed11129e2d2e7d29398ff1d7a3533d94ad83ad7dc81",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				}
+			},
+			"reasoning": "Retrieved view state for \"loam.layout\"",
+			"confidence": 1,
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-24",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600094, 1767225600095],
+			"random": []
+		}
+	},
+	{
+		"seq": 25,
+		"timestamp": "2026-01-01T00:00:00.097Z",
+		"traceId": "loam-mjuohs00-25",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.layout",
+			"state": {
+				"sidebar": {
+					"open": false
+				}
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:28d204ca0c92ef4a1f3ce49c1920c2467ef048619cea97ec6fc6a6bce4d6bf38",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": false,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"previous": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				}
+			},
+			"reasoning": "Updated view state for \"loam.layout\"",
+			"confidence": 1,
+			"undoCommand": "view-state-set",
+			"undoArgs": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"replace": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-25",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600098, 1767225600099],
+			"random": []
+		}
+	},
+	{
+		"seq": 26,
+		"timestamp": "2026-01-01T00:00:00.101Z",
+		"traceId": "loam-mjuohs00-26",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.layout",
+			"state": {
+				"sidebar": {
+					"width": 1000
+				}
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:6b235e6fa053b39021b9efdd3e89ca5934c8f1afdca4dbab299cfde590a13186",
+			"interface": "agent"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "sidebar.width must be an integer from 200 to 480 CSS pixels; got 1000",
+				"suggestion": "Use a whole number from 200 to 480, e.g. 260",
+				"retryable": false,
+				"details": {
+					"field": "sidebar.width",
+					"min": 200,
+					"max": 480,
+					"value": 1000
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-26",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600102, 1767225600103],
+			"random": []
+		}
+	},
+	{
+		"seq": 27,
+		"timestamp": "2026-01-01T00:00:00.105Z",
+		"traceId": "loam-mjuohs00-27",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.layout",
+			"state": {
+				"inspector": {
+					"width": 260
+				}
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:b1066b5fc0d1d4000648438640a82b23f06fbee7cdec08605f2014a14e780230",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": false,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 260
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"previous": {
+					"version": 0,
+					"sidebar": {
+						"open": false,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				}
+			},
+			"reasoning": "Updated view state for \"loam.layout\"",
+			"confidence": 1,
+			"undoCommand": "view-state-set",
+			"undoArgs": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": false,
+						"width": 320
+					},
+					"inspector": {
+						"open": true,
+						"width": 400
+					},
+					"panel": {
+						"open": true,
+						"height": 300,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"replace": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-27",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600106, 1767225600107],
+			"random": []
+		}
+	},
+	{
+		"seq": 28,
+		"timestamp": "2026-01-01T00:00:00.109Z",
+		"traceId": "loam-mjuohs00-28",
+		"command": "view-state-list",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:7d2a5b5f12162309a332b8f2844e01577ac4064201f0e5b4b695fab0afa75f59",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"states": [
+					{
+						"id": "loam.layout",
+						"state": {
+							"version": 0,
+							"sidebar": {
+								"open": false,
+								"width": 320
+							},
+							"inspector": {
+								"open": true,
+								"width": 260
+							},
+							"panel": {
+								"open": true,
+								"height": 300,
+								"maximized": false
+							},
+							"compact": {
+								"drawer": null,
+								"sheet": false
+							}
+						}
+					},
+					{
+						"id": "loam.appearance",
+						"state": {
+							"theme": "dark",
+							"density": "compact"
+						}
+					},
+					{
+						"id": "loam.apps",
+						"state": {
+							"active": null
+						}
+					}
+				],
+				"total": 3
+			},
+			"reasoning": "Found 3 registered view state(s)",
+			"confidence": 1,
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-28",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600110, 1767225600111],
+			"random": []
+		}
+	},
+	{
+		"seq": 29,
+		"timestamp": "2026-01-01T00:00:00.113Z",
+		"traceId": "loam-mjuohs00-29",
+		"command": "layout-set",
+		"input": {
+			"compact": {
+				"drawer": "sidebar"
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:4356c64591026cd5607250dbac8c1068e4ca2a3719bf7c384b5a19e59e43cf72",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": false,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": "sidebar",
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"compact": {
+					"drawer": null
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-29",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600114, 1767225600115],
+			"random": []
+		}
+	},
+	{
+		"seq": 30,
+		"timestamp": "2026-01-01T00:00:00.117Z",
+		"traceId": "loam-mjuohs00-30",
+		"command": "layout-set",
+		"input": {
+			"compact": {
+				"drawer": "inspector"
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:f53f4ba868e0d2aa635e82d46cbc860630ed9d2c09d1da0de1d011a4edbdc9c2",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": false,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": "inspector",
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"compact": {
+					"drawer": "sidebar"
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-30",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600118, 1767225600119],
+			"random": []
+		}
+	},
+	{
+		"seq": 31,
+		"timestamp": "2026-01-01T00:00:00.121Z",
+		"traceId": "loam-mjuohs00-31",
+		"command": "layout-set",
+		"input": {
+			"compact": {
+				"sheet": true
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:6915d2823dd2dafe2e49c3356211ef0943d0d3f2a2cf35918b5383c01bcd08da",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": false,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": "inspector",
+					"sheet": true
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"compact": {
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-31",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600122, 1767225600123],
+			"random": []
+		}
+	},
+	{
+		"seq": 32,
+		"timestamp": "2026-01-01T00:00:00.125Z",
+		"traceId": "loam-mjuohs00-32",
+		"command": "layout-set",
+		"input": {
+			"compact": {
+				"drawer": null,
+				"sheet": false
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:b5c430849e2d1a6f862a38567bcc4ba804b51dddee9823253a7ee9645629732f",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": false,
+					"width": 320
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"compact": {
+					"drawer": "inspector",
+					"sheet": true
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-32",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600126, 1767225600127],
+			"random": []
+		}
+	},
+	{
+		"seq": 33,
+		"timestamp": "2026-01-01T00:00:00.129Z",
+		"traceId": "loam-mjuohs00-33",
+		"command": "appearance-set",
+		"input": {
+			"theme": "high-contrast"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:6f7f21f30a978325870c3631be7349141e09bc4f45d42e08033b00022093721c",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "high-contrast",
+				"density": "compact",
+				"resolved": "high-contrast"
+			},
+			"undoCommand": "appearance-set",
+			"undoArgs": {
+				"theme": "dark"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-33",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600130, 1767225600131],
+			"random": []
+		}
+	},
+	{
+		"seq": 34,
+		"timestamp": "2026-01-01T00:00:00.133Z",
+		"traceId": "loam-mjuohs00-34",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.appearance",
+			"state": {
+				"theme": "sepia"
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:76e01fa3860375acb817165f106dbe41454b895f8a3d51ff74f02f8497c3633f",
+			"interface": "agent"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "theme must be one of system, light, dark, high-contrast; got \"sepia\"",
+				"suggestion": "Set theme to one of system, light, dark, high-contrast",
+				"retryable": false,
+				"details": {
+					"field": "theme"
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-34",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600134, 1767225600135],
+			"random": []
+		}
+	},
+	{
+		"seq": 35,
+		"timestamp": "2026-01-01T00:00:00.137Z",
+		"traceId": "loam-mjuohs00-35",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.appearance",
+			"state": {
+				"theme": "light"
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:6b2dd5168f0e26ff322881ef2aa28d5487c5e574c52d3e3c224ee4677ed8ace1",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"id": "loam.appearance",
+				"state": {
+					"theme": "light",
+					"density": "compact"
+				},
+				"previous": {
+					"theme": "high-contrast",
+					"density": "compact"
+				}
+			},
+			"reasoning": "Updated view state for \"loam.appearance\"",
+			"confidence": 1,
+			"undoCommand": "view-state-set",
+			"undoArgs": {
+				"id": "loam.appearance",
+				"state": {
+					"theme": "high-contrast",
+					"density": "compact"
+				},
+				"replace": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-35",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600138, 1767225600139],
+			"random": []
+		}
+	},
+	{
+		"seq": 36,
+		"timestamp": "2026-01-01T00:00:00.141Z",
+		"traceId": "loam-mjuohs00-36",
+		"command": "shell-info-get",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:629f4f3de28ccfc18b3b4c197e0b008c6a698a873925ce6154bde2b8a20f6037",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"kernelInterface": 1,
+				"layoutState": 0,
+				"storeInterface": 0,
+				"tokenContract": 1,
+				"manifestVersion": 1,
+				"appProtocol": 1,
+				"surfaceCatalog": 1,
+				"compositionLibrary": 1,
+				"sdk": 1,
+				"host": "test",
+				"store": "memory"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-36",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600142, 1767225600143],
+			"random": []
+		}
+	},
+	{
+		"seq": 37,
+		"timestamp": "2026-01-01T00:00:00.145Z",
+		"traceId": "loam-mjuohs00-37",
+		"command": "layout-set",
+		"input": {
+			"sidebar": {
+				"open": true,
+				"width": 480
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:8382493422f50f0070f81c84e3587e7ed0c01c5d07eeed80cbf207b13f2c95b0",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 480
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"sidebar": {
+					"open": false,
+					"width": 320
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-37",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600146, 1767225600147],
+			"random": []
+		}
+	},
+	{
+		"seq": 38,
+		"timestamp": "2026-01-01T00:00:00.149Z",
+		"traceId": "loam-mjuohs00-38",
+		"command": "layout-set",
+		"input": {
+			"sidebar": {
+				"width": 200
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:2f8e92a93bc2bfee9e99ddd37f71b4f7f8910acf0e1ee9945446a5cbd087cbb6",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 200
+				},
+				"inspector": {
+					"open": true,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"sidebar": {
+					"width": 480
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-38",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600150, 1767225600151],
+			"random": []
+		}
+	},
+	{
+		"seq": 39,
+		"timestamp": "2026-01-01T00:00:00.153Z",
+		"traceId": "loam-mjuohs00-39",
+		"command": "layout-set",
+		"input": {
+			"inspector": {
+				"open": false
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:0504d0ea68c53331c8cd3e82100b6950a9a326bf5a998ecff04122b4b9a67836",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 200
+				},
+				"inspector": {
+					"open": false,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"inspector": {
+					"open": true
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-39",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600154, 1767225600155],
+			"random": []
+		}
+	},
+	{
+		"seq": 40,
+		"timestamp": "2026-01-01T00:00:00.157Z",
+		"traceId": "loam-mjuohs00-40",
+		"command": "layout-reset",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:a5dbc68d2647cab3f7df4741f82e1685ee958912d5304b6f2bd9afd98054a9d2",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 260
+				},
+				"inspector": {
+					"open": false,
+					"width": 300
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"sidebar": {
+					"open": true,
+					"width": 200
+				},
+				"inspector": {
+					"open": false,
+					"width": 260
+				},
+				"panel": {
+					"open": true,
+					"height": 300,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-40",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600158, 1767225600159],
+			"random": []
+		}
+	},
+	{
+		"seq": 41,
+		"timestamp": "2026-01-01T00:00:00.161Z",
+		"traceId": "loam-mjuohs00-41",
+		"command": "layout-get",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:5add487ef7476cd809ad8d666febf47cf010960a27a128ddda8d3bcfa9148073",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 260
+				},
+				"inspector": {
+					"open": false,
+					"width": 300
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-41",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600162, 1767225600163],
+			"random": []
+		}
+	},
+	{
+		"seq": 42,
+		"timestamp": "2026-01-01T00:00:00.165Z",
+		"traceId": "loam-mjuohs00-42",
+		"command": "layout-set",
+		"input": {
+			"panel": {
+				"open": true,
+				"height": 120
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:295410d5584b5da328338cb194a5ce12950ca36ec6146c527a9c81fa8d51fc5e",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 260
+				},
+				"inspector": {
+					"open": false,
+					"width": 300
+				},
+				"panel": {
+					"open": true,
+					"height": 120,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"undoCommand": "layout-set",
+			"undoArgs": {
+				"panel": {
+					"open": false,
+					"height": 240
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-42",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600166, 1767225600167],
+			"random": []
+		}
+	},
+	{
+		"seq": 43,
+		"timestamp": "2026-01-01T00:00:00.169Z",
+		"traceId": "loam-mjuohs00-43",
+		"command": "layout-set",
+		"input": {
+			"sidebar": {
+				"width": 260.5
+			}
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:8d6c109f0d1fa767160f34f693e8147c5d95af1caa0d74fac3834c4ce3790ab8",
+			"interface": "palette"
+		},
+		"result": {
+			"success": false,
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": "sidebar.width must be an integer from 200 to 480 CSS pixels; got 260.5",
+				"suggestion": "Use a whole number from 200 to 480, e.g. 260",
+				"retryable": false,
+				"details": {
+					"field": "sidebar.width",
+					"min": 200,
+					"max": 480,
+					"value": 260.5
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-43",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600170, 1767225600171],
+			"random": []
+		}
+	},
+	{
+		"seq": 44,
+		"timestamp": "2026-01-01T00:00:00.173Z",
+		"traceId": "loam-mjuohs00-44",
+		"command": "appearance-set",
+		"input": {
+			"theme": "system",
+			"density": "comfortable"
+		},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:3e8479f6db3e76082fd1c890f2cd0d7dccac028187901eb76afaccb617fbce53",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "system",
+				"density": "comfortable",
+				"resolved": "light"
+			},
+			"undoCommand": "appearance-set",
+			"undoArgs": {
+				"theme": "light",
+				"density": "compact"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-44",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600174, 1767225600175],
+			"random": []
+		}
+	},
+	{
+		"seq": 45,
+		"timestamp": "2026-01-01T00:00:00.177Z",
+		"traceId": "loam-mjuohs00-45",
+		"command": "auth-session-get",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:2593d2d3281099ddebcfdff35240d1f450b02c2f1b09d304accfe62e1aac4ab9",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"status": "authenticated",
+				"session": {
+					"id": "mock-session-1793608037914",
+					"expiresAt": "2026-11-02T09:27:17.914Z"
+				},
+				"user": {
+					"id": "mock-user-1793608037914",
+					"email": "person@example.com",
+					"name": "person"
+				}
+			},
+			"reasoning": "Current auth status: authenticated",
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-45",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600178, 1767225600179],
+			"random": []
+		}
+	},
+	{
+		"seq": 46,
+		"timestamp": "2026-01-01T00:00:00.181Z",
+		"traceId": "loam-mjuohs00-46",
+		"command": "auth-sign-out",
+		"input": {},
+		"actor": {
+			"kind": "human",
+			"id": "mock-user-1793608037914",
+			"label": "person"
+		},
+		"contextDigest": {
+			"hash": "sha256:8f0d5c8bd97d8ddde7738f28d59448bca7cfd00b4dc533a5aba1470233e650ad",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": null,
+			"reasoning": "Successfully signed out",
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-46",
+				"actorKind": "human"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600182, 1767225600183],
+			"random": []
+		}
+	},
+	{
+		"seq": 47,
+		"timestamp": "2026-01-01T00:00:00.185Z",
+		"traceId": "loam-mjuohs00-47",
+		"command": "auth-session-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:f3484a7a4d01234985afa09aee788882e2f3dde8a572df2ce0fa9aa2263a686e",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"status": "unauthenticated",
+				"session": null,
+				"user": null
+			},
+			"reasoning": "Current auth status: unauthenticated",
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-47"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600186, 1767225600187],
+			"random": []
+		}
+	},
+	{
+		"seq": 48,
+		"timestamp": "2026-01-01T00:00:00.189Z",
+		"traceId": "loam-mjuohs00-48",
+		"command": "view-state-set",
+		"input": {
+			"id": "loam.layout",
+			"state": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 300
+				},
+				"inspector": {
+					"open": true,
+					"width": 520
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"replace": true
+		},
+		"contextDigest": {
+			"hash": "sha256:15340d158ea5a2d3efe2bf5a6ab2f91073f3a33c7e9bf4b99ea1ef55558b1d82",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 300
+					},
+					"inspector": {
+						"open": true,
+						"width": 520
+					},
+					"panel": {
+						"open": false,
+						"height": 240,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"previous": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 260
+					},
+					"inspector": {
+						"open": false,
+						"width": 300
+					},
+					"panel": {
+						"open": true,
+						"height": 120,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				}
+			},
+			"reasoning": "Updated view state for \"loam.layout\"",
+			"confidence": 1,
+			"undoCommand": "view-state-set",
+			"undoArgs": {
+				"id": "loam.layout",
+				"state": {
+					"version": 0,
+					"sidebar": {
+						"open": true,
+						"width": 260
+					},
+					"inspector": {
+						"open": false,
+						"width": 300
+					},
+					"panel": {
+						"open": true,
+						"height": 120,
+						"maximized": false
+					},
+					"compact": {
+						"drawer": null,
+						"sheet": false
+					}
+				},
+				"replace": true
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-48"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600190, 1767225600191],
+			"random": []
+		}
+	},
+	{
+		"seq": 49,
+		"timestamp": "2026-01-01T00:00:00.193Z",
+		"traceId": "loam-mjuohs00-49",
+		"command": "layout-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:1e664d2a75e27583e931238bafe095a51b5c85297d38614db91be00580bb370e",
+			"interface": "agent"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"version": 0,
+				"sidebar": {
+					"open": true,
+					"width": 300
+				},
+				"inspector": {
+					"open": true,
+					"width": 520
+				},
+				"panel": {
+					"open": false,
+					"height": 240,
+					"maximized": false
+				},
+				"compact": {
+					"drawer": null,
+					"sheet": false
+				}
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-49"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600194, 1767225600195],
+			"random": []
+		}
+	},
+	{
+		"seq": 50,
+		"timestamp": "2026-01-01T00:00:00.197Z",
+		"traceId": "loam-mjuohs00-50",
+		"command": "appearance-get",
+		"input": {},
+		"contextDigest": {
+			"hash": "sha256:6c957ca6164a5537646975afd9728cdd11f32b07c95b7e4581f5d7d2409d4f6f",
+			"interface": "palette"
+		},
+		"result": {
+			"success": true,
+			"data": {
+				"theme": "system",
+				"density": "comfortable",
+				"resolved": "light"
+			},
+			"metadata": {
+				"executionTimeMs": 1,
+				"traceId": "loam-mjuohs00-50"
+			}
+		},
+		"durationMs": 3,
+		"tape": {
+			"clock": [1767225600198, 1767225600199],
+			"random": []
+		}
+	}
+]

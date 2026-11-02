@@ -70,6 +70,18 @@ describe('kotlin transformer', () => {
 		expect(kotlinValue(kotlin, 'Focus')).toBe('Color(0xFFABCDEF)');
 	});
 
+	it('moves the alpha of eight-digit CSS hex to the front of the ARGB literal', () => {
+		const kotlin = kotlinTransformer.transform([
+			token('color.gold-overlay', '#FFD70080'),
+			token('color.scrim', '#00000033'),
+			token('color.opaque', '#0078d4ff'),
+		]);
+
+		expect(kotlinValue(kotlin, 'GoldOverlay')).toBe('Color(0x80FFD700)');
+		expect(kotlinValue(kotlin, 'Scrim')).toBe('Color(0x33000000)');
+		expect(kotlinValue(kotlin, 'Opaque')).toBe('Color(0xFF0078D4)');
+	});
+
 	it('converts dimensions to dp, sp for font-like names, with a 16px rem base', () => {
 		const kotlin = kotlinTransformer.transform([
 			token('spacing.px', '12px'),
@@ -94,6 +106,18 @@ describe('kotlin transformer', () => {
 		const kotlin = kotlinTransformer.transform([token('motion.easing', 'ease-in-out')]);
 
 		expect(kotlinValue(kotlin, 'Easing')).toBe('"ease-in-out"');
+	});
+
+	it('escapes quotes, backslashes, template dollars and control characters in strings', () => {
+		const kotlin = kotlinTransformer.transform([
+			token('font.family', '"Segoe UI", sans-serif'),
+			token('content.path', 'icons\\$name'),
+			token('content.lines', 'one\ntwo\tthree'),
+		]);
+
+		expect(kotlinValue(kotlin, 'Family')).toBe('"\\"Segoe UI\\", sans-serif"');
+		expect(kotlinValue(kotlin, 'Path')).toBe('"icons\\\\\\$name"');
+		expect(kotlinValue(kotlin, 'Lines')).toBe('"one\\ntwo\\tthree"');
 	});
 
 	it('writes category headings and KDoc descriptions unless includeComments is false', () => {

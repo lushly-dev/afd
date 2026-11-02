@@ -1,0 +1,68 @@
+{
+	"name": "@lushly-dev/loam-cli",
+	"version": "0.1.0",
+	"private": true,
+	"description": "The loam bin: app new, app check, app pack, deployment check and deployment write; checkApp, writeDeployment and the single-file HTML plugin for views",
+	"license": "MIT",
+	"type": "module",
+	"sideEffects": false,
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"bin": {
+		"loam": "./bin/loam.mjs"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./check": {
+			"types": "./dist/check.d.ts",
+			"import": "./dist/check.js"
+		},
+		"./deployment": {
+			"types": "./dist/deployment.d.ts",
+			"import": "./dist/deployment.js"
+		},
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"import": "./dist/vite.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/afd-testing": "workspace:*",
+		"@lushly-dev/loam-manifest": "workspace:*",
+		"@lushly-dev/loam-theme": "workspace:*",
+		"smol-toml": "^1.9.1",
+		"zod": "^4.6.6"
+	},
+	"peerDependencies": {
+		"vite": "^8.3.0"
+	},
+	"peerDependenciesMeta": {
+		"vite": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^4.1.12",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vite": "^8.3.0",
+		"vitest": "^4.1.12"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/packages/cli"
+	}
+}

@@ -25,7 +25,7 @@ use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
 use super::component::ComponentRuntime;
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
-use super::grants::{ALLOW_REQUIRED, Services, Shared, needs_allow};
+use super::grants::{ALLOW_REQUIRED, CommandPolicy, Services, Shared, needs_allow};
 use super::manifest::{CommandDecl, Effect, Manifest, PluginKind, Transport};
 #[cfg(feature = "mounted")]
 use super::mounted;
@@ -150,6 +150,11 @@ pub(crate) struct GateEntry {
     /// from this knowledge, not from the schema alone (a mounted tool's own `space` argument is
     /// not Umbel's).
     pub space_command: bool,
+    /// Whether the command has a `spaces` input (an array of space ids), which the host checks
+    /// like `space` (phase 2 specification, section 3.3, rule 9).
+    pub spaces_command: bool,
+    /// `confirm = "require-human"` (manifest version 2): only a person at a terminal may run it.
+    pub require_human: bool,
     /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
     /// they are, so the pipeline itself is not projected as a second event.
     pub pipeline: bool,
@@ -224,6 +229,10 @@ pub(crate) fn embedded_id(text: &str) -> Result<String, PluginError> {
 pub(crate) struct Inputs<'a> {
     pub workspace: &'a Arc<Workspace>,
     pub projector: &'a Arc<Projector>,
+    /// The workspace's stores, shared by every instance's services and the `store-*` commands.
+    pub stores: &'a crate::store::Hub,
+    /// What calls did to the stores, read by the plugin gate.
+    pub ledger: &'a Arc<super::ledger::Ledger>,
     pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
     /// Extra trusted root certificates (PEM) for HTTPS mounts.
@@ -368,7 +377,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
             )?;
             prepared.gate.push((
                 decl.name.clone(),
-                gate_entry(&id, kind, &prepared.spaces, schema, true),
+                gate_entry(&id, kind, &prepared.spaces, schema, true, false),
             ));
         }
         loaded.gate.extend(prepared.gate);
@@ -386,14 +395,25 @@ fn gate_entry(
     spaces: &[String],
     schema: &Value,
     pipeline: bool,
+    require_human: bool,
 ) -> GateEntry {
     GateEntry {
         instance: instance.to_owned(),
         kind,
         spaces: spaces.to_vec(),
         space_command: has_space_property(schema),
+        spaces_command: has_spaces_property(schema),
+        require_human,
         pipeline,
     }
+}
+
+/// Whether an input schema has a `spaces` property.
+fn has_spaces_property(schema: &Value) -> bool {
+    schema
+        .get("properties")
+        .and_then(|properties| properties.get("spaces"))
+        .is_some()
 }
 
 /// Decide every pipeline against the commands that will exist (section 8.5). A pipeline whose
@@ -646,7 +666,15 @@ fn prepare(
     let configuration = config::resolve(&instance.id, manifest, files, &instance.config)?;
 
     // 4. The grants.
-    let (grants, granted) = decide_grants(instance, manifest)?;
+    let spaces_enabled: Vec<SpaceId> = {
+        let declared: Vec<SpaceId> = workspace
+            .spaces()
+            .iter()
+            .map(|space| space.id.clone())
+            .collect();
+        instance.enabled_spaces(&declared).to_vec()
+    };
+    let (grants, granted) = decide_grants(instance, manifest, &spaces_enabled)?;
 
     // 5. The spaces.
     let declared: Vec<SpaceId> = workspace
@@ -801,6 +829,24 @@ fn prepare(
         packs,
         workspace: Arc::clone(workspace),
         projector: Arc::clone(inputs.projector),
+        stores: Arc::clone(inputs.stores),
+        allow: instance.allow.clone(),
+        commands: manifest
+            .commands
+            .iter()
+            .map(|command| {
+                (
+                    command.name.clone(),
+                    CommandPolicy {
+                        store_write: command.effects.contains(&Effect::StoreWrite),
+                        cli_only: command.expose.cli
+                            && !command.expose.mcp
+                            && !command.expose.agent,
+                    },
+                )
+            })
+            .collect(),
+        ledger: Arc::clone(inputs.ledger),
     });
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
@@ -848,6 +894,7 @@ fn prepare(
                     &space_names,
                     schema,
                     false,
+                    command.require_human,
                 ),
             )
         })
@@ -975,9 +1022,14 @@ fn check_skill_names(
 }
 
 /// Step 4 (section 7.2): each declared grant is granted, withheld, or fails the load.
+///
+/// A store grant is refused to a component (protocol 1 has no import for it; world 1.1.0 will)
+/// and when the build links no store backend. A write grant needs `allow` entries in `umbel.toml`
+/// naming only spaces the instance is enabled for (D42, specification section 3.3, rule 1).
 fn decide_grants(
     instance: &PluginInstance,
     manifest: &Manifest,
+    spaces: &[SpaceId],
 ) -> Result<(Vec<GrantReport>, BTreeSet<String>), PluginError> {
     let mut reports = Vec::new();
     let mut granted = BTreeSet::new();
@@ -990,32 +1042,68 @@ fn decide_grants(
             granted: false,
             withheld: None,
         };
-        if !GRANTS.contains(&name) {
-            let phase = RESERVED_GRANTS
-                .iter()
-                .find(|(reserved, _)| *reserved == name)
-                .map_or_else(
-                    || "is not in this host's catalog".to_owned(),
-                    |(_, phase)| format!("arrives with {phase}"),
-                );
-            let error = PluginError::grant_unavailable(&instance.id, name, &phase);
+        let unavailable = if !GRANTS.contains(&name) {
+            Some(
+                RESERVED_GRANTS
+                    .iter()
+                    .find(|(reserved, _)| *reserved == name)
+                    .map_or_else(
+                        || "is not in this host's catalog".to_owned(),
+                        |(_, phase)| format!("arrives with {phase}"),
+                    ),
+            )
+        } else if crate::store::STORE_GRANTS.contains(&name)
+            && manifest.plugin.kind != PluginKind::Compiled
+        {
+            Some(format!(
+                "is held by compiled plugins only in protocol 1; components get store grants with WIT world umbel:plugin/plugin@1.1.0, and a {} plugin never does",
+                manifest.plugin.kind.as_str()
+            ))
+        } else if crate::store::STORE_GRANTS.contains(&name) && !crate::store::AVAILABLE {
+            Some("needs a host built with the `store-embedded` feature".to_owned())
+        } else {
+            None
+        };
+        if let Some(problem) = unavailable {
+            let error = PluginError::grant_unavailable(&instance.id, name, &problem);
             if grant.required {
                 return Err(error);
             }
-            report.withheld = Some(format!("unavailable: {phase}"));
+            report.withheld = Some(format!("unavailable: {problem}"));
         } else if instance.deny.iter().any(|denied| denied == name) {
             if grant.required {
                 return Err(PluginError::grant_denied(&instance.id, name));
             }
             report.withheld = Some("denied by plugins.<id>.deny".to_owned());
         } else if needs_allow(name, ALLOW_REQUIRED) {
-            // No grant of phase 1 needs an allow list, and the instance has no `allow` key yet
-            // (it is reserved): a declared grant that does is denied until the instance lists
-            // what it allows.
-            if grant.required {
-                return Err(PluginError::grant_denied(&instance.id, name));
+            // Enabling an instance is not consent to a grant that writes: the instance must list
+            // what it allows, and only in spaces it is enabled for.
+            let entries = instance.allow.get(name).map_or(&[][..], Vec::as_slice);
+            let outside = entries.iter().find(|entry| {
+                let space = entry.split('/').next().unwrap_or(entry);
+                space != "*" && !spaces.iter().any(|enabled| enabled.as_str() == space)
+            });
+            let withheld = if entries.is_empty() {
+                Some(format!(
+                    "needs an allow list: add [plugins.{}.grants.{name}] allow = [...] to umbel.toml",
+                    instance.id
+                ))
+            } else {
+                outside.map(|entry| {
+                    format!(
+                        "its allow entry `{entry}` names a space the instance is not enabled for"
+                    )
+                })
+            };
+            if let Some(why) = withheld {
+                if grant.required {
+                    return Err(PluginError::grant_denied_because(&instance.id, name, &why));
+                }
+                report.withheld = Some(why);
+            } else {
+                report.granted = true;
+                granted.insert(name.to_owned());
             }
-            report.withheld = Some("needs an allow list the instance does not give".to_owned());
         } else {
             report.granted = true;
             granted.insert(name.to_owned());
@@ -1198,9 +1286,14 @@ fn definitions(
                 *definition
             }
         };
-        let definition = definition
+        let mut definition = definition
             .with_expose(expose(command))
             .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
+        // The budget the manifest declares (version 2, compiled plugins only): AFD checks it in
+        // the innermost link of the middleware chain and the handler fits its result to it.
+        if let Some(budget) = command.output_budget {
+            definition = definition.with_output_budget(budget.default_bytes, budget.max_bytes);
+        }
         built.push((definition, schema.clone()));
     }
     Ok(built)
@@ -1249,4 +1342,116 @@ fn mismatch(
         ));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workspace::ConfigFile;
+    use std::path::Path;
+
+    fn instance(extra: &str) -> PluginInstance {
+        let text = format!(
+            "config_version = 3\n[spaces.main]\n[plugins]\nenabled = [\"notes\"]\n[plugins.notes]\nsource = \"plugins/notes\"\n{extra}"
+        );
+        ConfigFile::parse(&text)
+            .and_then(|file| file.into_config(Path::new("/w")))
+            .expect("a valid configuration")
+            .plugins
+            .instances
+            .remove(0)
+    }
+
+    fn manifest(kind: &str, grant: &str, required: bool) -> Manifest {
+        let component = if kind == "component" {
+            "\n[component]\npath = \"x.wasm\"\n"
+        } else {
+            ""
+        };
+        let text = format!(
+            "manifest_version = 2\nprotocol = 1\n[plugin]\nid = \"notes\"\ntitle = \"Notes\"\nversion = \"0.1.0\"\ndescription = \"d\"\nkind = \"{kind}\"\ndomains = [\"notes\"]\n{component}\n[[grants]]\nname = \"{grant}\"\nrequired = {required}\nreason = \"Needed.\"\n\n[[commands]]\nname = \"notes-find\"\ndescription = \"Find.\"\neffects = [\"inspect\"]\ninput_schema = {{ type = \"object\" }}\n"
+        );
+        Manifest::parse(&text, "notes").expect("a valid manifest")
+    }
+
+    fn spaces() -> Vec<SpaceId> {
+        vec![SpaceId::parse("main").unwrap()]
+    }
+
+    #[test]
+    fn a_component_holds_no_store_grant_in_protocol_1() {
+        for grant in [
+            "documents",
+            "index",
+            "graph",
+            "records",
+            "content",
+            "documents_write",
+        ] {
+            let error = decide_grants(
+                &instance(""),
+                &manifest("component", grant, true),
+                &spaces(),
+            )
+            .expect_err(grant);
+            assert_eq!(error.code(), "PLUGIN_GRANT_UNAVAILABLE", "{grant}");
+            assert!(
+                error.message().contains("umbel:plugin/plugin@1.1.0"),
+                "{error}"
+            );
+        }
+        // Optional: withheld, not a failure; and the older grants are untouched.
+        let (reports, granted) = decide_grants(
+            &instance(""),
+            &manifest("component", "documents", false),
+            &spaces(),
+        )
+        .unwrap();
+        assert!(!reports[0].granted && reports[0].withheld.is_some());
+        assert!(granted.is_empty());
+        let (_, granted) = decide_grants(
+            &instance(""),
+            &manifest("component", "clock", true),
+            &spaces(),
+        )
+        .unwrap();
+        assert!(granted.contains("clock"));
+    }
+
+    #[test]
+    fn a_compiled_plugin_gets_read_grants_and_write_grants_with_an_allow_list() {
+        let (_, granted) = decide_grants(
+            &instance(""),
+            &manifest("compiled", "documents", true),
+            &spaces(),
+        )
+        .unwrap();
+        assert!(granted.contains("documents"));
+        let error = decide_grants(
+            &instance(""),
+            &manifest("compiled", "documents_write", true),
+            &spaces(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_GRANT_DENIED");
+        let allowed = instance("[plugins.notes.grants.documents_write]\nallow = [\"main/*\"]\n");
+        let (_, granted) = decide_grants(
+            &allowed,
+            &manifest("compiled", "documents_write", true),
+            &spaces(),
+        )
+        .unwrap();
+        assert!(granted.contains("documents_write"));
+        // `deny` still wins over an allow list.
+        let denied = instance(
+            "deny = [\"documents_write\"]\n[plugins.notes.grants.documents_write]\nallow = [\"main/*\"]\n",
+        );
+        let error = decide_grants(
+            &denied,
+            &manifest("compiled", "documents_write", true),
+            &spaces(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "PLUGIN_GRANT_DENIED");
+    }
 }

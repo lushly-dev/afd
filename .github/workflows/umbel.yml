@@ -22,6 +22,10 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
       - '.github/workflows/umbel.yml'
+  # The macOS leg and the MSRV check run daily and on demand.
+  schedule:
+    - cron: '53 7 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,12 +42,34 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    # A todo example or AFD CLI change runs only the conformance job; the host checks need a change to Umbel, the afd crate or this workflow. Scheduled and manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      host: ${{ steps.host.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: host
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --path packages/rust/ --path .github/workflows/umbel.yml
+
   check:
     name: Umbel (fmt, clippy, test)
+    needs: scope
+    if: needs.scope.outputs.host == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
@@ -61,8 +87,11 @@ jobs:
           workspaces: endpoints/umbel
       - name: Format
         run: cargo fmt --all --check
+      # The embedded backend's own tests belong to the `knowledge` job. The host depends on the
+      # backend through its default feature `store-embedded` (phase 2 step 4), so this job builds
+      # SQLite and tantivy once anyway; `--exclude` only keeps the backend's tests out of it.
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings
       - name: Clippy (library only, no default features)
         run: cargo clippy --locked -p umbel --lib --no-default-features -- -D warnings
       - name: Clippy (library only, mounted loader)
@@ -84,10 +113,11 @@ jobs:
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
-        run: cargo test --locked --workspace
+        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge
 
   msrv:
     name: Umbel (MSRV 1.97)
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -105,7 +135,74 @@ jobs:
           workspaces: endpoints/umbel
           key: msrv
       - name: Check
-        run: cargo +1.97.0 check --locked --workspace --all-targets
+        run: cargo +1.97.0 check --locked --workspace --exclude umbel-store-embedded --all-targets
+
+  # The knowledge stack's crates (phase 2 specification, section 12): the store traits and the
+  # conformance suite, and the embedded backend with its bundled SQLite and tantivy builds. Each
+  # later step adds its crates to these commands. Step 3 measured the job cold on the development
+  # machine (build 83 s, clippy 20 s, tests 75 s, the wasm and MSRV checks 27 s: about 3.4 minutes
+  # at -j4 on a loaded host). Three times that is 10 minutes; the timeout is 15 because the hosted
+  # runners are slower than that machine and had not run the job when this was set
+  # (specification, "Amendments from step 3", C14).
+  knowledge:
+    name: Umbel knowledge (${{ matrix.os }})
+    needs: scope
+    if: needs.scope.outputs.host == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: endpoints/umbel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+          key: knowledge
+      - name: Clippy
+        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets -- -D warnings
+      # `eval_gate` runs `knowledge-eval` on the seeded thousand-document fixture, holds the report to
+      # the gate and to `plugins/knowledge/eval/baseline.json`, and writes the report here;
+      # `exit_thousand` (the phase 2 exit criterion) writes its own report beside it.
+      - name: Test
+        env:
+          UMBEL_EVAL_REPORT: ${{ runner.temp }}/knowledge-eval-report.json
+          UMBEL_EXIT_REPORT: ${{ runner.temp }}/knowledge-exit-report.json
+        run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
+      # Without the `code` feature (tree-sitter and its grammars) code collections are plain text.
+      - name: Clippy (knowledge without code)
+        run: cargo clippy --locked -p umbel-plugin-knowledge --no-default-features --all-targets -- -D warnings
+      - name: Test (knowledge without code)
+        run: cargo test --locked -p umbel-plugin-knowledge --no-default-features
+      - name: Upload the eval report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: knowledge-eval-report-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/knowledge-eval-report.json
+            ${{ runner.temp }}/knowledge-exit-report.json
+          if-no-files-found: warn
+      # The traits and types build for WebAssembly components (section 1); the backend does not.
+      - name: Check umbel-store (wasm32-wasip2)
+        run: cargo check --locked --target wasm32-wasip2 -p umbel-store
+      - name: Install Rust 1.97
+        if: matrix.os == 'ubuntu-latest'
+        run: rustup toolchain install 1.97.0 --profile minimal
+      - name: Check (MSRV 1.97)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).
@@ -185,11 +282,19 @@ jobs:
       - name: Plugins and host code are not in one pull request
         env:
           BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           plugins=$(printf '%s\n' "$changed" | grep -E '^endpoints/umbel/plugins/' || true)
           host=$(printf '%s\n' "$changed" | grep -E '^endpoints/umbel/(src|wit|schemas)/' || true)
-          if [ -n "$plugins" ] && [ -n "$host" ]; then
+          # A first-party plugin that needs a host service which does not exist yet (the phase 2
+          # specification's steps 5 to 8) ships it in the same pull request. The pull request says
+          # so on a line of its own: "Plugin-isolation-exempt: <the host change and why>". The rule
+          # still holds for a plugin that only uses what the host offers.
+          exempt=$(printf '%s\n' "$PR_BODY" | grep -E '^Plugin-isolation-exempt: .+' || true)
+          if [ -n "$plugins" ] && [ -n "$host" ] && [ -n "$exempt" ]; then
+            echo "This pull request changes plugins and host code, and declares: $exempt"
+          elif [ -n "$plugins" ] && [ -n "$host" ]; then
             echo "::error::This pull request changes both endpoints/umbel/plugins/ and host code (src/, wit/ or schemas/). Split it: a plugin must not need a host change."
             echo "Plugin files:"; printf '%s\n' "$plugins"
             echo "Host files:"; printf '%s\n' "$host"

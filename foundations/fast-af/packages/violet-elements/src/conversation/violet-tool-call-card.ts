@@ -14,14 +14,14 @@ const styles = css`
         --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size, 12px));
         --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line, 16px));
         --_tool-name-size: var(--violet-tool-name-size, var(--_body-size, 14px));
-        --_warning-bg: var(--color-state-warning-background, rgba(245, 158, 11, 0.14));
-        --_warning-text: var(--color-state-warning-text, rgb(180, 83, 9));
+        --_warning-bg: var(--color-state-warning-background, #fdebcc);
+        --_warning-text: var(--color-state-warning-text, #92400e);
         --_warning-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
-        --_success-bg: var(--color-state-success-background, rgba(22, 163, 74, 0.14));
-        --_success-text: var(--color-state-success-text, rgb(21, 128, 61));
-        --_success-border: var(--color-state-success-border, rgba(22, 163, 74, 0.28));
-        --_danger-bg: var(--color-state-danger-background, rgba(220, 38, 38, 0.14));
-        --_danger-text-local: var(--color-state-danger-text, rgb(185, 28, 28));
+        --_success-bg: var(--color-state-success-background, #e3f1e7);
+        --_success-text: var(--color-state-success-text, #166534);
+        --_success-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
+        --_danger-bg: var(--color-state-danger-background, #fbe2e2);
+        --_danger-text-local: var(--color-state-danger-text, #b42318);
         --_danger-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
     }
 

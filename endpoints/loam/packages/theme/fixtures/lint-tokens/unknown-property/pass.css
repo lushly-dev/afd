@@ -1,0 +1,6 @@
+:host {
+	color: var(--color-text-primary);
+	padding: var(--space-inline-md, var(--size-space-md));
+	--_gap: var(--space-stack-sm);
+	gap: var(--_gap);
+}

@@ -1,0 +1,11 @@
+{
+	"extends": "../../../../tsconfig.json",
+	"compilerOptions": {
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"useDefineForClassFields": false,
+		"outDir": "./dist",
+		"rootDir": "./src"
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

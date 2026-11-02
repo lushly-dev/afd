@@ -472,6 +472,22 @@ fn grants(loaded: &[Loaded<'_>]) -> Check {
             let name = grant.name.as_str();
             let problem = if entry.instance.deny.iter().any(|denied| denied == name) {
                 Some(PluginError::grant_denied(id, name))
+            } else if crate::store::STORE_GRANTS.contains(&name)
+                && manifest.plugin.kind != super::manifest::PluginKind::Compiled
+            {
+                Some(PluginError::grant_unavailable(
+                    id,
+                    name,
+                    "is held by compiled plugins only in protocol 1 (components get store grants with WIT world umbel:plugin/plugin@1.1.0)",
+                ))
+            } else if super::needs_allow_list(name)
+                && entry.instance.allow.get(name).is_none_or(Vec::is_empty)
+            {
+                Some(PluginError::grant_denied_because(
+                    id,
+                    name,
+                    "the instance gives it no allow list",
+                ))
             } else if GRANTS.contains(&name) {
                 None
             } else {

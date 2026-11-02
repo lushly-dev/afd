@@ -1,10 +1,16 @@
 //! The plugin manifest, version 2 (phase 2 specification, section 3.4): the effects
 //! `store-write` and `workspace-write` with and without their grants, `output_budget`,
 //! `confirm = "require-human"`, and version 1 still loading. Parsing only: the grants themselves,
-//! the budget's wiring and the terminal prompt arrive with step 4.
+//! the budget's wiring and the terminal prompt are step 4's, tested below and in
+//! `require_human.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use umbel::plugins::{Effect, Manifest, PluginError};
+mod support;
+
+use serde_json::{Value, json};
+use support::plugins::{leak, seal};
+use umbel::plugins::{Asset, Effect, Manifest, PluginError, sdk};
+use umbel_sdk::{Cx, Outcome, Plugin, success};
 
 const FILE: &str = "umbel-plugin.toml";
 
@@ -381,4 +387,86 @@ fn reserved_keys_name_the_manifest_version_they_were_read_under() {
             .contains("manifest version 2 does not define it"),
         "{error}"
     );
+}
+
+// ── The budget, wired (step 4) ─────────────────────────────────────────────────────────────────
+
+/// A compiled plugin whose one command declares a budget of 200 bytes by default, 1000 at most,
+/// and answers `pad` bytes of padding beside the budget it was handed.
+struct Budgeted {
+    manifest: &'static str,
+}
+
+impl Plugin for Budgeted {
+    fn manifest(&self) -> &'static str {
+        self.manifest
+    }
+
+    fn assets(&self) -> &'static [Asset] {
+        &[]
+    }
+
+    fn handle(&self, _name: &str, input: Value, cx: &mut Cx) -> Outcome {
+        let pad = input.get("pad").and_then(Value::as_u64).unwrap_or(0);
+        success(json!({
+            "budget": cx.call().output_budget,
+            "pad": "x".repeat(usize::try_from(pad).unwrap()),
+        }))
+    }
+}
+
+fn budgeted_plugin() -> Budgeted {
+    let text = format!(
+        "{}\n[[commands]]\nname = \"notes-find\"\ndescription = \"Find.\"\neffects = [\"inspect\"]\ninput_schema = {{ type = \"object\", properties = {{ pad = {{ type = \"integer\" }} }}, additionalProperties = false }}\noutput_budget = {{ default_bytes = 200, max_bytes = 1000 }}\n\n[[commands]]\nname = \"notes-plain\"\ndescription = \"Plain.\"\neffects = [\"inspect\"]\ninput_schema = {{ type = \"object\", properties = {{ pad = {{ type = \"integer\" }} }}, additionalProperties = false }}\n",
+        head(2, "compiled")
+    );
+    Budgeted {
+        manifest: leak(text),
+    }
+}
+
+#[tokio::test]
+async fn a_declared_output_budget_reaches_the_handler_and_afd_enforces_it() {
+    let dir = support::workspace(&support::plugins::config(&[("notes", "")], ""));
+    let host = seal(dir.path(), |b| b.with_compiled(sdk(budgeted_plugin()))).unwrap();
+    let execute = |input: Value, ask: Option<u64>| {
+        let host = &host;
+        async move {
+            let mut context = host.context(support::agent("a"));
+            if let Some(ask) = ask {
+                context = context.with_output_budget_ask(ask);
+            }
+            host.registry()
+                .execute("notes-find", input, Some(context))
+                .await
+        }
+    };
+    // The default budget is what the handler sees, and a result inside it is returned.
+    let small = execute(json!({"pad": 10}), None).await;
+    assert!(small.success, "{small:?}");
+    assert_eq!(small.data.unwrap()["budget"], 200);
+    // A result over it is replaced by AFD's failure, which says what the caller may ask for.
+    let big = execute(json!({"pad": 500}), None).await;
+    assert_eq!(
+        big.error.as_ref().unwrap().code,
+        "OUTPUT_BUDGET_EXCEEDED",
+        "{big:?}"
+    );
+    // The caller asks for more: the handler sees the ask, clamped to the maximum.
+    let asked = execute(json!({"pad": 500}), Some(800)).await;
+    assert!(asked.success, "{asked:?}");
+    assert_eq!(asked.data.unwrap()["budget"], 800);
+    let clamped = execute(json!({"pad": 10}), Some(5000)).await;
+    assert_eq!(clamped.data.unwrap()["budget"], 1000);
+    // A command without a declaration has no budget and no limit.
+    let plain = host
+        .registry()
+        .execute(
+            "notes-plain",
+            json!({"pad": 5000}),
+            Some(host.context(support::agent("a"))),
+        )
+        .await;
+    assert!(plain.success);
+    assert_eq!(plain.data.unwrap()["budget"], Value::Null);
 }

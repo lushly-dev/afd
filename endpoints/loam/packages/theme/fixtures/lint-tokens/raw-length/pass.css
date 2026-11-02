@@ -1,0 +1,20 @@
+:host {
+	margin: 0;
+	padding: 0px var(--space-inline-md);
+	border-bottom: 1px solid var(--color-border-subtle);
+	inline-size: min(85vw, var(--size-target-comfortable));
+	block-size: 40dvh;
+	max-block-size: calc(100% - var(--size-space-md) * 2);
+	grid-template-columns: 1fr auto;
+	inline-size: fit-content;
+	container-type: inline-size;
+	line-height: 1.5;
+	z-index: var(--z-index-raised);
+	margin-block-start: -1px;
+}
+
+@media (min-width: 640px) {
+	:host {
+		inline-size: 50cqi;
+	}
+}

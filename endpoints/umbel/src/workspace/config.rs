@@ -10,7 +10,9 @@ use toml::{Table, Value};
 use super::PluginsConfig;
 use super::access::{AccessToken, ReaderEntry, check_member, is_group_id};
 use super::error::WorkspaceError;
-use super::plugins_config::{INSTANCE_KEYS, INSTANCE_RESERVED, LIMITS_KEYS};
+use super::plugins_config::{
+    GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
+};
 use super::space::SpaceId;
 
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
@@ -465,7 +467,19 @@ impl ConfigFile {
                 continue;
             };
             let prefix = format!("plugins.{id}");
-            scan_table(instance, &prefix, INSTANCE_KEYS, INSTANCE_RESERVED, scan);
+            if self.version >= 3 {
+                scan_table(instance, &prefix, INSTANCE_KEYS_V3, &[], scan);
+                if let Some(Value::Table(grants)) = instance.get("grants") {
+                    for (grant, value) in grants {
+                        if let Value::Table(entry) = value {
+                            let grant_prefix = format!("{prefix}.grants.{grant}");
+                            scan_table(entry, &grant_prefix, GRANT_KEYS, &[], scan);
+                        }
+                    }
+                }
+            } else {
+                scan_table(instance, &prefix, INSTANCE_KEYS, INSTANCE_RESERVED, scan);
+            }
             if let Some(Value::Table(limits)) = instance.get("limits") {
                 scan_table(limits, &format!("{prefix}.limits"), LIMITS_KEYS, &[], scan);
             }

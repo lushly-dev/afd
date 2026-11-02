@@ -520,6 +520,29 @@ impl Page<'_> {
             .map(|_| ())
     }
 
+    /// An explicit command: the page's plugin runner called on the resolved target.
+    async fn command(&self, command: &Value, targets: &Value) -> Result<()> {
+        let name = command
+            .get("target")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("A command step names no target"))?;
+        let target = targets
+            .get(name)
+            .ok_or_else(|| anyhow!("Command step refers to an undeclared target"))?;
+        let object = self.target(name, target).await?;
+        self.call(
+            &object,
+            "async function (runner, name, input) { await window.__specimen.command(this, runner, name, input); }",
+            json!([
+                { "value": command.get("runner") },
+                { "value": command.get("name") },
+                { "value": command.get("input").cloned().unwrap_or(Value::Null) }
+            ]),
+        )
+        .await?;
+        Ok(())
+    }
+
     async fn act(&self, action: &Value, targets: &Value) -> Result<()> {
         let (kind, name) = ["click", "focus", "hover", "fill"]
             .iter()
@@ -575,7 +598,39 @@ impl Page<'_> {
         Ok(())
     }
 
+    /// Give the page the declared event targets that exist now. One that does not exist yet may
+    /// by a later step; one that never does is reported with the capture.
+    async fn bind_event_targets(&self, mounted: &Value, targets: &Value) -> Result<()> {
+        let declared = mounted.get("events").and_then(Value::as_array);
+        for name in declared
+            .into_iter()
+            .flatten()
+            .filter_map(|event| event.get("target").and_then(Value::as_str))
+        {
+            let Some(target) = targets.get(name) else {
+                continue;
+            };
+            if let Ok(object) = self.target(name, target).await {
+                self.call(
+                    &object,
+                    "function (name) { window.__specimen.bindEventTarget(name, this); }",
+                    json!([{ "value": name }]),
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn steps(&self, mounted: &Value, checkpoint: &str) -> Result<()> {
+        let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
+        let events_declared = mounted
+            .get("events")
+            .and_then(Value::as_array)
+            .is_some_and(|events| !events.is_empty());
+        if events_declared {
+            self.bind_event_targets(mounted, &targets).await?;
+        }
         if checkpoint == "mount" {
             return Ok(());
         }
@@ -584,7 +639,6 @@ impl Page<'_> {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let targets = mounted.get("targets").cloned().unwrap_or(json!({}));
         if checkpoint != "after-run"
             && !steps
                 .iter()
@@ -597,6 +651,40 @@ impl Page<'_> {
                 if capture == checkpoint {
                     return Ok(());
                 }
+                continue;
+            }
+            if let Some(expectation) = step.get("expect") {
+                // An event expectation reads the history; any other reads its target.
+                match expectation
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .filter(|_| expectation.get("event").is_none())
+                {
+                    Some(name) => {
+                        let target = targets.get(name).cloned().unwrap_or(Value::Null);
+                        let object = self.target(name, &target).await?;
+                        self.call(
+                            &object,
+                            "function (expectation) { return window.__specimen.expect(expectation, this); }",
+                            json!([{ "value": expectation }]),
+                        )
+                        .await?;
+                    }
+                    None => {
+                        self.evaluate(&format!("window.__specimen.expect({expectation})"))
+                            .await?;
+                    }
+                }
+                continue;
+            }
+            if events_declared {
+                let id = step.get("id").cloned().unwrap_or(Value::Null);
+                self.bind_event_targets(mounted, &targets).await?;
+                self.evaluate(&format!("window.__specimen.stepStarted({id})"))
+                    .await?;
+            }
+            if let Some(command) = step.get("command") {
+                self.command(command, &targets).await?;
                 continue;
             }
             self.act(step.get("action").unwrap_or(&Value::Null), &targets)
@@ -618,23 +706,12 @@ fn theme_media(theme: &str) -> (&'static str, &'static str) {
 
 /// The page environment Playwright gives a new page in a context with these options.
 pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
-    let viewport: Viewport =
-        serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
-            .map_err(|error| anyhow!("Invalid viewport: {error}"))?;
     let locale = context
         .get("locale")
         .and_then(Value::as_str)
         .unwrap_or("en-US");
-    let theme = context
-        .get("theme")
-        .and_then(Value::as_str)
-        .unwrap_or("light");
-    let (scheme, contrast) = theme_media(theme);
-    let motion = context
-        .get("reducedMotion")
-        .and_then(Value::as_str)
-        .unwrap_or("no-preference");
-    let commands = [
+    // Chromium accepts these once per page.
+    let once = [
         ("Page.enable", json!({})),
         ("Log.enable", json!({})),
         ("Runtime.enable", json!({})),
@@ -643,15 +720,44 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
             json!({ "enabled": true }),
         ),
         (
-            "Emulation.setDeviceMetricsOverride",
-            json!({ "mobile": false, "width": viewport.width, "height": viewport.height, "screenWidth": viewport.width, "screenHeight": viewport.height, "deviceScaleFactor": 1, "screenOrientation": { "angle": 0, "type": "landscapePrimary" } }),
-        ),
-        (
             "Emulation.setUserAgentOverride",
             json!({ "userAgent": "", "acceptLanguage": locale }),
         ),
         ("Emulation.setLocaleOverride", json!({ "locale": locale })),
         ("Page.setFontFamilies", font_families()),
+    ];
+    // Sent together, as Playwright does; Chromium applies a session's commands in order.
+    futures::future::try_join_all(
+        once.iter()
+            .map(|(method, params)| page.send(method, params.clone())),
+    )
+    .await?;
+    emulate(page, context).await
+}
+
+/// The viewport and media emulation. A retained story's own context is applied again with
+/// this once the page has settled it; its locale is the request's.
+pub async fn emulate(page: &Page<'_>, context: &Value) -> Result<Viewport> {
+    let viewport: Viewport =
+        serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
+            .map_err(|error| anyhow!("Invalid viewport: {error}"))?;
+    let theme = context
+        .get("theme")
+        .and_then(Value::as_str)
+        .unwrap_or("light");
+    // A retained story's theme is applied by its own decorators; media keep the defaults.
+    let browser_default =
+        context.get("themeMedia").and_then(Value::as_str) == Some("browser-default");
+    let (scheme, contrast) = theme_media(if browser_default { "light" } else { theme });
+    let motion = context
+        .get("reducedMotion")
+        .and_then(Value::as_str)
+        .unwrap_or("no-preference");
+    let commands = [
+        (
+            "Emulation.setDeviceMetricsOverride",
+            json!({ "mobile": false, "width": viewport.width, "height": viewport.height, "screenWidth": viewport.width, "screenHeight": viewport.height, "deviceScaleFactor": 1, "screenOrientation": { "angle": 0, "type": "landscapePrimary" } }),
+        ),
         (
             "Emulation.setEmulatedMedia",
             json!({ "media": "", "features": [
@@ -662,7 +768,6 @@ pub async fn prepare(page: &Page<'_>, context: &Value) -> Result<Viewport> {
             ] }),
         ),
     ];
-    // Sent together, as Playwright does; Chromium applies a session's commands in order.
     futures::future::try_join_all(
         commands
             .iter()

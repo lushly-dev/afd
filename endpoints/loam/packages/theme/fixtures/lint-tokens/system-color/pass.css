@@ -1,0 +1,11 @@
+:host {
+	color: var(--color-text-primary);
+}
+
+@media (forced-colors: active) {
+	:host {
+		color: CanvasText;
+		border-color: ButtonBorder;
+		outline-color: Highlight;
+	}
+}

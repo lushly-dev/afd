@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { readManifest } from './manifest.js';
+import type { ComponentSchema } from './plugin.js';
 import { type Discovery, discoverStories } from './stories.js';
 import type { BenchConfig, BenchOptions, SpecimenContext, SpecimenEntry } from './types.js';
 import { parseConfig, parseContext } from './validate.js';
@@ -25,23 +27,38 @@ export interface LoadedConfig {
 	digest: string;
 	/** CSF compatibility mode: what discovery found, including its problems. */
 	stories?: { discovery: Discovery; preview?: string };
+	/** Plugin modules, in configuration order. */
+	plugins: string[];
+	/** Component schemas from the configured custom elements manifest, by tag. */
+	schemas: Record<string, ComponentSchema>;
+	/** The directory a schema's `module` is relative to. */
+	manifestDirectory: string | null;
+	/** Directories served at the page's origin, as absolute paths and URL prefixes. */
+	staticDirs: { from: string; to: string }[];
+	/** The performance baselines file, which recording may create. */
+	baselines?: string;
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
-/**
- * What the page bundles: native specimens. Retained stories are listed and validated; their
- * runtime is the next compatibility step, so their modules are not bundled yet.
- */
-export function renderable(config: LoadedConfig): {
+/** The module id the project annotations (a retained story's preview) are bundled under. */
+export const PREVIEW_MODULE = '$preview';
+/** Plugin modules are bundled as `$plugin:0`, `$plugin:1`, … in configuration order. */
+export const PLUGIN_MODULE = '$plugin:';
+
+/** What the page bundles: every entry's module, and the project annotations when stories have them. */
+export function bundled(config: LoadedConfig): {
 	entries: SpecimenEntry[];
 	modules: Record<string, string>;
 } {
-	const entries = config.entries.filter((entry) => !entry.story);
 	return {
-		entries,
-		modules: Object.fromEntries(
-			entries.map((entry) => [entry.id, config.modules[entry.id] as string])
-		),
+		entries: config.entries,
+		modules: {
+			...config.modules,
+			...(config.stories?.preview ? { [PREVIEW_MODULE]: config.stories.preview } : {}),
+			...Object.fromEntries(
+				config.plugins.map((path, index) => [`${PLUGIN_MODULE}${index}`, path])
+			),
+		},
 	};
 }
 
@@ -97,13 +114,46 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 					}),
 		};
 	}
+	const plugins: string[] = [];
+	for (const plugin of config.plugins ?? [])
+		plugins.push(inside(root, await realpath(resolve(dirname(file), plugin)), plugin));
+	let schemas: Record<string, ComponentSchema> = {};
+	let manifestDirectory: string | null = null;
+	if (config.manifest) {
+		const manifest = inside(
+			root,
+			await realpath(resolve(dirname(file), config.manifest)),
+			config.manifest
+		);
+		schemas = Object.fromEntries(readManifest(JSON.parse(await readFile(manifest, 'utf8'))));
+		manifestDirectory = dirname(manifest);
+	}
+	const staticDirs: LoadedConfig['staticDirs'] = [];
+	for (const entry of config.staticDirs ?? []) {
+		const { from, to } = typeof entry === 'string' ? { from: entry, to: '/' } : entry;
+		staticDirs.push({ from: inside(root, await realpath(resolve(dirname(file), from)), from), to });
+	}
+	const baselines = config.profile?.baselines;
 	return {
 		root,
 		file,
 		config,
+		...(baselines
+			? {
+					baselines: inside(
+						root,
+						join(await realpath(dirname(resolve(dirname(file), baselines))), basename(baselines)),
+						baselines
+					),
+				}
+			: {}),
 		entries,
 		modules,
 		digest: digest(text),
+		plugins,
+		schemas,
+		manifestDirectory,
+		staticDirs,
 		...(stories ? { stories } : {}),
 	};
 }

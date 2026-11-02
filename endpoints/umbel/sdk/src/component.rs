@@ -38,6 +38,8 @@ pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallCo
     let call = CallContext {
         command: context.command,
         trace_id: context.trace_id,
+        spaces: context.space.iter().cloned().collect(),
+        output_budget: None,
         space: context.space,
         actor_kind: context.actor_kind,
         actor_id: context.actor_id,

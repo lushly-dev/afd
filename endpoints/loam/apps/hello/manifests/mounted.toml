@@ -1,0 +1,20 @@
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "hello"
+title = "Hello"
+version = "0.1.0"
+description = "One command from a mounted server, in the console: the reference app, mounted."
+kind = "mounted"
+domains = ["hello"]
+license = "MIT"
+
+[mount]
+prefix = "hello"
+transport = "http"
+only = ["hello-greet"]
+
+[app]
+scope_levels = ["workspace", "project"]

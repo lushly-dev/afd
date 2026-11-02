@@ -1,0 +1,527 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/spec/plugin-manifest.core.v1.json",
+	"title": "AFD plugin manifest core, version 1",
+	"description": "The keys every host's plugin manifest shares, each with one meaning (plugin-manifest.md). Definitions only, and every object is left open, so this is not a manifest's schema: a host's profile references these definitions and closes each object it admits with unevaluatedProperties. A key set to false here is reserved or refused in every profile, and a profile cannot admit it.",
+	"$defs": {
+		"manifest": {
+			"type": "object",
+			"required": ["manifest_version", "protocol", "plugin"],
+			"properties": {
+				"manifest_version": {
+					"description": "The profile's manifest version.",
+					"type": "integer",
+					"minimum": 1
+				},
+				"protocol": {
+					"description": "The host's plugin protocol version.",
+					"type": "integer",
+					"minimum": 1
+				},
+				"afd_contract": {
+					"description": "The AFD contract version (spec/VERSION) the plugin's results follow. A host compares the major part.",
+					"type": "string",
+					"pattern": "^[0-9]+\\.[0-9]+(-[0-9a-z.]+)?$"
+				},
+				"plugin": {
+					"$ref": "#/$defs/plugin"
+				},
+				"mount": {
+					"$ref": "#/$defs/mount"
+				},
+				"grants": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/grant"
+					}
+				},
+				"commands": {
+					"description": "Optional: a mounted app's commands come from the server, and a headless app may have none of its own.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/command"
+					}
+				},
+				"contexts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/context"
+					}
+				},
+				"pipelines": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/pipeline"
+					}
+				},
+				"skills": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/skill"
+					}
+				},
+				"config": {
+					"$ref": "#/$defs/config"
+				},
+				"ui": {
+					"description": "UI contributions. Owned by Loam's profile, which defines its contents; a manifest without it is headless.",
+					"type": "object"
+				},
+				"connectors": false,
+				"backends": false,
+				"dependencies": false,
+				"signature": false,
+				"scopes": false,
+				"on_conflict": false
+			}
+		},
+		"plugin": {
+			"type": "object",
+			"required": ["id", "title", "version", "description", "kind"],
+			"properties": {
+				"id": {
+					"description": "The app or plugin identity, and the default instance id.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"version": {
+					"$ref": "#/$defs/semver"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"kind": {
+					"description": "A lowercase name, which each profile closes.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				},
+				"domains": {
+					"description": "The first name segments the plugin's commands use. Each profile refuses its own host domains.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/domain"
+					}
+				},
+				"homepage": {
+					"type": "string",
+					"pattern": "^https://\\S+$"
+				},
+				"license": {
+					"description": "An SPDX expression.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[A-Za-z0-9 .+()-]+$"
+				}
+			}
+		},
+		"domain": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]{0,31}$",
+			"not": {
+				"const": "afd"
+			}
+		},
+		"semver": {
+			"description": "A semantic version.",
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+		},
+		"commandName": {
+			"description": "AFD's domain-action kebab-case: at least two segments.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+		},
+		"contextName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+		},
+		"relativePath": {
+			"description": "Relative to the plugin root: not absolute, no backslash, no NUL, no .. segment.",
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"jsonPath": {
+			"description": "A relativePath that names a JSON file.",
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*\\.json$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"schemaOrPath": {
+			"description": "A JSON Schema as an inline table, or the path of a JSON file relative to the plugin root.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/jsonPath"
+				},
+				{
+					"type": "object"
+				}
+			]
+		},
+		"effects": {
+			"description": "What a command may change. inspect appears alone. store-write writes through one of the host's store write grants, and workspace-write writes files outside the host's own state; the profile names the grants each needs.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"enum": ["inspect", "plugin-state", "external", "store-write", "workspace-write"]
+			},
+			"if": {
+				"contains": {
+					"const": "inspect"
+				}
+			},
+			"then": {
+				"maxItems": 1
+			}
+		},
+		"expose": {
+			"description": "The app's default exposure; a deployer may narrow it. A flag left out takes the profile's default. apps is reserved until core version 2.",
+			"type": "object",
+			"properties": {
+				"mcp": {
+					"type": "boolean"
+				},
+				"agent": {
+					"type": "boolean"
+				},
+				"cli": {
+					"type": "boolean"
+				},
+				"palette": {
+					"type": "boolean"
+				},
+				"apps": false
+			}
+		},
+		"example": {
+			"type": "object",
+			"required": ["title", "input"],
+			"properties": {
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"input": {
+					"type": "object"
+				}
+			}
+		},
+		"outputBudget": {
+			"description": "default_bytes is at most max_bytes, which a reader checks.",
+			"type": "object",
+			"required": ["default_bytes", "max_bytes"],
+			"properties": {
+				"default_bytes": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"max_bytes": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"command": {
+			"description": "Declarative AFD command metadata. mutation is never declared: the host derives it from effects. scopes is reserved.",
+			"type": "object",
+			"required": ["name", "description", "effects", "input_schema"],
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/commandName"
+				},
+				"title": {
+					"description": "AFD's title: the palette's label and the MCP tool's title.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"$ref": "#/$defs/effects"
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"returns": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"category": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"version": {
+					"$ref": "#/$defs/semver"
+				},
+				"requires": {
+					"description": "Command names, metadata only: an unknown name warns.",
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/commandName"
+					}
+				},
+				"contexts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/contextName"
+					}
+				},
+				"first_class": {
+					"description": "A suggestion to a hybrid host.",
+					"type": "boolean"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"destructive": {
+					"type": "boolean"
+				},
+				"undoable": {
+					"type": "boolean"
+				},
+				"approval": {
+					"description": "none maps to AFD's not-required.",
+					"enum": ["none", "required"],
+					"default": "none"
+				},
+				"execution_time": {
+					"enum": ["instant", "fast", "slow", "long-running"]
+				},
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"examples": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/example"
+					}
+				},
+				"output_budget": {
+					"$ref": "#/$defs/outputBudget"
+				},
+				"errors": {
+					"description": "The error codes the command can return.",
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[A-Z][A-Z0-9_]*$"
+					}
+				},
+				"tool_meta": {
+					"description": "Extra entries for the tool's _meta, under AFD's key rule (mcp-resources.md, T2), which a reader checks.",
+					"type": "object"
+				},
+				"scopes": false,
+				"mutation": false
+			}
+		},
+		"grant": {
+			"description": "A name outside the host's catalog is refused at load. allow stays the deployer's, and targets is reserved for what a plugin asks a grant to reach.",
+			"type": "object",
+			"required": ["name", "reason"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_]*$"
+				},
+				"required": {
+					"type": "boolean",
+					"default": true
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"allow": false,
+				"targets": false
+			}
+		},
+		"context": {
+			"type": "object",
+			"required": ["name", "description"],
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/contextName"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"triggers": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"priority": {
+					"type": "integer"
+				}
+			}
+		},
+		"pipelineStep": {
+			"type": "object",
+			"required": ["command"],
+			"properties": {
+				"command": {
+					"$ref": "#/$defs/commandName"
+				},
+				"input": {
+					"type": "object"
+				},
+				"as": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_-]{0,63}$"
+				}
+			}
+		},
+		"pipeline": {
+			"type": "object",
+			"required": ["name", "description", "effects", "input_schema", "steps"],
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/commandName"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"$ref": "#/$defs/effects"
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"steps": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"$ref": "#/$defs/pipelineStep"
+					}
+				}
+			}
+		},
+		"skill": {
+			"type": "object",
+			"required": ["name", "path"],
+			"properties": {
+				"name": {
+					"description": "Equals the plugin id or starts with \"<plugin id>-\", and equals the directory's last segment, which a reader checks.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			}
+		},
+		"config": {
+			"description": "The deployer's instance configuration, never a person's settings.",
+			"type": "object",
+			"required": ["schema"],
+			"properties": {
+				"schema": {
+					"description": "A JSON Schema 2020-12 object schema, closed at its root, which a reader checks.",
+					"$ref": "#/$defs/schemaOrPath"
+				}
+			}
+		},
+		"mount": {
+			"description": "An MCP server whose tools become commands under an instance prefix. url and bearer_env are the deployer's, so they are refused in every profile.",
+			"type": "object",
+			"required": ["prefix", "transport"],
+			"properties": {
+				"prefix": {
+					"description": "One of plugin.domains, which a reader checks, and the first instance's default prefix.",
+					"$ref": "#/$defs/domain"
+				},
+				"transport": {
+					"description": "stdio is MCP over a child's standard streams; http is MCP Streamable HTTP.",
+					"enum": ["stdio", "http"]
+				},
+				"only": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"tools": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/mountTool"
+					}
+				},
+				"url": false,
+				"bearer_env": false
+			}
+		},
+		"mountTool": {
+			"type": "object",
+			"required": ["tool"],
+			"properties": {
+				"tool": {
+					"type": "string",
+					"minLength": 1
+				},
+				"name": {
+					"description": "Relative to the prefix: the command is <prefix>-<name>.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+				},
+				"effects": {
+					"$ref": "#/$defs/effects"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"approval": {
+					"enum": ["none", "required"],
+					"default": "none"
+				},
+				"first_class": {
+					"type": "boolean"
+				}
+			}
+		}
+	}
+}

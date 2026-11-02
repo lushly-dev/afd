@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { diffObservations } from './diff.js';
 import { normalizeDom } from './normalize.js';
-import { CAPTURE_VERSION, type ElementObservation, type Observation } from './types.js';
+import {
+	CAPTURE_VERSION,
+	type ElementObservation,
+	NORMALIZATION_VERSION,
+	type Observation,
+} from './types.js';
 
 function element(): ElementObservation {
 	return {
@@ -24,23 +29,56 @@ function capture(): Observation {
 	return {
 		manifest: {
 			captureVersion: CAPTURE_VERSION,
-			normalizationVersion: '0.1',
+			normalizationVersion: NORMALIZATION_VERSION,
 			specimenId: 'baseline',
-			checkpoint: 'mount',
+			capturedUtc: '2026-11-01T00:00:00.000Z',
+			bench: { name: '@lushly-dev/specimen', version: '1.0.0', plugins: [] },
+			driver: { name: 'host', emulates: [] },
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				ready: { steps: ['upgrade', 'fonts', 'frame'], outcome: 'ready', deadlineMs: 10_000 },
+				baseline: {
+					clock: 'real',
+					random: { source: 'seeded', seed: 1 },
+					storage: 'empty',
+				},
+			},
 			source: { revision: 'a', digest: 'a', dirty: false },
 			dependencies: 'lock-a',
-			browser: { name: 'chromium', version: '151' },
+			browser: { name: 'chromium', version: '151', platform: 'darwin-arm64', build: null },
 			context: {
 				viewport: { width: 1200, height: 900 },
 				theme: 'light',
 				locale: 'en-US',
 				reducedMotion: 'no-preference',
 				motion: 'settled',
+				pixelRatio: 1,
+				observed: {
+					width: 1200,
+					height: 900,
+					media: false,
+					colorScheme: 'light',
+					contrast: 'no-preference',
+					reducedMotion: 'no-preference',
+					language: 'en-US',
+					devicePixelRatio: 1,
+				},
+				resources: { fonts: [], remote: [] },
 			},
 		},
 		channels: {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
+			events: { declared: [], history: [] },
+			evidence: {
+				expectations: [],
+				claims: [],
+				commands: [],
+				formData: [],
+				validity: [],
+				attributesSet: [],
+			},
 			elements: [element()],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -176,6 +214,41 @@ describe('diffObservations', () => {
 		expect(result.limitations.join(' ')).toContain('cannot be attributed to source changes alone');
 	});
 
+	it('refuses captures from different baselines or checkpoints, not different readiness', () => {
+		const left = capture();
+		const seeded = capture();
+		seeded.manifest.checkpoint.baseline.random.seed = 2;
+		expect(() => diffObservations(left, seeded)).toThrow('Incompatible captures: checkpoint');
+		const acted = capture();
+		acted.manifest.checkpoint.actionMode = 'play';
+		expect(() => diffObservations(left, acted)).toThrow('Incompatible captures: checkpoint');
+		const slower = capture();
+		slower.manifest.checkpoint.ready.deadlineMs = 20_000;
+		slower.manifest.checkpoint.ready.outcome = 'elements-undefined';
+		expect(diffObservations(left, slower).status).toBe('no-change-observed');
+	});
+
+	it('compares the requested pixel ratio, and only reports what a page observed or loaded', () => {
+		const left = capture();
+		const denser = capture();
+		denser.manifest.context.pixelRatio = 2;
+		expect(() => diffObservations(left, denser)).toThrow('context.pixelRatio');
+		const observed = capture();
+		observed.manifest.context.observed.width = 1;
+		expect(diffObservations(left, observed).status).toBe('no-change-observed');
+		const fonts = capture();
+		fonts.manifest.context.resources.fonts = [
+			{ family: 'A', weight: '400', style: 'normal', status: 'loaded' },
+		];
+		const result = diffObservations(left, fonts);
+		expect(result.status).toBe('no-change-observed');
+		expect(result.limitations.join(' ')).toContain('different fonts');
+		// Remote URLs vary with where a recorded font server listens, so they do not count.
+		const remote = capture();
+		remote.manifest.context.resources.remote = [{ url: 'http://a/', status: 200 }];
+		expect(diffObservations(left, remote).limitations.join(' ')).not.toContain('different fonts');
+	});
+
 	it.each(['captureVersion', 'normalizationVersion'] as const)(
 		'rejects unsupported %s even when both captures use it',
 		(key) => {
@@ -194,7 +267,7 @@ describe('diffObservations', () => {
 				observation.manifest.browser.version = '152';
 			},
 			(observation: Observation) => {
-				observation.manifest.checkpoint = 'after-click';
+				observation.manifest.checkpoint.name = 'after-click';
 			},
 			(observation: Observation) => {
 				observation.manifest.context.viewport.width = 375;
@@ -332,5 +405,61 @@ describe('diffObservations', () => {
 		const saved = structuredClone([left, right]);
 		diffObservations(left, right);
 		expect([left, right]).toEqual(saved);
+	});
+	it('treats a change in the declared events as a difference, when both record them', () => {
+		const withEvents = (types: string[]) => {
+			const value = capture();
+			value.completeness.events = { status: 'complete', scope: 'declared events', reasons: [] };
+			value.channels.events.declared = [{ type: 'click' }];
+			value.channels.events.history = types.map((type) => ({
+				type,
+				target: null,
+				step: 'activate',
+				composed: true,
+				bubbles: true,
+				trusted: true,
+				detail: null,
+			}));
+			return value;
+		};
+		expect(diffObservations(withEvents(['click']), withEvents(['click'])).differences).toEqual([]);
+		expect(diffObservations(withEvents(['click']), withEvents([])).differences).toEqual([
+			{ channel: 'events', left: 'click - activate', right: '' },
+		]);
+		expect(
+			diffObservations(capture(), withEvents(['click'])).differences.filter(
+				(difference) => difference.channel === 'events'
+			)
+		).toEqual([]);
+	});
+	it('treats a change in what axe found as a difference, and an unrun check as no evidence', () => {
+		const withAxe = (violations: { id: string; targets: string[] }[]) => {
+			const value = capture();
+			value.channels.a11y.axe = {
+				status: violations.length ? 'failed' : 'passed',
+				policy: 'error',
+				violations: violations.map((violation) => ({
+					...violation,
+					impact: null,
+					help: '',
+					details: [],
+				})),
+				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
+			};
+			return value;
+		};
+		const image = { id: 'image-alt', targets: ['img'] };
+		expect(diffObservations(withAxe([]), withAxe([])).differences).toEqual([]);
+		expect(diffObservations(withAxe([image]), withAxe([image])).differences).toEqual([]);
+		expect(diffObservations(withAxe([]), withAxe([image])).differences).toEqual([
+			{ channel: 'a11y', left: '', right: 'image-alt img' },
+		]);
+		expect(
+			diffObservations(capture(), withAxe([image])).differences.filter(
+				(difference) => difference.channel === 'a11y'
+			)
+		).toEqual([]);
 	});
 });

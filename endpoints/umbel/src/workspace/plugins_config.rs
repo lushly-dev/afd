@@ -34,9 +34,29 @@ pub(super) const INSTANCE_KEYS: &[&str] = &[
     "max_result_bytes",
     "env",
 ];
-/// `grants.<grant>.allow`: the per-instance allow-list of the future write, `http` and `secrets`
-/// grants. Named now, refused until a grant needs it (D42).
+/// The instance keys of configuration version 3, which adds `grants`.
+pub(super) const INSTANCE_KEYS_V3: &[&str] = &[
+    "source",
+    "required",
+    "spaces",
+    "deny",
+    "config",
+    "limits",
+    "prefix",
+    "url",
+    "bearer_env",
+    "connect_timeout_ms",
+    "timeout_ms",
+    "max_result_bytes",
+    "env",
+    "grants",
+];
+/// `grants.<grant>.allow`: the per-instance allow-list of the write grants (D42). Named in
+/// versions 1 and 2, where it is accepted and reported but means nothing; configuration version 3
+/// reads it.
 pub(super) const INSTANCE_RESERVED: &[&str] = &["grants"];
+/// The keys of one `grants.<grant>` table.
+pub(super) const GRANT_KEYS: &[&str] = &["allow"];
 /// The component limits.
 pub(super) const LIMITS_KEYS: &[&str] = &["fuel", "timeout_ms", "memory_bytes", "table_elements"];
 
@@ -86,6 +106,10 @@ pub struct PluginInstance {
     pub spaces: Option<Vec<SpaceId>>,
     /// Grants withheld.
     pub deny: Vec<String>,
+    /// `[plugins.<id>.grants.<grant>] allow`, configuration version 3: what each write grant may
+    /// reach. `content_write` and `documents_write` list `<space>/<collection>` or `<space>/*`;
+    /// `records_write`, `index_write` and `graph_write` list `<space>` or `*`.
+    pub allow: BTreeMap<String, Vec<String>>,
     /// The instance configuration, an object.
     pub config: Json,
     /// A component's limits.
@@ -192,7 +216,7 @@ impl ConfigFile {
         }
         let instances = enabled
             .iter()
-            .map(|id| instance(id, section.get(id), declared.as_deref()))
+            .map(|id| instance(id, section.get(id), declared.as_deref(), self.version()))
             .collect::<Result<Vec<_>, _>>()?;
         for (index, instance) in instances.iter().enumerate() {
             if let Some(prefix) = &instance.prefix
@@ -214,6 +238,7 @@ fn instance(
     id: &str,
     value: Option<&Value>,
     declared: Option<&[SpaceId]>,
+    version: u32,
 ) -> Result<PluginInstance, WorkspaceError> {
     let prefix_key = format!("plugins.{id}");
     let table = match value {
@@ -269,6 +294,11 @@ fn instance(
             return Err(invalid("deny", &format!("names `{grant}` twice")));
         }
     }
+    let allow = if version >= 3 {
+        allow_lists(table, &prefix_key, declared)?
+    } else {
+        BTreeMap::new()
+    };
     let config = match table.and_then(|t| t.get("config")) {
         None => Json::Object(serde_json::Map::new()),
         Some(value @ Value::Table(_)) => to_json(value),
@@ -315,6 +345,7 @@ fn instance(
         required: reader.boolean("required")?,
         spaces,
         deny,
+        allow,
         config,
         limits,
         prefix,
@@ -329,6 +360,105 @@ fn instance(
         max_result_bytes: reader.integer("max_result_bytes", 1, to_i64(caps::RESULT_BYTES))?,
         env,
     })
+}
+
+/// `grants.<grant>.allow` of one instance (configuration version 3).
+fn allow_lists(
+    table: Option<&Table>,
+    prefix_key: &str,
+    declared: Option<&[SpaceId]>,
+) -> Result<BTreeMap<String, Vec<String>>, WorkspaceError> {
+    let key = format!("{prefix_key}.grants");
+    let grants = match table.and_then(|t| t.get("grants")) {
+        None => return Ok(BTreeMap::new()),
+        Some(Value::Table(grants)) => grants,
+        Some(_) => return Err(WorkspaceError::config_invalid(&key, "must be a table")),
+    };
+    let mut lists = BTreeMap::new();
+    for (grant, value) in grants {
+        let grant_key = format!("{key}.{grant}");
+        if !crate::plugins::needs_allow_list(grant) {
+            return Err(WorkspaceError::config_invalid(
+                &grant_key,
+                format!(
+                    "takes no allow list: only {} do",
+                    crate::plugins::ALLOW_REQUIRED_GRANTS.join(", ")
+                ),
+            ));
+        }
+        let Value::Table(entry) = value else {
+            return Err(WorkspaceError::config_invalid(
+                &grant_key,
+                "must be a table with an allow list",
+            ));
+        };
+        if let Some(unknown) = entry.keys().find(|k| !GRANT_KEYS.contains(&k.as_str())) {
+            return Err(WorkspaceError::config_invalid(
+                &format!("{grant_key}.{unknown}"),
+                "is not a known key; a grant table holds only `allow`",
+            ));
+        }
+        let allow_key = format!("{grant_key}.allow");
+        let entries = Reader::new(Some(entry), &grant_key)
+            .string_array("allow")?
+            .ok_or_else(|| {
+                WorkspaceError::config_invalid(
+                    &allow_key,
+                    "is required: list what the grant may reach",
+                )
+            })?;
+        if entries.is_empty() {
+            return Err(WorkspaceError::config_invalid(
+                &allow_key,
+                "must name at least one entry",
+            ));
+        }
+        for (index, text) in entries.iter().enumerate() {
+            if entries[..index].contains(text) {
+                return Err(WorkspaceError::config_invalid(
+                    &allow_key,
+                    format!("names `{text}` twice"),
+                ));
+            }
+            let collection_level = matches!(grant.as_str(), "content_write" | "documents_write");
+            let space = if collection_level {
+                match text.split_once('/') {
+                    Some((space, "*")) => space,
+                    Some((space, collection)) if SpaceId::is_valid(collection) => space,
+                    _ => {
+                        return Err(WorkspaceError::config_invalid(
+                            &allow_key,
+                            format!("entry `{text}` must be <space>/<collection> or <space>/*"),
+                        ));
+                    }
+                }
+            } else if text == "*" {
+                continue;
+            } else {
+                text.as_str()
+            };
+            if !SpaceId::is_valid(space) {
+                return Err(WorkspaceError::config_invalid(
+                    &allow_key,
+                    if collection_level {
+                        format!("entry `{text}` must be <space>/<collection> or <space>/*")
+                    } else {
+                        format!("entry `{text}` must be a space id or *")
+                    },
+                ));
+            }
+            if declared.is_some_and(|declared| !declared.iter().any(|d| d.as_str() == space)) {
+                return Err(WorkspaceError::config_invalid(
+                    &allow_key,
+                    format!(
+                        "entry `{text}` names `{space}`, which no [spaces.{space}] table declares"
+                    ),
+                ));
+            }
+        }
+        lists.insert(grant.clone(), entries);
+    }
+    Ok(lists)
 }
 
 fn to_i64(cap: u64) -> i64 {

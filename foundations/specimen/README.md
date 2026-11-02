@@ -1,10 +1,10 @@
 # Specimens
 
-Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-render`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
-The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, running retained stories, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
+The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, the full runner, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
 
 ## Run the fixtures
 
@@ -66,7 +66,262 @@ The native host reads the files statically, without running them, and lists each
 
 Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on an unreadable file, a dynamic title, duplicate ids or an incomplete export order. `validate()`, `specimen-validate` and `specimen validate [--id ID | --file PATH]` report each problem with a suggestion. They also report annotations compatibility mode does not run, such as `loaders` or `beforeEach`, and values that are deferred to runtime.
 
-Rendering retained stories is not available yet: it fails with `STORY_RENDER_UNAVAILABLE`. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
+`render()` captures a retained story, and `run()` (`specimen-run`, `specimen run ID`) runs it as Storybook's Vitest addon does:
+1. Compose the project, meta and story annotations with Storybook's field-specific rules.
+2. Settle the story's viewport from `globals.viewport` and its theme from the project's theme global. Media keep the browser's defaults: the manifest records `themeMedia: 'browser-default'`.
+3. Render through the decorators into a plain `div` canvas.
+4. Run the play.
+5. Run the accessibility check with axe-core 4.13.0 over the body, under the story's `parameters.a11y` policy.
+
+A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
+
+A story runs in one chain, as under Storybook's runner: render, then play, then the accessibility check, with no frame between them, so a component that renders on its next frame is seen as Storybook's run sees it. A custom element a story leaves undefined does not hold it up; the capture records it.
+
+Two things consumers' stories rely on are available:
+
+- `staticDirs` serves directories at the page's origin, as Storybook's option does: `"staticDirs": ["./public", { "from": "./site", "to": "/site" }]`. Paths are relative to the configuration and inside the root.
+- `userEvent.keyboard` from `vitest/browser` drives the real keyboard, with testing-library's key syntax. A retained play gets this one method; any other on `userEvent` throws. On a page without the host, such as a static preview, `userEvent` is undefined.
+
+### Suites
+
+`runSuite()` (`specimen-run` without an `id`, `specimen run` without an `ID`) runs many stories against one snapshot of the sources:
+
+```ts
+const suite = await bench.runSuite({
+  filter: { tags: ['smoke'], file: 'src/button.stories.ts', match: 'disabled', ids: ['a--b'] },
+  workers: 2,
+  retry: true,
+  flakeCap: 2,
+  capture: 'failed',
+});
+```
+
+- `filter` selects stories, and every condition given must hold. No filter selects them all.
+- `workers` limits how many run at once. It defaults to `test.workers` in the configuration, then 2.
+- `retry` retries failures once, one at a time, if no more than `flakeCap` stories failed (default 2). A failure that passes its retry is `flaky`. The suite's `outcome` is then `passed-with-flake` if every retried story passed, or `failed-after-retry` if any failed again.
+- `timeoutMs` is each story's deadline. It defaults to `test.timeoutMs` in the configuration, then 15,000 ms, Vitest's browser default.
+- `capture` chooses which stories keep an observation: `failed` (the default), `all` or `none`. A capture costs more than some stories' runs.
+
+Each story reports its `attempts` and a `flakeId` in the form `storybook:<file>::<name>`, the key a consumer's flake records already use. `sourcesChanged` is true if a bundled source changed during the run, in which case the stories ran against the sources as they were when it started.
+
+## Declare events
+
+A native specimen's `events` names the events a capture should record, and an `expect` step checks one was seen:
+
+```ts
+export const Primary: SpecimenDefinition = {
+  render,
+  targets: { control: { role: 'button', name: 'Save' } },
+  events: [{ type: 'click', target: 'control' }],
+  scenario: [
+    { id: 'activate', action: { click: 'control' } },
+    { id: 'clicked', expect: { event: 'click', since: 'activate' } },
+    { capture: 'after-click' },
+  ],
+};
+```
+
+`channels.events` lists each event in order: its type, target, the named step whose interval it fell in, whether it was composed, bubbling and trusted, and a `CustomEvent`'s `detail`. An `expect` must name the step that begins its interval, so an earlier event cannot satisfy it, and an expectation the specimen does not declare fails before running. It waits up to `timeoutMs` (default 1,000 ms) within the render's deadline.
+
+Only declared types are observed. The mount root's listener is installed before insertion and sees what is composed or in its light tree. A target, and its open shadow root, get their own listeners once the target exists, so a non-composed event inside it is seen. Until a target exists, an event of that type is kept with `target: null`, since it cannot be ruled out. A target that never resolved makes the channel `partial`. With no `events`, the channel is `not-requested`. Retained stories declare none.
+
+`diffObservations` treats a change in the events' types, targets and intervals as a difference when both captures recorded them.
+
+## Compare contexts
+
+`matrix()` (`specimen-matrix`, `specimen matrix ID`) captures one entry once per combination of explicit axes, each in its own browser context, at most 64 cells:
+
+```ts
+const run = await bench.matrix({
+  id: 'button',
+  axes: { theme: ['light', 'dark'], viewport: [{ width: 375, height: 812 }, { width: 1280, height: 720 }] },
+});
+```
+
+Each cell after the first captured one reports a `diff` against it: its status, the channels that changed, and any limitations. A cell that could not be captured stays in the report as `unavailable` with its reason, and is not an error. `observations: true` keeps each capture. The default checkpoint is a native scenario's end, or a retained story's `mount`.
+
+## Check accessibility
+
+`a11y()` (`specimen-a11y`, `specimen a11y [ID]`) runs axe at a checkpoint, on one entry by `id` or those a `filter` selects. The default checkpoint, `after-run`, is a native scenario's end or a retained story's play. Each report lists:
+
+- `violations`, with axe's explanation per target;
+- `incompleteChecks`, what axe could not decide and a person must, such as contrast over an image;
+- `exceptions`, each with its reason and what it excused;
+- `failures`, what stopped the run before the check, such as a story's play.
+
+A retained story keeps its effective `parameters.a11y` policy. A native specimen's check covers its mount root, and its `a11y` field declares any exclusion:
+
+```ts
+export const Legacy: SpecimenDefinition = {
+  render,
+  a11y: {
+    exceptions: [{ rule: 'image-alt', target: '[data-legacy]', reason: 'Replaced in the next release.' }],
+  },
+};
+export const BrokenState: SpecimenDefinition = {
+  render,
+  a11y: { disabled: { reason: 'A fixture of the broken state itself.' } },
+};
+```
+
+An exception excuses only its rule, only on its target and what is inside it, through shadow roots. An exclusion without a reason, or an exception without a target, fails the specimen. An exception that excused nothing reports `matched: []`, so a stale one is visible. There are no schema checks yet: the proposal asks for what is available, and no schema source declares any.
+
+A run's capture records its check in `channels.a11y.axe`, and `diffObservations` treats a change in what axe found as a difference.
+
+## Report coverage
+
+`coverage()` (`specimen-coverage`, `specimen coverage [TAG]`) runs the cases a filter selects and reports what they show of each component's required partitions. A schema says which states a component can have, not that anything exercised them, so a level is earned only from what a run observed.
+
+```ts
+const run = await bench.coverage({ component: 'violet-button' });
+// { obligations: 'schema-partitions@1', complete: false, components: [...], counts, cases, ... }
+```
+
+Required of each component the manifest describes: its default state, each value of a finite property or attribute, each slot empty and filled, each event and command, and, when an element is seen to be form-associated, form participation and validity. A member with no finite values is listed as `openEnded`, and nothing is required of it.
+
+| Level | Meaning |
+| --- | --- |
+| `verified` | A claim's expectations ran and held, about this target, in this state |
+| `asserted` | In that state, and a claim's expectations held, but they were not about this |
+| `represented` | A case that passed shows an element with this tag in that state |
+| `missing` | No case shows it |
+| `unknown` | The capture could not tell: nothing could read the member, or no case declares the event |
+
+Only `verified` counts toward `complete`, so a run of plain captures is never complete.
+
+A native specimen says what its expectations prove with `coverage`:
+
+```ts
+export const Disabled = {
+  render: () => field({ disabled: true }),
+  targets: { control: { selector: 'x-field' } },
+  events: [{ type: 'click', target: 'control' }],
+  scenario: [
+    { id: 'focused', action: { focus: 'control' } },
+    { id: 'inert', expect: { event: 'click', target: 'control', since: 'focused', absent: true } },
+    { id: 'marked', expect: { target: 'control', state: { attribute: 'disabled', equals: '' } } },
+    { capture: 'disabled' },
+  ],
+  coverage: [
+    {
+      target: 'control',
+      obligation: 'property:disabled=true',
+      checkpoint: 'disabled',
+      expectations: ['marked', 'inert'],
+    },
+  ],
+};
+```
+
+An `expect` step can hold an event (`absent: true` for one that must not happen), a property or attribute (`state`), an entry in the real `FormData` of the target's form (`form`) or the target's `checkValidity()` (`validity`). A claim is checked against the run:
+
+- An obligation about an event needs an expectation that saw it, a command needs the scenario to have run it, and `form:participation` and `form:validity` need `form` and `validity` expectations.
+- A claim whose expectations were about something else stays `asserted`.
+- A claim that cannot be true is listed in `invalidClaims` and credits nothing: its target was not in that state, its expectations did not run, or the component has no such obligation. Any of these keeps a run from being complete.
+
+A retained story's play links an assertion with `claim`, after the assertion, so a failure never reaches it. It does nothing under Storybook. A play that says nothing keeps its test result, and what it proves stays unknown.
+
+```ts
+import { claim } from '@lushly-dev/specimen/evidence';
+
+await expect(button).toHaveAttribute('disabled');
+claim(button, 'property:disabled=true', 'disabled-attribute');
+```
+
+The configuration can waive an obligation, with a version and a reason. A waiver excuses an obligation from `complete` without raising its level, and the report lists the version and any entry that matched nothing. None is applied automatically.
+
+```json
+{ "coverage": { "waivers": { "version": "2026-11-02", "entries": [
+  { "component": "violet-button", "obligation": "property:type=reset", "reason": "Not a form button." }
+] } } }
+```
+
+- **Evidence is observed.** Each obligation names the first few cases showing it, with their checkpoint and the element's reference. Slots are read from the slots themselves, and properties live from the element, so a story's args prove nothing on their own.
+- **Any element with the tag counts,** including one inside another component.
+- **A failed case proves nothing.** `cases.failed` names each with its message, and `specimen coverage` exits non-zero when there is one. Unverified coverage alone does not fail the command.
+
+## Propose specimens
+
+`suggest()` (`specimen-suggest`, `specimen suggest TAG`) proposes native specimens and claims for a component's gaps: those named by `gaps`, or what a coverage run leaves unverified. Everything it returns is `unverified`: run it and correct it, and only that run counts.
+
+```sh
+specimen suggest violet-button --out src/button/violet-button.specimens.ts
+```
+
+`entries` are the configuration entries to add, and `--out` never writes over an existing file.
+
+- **What the schema decides is written to hold or fail on its merits,** such as an attribute's value in the state being claimed.
+- **What only a person knows fails until replaced.** A form's submitted value and what a command changes are written as `REPLACE_WITH_WHAT_THIS_SHOULD_BE`, marked `placeholder`, so a proposal cannot pass unread.
+- **Assumptions are noted,** such as that a click causes an event, in a comment on the specimen and in `note`.
+- **What it cannot propose is listed in `skipped`,** with the reason.
+
+## Check the story contract
+
+`contract()` (`specimen-contract`, `specimen contract [TAG]`) reports what FAST-AF's Fastbot story contract would, on evidence from a run instead of source text. Each code is the rule it replaces, so the two can run side by side. It needs a custom elements manifest, and exits non-zero when `valid` is false: an error, or a case that failed.
+
+```ts
+const run = await bench.contract({ component: 'violet-button' });
+// { rules: 'fastbot-parity@1', valid: true, findings: [], counts, stats, cases, ... }
+```
+
+| Code | Evidence |
+| --- | --- |
+| `MISSING_STORY`, `MISSING_STORY_EXPORT` | A story file beside the module the manifest names, with a story discovery finds |
+| `MISSING_GLOBAL_A11Y_ERROR_POLICY` | The preview's own `a11y.test` is `error` |
+| `MISSING_AUTODOCS_TAG` | A story's index tags |
+| `MISSING_PLAY_FUNCTION` | A play ran |
+| `MISSING_DOCS_DESCRIPTION` (warning) | The composed `parameters.docs.description` |
+| `MISSING_BASELINE_STORY` | A story exported as `Overview` or `Default` |
+| `MISSING_STATE_STORY` | The element seen as `disabled`, `invalid`, `readonly`, `checked`, `selected` or `busy`, by attribute, live property or `data-` attribute, or that attribute set during a play |
+| `MISSING_FORMDATA_ASSERTION`, `MISSING_VALIDITY_ASSERTION` | For a form-associated element: a play ran `new FormData(form)` with it in the form, and something checked its validity |
+| `UNDOCUMENTED_A11Y_EXCEPTION` | A story turning axe off has `parameters.a11yException`, or an `A11Y_EXCEPTION:` comment in its file |
+
+This is parity, and coverage asks more. A story named `Disabled` that never disables anything fails here, where a check of its name would pass.
+
+## Profile
+
+`profile()` (`specimen-profile`, `specimen profile [ID]`) measures entries at a checkpoint over a few fresh runs, one at a time, since a neighbour's work would be in every number. The default checkpoint is `mount`, the ready checkpoint, and the default is 3 runs. Each report has:
+
+- `samples` and a `summary` of min, median and max: first contentful paint, DOMContentLoaded, load, ready and capture time, elements, custom elements, shadow hosts, requests, transfer size and heap, with console counts totalled;
+- `flags` for a slow paint, a large DOM, many shadow hosts or console messages;
+- `provenance`: when, with what source, and which browser.
+
+`profile.baselines` in the configuration names a baselines file, in the shape FAST-AF's `story-performance-baselines.jsonc` already has. `recordBaseline()` (`specimen-baseline`, `specimen baseline ID`) writes it, defaulting to 5 runs, keeping budgets a person set. A failed run records nothing. With no id or filter, `profile()` checks everything that has a baseline, and `orphanedBaselines` lists any that name no current entry.
+
+A comparison's `status` is one of:
+
+- `passed`, or `warnings` past a metric's tolerance: first paint and heap 1.2 times the baseline, elements and transfer 1.15, requests 1.1;
+- `failed` past an absolute budget, or with more console errors than allowed;
+- `not-comparable` with a `reason`, when the baseline came from another page, viewport, checkpoint or browser. A baseline from Storybook's page never reads as a regression or a pass. A budget still applies, since it is absolute.
+
+Chromium only.
+
+## Migrate retained stories
+
+`migrate()` (`specimen-migrate`, `specimen migrate`) is the preview-first codemod. For each configured story file, it reports:
+- whether the meta names its component;
+- the component it can name: only when the file imports the module the manifest says defines that tag, and the file is named for it;
+- the metadata it keeps, which is all of it;
+- the Storybook imports it leaves in place;
+- the manual tasks left;
+- the change as a diff.
+
+It writes only with `apply: true`, and only to files unchanged since they were read.
+
+## Plugins and inspection
+
+`"plugins": ["./specimen.plugins.ts"]` names page modules whose default export is a plugin, or an array of them. Declare one with `definePlugin`; each plugin may implement any of four points:
+
+- **Schema source:** `schema(tag, schema)` enriches what core reads from `"manifest"`, a custom elements manifest. Knowledge no source has stays in the schema's `unknown` list.
+- **Context provider:** `themes` names presets a native specimen's `theme` context applies.
+- **Token map:** `tokens` holds public variable names to token ids, and private aliases to public variables. `composeTokenMaps` composes and validates them together: versions, owners, conflicting ids, unresolved aliases and cycles.
+- **Command runner:** `runners` handles explicit `command` scenario steps by runner id.
+
+Plugins install before any specimen or story module loads. A plugin, runner or theme registered twice is an error, and a step naming a missing runner fails before it runs.
+
+`inspect()` (`specimen-inspect`, `specimen inspect ID`) resolves an entry without capturing it. It reports the args, the context, a retained story's composed annotations, the plugins installed, and the component's schema from the manifest and the plugins. A component no source describes is reported as a limitation.
+
+`@lushly-dev/specimen-fast-af` is FAST-AF's plugin.
 
 ## Build a review page
 
@@ -76,6 +331,17 @@ python3 -m http.server 4173 --directory /tmp/specimen-static
 ```
 
 The output directory must be empty. Open `/index.html` for the metadata index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
+
+Each bench page, this one included, starts `Math.random` from a fixed seed, so a framework's random marker comes out the same each time and a link reopens to the same DOM. A capture's manifest records this in `checkpoint.baseline`. The clock stays real, so a story showing today's date will still differ tomorrow.
+
+A link can also carry `checkpoint`: `after-run` runs a retained story's play in the preview, for up to 15 seconds. Any other named checkpoint needs the host's real input, so the page shows the mount and names the `specimen render` command that reaches it. The preview's frame sets `data-specimen-preview="ready"` on its root element when it is done, and shows any error in `#specimen-page-error`.
+
+`specimen-build.json` describes the build without running it:
+
+- `entries`: each case's identity and `url`.
+- `categories` and `total`: the shell, interaction support and accessibility in minified bytes against their ceilings. A build over a ceiling fails. Capture code counts as shell, and a play's helpers, such as `storybook/test`, count as interaction support however a story imports them.
+- `reported`: what has no ceiling, namely the `catalog` of cases, the `incumbent` (what else a preview imports from Storybook) and `consumer` code.
+- `chunks`: every emitted chunk with its category and size.
 
 ## Use programmatically
 
@@ -104,6 +370,7 @@ Before the native host, process isolation was how a long-lived host recovered th
 
 - `changed` means a difference was observed in compatible DOM, ARIA, layout, selected styles or live state. `no-change-observed` is restricted to that scope. Partial required channels yield `insufficient-evidence`, with observed differences retained.
 - Captures bind a source revision/dirty status when Git is available, a digest of the configuration and loaded page/module/style responses, a nearest lockfile digest, browser version, effective context and checkpoint. Streaming application traffic is excluded from that source digest and cannot hold readiness open. The loaded-resource digest is not a snapshot of every unused project file or proof of all external resources.
+- The manifest also records what produced a capture: `bench` with its plugins, `driver`, `browser.platform`, and `checkpoint` with its `name`, `actionMode`, `ready` steps and outcome, and `baseline`. `context` gains `pixelRatio`, `observed` (what the document saw) and `resources` (font faces and other origins' URLs). Comparison refuses a different browser, checkpoint name, action mode, baseline or pixel ratio, and reports different fonts as a limitation.
 - The selected style/geometry scope is accessible light DOM and open shadow roots. HTML-construction tracking observes the initialized specimen realm and reads genuine `TrustedHTML` (as FAST and Lit assign it) through the native stringifier; other non-string HTML stays opaque rather than being converted a second time; pre-existing or untouched foreign-realm closed roots cannot be retrospectively identified. Closed roots, raster content, pseudo-element geometry and running animations carry limitations. Natural animations make layout/style evidence partial; request `motion: 'settled'` programmatically for an explicitly suppressed sample. The media preference for reduced motion remains separate.
 - ARIA snapshots come from Chromium's own accessibility tree (capture version 0.2), in the indented YAML form of Playwright's ARIA snapshots: `- role "name" [state]`, text as `- text:` lines, with generic containers and Chromium's internal roles flattened and a text field's value written after its name. Roles and names are Chromium's, so an unnamed `<form>` appears as `form`. Axe is reported as `not-run`; no empty violation list stands in for an axe check. Token dependencies and event history are explicitly unsupported.
 - Screenshots are review artifacts. `requireVisual: true` always returns insufficient evidence until pixel comparison exists, even when both screenshot paths are present.
@@ -116,7 +383,7 @@ The static preview applies the theme attribute, CSS `color-scheme` (`light` for 
 
 Rendering runs in `specimen-host`, a Rust binary in [`host/`](host). It bundles the bench page and each case with Rolldown, serves every bundle generation from memory on 127.0.0.1 (each render under its own path, so the source digest names exactly the files that render loaded), and drives Chromium's headless shell over CDP through `--remote-debugging-pipe`. Pages get the environment Playwright 1.64 gives them: the same launch switches, default font families and context emulation. A changed source file rebuilds the bundle before the next render.
 
-The bundle follows Vite's import forms: `.css` imports inject a style element, `?inline` CSS and `?raw` files import as strings, `?url` imports resolve to the file's served path, and a stylesheet's relative `@import`s and `url()`s resolve against the stylesheet. Other import queries are rejected. A module that fails to bundle fails only the specimens that use it, and fixing it rebuilds the bench. Selector targets are CSS selectors; Playwright's own selector syntax (`text=`, `>>`, `:has-text()` and the like) is rejected.
+The bundle follows Vite's import forms: `.css` imports inject a style element, `?inline` CSS and `?raw` files import as strings, `?url` imports resolve to the file's served path, and a stylesheet's relative `@import`s and `url()`s resolve against the stylesheet. `import.meta.glob` calls with literal arguments expand as Vite expands them: a pattern or an array of patterns (`!` excludes), relative to the file or, with a leading `/`, to the root, with the `eager`, `import` and `query` options. Any other glob argument, and other import queries, are rejected. A module that fails to bundle fails only the specimens that use it, and fixing it rebuilds the bench. Selector targets are CSS selectors; Playwright's own selector syntax (`text=`, `>>`, `:has-text()` and the like) is rejected.
 
 Build it with `pnpm -F @lushly-dev/specimen build:host` (rustup installs the pinned Rust 1.98.0). The bench looks for `host/target/release/specimen-host` beside the package, or `SPECIMEN_HOST_BINARY`, and for Playwright's installed headless shell unless `executablePath` is given. The host supports macOS and Linux; Windows is not supported yet. Packaging prebuilt hosts is publication work and has not been done.
 
@@ -124,7 +391,7 @@ The host owns Chromium's process group. Each render is bounded by its deadline, 
 
 ## Validation
 
-`pnpm -F @lushly-dev/specimen test:browser` builds the host, then runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. It then runs the reference driver (`vitest.reference.config.ts`): the same browser runtime inside Vitest browser mode, the harness the consumers' Storybook Vitest addon uses. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`) and the Rust toolchain available; missing binaries are failures, not skipped acceptance. The host's own format, lint and tests run in `foundations/specimen/host` (`cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked`). The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. `src/compat.test.ts` runs Storybook 10.6.2's own indexer over the `compat/` fixtures as the reference; Storybook is a development dependency only. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
+`pnpm -F @lushly-dev/specimen test:browser` builds the host, then runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. It then runs the reference driver (`vitest.reference.config.ts`): the same browser runtime inside Vitest browser mode, the harness the consumers' Storybook Vitest addon uses. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`) and the Rust toolchain available; missing binaries are failures, not skipped acceptance. The host's own format, lint and tests run in `foundations/specimen/host` (`cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked`). The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. `src/compat.test.ts` runs Storybook 10.6.2's own indexer over the `compat/` fixtures as the reference, and `src/compat-run.test.ts` runs its Vitest addon over the same stories and requires every outcome to match; Storybook is a development dependency only. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
 
 Read [current status](../../docs/features/active/specimens/STATUS.md) for verified progress, known gaps and delivery state, then the [implementation plan](../../docs/features/active/specimens/implementation.md) for ordered tasks and the remaining acceptance gates.
 

@@ -2,7 +2,7 @@
  * WebAdapter - Renders CommandResult to HTML with CSS variable theming.
  */
 
-import { StatusType } from './css-variables.js';
+import { StatusType, type StatusTypeValue } from './css-variables.js';
 import type {
 	CommandErrorInput,
 	CommandResultInput,
@@ -14,10 +14,21 @@ import type {
 import { escapeHtml, styledSpan } from './utils.js';
 
 /**
+ * The span writer for one render, bound to its `styling`.
+ */
+function spanWriter(options: RenderOptions) {
+	return (text: string, status: StatusTypeValue, bold = false): string =>
+		styledSpan(text, status, bold, options.styling);
+}
+
+/**
  * WebAdapter transforms AFD CommandResult data into styled HTML.
  *
  * Uses CSS custom properties for theming:
  *   --afd-success, --afd-error, --afd-warning, --afd-info, --afd-muted
+ *
+ * Every method takes `RenderOptions`. With `styling: 'classes'` the output has no `style`
+ * attribute, for a Content-Security-Policy of `style-src 'self'`.
  */
 export const WebAdapter = {
 	/**
@@ -25,6 +36,7 @@ export const WebAdapter = {
 	 */
 	renderPackageResults(data: PackageResults, options: RenderOptions = {}): string {
 		const { showFailureOutput = true, maxOutputLength } = options;
+		const span = spanWriter(options);
 
 		if (!data || !Array.isArray(data.packages)) {
 			return '<pre>No results</pre>';
@@ -36,7 +48,7 @@ export const WebAdapter = {
 		const failed = data.failed || 0;
 
 		// Header
-		lines.push(styledSpan(`Processing ${total} package(s)...`, StatusType.NEUTRAL, true));
+		lines.push(span(`Processing ${total} package(s)...`, StatusType.NEUTRAL, true));
 		lines.push('');
 
 		// Package results
@@ -45,13 +57,13 @@ export const WebAdapter = {
 			const pkgPassed = pkg.passed;
 
 			// Package name in info color (blue)
-			lines.push(styledSpan(`> ${name}`, StatusType.INFO));
+			lines.push(span(`> ${name}`, StatusType.INFO));
 
 			// Status indicator
 			if (pkgPassed) {
-				lines.push(styledSpan('  [PASS]', StatusType.SUCCESS));
+				lines.push(span('  [PASS]', StatusType.SUCCESS));
 			} else {
-				lines.push(styledSpan('  [FAIL]', StatusType.FAILURE));
+				lines.push(span('  [FAIL]', StatusType.FAILURE));
 			}
 
 			// Show output for failed packages
@@ -65,7 +77,7 @@ export const WebAdapter = {
 				}
 
 				if (output) {
-					lines.push(styledSpan(output, StatusType.MUTED));
+					lines.push(span(output, StatusType.MUTED));
 				}
 			}
 
@@ -73,13 +85,13 @@ export const WebAdapter = {
 		}
 
 		// Summary
-		const summaryParts = [styledSpan('Results: ', StatusType.NEUTRAL, true)];
+		const summaryParts = [span('Results: ', StatusType.NEUTRAL, true)];
 		if (passed > 0) {
-			summaryParts.push(styledSpan(`${passed} passed`, StatusType.SUCCESS));
+			summaryParts.push(span(`${passed} passed`, StatusType.SUCCESS));
 		}
 		if (failed > 0) {
 			if (passed > 0) summaryParts.push(', ');
-			summaryParts.push(styledSpan(`${failed} failed`, StatusType.FAILURE));
+			summaryParts.push(span(`${failed} failed`, StatusType.FAILURE));
 		}
 		lines.push(summaryParts.join(''));
 
@@ -89,41 +101,47 @@ export const WebAdapter = {
 	/**
 	 * Render an error message.
 	 */
-	renderError(message: string): string {
-		return `<pre>${styledSpan(`Error: ${message}`, StatusType.FAILURE)}</pre>`;
+	renderError(message: string, options: RenderOptions = {}): string {
+		const span = spanWriter(options);
+		return `<pre>${span(`Error: ${message}`, StatusType.FAILURE)}</pre>`;
 	},
 
 	/**
 	 * Render a success message.
 	 */
-	renderSuccess(message: string): string {
-		return `<pre>${styledSpan(message, StatusType.SUCCESS)}</pre>`;
+	renderSuccess(message: string, options: RenderOptions = {}): string {
+		const span = spanWriter(options);
+		return `<pre>${span(message, StatusType.SUCCESS)}</pre>`;
 	},
 
 	/**
 	 * Render a warning message.
 	 */
-	renderWarning(message: string): string {
-		return `<pre>${styledSpan(`Warning: ${message}`, StatusType.WARNING)}</pre>`;
+	renderWarning(message: string, options: RenderOptions = {}): string {
+		const span = spanWriter(options);
+		return `<pre>${span(`Warning: ${message}`, StatusType.WARNING)}</pre>`;
 	},
 
 	/**
 	 * Render a generic result with auto-detection.
 	 */
-	renderResult(result: { success: boolean; data?: unknown; error?: unknown }): string {
+	renderResult(
+		result: { success: boolean; data?: unknown; error?: unknown },
+		options: RenderOptions = {}
+	): string {
 		if (result.success === false && result.error) {
 			const errorMsg =
 				typeof result.error === 'object' && result.error !== null
 					? (result.error as { message?: string }).message || String(result.error)
 					: String(result.error);
-			return this.renderError(errorMsg);
+			return this.renderError(errorMsg, options);
 		}
 
 		const data = result.data as PackageResults | undefined;
 
 		// Check if it's package results
 		if (data?.packages && Array.isArray(data.packages)) {
-			return this.renderPackageResults(data);
+			return this.renderPackageResults(data, options);
 		}
 
 		// Fallback to JSON display
@@ -133,17 +151,18 @@ export const WebAdapter = {
 	/**
 	 * Render a CommandError with code, message, and optional suggestion.
 	 */
-	renderCommandError(error: CommandErrorInput): string {
+	renderCommandError(error: CommandErrorInput, options: RenderOptions = {}): string {
+		const span = spanWriter(options);
 		const lines: string[] = [];
 
-		lines.push(styledSpan(`[${error.code}] ${error.message}`, StatusType.FAILURE, true));
+		lines.push(span(`[${error.code}] ${error.message}`, StatusType.FAILURE, true));
 
 		if (error.suggestion) {
-			lines.push(styledSpan(`Suggestion: ${error.suggestion}`, StatusType.INFO));
+			lines.push(span(`Suggestion: ${error.suggestion}`, StatusType.INFO));
 		}
 
 		if (error.details) {
-			lines.push(styledSpan(`Details: ${JSON.stringify(error.details)}`, StatusType.MUTED));
+			lines.push(span(`Details: ${JSON.stringify(error.details)}`, StatusType.MUTED));
 		}
 
 		return `<pre>${lines.join('<br>')}</pre>`;
@@ -154,7 +173,8 @@ export const WebAdapter = {
 	 * non-finite value renders as 0, so a server's bad value cannot throw after the command
 	 * already succeeded.
 	 */
-	renderConfidence(rawConfidence: number, reasoning?: string): string {
+	renderConfidence(rawConfidence: number, reasoning?: string, options: RenderOptions = {}): string {
+		const span = spanWriter(options);
 		const confidence = Number.isFinite(rawConfidence) ? Math.min(1, Math.max(0, rawConfidence)) : 0;
 		const pct = Math.round(confidence * 100);
 		const barWidth = 20;
@@ -171,10 +191,10 @@ export const WebAdapter = {
 		}
 
 		const lines: string[] = [];
-		lines.push(`${styledSpan(`Confidence: ${pct}%`, status, true)} ${styledSpan(bar, status)}`);
+		lines.push(`${span(`Confidence: ${pct}%`, status, true)} ${span(bar, status)}`);
 
 		if (reasoning) {
-			lines.push(styledSpan(reasoning, StatusType.MUTED));
+			lines.push(span(reasoning, StatusType.MUTED));
 		}
 
 		return `<pre>${lines.join('<br>')}</pre>`;
@@ -183,15 +203,16 @@ export const WebAdapter = {
 	/**
 	 * Render a list of warnings.
 	 */
-	renderWarnings(warnings: WarningInput[]): string {
+	renderWarnings(warnings: WarningInput[], options: RenderOptions = {}): string {
 		if (warnings.length === 0) return '';
 
+		const span = spanWriter(options);
 		const lines: string[] = [];
-		lines.push(styledSpan(`${warnings.length} warning(s):`, StatusType.WARNING, true));
+		lines.push(span(`${warnings.length} warning(s):`, StatusType.WARNING, true));
 
 		for (const warning of warnings) {
 			const prefix = warning.code ? `[${warning.code}] ` : '';
-			lines.push(styledSpan(`  \u26A0 ${prefix}${warning.message}`, StatusType.WARNING));
+			lines.push(span(`  \u26A0 ${prefix}${warning.message}`, StatusType.WARNING));
 		}
 
 		return `<pre>${lines.join('<br>')}</pre>`;
@@ -200,15 +221,16 @@ export const WebAdapter = {
 	/**
 	 * Render pipeline step progress.
 	 */
-	renderPipelineSteps(steps: PipelineStepInput[]): string {
+	renderPipelineSteps(steps: PipelineStepInput[], options: RenderOptions = {}): string {
 		if (steps.length === 0) return '<pre>No pipeline steps</pre>';
 
+		const span = spanWriter(options);
 		const lines: string[] = [];
 		const succeeded = steps.filter((s) => s.status === 'success').length;
 		const failed = steps.filter((s) => s.status === 'failure').length;
 		const skipped = steps.filter((s) => s.status === 'skipped').length;
 
-		lines.push(styledSpan(`Pipeline: ${steps.length} steps`, StatusType.NEUTRAL, true));
+		lines.push(span(`Pipeline: ${steps.length} steps`, StatusType.NEUTRAL, true));
 		lines.push('');
 
 		for (const step of steps) {
@@ -229,18 +251,18 @@ export const WebAdapter = {
 			const alias = step.alias ? ` (${step.alias})` : '';
 			const time =
 				step.executionTimeMs !== undefined ? ` ${step.executionTimeMs.toFixed(1)}ms` : '';
-			lines.push(styledSpan(`  ${icon} ${step.command}${alias}${time}`, status));
+			lines.push(span(`  ${icon} ${step.command}${alias}${time}`, status));
 
 			if (step.status === 'failure' && step.error) {
-				lines.push(styledSpan(`    ${step.error.message ?? 'Unknown error'}`, StatusType.FAILURE));
+				lines.push(span(`    ${step.error.message ?? 'Unknown error'}`, StatusType.FAILURE));
 			}
 		}
 
 		lines.push('');
 		const summaryParts: string[] = [];
-		if (succeeded > 0) summaryParts.push(styledSpan(`${succeeded} passed`, StatusType.SUCCESS));
-		if (failed > 0) summaryParts.push(styledSpan(`${failed} failed`, StatusType.FAILURE));
-		if (skipped > 0) summaryParts.push(styledSpan(`${skipped} skipped`, StatusType.MUTED));
+		if (succeeded > 0) summaryParts.push(span(`${succeeded} passed`, StatusType.SUCCESS));
+		if (failed > 0) summaryParts.push(span(`${failed} failed`, StatusType.FAILURE));
+		if (skipped > 0) summaryParts.push(span(`${skipped} skipped`, StatusType.MUTED));
 		lines.push(summaryParts.join(', '));
 
 		return `<pre>${lines.join('<br>')}</pre>`;
@@ -249,19 +271,19 @@ export const WebAdapter = {
 	/**
 	 * Render a full CommandResult with all metadata sections.
 	 */
-	renderCommandResult(result: CommandResultInput): string {
+	renderCommandResult(result: CommandResultInput, options: RenderOptions = {}): string {
 		const sections: string[] = [];
 
 		// Error section
 		if (!result.success && result.error) {
-			sections.push(this.renderCommandError(result.error));
+			sections.push(this.renderCommandError(result.error, options));
 		}
 
 		// Success data
 		if (result.success && result.data !== undefined) {
 			const data = result.data as PackageResults | undefined;
 			if (data?.packages && Array.isArray(data.packages)) {
-				sections.push(this.renderPackageResults(data));
+				sections.push(this.renderPackageResults(data, options));
 			} else {
 				sections.push(`<pre>${escapeHtml(JSON.stringify(result.data, null, 2))}</pre>`);
 			}
@@ -269,12 +291,12 @@ export const WebAdapter = {
 
 		// Confidence
 		if (result.confidence !== undefined) {
-			sections.push(this.renderConfidence(result.confidence, result.reasoning));
+			sections.push(this.renderConfidence(result.confidence, result.reasoning, options));
 		}
 
 		// Warnings
 		if (result.warnings && result.warnings.length > 0) {
-			sections.push(this.renderWarnings(result.warnings));
+			sections.push(this.renderWarnings(result.warnings, options));
 		}
 
 		return sections.join('\n');

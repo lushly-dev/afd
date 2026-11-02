@@ -2,6 +2,7 @@ import { normalizeDom } from './normalize.js';
 import { normalizeElements } from './normalize-ids.js';
 import {
 	CAPTURE_VERSION,
+	type CaptureCheckpoint,
 	type ChannelDifference,
 	type Completeness,
 	type DiffOptions,
@@ -9,7 +10,7 @@ import {
 	NORMALIZATION_VERSION,
 	type Observation,
 	type ObservationDiff,
-	type SpecimenContext,
+	type RecordedContext,
 } from './types.js';
 
 function canonical(value: unknown): string {
@@ -45,13 +46,25 @@ function validateCompatibility(left: Observation, right: Observation, options: D
 		}
 	}
 	requireEqual('browser', left.manifest.browser, right.manifest.browser);
-	requireEqual('checkpoint', left.manifest.checkpoint, right.manifest.checkpoint);
+	// How each page got ready, and how long it was allowed, is no part of what is compared.
+	const condition = ({ name, actionMode, baseline }: CaptureCheckpoint) => ({
+		name,
+		actionMode,
+		baseline,
+	});
+	requireEqual(
+		'checkpoint',
+		condition(left.manifest.checkpoint),
+		condition(right.manifest.checkpoint)
+	);
 	const keys = new Set([
 		...Object.keys(left.manifest.context),
 		...Object.keys(right.manifest.context),
-	] as (keyof SpecimenContext)[]);
+	] as (keyof RecordedContext)[]);
 	for (const key of keys) {
-		if (!options.allowContextDifferences?.includes(key)) {
+		// What the document observed and loaded is evidence about the capture, not its request.
+		if (key === 'observed' || key === 'resources') continue;
+		if (!(options.allowContextDifferences as string[] | undefined)?.includes(key)) {
 			requireEqual(`context.${key}`, left.manifest.context[key], right.manifest.context[key]);
 		}
 	}
@@ -64,6 +77,13 @@ function evidenceLimitations(
 	const limitations = [
 		'Structured comparison covers DOM, ARIA snapshots, layout, selected styles and live state; it does not establish visual equivalence.',
 	];
+	if (
+		canonical(left.manifest.context.resources.fonts) !==
+		canonical(right.manifest.context.resources.fonts)
+	)
+		limitations.push(
+			'The two captures loaded different fonts, which can change layout without any change to the component.'
+		);
 	let incomplete = false;
 	for (const [side, observation] of [
 		['left', left],
@@ -197,6 +217,25 @@ function normalizedDom(raw: string): string {
  * feasibility comparator; missing structural evidence can never mean unchanged.
  * Screenshots are review artifacts, not pixel comparison evidence.
  */
+/** The declared events in order, by type, target and interval; `null` when none were declared. */
+function eventHistory(observation: Observation): string | null {
+	const { status } = observation.completeness.events;
+	if (status === 'not-requested' || status === 'unsupported') return null;
+	return observation.channels.events.history
+		.map((event) => `${event.type} ${event.target ?? '-'} ${event.step ?? '-'}`)
+		.join('\n');
+}
+
+/** What axe found in a capture, as sorted rule and target pairs; `null` when it did not run. */
+function axeFindings(observation: Observation): string | null {
+	const { axe } = observation.channels.a11y;
+	if (axe === 'not-run') return null;
+	return axe.violations
+		.flatMap((violation) => violation.targets.map((target) => `${violation.id} ${target}`))
+		.sort()
+		.join('\n');
+}
+
 export function diffObservations(
 	left: Observation,
 	right: Observation,
@@ -214,6 +253,14 @@ export function diffObservations(
 			right: right.channels.a11y.snapshot,
 		});
 	}
+	const leftEvents = eventHistory(left);
+	const rightEvents = eventHistory(right);
+	if (leftEvents !== null && rightEvents !== null && leftEvents !== rightEvents)
+		differences.push({ channel: 'events', left: leftEvents, right: rightEvents });
+	const leftAxe = axeFindings(left);
+	const rightAxe = axeFindings(right);
+	if (leftAxe !== null && rightAxe !== null && leftAxe !== rightAxe)
+		differences.push({ channel: 'a11y', left: leftAxe, right: rightAxe });
 	compareElements(differences, left, right);
 	const evidence = evidenceLimitations(left, right);
 	if (options.requireVisual) {

@@ -16,13 +16,13 @@ const styles = css`
         --_approval-font-size: var(--violet-approval-font-size, var(--_body-size, 14px));
         --_approval-line-height: var(--violet-approval-line-height, var(--_body-line, 20px));
         --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size, 12px));
-        --_approval-border-color: var(--color-state-warning-border, rgb(245, 158, 11));
-        --_warning-bg-subtle: var(--color-state-warning-background, rgba(245, 158, 11, 0.08));
-        --_warning-text: var(--color-state-warning-text, rgb(180, 83, 9));
-        --_success-bg-subtle: var(--color-state-success-background, rgba(22, 163, 74, 0.08));
-        --_success-text: var(--color-state-success-text, rgb(21, 128, 61));
-        --_danger-bg-subtle: var(--color-state-danger-background, rgba(220, 38, 38, 0.08));
-        --_danger-text: var(--color-state-danger-text, rgb(185, 28, 28));
+        --_approval-border-color: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_warning-bg-subtle: var(--color-state-warning-background, #fdebcc);
+        --_warning-text: var(--color-state-warning-text, #92400e);
+        --_success-bg-subtle: var(--color-state-success-background, #e3f1e7);
+        --_success-text: var(--color-state-success-text, #166534);
+        --_danger-bg-subtle: var(--color-state-danger-background, #fbe2e2);
+        --_danger-text: var(--color-state-danger-text, #b42318);
     }
 
     .frame {
@@ -37,7 +37,7 @@ const styles = css`
     }
 
     :host([state="approved"]) .frame {
-        --violet-card-border-color: var(--color-state-success-border, rgba(22, 163, 74, 0.34));
+        --violet-card-border-color: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
     }
 
     :host([state="denied"]) .frame {

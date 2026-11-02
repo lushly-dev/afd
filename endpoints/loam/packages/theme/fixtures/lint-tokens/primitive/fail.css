@@ -1,0 +1,4 @@
+:host {
+	background: var(--ref-color-oat-50);
+	gap: var(--ref-space-4);
+}

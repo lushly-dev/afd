@@ -1,0 +1,6 @@
+:host {
+	block-size: var(--shell-size-titlebar);
+	inline-size: min(85vw, var(--shell-size-drawer-max));
+	--_handle: var(--shell-color-handle-rest);
+	background: var(--_handle);
+}

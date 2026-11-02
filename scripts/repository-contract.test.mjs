@@ -224,7 +224,7 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
-test('Loam is four private, route-less endpoints under endpoints/loam/packages', async () => {
+test('Loam is private, route-less endpoints under endpoints/loam/packages and apps', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'
 	);
@@ -233,14 +233,29 @@ test('Loam is four private, route-less endpoints under endpoints/loam/packages',
 	const { dependencies, errors } = checkBoundaries(repoRoot);
 	assert.deepEqual(errors, []);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/packages\/\*"$/m);
-	const loam = ['theme', 'kernel', 'chrome', 'web'];
+	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/apps\/\*"$/m);
+	const loam = [
+		'manifest',
+		'sdk',
+		'testing',
+		'cli',
+		'theme',
+		'kernel',
+		'console',
+		'chrome',
+		'web',
+		'app-hello',
+		'app-tally',
+	];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
 		assert.equal(unit.family, 'loam');
 		assert.equal(unit.state, 'quarantined');
 		assert.deepEqual(unit.routes, []);
 		assert.deepEqual(unit.gates, ['pnpm check', 'loam.yml', 'release-approval']);
-		const manifestPath = `endpoints/loam/packages/${name}/package.json`;
+		const manifestPath = name.startsWith('app-')
+			? `endpoints/loam/apps/${name.slice('app-'.length)}/package.json`
+			: `endpoints/loam/packages/${name}/package.json`;
 		assert.deepEqual(
 			unit.distributions.map((entry) => [entry.name, entry.manifest, entry.private]),
 			[[`@lushly-dev/loam-${name}`, manifestPath, true]]
@@ -271,22 +286,45 @@ test('Loam is four private, route-less endpoints under endpoints/loam/packages',
 		const declared = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
 		assert.ok(!declared.some((target) => names.has(target)), manifestPath);
 	}
-	// The kernel has no DOM, foundation or other Loam dependency; the chrome reaches Violet only
-	// through FAST-AF's components.
+	// The kernel has no DOM or foundation dependency, and of Loam takes only the manifest's catalogs and
+	// the SDK's types; the chrome reaches Violet only through FAST-AF's components.
 	assert.ok(
 		!dependencies['@lushly-dev/loam-kernel'].some((target) =>
-			/fast-element|violet|specimen|loam-/.test(target)
+			/fast-element|violet|specimen/.test(target)
 		)
+	);
+	assert.deepEqual(
+		dependencies['@lushly-dev/loam-kernel'].filter((target) => target.includes('loam-')),
+		['@lushly-dev/loam-manifest', '@lushly-dev/loam-sdk']
 	);
 	assert.deepEqual(dependencies['@lushly-dev/loam-chrome'], [
 		'@lushly-dev/fast-element',
+		'@lushly-dev/loam-console',
 		'@lushly-dev/loam-kernel',
+		'@lushly-dev/loam-sdk',
 		'@lushly-dev/loam-theme',
 		'@lushly-dev/violet-elements',
 	]);
+	// The console binds to the SDK's client alone (7.7).
+	assert.ok(!dependencies['@lushly-dev/loam-console'].includes('@lushly-dev/loam-kernel'));
 	const workflow = read('.github/workflows/loam.yml');
 	assert.match(workflow, /permissions:\n {2}contents: read/);
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
+});
+
+test('a workflow reads the one output its affected.mjs gate writes', () => {
+	// `gate` writes only `run=`, so any other key reads as empty and silently skips the job.
+	const directory = join(repoRoot, '.github/workflows');
+	for (const file of readdirSync(directory)) {
+		const workflow = read(`.github/workflows/${file}`);
+		for (const [, id] of workflow.matchAll(
+			/- id: ([\w-]+)\n\s+run: node scripts\/affected\.mjs gate\b/g
+		)) {
+			const reads = [...workflow.matchAll(new RegExp(`steps\\.${id}\\.outputs\\.([\\w-]+)`, 'g'))];
+			assert.ok(reads.length > 0, `${file}: nothing reads the gate step ${id}`);
+			for (const [text, key] of reads) assert.equal(key, 'run', `${file}: ${text}`);
+		}
+	}
 });
 
 test('Umbel is a private, route-less endpoint over the afd crate', async () => {
@@ -334,16 +372,30 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	assert.match(manifest, /^publish = false$/m);
 	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/packages\/rust"/m);
 	assert.match(read('.gitignore'), /^!endpoints\/umbel\/Cargo\.lock$/m);
-	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
-		if (workflow !== 'umbel.yml')
-			assert.doesNotMatch(
-				read(`.github/workflows/${workflow}`),
-				/endpoints\/umbel|unit umbel/,
-				workflow
-			);
+	// Loam's `mounted` job runs against a stock `umbel` (Loam D64): its filters, its gate and its build, only.
+	const loamMounted = [
+		"- 'endpoints/umbel/**'",
+		"- '!endpoints/umbel/docs/**'",
+		'--path endpoints/umbel/ ',
+		'working-directory: endpoints/umbel',
+		'workspaces: endpoints/umbel',
+	];
+	for (const workflow of readdirSync(join(repoRoot, '.github/workflows'))) {
+		if (workflow === 'umbel.yml') continue;
+		let text = read(`.github/workflows/${workflow}`);
+		if (workflow === 'loam.yml') {
+			for (const allowed of loamMounted) {
+				assert.ok(text.includes(allowed), `loam.yml has lost ${allowed}`);
+				text = text.replaceAll(allowed, '');
+			}
+		}
+		assert.doesNotMatch(text, /endpoints\/umbel|unit umbel/, workflow);
+	}
 	const umbel = read('.github/workflows/umbel.yml');
 	assert.match(umbel, /permissions:\n {2}contents: read/);
-	assert.doesNotMatch(umbel, /publish|upload|id-token|secrets\./);
+	// The knowledge job uploads its eval report as a workflow artifact; that is not publication.
+	assert.doesNotMatch(umbel, /publish|upload(?!-artifact)|id-token|secrets\./);
+	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
 });
 
 test('every published package type-checks its tests', () => {

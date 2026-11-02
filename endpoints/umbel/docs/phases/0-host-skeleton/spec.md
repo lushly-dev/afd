@@ -762,9 +762,11 @@ The host owns three keys, and no caller can set them:
 - `CommandContext.extra["dev.umbel/principal"]`: set by the context hook on
   every MCP call, by the CLI, and by `Host::context`, always overwriting
   (section 4). AFD's `afd-batch` ignores a `context` argument (AFD #579), and
-  `execute_batch_with_context`, which `umbel batch` uses, merges the request's
-  `context` into `extra` with `or_insert`, so a value already set by the hook
-  or the CLI cannot be replaced from a batch request. Commands take the caller's identity **only**
+  `umbel batch` drops the request's `context` before calling
+  `execute_batch_with_context`, which would merge it into `extra`. Corrected
+  2026-11-01: this file first relied on that merge's `or_insert`, which
+  protects only keys already set, and so let a batch request set
+  `dev.umbel/human-confirmed`, added in phase 2. Commands take the caller's identity **only**
   from this key, never from `context.actor` alone, and never from any other
   `dev.umbel/` key in `extra`, which they ignore.
 - `result.metadata["dev.umbel/space"]` and

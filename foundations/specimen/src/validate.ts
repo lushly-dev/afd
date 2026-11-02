@@ -1,4 +1,18 @@
-import type { BenchConfig, CaptureRequest, SpecimenContext } from './types.js';
+import type {
+	A11yRequest,
+	BaselineRequest,
+	BenchConfig,
+	CaptureRequest,
+	ContractRequest,
+	CoverageRequest,
+	MatrixAxes,
+	MatrixRequest,
+	ProfileRequest,
+	SpecimenContext,
+	SuggestRequest,
+	SuiteFilter,
+	SuiteRequest,
+} from './types.js';
 
 /**
  * Validation for the bench's own inputs: the configuration file, capture requests and
@@ -57,6 +71,7 @@ const CONTEXT_KEYS = [
 	'locale',
 	'reducedMotion',
 	'motion',
+	'themeMedia',
 ] as const;
 const contextField: Record<
 	(typeof CONTEXT_KEYS)[number],
@@ -68,6 +83,7 @@ const contextField: Record<
 	locale,
 	reducedMotion: (value, path) => choice(value, path, ['reduce', 'no-preference']),
 	motion: (value, path) => choice(value, path, ['natural', 'settled']),
+	themeMedia: (value, path) => choice(value, path, ['browser-default']),
 };
 
 /** A context for a new request; with `partial`, any field may be absent. */
@@ -79,7 +95,7 @@ export function parseContext(
 	const fields = record(value, path, CONTEXT_KEYS);
 	const context: Fields = {};
 	for (const key of CONTEXT_KEYS) {
-		const optional = partial || key === 'container';
+		const optional = partial || key === 'container' || key === 'themeMedia';
 		if (fields[key] === undefined) {
 			if (!optional) fail(`${path}.${key}`, 'required');
 			continue;
@@ -87,6 +103,211 @@ export function parseContext(
 		context[key] = contextField[key](fields[key], `${path}.${key}`);
 	}
 	return context as Partial<SpecimenContext>;
+}
+
+const MAX_SUITE_WORKERS = 32;
+
+function suiteFilter(value: unknown, path: string): SuiteFilter {
+	const filter = record(value, path, ['ids', 'file', 'tags', 'match']);
+	return {
+		...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, `${path}.ids`) }),
+		...(filter.file === undefined ? {} : { file: text(filter.file, `${path}.file`) }),
+		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
+		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
+	};
+}
+
+export function parseSuggestRequest(value: unknown): SuggestRequest {
+	const fields = record(value, 'suggest request', ['component', 'gaps', 'timeoutMs', 'workers']);
+	const request: SuggestRequest = {
+		component: text(fields.component, 'suggest request.component'),
+	};
+	if (fields.gaps !== undefined) {
+		if (!Array.isArray(fields.gaps)) fail('suggest request.gaps', 'expected an array');
+		request.gaps = fields.gaps.map((gap, index) => text(gap, `suggest request.gaps[${index}]`));
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'suggest request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'suggest request.workers', 1, MAX_SUITE_WORKERS);
+	return request;
+}
+
+export function parseContractRequest(value: unknown): ContractRequest {
+	const fields = record(value, 'contract request', ['component', 'filter', 'timeoutMs', 'workers']);
+	const request: ContractRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'contract request.component');
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'contract request.filter');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'contract request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'contract request.workers', 1, MAX_SUITE_WORKERS);
+	return request;
+}
+
+export function parseCoverageRequest(value: unknown): CoverageRequest {
+	const fields = record(value, 'coverage request', ['component', 'filter', 'timeoutMs', 'workers']);
+	const request: CoverageRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'coverage request.component');
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'coverage request.filter');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'coverage request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'coverage request.workers', 1, MAX_SUITE_WORKERS);
+	return request;
+}
+
+export function parseA11yRequest(value: unknown): A11yRequest {
+	const fields = record(value, 'accessibility request', [
+		'id',
+		'filter',
+		'checkpoint',
+		'context',
+		'timeoutMs',
+		'workers',
+	]);
+	const request: A11yRequest = {};
+	if (fields.id !== undefined) request.id = text(fields.id, 'accessibility request.id');
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'accessibility request.filter');
+	if (request.id !== undefined && request.filter !== undefined)
+		fail('accessibility request', 'give an id or a filter, not both');
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, 'accessibility request.checkpoint');
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, 'accessibility request.context', true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'accessibility request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(
+			fields.workers,
+			'accessibility request.workers',
+			1,
+			MAX_SUITE_WORKERS
+		);
+	return request;
+}
+
+function profileFields(fields: Record<string, unknown>, path: string): ProfileRequest {
+	const request: ProfileRequest = {};
+	if (fields.id !== undefined) request.id = text(fields.id, `${path}.id`);
+	if (fields.filter !== undefined) request.filter = suiteFilter(fields.filter, `${path}.filter`);
+	if (request.id !== undefined && request.filter !== undefined)
+		fail(path, 'give an id or a filter, not both');
+	if (fields.runs !== undefined) request.runs = integer(fields.runs, `${path}.runs`, 1, 7);
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, `${path}.checkpoint`);
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	return request;
+}
+
+const PROFILE_FIELDS = ['id', 'filter', 'runs', 'checkpoint', 'context', 'timeoutMs'];
+
+export function parseProfileRequest(value: unknown): ProfileRequest {
+	return profileFields(record(value, 'profile request', PROFILE_FIELDS), 'profile request');
+}
+
+export function parseBaselineRequest(value: unknown): BaselineRequest {
+	const fields = record(value, 'baseline request', [...PROFILE_FIELDS, 'notes']);
+	const request: BaselineRequest = profileFields(fields, 'baseline request');
+	if (fields.notes !== undefined) request.notes = tagList(fields.notes, 'baseline request.notes');
+	return request;
+}
+
+export function parseMatrixRequest(value: unknown): MatrixRequest {
+	const fields = record(value, 'matrix request', [
+		'id',
+		'axes',
+		'checkpoint',
+		'context',
+		'timeoutMs',
+		'workers',
+		'observations',
+	]);
+	const axes = record(fields.axes, 'matrix request.axes', [
+		'theme',
+		'viewport',
+		'container',
+		'locale',
+		'reducedMotion',
+		'motion',
+	]);
+	const parsed: Record<string, unknown[]> = {};
+	for (const [axis, values] of Object.entries(axes)) {
+		if (values === undefined) continue;
+		const path = `matrix request.axes.${axis}`;
+		if (!Array.isArray(values) || values.length === 0) fail(path, 'expected at least one value');
+		// Each value through the context's own validation, as a capture would read it.
+		parsed[axis] = values.map(
+			(item, index) =>
+				parseContext({ [axis]: item }, `${path}[${index}]`, true)[axis as keyof SpecimenContext]
+		);
+	}
+	if (!Object.keys(parsed).length) fail('matrix request.axes', 'expected at least one axis');
+	return {
+		id: text(fields.id, 'matrix request.id'),
+		axes: parsed as MatrixAxes,
+		...(fields.checkpoint === undefined
+			? {}
+			: { checkpoint: text(fields.checkpoint, 'matrix request.checkpoint') }),
+		...(fields.context === undefined
+			? {}
+			: { context: parseContext(fields.context, 'matrix request.context', true) }),
+		...(fields.timeoutMs === undefined
+			? {}
+			: { timeoutMs: integer(fields.timeoutMs, 'matrix request.timeoutMs', 1, 60_000) }),
+		...(fields.workers === undefined
+			? {}
+			: { workers: integer(fields.workers, 'matrix request.workers', 1, MAX_SUITE_WORKERS) }),
+		...(fields.observations === undefined
+			? {}
+			: {
+					observations:
+						typeof fields.observations === 'boolean'
+							? fields.observations
+							: fail('matrix request.observations', 'expected a boolean'),
+				}),
+	};
+}
+
+export function parseSuiteRequest(value: unknown): SuiteRequest {
+	const fields = record(value, 'suite request', [
+		'filter',
+		'context',
+		'timeoutMs',
+		'workers',
+		'retry',
+		'flakeCap',
+		'capture',
+	]);
+	const request: SuiteRequest = {};
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'suite request.filter');
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, 'suite request.context', true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'suite request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'suite request.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.retry !== undefined) {
+		if (typeof fields.retry !== 'boolean') fail('suite request.retry', 'expected a boolean');
+		request.retry = fields.retry;
+	}
+	if (fields.flakeCap !== undefined)
+		request.flakeCap = integer(fields.flakeCap, 'suite request.flakeCap', 0, 1_000);
+	if (fields.capture !== undefined) {
+		if (fields.capture !== 'all' && fields.capture !== 'failed' && fields.capture !== 'none')
+			fail('suite request.capture', 'expected all, failed or none');
+		request.capture = fields.capture;
+	}
+	return request;
 }
 
 export function parseCaptureRequest(value: unknown): CaptureRequest {
@@ -151,17 +372,107 @@ function stories(value: unknown): NonNullable<BenchConfig['stories']> {
 	});
 }
 
+function tagList(value: unknown, path: string): string[] {
+	if (!Array.isArray(value)) fail(path, 'expected an array of tags');
+	return value.map((tag, index) => text(tag, `${path}[${index}]`));
+}
+
+function testTags(value: unknown): NonNullable<BenchConfig['test']> {
+	const fields = record(value, 'configuration.test', [
+		'include',
+		'exclude',
+		'skip',
+		'workers',
+		'timeoutMs',
+	]);
+	const result: NonNullable<BenchConfig['test']> = {};
+	for (const key of ['include', 'exclude', 'skip'] as const)
+		if (fields[key] !== undefined) result[key] = tagList(fields[key], `configuration.test.${key}`);
+	if (fields.workers !== undefined)
+		result.workers = integer(fields.workers, 'configuration.test.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.timeoutMs !== undefined)
+		result.timeoutMs = integer(fields.timeoutMs, 'configuration.test.timeoutMs', 1, 60_000);
+	return result;
+}
+
+function staticDirs(value: unknown): NonNullable<BenchConfig['staticDirs']> {
+	if (!Array.isArray(value)) fail('configuration.staticDirs', 'expected an array of directories');
+	return value.map((item, index) => {
+		const path = `configuration.staticDirs[${index}]`;
+		if (typeof item === 'string') return text(item, path);
+		const fields = record(item, path, ['from', 'to']);
+		const to = text(fields.to, `${path}.to`);
+		if (!to.startsWith('/')) fail(`${path}.to`, 'expected a path starting with /');
+		return { from: text(fields.from, `${path}.from`), to };
+	});
+}
+
+function profileConfig(value: unknown): NonNullable<BenchConfig['profile']> {
+	const fields = record(value, 'configuration.profile', ['baselines']);
+	return fields.baselines === undefined
+		? {}
+		: { baselines: text(fields.baselines, 'configuration.profile.baselines') };
+}
+
+function coverageConfig(value: unknown): NonNullable<BenchConfig['coverage']> {
+	const fields = record(value, 'configuration.coverage', ['waivers']);
+	if (fields.waivers === undefined) return {};
+	const waivers = record(fields.waivers, 'configuration.coverage.waivers', ['version', 'entries']);
+	if (!Array.isArray(waivers.entries))
+		fail('configuration.coverage.waivers.entries', 'expected an array');
+	return {
+		waivers: {
+			version: text(waivers.version, 'configuration.coverage.waivers.version'),
+			entries: waivers.entries.map((item, index) => {
+				const path = `configuration.coverage.waivers.entries[${index}]`;
+				const entry = record(item, path, ['component', 'obligation', 'reason']);
+				return {
+					component: text(entry.component, `${path}.component`),
+					obligation: text(entry.obligation, `${path}.obligation`),
+					reason: text(entry.reason, `${path}.reason`),
+				};
+			}),
+		},
+	};
+}
+
 export function parseConfig(value: unknown): BenchConfig {
-	const fields = record(value, 'configuration', ['specimens', 'stories', 'preview']);
+	const fields = record(value, 'configuration', [
+		'specimens',
+		'stories',
+		'preview',
+		'staticDirs',
+		'test',
+		'plugins',
+		'manifest',
+		'profile',
+		'coverage',
+	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
 	if (fields.preview !== undefined && fields.stories === undefined)
 		fail('configuration.preview', 'project annotations apply only to stories');
+	if (fields.test !== undefined && fields.stories === undefined)
+		fail('configuration.test', 'test tags apply only to stories');
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
 		...(fields.preview === undefined
 			? {}
 			: { preview: text(fields.preview, 'configuration.preview') }),
+		...(fields.staticDirs === undefined ? {} : { staticDirs: staticDirs(fields.staticDirs) }),
+		...(fields.test === undefined ? {} : { test: testTags(fields.test) }),
+		...(fields.plugins === undefined
+			? {}
+			: {
+					plugins: Array.isArray(fields.plugins)
+						? fields.plugins.map((item, index) => text(item, `configuration.plugins[${index}]`))
+						: fail('configuration.plugins', 'expected an array of module paths'),
+				}),
+		...(fields.manifest === undefined
+			? {}
+			: { manifest: text(fields.manifest, 'configuration.manifest') }),
+		...(fields.profile === undefined ? {} : { profile: profileConfig(fields.profile) }),
+		...(fields.coverage === undefined ? {} : { coverage: coverageConfig(fields.coverage) }),
 	};
 }

@@ -57,6 +57,14 @@
 			"required": true,
 			"spaces": ["main"],
 			"deny": ["events"],
+			"grants": {
+				"documents_write": {
+					"allow": ["main/handbook", "research/*"]
+				},
+				"index_write": {
+					"allow": ["main"]
+				}
+			},
 			"config": {
 				"default_name": "team"
 			},

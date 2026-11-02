@@ -335,6 +335,7 @@
 				"do-end-session",
 				"do-init-afd",
 				"do-prepare-pr",
+				"loam-design",
 				"optimistic-mutations"
 			]
 		}

@@ -1,0 +1,93 @@
+{
+	"type": "object",
+	"properties": {
+		"query": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"description": "What to look for: terms, \"phrases\", +required -excluded, AND/OR/NOT, field:term (title, aliases, description, headings, body, code, tags, owners, type, collection, status, verified, sensitivity, lang, path, updated, meta.<key>), term^boost, prefix* and ranges"
+		},
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"spaces": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"minItems": 2,
+			"maxItems": 8,
+			"description": "Search 2 to 8 spaces in one explicit query; each space is searched separately and the rankings are fused. Give space or spaces, not both"
+		},
+		"filters": {
+			"type": "object",
+			"properties": {
+				"collection": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 63
+				},
+				"type": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 128
+					},
+					"maxItems": 16
+				},
+				"status": {
+					"type": "string",
+					"enum": ["draft", "stable", "deprecated"]
+				},
+				"verified": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": ["unverified", "machine", "human", "owner"]
+					},
+					"maxItems": 4
+				},
+				"sensitivity": {
+					"type": "string",
+					"enum": ["public", "internal", "confidential", "restricted"]
+				},
+				"updatedAfter": {
+					"type": "string",
+					"maxLength": 40,
+					"description": "An RFC 3339 time"
+				},
+				"include_deprecated": {
+					"type": "boolean",
+					"default": false
+				}
+			},
+			"additionalProperties": false
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 50,
+			"default": 10,
+			"description": "Documents to return"
+		},
+		"format": {
+			"type": "string",
+			"enum": ["concise", "detailed"],
+			"default": "concise"
+		},
+		"expand": {
+			"type": "boolean",
+			"default": true,
+			"description": "Graph expansion; accepted now, applied when the structural graph is built"
+		}
+	},
+	"required": ["query"],
+	"additionalProperties": false
+}

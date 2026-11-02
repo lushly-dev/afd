@@ -1,0 +1,6952 @@
+{
+	"description": "Cases for spec/plugin-manifest.md. Each case in cases validates fragment against a schema named by against: core#/$defs/<name> is the core, and <schema> or <schema>#/$defs/<name> is one of schemas. A refusal gives the pointer of the key the refusal must name, relative to the fragment, the key as an author reads it, and a suggestion; alsoNames lists the other keys one refusal names. Each case in rules is a whole manifest that passes the core and tests one rule beyond the schema; files and symlinks are created first, relative to the plugin root. mutation pins what a host derives from effects, and renaming pins a mounted tool's command name. The schemas are test fixtures, not any host's profile.",
+	"core": "plugin-manifest.core.v1.json",
+	"schemas": {
+		"profile": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"$id": "https://afd.dev/spec/plugin-manifest.cases/profile.json",
+			"title": "A reference profile: every core object closed at every depth, kinds closed, one effect refused wherever effects appear, a section added, ui defined, and a kind that needs its section, in allOf because a conditional beside $ref breaks Ajv",
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
+			"properties": {
+				"manifest_version": {
+					"const": 1
+				},
+				"protocol": {
+					"const": 1
+				},
+				"plugin": {
+					"$ref": "#/$defs/plugin"
+				},
+				"mount": {
+					"$ref": "#/$defs/mount"
+				},
+				"grants": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/grant"
+					}
+				},
+				"commands": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/command"
+					}
+				},
+				"contexts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/context"
+					}
+				},
+				"pipelines": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/pipeline"
+					}
+				},
+				"skills": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/skill"
+					}
+				},
+				"config": {
+					"$ref": "#/$defs/config"
+				},
+				"app": {
+					"$ref": "#/$defs/app"
+				},
+				"ui": {
+					"$ref": "#/$defs/ui"
+				}
+			},
+			"unevaluatedProperties": false,
+			"allOf": [
+				{
+					"if": {
+						"type": "object",
+						"properties": {
+							"plugin": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"const": "mounted"
+									}
+								},
+								"required": ["kind"]
+							}
+						},
+						"required": ["plugin"]
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"mount": true
+						},
+						"required": ["mount"]
+					},
+					"else": {
+						"type": "object",
+						"properties": {
+							"mount": false
+						}
+					}
+				}
+			],
+			"$defs": {
+				"plugin": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/plugin",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["example", "mounted"]
+						},
+						"domains": true
+					},
+					"required": ["domains"],
+					"unevaluatedProperties": false
+				},
+				"command": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/command",
+					"properties": {
+						"effects": {
+							"type": "array",
+							"items": {
+								"not": {
+									"const": "workspace-write"
+								}
+							}
+						},
+						"expose": {
+							"$ref": "#/$defs/expose"
+						},
+						"examples": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/example"
+							}
+						},
+						"output_budget": {
+							"$ref": "#/$defs/outputBudget"
+						}
+					},
+					"unevaluatedProperties": false
+				},
+				"expose": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/expose",
+					"unevaluatedProperties": false
+				},
+				"example": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/example",
+					"unevaluatedProperties": false
+				},
+				"outputBudget": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/outputBudget",
+					"unevaluatedProperties": false
+				},
+				"grant": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/grant",
+					"unevaluatedProperties": false
+				},
+				"context": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/context",
+					"unevaluatedProperties": false
+				},
+				"pipeline": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/pipeline",
+					"properties": {
+						"effects": {
+							"type": "array",
+							"items": {
+								"not": {
+									"const": "workspace-write"
+								}
+							}
+						},
+						"steps": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/pipelineStep"
+							}
+						}
+					},
+					"unevaluatedProperties": false
+				},
+				"pipelineStep": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/pipelineStep",
+					"unevaluatedProperties": false
+				},
+				"skill": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/skill",
+					"unevaluatedProperties": false
+				},
+				"config": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/config",
+					"unevaluatedProperties": false
+				},
+				"mount": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/mount",
+					"properties": {
+						"tools": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/mountTool"
+							}
+						}
+					},
+					"unevaluatedProperties": false
+				},
+				"mountTool": {
+					"type": "object",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/mountTool",
+					"properties": {
+						"effects": {
+							"type": "array",
+							"items": {
+								"not": {
+									"const": "workspace-write"
+								}
+							}
+						}
+					},
+					"unevaluatedProperties": false
+				},
+				"ui": {
+					"type": "object",
+					"properties": {
+						"surfaces": {
+							"type": "object"
+						}
+					},
+					"unevaluatedProperties": false
+				},
+				"app": {
+					"type": "object",
+					"properties": {
+						"scope_levels": {
+							"type": "array",
+							"minItems": 1,
+							"uniqueItems": true,
+							"items": {
+								"enum": ["workspace", "project"]
+							}
+						}
+					},
+					"unevaluatedProperties": false
+				}
+			}
+		},
+		"cousin": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"$id": "https://afd.dev/spec/plugin-manifest.cases/cousin.json",
+			"title": "The mistake: plugin closed beside its own properties with no $ref of its own. The $ref at the root reaches plugin on a sibling path, so unevaluatedProperties cannot see what it evaluated",
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
+			"properties": {
+				"plugin": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["example"]
+						}
+					},
+					"unevaluatedProperties": false
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"cousinSuite": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"$id": "https://afd.dev/spec/plugin-manifest.cases/cousin-suite.json",
+			"title": "The JSON Schema test suite's case, \"unevaluatedProperties can't see inside cousins\"",
+			"type": "object",
+			"allOf": [
+				{
+					"properties": {
+						"foo": true
+					}
+				},
+				{
+					"unevaluatedProperties": false
+				}
+			]
+		},
+		"shallow": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"$id": "https://afd.dev/spec/plugin-manifest.cases/shallow.json",
+			"title": "The root closed and nothing else: unevaluatedProperties does not reach into a nested object, which is why the contract closes every depth",
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
+			"unevaluatedProperties": false
+		},
+		"overreach": {
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"$id": "https://afd.dev/spec/plugin-manifest.cases/overreach.json",
+			"title": "A profile that breaks the limits: it defines a reserved key and widens a core vocabulary. The core still refuses both",
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
+			"properties": {
+				"scopes": {
+					"type": "array"
+				},
+				"plugin": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["UPPER", "example"]
+						}
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		}
+	},
+	"cases": [
+		{
+			"id": "manifest-minimal",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-headless-no-commands-no-ui",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-afd-contract-rc",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "1.0-rc"
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-afd-contract",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "1.0"
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-open-host-section",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"component": {
+					"path": "x.wasm"
+				},
+				"packs": []
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-ui-is-an-object",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"ui": {
+					"surfaces": {}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-missing-version",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "manifest_version",
+			"pointer": "/manifest_version",
+			"suggestion": "Add manifest_version, the version of the profile this file is written for."
+		},
+		{
+			"id": "manifest-missing-protocol",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "protocol",
+			"pointer": "/protocol",
+			"suggestion": "Add protocol, the host's plugin protocol version."
+		},
+		{
+			"id": "manifest-missing-plugin",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1
+			},
+			"accepted": false,
+			"key": "plugin",
+			"pointer": "/plugin",
+			"suggestion": "Add a plugin table with id, title, version, description and kind."
+		},
+		{
+			"id": "manifest-version-zero",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 0,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "manifest_version",
+			"pointer": "/manifest_version",
+			"suggestion": "Use a positive integer; versions start at 1."
+		},
+		{
+			"id": "manifest-version-fraction",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1.5,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "manifest_version",
+			"pointer": "/manifest_version",
+			"suggestion": "Use a positive integer; versions start at 1."
+		},
+		{
+			"id": "manifest-protocol-string",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": "1",
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "protocol",
+			"pointer": "/protocol",
+			"suggestion": "Write the protocol as an integer, not a string."
+		},
+		{
+			"id": "manifest-afd-contract-word",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "latest"
+			},
+			"accepted": false,
+			"key": "afd_contract",
+			"pointer": "/afd_contract",
+			"suggestion": "Name a contract version from spec/VERSION, such as 1.0-rc."
+		},
+		{
+			"id": "manifest-ui-not-object",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"ui": "main"
+			},
+			"accepted": false,
+			"key": "ui",
+			"pointer": "/ui",
+			"suggestion": "Make ui a table of the profile's UI contributions, or leave it out for a headless app."
+		},
+		{
+			"id": "manifest-reserved-connectors",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"connectors": {}
+			},
+			"accepted": false,
+			"key": "connectors",
+			"pointer": "/connectors",
+			"suggestion": "connectors is reserved for federation's connector contract; remove it."
+		},
+		{
+			"id": "manifest-reserved-backends",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"backends": {}
+			},
+			"accepted": false,
+			"key": "backends",
+			"pointer": "/backends",
+			"suggestion": "backends is reserved for store backends contributed by plugins; remove it."
+		},
+		{
+			"id": "manifest-reserved-dependencies",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"dependencies": {}
+			},
+			"accepted": false,
+			"key": "dependencies",
+			"pointer": "/dependencies",
+			"suggestion": "Plugins never depend on each other; remove dependencies."
+		},
+		{
+			"id": "manifest-reserved-signature",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"signature": {}
+			},
+			"accepted": false,
+			"key": "signature",
+			"pointer": "/signature",
+			"suggestion": "signature is reserved for signed plugins; remove it."
+		},
+		{
+			"id": "manifest-reserved-scopes",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"scopes": ["workspace"]
+			},
+			"accepted": false,
+			"key": "scopes",
+			"pointer": "/scopes",
+			"suggestion": "scopes is reserved for per-command authorization. Supported scope levels belong in a section the host owns, such as Loam's app.scope_levels."
+		},
+		{
+			"id": "manifest-reserved-on_conflict",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"on_conflict": "error"
+			},
+			"accepted": false,
+			"key": "on_conflict",
+			"pointer": "/on_conflict",
+			"suggestion": "on_conflict is reserved: a conflict across instances is always an error. Remove it."
+		},
+		{
+			"id": "manifest-deep-grant",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"grants": [
+					{
+						"name": "http",
+						"reason": "Fetches.",
+						"allow": ["example.com"]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "grants[].allow",
+			"pointer": "/grants/0/allow",
+			"suggestion": "An allow-list is the deployer's, in the host's instance configuration; remove allow."
+		},
+		{
+			"id": "manifest-worked-example-umbel-host-headless",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"afd_contract": "1.0",
+				"plugin": {
+					"id": "umbel",
+					"title": "Umbel",
+					"version": "0.1.0",
+					"description": "An Umbel host: knowledge, memory and context tools from its enabled plugins.",
+					"kind": "mounted",
+					"domains": ["umbel"],
+					"homepage": "https://afd.dev/umbel"
+				},
+				"mount": {
+					"prefix": "umbel",
+					"transport": "http"
+				},
+				"app": {
+					"scope_levels": ["workspace", "project"]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "manifest-worked-example-loam-hello",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"afd_contract": "1.0",
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "native",
+					"domains": ["hello"],
+					"license": "MIT"
+				},
+				"native": {
+					"entry": "dist/hello.js"
+				},
+				"app": {
+					"scope_levels": ["workspace", "project"]
+				},
+				"grants": [
+					{
+						"name": "store",
+						"reason": "Keeps the names greeted, per workspace and project."
+					}
+				],
+				"commands": [
+					{
+						"name": "hello-greet",
+						"title": "Greet someone",
+						"description": "Greet someone and remember the name in this scope.",
+						"effects": ["store-write"],
+						"input_schema": "schemas/hello-greet.input.json",
+						"undoable": true,
+						"expose": {
+							"palette": true,
+							"agent": true,
+							"mcp": false,
+							"cli": false
+						}
+					},
+					{
+						"name": "hello-list",
+						"title": "List greetings",
+						"description": "List the names greeted in this scope.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object",
+							"properties": {},
+							"additionalProperties": false
+						}
+					}
+				],
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				],
+				"ui": {
+					"compositions": ["list-detail"],
+					"surfaces": {
+						"rail": {
+							"label": "Hello",
+							"icon": "hand-wave"
+						}
+					}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-missing-id",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.id",
+			"pointer": "/id",
+			"suggestion": "Add id: it is required."
+		},
+		{
+			"id": "plugin-missing-title",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.title",
+			"pointer": "/title",
+			"suggestion": "Add title: it is required."
+		},
+		{
+			"id": "plugin-missing-version",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.version",
+			"pointer": "/version",
+			"suggestion": "Add version: it is required."
+		},
+		{
+			"id": "plugin-missing-description",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.description",
+			"pointer": "/description",
+			"suggestion": "Add description: it is required."
+		},
+		{
+			"id": "plugin-missing-kind",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.kind",
+			"pointer": "/kind",
+			"suggestion": "Add kind: it is required."
+		},
+		{
+			"id": "context-missing-name",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"description": "x"
+			},
+			"accepted": false,
+			"key": "contexts[].name",
+			"pointer": "/name",
+			"suggestion": "Add name: it is required."
+		},
+		{
+			"id": "pipeline-missing-name",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"description": "x",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].name",
+			"pointer": "/name",
+			"suggestion": "Add name: it is required."
+		},
+		{
+			"id": "pipeline-missing-description",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].description",
+			"pointer": "/description",
+			"suggestion": "Add description: it is required."
+		},
+		{
+			"id": "pipeline-missing-effects",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "x",
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].effects",
+			"pointer": "/effects",
+			"suggestion": "Add effects: it is required."
+		},
+		{
+			"id": "pipeline-missing-input_schema",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "x",
+				"effects": ["inspect"],
+				"steps": [
+					{
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Add input_schema: it is required."
+		},
+		{
+			"id": "skill-missing-name",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"path": "a/hello-guide"
+			},
+			"accepted": false,
+			"key": "skills[].name",
+			"pointer": "/name",
+			"suggestion": "Add name: it is required."
+		},
+		{
+			"id": "output-budget-missing-default_bytes",
+			"against": "core#/$defs/outputBudget",
+			"fragment": {
+				"max_bytes": 1
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.default_bytes",
+			"pointer": "/default_bytes",
+			"suggestion": "Add default_bytes: it is required."
+		},
+		{
+			"id": "core-deep-expose",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"expose": {
+							"mcp": "yes"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].expose.mcp",
+			"pointer": "/commands/0/expose/mcp",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "core-deep-example",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"examples": [
+							{
+								"title": "x"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].examples[].input",
+			"pointer": "/commands/0/examples/0/input",
+			"suggestion": "Add input."
+		},
+		{
+			"id": "core-deep-output-budget",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 0,
+							"max_bytes": 1
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.default_bytes",
+			"pointer": "/commands/0/output_budget/default_bytes",
+			"suggestion": "Use a positive number of bytes."
+		},
+		{
+			"id": "core-deep-context",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "contexts[].description",
+			"pointer": "/contexts/0/description",
+			"suggestion": "Add a description."
+		},
+		{
+			"id": "core-deep-pipeline-step",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "x",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].command",
+			"pointer": "/pipelines/0/steps/0/command",
+			"suggestion": "Name the command this step calls."
+		},
+		{
+			"id": "core-deep-skill",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/skills/0/path",
+			"suggestion": "Add the skill directory."
+		},
+		{
+			"id": "core-deep-config",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Add schema."
+		},
+		{
+			"id": "core-deep-mount",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello"
+				}
+			},
+			"accepted": false,
+			"key": "mount.transport",
+			"pointer": "/mount/transport",
+			"suggestion": "Add transport: stdio or http."
+		},
+		{
+			"id": "core-deep-mount-tool",
+			"against": "core#/$defs/manifest",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [{}]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].tool",
+			"pointer": "/mount/tools/0/tool",
+			"suggestion": "Name the server's tool this entry describes."
+		},
+		{
+			"id": "plugin-pack-like-no-domains",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "Data only.",
+				"kind": "pack"
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-full",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"homepage": "https://afd.dev/umbel",
+				"license": "Apache-2.0 OR MIT"
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-kind-any-lowercase-name",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "some-kind2",
+				"domains": ["hello"]
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-version-prerelease-build",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "1.2.3-rc.1+build.5",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-title-80-code-points",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": true
+		},
+		{
+			"id": "plugin-title-81-code-points",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋👋",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.title",
+			"pointer": "/title",
+			"suggestion": "Shorten the title to at most 80 characters."
+		},
+		{
+			"id": "plugin-title-empty",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.title",
+			"pointer": "/title",
+			"suggestion": "Give the plugin a title of 1 to 80 characters."
+		},
+		{
+			"id": "plugin-id-uppercase",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "Hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.id",
+			"pointer": "/id",
+			"suggestion": "Use a lowercase id matching ^[a-z][a-z0-9]{0,31}$."
+		},
+		{
+			"id": "plugin-id-hyphen",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello-world",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.id",
+			"pointer": "/id",
+			"suggestion": "Remove the hyphen: an id is one lowercase word."
+		},
+		{
+			"id": "plugin-id-33-chars",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.id",
+			"pointer": "/id",
+			"suggestion": "Shorten the id to at most 32 characters."
+		},
+		{
+			"id": "plugin-version-two-parts",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.version",
+			"pointer": "/version",
+			"suggestion": "Use a semantic version such as 1.0.0."
+		},
+		{
+			"id": "plugin-version-leading-zero",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "01.0.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.version",
+			"pointer": "/version",
+			"suggestion": "Remove the leading zero: use a semantic version such as 1.0.0."
+		},
+		{
+			"id": "plugin-description-501",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+				"kind": "example",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.description",
+			"pointer": "/description",
+			"suggestion": "Shorten the description to at most 500 characters."
+		},
+		{
+			"id": "plugin-kind-uppercase",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "Compiled",
+				"domains": ["hello"]
+			},
+			"accepted": false,
+			"key": "plugin.kind",
+			"pointer": "/kind",
+			"suggestion": "Use a lowercase kind name that the host's profile admits."
+		},
+		{
+			"id": "plugin-domains-empty",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": []
+			},
+			"accepted": false,
+			"key": "plugin.domains",
+			"pointer": "/domains",
+			"suggestion": "Name at least one domain, or leave domains out if the profile allows it."
+		},
+		{
+			"id": "plugin-domains-repeated",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello", "hello"]
+			},
+			"accepted": false,
+			"key": "plugin.domains",
+			"pointer": "/domains",
+			"suggestion": "List each domain once."
+		},
+		{
+			"id": "plugin-domain-afd",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["afd"]
+			},
+			"accepted": false,
+			"key": "plugin.domains[]",
+			"pointer": "/domains/0",
+			"suggestion": "AFD owns the afd domain; choose another."
+		},
+		{
+			"id": "plugin-domain-hyphen",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello-world"]
+			},
+			"accepted": false,
+			"key": "plugin.domains[]",
+			"pointer": "/domains/0",
+			"suggestion": "A domain is one word: it is the first segment of a command name."
+		},
+		{
+			"id": "plugin-homepage-http",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"homepage": "http://afd.dev"
+			},
+			"accepted": false,
+			"key": "plugin.homepage",
+			"pointer": "/homepage",
+			"suggestion": "Use an https URL."
+		},
+		{
+			"id": "plugin-homepage-space",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"homepage": "https://afd.dev/a b"
+			},
+			"accepted": false,
+			"key": "plugin.homepage",
+			"pointer": "/homepage",
+			"suggestion": "Remove the space, or percent-encode it."
+		},
+		{
+			"id": "plugin-license-characters",
+			"against": "core#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"license": "MIT/Apache"
+			},
+			"accepted": false,
+			"key": "plugin.license",
+			"pointer": "/license",
+			"suggestion": "Use an SPDX expression such as Apache-2.0 OR MIT."
+		},
+		{
+			"id": "command-every-key",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"title": "Greet someone",
+				"returns": "schemas/out.json",
+				"category": "hello",
+				"tags": ["example"],
+				"version": "1.0.0",
+				"requires": ["hello-list"],
+				"contexts": ["hello-main"],
+				"first_class": true,
+				"confirm_prompt": "Greet?",
+				"destructive": false,
+				"undoable": true,
+				"approval": "required",
+				"execution_time": "long-running",
+				"expose": {
+					"mcp": true,
+					"agent": true,
+					"cli": false,
+					"palette": false
+				},
+				"examples": [
+					{
+						"title": "Greet Ada",
+						"input": {
+							"name": "Ada"
+						}
+					}
+				],
+				"output_budget": {
+					"default_bytes": 1000,
+					"max_bytes": 2000
+				},
+				"errors": ["NOT_FOUND", "E2_X"],
+				"tool_meta": {
+					"ui": {
+						"resourceUri": "ui://hello/main"
+					}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-host-key-stays-open",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"confirm": "require-human"
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-input-schema-path",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "schemas/in.json"
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-effect-plugin-state",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["plugin-state"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-effect-external",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["external"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-effect-store-write",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["store-write"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-effect-workspace-write",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["workspace-write"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-effects-several",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["store-write", "external"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-missing-name",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/name",
+			"suggestion": "Add name: every command declares it."
+		},
+		{
+			"id": "command-missing-description",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].description",
+			"pointer": "/description",
+			"suggestion": "Add description: every command declares it."
+		},
+		{
+			"id": "command-missing-effects",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].effects",
+			"pointer": "/effects",
+			"suggestion": "Add effects: every command declares it."
+		},
+		{
+			"id": "command-missing-input_schema",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Add input_schema: every command declares it."
+		},
+		{
+			"id": "command-name-one-segment",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/name",
+			"suggestion": "Use domain-action kebab-case, such as hello-greet."
+		},
+		{
+			"id": "command-name-underscore",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello_greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/name",
+			"suggestion": "Use domain-action kebab-case, such as hello-greet."
+		},
+		{
+			"id": "command-mutation-declared",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"mutation": true
+			},
+			"accepted": false,
+			"key": "commands[].mutation",
+			"pointer": "/mutation",
+			"suggestion": "Remove mutation: the host derives it from effects."
+		},
+		{
+			"id": "command-scopes-reserved",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"scopes": ["read"]
+			},
+			"accepted": false,
+			"key": "commands[].scopes",
+			"pointer": "/scopes",
+			"suggestion": "scopes is reserved for per-command authorization; remove it."
+		},
+		{
+			"id": "command-effects-empty",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": [],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].effects",
+			"pointer": "/effects",
+			"suggestion": "Name at least one effect; use inspect for a command that changes nothing."
+		},
+		{
+			"id": "command-effects-unknown",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["delete"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].effects[]",
+			"pointer": "/effects/0",
+			"suggestion": "Use inspect, plugin-state, external, store-write or workspace-write."
+		},
+		{
+			"id": "command-effects-inspect-not-alone",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect", "external"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].effects",
+			"pointer": "/effects",
+			"suggestion": "inspect appears alone: a command that changes something does not also inspect."
+		},
+		{
+			"id": "command-effects-repeated",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["external", "external"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "commands[].effects",
+			"pointer": "/effects",
+			"suggestion": "List each effect once."
+		},
+		{
+			"id": "command-input-schema-parent",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "../in.json"
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Keep the path inside the plugin root, with no .. segment."
+		},
+		{
+			"id": "command-input-schema-nested-parent",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "a/../../in.json"
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Keep the path inside the plugin root, with no .. segment."
+		},
+		{
+			"id": "command-input-schema-absolute",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "/etc/in.json"
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Use a path relative to the plugin root."
+		},
+		{
+			"id": "command-input-schema-backslash",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "schemas\\in.json"
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Separate path segments with a forward slash."
+		},
+		{
+			"id": "command-input-schema-not-json",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": "schemas/in.yaml"
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Name a JSON file, or write the schema inline."
+		},
+		{
+			"id": "command-input-schema-number",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": 1
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/input_schema",
+			"suggestion": "Write a JSON Schema object, or the path of a JSON file."
+		},
+		{
+			"id": "command-returns-parent",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"returns": "../out.json"
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/returns",
+			"suggestion": "Keep the path inside the plugin root, with no .. segment."
+		},
+		{
+			"id": "command-title-empty",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"title": ""
+			},
+			"accepted": false,
+			"key": "commands[].title",
+			"pointer": "/title",
+			"suggestion": "Give the command a title of 1 to 80 characters, or leave it out."
+		},
+		{
+			"id": "command-category-65",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"category": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+			},
+			"accepted": false,
+			"key": "commands[].category",
+			"pointer": "/category",
+			"suggestion": "Shorten the category to at most 64 characters."
+		},
+		{
+			"id": "command-tag-empty",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"tags": [""]
+			},
+			"accepted": false,
+			"key": "commands[].tags[]",
+			"pointer": "/tags/0",
+			"suggestion": "Remove the empty tag."
+		},
+		{
+			"id": "command-version-word",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"version": "latest"
+			},
+			"accepted": false,
+			"key": "commands[].version",
+			"pointer": "/version",
+			"suggestion": "Use a semantic version such as 1.0.0."
+		},
+		{
+			"id": "command-requires-bad-name",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"requires": ["Greet"]
+			},
+			"accepted": false,
+			"key": "commands[].requires[]",
+			"pointer": "/requires/0",
+			"suggestion": "Name a command in domain-action kebab-case."
+		},
+		{
+			"id": "command-requires-repeated",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"requires": ["hello-list", "hello-list"]
+			},
+			"accepted": false,
+			"key": "commands[].requires",
+			"pointer": "/requires",
+			"suggestion": "List each command once."
+		},
+		{
+			"id": "command-context-bad-name",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"contexts": ["Main"]
+			},
+			"accepted": false,
+			"key": "commands[].contexts[]",
+			"pointer": "/contexts/0",
+			"suggestion": "Use a lowercase context name joined by hyphens."
+		},
+		{
+			"id": "command-first-class-string",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"first_class": "yes"
+			},
+			"accepted": false,
+			"key": "commands[].first_class",
+			"pointer": "/first_class",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "command-confirm-prompt-empty",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"confirm_prompt": ""
+			},
+			"accepted": false,
+			"key": "commands[].confirm_prompt",
+			"pointer": "/confirm_prompt",
+			"suggestion": "Write the prompt, or leave confirm_prompt out."
+		},
+		{
+			"id": "command-destructive-string",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"destructive": "no"
+			},
+			"accepted": false,
+			"key": "commands[].destructive",
+			"pointer": "/destructive",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "command-undoable-number",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"undoable": 1
+			},
+			"accepted": false,
+			"key": "commands[].undoable",
+			"pointer": "/undoable",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "command-approval-afd-spelling",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"approval": "not-required"
+			},
+			"accepted": false,
+			"key": "commands[].approval",
+			"pointer": "/approval",
+			"suggestion": "Use none, which AFD reads as not-required, or required."
+		},
+		{
+			"id": "command-execution-time-unknown",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"execution_time": "soon"
+			},
+			"accepted": false,
+			"key": "commands[].execution_time",
+			"pointer": "/execution_time",
+			"suggestion": "Use instant, fast, slow or long-running."
+		},
+		{
+			"id": "command-errors-lowercase",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"errors": ["not_found"]
+			},
+			"accepted": false,
+			"key": "commands[].errors[]",
+			"pointer": "/errors/0",
+			"suggestion": "Use an upper-case error code, such as NOT_FOUND."
+		},
+		{
+			"id": "command-errors-repeated",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"errors": ["NOT_FOUND", "NOT_FOUND"]
+			},
+			"accepted": false,
+			"key": "commands[].errors",
+			"pointer": "/errors",
+			"suggestion": "List each code once."
+		},
+		{
+			"id": "command-tool-meta-not-object",
+			"against": "core#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"tool_meta": "ui"
+			},
+			"accepted": false,
+			"key": "commands[].tool_meta",
+			"pointer": "/tool_meta",
+			"suggestion": "Make tool_meta a table of _meta keys and values."
+		},
+		{
+			"id": "expose-empty",
+			"against": "core#/$defs/expose",
+			"fragment": {},
+			"accepted": true
+		},
+		{
+			"id": "expose-every-flag",
+			"against": "core#/$defs/expose",
+			"fragment": {
+				"mcp": false,
+				"agent": true,
+				"cli": false,
+				"palette": true
+			},
+			"accepted": true
+		},
+		{
+			"id": "expose-apps-reserved",
+			"against": "core#/$defs/expose",
+			"fragment": {
+				"apps": true
+			},
+			"accepted": false,
+			"key": "commands[].expose.apps",
+			"pointer": "/apps",
+			"suggestion": "apps is reserved until core version 2; remove it."
+		},
+		{
+			"id": "expose-flag-string",
+			"against": "core#/$defs/expose",
+			"fragment": {
+				"mcp": "true"
+			},
+			"accepted": false,
+			"key": "commands[].expose.mcp",
+			"pointer": "/mcp",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "example-minimal",
+			"against": "core#/$defs/example",
+			"fragment": {
+				"title": "Greet Ada",
+				"input": {}
+			},
+			"accepted": true
+		},
+		{
+			"id": "example-missing-input",
+			"against": "core#/$defs/example",
+			"fragment": {
+				"title": "Greet Ada"
+			},
+			"accepted": false,
+			"key": "commands[].examples[].input",
+			"pointer": "/input",
+			"suggestion": "Add input, the arguments the example calls the command with."
+		},
+		{
+			"id": "example-missing-title",
+			"against": "core#/$defs/example",
+			"fragment": {
+				"input": {}
+			},
+			"accepted": false,
+			"key": "commands[].examples[].title",
+			"pointer": "/title",
+			"suggestion": "Add a title."
+		},
+		{
+			"id": "example-input-not-object",
+			"against": "core#/$defs/example",
+			"fragment": {
+				"title": "Greet Ada",
+				"input": "Ada"
+			},
+			"accepted": false,
+			"key": "commands[].examples[].input",
+			"pointer": "/input",
+			"suggestion": "Make input a table of the command's arguments."
+		},
+		{
+			"id": "output-budget-equal",
+			"against": "core#/$defs/outputBudget",
+			"fragment": {
+				"default_bytes": 1000,
+				"max_bytes": 1000
+			},
+			"accepted": true
+		},
+		{
+			"id": "output-budget-missing-max",
+			"against": "core#/$defs/outputBudget",
+			"fragment": {
+				"default_bytes": 1000
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.max_bytes",
+			"pointer": "/max_bytes",
+			"suggestion": "Add max_bytes, the most a caller may ask for."
+		},
+		{
+			"id": "output-budget-zero",
+			"against": "core#/$defs/outputBudget",
+			"fragment": {
+				"default_bytes": 0,
+				"max_bytes": 1000
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.default_bytes",
+			"pointer": "/default_bytes",
+			"suggestion": "Use a positive number of bytes."
+		},
+		{
+			"id": "output-budget-fraction",
+			"against": "core#/$defs/outputBudget",
+			"fragment": {
+				"default_bytes": 1,
+				"max_bytes": 10.5
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.max_bytes",
+			"pointer": "/max_bytes",
+			"suggestion": "Use a whole number of bytes."
+		},
+		{
+			"id": "grant-minimal",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "documents_write",
+				"reason": "Stores an approved change."
+			},
+			"accepted": true
+		},
+		{
+			"id": "grant-optional",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "clock",
+				"required": false,
+				"reason": "Stamps a greeting."
+			},
+			"accepted": true
+		},
+		{
+			"id": "grant-missing-reason",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "clock"
+			},
+			"accepted": false,
+			"key": "grants[].reason",
+			"pointer": "/reason",
+			"suggestion": "Say why the plugin needs this grant: a deployer reads it before enabling the plugin."
+		},
+		{
+			"id": "grant-missing-name",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"reason": "Stamps a greeting."
+			},
+			"accepted": false,
+			"key": "grants[].name",
+			"pointer": "/name",
+			"suggestion": "Name a grant from the host's catalog."
+		},
+		{
+			"id": "grant-name-hyphen",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "documents-write",
+				"reason": "x"
+			},
+			"accepted": false,
+			"key": "grants[].name",
+			"pointer": "/name",
+			"suggestion": "Write the grant name with underscores, such as documents_write."
+		},
+		{
+			"id": "grant-required-string",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "clock",
+				"required": "yes",
+				"reason": "x"
+			},
+			"accepted": false,
+			"key": "grants[].required",
+			"pointer": "/required",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "grant-reason-empty",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "clock",
+				"reason": ""
+			},
+			"accepted": false,
+			"key": "grants[].reason",
+			"pointer": "/reason",
+			"suggestion": "Say why the plugin needs this grant."
+		},
+		{
+			"id": "grant-allow-reserved",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "http",
+				"reason": "x",
+				"allow": ["afd.dev"]
+			},
+			"accepted": false,
+			"key": "grants[].allow",
+			"pointer": "/allow",
+			"suggestion": "An allow-list is the deployer's, in the host's instance configuration; remove allow."
+		},
+		{
+			"id": "grant-targets-reserved",
+			"against": "core#/$defs/grant",
+			"fragment": {
+				"name": "http",
+				"reason": "x",
+				"targets": ["afd.dev"]
+			},
+			"accepted": false,
+			"key": "grants[].targets",
+			"pointer": "/targets",
+			"suggestion": "targets is reserved until the first grant that needs it defines its form; remove it."
+		},
+		{
+			"id": "context-full",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello-main",
+				"description": "The main context.",
+				"triggers": ["hello"],
+				"priority": -1
+			},
+			"accepted": true
+		},
+		{
+			"id": "context-one-segment",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello",
+				"description": "The main context."
+			},
+			"accepted": true
+		},
+		{
+			"id": "context-missing-description",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello"
+			},
+			"accepted": false,
+			"key": "contexts[].description",
+			"pointer": "/description",
+			"suggestion": "Add a description: an agent chooses a context by it."
+		},
+		{
+			"id": "context-name-underscore",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello_main",
+				"description": "x"
+			},
+			"accepted": false,
+			"key": "contexts[].name",
+			"pointer": "/name",
+			"suggestion": "Use lowercase words joined by hyphens."
+		},
+		{
+			"id": "context-priority-fraction",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello",
+				"description": "x",
+				"priority": 0.5
+			},
+			"accepted": false,
+			"key": "contexts[].priority",
+			"pointer": "/priority",
+			"suggestion": "Use an integer."
+		},
+		{
+			"id": "context-trigger-empty",
+			"against": "core#/$defs/context",
+			"fragment": {
+				"name": "hello",
+				"description": "x",
+				"triggers": [""]
+			},
+			"accepted": false,
+			"key": "contexts[].triggers[]",
+			"pointer": "/triggers/0",
+			"suggestion": "Remove the empty trigger."
+		},
+		{
+			"id": "pipeline-full",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet",
+						"input": {},
+						"as": "first"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "pipeline-missing-steps",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				}
+			},
+			"accepted": false,
+			"key": "pipelines[].steps",
+			"pointer": "/steps",
+			"suggestion": "Add at least one step."
+		},
+		{
+			"id": "pipeline-empty-steps",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": []
+			},
+			"accepted": false,
+			"key": "pipelines[].steps",
+			"pointer": "/steps",
+			"suggestion": "Add at least one step."
+		},
+		{
+			"id": "pipeline-name-one-segment",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet",
+						"input": {},
+						"as": "first"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].name",
+			"pointer": "/name",
+			"suggestion": "Use domain-action kebab-case, as a command does."
+		},
+		{
+			"id": "pipeline-effects-inspect-not-alone",
+			"against": "core#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect", "external"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet",
+						"input": {},
+						"as": "first"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].effects",
+			"pointer": "/effects",
+			"suggestion": "inspect appears alone."
+		},
+		{
+			"id": "pipeline-step-minimal",
+			"against": "core#/$defs/pipelineStep",
+			"fragment": {
+				"command": "hello-greet"
+			},
+			"accepted": true
+		},
+		{
+			"id": "pipeline-step-missing-command",
+			"against": "core#/$defs/pipelineStep",
+			"fragment": {
+				"as": "first"
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].command",
+			"pointer": "/command",
+			"suggestion": "Name the command this step calls."
+		},
+		{
+			"id": "pipeline-step-bad-command",
+			"against": "core#/$defs/pipelineStep",
+			"fragment": {
+				"command": "greet"
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].command",
+			"pointer": "/command",
+			"suggestion": "Name a command in domain-action kebab-case."
+		},
+		{
+			"id": "pipeline-step-input-not-object",
+			"against": "core#/$defs/pipelineStep",
+			"fragment": {
+				"command": "hello-greet",
+				"input": "Ada"
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].input",
+			"pointer": "/input",
+			"suggestion": "Make input a table."
+		},
+		{
+			"id": "pipeline-step-as-uppercase",
+			"against": "core#/$defs/pipelineStep",
+			"fragment": {
+				"command": "hello-greet",
+				"as": "First"
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].as",
+			"pointer": "/as",
+			"suggestion": "Use a lowercase word; hyphens and underscores are allowed."
+		},
+		{
+			"id": "skill-minimal",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"name": "hello-guide",
+				"path": "skills/hello-guide"
+			},
+			"accepted": true
+		},
+		{
+			"id": "skill-missing-path",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"name": "hello-guide"
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/path",
+			"suggestion": "Add the skill directory, relative to the plugin root."
+		},
+		{
+			"id": "skill-name-uppercase",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"name": "Hello",
+				"path": "skills/Hello"
+			},
+			"accepted": false,
+			"key": "skills[].name",
+			"pointer": "/name",
+			"suggestion": "Use a lowercase name with hyphens."
+		},
+		{
+			"id": "skill-path-parent",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"name": "hello-guide",
+				"path": "../hello-guide"
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/path",
+			"suggestion": "Keep the path inside the plugin root, with no .. segment."
+		},
+		{
+			"id": "skill-path-absolute",
+			"against": "core#/$defs/skill",
+			"fragment": {
+				"name": "hello-guide",
+				"path": "/hello-guide"
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/path",
+			"suggestion": "Use a path relative to the plugin root."
+		},
+		{
+			"id": "config-path",
+			"against": "core#/$defs/config",
+			"fragment": {
+				"schema": "schemas/config.json"
+			},
+			"accepted": true
+		},
+		{
+			"id": "config-inline",
+			"against": "core#/$defs/config",
+			"fragment": {
+				"schema": {
+					"type": "object",
+					"additionalProperties": false
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "config-missing-schema",
+			"against": "core#/$defs/config",
+			"fragment": {},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/schema",
+			"suggestion": "Add schema, a closed JSON Schema object or the path of one."
+		},
+		{
+			"id": "config-schema-number",
+			"against": "core#/$defs/config",
+			"fragment": {
+				"schema": 1
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/schema",
+			"suggestion": "Write a JSON Schema object, or the path of a JSON file."
+		},
+		{
+			"id": "mount-http",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http"
+			},
+			"accepted": true
+		},
+		{
+			"id": "mount-host-keys-stay-open",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "stdio",
+				"command": ["bin/hello"],
+				"env": {}
+			},
+			"accepted": true
+		},
+		{
+			"id": "mount-only-and-tools",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"only": ["greet"],
+				"tools": [
+					{
+						"tool": "greet",
+						"name": "say-hi",
+						"effects": ["external"],
+						"confirm_prompt": "Sure?",
+						"approval": "required",
+						"first_class": true
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "mount-missing-prefix",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"transport": "http"
+			},
+			"accepted": false,
+			"key": "mount.prefix",
+			"pointer": "/prefix",
+			"suggestion": "Add prefix, one of plugin.domains."
+		},
+		{
+			"id": "mount-missing-transport",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello"
+			},
+			"accepted": false,
+			"key": "mount.transport",
+			"pointer": "/transport",
+			"suggestion": "Add transport: stdio or http."
+		},
+		{
+			"id": "mount-prefix-afd",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "afd",
+				"transport": "http"
+			},
+			"accepted": false,
+			"key": "mount.prefix",
+			"pointer": "/prefix",
+			"suggestion": "AFD owns the afd domain; choose another prefix."
+		},
+		{
+			"id": "mount-transport-unknown",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "websocket"
+			},
+			"accepted": false,
+			"key": "mount.transport",
+			"pointer": "/transport",
+			"suggestion": "Use stdio or http."
+		},
+		{
+			"id": "mount-url-deployers",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"url": "https://afd.dev/mcp"
+			},
+			"accepted": false,
+			"key": "mount.url",
+			"pointer": "/url",
+			"suggestion": "Where a server runs is the deployer's: move url to the host's instance configuration."
+		},
+		{
+			"id": "mount-bearer-env-deployers",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"bearer_env": "TOKEN"
+			},
+			"accepted": false,
+			"key": "mount.bearer_env",
+			"pointer": "/bearer_env",
+			"suggestion": "A credential is the deployer's: move bearer_env to the host's instance configuration."
+		},
+		{
+			"id": "mount-only-repeated",
+			"against": "core#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"only": ["greet", "greet"]
+			},
+			"accepted": false,
+			"key": "mount.only",
+			"pointer": "/only",
+			"suggestion": "List each tool once."
+		},
+		{
+			"id": "mount-tool-missing-tool",
+			"against": "core#/$defs/mountTool",
+			"fragment": {
+				"name": "greet"
+			},
+			"accepted": false,
+			"key": "mount.tools[].tool",
+			"pointer": "/tool",
+			"suggestion": "Name the server's tool this entry describes."
+		},
+		{
+			"id": "mount-tool-name-prefixed-style",
+			"against": "core#/$defs/mountTool",
+			"fragment": {
+				"tool": "greet",
+				"name": "Hello_Greet"
+			},
+			"accepted": false,
+			"key": "mount.tools[].name",
+			"pointer": "/name",
+			"suggestion": "Use lowercase words joined by hyphens, relative to the prefix."
+		},
+		{
+			"id": "mount-tool-approval",
+			"against": "core#/$defs/mountTool",
+			"fragment": {
+				"tool": "greet",
+				"approval": "maybe"
+			},
+			"accepted": false,
+			"key": "mount.tools[].approval",
+			"pointer": "/approval",
+			"suggestion": "Use none or required."
+		},
+		{
+			"id": "mount-tool-effects-empty",
+			"against": "core#/$defs/mountTool",
+			"fragment": {
+				"tool": "greet",
+				"effects": []
+			},
+			"accepted": false,
+			"key": "mount.tools[].effects",
+			"pointer": "/effects",
+			"suggestion": "Name at least one effect."
+		},
+		{
+			"id": "schema-or-path-object",
+			"against": "core#/$defs/schemaOrPath",
+			"fragment": {
+				"type": "object"
+			},
+			"accepted": true
+		},
+		{
+			"id": "schema-or-path-array",
+			"against": "core#/$defs/schemaOrPath",
+			"fragment": [],
+			"accepted": false,
+			"key": "(schema or path)",
+			"pointer": "",
+			"suggestion": "Write a JSON Schema object, or the path of a JSON file."
+		},
+		{
+			"id": "relative-path-nul",
+			"against": "core#/$defs/relativePath",
+			"fragment": "a\u0000b",
+			"accepted": false,
+			"key": "(relative path)",
+			"pointer": "",
+			"suggestion": "Remove the NUL character."
+		},
+		{
+			"id": "relative-path-dots-in-a-name",
+			"against": "core#/$defs/relativePath",
+			"fragment": "a..b/c.d",
+			"accepted": true
+		},
+		{
+			"id": "domain-empty",
+			"against": "core#/$defs/domain",
+			"fragment": "",
+			"accepted": false,
+			"key": "(domain)",
+			"pointer": "",
+			"suggestion": "Use a lowercase word."
+		},
+		{
+			"id": "profile-every-core-key",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"],
+					"homepage": "https://afd.dev",
+					"license": "MIT"
+				},
+				"grants": [
+					{
+						"name": "clock",
+						"required": false,
+						"reason": "Stamps a greeting."
+					}
+				],
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"title": "Greet someone",
+						"returns": "schemas/out.json",
+						"category": "hello",
+						"tags": ["example"],
+						"version": "1.0.0",
+						"requires": ["hello-list"],
+						"contexts": ["hello-main"],
+						"first_class": true,
+						"confirm_prompt": "Greet?",
+						"destructive": false,
+						"undoable": true,
+						"approval": "required",
+						"execution_time": "long-running",
+						"expose": {
+							"mcp": true,
+							"agent": true,
+							"cli": false,
+							"palette": false
+						},
+						"examples": [
+							{
+								"title": "Greet Ada",
+								"input": {
+									"name": "Ada"
+								}
+							}
+						],
+						"output_budget": {
+							"default_bytes": 1000,
+							"max_bytes": 2000
+						},
+						"errors": ["NOT_FOUND", "E2_X"],
+						"tool_meta": {
+							"ui": {
+								"resourceUri": "ui://hello/main"
+							}
+						}
+					}
+				],
+				"contexts": [
+					{
+						"name": "hello-main",
+						"description": "The main context.",
+						"triggers": ["hello"],
+						"priority": 1
+					}
+				],
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				],
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				],
+				"config": {
+					"schema": "schemas/config.json"
+				},
+				"app": {
+					"scope_levels": ["workspace", "project"]
+				},
+				"afd_contract": "1.0",
+				"ui": {
+					"surfaces": {}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-afd-contract",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "1.0"
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-minimal",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-mounted",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"afd_contract": "1.0",
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "greet"
+						}
+					]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-plugin-accepts-its-core-keys",
+			"against": "profile#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"homepage": "https://afd.dev",
+				"license": "MIT"
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-command-accepts-its-core-keys",
+			"against": "profile#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"title": "Greet someone",
+				"returns": "schemas/out.json",
+				"category": "hello",
+				"tags": ["example"],
+				"version": "1.0.0",
+				"requires": ["hello-list"],
+				"contexts": ["hello-main"],
+				"first_class": true,
+				"confirm_prompt": "Greet?",
+				"destructive": false,
+				"undoable": true,
+				"approval": "required",
+				"execution_time": "long-running",
+				"expose": {
+					"mcp": true,
+					"agent": true,
+					"cli": false,
+					"palette": false
+				},
+				"examples": [
+					{
+						"title": "Greet Ada",
+						"input": {
+							"name": "Ada"
+						}
+					}
+				],
+				"output_budget": {
+					"default_bytes": 1000,
+					"max_bytes": 2000
+				},
+				"errors": ["NOT_FOUND", "E2_X"],
+				"tool_meta": {
+					"ui": {
+						"resourceUri": "ui://hello/main"
+					}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-pipeline-accepts-its-core-keys",
+			"against": "profile#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet",
+						"input": {},
+						"as": "first"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "profile-mount-accepts-its-core-keys",
+			"against": "profile#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"only": ["greet"],
+				"tools": [
+					{
+						"tool": "greet",
+						"name": "say-hi",
+						"effects": ["external"],
+						"confirm_prompt": "Sure?",
+						"approval": "required",
+						"first_class": true
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "closed-root",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-plugin",
+			"against": "profile#/$defs/plugin",
+			"fragment": {
+				"id": "hello",
+				"title": "Hello",
+				"version": "0.1.0",
+				"description": "The reference plugin.",
+				"kind": "example",
+				"domains": ["hello"],
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "plugin.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove plugin.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-command",
+			"against": "profile#/$defs/command",
+			"fragment": {
+				"name": "hello-greet",
+				"description": "Greet someone.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "commands[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove commands[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-expose",
+			"against": "profile#/$defs/expose",
+			"fragment": {
+				"pallete": true
+			},
+			"accepted": false,
+			"key": "commands[].expose.pallete",
+			"pointer": "/pallete",
+			"suggestion": "Did you mean palette?"
+		},
+		{
+			"id": "closed-example",
+			"against": "profile#/$defs/example",
+			"fragment": {
+				"title": "x",
+				"input": {},
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "commands[].examples[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove commands[].examples[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-output-budget",
+			"against": "profile#/$defs/outputBudget",
+			"fragment": {
+				"default_bytes": 1,
+				"max_bytes": 1,
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove commands[].output_budget.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-grant",
+			"against": "profile#/$defs/grant",
+			"fragment": {
+				"name": "clock",
+				"reason": "x",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "grants[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove grants[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-context",
+			"against": "profile#/$defs/context",
+			"fragment": {
+				"name": "hello",
+				"description": "x",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "contexts[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove contexts[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-pipeline",
+			"against": "profile#/$defs/pipeline",
+			"fragment": {
+				"name": "hello-both",
+				"description": "Greet, then list.",
+				"effects": ["inspect"],
+				"input_schema": {
+					"type": "object"
+				},
+				"steps": [
+					{
+						"command": "hello-greet",
+						"input": {},
+						"as": "first"
+					}
+				],
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "pipelines[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove pipelines[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-pipeline-step",
+			"against": "profile#/$defs/pipelineStep",
+			"fragment": {
+				"command": "hello-greet",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove pipelines[].steps[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-skill",
+			"against": "profile#/$defs/skill",
+			"fragment": {
+				"name": "hello-guide",
+				"path": "skills/hello-guide",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "skills[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove skills[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-config",
+			"against": "profile#/$defs/config",
+			"fragment": {
+				"schema": "a.json",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "config.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove config.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-mount",
+			"against": "profile#/$defs/mount",
+			"fragment": {
+				"prefix": "hello",
+				"transport": "http",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "mount.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove mount.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-mount-tool",
+			"against": "profile#/$defs/mountTool",
+			"fragment": {
+				"tool": "greet",
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "mount.tools[].bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove mount.tools[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-ui",
+			"against": "profile#/$defs/ui",
+			"fragment": {
+				"surfaces": {},
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "ui.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove ui.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-app",
+			"against": "profile#/$defs/app",
+			"fragment": {
+				"scope_levels": ["workspace"],
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "app.bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove app.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-plugin",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"],
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"key": "plugin.bogus",
+			"pointer": "/plugin/bogus",
+			"suggestion": "Remove plugin.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-command",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].bogus",
+			"pointer": "/commands/0/bogus",
+			"suggestion": "Remove commands[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-expose",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"expose": {
+							"pallete": true
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].expose.pallete",
+			"pointer": "/commands/0/expose/pallete",
+			"suggestion": "Did you mean palette?"
+		},
+		{
+			"id": "closed-deep-example",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"examples": [
+							{
+								"title": "x",
+								"input": {},
+								"bogus": 1
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].examples[].bogus",
+			"pointer": "/commands/0/examples/0/bogus",
+			"suggestion": "Remove commands[].examples[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-output-budget",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 1,
+							"max_bytes": 1,
+							"bogus": 1
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.bogus",
+			"pointer": "/commands/0/output_budget/bogus",
+			"suggestion": "Remove commands[].output_budget.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-grant",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"grants": [
+					{
+						"name": "clock",
+						"reason": "x",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"key": "grants[].bogus",
+			"pointer": "/grants/0/bogus",
+			"suggestion": "Remove grants[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-context",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello",
+						"description": "x",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"key": "contexts[].bogus",
+			"pointer": "/contexts/0/bogus",
+			"suggestion": "Remove contexts[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-pipeline",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						],
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].bogus",
+			"pointer": "/pipelines/0/bogus",
+			"suggestion": "Remove pipelines[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-pipeline-step",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"bogus": 1
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].bogus",
+			"pointer": "/pipelines/0/steps/0/bogus",
+			"suggestion": "Remove pipelines[].steps[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-skill",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].bogus",
+			"pointer": "/skills/0/bogus",
+			"suggestion": "Remove skills[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-config",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": "a.json",
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"key": "config.bogus",
+			"pointer": "/config/bogus",
+			"suggestion": "Remove config.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-mount",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"key": "mount.bogus",
+			"pointer": "/mount/bogus",
+			"suggestion": "Remove mount.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-mount-tool",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "greet",
+							"bogus": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].bogus",
+			"pointer": "/mount/tools/0/bogus",
+			"suggestion": "Remove mount.tools[].bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-ui",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"ui": {
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"key": "ui.bogus",
+			"pointer": "/ui/bogus",
+			"suggestion": "Remove ui.bogus: this profile does not define it."
+		},
+		{
+			"id": "closed-deep-app",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"app": {
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"key": "app.bogus",
+			"pointer": "/app/bogus",
+			"suggestion": "Remove app.bogus: this profile does not define it."
+		},
+		{
+			"id": "narrow-kind",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "compiled",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "plugin.kind",
+			"pointer": "/plugin/kind",
+			"suggestion": "Use a kind this profile admits: example or mounted."
+		},
+		{
+			"id": "narrow-domains-required",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example"
+				}
+			},
+			"accepted": false,
+			"key": "plugin.domains",
+			"pointer": "/plugin/domains",
+			"suggestion": "Add domains: this profile requires them."
+		},
+		{
+			"id": "narrow-effect",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["workspace-write"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].effects[]",
+			"pointer": "/commands/0/effects/0",
+			"suggestion": "This host has no file system; use store-write or another effect."
+		},
+		{
+			"id": "narrow-effect-pipeline",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["workspace-write"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].effects[]",
+			"pointer": "/pipelines/0/effects/0",
+			"suggestion": "This host has no file system; use store-write or another effect."
+		},
+		{
+			"id": "narrow-effect-mount-tool",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "greet",
+							"effects": ["workspace-write"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].effects[]",
+			"pointer": "/mount/tools/0/effects/0",
+			"suggestion": "This host has no file system; use another effect."
+		},
+		{
+			"id": "narrow-version-const",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 2,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "manifest_version",
+			"pointer": "/manifest_version",
+			"suggestion": "This profile reads manifest version 1."
+		},
+		{
+			"id": "narrow-section-needs-kind",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": false,
+			"key": "mount",
+			"pointer": "/mount",
+			"suggestion": "Set plugin.kind to mounted, or remove mount."
+		},
+		{
+			"id": "narrow-kind-needs-section",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "mount",
+			"pointer": "/mount",
+			"suggestion": "Add a mount table: a mounted plugin needs one."
+		},
+		{
+			"id": "added-section-value",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"app": {
+					"scope_levels": ["galaxy"]
+				}
+			},
+			"accepted": false,
+			"key": "app.scope_levels[]",
+			"pointer": "/app/scope_levels/0",
+			"suggestion": "Use workspace or project."
+		},
+		{
+			"id": "through-core-value",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "plugin.title",
+			"pointer": "/plugin/title",
+			"suggestion": "Give the plugin a title of 1 to 80 characters."
+		},
+		{
+			"id": "through-core-reserved",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"signature": {}
+			},
+			"accepted": false,
+			"key": "signature",
+			"pointer": "/signature",
+			"suggestion": "signature is reserved for signed plugins; remove it."
+		},
+		{
+			"id": "through-core-deep-value",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"expose": {
+							"mcp": "yes"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].expose.mcp",
+			"pointer": "/commands/0/expose/mcp",
+			"suggestion": "Use true or false."
+		},
+		{
+			"id": "through-core-deep-reserved",
+			"against": "profile",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"mutation": true
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].mutation",
+			"pointer": "/commands/0/mutation",
+			"suggestion": "Remove mutation: the host derives it from effects."
+		},
+		{
+			"id": "cousin-refuses-a-valid-plugin",
+			"against": "cousin",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "plugin.id",
+			"pointer": "/plugin/id",
+			"alsoNames": ["/plugin/title", "/plugin/version", "/plugin/description", "/plugin/domains"],
+			"suggestion": "Close plugin with its own $ref to the core's plugin definition, in the same schema object as unevaluatedProperties: the $ref at the root is a cousin, and its evaluations are out of sight."
+		},
+		{
+			"id": "cousin-suite-always-fails",
+			"against": "cousinSuite",
+			"fragment": {
+				"foo": 1
+			},
+			"accepted": false,
+			"key": "foo",
+			"pointer": "/foo",
+			"suggestion": "Put unevaluatedProperties in the schema object that holds, or references, the properties it should see."
+		},
+		{
+			"id": "cousin-suite-empty-object",
+			"against": "cousinSuite",
+			"fragment": {},
+			"accepted": true
+		},
+		{
+			"id": "shallow-root-sees-its-ref",
+			"against": "shallow",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "shallow-root-closed",
+			"against": "shallow",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"bogus": 1
+			},
+			"accepted": false,
+			"key": "bogus",
+			"pointer": "/bogus",
+			"suggestion": "Remove bogus: this profile does not define it."
+		},
+		{
+			"id": "shallow-nested-stays-open",
+			"against": "shallow",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"expose": {
+							"pallete": true
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "shallow-plugin-stays-open",
+			"against": "shallow",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"],
+					"bogus": 1
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "overreach-reserved-key-still-refused",
+			"against": "overreach",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"scopes": []
+			},
+			"accepted": false,
+			"key": "scopes",
+			"pointer": "/scopes",
+			"suggestion": "scopes is reserved; a profile cannot give it another meaning."
+		},
+		{
+			"id": "overreach-core-value-still-refused",
+			"against": "overreach",
+			"fragment": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "UPPER",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "plugin.kind",
+			"pointer": "/plugin/kind",
+			"suggestion": "A profile cannot admit a value the core refuses; use a lowercase kind name."
+		}
+	],
+	"rules": [
+		{
+			"id": "command-in-domain",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-other-domain",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "other-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/commands/0/name",
+			"suggestion": "Start the name with one of plugin.domains: hello."
+		},
+		{
+			"id": "command-no-domains",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example"
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/commands/0/name",
+			"suggestion": "Declare plugin.domains, and start the name with one of them."
+		},
+		{
+			"id": "pipeline-other-domain",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "other-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].name",
+			"pointer": "/pipelines/0/name",
+			"suggestion": "Start the name with one of plugin.domains: hello."
+		},
+		{
+			"id": "context-in-domain",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello",
+						"description": "x"
+					},
+					{
+						"name": "hello-main",
+						"description": "x"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "context-other-domain",
+			"rule": "command-domain",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "other-main",
+						"description": "x"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "contexts[].name",
+			"pointer": "/contexts/0/name",
+			"suggestion": "Start the name with one of plugin.domains: hello."
+		},
+		{
+			"id": "mounted-with-mount",
+			"rule": "mounted",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "mounted-no-mount",
+			"rule": "mounted",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "mount",
+			"pointer": "/mount",
+			"suggestion": "Add a mount table: a mounted plugin needs one."
+		},
+		{
+			"id": "mount-on-another-kind",
+			"rule": "mounted",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": false,
+			"key": "mount",
+			"pointer": "/mount",
+			"suggestion": "Set plugin.kind to mounted, or remove mount."
+		},
+		{
+			"id": "mounted-declares-commands",
+			"rule": "mounted",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands",
+			"pointer": "/commands",
+			"suggestion": "A mounted plugin's commands come from the server; describe a tool under mount.tools instead."
+		},
+		{
+			"id": "mount-prefix-in-domains",
+			"rule": "mount-prefix",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "mount-prefix-not-in-domains",
+			"rule": "mount-prefix",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "other",
+					"transport": "http"
+				}
+			},
+			"accepted": false,
+			"key": "mount.prefix",
+			"pointer": "/mount/prefix",
+			"suggestion": "Use one of plugin.domains: hello."
+		},
+		{
+			"id": "names-unique",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					},
+					{
+						"name": "hello-list",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "command-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					},
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].name",
+			"pointer": "/commands/1/name",
+			"suggestion": "Give each command its own name."
+		},
+		{
+			"id": "pipeline-repeats-command",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-both",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				],
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].name",
+			"pointer": "/pipelines/0/name",
+			"suggestion": "A pipeline is registered as a command: give it a name no command uses."
+		},
+		{
+			"id": "pipeline-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					},
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].name",
+			"pointer": "/pipelines/1/name",
+			"suggestion": "Give each pipeline its own name."
+		},
+		{
+			"id": "context-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello",
+						"description": "x"
+					},
+					{
+						"name": "hello",
+						"description": "y"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "contexts[].name",
+			"pointer": "/contexts/1/name",
+			"suggestion": "Give each context its own name."
+		},
+		{
+			"id": "skill-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "a/hello-guide"
+					},
+					{
+						"name": "hello-guide",
+						"path": "b/hello-guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].name",
+			"pointer": "/skills/1/name",
+			"suggestion": "Give each skill its own name."
+		},
+		{
+			"id": "grant-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"grants": [
+					{
+						"name": "clock",
+						"reason": "x"
+					},
+					{
+						"name": "clock",
+						"reason": "y"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "grants[].name",
+			"pointer": "/grants/1/name",
+			"suggestion": "Declare each grant once."
+		},
+		{
+			"id": "step-as-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"as": "a"
+							},
+							{
+								"command": "hello-list",
+								"as": "a"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].steps[].as",
+			"pointer": "/pipelines/0/steps/1/as",
+			"suggestion": "Give each step its own alias."
+		},
+		{
+			"id": "mount-tool-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "greet"
+						},
+						{
+							"tool": "greet"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].tool",
+			"pointer": "/mount/tools/1/tool",
+			"suggestion": "Describe each tool once."
+		},
+		{
+			"id": "mount-tool-name-repeated",
+			"rule": "unique",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "a",
+							"name": "same"
+						},
+						{
+							"tool": "b",
+							"name": "same"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].name",
+			"pointer": "/mount/tools/1/name",
+			"suggestion": "Give each override its own name."
+		},
+		{
+			"id": "context-declared",
+			"rule": "context-declared",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello-main",
+						"description": "x"
+					}
+				],
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"contexts": ["hello-main"]
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "context-not-declared",
+			"rule": "context-declared",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello-main",
+						"description": "x"
+					}
+				],
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"contexts": ["hello-other"]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].contexts[]",
+			"pointer": "/commands/0/contexts/0",
+			"suggestion": "Declare the context under contexts, or remove the name."
+		},
+		{
+			"id": "text-plain",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Héllo 👋",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "text-title-escape",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "H\u001b[31m",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				}
+			},
+			"accepted": false,
+			"key": "plugin.title",
+			"pointer": "/plugin/title",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "text-description-nul",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet\u0000",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].description",
+			"pointer": "/commands/0/description",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "text-reason-newline",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"grants": [
+					{
+						"name": "clock",
+						"reason": "a\nb"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "grants[].reason",
+			"pointer": "/grants/0/reason",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "text-c1-control",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"contexts": [
+					{
+						"name": "hello",
+						"description": "ab"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "contexts[].description",
+			"pointer": "/contexts/0/description",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "text-example-title",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"examples": [
+							{
+								"title": "a",
+								"input": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].examples[].title",
+			"pointer": "/commands/0/examples/0/title",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "text-mount-tool-prompt",
+			"rule": "text",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "mounted",
+					"domains": ["hello"]
+				},
+				"mount": {
+					"prefix": "hello",
+					"transport": "http",
+					"tools": [
+						{
+							"tool": "greet",
+							"confirm_prompt": "a\tb"
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"key": "mount.tools[].confirm_prompt",
+			"pointer": "/mount/tools/0/confirm_prompt",
+			"suggestion": "Remove the control character: this text reaches a person's screen."
+		},
+		{
+			"id": "input-object",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object",
+							"properties": {}
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "input-path-not-read-here",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": "schemas/in.json"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "input-not-object",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/commands/0/input_schema",
+			"suggestion": "Use a schema with \"type\": \"object\": command input is a table of arguments."
+		},
+		{
+			"id": "input-no-type",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/commands/0/input_schema",
+			"suggestion": "Add \"type\": \"object\"."
+		},
+		{
+			"id": "input-not-a-schema",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object",
+							"properties": 1
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/commands/0/input_schema",
+			"suggestion": "Fix the schema: properties must be an object."
+		},
+		{
+			"id": "pipeline-input-not-object",
+			"rule": "input-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "array"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].input_schema",
+			"pointer": "/pipelines/0/input_schema",
+			"suggestion": "Use a schema with \"type\": \"object\"."
+		},
+		{
+			"id": "budget-equal",
+			"rule": "output-budget",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 10,
+							"max_bytes": 10
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "budget-largest",
+			"rule": "output-budget",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 9007199254740991,
+							"max_bytes": 9007199254740991
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "budget-default-over-max",
+			"rule": "output-budget",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 11,
+							"max_bytes": 10
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.default_bytes",
+			"pointer": "/commands/0/output_budget/default_bytes",
+			"suggestion": "Make default_bytes at most max_bytes."
+		},
+		{
+			"id": "budget-over-the-limit",
+			"rule": "output-budget",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"output_budget": {
+							"default_bytes": 1,
+							"max_bytes": 9007199254740992
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].output_budget.max_bytes",
+			"pointer": "/commands/0/output_budget/max_bytes",
+			"suggestion": "Use at most 9007199254740991 bytes (2^53 - 1), as output budgets require."
+		},
+		{
+			"id": "skill-equals-id",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello",
+						"path": "skills/hello"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "skill-starts-with-id",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "skill-path-trailing-slash",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide/"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "skill-other-name",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "guide",
+						"path": "skills/guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].name",
+			"pointer": "/skills/0/name",
+			"suggestion": "Name the skill hello or start it with hello-, so two plugins never ship one name."
+		},
+		{
+			"id": "skill-prefix-without-hyphen",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "helloworld",
+						"path": "skills/helloworld"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].name",
+			"pointer": "/skills/0/name",
+			"suggestion": "Name the skill hello or start it with hello-, so two plugins never ship one name."
+		},
+		{
+			"id": "skill-path-other-segment",
+			"rule": "skill-name",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/skills/0/path",
+			"suggestion": "End the path in the skill name, hello-guide."
+		},
+		{
+			"id": "config-closed",
+			"rule": "config-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": {
+						"type": "object",
+						"additionalProperties": false
+					}
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "config-open",
+			"rule": "config-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": {
+						"type": "object"
+					}
+				}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Close the schema at its root: set \"additionalProperties\": false."
+		},
+		{
+			"id": "config-not-object",
+			"rule": "config-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": {
+						"type": "string",
+						"additionalProperties": false
+					}
+				}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Use a schema with \"type\": \"object\"."
+		},
+		{
+			"id": "config-not-a-schema",
+			"rule": "config-schema",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": 1
+					}
+				}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Fix the schema: properties must be an object."
+		},
+		{
+			"id": "tool-meta-prefixed",
+			"rule": "tool-meta",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"tool_meta": {
+							"com.example/flags": ["a"]
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "tool-meta-ui",
+			"rule": "tool-meta",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"tool_meta": {
+							"ui": {
+								"resourceUri": "ui://hello/main"
+							}
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "tool-meta-afd-prefix",
+			"rule": "tool-meta",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"tool_meta": {
+							"dev.afd/outputBudget": {}
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].tool_meta[\"dev.afd/outputBudget\"]",
+			"pointer": "/commands/0/tool_meta/dev.afd~1outputBudget",
+			"suggestion": "dev.afd/ is AFD's; use your own reverse-DNS prefix, such as com.example/name."
+		},
+		{
+			"id": "tool-meta-server-key",
+			"rule": "tool-meta",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"tool_meta": {
+							"mutation": true
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].tool_meta.mutation",
+			"pointer": "/commands/0/tool_meta/mutation",
+			"suggestion": "The server sets mutation; use a reverse-DNS prefixed key."
+		},
+		{
+			"id": "tool-meta-ui-uri",
+			"rule": "tool-meta",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"tool_meta": {
+							"ui": {
+								"resourceUri": "https://afd.dev/view"
+							}
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].tool_meta.ui",
+			"pointer": "/commands/0/tool_meta/ui",
+			"suggestion": "Use a resourceUri that begins ui://."
+		},
+		{
+			"id": "requires-known",
+			"rule": "requires",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"requires": ["hello-list"]
+					},
+					{
+						"name": "hello-list",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "requires-pipeline",
+			"rule": "requires",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"requires": ["hello-both"]
+					}
+				],
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "requires-unknown-warns",
+			"rule": "requires",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"requires": ["hello-missing"]
+					}
+				]
+			},
+			"accepted": true,
+			"warnings": [
+				{
+					"key": "commands[].requires[]",
+					"pointer": "/commands/0/requires/0",
+					"suggestion": "Name a command this plugin declares, or remove the entry: requires is metadata only."
+				}
+			]
+		},
+		{
+			"id": "contract-same-major",
+			"rule": "afd-contract",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "1.0"
+			},
+			"accepted": true,
+			"hostContract": "1.0-rc"
+		},
+		{
+			"id": "contract-same-major-minor-differs",
+			"rule": "afd-contract",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "1.4"
+			},
+			"accepted": true,
+			"hostContract": "1.0"
+		},
+		{
+			"id": "contract-other-major",
+			"rule": "afd-contract",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"afd_contract": "2.0"
+			},
+			"accepted": false,
+			"key": "afd_contract",
+			"pointer": "/afd_contract",
+			"suggestion": "This host follows contract 1.0-rc; build the plugin against a 1.x contract.",
+			"hostContract": "1.0-rc"
+		},
+		{
+			"id": "path-link-inside-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				]
+			},
+			"accepted": true,
+			"files": {
+				"real-guide/SKILL.md": "# Guide\n"
+			},
+			"symlinks": {
+				"skills/hello-guide": "../real-guide"
+			}
+		},
+		{
+			"id": "path-dots-in-a-name",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "..x/in.json"
+					}
+				]
+			},
+			"accepted": true,
+			"files": {
+				"..x/in.json": "{}"
+			}
+		},
+		{
+			"id": "path-skill-link-leaves-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/skills/0/path",
+			"suggestion": "Keep the path inside the plugin root: it is a symbolic link that leaves it.",
+			"files": {
+				"../outside/in.json": "{}",
+				"../outside/SKILL.md": "# Elsewhere\n"
+			},
+			"symlinks": {
+				"skills/hello-guide": "../../outside"
+			}
+		},
+		{
+			"id": "path-input-link-leaves-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": "schemas/in.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/commands/0/input_schema",
+			"suggestion": "Keep the path inside the plugin root: it is a symbolic link that leaves it.",
+			"files": {
+				"../outside/in.json": "{}",
+				"../outside/SKILL.md": "# Elsewhere\n"
+			},
+			"symlinks": {
+				"schemas/in.json": "../../outside/in.json"
+			}
+		},
+		{
+			"id": "path-returns-link-leaves-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "schemas/out.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/commands/0/returns",
+			"suggestion": "Keep the path inside the plugin root: it is a symbolic link that leaves it.",
+			"files": {
+				"../outside/in.json": "{}",
+				"../outside/SKILL.md": "# Elsewhere\n"
+			},
+			"symlinks": {
+				"schemas/out.json": "../../outside/in.json"
+			}
+		},
+		{
+			"id": "path-pipeline-link-leaves-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"pipelines": [
+					{
+						"name": "hello-both",
+						"description": "Greet, then list.",
+						"effects": ["inspect"],
+						"input_schema": "schemas/in.json",
+						"steps": [
+							{
+								"command": "hello-greet",
+								"input": {},
+								"as": "first"
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"key": "pipelines[].input_schema",
+			"pointer": "/pipelines/0/input_schema",
+			"suggestion": "Keep the path inside the plugin root: it is a symbolic link that leaves it.",
+			"files": {
+				"../outside/in.json": "{}",
+				"../outside/SKILL.md": "# Elsewhere\n"
+			},
+			"symlinks": {
+				"schemas/in.json": "../../outside/in.json"
+			}
+		},
+		{
+			"id": "path-config-link-leaves-root",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": "schemas/config.json"
+				}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Keep the path inside the plugin root: it is a symbolic link that leaves it.",
+			"files": {
+				"../outside/in.json": "{}",
+				"../outside/SKILL.md": "# Elsewhere\n"
+			},
+			"symlinks": {
+				"schemas/config.json": "../../outside/in.json"
+			}
+		},
+		{
+			"id": "path-dangling-link",
+			"rule": "path-inside-root",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "schemas/out.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/commands/0/returns",
+			"suggestion": "The path is a symbolic link to nothing; fix or remove it.",
+			"symlinks": {
+				"schemas/out.json": "../../nowhere.json"
+			}
+		},
+		{
+			"id": "files-present",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": "schemas/in.json",
+						"returns": "schemas/out.json"
+					}
+				],
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				]
+			},
+			"accepted": true,
+			"files": {
+				"schemas/in.json": "{\"type\":\"object\"}",
+				"schemas/out.json": "{}",
+				"skills/hello-guide/SKILL.md": "# Guide\n"
+			}
+		},
+		{
+			"id": "file-missing",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "schemas/out.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/commands/0/returns",
+			"suggestion": "Add the file, or correct the path.",
+			"files": {}
+		},
+		{
+			"id": "file-not-json",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "schemas/out.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/commands/0/returns",
+			"suggestion": "The file must hold JSON.",
+			"files": {
+				"schemas/out.json": "nope"
+			}
+		},
+		{
+			"id": "file-not-an-object",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": {
+							"type": "object"
+						},
+						"returns": "schemas/out.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].returns",
+			"pointer": "/commands/0/returns",
+			"suggestion": "The file must hold a JSON Schema object.",
+			"files": {
+				"schemas/out.json": "[]"
+			}
+		},
+		{
+			"id": "file-input-not-object-type",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"commands": [
+					{
+						"name": "hello-greet",
+						"description": "Greet someone.",
+						"effects": ["inspect"],
+						"input_schema": "schemas/in.json"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "commands[].input_schema",
+			"pointer": "/commands/0/input_schema",
+			"suggestion": "Use a schema with \"type\": \"object\".",
+			"files": {
+				"schemas/in.json": "{\"type\":\"string\"}"
+			}
+		},
+		{
+			"id": "file-config-open",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"config": {
+					"schema": "schemas/config.json"
+				}
+			},
+			"accepted": false,
+			"key": "config.schema",
+			"pointer": "/config/schema",
+			"suggestion": "Close the schema at its root: set \"additionalProperties\": false.",
+			"files": {
+				"schemas/config.json": "{\"type\":\"object\"}"
+			}
+		},
+		{
+			"id": "skill-without-manifest",
+			"rule": "files",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"id": "hello",
+					"title": "Hello",
+					"version": "0.1.0",
+					"description": "The reference plugin.",
+					"kind": "example",
+					"domains": ["hello"]
+				},
+				"skills": [
+					{
+						"name": "hello-guide",
+						"path": "skills/hello-guide"
+					}
+				]
+			},
+			"accepted": false,
+			"key": "skills[].path",
+			"pointer": "/skills/0/path",
+			"suggestion": "Add SKILL.md to the skill directory.",
+			"files": {
+				"skills/hello-guide/notes.md": ""
+			}
+		}
+	],
+	"mutation": [
+		{
+			"effects": ["inspect"],
+			"mutation": false
+		},
+		{
+			"effects": ["plugin-state"],
+			"mutation": true
+		},
+		{
+			"effects": ["external"],
+			"mutation": true
+		},
+		{
+			"effects": ["store-write"],
+			"mutation": true
+		},
+		{
+			"effects": ["workspace-write"],
+			"mutation": true
+		},
+		{
+			"effects": ["store-write", "external"],
+			"mutation": true
+		}
+	],
+	"renaming": [
+		{
+			"id": "override",
+			"tool": "Any Tool",
+			"name": "say-hi",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-say-hi"
+		},
+		{
+			"id": "override-under-its-own-prefix",
+			"tool": "greet",
+			"name": "greet",
+			"manifestPrefix": "hello",
+			"prefix": "hello",
+			"command": "hello-greet"
+		},
+		{
+			"id": "replaces-the-manifest-prefix",
+			"tool": "hello-greet",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-greet"
+		},
+		{
+			"id": "other-name-gets-the-prefix",
+			"tool": "greet",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-greet"
+		},
+		{
+			"id": "prefix-needs-its-hyphen",
+			"tool": "helloworld",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-helloworld"
+		},
+		{
+			"id": "lowercases-and-replaces",
+			"tool": "Get_Status.Now",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-get-status-now"
+		},
+		{
+			"id": "collapses-and-trims",
+			"tool": "--a__b--",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-a-b"
+		},
+		{
+			"id": "digit-segment-gains-n",
+			"tool": "2FA_Check",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-n2fa-check"
+		},
+		{
+			"id": "non-ascii-becomes-a-hyphen",
+			"tool": "café-list",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"command": "work-caf-list"
+		},
+		{
+			"id": "nothing-left",
+			"tool": "___",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"unnameable": true
+		},
+		{
+			"id": "bad-override",
+			"tool": "greet",
+			"name": "2fa",
+			"manifestPrefix": "hello",
+			"prefix": "work",
+			"unnameable": true
+		}
+	]
+}

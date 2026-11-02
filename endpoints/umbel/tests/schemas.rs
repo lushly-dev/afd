@@ -563,6 +563,7 @@ fn the_version_3_config_schema_refuses_what_the_host_refuses() {
     let validator = validator("workspace-config.v3");
     let space = |body: Value| json!({ "config_version": 3, "spaces": { "main": body } });
     let collection = |body: Value| space(json!({ "collections": { "handbook": body } }));
+    let granting = |grants: Value| json!({ "config_version": 3, "spaces": { "main": {}, "beta": {} }, "plugins": { "enabled": ["x"], "x": { "grants": grants } } });
     let ok = [
         json!({ "config_version": 3 }),
         space(json!({ "readers": ["*"] })),
@@ -572,6 +573,13 @@ fn the_version_3_config_schema_refuses_what_the_host_refuses() {
         json!({ "config_version": 3, "access": { "groups": { "x": { "members": ["*", "agent:ci"] } } } }),
         json!({ "config_version": 3, "store": { "lock_timeout_ms": 100 } }),
         space(json!({ "backend": "embedded" })),
+        granting(json!({ "documents_write": { "allow": ["main/handbook", "beta/*"] } })),
+        granting(json!({ "content_write": { "allow": ["main/*"] } })),
+        granting(json!({ "records_write": { "allow": ["main", "*"] } })),
+        granting(
+            json!({ "index_write": { "allow": ["main"] }, "graph_write": { "allow": ["*"] } }),
+        ),
+        json!({ "config_version": 3, "plugins": { "enabled": ["x"], "x": { "deny": ["content_write", "graph_write", "records"] } } }),
     ];
     for instance in ok {
         assert!(validator.is_valid(&instance), "{instance}");
@@ -579,6 +587,21 @@ fn the_version_3_config_schema_refuses_what_the_host_refuses() {
     let bad = [
         json!({ "config_version": 2 }),
         json!({ "config_version": 4 }),
+        // An allow list: only the five write grants take one, each with at least one entry of
+        // its form (collection-level or space-level), once.
+        granting(json!({ "documents": { "allow": ["main"] } })),
+        granting(json!({ "http": { "allow": ["example.com"] } })),
+        granting(json!({ "documents_write": {} })),
+        granting(json!({ "documents_write": { "allow": [] } })),
+        granting(json!({ "documents_write": { "allow": ["main"] } })),
+        granting(json!({ "documents_write": { "allow": ["*"] } })),
+        granting(json!({ "documents_write": { "allow": ["main/handbook", "main/handbook"] } })),
+        granting(json!({ "documents_write": { "allow": "main/*" } })),
+        granting(json!({ "documents_write": { "allow": ["main/*"], "other": [] } })),
+        granting(json!({ "content_write": { "allow": ["Main/*"] } })),
+        granting(json!({ "records_write": { "allow": ["main/notes"] } })),
+        granting(json!({ "index_write": { "allow": [] } })),
+        granting(json!({ "graph_write": { "allow": [1] } })),
         json!({ "config_version": 3, "unknown": 1 }),
         space(json!({ "content_roots": ["notes"] })),
         space(json!({ "readers": [] })),

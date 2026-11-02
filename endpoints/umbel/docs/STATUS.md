@@ -31,7 +31,7 @@ should never have to scan the codebase to learn what is current.
 | [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1; W1 to W4, W11, W16 and the store, search, parsing and tree-sitter library rows refreshed 2026-11-01 for phase 2 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
 | [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
-| [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's decisions; approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as `e996aad1`. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader); step 0a done 2026-11-01 (see Phase 2 below) and amended section 14 | [#625](https://github.com/lushly-dev/afd/pull/625), merged | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
+| [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's decisions; approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as `e996aad1`. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader); step 0a done 2026-11-01 (see Phase 2 below) and amended section 14; step 2 done 2026-11-01 ([636](https://github.com/lushly-dev/afd/pull/636)); step 3 done 2026-11-01 ([643](https://github.com/lushly-dev/afd/pull/643)); steps 4 to 8 and 7a done the same day (see Phase 2 below); step 9 (the eval harness) done 2026-11-01 in the step 9 pull request; step 10 (the exit) done 2026-11-01 in the step 10 pull request, and with it **phase 2 is done** (exit criterion met; see Phase 2 below) | [#625](https://github.com/lushly-dev/afd/pull/625), merged | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -41,13 +41,13 @@ should never have to scan the codebase to learn what is current.
 | AFD prerequisites | Done for phase 0, including step 0 of the phase 0 plan (2026-10-31); the rows for phases 1 to 5 remain | Owner's sessions; step 0 by the phase 0 owning agent | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) and step 0, [#567](https://github.com/lushly-dev/afd/pull/567), merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
-| 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); steps 2 to 10 not done | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632) | Step 2 (store traits and the SQLite stores) |
-| 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
+| 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
+| 3. Memory and context | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
-| 5. Auth and hosted | Not started | None | None | Phase 2 exit criterion met |
-| 6. Backends | Not started | None | None | Phase 2 exit criterion met |
+| 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification; the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) |
+| 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
 | 7. Distribution and guides | Not started | None | None | Phases 4, 5 and 6 exit criteria met |
-| Further first-class plugins | Not started | None | None | Phase 2 exit criterion met; each gets its own specification (D18) |
+| Further first-class plugins | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Each gets its own specification (D18) |
 
 ## Phase detail
 
@@ -522,10 +522,14 @@ should never have to scan the codebase to learn what is current.
 
 ### Phase 2. Knowledge
 
-- **State:** specification in review, **revised** 2026-11-01 after the
-  independent review and the owner's decisions of the same day; not yet
-  approved (D24). Implementation not started. Last verified 2026-11-01
-  against `main` at `886c3b4d`.
+- **State:** done 2026-11-01; the exit criterion is met. Specification
+  approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as
+  `e996aad1`; steps 0a to 9 merged the same day and step 10 (the exit) in the
+  step 10 pull request. Last verified 2026-11-01 against `main` at `aa0ecda2`
+  plus step 10's test. (Superseded: "specification in review, revised, not
+  approved; implementation not started", verified at `886c3b4d`.) One thing
+  must be done before real use: the `knowledge-approve` confirmation prompt
+  cannot show the diff (see the follow-ups).
 - **Done:** the [specification](phases/2-knowledge/spec.md): store traits
   version 1 with a conformance suite and the embedded backend on SQLite (WAL)
   and tantivy, shared by several processes (D51, closing D28's choice);
@@ -598,14 +602,307 @@ should never have to scan the codebase to learn what is current.
   --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg,
   `cargo test --locked --workspace` (600 passed), the MSRV check
   (`cargo +1.97.0 check --locked --workspace --all-targets`), `pnpm check`.
-- **Not done:** steps 2 to 10 of the
-  [plan](phases/2-knowledge/spec.md#14-implementation-plan); the exit
-  criterion. TypeScript, Python and C++ output budgets are AFD's follow-up
-  and do not block Umbel. Step 4 owes the ten grants, the allow lists and `deny` and
-  `grants.<g>.allow` in configuration version 3 (both still as in version 2),
-  the gate setting `dev.umbel/changes`, `event-list` filtering by `access`,
-  the store refusal of an invalid envelope, and the CLI behaviour of
-  `confirm = "require-human"` (the manifest key only parses today).
+- **Step 2 done (2026-11-01, [636](https://github.com/lushly-dev/afd/pull/636)):** the store traits and the SQLite
+  stores, no index and no host wiring. `umbel-store`: the types, the three
+  traits (`DocumentStore` with records and the change log, `SearchIndex`
+  and `GraphStore`), `STORE_TRAITS_VERSION` (the host re-exports it), the
+  conformance suite (`conformance::run_all(factory, spawn_writer)`: 48 cases
+  in the groups `documents`, `records`, `changes`, `envelope`, `access` over
+  the 40-document fixture in `store/fixtures/access/` with an independent
+  oracle for three readers, `graph`, `concurrency` and `durability`; the
+  index cases report skipped), and the in-memory fake behind
+  `tests/suite_detects.rs`, which fails 19 deliberate faults in the cases
+  that should catch them and passes when unbroken. `umbel-store-embedded`:
+  bundled SQLite (rusqlite 0.41.1, SQLite 3.54.1) in WAL mode with
+  `synchronous=FULL`, `foreign_keys`, a bounded busy timeout, `fullfsync`
+  on macOS, `BEGIN IMMEDIATE` for every write, short reads that never pin the
+  WAL, SQLite's default autocheckpoint and a best-effort `wal_checkpoint(TRUNCATE)`
+  hook; documents, records, the change log (one revision sequence, an
+  access set per change), the graph (per origin document, readable through
+  that document's access, aggregated over readable origins) and the access
+  filter as a semi-join inside every statement. Tests: the suite against
+  SQLite (`conformance.rs`, including two child processes through
+  `spawn_writer`), `multiprocess.rs` (four processes creating one store at
+  once, this process beside two others, a writer past the lock timeout in
+  this and in another process is `Busy`), `sqlite.rs` (pragmas, newer
+  schema refused, wrong space, a damaged file, checkpoint beside a reader)
+  and `suite_detects.rs`. The `knowledge` CI job (Linux and macOS) runs
+  them; the `check` and `msrv` jobs exclude the SQLite crate so they do not
+  build it. Seven amendments in the specification's [Amendments from step
+  2](phases/2-knowledge/spec.md#amendments-from-step-2). Cost of bundled
+  SQLite, measured 2026-11-01 on this machine (Apple silicon, dev profile,
+  fresh target directory): `cargo build -p rusqlite` took 39 s wall and 106
+  MB of target (`libsqlite3-sys` rlib 8.8 MB, `rusqlite` rlib 4.4 MB).
+  Verified 2026-11-01 in `endpoints/umbel` with `CARGO_TARGET_DIR` shared:
+  `cargo fmt --all --check`, clippy `-D warnings` on the workspace and each
+  `umbel.yml` leg, `cargo test --locked --workspace`, the MSRV check
+  (`cargo +1.97.0 check --locked --workspace --all-targets`), `pnpm check`.
+- **Step 3 done (2026-11-01, [643](https://github.com/lushly-dev/afd/pull/643)):** the tantivy index. `umbel-store-embedded`
+  gains `TantivyIndex` (`SearchIndex` under `index/v1/`, an `MmapDirectory` with
+  LZ4 named in the index settings, `en_stem`, tantivy 0.27 with
+  `mmap`, `stopwords`, `stemmer` and `lz4-compression` and nothing else): one
+  document per chunk in schema 1, the query builder over the
+  `tantivy-query-grammar` AST (fields checked, `access` refused in every
+  position, at most 64 clauses, 8 fields, 16 levels, slop 8, boosts in
+  (0, 100], 1024 characters; a single trailing `*` is a prefix bounded at 256
+  expansions, constant-scored under the field's boost), the reader filter and
+  the structured filters as score-less mandatory clauses, four-decimal scores
+  with ties resolved by document id and ordinal, highlighted snippets, writer
+  sessions on tantivy's own lock (bounded wait, `Busy`; `applied` read under it
+  and never lowered, `Conflict`; the commit payload `{applied, schema}`; merges
+  finished before the lock is released), reload before each search, checksum
+  validation, and `SqliteStore::readable_graph`, the petgraph form cached by
+  `(graph applied, head, reader)` in eight entries. The conformance suite gains
+  the `index` group (twelve cases) and the two index cases that waited since
+  step 2, `run_groups`, and `samples::chunk`: 59 cases, none skipped against the
+  embedded backend. Tests: `conformance.rs` (all), `index.rs` (LZ4 and the
+  payload, durability, damaged segment found by the checksum, newer schema
+  refused, snippets, scores independent of the reader, the writer wait,
+  a second handle seeing commits, caps, the petgraph cache),
+  `query_syntax.rs` (the grammar's real behaviour: only a trailing star is a
+  prefix, escaped stars, meta values as strings, numbers and booleans, dates,
+  paths, depth, the error text), `index_suite_detects.rs` (four planted faults
+  in the real index fail the cases that should catch them) and
+  `multiprocess.rs` (two indexer processes taking turns and never lowering
+  either revision, a second process waiting and then `Busy`, a killed indexer
+  leaving no stale lock, a run after a crash between the two commits redoing
+  only the lagging store). Fourteen amendments in the specification's
+  [Amendments from step 3](phases/2-knowledge/spec.md#amendments-from-step-3);
+  C1 corrects the revision's claim about the grammar (it marks `prefix` only
+  on a quoted phrase). Measured cold on this machine (Apple silicon, `-j4`,
+  load average 10 to 18): `cargo build -p umbel-store-embedded` 83 s and 640
+  MB; tantivy and the 96 crates it adds took 135 of 188 CPU-seconds
+  (`tantivy` 57 s, `tantivy-columnar` 18 s; the `tantivy` rlib is 88 MB), SQLite's
+  C build 28 s; the job's steps 205 s and 1.1 GB. The `knowledge` job's timeout
+  is 15 minutes (was 45): three times the local 205 s, widened for the
+  slower hosted runners (C14). Verified 2026-11-01 in `endpoints/umbel` with
+  `CARGO_TARGET_DIR` shared: `cargo fmt --all --check`, clippy `-D warnings`
+  on the workspace and each `umbel.yml` leg including the knowledge and wasm
+  legs, `cargo test --locked --workspace`, the MSRV checks, `pnpm verify` (the
+  repository's `check` and every `umbel.yml` leg a pull request runs).
+- **Step 4 done (2026-11-01, [651](https://github.com/lushly-dev/afd/pull/651)):** host services, the first
+  step that lets a plugin reach the stores. The ten grants (`content`,
+  `content_write`, `documents`, `documents_write`, `records`, `records_write`,
+  `index`, `index_write`, `graph`, `graph_write`), held by compiled plugins
+  only, scoped to the call's spaces; the five write grants need
+  `[plugins.<id>.grants.<grant>] allow = [...]` (configuration version 3 and
+  `workspace-config.v3.json`), else `PLUGIN_GRANT_DENIED` at load for a required
+  grant, withheld for an optional one, and `STORE_WRITE_NOT_ALLOWED` for a
+  write outside the entries; reader filters built from the effective
+  principal, `onBehalfOf`, groups and a space's `readers`
+  (`SPACE_NOT_READABLE`, before the handler, for every plugin command and for
+  `event-list` and the `store-*` commands); `spaces` checked like `space`;
+  derivation reads (`derive_changes`, `derive_document`) for a `store-write`
+  command with `index_write` or `graph_write`, and `as_reader` for a
+  CLI-only command called by a human; provenance enforcement
+  (`STORE_PROVENANCE_REQUIRED`; the host overwrites `space`, `plugin`,
+  `agent`, `principal`, `traceId` and `observedAt`); the plugin gate's named
+  allow-list (`dev.umbel/index`, `dev.umbel/trust` only `"content"`), the
+  gate-set `dev.umbel/changes` and `replay: "recorded"` on store-backed
+  results, and `event-list` skipping version 1 events by `access`; the SDK's
+  store methods, `Cx::in_space`, `Reader`, `HostError`'s `Conflict`, `Busy`,
+  `Corrupt` and `Io`, `CallContext.spaces` and `output_budget`,
+  `Outcome::with_sources` and `with_warning_details`; the manifest's
+  `output_budget` wired to `with_output_budget`; `store-show`, `store-check`
+  and `store-backup` and the doctor's `stores.version`, `stores.access` and
+  `stores.lag`; `confirm = "require-human"` on the CLI (a terminal answer
+  only; `--yes` and `--approve` refused; refused on every other surface);
+  `workspace-show`'s `access` and the README's paragraph on access before
+  phase 5. The two step 1 follow-ups for step 4 are done. Fifteen amendments
+  in the specification's [Amendments from step
+  4](phases/2-knowledge/spec.md#amendments-from-step-4). New tests:
+  `store_grants.rs`, `access_filter.rs`, `require_human.rs`,
+  `store_commands.rs`, `doctor_stores.rs`, the rest of `manifest_v2.rs`, and
+  allow-list cases in `config_v3.rs`, `schemas.rs` and the loader's unit tests.
+  The host now links SQLite and tantivy through its default feature
+  `store-embedded`, so the `check` and `msrv` jobs build them too (amendment
+  D15); plugin crates that use `default-features = false` do not. Verified
+  2026-11-01 in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt
+  --all --check`, clippy `-D warnings` on the workspace and on each
+  `umbel.yml` leg (no default features, mounted, component, the SDK and hello
+  with `mounted`, the components for `wasm32-wasip2`, the knowledge crates),
+  the wasm check of `umbel-store`, `cargo test --locked --workspace` (717
+  passed), the MSRV checks (`cargo +1.97.0 check --locked --workspace
+  --all-targets` and the knowledge crates), `pnpm verify`. The sync, status and
+  index outputs of the specification's section 5.5 and 8.7 do not exist yet
+  (steps 5 and 6): the "no restricted id or count" tests cover the store
+  reads, `store-show`, the graph, the change log and `event-list` now, and
+  those commands inherit the reader filter and the gate's `readers` check.
+- **Step 5 done (2026-11-01, [668](https://github.com/lushly-dev/afd/pull/668)):** the first plugin that fills the
+  stores. `umbel-scan` (the `description-injection` patterns moved out of
+  `src/plugins/mounted/scan.rs`, which re-exports them, so the host's `mounted` feature does not
+  link pulldown-cmark; plus the hidden-text check: zero-width and bidirectional controls, tag
+  characters, HTML comments over 200 characters). `umbel-okf`: frontmatter through AFD's public
+  reader under Umbel's 64 KiB cap, with no frontmatter (`Ok(None)`) kept apart from malformed,
+  the empty block refused, the byte order mark stripped and offsets true to the file; the OKF keys
+  and Umbel's extensions normalized under the field caps (title 512 characters, description 4 KiB,
+  32 aliases, 64 tags, owners 32) with `fields-limited`; markdown structure from pulldown-cmark
+  (heading tree with slugs and section ranges, top-level blocks, links, code spans, line numbers)
+  with bounded work for adversarial input; link resolution; `analyze`, one call per file. The
+  compiled plugin `sources` (crate `umbel-plugin-sources-filesystem`; the id has no hyphen, amendment
+  E2) with `sources-sync` and `sources-status`, its `frontmatter` schema pack and its skill:
+  collections from configuration version 3 through the new host service `content_collections`
+  (E1), change detection by size and modification time then SHA-256, compare-and-set writes with
+  one retry, tombstones, a sharded sync state, `dry_run`, `limit` and `remaining` (E3, E4), access
+  mirroring from the document, the nearest `.umbel-access.toml` or the collection (E5), the write
+  scan's flags (flagged, never blocked), and results of **totals plus the ids the caller can read**
+  (a person at the command line also gets paths). The `knowledge` CI job runs the new crates;
+  (The `$CARGO_TARGET_DIR` fix for the external-clients verify step had already landed in
+  [#652](https://github.com/lushly-dev/afd/pull/652).)
+  Thirteen amendments in the specification's [Amendments from step
+  5](phases/2-knowledge/spec.md#amendments-from-step-5). New tests: `scan/tests/scan.rs`,
+  `okf/tests/frontmatter.rs`, `structure.rs` and `flag_rate.rs`,
+  `plugins/sources-filesystem/tests/sync.rs`, `access_mirror.rs`, `readable_results.rs` and
+  `confinement.rs` (path traversal, symbolic and hard links, names that cannot be ids, size caps,
+  100 001 files, pathological markdown, restricted ids absent from results, warnings and events for
+  a reader outside the access set). **Flag rate** of the write scan on this repository's 523
+  Markdown documents: 17 `instruction-like` (3.3 %), 1 `hidden-text` (0.2 %). Verified 2026-11-01 in
+  `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt --all --check`, clippy `-D warnings`
+  on the workspace and on each `umbel.yml` leg, the wasm checks and component builds,
+  `cargo test --locked --workspace`, the MSRV checks, and `pnpm verify`. The hidden counts of
+  section 6 are as the owner accepted: the totals of a sync or status result include files the
+  caller cannot read.
+- **Step 6 done (2026-11-01, [671](https://github.com/lushly-dev/afd/pull/671)):** the knowledge core. The crate
+  `umbel-plugin-knowledge` (plugin `knowledge`, no `code` feature yet) and its binary
+  `umbel-knowledge` (the `umbel` command line with `sources` and `knowledge` compiled in; the stock
+  `umbel` stays empty, D57). **Chunking** (`chunk.rs`, D59): sections by heading, blocks
+  accumulated to 240 words and never past 400, oversize blocks split at lines, short tails merged,
+  no overlap, at most 2000 chunks, a 64 KiB cap per chunk, code as 60-line plain text.
+  **`knowledge-index`**: the section 8.7 procedure, index only (the writer first, derivation reads,
+  chunks built in memory, one commit that never lowers `applied`; bounded by `limit`, a rebuild is
+  one run), with totals plus the ids the caller can read. **`knowledge-search`**: fielded BM25
+  through the query builder of step 3 (boolean, phrase, field, boost and bounded prefix syntax),
+  the reader filter as a mandatory clause of the index query, documents with their best chunk,
+  locator and verification, snippets, AFD `sources`, `INDEX_STALE`, `STALE_CONTENT`,
+  `UNVERIFIED_CONTENT`, `CONTENT_FLAGGED` and `RESULTS_LIMITED`, `verified_only`, draft and
+  deprecated handling; multi-space queries through `Cx::in_space`, fused by reciprocal rank,
+  labeled and never written back. **`knowledge-open`** (by line, chunk, heading or locator, with
+  `DOCUMENT_CHANGED`), **`-find`**, **`-describe`** (outline, links, readable-only backlinks),
+  **`-list`** and **`-changes`**, with `trust: "content"` and `dev.umbel/trust: "content"` on every
+  read, output budgets (24 000/96 000 for search, 32 000/128 000 for open, 16 000/64 000 for the
+  rest) that the handlers fit structurally and AFD's check backs up, the first-class suggestions
+  (`knowledge-search`, `knowledge-open`), the `knowledge-refresh` pipeline, the `ranking` pack and
+  the `knowledge-guide` skill. Seventeen amendments in the specification's [Amendments from step
+  6](phases/2-knowledge/spec.md#amendments-from-step-6) (F1 to F17); no host change was needed. New
+  tests in `plugins/knowledge/tests/`: `chunking.rs` (every rule, a committed fixture),
+  `query_syntax.rs`, `search.rs`, `open_find.rs`, `spaces.rs`, `budgets.rs` (including exact fits and
+  the refusal by AFD's check), `security.rs` (an outsider never sees a restricted document, its
+  chunks, snippets, ids or backlink contributions through search, open, find, describe, list,
+  changes or the index; filtering inside the query with sixty better restricted matches; the
+  `access` field unqueryable and the reader unchoosable; an unreadable space refused with
+  `SPACE_NOT_READABLE`), `index.rs`, `process.rs` (a stdio server and one-shot commands on one
+  workspace at once through the `umbel-knowledge` binary) and `smoke.rs`. The `knowledge` CI job
+  runs the new crate. The crate is in the release inventory (quarantined) and `architecture.json`.
+  Verified 2026-11-01 in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt --all
+  --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg, `cargo test --locked
+  --workspace`, the MSRV checks, and `pnpm verify`.
+- **Step 8 done (2026-11-01, [673](https://github.com/lushly-dev/afd/pull/673)):** proposals and the verification lifecycle, all in
+  the `knowledge` plugin and one host service. **The proposal** (`proposal/`): the record
+  `proposal.v1` kept as a decision trace in the plugin's namespace with the target's access set (so
+  the host's reader filter hides proposals whose target the caller cannot read); **areas** with
+  approver lists and `allow_self_approval` in the instance's configuration, the most specific
+  collection and prefix governing; **`knowledge-propose`** (create, update, deprecate, verify;
+  validated against the area, the base hash, the collection and the evidence; scanned; a unified
+  diff by `similar`; an idempotency key whose id is `p-` and 20 hex of the space, the proposer's
+  actor string and the key, so a retry returns the proposal and another change is
+  `PROPOSAL_KEY_REUSED`), **`knowledge-proposal-list`**, **`-proposal-show`** (the record without the
+  repeated content, `trust: "content"`, under an output budget) and **`knowledge-withdraw`**.
+  **`knowledge-approve`**, **`-reject`** (a required reason) and **`-verify`** are CLI-only with
+  `confirm = "require-human"` (a terminal on stdin and stderr; `--yes` and `--approve` refused),
+  approve and verify also with AFD's approval. The approver must be a person, among the area's
+  approvers (matched through the new host service `reader_tokens`), able to read the target; the
+  same actor approving its own proposal is `PROPOSAL_SELF_APPROVAL` unless the area allows it
+  (`exception: "self-approval"`), and a person approving their own agent's proposal is allowed with
+  `proposer.actor.kind = "agent"` and `decision.proposerKind` recorded. **The apply sequence**:
+  check the file against `baseHash`, record the decision, write the file through `content_write` by
+  temporary file and rename with the expected hash, put the document (origin `user-stated` for a
+  human proposer, else `agent-inferred`; the proposal's `confidence`; the evidence documents as
+  `sources`; `derivedFrom` the proposal), record `applied`; a run that stopped resumes without
+  repeating a done step. Approve does not index (`indexed: false`, `INDEX_STALE` until
+  `knowledge-refresh`). **Verification**: `knowledge-verify` stores a `verify` proposal as the
+  calling person and applies it in the same call when they are an approver (no self-approval
+  exception); verify and deprecate are frontmatter-only rewrites by the new
+  `umbel_okf::rewrite_keys`. Every state change is journaled and evented with the target's access
+  set, so `event-list` filters it. Sixteen amendments in the specification's [Amendments from step
+  8](phases/2-knowledge/spec.md#amendments-from-step-8) (G1 to G16), among them the one host change
+  (the pull request body carries `Plugin-isolation-exempt:`) and the static confirmation prompt. New
+  tests: `plugins/knowledge/tests/proposals.rs` (18), `verification.rs` (9) and the write side of
+  `security.rs` (6), the unit tests of `rewrite_keys`, and the host's
+  `reader_tokens_are_the_callers_own_tokens_and_nobody_elses`. Deployers upgrading add
+  `[plugins.knowledge.grants.records_write] allow = [...]`, and `documents_write` and
+  `content_write` to apply proposals (amendment G14). Verified 2026-11-01 in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt --all --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg, the wasm checks, `cargo test --locked --workspace`, the MSRV checks, and `pnpm verify`.
+- **Done:** step 10, the exit (the step 10 pull request): `plugins/knowledge/tests/exit_thousand.rs`
+  and the exit criterion re-run. The test generates the fixture with seed `20261101`, opens a host
+  with `compiled:sources` and `compiled:knowledge` enabled for both spaces, runs `knowledge-refresh`
+  then `knowledge-index rebuild=true` in `alpha` and `beta`, and asserts the specification's four
+  points: **(1)** `store-show` as the CLI human reports 650 documents in `alpha` (600 Markdown, 50
+  code) and 400 in `beta`, 1000 Markdown in all, and each space's index and graph applied revisions
+  equal to its head; **(2)** all 220 seeded queries, each run in `alpha` and in `beta` on its own
+  (440 searches), return only that space's hits (the queries whose words occur in both spaces
+  included), the 15 `cross-space` queries return `beta` hits only with `spaces` and every hit is
+  labeled, and `knowledge-open`, `-neighbors`, `-related` and `-path` with a document of the other
+  space answer `DOCUMENT_NOT_FOUND` or `PATH_NOT_FOUND`; **(3)** none of the 45 restricted documents
+  (the 20 probes' answers and 25 entries) comes back to `human:eval-reader` in any search run as
+  them (every seeded query names them), as a member of `restricted` every probe's first hit is its answer, `knowledge-open` of
+  a restricted answer is `DOCUMENT_NOT_FOUND` for the outsider and succeeds for the member, the
+  public documents that link to the 20 restricted answers (86 citer and answer pairs) never name the
+  answer in `knowledge-neighbors` for the outsider and have `PATH_NOT_FOUND` to it (the member reaches it in one hop), and with `beta`'s
+  `readers = ["group:restricted"]` the outsider gets `SPACE_NOT_READABLE` from search, a
+  multi-space search that names it, and list, while the group's members and `alpha` are
+  unaffected; **(4)** `knowledge-eval`'s report validates against `eval-report.v1.json`, passes
+  `eval::gate::check` against `eval/baseline.json`, has 0 leaks in 220 queries, and is written to
+  the file `UMBEL_EXIT_REPORT` names (the `knowledge` job sets it, beside the step 9 report, and
+  uploads both in the one artifact). **Eval numbers** (seed `20261101`, `k = 10`, 185 answerable
+  queries): with expansion on recall 1.0, nDCG 0.9273, MRR 0.9207; off recall 0.8919, nDCG 0.9123,
+  MRR 0.8784; multi-hop recall 1.0 against 0.0; the 15 unanswerable queries all empty; 0 leaks;
+  latency p50 5.4 ms, p95 40.6 ms in a debug build. **The fixture is synthetic with planted terms**
+  (pseudo-words, planted key terms, aliases, bridges and mentions), so its recall measures the
+  pipeline and regressions, not quality on real content; a deployer's own corpus needs its own
+  query set. The test takes about 21 seconds in a debug build.
+- **Exit criterion re-run** (2026-11-01, `main` at `aa0ecda2` plus step 10, in `endpoints/umbel`
+  with its own `CARGO_TARGET_DIR`): `cargo test --locked --workspace` in `endpoints/umbel` passed 1032 tests in 107 suites (0 failed, 1 ignored doctest); the `knowledge` job's crates 364 (46 suites) and `-p umbel-plugin-knowledge --no-default-features` 169 (21 suites); the `check` job's test 680 (64 suites); every `umbel.yml` leg exited 0 (`cargo fmt --all
+  --check`; clippy `-D warnings` on the workspace, the library-only, mounted and component legs, the
+  mounted SDK and hello-mcp leg and the `wasm32-wasip2` leg; the components and hello-mcp builds;
+  the `check` job's test; the MSRV 1.97 check; the `knowledge` job's clippy, test, no-default-features
+  clippy and test, `wasm32-wasip2` check of `umbel-store` and MSRV check); `pnpm verify` passed all
+  14 of its legs (the `umbel.yml` ones including the todo conformance for `umbel-todo` and the
+  mounted backend in both MCP eras with confirmations, and the external-clients check). The hosted
+  `umbel.yml` runs are the pull request's checks (the `knowledge` job's first hosted timing is a
+  follow-up).
+- **Smoke on a fresh workspace** with the `umbel-knowledge` debug binary: `umbel-knowledge init`,
+  then the `umbel.toml` of the README's "Run the knowledge plugin" (one handbook collection of two
+  Markdown files, one code collection with a Rust file, an area approved by `principal:human:ada`);
+  `workspace doctor` healthy with 24 checks all `pass`; `knowledge-refresh`; `knowledge-search`
+  found both documents (and the Rust symbol `apply_step` by name) and `knowledge-open` read one;
+  `knowledge-propose` (create), `knowledge-approve` refused with `CONFIRMATION_REQUIRED` without a
+  terminal and **applied at a real pseudo-terminal** (`script` supplying one: two prompts, the
+  plugin's confirmation and AFD's approval, both answered `y`; the file was written, the document
+  stored, the proposal `applied` with the `self-approval` exception the area allows); after another
+  `knowledge-refresh` the approved document was found by search; `store-show` showed the index and
+  graph at the head (14); `workspace-show` reported `access: { principals: "unverified", exact:
+  ["library"] }`. The approval path is also covered by `proposals.rs` and `require_human.rs`
+  (the scripted terminal). The smoke showed the terminal prompt as a fixed sentence with no
+  proposal id, diff or flags (amendment G2), which is why the follow-up below is "before real use".
+- **Spec items confirmed from the code** (not from memory): output budgets are declared on every
+  read command of the knowledge manifest (search 24 000/96 000, open 32 000/128 000, find,
+  describe, list, changes, neighbors, related, path, outline, stale, proposal-list and
+  proposal-show 16 000/64 000; `knowledge-eval` declares none by design, J11) and tested in
+  `budgets.rs` (11 cases, including exact fit and one byte over, a result that cannot fit refused
+  rather than truncated) and in AFD's `output_budget.rs`; `event-list` skips version 1 events the
+  caller cannot read (`src/commands/event_list.rs`; `access_filter.rs`
+  `event_list_skips_version_1_events_the_caller_cannot_read`); `require-human` is enforced in the
+  CLI (`tests/require_human.rs`, 7 cases: `--yes` and `--approve` refused, no terminal refused, a
+  terminal answer decides, a batch cannot carry it, MCP and in-process refused) and declared on
+  `knowledge-approve`, `-reject` and `-verify`; the README states under "Access is not a security
+  boundary yet" that filtering is exact only for embedders and tests until phase 5; the README now
+  lists every required `allow` list (`records_write` and `graph_write` among them, and
+  `documents_write` and `content_write` for applying proposals) with a working `umbel.toml`,
+  verified by the smoke run above. No gap was found against those items.
+- **Not done:** nothing in phase 2's plan. Open and recorded as follow-ups: the dynamic
+  confirmation prompt (**must do before real use**), partitioned BM25 statistics (a phase 5
+  prerequisite), the hosted `knowledge` job timing, and the ranking tweak for expansion. TypeScript,
+  Python and C++ output budgets are AFD's follow-up and do not block Umbel. Store grants for
+  components wait for WIT world 1.1.0.
 - **Owner decisions (2026-11-01):** recorded in the specification's
   [section 15](phases/2-knowledge/spec.md#15-for-the-owner): access v0
   accepted and tightened (derivation reads compiled-only; filtering exact
@@ -617,8 +914,90 @@ should never have to scan the codebase to learn what is current.
   statistics or coarsened scores a phase 5 prerequisite. The coordinator
   kept D66's fail-open journal (race fixed), D62's proposals in phase 2
   (phase 4's exit amended to a curator proposal) and D57's binary.
-- **Needs the owner:** approval of the revised specification.
+- **Needs the owner:** nothing to approve. (Superseded: "approval of the revised specification", given and merged in #625.) The dynamic confirmation prompt below needs a decision on where it lives (a host feature) before a real deployment.
 - **Follow-ups:** the specification's follow-ups table, mirrored below.
+
+- **Step 7a done (2026-11-01, [672](https://github.com/lushly-dev/afd/pull/672) and the step 7a graph
+  pull request):** the structural graph. **Part 1 (host and SDK):** `HostServices::graph_applied`
+  (a `graph` read), `derive_head` (the true head, which counts changes the caller may not read, so a
+  derivation read only) and `checkpoint` (any store write grant allowed for the space), and the
+  host's whole-graph read served from the readable-graph cache. **Part 2 (the `knowledge` plugin):**
+  `knowledge-index` builds the graph in the same run as the index (the writer first, both applied
+  revisions, the run starting after the smaller, one `GraphBatch` committed in one transaction before
+  the index, neither revision ever lowered, `checkpoint`, and the exact head in the result and in
+  `dev.umbel/index`); the nodes and edges of section 7.3 except code symbols: directories, headings,
+  `links_to` (and a heading edge for a fragment), `tagged`, `owned_by`, `supersedes` and `co_cited`
+  stored per citing document under the 50-target cap, with a contribution never producing a node
+  for a link's target. `knowledge-search` expands along readable edges (`links_to` both ways,
+  `supersedes`, `co_cited` at weight 2, at most 20 per document, the `ranking` pack's `[expansion]`
+  table) and marks a neighbour `matched: false`; `INDEX_STALE` counts a lagging graph.
+  `knowledge-neighbors`, `-related`, `-path`, `-outline` and `-stale` are new, with output budgets;
+  `knowledge-describe` adds `graphApplied` and `coCitation`; `sources-sync` checkpoints. Nothing hidden
+  is named, scored or counted: neighbours, backlink counts, co-citation weights and paths use only
+  the origins and endpoints the caller can read (tests: a restricted citer does not raise a public
+  pair's weight; a path never passes through a restricted document). Fourteen amendments in the
+  specification's [Amendments from step 7a](phases/2-knowledge/spec.md#amendments-from-step-7a)
+  (H1 to H14). Verified 2026-11-01 in `endpoints/umbel` (shared `CARGO_TARGET_DIR`): `cargo fmt
+  --all --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg, the wasm checks,
+  `cargo test --locked --workspace`, the MSRV checks and `pnpm verify`.
+
+- **Step 7b done (2026-11-01, the step 7b pull request):** code symbols, in the `knowledge` plugin
+  only (no host or SDK change). The default `code` feature adds tree-sitter 0.27.1 and the Rust,
+  Python and TypeScript grammars (JavaScript and JSX parse through the TSX grammar; the fixtures show
+  no gap, so `tree-sitter-javascript` stays out) and one committed query file per language. A code
+  file is chunked by top-level definition with its comments, `export` and decorators, the text
+  between them in 60-line pieces, and its symbols are the `code` field of each chunk and
+  `symbol:<language>:<qualified name>` nodes with a `defines` edge from the file; a markdown
+  document's inline code that could name a symbol is a `mentions` edge to that node's id, served
+  only where both documents are readable and counting from the day the symbol exists. Parsing and
+  querying run under a wall-time bound each (tree-sitter's progress callbacks), a match limit, a
+  1 MiB size bound, a 5000-definition bound and a 25 % error rate (bytes under `ERROR` or
+  `MISSING` nodes); a file over any is plain text with `CODE_PARSE_DEGRADED` naming only readable
+  ids, and `knowledge-describe` says how a file was indexed. Nothing recurses over a tree: 200 000
+  levels of nesting pass on a 1 MiB stack. A restricted file's symbols reach an outsider through no
+  search, neighbor, path, related, outline, list, find or open (tests). Eight amendments in the
+  specification's [Amendments from step 7b](phases/2-knowledge/spec.md#amendments-from-step-7b)
+  (I1 to I8); the one that changes meaning: a mention names a **qualified** name, not a bare method
+  name (I1). Build cost: about 16 CPU seconds (7 to 8 s wall at `-j4`) for the tree-sitter crates and
+  +4.7 MB (+15 % unstripped, +19 % stripped) on the release `umbel-knowledge`. Tests:
+  `code_symbols.rs` (27), `code_off.rs` (2, with `--no-default-features`) and unit tests. Verified
+  2026-11-01 in `endpoints/umbel` (own `CARGO_TARGET_DIR`): `cargo fmt --all --check`, clippy
+  `-D warnings` on the workspace and each `umbel.yml` leg including the knowledge crate without
+  `code`, `cargo test --locked --workspace --no-fail-fast` (1006 passed), the MSRV checks and
+  `pnpm verify`.
+
+- **Step 9 done (2026-11-01, the step 9 pull request):** the eval harness, all in the `knowledge`
+  plugin and no host change. **The fixture** (`eval/fixture.rs`, `rng.rs`, `words.rs`): a PCG32
+  stream and a pseudo-word generator implemented in the crate, so the output is a pure function of
+  the seed; seed `20261101` writes `umbel.toml` (version 3, both spaces, the `restricted` group),
+  600 handbook and runbook documents and 50 code files in `alpha`, 400 notes in `beta`, and
+  `spaces/alpha/eval/queries.jsonl`; 150 alpha topics (a key term in one answer and in passing in up
+  to two others, two aliases, a phrase, a bridge document that links to the answer) and 15 beta
+  topics; 45 restricted handbook documents, 22 deprecated, exactly 8 `instruction-like` and 4
+  `hidden-text` planted for the write scan; the tree is pinned by a SHA-256 constant. **The query set**
+  (`eval/queries.rs`): 220 queries (80 exact, 30 alias, 20 phrase, 20 field, 20 multi-hop, 15
+  cross-space, 15 unanswerable, 20 permission), validated against `eval-queries.v1.json`.
+  **`knowledge-eval`** (`eval/run.rs`; CLI only, `inspect`): `{ spaces?, queries?, k?, expand? }`,
+  each query run through the ranking code `knowledge-search` runs (now generic over the read methods
+  of `Cx` and of `Cx::as_reader`'s `Reader`) as the principal it names; recall@k, nDCG@k and MRR@k
+  overall and per kind with expansion on and off, the unanswerable empty rate, `leaks` (checked
+  against each hit's stored access set and the principal's reader tokens), latency and every
+  query's ranked ids and scores; the report is the result. **The gate** (`eval/gate.rs`): `check`
+  (zero leaks, every unanswerable query empty, recall@10 >= 0.85, nDCG@10 >= 0.70, multi-hop
+  recall not hurt by expansion, no metric more than 0.02 below `plugins/knowledge/eval/baseline.json`)
+  and `lane_gate` (the seam for O4's lanes: at least 50 answerable queries). **CI:** the `knowledge`
+  job runs `eval_gate` and uploads the report as an artifact. Eleven amendments in the specification's
+  [Amendments from step 9](phases/2-knowledge/spec.md#amendments-from-step-9) (J1 to J11), the main
+  one that `queries` is `<collection>/<path>` (a plugin has no workspace path). **The numbers**
+  (seed `20261101`, `k = 10`, 185 answerable queries): with expansion on recall 1.0, nDCG 0.9273, MRR
+  0.9207; off recall 0.8919, nDCG 0.9123, MRR 0.8784; multi-hop recall 1.0 against 0.0; the 15
+  unanswerable queries all empty; 0 leaks in 220 queries. The thresholds are met without any
+  change to them or to the fixture after the first run. One ranking finding, recorded as a follow-up:
+  expansion lowers the nDCG of exact queries (0.9368 against 1.0) because the link neighbours of a
+  strong match outrank its weaker grade-1 mentions. The fixture's code files work with and without
+  step 7b's `code` feature (plain text, or by symbol), and no query targets a code file. New tests: `plugins/knowledge/tests/eval_fixture.rs` (8) and `eval_gate.rs` (7), and
+  unit tests for the generator's stream, words, metrics, gate and leak check. Verified 2026-11-01
+  in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt --all --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg, the wasm checks, `cargo test --locked --workspace` and the `knowledge` job's crates, `cargo +1.97.0 check --locked --workspace --all-targets`, and `pnpm verify` (all passed).
 
 Phases 3 to 7 have no detail yet; add a heading in this shape when one
 starts.
@@ -665,8 +1044,30 @@ starts.
 | 2026-11-01 | Phase 2 specification revision | Measure chunk sizes against S57 (about 250-token chunks with overlap) with the eval harness once its baseline exists | Open, after phase 2 step 9 |
 | 2026-11-01 | Phase 2 specification | A per-collection option to block, not only flag, content the write scan matches | Open, when a deployer asks |
 | 2026-11-01 | Phase 2 specification | Watching collection roots instead of an explicit `knowledge-refresh` | Open, later |
-| 2026-11-01 | Phase 2 step 1 | `umbel.toml` version 3 keeps `plugins.<id>.deny` and `plugins.<id>.grants.<g>.allow` as version 2 had them (the phase 1 grant names; `grants` reserved), and `workspace-config.v3.json` says the same; step 4 adds the ten grants and the allow lists to both the host and the schema | Open, phase 2 step 4 |
-| 2026-11-01 | Phase 2 step 1 | An event whose command supplied no valid `access` carries `["space"]` and `internal`; the store write that refuses an invalid envelope (`STORE_PROVENANCE_REQUIRED`) is step 4's, so until then a plugin that supplies a mistyped restrictive access set widens its event to the space (the store is not written yet) | Open, phase 2 step 4 |
+| 2026-11-01 | Phase 2 step 1 | `umbel.toml` version 3 keeps `plugins.<id>.deny` and `plugins.<id>.grants.<g>.allow` as version 2 had them (the phase 1 grant names; `grants` reserved), and `workspace-config.v3.json` says the same; step 4 adds the ten grants and the allow lists to both the host and the schema | Done in step 4 ([651](https://github.com/lushly-dev/afd/pull/651)) |
+| 2026-11-01 | Phase 2 step 1 | An event whose command supplied no valid `access` carries `["space"]` and `internal`; the store write that refuses an invalid envelope (`STORE_PROVENANCE_REQUIRED`) is step 4's, so until then a plugin that supplies a mistyped restrictive access set widens its event to the space (the store is not written yet) | Done in step 4 ([651](https://github.com/lushly-dev/afd/pull/651)): the store write is refused; an event whose command supplied no valid `access` still carries `["space"]`, by design |
+| 2026-11-01 | Phase 2 step 3 | The `knowledge` job's timeout is 15 minutes, three times the local 205 s widened for the hosted runners, which had not run it; lower it to three times the slower hosted run when that is under 15 minutes ([specification C14](phases/2-knowledge/spec.md#amendments-from-step-3)) | Open, phase 2 owning agent, after the first hosted runs |
+| 2026-11-01 | Phase 2 step 3 | A snippet is 240 characters; section 8.2's 480 for the detailed form needs a length on `IndexQuery` (C11) | Open, when a deployer asks: step 6 kept 240 characters for both formats ([F5](phases/2-knowledge/spec.md#amendments-from-step-6)) |
+| 2026-11-01 | Phase 2 step 4 | `store-check` cannot exclude a trace that is "open" (started, not finished) because the journal appends only finished entries; its 60-second rule is the only exclusion, so a handler that runs longer than a minute and whose store changes are older than that can be reported once as a missing journal entry (a warning, never a failure) | Open, accepted ([amendment D10](phases/2-knowledge/spec.md#amendments-from-step-4)) |
+| 2026-11-01 | Phase 2 step 4 | `space-list` and `workspace-show` still list every declared space id and title to any caller; only a space's contents are behind `readers` | Open, phase 5 (when filtering becomes a boundary) |
+| 2026-11-01 | Phase 2 step 5 | `broken-links` is judged at sync time against the collection's selected files and can go stale when a link's target appears later (amendment E6); `knowledge-describe` now computes the current list at read time (step 6, [F1](phases/2-knowledge/spec.md#amendments-from-step-6)); step 7a may re-flag on the index | Done for `knowledge-describe` in step 6; the stored flag can still go stale until 7a |
+| 2026-11-01 | Phase 2 step 5 | The hosted `knowledge` job now also tests the `umbel-okf`, `umbel-scan` and `sources` crates (the plugin's suite writes about 80 MiB for the 64 MiB test and 100 001 empty files for the file cap); measure it on the first hosted run against its 15-minute timeout | Open, phase 2 owning agent, after the first hosted run |
+| 2026-11-01 | Phase 2 step 5 | `scripts/affected/suites.mjs` mirrors `umbel.yml` for `pnpm verify` and was not updated for the `knowledge` job's three new crates or the `check` job's matching `--exclude`s, because changing that file scopes every package for `ci.yml` (a full TypeScript run); verify still tests the crates (through `--workspace`) and lints them. Mirror the workflow the next time a pull request touches `suites.mjs` anyway | Open, phase 2 owning agent |
+| 2026-11-01 | Phase 2 step 5 | A plugin id cannot hold a hyphen (`^[a-z][a-z0-9]{0,31}$`), so `sources-filesystem` is the plugin `sources` and owns the `sources-` domain; a connector plugin for another system (O1) will need its own domain, or phase 1's grammar will need to separate a plugin's id from its domain | Open, O1 |
+| 2026-11-01 | Phase 2 step 4 | The `umbel.yml` `check` and `msrv` jobs now build SQLite and tantivy through the host's default feature; measure their time on the first hosted run and raise or split their timeouts if needed | Open, phase 2 owning agent, after the first hosted run |
+| 2026-11-01 | Phase 2 step 6 | The SDK has no services for the store's head revision, the graph's applied revision or the WAL checkpoint, so `INDEX_STALE` and `dev.umbel/index`'s `head` use the highest change the caller can read, `knowledge-describe` has no `graphApplied`, and `knowledge-index` does not checkpoint ([F1, F2, F4](phases/2-knowledge/spec.md#amendments-from-step-6)); add the three host services if a deployer needs the exact figures | Settled in step 7a: the host services ([672](https://github.com/lushly-dev/afd/pull/672), [H1](phases/2-knowledge/spec.md#amendments-from-step-7a)) and the plugin's use of them (the second 7a pull request: the exact head in `knowledge-index`, `graphApplied`, the checkpoint after an index and a sync run). Search keeps the readable head by design ([H8](phases/2-knowledge/spec.md#amendments-from-step-7a)) |
+| 2026-11-01 | Phase 2 step 6 | `scripts/affected/suites.mjs` mirrors `umbel.yml` for `pnpm verify` and was not updated for the `knowledge` job's new crate or the `check` job's matching `--exclude` (the same reason as step 5); verify still tests and lints the crate through `--workspace`. Mirror the workflow the next time a pull request may rescope `ci.yml` | Open, phase 2 owning agent |
+| 2026-11-01 | Phase 2 step 6 | The hosted `knowledge` job now also tests `umbel-plugin-knowledge` (90 tests, about 15 seconds locally after the build); measure it on the first hosted run against its 15-minute timeout | Open, phase 2 owning agent, after the first hosted run |
+| 2026-11-01 | Phase 2 step 8 | `confirm_prompt` is static manifest text, so the terminal does not name the proposal being approved ([G2](phases/2-knowledge/spec.md#amendments-from-step-8)); a dynamic prompt (id, area, flags) needs a host feature | Superseded 2026-11-01 by the "must do before real use" row below |
+| 2026-11-01 | Phase 2 step 8 | The `knowledge` job gained about 33 tests (`proposals`, `verification`, `security`); measure the job on its first hosted run against the 15-minute timeout | Open, phase 2 owning agent, after the first hosted run |
+| 2026-11-01 | Owner's coordinator, at the phase 2 exit | **Must do before real use.** The `knowledge-approve` terminal prompt cannot show the diff ([G2](phases/2-knowledge/spec.md#amendments-from-step-8)): the manifest's `confirm_prompt` is static text, so a person can approve a change without reading it, and the smoke run at a real terminal confirmed that both prompts name neither the proposal, its diff nor its flags (they only say to have read `knowledge-proposal-show`). A dynamic `confirm_prompt` is required: a host feature by which the command builds the prompt per call (proposal id, area, op and document, the diff's head and the scan's flags, filtered by the approver's reader filter and sanitized for terminal escapes), for `knowledge-approve`, `-reject` and `-verify`, with a test that the prompt a person sees contains the diff | Open, must be done before a deployment trusts approvals; owner of the next knowledge or host change |
+| 2026-11-01 | Phase 2 step 9 | The `knowledge` job gained `eval_gate` (about 50 seconds locally in a debug build, mostly the seeded fixture's sync and rebuild) and uploads the eval report; measure the job on its first hosted run against the 15-minute timeout | Open, phase 2 owning agent, after the first hosted run |
+| 2026-11-01 | Phase 2 step 9 | Graph expansion scores a neighbour at 0.3 x its parent's whole score, so link neighbours of a strong match outrank weaker direct matches: nDCG@10 of the exact queries is 0.9368 with expansion and 1.0 without (cross-space 0.8181 against 0.8842), while multi-hop recall goes from 0 to 1 ([Amendments](phases/2-knowledge/spec.md#follow-ups)). A normalised or capped share is a ranking change to try against the baseline in its own pull request | Open, when a deployer asks |
+| 2026-11-01 | Phase 2 step 9 | A byte-identical eval report across Linux and macOS is not asserted (tantivy's IDF uses the platform's `ln`); the baseline's 0.02 tolerance absorbs it. Compare the two hosted legs' uploaded reports on the first scheduled macOS run | Open, phase 2 owning agent, after the first scheduled run |
+| 2026-11-01 | Shared plugin manifest proposal | The [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md), written for Loam's phase 1, keeps every Umbel manifest key and meaning and needs no Umbel change. Umbel's manifest versions 1 and 2 conform to its core version 1 as they are. It replaces the "Room for Loam" plan (phase 1 specification section 2; D37's consequence) of Loam referencing this schema's `$defs`: `plugin.kind`, `domain`, `command` and `expose` are closed and Umbel-specific. Optional for Umbel: its step 3 (the core vectors in `tests/schemas.rs`; a later manifest version that `$ref`s the core). If Umbel agrees, it annotates D37 and "Room for Loam" to point there. The proposal also covers Umbel instances joining Loam as headless mounted apps, over loopback HTTP with the bearer token or stdio, and needs nothing from Umbel for that. It asks Umbel's owner U1 to U4: CORS for a browser-hosted Loam (recommended no for now; it would amend D32 for preflights), reach beyond loopback before phase 5 (recommended no), a host description or server card, and unifying space with Loam's scope. Owner questions 2 and 5 ask whether Umbel should carry and project `ui`, and accept a multi-member Loam over one principal per transport (D32) | Open, Umbel's choice; this pull request changes no Umbel decision |
+| 2026-11-01 | Phase 2 step 7b | A bare nested name in inline code (`apply_step` for `Type::apply_step`) is not a `mentions` edge, only a qualified name or a top-level symbol's name is ([I1](phases/2-knowledge/spec.md#amendments-from-step-7b)); a symbol table that follows the code documents would be needed for the rest | Open, when a deployer asks |
+| 2026-11-01 | Phase 2 step 7b | The `knowledge` job gained the `code` feature's tree-sitter build (about 16 CPU seconds) and two legs for the crate without it (clippy and the tests); measure the job on its first hosted run against the 15-minute timeout. `scripts/affected/suites.mjs` does not mirror the two new legs either (see the step 6 row) | Open, phase 2 exit |
+| 2026-11-01 | Phase 2 step 7b | Symbols are Rust, Python, TypeScript and JavaScript definitions only (no fields, enum variants, Python module constants, or other languages); each language is a grammar crate and a query file | Open, when a deployer asks |
 
 ## Session log
 
@@ -709,3 +1110,15 @@ starts.
 | 2026-11-01 | Phase 2 step 0a | Output budgets specified in AFD (documents only): the [proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and status in `docs/features/active/output-budgets/`, `spec/output-budgets.md` and `spec/output-budgets.json`, the `spec/` amendments and parity rows; the architecture's prerequisites row and the phase 2 specification's status block and "Amendments from step 0a" updated. No code |
 | 2026-11-01 | Phase 2 step 0b | AFD Rust output budgets and the public frontmatter reader ([#633](https://github.com/lushly-dev/afd/pull/633)): `packages/rust` `output_budget.rs` and its wiring in the registry, journal, router, tool lists, `afd-detail` and `afd-help`; `OUTPUT_BUDGET_EXCEEDED` in the shared catalog and four constants; `afd::frontmatter` and the `frontmatter` feature; `tests/output_budget.rs` over `spec/output-budgets.json`. Nine amendments in the specification's "Amendments from step 0b" |
 | 2026-11-01 | Phase 2 step 1 | Shapes and configuration ([632](https://github.com/lushly-dev/afd/pull/632)): the nine schemas of the specification's section 2 with examples (`tests/schemas.rs` extended: closed, every example validates and, for the configuration, manifest, envelope and event, opens in the host; each refusal the host makes is also the schema's); configuration version 3 (`tests/config_v3.rs`: collections, roots inside and outside, symbolic links, overlap, readers, groups, the store, versions 1 and 2 read as 3, `init` writes 3) and the doctor's `collections.roots`; manifest version 2 parsing (`tests/manifest_v2.rs`: the effects with and without their grants, `output_budget` compiled-only, `confirm = "require-human"`, version 1 unchanged); `store` a host domain; envelope and event version 1 projected from the gate's stamp, with version 0 lines read and rebuilt as written (`tests/journal_events.rs`). Eight amendments recorded in the specification ([Amendments from step 1](phases/2-knowledge/spec.md#amendments-from-step-1)). No store, index or plugin code. Two follow-ups for step 4 added |
+| 2026-11-01 | Phase 2 step 2 | Store traits and the SQLite stores ([636](https://github.com/lushly-dev/afd/pull/636)): `umbel-store` (types, `DocumentStore`, `SearchIndex`, `GraphStore`, the conformance suite with its 40-document access fixture, the breakable in-memory fake and `suite_detects.rs`), `umbel-store-embedded` (bundled SQLite in WAL mode, multi-process safe, the checkpoint policy, `fullfsync` on macOS), the `knowledge` CI job, the quarantined inventory rows and `architecture.json` entries. Seven amendments in the specification's "Amendments from step 2". Measured bundled SQLite: 39 s and 106 MB for a fresh `cargo build -p rusqlite` |
+| 2026-11-01 | Phase 2 step 3 | The tantivy index ([643](https://github.com/lushly-dev/afd/pull/643)): `TantivyIndex` in `umbel-store-embedded` (schema 1 with LZ4 named, `en_stem`, the query builder over the `tantivy-query-grammar` AST with its limits and bounded prefixes, the reader clause, writer sessions that never lower `applied`, four-decimal scores, snippets, checksum validation), the cached petgraph form of the readable graph, the suite's `index` group and the two index cases that waited, `run_groups`, and the tests above. Fourteen amendments in the specification, C1 correcting the revision (the grammar marks `prefix` only on a quoted phrase). Measured tantivy cold: 135 of 188 CPU-seconds of an 83 s build, 640 MB target; the `knowledge` job 205 s locally, timeout 45 to 15 minutes |
+| 2026-11-01 | Phase 2 step 4 | Host services ([651](https://github.com/lushly-dev/afd/pull/651)): the ten grants with allow lists and `ALLOW_REQUIRED`, reader filters and `SPACE_NOT_READABLE`, `spaces`, derivation reads and `as_reader`, provenance enforcement, the gate's allow-list, `dev.umbel/changes`, `replay: \"recorded\"`, `event-list` by `access`, the SDK's store methods, `HostError`'s new variants, output budgets wired, the `store-embedded` feature, `store-show`, `store-check`, `store-backup`, the doctor's store checks, `confirm = \"require-human\"` on the CLI, `workspace-show`'s `access` and the README paragraph. Fifteen amendments in the specification. Tests: `store_grants.rs`, `access_filter.rs`, `require_human.rs`, `store_commands.rs`, `doctor_stores.rs` and the rest of `manifest_v2.rs` |
+| 2026-11-01 | Phase 2 step 5 | `umbel-scan`, `umbel-okf` and the `sources` plugin ([668](https://github.com/lushly-dev/afd/pull/668)): the write scan moved out of the host, frontmatter and structure and link resolution under the caps, `sources-sync` (bounded runs, change detection by hash, access mirroring, results of totals plus readable ids) and `sources-status`, the host service `content_collections`, the knowledge CI job's crates, and the inventory and `architecture.json` rows. Thirteen amendments in the specification (the plugin id has no hyphen; the sync state is sharded; `limit` counts files read). Write-scan flag rate on 523 repository documents: 3.3 % `instruction-like`, 0.2 % `hidden-text` |
+| 2026-11-01 | Phase 2 step 6 | The knowledge core ([671](https://github.com/lushly-dev/afd/pull/671)): `umbel-plugin-knowledge` (plugin `knowledge`, compiled) with structure-aware chunking, `knowledge-index` by the section 8.7 procedure (index only), `knowledge-search` (fielded BM25, the reader clause inside the query, document hits with locators, explicit multi-space queries fused by rank), `knowledge-open`, `-find`, `-describe`, `-list`, `-changes` with output budgets and content labels, the first-class suggestions, the `knowledge-refresh` pipeline, the `ranking` pack, the skill and the `umbel-knowledge` binary. Seventeen amendments (F1 to F17); no host change. Tests: chunking, query syntax, search, open and find, spaces, budgets, security (read side), index and process. The `knowledge` job, the release inventory (quarantined) and `architecture.json` gained the crate |
+| 2026-11-01 | Phase 2 step 8 | Proposals and verification ([673](https://github.com/lushly-dev/afd/pull/673)): the proposal record as a decision trace, areas and approvers, `knowledge-propose` with idempotency, list, show, withdraw, the CLI-only `knowledge-approve`, `-reject` and `-verify` (`require-human`, AFD approval), the resumable apply sequence with `derivedFrom` and `confidence`, frontmatter-only rewrites (`umbel_okf::rewrite_keys`), the write scan on proposals, and the host service `reader_tokens`. Sixteen amendments (G1 to G16). Tests: proposals, verification, security (write side) |
+| 2026-11-01 | Phase 2 step 7a, part 1 | The three host services step 6 recorded as missing (F1, F2, F4), host and SDK only: `HostServices::graph_applied` (a `graph` read), `derive_head` (the true head, a derivation read only, because it counts changes the caller may not read) and `checkpoint` (any store write grant allowed for the space), with `Cx` and `SpaceCx` wrappers; the host's whole-graph read now comes from the readable-graph cache (`ReadableGraph::to_subgraph`, tested equal to the SQL read, tightened access hides at once). Two amendments (H1, H2). Tests: three new cases in `store_grants.rs`, one in `store-embedded/tests/index.rs` |
+| 2026-11-01 | Phase 2 step 7a, part 2 | The structural graph ([step 7a graph pull request](phases/2-knowledge/spec.md#amendments-from-step-7a)): `knowledge-index` builds the graph in the same run as the index (the writer first, both applied revisions, one `GraphBatch` committed in one transaction before the index, neither revision ever lowered, the checkpoint, the true head), with hierarchy, headings, links and backlinks, tags, owners, supersession and co-citation stored per citer under the 50-target cap; `knowledge-search` expands along readable edges (`matched: false` for a neighbour); `knowledge-neighbors`, `-related`, `-path`, `-outline` and `-stale`; `graphApplied` and `coCitation` in `knowledge-describe`; the ranking pack's `[expansion]` table; `sources-sync` checkpoints. Twelve amendments (H3 to H14); the host is unchanged beyond part 1. Tests: `graph.rs` (12), the expansion cases of `search.rs` (5), `budgets.rs`, and the security fixture now indexes its graph for real |
+| 2026-11-01 | Phase 2 step 7b | Code symbols (the step 7b pull request): the knowledge crate's default `code` feature with tree-sitter 0.27.1 and the Rust, Python and TypeScript grammars (JavaScript and JSX through the TSX grammar), a query file per language, symbol chunking, `defines` and `mentions` edges under the graph's access rules, parse and query budgets with a clean per-file outcome and `CODE_PARSE_DEGRADED`, `codeIndexing` in `knowledge-describe`. Eight amendments (I1 to I8); no host change. Tests: `code_symbols.rs` (27), `code_off.rs` (2) and unit tests; hostile fixtures (deep nesting on a 1 MiB stack, long lines, huge and grammar-breaking files, NUL, invalid UTF-8) and restricted-file fixtures. Build cost about 16 CPU seconds; release binary +4.7 MB |
+| 2026-11-01 | Phase 2 step 9 | The eval harness (the step 9 pull request): the seeded thousand-document fixture generator with its pinned digest (PCG32 and a pseudo-word generator in the crate), the 220-query set, `knowledge-eval` (CLI only, the report as the result, each query run as its own principal through the shared ranking code), recall@k, nDCG@k and MRR@k with expansion on and off, the zero-leak check, `eval::gate::check` and `lane_gate`, `plugins/knowledge/eval/baseline.json`, and the report uploaded by the `knowledge` job. Eleven amendments (J1 to J11). Measured, thresholds unchanged and met: recall@10 1.0, nDCG@10 0.9273 with expansion; 0 leaks; 15 of 15 unanswerable queries empty. Finding: expansion lowers the exact queries' nDCG (0.9368 against 1.0), recorded as a follow-up |
+| 2026-11-01 | Security fix | The independent review of the phase 3 specification found a live phase 2 bypass: `umbel batch` merged the request's `context` into `extra`, so a request could set `dev.umbel/human-confirmed` and pass `require-human` with no terminal. `knowledge-reject` had no other gate; `knowledge-approve` and `knowledge-verify` also need AFD's approval. `umbel batch` now drops the request's `context`, as the MCP route ignores it; `require_human.rs` holds the forgery as a regression test, which failed before the fix. [#688](https://github.com/lushly-dev/afd/pull/688) |
+| 2026-11-01 | Phase 2 exit | Phase 2 done. Steps 0a to 9 merged (#625 specification; #633, #632, #636, #643, #651, #668, #671, #672, #673 and the step 7a graph, 7b and 9 pull requests); step 10 added `plugins/knowledge/tests/exit_thousand.rs` (the exit criterion's four points on the seeded fixture: 650 and 400 documents with both indexes and graphs at their heads, no cross-space result, results filtered by principal with `SPACE_NOT_READABLE`, the eval report validated, gated and written to `UMBEL_EXIT_REPORT`), uploaded in the `knowledge` job, and re-ran the exit criterion on `main` at `aa0ecda2`: `cargo test --locked --workspace` in `endpoints/umbel` passed 1032 tests in 107 suites (0 failed, 1 ignored doctest); the `knowledge` job's crates 364 (46 suites) and `-p umbel-plugin-knowledge --no-default-features` 169 (21 suites); the `check` job's test 680 (64 suites); every `umbel.yml` leg and `pnpm verify` passed; a smoke on a fresh workspace with `umbel-knowledge` (init, refresh, search, open, propose, approve at a real pseudo-terminal, doctor healthy). Eval numbers: recall@10 1.0 and nDCG@10 0.9273 with expansion, 0 leaks in 220 queries, on a synthetic fixture whose recall measures the pipeline and regressions, not quality on real content. Added the README's "Run the knowledge plugin" (a working `umbel.toml` and every required `allow` list) and the follow-up "must do before real use": the `knowledge-approve` prompt cannot show the diff. Phases 3, 5, 6 and the further first-class plugins are unblocked |

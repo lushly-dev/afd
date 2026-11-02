@@ -1,0 +1,61 @@
+manifest_version = 2
+protocol = 1
+
+[plugin]
+id = "sources"
+title = "Sources: filesystem"
+version = "0.1.0"
+description = "Reads the markdown and code files of a space's collections into the document store, detecting changes by content hash."
+kind = "compiled"
+domains = ["sources"]
+
+[[grants]]
+name = "content"
+reason = "Lists and reads the files under the space's collection roots, and learns each collection's settings."
+
+[[grants]]
+name = "documents"
+reason = "Tells which of the documents it wrote the caller may read, so a result names only those."
+
+[[grants]]
+name = "documents_write"
+reason = "Writes a document for each new or changed file and a tombstone for each removed one."
+
+[[grants]]
+name = "records"
+reason = "Reads the sync state it keeps for each collection."
+
+[[grants]]
+name = "records_write"
+reason = "Keeps the sync state, so an unchanged file is recognised without being read again."
+
+[[grants]]
+name = "packs"
+reason = "Reads the frontmatter schema pack a space may override."
+
+[[commands]]
+name = "sources-sync"
+description = "Read a space's collections into the document store: new and changed files are written, removed files are deleted."
+effects = ["store-write"]
+input_schema = "schemas/sources-sync.input.json"
+category = "sources"
+tags = ["knowledge", "ingest"]
+version = "1.0.0"
+examples = [{ title = "Sync one collection", input = { collection = "handbook" } }]
+
+[[commands]]
+name = "sources-status"
+description = "Say which files of a space's collections changed since the last sync, without reading them."
+effects = ["inspect"]
+input_schema = "schemas/sources-status.input.json"
+category = "sources"
+tags = ["knowledge", "ingest"]
+version = "1.0.0"
+
+[[packs]]
+id = "frontmatter"
+path = "packs/frontmatter"
+
+[[skills]]
+name = "sources-guide"
+path = "skills/sources-guide"

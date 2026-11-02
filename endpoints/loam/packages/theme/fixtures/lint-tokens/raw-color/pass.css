@@ -1,0 +1,8 @@
+:host {
+	color: var(--color-text-primary);
+	background: transparent;
+	border-color: currentColor;
+	outline-color: color-mix(in srgb, var(--color-focus-ring), transparent);
+	transition: color var(--duration-fast) var(--easing-standard);
+	content: "#fff red";
+}

@@ -582,15 +582,7 @@ fn declared_grants_in_the_catalog_pass() {
 
 #[test]
 fn a_reserved_or_unknown_grant_fails_when_required_and_warns_when_optional() {
-    for name in [
-        "documents",
-        "index",
-        "graph",
-        "memory",
-        "http",
-        "secrets",
-        "teleport",
-    ] {
+    for name in ["memory", "http", "secrets", "teleport"] {
         let report = grants_report("", &grant(name, true));
         let found = check(&report, "plugins.grants");
         assert_eq!(found.status, CheckStatus::Fail, "{name}");
@@ -608,8 +600,29 @@ fn a_reserved_or_unknown_grant_fails_when_required_and_warns_when_optional() {
             "{name}"
         );
     }
-    let report = grants_report("", &grant("documents", true));
-    assert!(check(&report, "plugins.grants").message.contains("phase 2"));
+    let report = grants_report("", &grant("memory", true));
+    assert!(check(&report, "plugins.grants").message.contains("phase 3"));
+}
+
+#[test]
+fn a_store_grant_on_a_component_is_unavailable_until_world_1_1_0() {
+    for name in ["documents", "index_write", "content"] {
+        let report = grants_report("", &grant(name, true));
+        let found = check(&report, "plugins.grants");
+        assert_eq!(found.status, CheckStatus::Fail, "{name}");
+        assert!(
+            found.message.contains("PLUGIN_GRANT_UNAVAILABLE")
+                && found.message.contains("umbel:plugin/plugin@1.1.0"),
+            "{name}: {}",
+            found.message
+        );
+        let report = grants_report("", &grant(name, false));
+        assert_eq!(
+            status(&report, "plugins.grants"),
+            CheckStatus::Warn,
+            "{name}"
+        );
+    }
 }
 
 #[test]

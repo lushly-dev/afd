@@ -1,0 +1,34 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "plain-switch.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "PlainSwitch",
+					"tagName": "plain-switch",
+					"customElement": true,
+					"description": "A switch with a toggle operation.",
+					"members": [
+						{
+							"kind": "field",
+							"name": "checked",
+							"type": { "text": "boolean" },
+							"attribute": "checked"
+						},
+						{ "kind": "method", "name": "toggle" }
+					],
+					"attributes": [
+						{ "name": "checked", "type": { "text": "boolean" }, "fieldName": "checked" },
+						{ "name": "size", "type": { "text": "'small' | 'large'" }, "default": "'small'" }
+					],
+					"events": [{ "name": "change", "type": { "text": "Event" } }],
+					"slots": [{ "name": "", "description": "The label." }],
+					"cssProperties": [{ "name": "--_switch-accent", "default": "var(--fixture-accent)" }]
+				}
+			]
+		}
+	]
+}

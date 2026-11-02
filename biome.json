@@ -23,6 +23,7 @@
 			"!endpoints/botcore/provenance/*.json",
 			"!endpoints/health/provenance/*.json",
 			"!endpoints/health-dashboard/fixtures",
+			"!endpoints/loam/packages/theme/fixtures",
 			"!foundations/specimen/provenance/*.json",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json"

@@ -1,0 +1,23 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"proposal": {
+			"type": "string",
+			"minLength": 3,
+			"maxLength": 22,
+			"description": "A proposal id, p- and 20 hex digits"
+		},
+		"reason": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 2000,
+			"description": "Why; the proposer or curator reads it next"
+		}
+	},
+	"required": ["proposal", "reason"],
+	"additionalProperties": false
+}

@@ -98,14 +98,94 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  endpoints/loam/apps/hello:
+    dependencies:
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@lushly-dev/loam-testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/apps/tally:
+    dependencies:
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@lushly-dev/loam-testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   endpoints/loam/packages/chrome:
     dependencies:
       '@lushly-dev/fast-element':
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-console':
+        specifier: workspace:*
+        version: link:../console
       '@lushly-dev/loam-kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@lushly-dev/loam-theme':
         specifier: workspace:*
         version: link:../theme
@@ -113,6 +193,89 @@ importers:
         specifier: workspace:*
         version: link:../../../../foundations/fast-af/packages/violet-elements
     devDependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/specimen':
+        specifier: workspace:*
+        version: link:../../../../foundations/specimen
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/cli:
+    dependencies:
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../../../packages/server
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
+      '@lushly-dev/loam-manifest':
+        specifier: workspace:*
+        version: link:../manifest
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../theme
+      smol-toml:
+        specifier: ^1.9.1
+        version: 1.9.1
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/console:
+    dependencies:
+      '@lushly-dev/afd-adapters':
+        specifier: workspace:*
+        version: link:../../../../packages/adapters
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@lushly-dev/violet-elements':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/violet-elements
+    devDependencies:
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../theme
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -143,6 +306,12 @@ importers:
       '@lushly-dev/afd-view-state':
         specifier: workspace:*
         version: link:../../../../packages/view-state
+      '@lushly-dev/loam-manifest':
+        specifier: workspace:*
+        version: link:../manifest
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@lushly-dev/local-db':
         specifier: workspace:*
         version: link:../../../../packages/local-db
@@ -150,6 +319,93 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/manifest:
+    dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      json-schema-to-typescript:
+        specifier: ^16.0.0
+        version: 16.0.0
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/sdk:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/loam-manifest':
+        specifier: workspace:*
+        version: link:../manifest
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  endpoints/loam/packages/testing:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
+      '@lushly-dev/loam-kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
+    devDependencies:
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../cli
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -193,31 +449,76 @@ importers:
 
   endpoints/loam/packages/web:
     dependencies:
+      '@lushly-dev/afd-auth':
+        specifier: workspace:*
+        version: link:../../../../packages/auth
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../../../packages/client
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../packages/core
       '@lushly-dev/loam-chrome':
         specifier: workspace:*
         version: link:../chrome
       '@lushly-dev/loam-kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@lushly-dev/loam-manifest':
+        specifier: workspace:*
+        version: link:../manifest
       '@lushly-dev/loam-theme':
         specifier: workspace:*
         version: link:../theme
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../packages/local-db
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
+      '@lushly-dev/loam-app-hello':
+        specifier: workspace:*
+        version: link:../../apps/hello
+      '@lushly-dev/loam-app-tally':
+        specifier: workspace:*
+        version: link:../../apps/tally
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@lushly-dev/loam-testing':
+        specifier: workspace:*
+        version: link:../testing
       '@lushly-dev/specimen':
         specifier: workspace:*
         version: link:../../../../foundations/specimen
       '@lushly-dev/violet-runtime':
         specifier: workspace:*
         version: link:../../../../foundations/violet/packages/runtime
+      '@modelcontextprotocol/ext-apps':
+        specifier: 2.0.4
+        version: 2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      '@vitest/browser':
+        specifier: 4.1.12
+        version: 4.1.12(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
+      '@vitest/browser-playwright':
+        specifier: ^4.1.12
+        version: 4.1.12(playwright@1.64.0)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
       '@vitest/coverage-v8':
         specifier: ^4.1.12
         version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
       axe-core:
         specifier: 4.13.0
         version: 4.13.0
+      fake-indexeddb:
+        specifier: ^6.2.7
+        version: 6.2.7
       playwright:
         specifier: ^1.64.0
         version: 1.64.0
@@ -427,9 +728,9 @@ importers:
 
   foundations/specimen:
     dependencies:
-      parse5:
-        specifier: ^8.0.0
-        version: 8.0.1
+      axe-core:
+        specifier: 4.13.0
+        version: 4.13.0
       playwright:
         specifier: ^1.64.0
         version: 1.64.0
@@ -464,6 +765,9 @@ importers:
       lit:
         specifier: 3.3.3
         version: 3.3.3
+      parse5:
+        specifier: ^8.0.0
+        version: 8.0.1
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -566,6 +870,27 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.12
         version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  integrations/specimen-fast-af:
+    devDependencies:
+      '@lushly-dev/fast-element':
+        specifier: workspace:^3.0.1
+        version: link:../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/specimen':
+        specifier: workspace:^2.2.0
+        version: link:../../foundations/specimen
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -901,8 +1226,8 @@ importers:
   packages/examples/todo-directclient/backend:
     dependencies:
       '@google/genai':
-        specifier: ^1.52.0
-        version: 1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))
+        specifier: ^2.32.0
+        version: 2.32.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))
       '@lushly-dev/afd-client':
         specifier: workspace:*
         version: link:../../../client
@@ -913,8 +1238,8 @@ importers:
         specifier: workspace:*
         version: link:../../../server
       dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
+        specifier: ^18.0.9
+        version: 18.0.9
       zod:
         specifier: ^4.6.6
         version: 4.6.7
@@ -1103,6 +1428,10 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@apidevtools/json-schema-ref-parser@11.9.3':
+    resolution: {integrity: sha512-60vepv88RwcJtSHrD6MjIL6Ta3SOYbgfnkHb+ppAVK+o9mXprRtulx7VlRl3lN3bbvysAfCS7WMVfhUYemB0IQ==}
+    engines: {node: '>= 16'}
 
   '@asamuzakjp/css-color@7.1.9':
     resolution: {integrity: sha512-vZ6JQVq8Ivgz6b/IBlAf90wZviXdluY13cQOPO+nJHbmXwGrPl2GcpqUY7a55/8ZVdfONXpCFMpRijOBCHNlcQ==}
@@ -2162,8 +2491,8 @@ packages:
   '@github/catalyst@1.8.1':
     resolution: {integrity: sha512-dnN4WWpbeuQvA17LvsGdlXEueJdBk9y+I+WO5pdNpoHNOXPsFcz3hJrq1iRmdsNgQOf4S8e83axtwIxvG62eWA==}
 
-  '@google/genai@1.52.0':
-    resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
+  '@google/genai@2.32.0':
+    resolution: {integrity: sha512-60c79uXpR0a47bmGqDxbXEBuQUalNmwo5mx5kqb91jIW4FoqpsLSt86DeVhRhtH5+s/16Wqxt3sXzFQn2U1OHQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -2205,6 +2534,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@jsdevtools/ono@7.1.3':
+    resolution: {integrity: sha512-4JQNk+3mVzK3xh2rqd6RB4J46qUR19azEHBneZyTZM+c456qOrbbM/5xcR8huNCCcbVt7+UmizG6GuUvPvKUYg==}
+
   '@lit-labs/ssr-dom-shim@1.6.0':
     resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
 
@@ -2240,6 +2572,24 @@ packages:
   '@modelcontextprotocol/core@2.4.0':
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
+
+  '@modelcontextprotocol/ext-apps@2.0.4':
+    resolution: {integrity: sha512-B+PcbuGiaf0e5I3uy4iO5tS3Abo+5w8JvZFzHMzQdq9yVwP836zJkw2+KCGOQ0r4TM1fuQi4JdnbuWjkS4aBvg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@modelcontextprotocol/client': ^2.0.0
+      '@modelcontextprotocol/core': ^2.0.0
+      '@modelcontextprotocol/server': ^2.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
+      zod: ^4.6.6
+    peerDependenciesMeta:
+      '@modelcontextprotocol/server':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   '@modelcontextprotocol/node@2.1.2':
     resolution: {integrity: sha512-IIcIqBpr6NCQQs5DgJTgvbSOAw+3iaR/uquqg+e0nXCdudfjPg/80x0TseUnQx14AUAtE4fsJCEpJKPyb6WPVA==}
@@ -3113,6 +3463,12 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/json-schema@7.0.15':
+    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/lodash@4.17.27':
+    resolution: {integrity: sha512-VenMRv/eKNrspX9v3H4dbmjsrnCOYdYBG3kxXKk3dG6X+urBGcj2Prww3xw1U5K4FV/mE4h5GbWd0szEKf+9ew==}
+
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
@@ -3358,6 +3714,9 @@ packages:
 
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
+
+  argparse@3.0.4:
+    resolution: {integrity: sha512-fwWK3Zq22l4XJJjx5mcBHGikIk+hJqO+32dPm0Jur7+rtG5x1scOjSfdT9ZKeWHPpsya/l0HHK4tDImBkTrtvA==}
 
   aria-query@5.3.0:
     resolution: {integrity: sha512-b0P0sZPKtyu8HkeRAfCq0IfURZK+SuwMjY1UXGBU27wpAiTwQAIlq56IbIO+ytk/JjS1fMR14ee5WBBfKi5J6A==}
@@ -3794,9 +4153,10 @@ packages:
     resolution: {integrity: sha512-QM8q3zDe58hqUqjraQOmzZ1LIH9SWQJTlEKCH4kJ2oQvLZk7RbQXvtDM2XEq3fwkV9CCvvH4LA0AV+ogFsBM2Q==}
     engines: {node: '>=8'}
 
-  dotenv@17.4.2:
-    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
+  dotenv@18.0.9:
+    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
     engines: {node: '>=12'}
+    hasBin: true
 
   dotenv@8.6.0:
     resolution: {integrity: sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==}
@@ -4285,6 +4645,10 @@ packages:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
+  js-yaml@5.5.0:
+    resolution: {integrity: sha512-paNr4LFIFPjeeSmwNYdrb8FafLLG/Cr2Af3GjbsHJ5CxIjH4r0c2emlmRdAtpPAieP1gRVzk6buBbVP5gBMGAg==}
+    hasBin: true
+
   jsdom@30.1.3:
     resolution: {integrity: sha512-hQMUPvRgN7KxsfIytDQji7bimuJeRQa6Qo5+iuiZQk5CafeRxLIA10/cG5YCBFNpD9RO3oqIiN4CO1Y44kxqXg==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
@@ -4299,6 +4663,11 @@ packages:
 
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
+
+  json-schema-to-typescript@16.0.0:
+    resolution: {integrity: sha512-Ah6kK4q6SjlMzWBH1eNOQkdRh5Qhr5T/RCFwfjQqWZA7UDW+N47A8wfyoiN0L884s4L4bAEI54IjIuN3/u0B/A==}
+    engines: {node: '>=16.0.0'}
+    hasBin: true
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
@@ -5686,6 +6055,12 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
+  '@apidevtools/json-schema-ref-parser@11.9.3':
+    dependencies:
+      '@jsdevtools/ono': 7.1.3
+      '@types/json-schema': 7.0.15
+      js-yaml: 4.3.2
+
   '@asamuzakjp/css-color@7.1.9':
     dependencies:
       '@csstools/css-calc': 3.4.3(@csstools/css-parser-algorithms@4.0.2(@csstools/css-tokenizer@4.0.2))(@csstools/css-tokenizer@4.0.2)
@@ -6550,7 +6925,7 @@ snapshots:
 
   '@github/catalyst@1.8.1': {}
 
-  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))':
+  '@google/genai@2.32.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
@@ -6597,6 +6972,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@jsdevtools/ono@7.1.3': {}
 
   '@lit-labs/ssr-dom-shim@1.6.0': {}
 
@@ -6671,6 +7048,17 @@ snapshots:
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
       zod: 4.6.7
+
+  '@modelcontextprotocol/ext-apps@2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)':
+    dependencies:
+      '@modelcontextprotocol/client': 2.4.0
+      '@modelcontextprotocol/core': 2.4.0
+      '@standard-schema/spec': 1.1.0
+      zod: 4.6.7
+    optionalDependencies:
+      '@modelcontextprotocol/server': 2.4.0
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
 
   '@modelcontextprotocol/node@2.1.2(@modelcontextprotocol/server@2.4.0)':
     dependencies:
@@ -7313,6 +7701,10 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/json-schema@7.0.15': {}
+
+  '@types/lodash@4.17.27': {}
+
   '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
@@ -7424,9 +7816,9 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
     optionalDependencies:
-      '@vitest/browser': 4.1.12(vite@8.3.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
+      '@vitest/browser': 4.1.12(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
 
   '@vitest/expect@3.2.4':
     dependencies:
@@ -7599,6 +7991,8 @@ snapshots:
       sprintf-js: 1.0.3
 
   argparse@2.0.1: {}
+
+  argparse@3.0.4: {}
 
   aria-query@5.3.0:
     dependencies:
@@ -7971,7 +8365,7 @@ snapshots:
     dependencies:
       is-obj: 2.0.0
 
-  dotenv@17.4.2: {}
+  dotenv@18.0.9: {}
 
   dotenv@8.6.0: {}
 
@@ -8521,6 +8915,10 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
+  js-yaml@5.5.0:
+    dependencies:
+      argparse: 3.0.4
+
   jsdom@30.1.3(@noble/hashes@2.4.0):
     dependencies:
       '@asamuzakjp/css-color': 7.1.9
@@ -8551,6 +8949,17 @@ snapshots:
       bignumber.js: 9.3.1
 
   json-parse-even-better-errors@2.3.1: {}
+
+  json-schema-to-typescript@16.0.0:
+    dependencies:
+      '@apidevtools/json-schema-ref-parser': 11.9.3
+      '@types/json-schema': 7.0.15
+      '@types/lodash': 4.17.27
+      js-yaml: 5.5.0
+      lodash: 4.18.1
+      minimist: 1.2.8
+      prettier: 3.9.10
+      tinyglobby: 0.2.17
 
   json-schema-traverse@1.0.0: {}
 

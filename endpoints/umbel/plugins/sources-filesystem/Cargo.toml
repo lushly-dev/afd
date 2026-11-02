@@ -1,0 +1,34 @@
+[package]
+name = "umbel-plugin-sources-filesystem"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel sources-filesystem plugin: collections of markdown and code files read into the document store, with change detection by content hash"
+repository = "https://github.com/lushly-dev/afd"
+
+[dependencies]
+globset = "0.4"
+# Offline only: the frontmatter schema pack is a file, never fetched.
+jsonschema = { version = "0.60", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+umbel-okf = { path = "../../okf" }
+umbel-sdk = { path = "../../sdk" }
+umbel-store = { path = "../../store" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+rusqlite = { version = "0.41", features = ["bundled"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The tests boot a host with real collections, readers and allow lists.
+umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+
+[lints]
+workspace = true

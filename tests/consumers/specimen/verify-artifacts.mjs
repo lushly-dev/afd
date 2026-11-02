@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -23,6 +23,10 @@ import { fileURLToPath } from 'node:url';
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const outputIndex = process.argv.indexOf('--output');
 const consumers = await realpath(await mkdtemp(join(tmpdir(), 'afd-specimen-consumers-')));
+// A failed run keeps its consumers for inspection; a passing one leaves nothing behind.
+process.on('exit', (code) => {
+	if (code === 0) rmSync(consumers, { recursive: true, force: true });
+});
 const output = outputIndex > 0 ? resolve(process.argv[outputIndex + 1]) : consumers;
 const artifacts = join(consumers, 'artifacts');
 await mkdir(artifacts, { recursive: true });
@@ -136,7 +140,7 @@ assert.equal(native.version, '2.2.0');
 assert.equal(native.bin, undefined);
 assert.equal(native.peerDependencies, undefined);
 assert.equal(native.optionalDependencies, undefined);
-assert.deepEqual(Object.keys(native.exports), ['.', './types', './schema']);
+assert.deepEqual(Object.keys(native.exports), ['.', './types', './schema', './evidence']);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
 const integration = packedManifest('@lushly-dev/specimen-afd');
@@ -195,11 +199,14 @@ import * as root from '@lushly-dev/specimen';
 import * as types from '@lushly-dev/specimen/types';
 import { contextSchema, captureRequestSchema, observationSchema, buildOutputSchema } from '@lushly-dev/specimen/schema';
 import * as schema from '@lushly-dev/specimen/schema';
-assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'createSpecimenBench', 'diffObservations', 'normalizeDom', 'normalizeSpecifier']);
+import * as evidence from '@lushly-dev/specimen/evidence';
+assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
-assert.deepEqual(Object.keys(schema).sort(), ['buildOutputSchema', 'captureRequestSchema', 'contextSchema', 'observationSchema']);
-assert.equal(CAPTURE_VERSION, '0.2');
-assert.equal(NORMALIZATION_VERSION, '0.1');
+assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
+assert.deepEqual(Object.keys(evidence), ['claim']);
+assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
+assert.equal(CAPTURE_VERSION, '0.8');
+assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);
 assert(!captureRequestSchema.safeParse({ id: '' }).success);
@@ -273,13 +280,13 @@ import { createSpecimenBench } from '@lushly-dev/specimen';
 import * as integration from '@lushly-dev/specimen-afd';
 import * as endpoint from '@lushly-dev/specimen-cli';
 const { createSpecimenCommands, executeSpecimenCommand, executeSpecimenDiff } = integration;
-assert.deepEqual(Object.keys(integration).sort(), ['buildOutputSchema', 'contextSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'observationSchema']);
+assert.deepEqual(Object.keys(integration).sort(), ['a11yRunSchema', 'buildOutputSchema', 'contextSchema', 'contractRunSchema', 'coverageRunSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'matrixRunSchema', 'observationSchema', 'profileRunSchema', 'storyRunSchema', 'suggestRunSchema', 'suiteRunSchema']);
 assert.deepEqual(Object.keys(endpoint), ['runCli']);
 const root = new URL('./fixtures/', import.meta.url).pathname;
 const bench = await createSpecimenBench({ root });
 try {
 	const commands = createSpecimenCommands(bench);
-	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-build', 'specimen-diff', 'specimen-list', 'specimen-render', 'specimen-validate']);
+	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-a11y', 'specimen-baseline', 'specimen-build', 'specimen-contract', 'specimen-coverage', 'specimen-diff', 'specimen-inspect', 'specimen-list', 'specimen-matrix', 'specimen-migrate', 'specimen-profile', 'specimen-render', 'specimen-run', 'specimen-suggest', 'specimen-validate']);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-list', {})).success, true);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-unknown', {})).success, false);
 	assert.equal((await executeSpecimenDiff({ left: {}, right: {} })).error.code, 'VALIDATION_ERROR');
@@ -294,7 +301,7 @@ try {
 );
 execFileSync(process.execPath, ['runtime.mjs'], { cwd: fullRoot, stdio: 'inherit' });
 passed(
-	'integration present: five command definitions, execution, invalid input and unknown command'
+	'integration present: fifteen command definitions, execution, invalid input and unknown command'
 );
 await writeFile(
 	join(fullRoot, 'consumer.ts'),

@@ -29,12 +29,12 @@ const styles = css`
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);
         --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #6b7280);
+        --_text-muted: var(--color-text-muted, #616775);
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_rating-filled: var(--color-state-warning-text, #92400E);
         --_rating-empty: color-mix(in srgb, var(--_text-muted) 36%, transparent);
         --_rating-hover: color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page));
-        --_radius-md: var(--radius-md, 8px);
+        --_radius-md: var(--radius-md, 4px);
         --_size-font-sm: var(--size-font-sm, 12px);
     }
 

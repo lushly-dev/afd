@@ -1,0 +1,25 @@
+"""The rollback module."""
+import os
+
+
+def top_level(a, b):
+    def inner():
+        return 1
+
+    return inner
+
+
+@decorator
+class Planner(Base):
+    """Plan."""
+
+    def plan(self):
+        pass
+
+    async def run(self):
+        pass
+
+
+# A comment above
+def last():
+    pass

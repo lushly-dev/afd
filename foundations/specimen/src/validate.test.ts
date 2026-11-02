@@ -1,8 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defaultContext } from './config.js';
-import { captureRequestSchema, contextSchema } from './schema.js';
-import { parseCaptureRequest, parseConfig, parseContext } from './validate.js';
+import {
+	a11yRequestSchema,
+	baselineRequestSchema,
+	captureRequestSchema,
+	contextSchema,
+	contractRequestSchema,
+	coverageRequestSchema,
+	matrixRequestSchema,
+	profileRequestSchema,
+	suggestRequestSchema,
+	suiteRequestSchema,
+} from './schema.js';
+import {
+	parseA11yRequest,
+	parseBaselineRequest,
+	parseCaptureRequest,
+	parseConfig,
+	parseContext,
+	parseContractRequest,
+	parseCoverageRequest,
+	parseMatrixRequest,
+	parseProfileRequest,
+	parseSuggestRequest,
+	parseSuiteRequest,
+} from './validate.js';
 
 // The configuration rules as Zod expresses them; validation itself does not load Zod.
 const configSchema = z
@@ -36,9 +59,46 @@ const configSchema = z
 			.min(1)
 			.optional(),
 		preview: z.string().min(1).optional(),
+		test: z
+			.strictObject({
+				include: z.array(z.string().min(1)).optional(),
+				exclude: z.array(z.string().min(1)).optional(),
+				skip: z.array(z.string().min(1)).optional(),
+				workers: z.number().int().min(1).max(32).optional(),
+				timeoutMs: z.number().int().min(1).max(60_000).optional(),
+			})
+			.optional(),
+		coverage: z
+			.strictObject({
+				waivers: z
+					.strictObject({
+						version: z.string().min(1),
+						entries: z.array(
+							z.strictObject({
+								component: z.string().min(1),
+								obligation: z.string().min(1),
+								reason: z.string().min(1),
+							})
+						),
+					})
+					.optional(),
+			})
+			.optional(),
+		staticDirs: z
+			.array(
+				z.union([
+					z.string().min(1),
+					z.object({ from: z.string().min(1), to: z.string().regex(/^\//) }).strict(),
+				])
+			)
+			.optional(),
+		plugins: z.array(z.string().min(1)).optional(),
+		manifest: z.string().min(1).optional(),
+		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
-	.refine((config) => config.preview === undefined || config.stories !== undefined);
+	.refine((config) => config.preview === undefined || config.stories !== undefined)
+	.refine((config) => config.test === undefined || config.stories !== undefined);
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -159,6 +219,44 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], preview: '.storybook/preview.ts' },
 			{ specimens: [entry], stories: ['src'] },
 			{ preview: 'x.ts' },
+			{ stories: ['src'], test: { skip: ['skip-me'] } },
+			{ stories: ['src'], test: { include: ['test'], exclude: [], skip: [] } },
+			{ stories: ['src'], test: { include: [''] } },
+			{ stories: ['src'], test: { skip: 'x' } },
+			{ stories: ['src'], test: { other: [] } },
+			{ stories: ['src'], test: { workers: 2 } },
+			{ stories: ['src'], test: { workers: 0 } },
+			{ stories: ['src'], test: { workers: 1.5 } },
+			{ stories: ['src'], test: { timeoutMs: 20_000 } },
+			{ stories: ['src'], test: { timeoutMs: 0 } },
+			{ specimens: [entry], test: {} },
+			{ specimens: [entry], plugins: ['./plugins.ts'], manifest: 'custom-elements.json' },
+			{ specimens: [entry], staticDirs: ['./public', { from: './site', to: '/site' }] },
+			{ specimens: [entry], coverage: {} },
+			{ specimens: [entry], coverage: { waivers: { version: '1', entries: [] } } },
+			{
+				specimens: [entry],
+				coverage: {
+					waivers: { version: '1', entries: [{ component: 'a', obligation: 'b', reason: 'c' }] },
+				},
+			},
+			{
+				specimens: [entry],
+				coverage: { waivers: { version: '1', entries: [{ component: 'a' }] } },
+			},
+			{ specimens: [entry], coverage: { waivers: { entries: [] } } },
+			{ specimens: [entry], coverage: { other: 1 } },
+			{ specimens: [entry], staticDirs: './public' },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: 'site' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site' }] },
+			{ specimens: [entry], plugins: [] },
+			{ specimens: [entry], plugins: [''] },
+			{ specimens: [entry], plugins: './plugins.ts' },
+			{ specimens: [entry], manifest: '' },
+			{ specimens: [entry], profile: { baselines: './baselines.jsonc' } },
+			{ specimens: [entry], profile: {} },
+			{ specimens: [entry], profile: { baselines: '' } },
+			{ specimens: [entry], profile: { other: 'x' } },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});
@@ -174,5 +272,176 @@ describe('bench validation matches the Zod schemas', () => {
 			'capture request.timeoutMs'
 		);
 		expect(() => parseContext({ ...defaultContext, locale: 'not a locale' })).toThrow('BCP 47');
+	});
+});
+
+describe('request parsing agrees with the public schemas', () => {
+	const filters = [
+		{},
+		{ ids: ['a'] },
+		{ ids: [] },
+		{ ids: [''] },
+		{ ids: 'a' },
+		{ file: 'a.ts' },
+		{ file: '' },
+		{ tags: ['smoke'] },
+		{ tags: 'smoke' },
+		{ match: 'x' },
+		{ match: '' },
+		{ other: 'x' },
+		'x',
+		null,
+	];
+	const contexts = [
+		{},
+		{ theme: 'dark' },
+		{ theme: 'sepia' },
+		{ viewport: { width: 0 } },
+		{ other: 1 },
+	];
+	const timeouts = [1, 60_000, 60_001, 0, 1.5, '5'];
+
+	it('agrees on suite requests', () => {
+		const values = [
+			{},
+			...filters.map((filter) => ({ filter })),
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0, 1.5, '2'].map((workers) => ({ workers })),
+			...[true, false, 'yes', 1].map((retry) => ({ retry })),
+			...[0, 1000, 1001, -1, 1.5].map((flakeCap) => ({ flakeCap })),
+			...['all', 'failed', 'none', 'some', 1].map((capture) => ({ capture })),
+			{ other: 1 },
+			null,
+			[],
+		];
+		for (const value of values) agrees(suiteRequestSchema, parseSuiteRequest, value);
+	});
+
+	it('agrees on accessibility requests', () => {
+		const values = [
+			{},
+			{ id: 'a' },
+			{ id: '' },
+			{ id: 1 },
+			...filters.map((filter) => ({ filter })),
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(a11yRequestSchema, parseA11yRequest, value);
+		expect(() => parseA11yRequest({ id: 'a', filter: {} })).toThrow('not both');
+	});
+
+	it('agrees on profile and baseline requests', () => {
+		const values = [
+			{},
+			{ id: 'a' },
+			{ id: '' },
+			...filters.map((filter) => ({ filter })),
+			...[1, 7, 8, 0, 1.5, '3'].map((runs) => ({ runs })),
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(profileRequestSchema, parseProfileRequest, value);
+		for (const value of [
+			...values,
+			{ notes: ['after cutover'] },
+			{ notes: [] },
+			{ notes: [''] },
+			{ notes: 'x' },
+		])
+			agrees(baselineRequestSchema, parseBaselineRequest, value);
+		expect(() => parseProfileRequest({ id: 'a', filter: {} })).toThrow('not both');
+		expect(() => parseBaselineRequest({ id: 'a', filter: {} })).toThrow('not both');
+	});
+
+	it('agrees on matrix requests', () => {
+		const axes = [
+			{ theme: ['light', 'dark'] },
+			{ theme: ['sepia'] },
+			{ theme: [] },
+			{ theme: 'light' },
+			{ viewport: [{ width: 375, height: 812 }] },
+			{ viewport: [{ width: 0, height: 812 }] },
+			{ viewport: [{ width: 375 }] },
+			{ container: [{ width: 375 }] },
+			{ container: [{ width: 375, height: 200 }] },
+			{ container: [{ height: 200 }] },
+			{ locale: ['en-US', 'de'] },
+			{ locale: ['not a locale'] },
+			{ locale: [''] },
+			{ reducedMotion: ['reduce', 'no-preference'] },
+			{ reducedMotion: ['sometimes'] },
+			{ motion: ['natural', 'settled'] },
+			{ motion: ['fast'] },
+			{ other: ['x'] },
+			{},
+			null,
+		];
+		const values = [
+			...axes.map((value) => ({ id: 'a', axes: value })),
+			{ axes: { theme: ['light'] } },
+			{ id: '', axes: { theme: ['light'] } },
+			{ id: 'a' },
+			{ id: 'a', axes: { theme: ['light'] }, checkpoint: 'mount' },
+			{ id: 'a', axes: { theme: ['light'] }, checkpoint: '' },
+			...contexts.map((context) => ({ id: 'a', axes: { theme: ['light'] }, context })),
+			...timeouts.map((timeoutMs) => ({ id: 'a', axes: { theme: ['light'] }, timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ id: 'a', axes: { theme: ['light'] }, workers })),
+			{ id: 'a', axes: { theme: ['light'] }, observations: true },
+			{ id: 'a', axes: { theme: ['light'] }, observations: false },
+			{ id: 'a', axes: { theme: ['light'] }, observations: 'yes' },
+			{ id: 'a', axes: { theme: ['light'] }, other: 1 },
+			null,
+		];
+		for (const value of values) agrees(matrixRequestSchema, parseMatrixRequest, value);
+	});
+
+	it('agrees on suggest requests', () => {
+		const values = [
+			{ component: 'x-a' },
+			{ component: '' },
+			{},
+			{ component: 'x-a', gaps: ['default'] },
+			{ component: 'x-a', gaps: [] },
+			{ component: 'x-a', gaps: [''] },
+			{ component: 'x-a', gaps: 'default' },
+			{ component: 'x-a', timeoutMs: 1 },
+			{ component: 'x-a', timeoutMs: 60_001 },
+			{ component: 'x-a', workers: 1 },
+			{ component: 'x-a', workers: 0 },
+			{ component: 'x-a', other: 1 },
+			null,
+		];
+		for (const value of values) agrees(suggestRequestSchema, parseSuggestRequest, value);
+	});
+
+	it('agrees on coverage requests', () => {
+		const values = [
+			{},
+			{ component: 'x-a' },
+			{ component: '' },
+			{ component: 1 },
+			{ filter: { file: './a.ts' } },
+			{ filter: { other: 1 } },
+			{ timeoutMs: 1 },
+			{ timeoutMs: 60_001 },
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) {
+			agrees(coverageRequestSchema, parseCoverageRequest, value);
+			agrees(contractRequestSchema, parseContractRequest, value);
+		}
 	});
 });

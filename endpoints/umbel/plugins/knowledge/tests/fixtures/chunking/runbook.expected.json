@@ -1,0 +1,10 @@
+[
+	{ "lines": [8, 8], "words": 60, "headingPath": ["Rolling back a deployment"] },
+	{
+		"lines": [12, 14],
+		"words": 260,
+		"headingPath": ["Rolling back a deployment", "Before you start"]
+	},
+	{ "lines": [18, 23], "words": 94, "headingPath": ["Rolling back a deployment", "Steps"] },
+	{ "lines": [27, 27], "words": 25, "headingPath": ["Rolling back a deployment", "Aftermath"] }
+]

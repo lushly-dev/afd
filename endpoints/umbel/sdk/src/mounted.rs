@@ -296,6 +296,8 @@ impl<P: Plugin> CommandHandler for Handler<P> {
                 .get("space")
                 .and_then(Value::as_str)
                 .map(str::to_owned),
+            spaces: Vec::new(),
+            output_budget: None,
             actor_kind: String::new(),
             actor_id: None,
             on_behalf_of: None,

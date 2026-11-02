@@ -11,11 +11,26 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (18 findings, all addressed; see [Review](#review-2026-11-01)).
-  Approved by the owner on 2026-11-01 (D17). In implementation; each
-  step's state is one line in STATUS.md's phase 0 block. Step 6
+  Approved by the owner on 2026-11-01 (D17). Implemented and exited on
+  2026-11-01: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963)); each
+  step's pull request is one line in STATUS.md's phase 0 block. Step 6
   ([#628](https://github.com/lushly-dev/afd/pull/628)) amended
   [section 4](#4-specimen-with-high-contrast-d53), because the bench now
   emulates media in its native host rather than through Playwright.
+  Step 2 recorded its decisions in sections 2.1, 2.2, 2.3 and 2.7, each
+  under "Decided by step 2".
+  Step 5 ([#638](https://github.com/lushly-dev/afd/pull/638)) added [section 6.7](#67-decided-while-implementing-step-5),
+  `flush()` in 6.2, and the kernel bundle measurement in
+  [section 8.1](#81-bundle-budget).
+  Step 4 wrote the
+  [design document](../../design.md), which holds the visual rules step 7
+  follows, and decided the resting field border, which
+  [#645](https://github.com/lushly-dev/afd/pull/645) changed in the theme and the components (see
+  [Follow-ups](#follow-ups)).
+  Step 3 recorded its decisions in section 2.4, under "Decided by step 3".
+  Step 7 recorded its decisions in [section 7.1](#71-decided-while-implementing-step-7),
+  amended [8.1](#81-bundle-budget)'s ceilings with the measurements, and
+  recorded the E1 to E10 results in [section 11.1](#111-results-of-step-7-2026-11-01).
 - **Last verified:** 2026-11-01 against `main` at `b0782de7`. Evidence read
   in the repository:
   - **AFD server:** `packages/server/src`:
@@ -262,6 +277,32 @@ custom properties with literal fallbacks. The contract keeps those names.
   `theme:check` fails on an id in the tree that is missing from the
   contract, or the reverse.
 
+Decided by step 2 (2026-11-01):
+
+- **The contract file's shape** is `{ "contractVersion": 1, "tokens": {
+  "<id>": { "property", "type", "kind" } } }`, ids in code-point order, with
+  `kind` `component` or `shell`. `theme:check --write` regenerates it; review
+  the diff.
+- **Types.** A `type.*` id aliases a size or a weight, so it takes that
+  type (`dimension` or `fontWeight`); `z-index.*` is `number`. No version 1
+  id has a composite `typography` value, so the type is reserved.
+- **Compact** leaves `shell.size.statusbar`, `size.target.compact` and
+  `size.space.xs` as they are, because they are already at their floors
+  (24px, 24px, 2px). It sets `size.target.natural` 28px,
+  `size.target.comfortable` 32px, the title bar 32px, the rail 40px and the
+  tab bar 48px, and steps the spacing down (`size.space.sm` 2px, `.md` 6px,
+  `.lg` 8px, `.xl` 16px, and `space.{inline,stack}.*` with them).
+  `space.layout.*` reads the primitives directly, so compact does not change
+  it.
+- **`LAYOUT_DEFAULTS_V0` before the kernel has it.** The theme package maps
+  each of the constant's numbers to its shell id (`LAYOUT_DEFAULT_TOKENS`)
+  and compares every node with the kernel's export, which
+  `theme/scripts/theme.mjs` reads: the kernel is a development dependency,
+  and the boundary check refuses it in `src/`, so `theme`'s `test` compares
+  the tree with the numbers of 5.2 instead. Until step 5 added the constant,
+  `theme:check` printed a note and skipped that comparison; step 5 removed
+  the skip, so a missing export now fails `theme:check`.
+
 ### 2.2 Loam's Violet tree
 
 Source: `endpoints/loam/packages/theme/src/tree/`, TypeScript modules that
@@ -287,6 +328,51 @@ API, at build time in Node only.
   - every token resolves without a broken reference;
   - the resolved id set, less `ref.*`, equals the contract.
 
+Decided by step 2 (2026-11-01):
+
+- **Two version 1 values differ from today's.** Today's values miss the
+  floors in two places, so version 1 raises them, and step 3's fallback
+  scan carries them into the components:
+  - `color.text.muted` in light, `#6b7280` to `#616775`: 4.19:1 on
+    `color.surface.subtle` (and on the read-only field) becomes 4.91:1, and
+    3.89:1 on `color.surface.selected` (muted cells of selected rows) becomes
+    4.56:1;
+  - `color.border.strong`, the boundary of checkboxes, radios, switches and
+    sliders, from `rgba(28, 26, 13, 0.35)` to `0.48` in light and from
+    `rgba(255, 248, 235, 0.26)` to `0.37` in dark: 2.2:1 becomes 3:1 or more
+    on every surface.
+
+  The aliases of the two follow them: `color.field.placeholder`,
+  `color.field.border.hover` and `shell.color.handle.hover`.
+- **The pairs** are listed in `theme/src/pairs.ts`; step 4's design document
+  adopts them. In every theme:
+  - text: primary, secondary and muted text on the five surfaces, each
+    action's text on its background, hover and pressed
+    colors, state text on its background and on page and card, the selected
+    control's foreground on its background, and field text and placeholder
+    on both field backgrounds;
+  - non-text: `color.border.strong` on page, card, subtle and floating, the
+    hover field border, the hover and active handle colors, and the focus
+    ring (and the field's focus border) on every surface.
+
+  Light and dark do not hold decorative borders (`color.border.subtle` and
+  the secondary-action, selected-control and state borders, which sit beside
+  text or a fill), button fills, which their labels identify, or the resting
+  field border to 3:1 (WCAG 1.4.11), so they keep today's values. High
+  contrast holds all of them to 3:1. Step 4 decided that the resting field
+  border must meet 3:1 after all; [#645](https://github.com/lushly-dev/afd/pull/645) made the change, and every theme
+  now holds the resting and invalid field borders to 3:1 (see
+  [Follow-ups](#follow-ups)).
+- **High contrast** is a light scheme on neutral colors: white surfaces with
+  `#F2F2F2` subtle and `#E0E0E0` selected, black text and strong borders,
+  `#595959` subtle borders, a black focus ring, a black primary action, and
+  danger, success and warning keeping their hue at 7:1 on white. Its
+  shadows are spread shadows (`0 0 0 1px #000000`, 2px for floating), which
+  draw a border without changing layout.
+- **Primitives** are the solid colors of all three themes
+  (`ref.color.<family>.<step>`) and the spacing scale (`ref.space.<px>`).
+  Translucent colors and shadows stay literal on their semantic ids.
+
 ### 2.3 Exports
 
 `theme:build` resolves each node with `resolveTokens`, drops `ref.*`, and
@@ -304,6 +390,16 @@ diff. Violet's own exports are not used for these files. `theme:check`
 rebuilds the outputs in memory and compares the committed files
 (`contract/tokens.json` and the component token export of 2.4); `dist/` is
 build output and is never compared.
+
+Decided by step 2 (2026-11-01): the compact block is one rule per theme,
+`[data-loam-theme="<theme>"][data-loam-density="compact"]`, each holding the
+compact node's diff against its theme. Properties are in id order. The three
+files are also the package's `./loam-theme.css`, `./loam-theme.json` and
+`./contract.json` exports, and `build` writes them after `tsc`, so the
+workspace build produces them. `theme:check` also fails when any node
+resolves to an id the contract lacks, because Violet takes an override of an
+unknown id as an add. It compares the component token export from step 3,
+which adds `theme:export-components` with the file.
 
 ### 2.4 The shared components onto Violet themes (D50, revising D28)
 
@@ -365,6 +461,56 @@ not something the components load.
   its root. Nothing in `violet-elements` changes for it. Only Loam's export
   is committed in the package, because Loam's light theme is the baked-in
   default (D38).
+
+Decided by step 3 (2026-11-01):
+
+- **The export's shape.** Each preset is the theme node (`loam/<theme>`, at
+  comfortable density) with every component id, in code-point order, as
+  resolved `{ id, value }` tokens; compact density is not exported. It is
+  written as the repository writes JSON (tabs, final newline), and
+  `theme:check` compares it byte for byte, naming each token that differs.
+- **Resolved values in the generated presets.** Because the export holds
+  resolved values, the generated presets no longer chain aliases through
+  `var()` (`--color-field-background` is `#FFFEFA`, not
+  `var(--color-surface-page)`), and every preset still declares all 108
+  properties. Rendering is unchanged, but a page that overrides a base
+  property no longer moves its aliases. No consumer in the repository
+  overrides one; the foundations story's labs do, so `token-registry.ts`
+  restores the retired registry's 32 aliases for them (below).
+  The generator refuses an export whose `contractVersion` is not 1 or whose
+  presets do not all have the light preset's ids.
+- **The scan.** It reads every `.ts` file under `violet-elements/src`,
+  stories and specs included, and skips a fallback that holds another
+  `var()` or a template interpolation, since that is not a literal.
+  Normalization also collapses runs of whitespace, so a fallback that wraps
+  onto two lines compares as one. It found 655 literal fallbacks of
+  component ids in 39 files; 183 of them, in 26 files, differed from the
+  light value, and step 3 rewrote them. Most predate the registry's values
+  (`#d4d8df` borders, `#ffffff` cards, `8px` medium radii, `ease`); they
+  showed only where no theme stylesheet is installed.
+  `theme:export-components --fallbacks` rewrites mismatches to the
+  normalized light value. `checkTheme` runs the component checks only when
+  given the export and source paths, which `theme:check` always passes; the
+  unit tests use temporary fixtures, so `theme`'s tests read nothing outside
+  the package.
+- **`token-registry.ts`** keeps its exported function and variable names and
+  signatures, so the custom-elements manifest changes only where it records
+  style defaults (which carry the rewritten fallbacks) and the generated
+  theme constants. Its exported types follow the export: the registry has
+  `contractVersion` and `source` in place of `registryVersion`, and a token
+  has `presets` and `metadata` (`category`, `tier`, `cssProperty`) in place
+  of `usage` and the prose fields; nothing in the repository imports them.
+  The export has no prose, so each token takes its category and tier from
+  its family, as in the retired registry. The foundations story shows the
+  custom property and the dark and high-contrast values where it showed the
+  registry's descriptions. The retired registry's aliases (field colors to
+  surface, text and border colors, `type.*` to the font, line and weight
+  ramps, `space.*` to the spacing ramp) are a table in `token-registry.ts`,
+  applied while the two light values agree, so editing a ramp step in the
+  story's labs still moves the semantic tokens on it. The scoped theme
+  story offers the `high-contrast` preset.
+- **The packed consumer** (`tests/consumers/fast-af/verify-artifacts.mjs`)
+  also hashes the packed `tokens/violet-theme.export.json`.
 
 ### 2.5 The design document and its skill (D26)
 
@@ -442,6 +588,33 @@ reads CSS from `.css` files and from `css` tagged templates in `.ts` files.
 `theme`'s `test` runs the lint over a fixture corpus with one passing and
 one failing case per rule. The chrome's sources must pass from the first
 commit.
+
+Decided by step 2 (2026-11-01):
+
+- **The linted package** is the `package.json` in the working directory: its
+  `name` decides whether `shell.*` is allowed, and
+  `loamLintTokens.stateProperties` lists its state properties. The chrome's
+  manifest lists the three of section 7, and step 7's test checks that its
+  `STATE_PROPERTIES` constant equals that list.
+- **A private alias** is sound when declared from a contract id, from a state
+  property, or from another sound alias; declared more than once, it is sound
+  when any declaration is. Outside the chrome, an alias of a shell id is not
+  sound.
+- **Setting is reading.** Declaring a `--ref-*` property fails as a primitive,
+  and declaring a `--shell-*` property outside the chrome as a shell token.
+- **Fragments.** Declarations outside any block, as in `css.partial`, are
+  linted too.
+- **What it does not check:** selectors and at-rule preludes, string and
+  `url()` contents, and the values of `${…}` interpolations, which are
+  blanked. A `css` template nested in an interpolation is linted on its own.
+- **Lengths:** zero in any unit and `±1px` pass. Time, angle and resolution
+  units are not lengths.
+- **System colors** include the deprecated ones except `Background`, which as
+  a value is usually the property name; `@media not (forced-colors: active)`
+  does not count as forced colors.
+- **Globs** that match no file fail, so a mistyped glob cannot pass.
+- **The corpus** is `theme/fixtures/lint-tokens/`, which the root Biome
+  configuration skips.
 
 ## 3. Units of work in AFD and the foundations first (D15)
 
@@ -694,6 +867,7 @@ export interface LoamKernelV0 {
 	listCommands(): CommandSummaryV0[];
 	subscribe(listener: (event: KernelEventV0) => void): () => void;
 	readonly agent: Pick<LoamKernelV0, 'call' | 'listCommands'>;
+	flush(): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -742,6 +916,9 @@ export function createKernel(options: KernelOptionsV0): Promise<LoamKernelV0>;
   and `view-state-set`/`view-state-replace` on `loam.layout`, re-reads
   `appearance-get` after `appearance-set`, and re-reads `auth-session-get`
   after `auth-*`. It holds no layout state of its own.
+- **`flush`.** It writes pending view-state persistence at once; the chrome
+  calls it on `pagehide` and `visibilitychange` to hidden (5.2). Added by
+  step 5 (6.7).
 - **`environment`.** The browser host passes `window.matchMedia`;
   tests and replay pass a fixed table.
 - **`commands`.** Extra definitions registered beside the shell's. Phase 0
@@ -872,6 +1049,97 @@ Mutations declare `mutation: true` and return an `undoCommand` with
   `JOURNAL_LOCKED` renders a full-page notice, "Loam is open in another
   tab", and does not create a kernel.
 
+### 6.7 Decided while implementing step 5
+
+Step 5 settled what sections 5 and 6 left open, as the options most
+consistent with them (amended 2026-11-01):
+
+- **The test kit is a subpath.** `replayKernel`, `diffJournals`,
+  `createReferenceWorkspace`, `recordSession`, `createFixedEnvironment` and
+  `SESSION_50`, the scripted 50-call session of E2, are exported from
+  `@lushly-dev/loam-kernel/testing`, so `MemoryAdapter`,
+  `MemoryJournalSink` and `MockAuthAdapter` stay out of the root's graph.
+  Step 7 records its committed fixture from `SESSION_50`.
+- **Names.** Name refusal also refuses a name given twice, with
+  `COMMAND_NAME_DUPLICATE`, before `createDirectRegistry` would throw a
+  plain `Error`. Both refusals carry `details` `{ name, reason }`.
+- **Exposure and auth.** Only the shell's commands get
+  `{ palette: true, agent: true, mcp: false, cli: false }`; a command in
+  `options.commands` keeps its own `expose`. The auth middleware's
+  `exclude` lists every registered name, `options.commands` included, so
+  nothing is refused signed out.
+- **Refusals as results.** A view-state handler can only refuse by
+  throwing, which the engine returns as a generic
+  `COMMAND_EXECUTION_ERROR` outside devMode. So the kernel wraps
+  `view-state-set`: for `loam.layout` and `loam.appearance` it runs the
+  shared validator first and returns its `VALIDATION_ERROR` as the result,
+  which is journaled. The handlers' `set` and `replace` still validate and
+  throw `LoamKernelError`, for callers of the registry itself. A
+  replacement must be a complete state. The validators look fields up as
+  own keys only, so an inherited name such as `constructor` or `toString` is
+  an unknown field and refused, and they skip a field whose value is
+  `undefined`, as a spread of optional values leaves it. `appearance-set` and the
+  `loam.appearance` handler share `validateAppearancePatch` the same way.
+- **Schema and handler.** `layout-set`'s input schema is strict and typed
+  (unknown keys and `version` are schema failures, which change nothing and
+  are not journaled); integers and ranges are checked in the handler.
+- **Hydration.** A persisted record the validator refuses is ignored and
+  its defaults kept, so one bad record cannot stop the other from loading.
+- **`seq` in events.** The kernel gives every call a trace ID,
+  `loam-<boot clock in base 36>-<n>`, and reads the `seq` the sink assigned
+  to that trace ID; the journal middleware exposes no other link between a
+  call and its entry. A failed append (a lost writer lock, a full quota)
+  leaves the event without `seq` and goes to the host's `reportError`
+  through the journal middleware's `onError`; the call's result is
+  unchanged.
+- **`flush`.** Section 5.2 has the chrome call `flush()` on `pagehide`, so
+  `LoamKernelV0` gains `flush()` (6.2); it does nothing after `dispose()`.
+- **The `system` theme.** The kernel resolves `system` at each
+  `appearance-get` and emits no event when the media change; the chrome
+  listens through `environment.onChange` and re-reads `appearance-get`, so
+  it still holds no appearance state of its own.
+- **Replay.** Each entry runs on the registry of the interface it was
+  recorded on. `MockAuthAdapter` derives the session and user ids from
+  `Date.now()`, so they count as the session's timestamps:
+  `REPLAY_IGNORE` is `metadata.executionTimeMs`, `data.resolved`,
+  `data.host`, `data.store`, `data.session.id`, `data.session.expiresAt`
+  and `data.user.id`. A journal that does not start at `seq` 1 rejects with
+  `LoamKernelError` `REPLAY_START_INVALID`; a divergence rejects with
+  `REPLAY_DIVERGED`, whose `details` carry the report and the first
+  difference. An empty journal replays to the defaults. The Mock session
+  ends with the page and replay does not, so a browser journal spanning a
+  reload while signed in diverges at the next `auth-*` entry; E2's fixture
+  is one session, and real identity arrives in phase 3.
+- **Journal diff.** `diffJournals` also ignores `metadata.traceId` and the
+  Mock session's ids, and takes extra `ignore` paths. `firstDifference`
+  has an optional `path`, and its `field` is `'length'` when one journal is
+  longer; `counts` is `{ a, b, same, different }`.
+- **Palette index.** Whitespace in a query is ignored and case does not
+  matter; a character whose lower case is longer (a dotted capital I) is
+  kept as it is, so offsets stay offsets into the original text. A field's
+  score is its weight × (the query length + the bonuses): 1 per matched
+  character that directly follows the previous one, 2 per matched character
+  at a word start (after a non-alphanumeric character, or a camel-case
+  capital). At most 16 starts are tried: the first occurrence of the
+  query's first character, then later occurrences at word starts. Equal fields prefer
+  name, then title, then description. `matches` are half-open
+  `[start, end)` ranges. An empty query lists every entry by name with
+  score 0. On the 5,000-entry reference workspace, Node 26 on a loaded
+  10-core Mac measured a p95 of about 2.5 ms per query (A1's budget is
+  8 ms in Chromium; step 7 measures it there).
+- **Keybindings.** `SHELL_KEYBINDINGS_V0` is a frozen list of frozen
+  `{ chord, command, toggle?, focus? }`. `listCommands` gives a command a
+  `keybinding` only for a chord that runs it with no input of its own
+  (`Mod+K` for `palette-open`); the toggle chords compute `layout-set`'s
+  input, so `layout-set` has none.
+- **`needsInput`** is also true for a union input every branch of which
+  has a required property (`auth-sign-in`).
+- **Disposal.** After `dispose()`, calls return `KERNEL_DISPOSED`.
+- **The reference workspace** returns `{ commands, queries, calls }`:
+  `size` command summaries, 200 queries (a quarter matching nothing) and
+  `size` mixed shell calls, every one journaled, which `recordSession` runs
+  on a test kernel for A2 and A3.
+
 ## 7. The chrome
 
 - **The shell element.** `loam-shell` hosts the parts in a CSS grid.
@@ -931,6 +1199,127 @@ Mutations declare `mutation: true` and return an `undoCommand` with
     of `style-src 'self'` holds; CSSOM changes are not restricted by
     `style-src`.
 
+### 7.1 Decided while implementing step 7
+
+Step 7 settled what sections 5 to 7 and 11 left open, as the options most
+consistent with them and the design document (amended 2026-11-01):
+
+- **One controller.** `loam-shell` is the only element that holds the
+  kernel. The parts are presentational: they take attributes from the shell
+  and ask for changes with a composed `loam-action` event, which the shell
+  turns into a command. The parts render in the shell's shadow root, each
+  host carrying its role and name (`role="banner"`, `aria-label="Loam"` and
+  so on), and the shell renders them only after its first `appearance-get`,
+  `layout-get` and `auth-session-get`, so the theme is on the document before
+  anything paints.
+- **Re-reads.** The shell re-reads `layout-get` after a successful mutation
+  of `layout-*` or `view-state-set`, `appearance-get` after `appearance-*`
+  or `view-state-set`, and `auth-session-get` after `auth-*`; failures and
+  queries change nothing, so they cause no read. The reads are journaled
+  like every call, so E1's "one new entry for the matching command" is
+  tested as: exactly one new entry for that command, and every other new
+  entry one of those reads.
+- **Handles live in their parts.** Each `loam-resize-handle` is a child of
+  its part (slot `handle`), positioned on the part's `1px` boundary with
+  main, so each separator is inside a landmark (axe's `region` rule). A
+  part's rendered width or height includes that boundary and equals the
+  layout state; the grid has no handle tracks, and the expanded overlay
+  rule subtracts only the rail and the inline side parts.
+- **WCAG 2.5.7.** A click on a handle without dragging (under 3px of
+  movement) steps the part to the next of its minimum, default and maximum
+  sizes, cycling, with one `layout-set`. The follow-up of step 4 is closed.
+- **The title bar** holds the palette's search button (named "Search
+  commands" at every width), toggles for the sidebar, panel and inspector
+  (`aria-pressed`, computing the same input as the chords), and the account
+  button: "Sign in", or the signed-in name beside "Sign out", which calls
+  `auth-sign-out`.
+- **Part headers.** The sidebar and inspector have a header with their
+  name (`h2`) and a close button; the panel's adds "Maximize"
+  (`aria-pressed`, `layout-set { panel: { maximized } }`). In the compact
+  class a close button closes the drawer or the sheet through `compact`.
+- **A maximized panel** fills main's area: main's track is zero high and
+  main is `inert`, but stays present in the tree.
+- **Drawers.** A compact drawer is a native `<dialog>` in the part's
+  shadow root, into which the part moves its own content and which it opens
+  with `showModal()`. Escape, the close button and a click on the backdrop
+  ask the shell, which calls `layout-set { compact: { drawer: null } }`.
+  Chromium lets Tab leave a modal dialog for the browser's own interface, so
+  the drawer wraps Tab and Shift+Tab itself; on close, focus returns to the
+  element that had it. The sheet is non-modal; Escape closes it, after a
+  non-modal inspector and before a non-modal sidebar.
+- **Forced colors** sets `data-loam-theme="high-contrast"` whatever the
+  appearance setting.
+- **The palette loads after first paint.** `loam-palette`, with
+  `violet-dialog`, `violet-listbox` and `violet-option`, is a chunk of its
+  own, imported when the page is idle or on the first Mod+K; the chrome's
+  root entry exports only its types. Its field is a native `input` with
+  role `combobox` and `aria-activedescendant` pointing at the active option,
+  in the same shadow root; arrows move the listbox's active option, and
+  Enter runs it. A run that succeeds calls `palette-close`; a failure stays
+  open and shows the message and suggestion in the footer, a `status`
+  region. Commands that need input are listed disabled, with "(needs
+  input)" after their description. `palette-open` from either interface
+  opens it; a query given by the chrome's own call fills the field.
+- **F6** focuses the part's host (`tabindex="-1"`), which draws the focus
+  indicator inside its edge. F6 does nothing while a modal is open.
+- **The router seam** routes the document's base path (and its
+  `index.html`) home, so the static build can be served under any path.
+  Without the Navigation API the first route is the only one.
+- **Full-page notices** are `loam-notice` (`main` with an `h1`): the second
+  tab's notice and the version mismatch of 6.2.
+- **The web host.** `src/host.ts` takes the journal's writer lock before
+  creating the kernel. A reload's previous document can hold the lock for a
+  moment while it unloads, so the host retries for up to one second before
+  it shows "Loam is open in another tab". Zod compiles parsers with
+  `new Function`, and even its probe for that is a CSP violation under
+  `script-src 'self'`, so the entry's first import sets Zod's `jitless`.
+- **The test kit** gains `createTestKernel` (a memory kernel for fixtures)
+  and `replayKernel`'s `keep` option, which returns the replayed kernel for
+  E2's replay fixture to render.
+- **The fixture journal.** `chrome/specimens/fixtures/session-50.journal.json`
+  is written by `pnpm -F @lushly-dev/loam-chrome session:record`; the
+  chrome's `test` fails when it no longer equals a fresh recording of
+  `SESSION_50` under `diffJournals`, or does not replay cleanly. The live
+  fixture ends with the two reads `recordSession` and `replayKernel` end
+  with, so the two journals, and the status bars, have the same length.
+- **E10's conformance** runs `runDataAdapterContract` in Vitest's browser
+  mode (`vitest.conformance.config.ts`); the rest of `test:browser` drives
+  Chromium from Node with Playwright, as the Health dashboard does. E7 and
+  A1 to A3 bundle a small page with Vite inside the test and evaluate it.
+- **`lint:tokens`** also covers `chrome/specimens/`.
+- **Changes run one at a time.** Every layout change the chrome makes is
+  queued and computed from the state the previous change and its re-read
+  left, so a chord pressed twice quickly toggles twice; key repeat is
+  ignored. Until its first reads are in, the shell ignores chords, part
+  actions and `palette-open`.
+- **Parts and the Tab order.** A shadow host with a negative `tabindex`
+  takes its whole shadow tree out of the Tab order, so a part has
+  `tabindex="-1"` only while F6 has focused it; Tab then continues into the
+  part. F6 skips an `inert` part (main, under a maximized panel).
+- **Focus after closing.** When a part that held focus closes by its button
+  or by Escape, focus moves to its toggle in the title bar; a modal drawer
+  returns focus to its opener itself. When one compact drawer replaces the
+  other, the old one closes before the new one opens, and a drawer the
+  browser closes itself (Chromium does after a second Escape it would not
+  let the page keep) asks the shell to close it in the layout state too.
+- **The palette** keeps Tab inside it, as the drawers do, and shows its
+  active result with the focus indicator; under forced colors its results
+  take `ButtonText`, `HighlightText` when active or selected, and `GrayText`
+  when disabled.
+- **The settings tooltip** shows on hover and on focus, stays while the
+  pointer moves onto it, and Escape dismisses it wherever focus is (WCAG
+  1.4.13).
+- **Appearance media.** The chrome follows the appearance media queries
+  with `window.matchMedia` directly, not through the kernel's environment,
+  which the kernel interface does not expose (6.7 said `environment
+  .onChange`); a density change re-presents the layout, since the rail's
+  width changes with it.
+- **The router** does not intercept a reload. A host that cannot open its
+  stores shows "Loam cannot start" rather than a blank page.
+- **`mountShell`** takes `home`, the path the not-found page links to,
+  which fixtures set because Specimen serves each render under a path of
+  its own.
+
 ## 8. Budgets
 
 ### 8.1 Bundle budget
@@ -943,13 +1332,58 @@ ceilings:
 | --- | --- |
 | JavaScript, minified | 320,000 bytes |
 | JavaScript, gzip | 95,000 bytes |
-| CSS, minified, including `loam-theme.css` | 40,000 bytes |
-| `@lushly-dev/loam-kernel` alone, minified with Zod, esbuild browser bundle | 150,000 bytes |
+| CSS, minified, including `loam-theme.css` | 8,496 bytes (40,000 until step 7) |
+| `@lushly-dev/loam-kernel` alone, minified with Zod, as Vite bundles it for the browser | 231,360 bytes (150,000, with esbuild, until step 7) |
 
 The ceilings assume the deep imports of section 7. Step 7 records the
 measured values in this specification's amendments. When a measurement is
 under 70% of its ceiling, the ceiling is lowered to the measured value plus
 10%. Raising a ceiling needs an amendment with the reason.
+
+Measured by step 5 (2026-11-01), `dist/index.js` bundled by esbuild 0.27
+for the browser, minified: 520,541 bytes, of which the kernel's own code is
+about 16 KB, the AFD packages about 50 KB and Zod 4.6.7 about 454 KB.
+Zod's root entry, which `afd-server`, `afd-view-state` and `afd-auth`
+import, re-exports every locale (about 264 KB) and esbuild keeps them; Zod
+without its locales is still about 190 KB. The kernel row's ceiling
+therefore cannot hold, and the page's JavaScript ceilings are at risk too.
+Step 7 owns the `budget` script and decides, by amendment with the
+measurements, between a locale-free Zod entry in the build, measuring the
+Vite (Rollup) output, which tree-shakes more, and raising the ceilings.
+
+Decided by step 7 (2026-11-01), in the order the owner set:
+
+1. **The real artifact.** `pnpm -F @lushly-dev/loam-web budget` builds the
+   shell with Vite 8 (Rolldown) in production mode and measures the entry
+   `index.html` loads and every chunk it imports statically; chunks
+   imported dynamically load after first paint. It also builds the kernel
+   alone the same way. Rolldown already leaves Zod's unused locales out:
+   only the root's `en` locale remains, so no alias or `define` was needed
+   and none is used. The first measurement of the whole page, with the
+   palette in the entry, was 340,056 bytes minified and 93,964 gzip, over
+   the JavaScript ceiling.
+2. **Without changing AFD's API.** The palette is not needed before first
+   paint, so it moved into a chunk of its own (7.1). What remains of Zod
+   (about 178 KB rendered, of which its JSON Schema converter, which the
+   direct registry uses for the commands' input schemas, is about 39 KB)
+   is Zod's classic API, which AFD's packages and the kernel use; it cannot
+   shrink without an AFD change.
+3. **Measured, on `main`'s lockfile with Node 26 and Vite 8.3.5:**
+
+   | Measure | Bytes | Ceiling | Share |
+   | --- | --- | --- | --- |
+   | JavaScript loaded before first paint, minified (`index` and its shared chunk) | 300,077 | 320,000 | 94% |
+   | The same, gzip level 9 | 86,116 | 95,000 | 91% |
+   | CSS, minified: no CSS file, `loam-theme.css` adopted from a string in the entry | 7,719 | 8,496 | 91% |
+   | The kernel alone, minified with its dependencies | 210,327 | 231,360 | 91% |
+   | The palette's chunk, loaded after first paint | 48,440 | none | |
+
+   The CSS measurement (7,723 bytes when the ceiling was set) was under 70%
+   of its old ceiling, so its ceiling is lowered to that value plus 10%. The kernel's is raised to its
+   measured value plus 10%, its measuring tool moving from esbuild to Vite as
+   the page is built; Zod is 178,126 of its 210,327 bytes. The FAST
+   templates' CSS is inside the JavaScript measures. A follow-up records how
+   to bring the kernel back toward 150,000.
 
 ### 8.2 The accelerator admission rule (D37)
 
@@ -1027,6 +1461,26 @@ STATUS.md records the run.
 | E8 | The kernel refuses a bad name | Kernel unit: `createKernel({ commands: [doThing] })`, with a command named `doThing`, rejects with `COMMAND_NAME_INVALID` |
 | E9 | Budgets | `budget` passes; A1 to A3 are within budget |
 | E10 | Store conformance | `runDataAdapterContract` passes for `IndexedDbAdapter` in Chromium; a second page against the same origin shows the "open in another tab" notice |
+
+### 11.1 Results of step 7 (2026-11-01)
+
+Run locally on the shared 10-core Mac (macOS, Node 24.21 locally against
+`.nvmrc`'s 26 in CI, Chromium 156.0.8078.4 from Playwright 1.64), on branch
+`feat/loam-chrome-web` rebased on `main` at `b63c8490`. `loam.yml` runs the
+same suite on `ubuntu-latest`; step 8 records the exit run on `main`.
+
+| # | Result | Where |
+| --- | --- | --- |
+| E1 | Pass. Chords, title-bar toggles, part buttons, every handle (arrows, Home, End, a drag, a click), the palette running `layout-reset`, and `view-state-set` on `loam.layout` through `kernel.agent` (accepted, and refused out of range) each add exactly one entry for their command, the rest being the chrome's re-reads; the parts' presence and sizes match `layout-get`. The kernel unit for the refused width is step 5's | `web/test/browser/layout.test.ts` |
+| E2 | Pass. Specimen renders `session-live` and `session-replay` at 1280 × 800; under `diffObservations` they differ only in the status bar's journal number (55 live, 5 replayed: a replay does not journal the entries it replays, 7.1) and FAST's per-page template markers, which the test leaves out and asserts. The committed fixture equals a fresh `SESSION_50` recording and replays with zero differences | `web/test/browser/specimen.test.ts`; `chrome/src/session-fixture.test.ts` |
+| E3 | Pass. `lint:tokens` over `chrome` (34 files, `src` and `specimens`) and `theme`; the corpus in `theme`'s `test` | `loam.yml` |
+| E4 | Pass. 18 fixtures captured in light, dark and high contrast, each with an ARIA snapshot (the palette's through its DOM: Specimen's snapshot is empty while a modal is open, a follow-up); the compact class at 390 × 844. Axe with the Health dashboard's tags: zero violations in each theme and density with the palette closed and open, under `forcedColors: 'active'`, in the compact class with a drawer open, and on the not-found route | `specimen.test.ts`, `accessibility.test.ts` |
+| E5 | Pass. At 390 × 844 the rail and status bar are absent and the tab bar present; Mod+B opens the sidebar as a modal `<dialog>` that keeps Tab and Shift+Tab and returns focus; Mod+K closes the drawer first and one modal remains; the sheet is 40 to 80 `dvh`; leaving the class closes a drawer and sheet with one `layout-set`; at 800 the inspector floats and Escape closes it; at 1024 with both side parts at their maximum the inspector floats and main keeps at least 360px | `layout.test.ts` |
+| E6 | Pass. "Sign in" in the title bar; the status bar shows "Signed in as person"; the `auth-sign-in` entry has no password (one an agent sends is redacted), and the next entry carries the actor | `shell.test.ts` |
+| E7 | Pass. `theme:check` with the fallback scan; `loam/dark` applied through `VioletRuntime` with `loam-theme.json`'s preloaded source gives the stylesheet's computed values for all 108 component ids (read through a property of each token's type, since the build minifies the stylesheet). `violet-elements`' and the Health dashboard's suites are unchanged by this step, which edits nothing under `foundations/` | `stores.test.ts` |
+| E8 | Pass (step 5's kernel unit) | `kernel/src/kernel.test.ts` |
+| E9 | Pass. `budget` within every ceiling of 8.1 as amended. A1 p95 2.6 ms over 200 queries on 5,000 entries (budget 8 ms); A2 250 ms for 10,000 entries (2,000 ms); A3 132 ms for 2 × 10,000 (500 ms); each run writes `test-results/accelerators.json` | `budget.test.ts`, `scripts/budget.mjs` |
+| E10 | Pass. `runDataAdapterContract` for `IndexedDbAdapter` in Chromium, 24 tests in Vitest's browser mode; a second page of the same origin shows "Loam is open in another tab" and has no shell, and once the first page closes a new one boots | `test/conformance/indexeddb.test.ts`, `stores.test.ts` |
 
 ## 12. Implementation plan
 
@@ -1149,7 +1603,19 @@ returned 18 findings. Each is addressed in the text above:
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-01 | Phase 0 specification | A browser-safe `DirectClient` entry in `@lushly-dev/afd-client`, needed by the copilot in phase 5. There is no subpath today, and the root loads the MCP client and `eventsource` | Open |
+| 2026-11-01 | Phase 0 specification | A browser-safe `DirectClient` entry in `@lushly-dev/afd-client`, needed by the copilot in phase 5. There is no subpath today, and the root loads the MCP client and `eventsource` | Open; [#655](https://github.com/lushly-dev/afd/issues/655) |
 | 2026-11-01 | Phase 0 specification | Specimen running axe itself, so the chrome's checks need no second harness | Open; not needed for phase 0 |
-| 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open |
+| 2026-11-01 | Phase 0 review | A deletion classification in `scripts/fast-af-provenance.test.mjs`, so retired imported files can be removed rather than emptied | Open; [#656](https://github.com/lushly-dev/afd/issues/656) |
 | 2026-11-01 | Phase 0 specification | Lushly's own Violet tree for the shared components, specified in Lushly's repository (D28, D50) | Open; Lushly owns it |
+| 2026-11-01 | Phase 0 step 2 | The resting field border, `color.field.border` (an alias of `color.border.subtle`), is 1.2:1 on the field background in light and 1.4:1 in dark, under WCAG 1.4.11's 3:1 for a field's boundary. Raising it changes every input's look, so it is a design decision for step 4's design document, not a value step 2 changes | Decided 2026-11-01 by step 4: it must meet 3:1, because nothing else identifies the field (its background is the page surface). The exact values are in the [design document's history](../../design.md#history): `color.field.border` aliases `color.border.strong` in light and dark (3.06:1 or more), `color.field.border.hover` becomes `rgba(28, 26, 13, 0.64)` and `rgba(255, 248, 235, 0.52)` in dark, `color.field.border.invalid` aliases `color.state.danger.text`, high contrast keeps today's values, `pairs.ts` holds the resting and invalid borders in every theme, and the eight field components draw their resting border from `color.field.border` instead of `color.border.subtle`. Done in [#645](https://github.com/lushly-dev/afd/pull/645): the theme and the eight components changed together, `pairs.ts` holds the resting, hover and invalid borders to 3:1 in every theme, and the edited FAST-AF files are in its provenance |
+| 2026-11-01 | Phase 0 step 5 | The kernel's esbuild browser bundle is 520,541 bytes against the 150,000-byte ceiling of 8.1, almost all Zod (section 8.1); step 7 decides how the budget holds before it adds `budget` | Closed 2026-11-01 by step 7: measured with Vite, which drops Zod's locales; the page holds its ceilings and the kernel's ceiling is amended to 231,360 (8.1). The reduction is the step 7 row below |
+| 2026-11-01 | Phase 0 step 4 | WCAG 2.2's 2.5.7 asks for a single-pointer alternative to dragging a resize handle; section 7 gives the handle keyboard steps only, which do not count. Step 7 decides the pointer alternative and records it in the design document | Closed 2026-11-01 by step 7: a click without dragging steps through the minimum, default and maximum sizes (7.1, design.md) |
+| 2026-11-01 | Phase 0 step 4 | Contract version 2 candidates: a font-family id (the chrome declares the shared components' stack until then) and a focus-width id that components outside the chrome can read (`shell.size.focus` is chrome-only) | Open; not needed for phase 0 |
+| 2026-11-01 | Resting field border ([#645](https://github.com/lushly-dev/afd/pull/645)) | Two field borders the step 4 decision did not cover still fall under 3:1 in light and dark. The eight field components' focus border mixes `color.focus.ring` 48% with `color.border.subtle` (about 1.8:1 in light), fainter than the new resting border, though the 2px focus ring around it meets 3:1; and other text inputs keep a `color.border.subtle` resting border: the search inputs in the data grid's pill, reference, persona and multi pickers, and the file upload's drop zone. Decide whether each draws from `color.field.border` and `color.field.border.focus` | Open; [#657](https://github.com/lushly-dev/afd/issues/657) |
+| 2026-11-01 | Phase 0 step 7 | Bring the kernel back toward 8.1's original 150,000 bytes: Zod's classic API is 178,126 of its 210,327 bytes (Vite). AFD's packages import Zod's root; a lighter entry (Zod Mini) behind the same `defineCommand` API, or input JSON Schemas computed at build time so the direct registry needs no `toJSONSchema`, would each need an AFD change | Open; [#658](https://github.com/lushly-dev/afd/issues/658) |
+| 2026-11-01 | Phase 0 step 7 | `violet-option` reads `--color-surface-highlight` for its active row, which is not a contract id, so its `#ffffff` fallback shows in every theme and fails contrast in dark. Read a contract id (for example `color.surface.card`) in the component, with provenance; the palette maps the property until then (7.1) | Open; [#659](https://github.com/lushly-dev/afd/issues/659) |
+| 2026-11-01 | Phase 0 step 7 | A view-state flush started in `pagehide` can be lost on a reload: `IndexedDbAdapter.update` reads the record and then writes it in one transaction, and the read's success event is not delivered once the document unloads. A blind `put` for the upsert tables in local-db would let the write land; the chrome flushes on `pagehide` and `visibilitychange` as 5.2 says, and the debounce limits the loss to the last 300 ms | Open; [#660](https://github.com/lushly-dev/afd/issues/660) |
+| 2026-11-01 | Phase 0 step 7 | `scripts/affected/suites.mjs`'s local plan for `loam.yml` runs build, units and `test:browser` (which builds Specimen's host), but not `theme:check`, `lint:tokens` or `budget`, which `loam.yml` runs. Editing that file selects the whole workspace, so adding them is a pull request of its own | Open; [#661](https://github.com/lushly-dev/afd/issues/661) |
+| 2026-11-01 | Phase 0 step 7 | Specimen's ARIA snapshot is empty while a modal `<dialog>` is open in the specimen, so the palette's capture shows no snapshot; E4 checks that capture through its DOM and axe checks the open palette | Open; Specimen; [#662](https://github.com/lushly-dev/afd/issues/662) |
+| 2026-11-01 | Phase 0 step 7 | The status bar reads the whole journal at boot for its last sequence number (`JournalSink.read` has no "last entry" range), which grows with the journal while phase 0 keeps every entry; a `last` range or a count on the sink would bound it | Open; [#663](https://github.com/lushly-dev/afd/issues/663) |
+| 2026-11-01 | Phase 0 step 7 | Zod's JIT probe is a CSP violation under `script-src 'self'`, so the web host sets `jitless` before anything parses (7.1). Every AFD browser host under a strict CSP needs the same; AFD could document it or set it in its browser entries | Open; [#664](https://github.com/lushly-dev/afd/issues/664) |

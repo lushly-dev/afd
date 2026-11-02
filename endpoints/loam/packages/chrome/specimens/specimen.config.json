@@ -1,0 +1,352 @@
+{
+	"specimens": [
+		{
+			"id": "shell",
+			"title": "Loam/Chrome/Shell",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Shell"
+		},
+		{
+			"id": "shell-compact-density",
+			"title": "Loam/Chrome/ShellCompactDensity",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ShellCompactDensity"
+		},
+		{
+			"id": "shell-palette",
+			"title": "Loam/Chrome/ShellPalette",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ShellPalette"
+		},
+		{
+			"id": "titlebar",
+			"title": "Loam/Chrome/Titlebar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Titlebar"
+		},
+		{
+			"id": "titlebar-signed-in",
+			"title": "Loam/Chrome/TitlebarSignedIn",
+			"module": "./chrome.specimens.ts",
+			"exportName": "TitlebarSignedIn"
+		},
+		{
+			"id": "rail",
+			"title": "Loam/Chrome/Rail",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Rail"
+		},
+		{
+			"id": "tabbar",
+			"title": "Loam/Chrome/Tabbar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Tabbar"
+		},
+		{
+			"id": "sidebar",
+			"title": "Loam/Chrome/Sidebar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Sidebar"
+		},
+		{
+			"id": "inspector",
+			"title": "Loam/Chrome/Inspector",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Inspector"
+		},
+		{
+			"id": "inspector-overlay",
+			"title": "Loam/Chrome/InspectorOverlay",
+			"module": "./chrome.specimens.ts",
+			"exportName": "InspectorOverlay"
+		},
+		{
+			"id": "main",
+			"title": "Loam/Chrome/Main",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Main"
+		},
+		{
+			"id": "main-not-found",
+			"title": "Loam/Chrome/MainNotFound",
+			"module": "./chrome.specimens.ts",
+			"exportName": "MainNotFound"
+		},
+		{
+			"id": "panel",
+			"title": "Loam/Chrome/Panel",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Panel"
+		},
+		{
+			"id": "statusbar",
+			"title": "Loam/Chrome/Statusbar",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Statusbar"
+		},
+		{
+			"id": "resize-handle",
+			"title": "Loam/Chrome/ResizeHandle",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ResizeHandle"
+		},
+		{
+			"id": "empty-state",
+			"title": "Loam/Chrome/EmptyState",
+			"module": "./chrome.specimens.ts",
+			"exportName": "EmptyState"
+		},
+		{
+			"id": "status-item",
+			"title": "Loam/Chrome/StatusItem",
+			"module": "./chrome.specimens.ts",
+			"exportName": "StatusItem"
+		},
+		{
+			"id": "notice",
+			"title": "Loam/Chrome/Notice",
+			"module": "./chrome.specimens.ts",
+			"exportName": "Notice"
+		},
+		{
+			"id": "session-live",
+			"title": "Loam/Session/SessionLive",
+			"module": "./session.specimens.ts",
+			"exportName": "SessionLive"
+		},
+		{
+			"id": "session-replay",
+			"title": "Loam/Session/SessionReplay",
+			"module": "./session.specimens.ts",
+			"exportName": "SessionReplay"
+		},
+		{
+			"id": "app-mount",
+			"title": "Loam/Apps/Mount",
+			"module": "./apps.specimens.ts",
+			"exportName": "Mount"
+		},
+		{
+			"id": "app-mount-compact",
+			"title": "Loam/Apps/MountCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountCompact"
+		},
+		{
+			"id": "app-mount-undefined",
+			"title": "Loam/Apps/MountUndefined",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountUndefined"
+		},
+		{
+			"id": "app-mount-undefined-compact",
+			"title": "Loam/Apps/MountUndefinedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountUndefinedCompact"
+		},
+		{
+			"id": "app-list",
+			"title": "Loam/Apps/List",
+			"module": "./apps.specimens.ts",
+			"exportName": "List"
+		},
+		{
+			"id": "app-list-compact",
+			"title": "Loam/Apps/ListCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListCompact"
+		},
+		{
+			"id": "app-list-empty",
+			"title": "Loam/Apps/ListEmpty",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListEmpty"
+		},
+		{
+			"id": "app-list-empty-compact",
+			"title": "Loam/Apps/ListEmptyCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListEmptyCompact"
+		},
+		{
+			"id": "app-list-failed",
+			"title": "Loam/Apps/ListFailed",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListFailed"
+		},
+		{
+			"id": "app-list-failed-compact",
+			"title": "Loam/Apps/ListFailedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListFailedCompact"
+		},
+		{
+			"id": "app-part-header",
+			"title": "Loam/Apps/PartHeader",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeader"
+		},
+		{
+			"id": "app-part-header-compact",
+			"title": "Loam/Apps/PartHeaderCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeaderCompact"
+		},
+		{
+			"id": "app-rail-apps",
+			"title": "Loam/Apps/RailApps",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailApps"
+		},
+		{
+			"id": "app-rail-apps-compact",
+			"title": "Loam/Apps/RailAppsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailAppsCompact"
+		},
+		{
+			"id": "app-tabbar-apps",
+			"title": "Loam/Apps/TabbarApps",
+			"module": "./apps.specimens.ts",
+			"exportName": "TabbarApps"
+		},
+		{
+			"id": "app-tabbar-apps-compact",
+			"title": "Loam/Apps/TabbarAppsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "TabbarAppsCompact"
+		},
+		{
+			"id": "app-status-action",
+			"title": "Loam/Apps/StatusAction",
+			"module": "./apps.specimens.ts",
+			"exportName": "StatusAction"
+		},
+		{
+			"id": "app-status-action-compact",
+			"title": "Loam/Apps/StatusActionCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "StatusActionCompact"
+		},
+		{
+			"id": "app-toasts",
+			"title": "Loam/Apps/Toasts",
+			"module": "./apps.specimens.ts",
+			"exportName": "Toasts"
+		},
+		{
+			"id": "app-toasts-compact",
+			"title": "Loam/Apps/ToastsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ToastsCompact"
+		},
+		{
+			"id": "app-modal",
+			"title": "Loam/Apps/Modal",
+			"module": "./apps.specimens.ts",
+			"exportName": "Modal"
+		},
+		{
+			"id": "app-modal-compact",
+			"title": "Loam/Apps/ModalCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalCompact"
+		},
+		{
+			"id": "app-modal-danger",
+			"title": "Loam/Apps/ModalDanger",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalDanger"
+		},
+		{
+			"id": "app-modal-danger-compact",
+			"title": "Loam/Apps/ModalDangerCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalDangerCompact"
+		},
+		{
+			"id": "app-notice-embedded",
+			"title": "Loam/Apps/NoticeEmbedded",
+			"module": "./apps.specimens.ts",
+			"exportName": "NoticeEmbedded"
+		},
+		{
+			"id": "app-notice-embedded-compact",
+			"title": "Loam/Apps/NoticeEmbeddedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "NoticeEmbeddedCompact"
+		},
+		{
+			"id": "app-view-frame-loading",
+			"title": "Loam/Apps/ViewFrameLoading",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameLoading"
+		},
+		{
+			"id": "app-view-frame-loading-compact",
+			"title": "Loam/Apps/ViewFrameLoadingCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameLoadingCompact"
+		},
+		{
+			"id": "app-view-frame-failed",
+			"title": "Loam/Apps/ViewFrameFailed",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameFailed"
+		},
+		{
+			"id": "app-view-frame-failed-compact",
+			"title": "Loam/Apps/ViewFrameFailedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameFailedCompact"
+		},
+		{
+			"id": "app-console",
+			"title": "Loam/Apps/Console",
+			"module": "./apps.specimens.ts",
+			"exportName": "Console"
+		},
+		{
+			"id": "app-console-compact",
+			"title": "Loam/Apps/ConsoleCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleCompact"
+		},
+		{
+			"id": "app-console-invalid",
+			"title": "Loam/Apps/ConsoleInvalid",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleInvalid"
+		},
+		{
+			"id": "app-console-invalid-compact",
+			"title": "Loam/Apps/ConsoleInvalidCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleInvalidCompact"
+		},
+		{
+			"id": "app-console-result",
+			"title": "Loam/Apps/ConsoleResult",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleResult"
+		},
+		{
+			"id": "app-console-result-compact",
+			"title": "Loam/Apps/ConsoleResultCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleResultCompact"
+		},
+		{
+			"id": "app-console-mounted",
+			"title": "Loam/Apps/ConsoleMounted",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleMounted"
+		},
+		{
+			"id": "app-console-mounted-compact",
+			"title": "Loam/Apps/ConsoleMountedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleMountedCompact"
+		}
+	]
+}

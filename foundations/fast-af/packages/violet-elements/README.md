@@ -51,7 +51,7 @@ import "@lushly-dev/violet-elements";
 ```
 
 - `@lushly-dev/violet-elements/custom-elements.json` is the Custom Elements Manifest (also referenced by the `customElements` field).
-- `@lushly-dev/violet-elements/tokens/*` exposes the token registry sources.
+- `@lushly-dev/violet-elements/tokens/*` exposes the token sources, among them `tokens/violet-theme.export.json`.
 - Element modules register themselves when imported, so the package declares `sideEffects: true`.
 
 ## Storybook Review
@@ -63,26 +63,40 @@ workspace before they are treated as reference-grade.
 - New components should include co-located `*.stories.ts` files.
 - Stories are required as part of component creation, not a follow-up task.
 
-## Token Registry
+## Where the Token Values Come From
 
-Starter semantic tokens for reusable components live in:
+The components read semantic tokens as CSS custom properties (`color.surface.page` is
+`--color-surface-page`), each with a literal fallback. Their values come from Violet themes, as
+data and custom properties, never as a package dependency (decision D50 of AFD's Loam
+documents; `endpoints/loam/docs/phases/0-kernel-chrome/spec.md`, section 2.4):
 
-- [tokens/master-semantic.tokens.jsonc](./tokens/master-semantic.tokens.jsonc)
+- [tokens/violet-theme.export.json](./tokens/violet-theme.export.json) holds the component ids
+  of Loam's resolved `light`, `dark` and `high-contrast` themes:
+  `{ "contractVersion": 1, "source": "loam", "presets": { "<preset>": [{ "id", "value" }] } }`.
+  Loam's theme package writes it (`pnpm -F @lushly-dev/loam-theme theme:export-components`);
+  do not edit it by hand.
+- `theme:build` generates the runtime theme from it, below.
+- Every literal fallback, `var(--<id>, <literal>)` in `src/`, equals the light value, so a
+  component renders the light theme with no theme installed.
+  `pnpm -F @lushly-dev/loam-theme theme:check` fails when one differs, and
+  `theme:export-components --fallbacks` rewrites them. `src/theme/violet-token-defaults.ts` is
+  hand-written and checked the same way.
+- `src/foundations/token-registry.ts` and the foundations story read the export.
 
-This registry is intended to help:
+The former registries, `tokens/master-semantic.tokens.jsonc` and `tokens/theme-presets.jsonc`,
+are retired: empty, kept only for the FAST-AF provenance records, and read by nothing.
 
-1. define token intent clearly
-2. prevent duplicate or overlapping semantic tokens
-3. support future validation and export tooling
-
-Meaning should live in structured fields such as descriptions and usage guidance, not only in comments.
+Another design system writes its own Violet tree and applies its CSS, or `VioletRuntime` with a
+preloaded source, at its root; nothing in this package changes for it.
 
 ## Runtime Theme
 
 Violet tokens are generated into a runtime theme module so components can work
 without requiring a provider wrapper around every usage site.
 
-- Generate the runtime theme with `pnpm theme:violet` from the repo root.
+- Generate the runtime theme with `pnpm -F @lushly-dev/violet-elements theme:build`, which
+  writes `src/theme/generated/violet-theme.generated.ts` with the `light` (default), `dark` and
+  `high-contrast` presets from the export.
 - Install it once at the application or docs shell level.
 - Use `data-violet-theme-root` or `violet-theme` only when a subtree needs its own scoped token overrides.
 

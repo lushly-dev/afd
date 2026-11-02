@@ -1,0 +1,46 @@
+{
+	"name": "@lushly-dev/specimen-fast-af",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "FAST-AF plugin for Specimen: Definition Schema, @command runner and theme presets",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"clean": "rimraf dist *.tsbuildinfo",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run",
+		"test:browser": "vitest run --config vitest.browser.config.ts"
+	},
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"sideEffects": false,
+	"peerDependencies": {
+		"@lushly-dev/fast-element": "^3.0.0",
+		"@lushly-dev/specimen": "^2.2.0"
+	},
+	"devDependencies": {
+		"@lushly-dev/fast-element": "workspace:^3.0.1",
+		"@lushly-dev/specimen": "workspace:^2.2.0",
+		"@types/node": "^26.6.6",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.12"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "integrations/specimen-fast-af"
+	},
+	"license": "MIT"
+}

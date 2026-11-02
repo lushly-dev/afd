@@ -15,6 +15,16 @@ on:
       - 'packages/view-state/**'
       - 'packages/auth/**'
       - 'packages/local-db/**'
+      - 'packages/client/**'
+      - 'packages/adapters/**'
+      - 'packages/testing/**'
+      # What the `mounted` job runs against: the stock `umbel` and the crate it builds on.
+      - 'endpoints/umbel/**'
+      - '!endpoints/umbel/docs/**'
+      - 'packages/rust/**'
+      # The core Loam's manifest profile conforms to, and the contract version it records.
+      - 'spec/plugin-manifest*'
+      - 'spec/VERSION'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/loam.yml'
@@ -31,6 +41,14 @@ on:
       - 'packages/view-state/**'
       - 'packages/auth/**'
       - 'packages/local-db/**'
+      - 'packages/client/**'
+      - 'packages/adapters/**'
+      - 'packages/testing/**'
+      - 'endpoints/umbel/**'
+      - '!endpoints/umbel/docs/**'
+      - 'packages/rust/**'
+      - 'spec/plugin-manifest*'
+      - 'spec/VERSION'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/loam.yml'
@@ -53,6 +71,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.run.outputs.run }}
+      mounted: ${{ steps.mounted.outputs.run }}
     env:
       AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
@@ -62,14 +81,17 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-kernel --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+      # The same, and an Umbel or `afd` crate change, which reaches this job and not the one below.
+      - id: mounted
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml --path endpoints/umbel/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium
     needs: scope
     if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -80,20 +102,74 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." build
-      - name: Typecheck the four packages
-        run: pnpm -F "./endpoints/loam/packages/*" typecheck
+      - name: Typecheck the packages and apps
+        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" typecheck
       - name: Unit suites with coverage
-        run: pnpm -F "./endpoints/loam/packages/*" test --coverage
-      # Steps 2 and 7 of the phase 0 specification add theme:check, lint:tokens and budget here.
+        run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage
+      - name: Theme contract against the tree
+        run: pnpm -F @lushly-dev/loam-theme theme:check
+      - name: Token-only lint
+        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally lint:tokens
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
-      - name: Chromium suite against the built shell
+      # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
+      - name: Install Rust toolchain
+        working-directory: foundations/specimen/host
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: foundations/specimen/host
+      - name: Chromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3)
         run: pnpm -F @lushly-dev/loam-web test:browser
+      - name: Bundle budget
+        run: pnpm -F @lushly-dev/loam-web budget
       - name: Build leaves tracked files unchanged
         run: test -z "$(git status --porcelain)"
       - name: Upload test results
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loam-test-results
+          path: endpoints/loam/packages/web/test-results/
+          retention-days: 7
+
+  # Hello mounted and a real Umbel in the console, through a test-only relay (D64). The relay is not a hosted
+  # server: this proves the stock `umbel`, its bearer layer, the browser's MCP client under the CSP, discovery,
+  # the console and the journal. So an Umbel change runs this proof without running Loam's whole suite.
+  mounted:
+    name: Mounted against Umbel
+    needs: scope
+    if: needs.scope.outputs.mounted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Rust toolchain
+        working-directory: endpoints/umbel
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-web..." build
+      - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+      - name: E3, E4 and E9's mounted part, through a test-only relay
+        run: pnpm -F @lushly-dev/loam-web test:mounted
+      - name: The run leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-mounted-test-results
           path: endpoints/loam/packages/web/test-results/
           retention-days: 7

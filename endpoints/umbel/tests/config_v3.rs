@@ -541,3 +541,98 @@ fn init_writes_version_3_and_creates_spaces_main() {
     let report = doctor::run(&target);
     assert!(report.healthy(), "{:?}", report.checks);
 }
+
+// ── Allow lists (phase 2 step 4) ───────────────────────────────────────────────────────────────
+
+const WITH_GRANTS: &str = r#"
+config_version = 3
+default_space = "main"
+[spaces.main]
+[spaces.beta]
+[plugins]
+enabled = ["notes"]
+[plugins.notes]
+source = "compiled:notes"
+"#;
+
+#[test]
+fn version_3_reads_allow_lists_per_write_grant() {
+    let workspace = open(&format!(
+        "{WITH_GRANTS}[plugins.notes.grants.documents_write]\nallow = [\"main/handbook\", \"beta/*\"]\n[plugins.notes.grants.index_write]\nallow = [\"main\"]\n[plugins.notes.grants.graph_write]\nallow = [\"*\"]\n"
+    ))
+    .unwrap();
+    let instance = &workspace.config().plugins.instances[0];
+    assert_eq!(
+        instance.allow["documents_write"],
+        ["main/handbook", "beta/*"]
+    );
+    assert_eq!(instance.allow["index_write"], ["main"]);
+    assert_eq!(instance.allow["graph_write"], ["*"]);
+    // Nothing is read for a grant that is not listed.
+    assert!(!instance.allow.contains_key("records_write"));
+}
+
+#[test]
+fn an_allow_list_is_checked_against_its_grants_form_and_the_declared_spaces() {
+    for (grant, allow, key) in [
+        ("documents", "[\"main\"]", "plugins.notes.grants.documents"),
+        ("http", "[\"example.com\"]", "plugins.notes.grants.http"),
+        ("documents_write", "[]", "allow"),
+        (
+            "documents_write",
+            "[\"main\"]",
+            "must be <space>/<collection>",
+        ),
+        ("documents_write", "[\"main/a\", \"main/a\"]", "twice"),
+        ("documents_write", "[\"nowhere/a\"]", "nowhere"),
+        ("records_write", "[\"main/notes\"]", "must be a space id"),
+        ("records_write", "[\"nowhere\"]", "nowhere"),
+        ("index_write", "[\"Main\"]", "must be a space id"),
+        (
+            "content_write",
+            "[\"main/Bad Name\"]",
+            "must be <space>/<collection>",
+        ),
+    ] {
+        invalid(
+            &format!("{WITH_GRANTS}[plugins.notes.grants.{grant}]\nallow = {allow}\n"),
+            key,
+        );
+    }
+    invalid(
+        &format!("{WITH_GRANTS}[plugins.notes.grants.documents_write]\n"),
+        "allow",
+    );
+    invalid(
+        &format!(
+            "{WITH_GRANTS}[plugins.notes.grants.documents_write]\nallow = [\"main/*\"]\nother = 1\n"
+        ),
+        "other",
+    );
+}
+
+#[test]
+fn versions_1_and_2_still_treat_grants_as_reserved() {
+    for version in [1, 2] {
+        let text = format!(
+            "config_version = {version}\n[plugins]\nenabled = [\"notes\"]\n[plugins.notes]\n[plugins.notes.grants.documents_write]\nallow = [\"main/*\"]\n"
+        );
+        if version == 1 {
+            continue; // version 1 has no plugin instances at all
+        }
+        let workspace = open(&text).unwrap();
+        assert!(workspace.config().plugins.instances[0].allow.is_empty());
+        let (_dir, root) = workspace_with(&text);
+        let report = doctor::run(&root);
+        let keys = report
+            .checks
+            .iter()
+            .find(|c| c.id == "config.keys")
+            .unwrap();
+        assert_eq!(
+            keys.status,
+            CheckStatus::Warn,
+            "reserved, not unknown: {keys:?}"
+        );
+    }
+}

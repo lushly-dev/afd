@@ -1,0 +1,15 @@
+:host {
+	color: CanvasText;
+}
+
+@media (prefers-contrast: more) {
+	:host {
+		border-color: ButtonBorder;
+	}
+}
+
+@media not (forced-colors: active) {
+	:host {
+		outline-color: Highlight;
+	}
+}

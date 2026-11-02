@@ -1,0 +1,25 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "elements/plain-button.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "PlainButton",
+					"customElement": true,
+					"tagName": "plain-button",
+					"attributes": [{ "name": "disabled", "type": { "text": "boolean" }, "default": "false" }]
+				},
+				{
+					"kind": "class",
+					"name": "FixtureField",
+					"customElement": true,
+					"tagName": "fixture-field",
+					"attributes": []
+				}
+			]
+		}
+	]
+}

@@ -9,29 +9,29 @@ export const styles = css`
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-card: var(--color-surface-card, #faf9f5);
-        --_surface-subtle: var(--color-surface-subtle, #f7f6f1);
-        --_surface-selected: var(--color-surface-selected, #dfe8e0);
-        --_control-selected-background: var(--color-control-selected-background, #dfe8e0);
+        --_surface-subtle: var(--color-surface-subtle, #f0efe6);
+        --_surface-selected: var(--color-surface-selected, #ddeadf);
+        --_control-selected-background: var(--color-control-selected-background, #ddeadf);
         --_control-selected-foreground: var(--color-control-selected-foreground, #244635);
         --_control-selected-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
-        --_surface-floating: var(--color-surface-floating, #ffffff);
+        --_surface-floating: var(--color-surface-floating, #f0efe6);
         --_text-primary: var(--color-text-primary, #18181b);
         --_text-secondary: var(--color-text-secondary, #414651);
-        --_text-muted: var(--color-text-muted, #6b7280);
+        --_text-muted: var(--color-text-muted, #616775);
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
-        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.35));
+        --_border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.48));
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
-        --_error-background: var(--color-state-danger-background, #fef2f2);
-        --_error-border: var(--color-state-danger-border, #dc2626);
-        --_error-text: var(--color-state-danger-text, #991b1b);
+        --_error-background: var(--color-state-danger-background, #fbe2e2);
+        --_error-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+        --_error-text: var(--color-state-danger-text, #b42318);
         --_active-cell-ring: var(--violet-data-grid-active-cell-ring, color-mix(in srgb, var(--_focus-ring) 82%, transparent));
         --_active-cell-ring-width: var(--violet-data-grid-active-cell-ring-width, var(--size-focus-ring-width, 2px));
-        --_space-inline-sm: var(--space-inline-sm, 8px);
-        --_space-inline-md: var(--space-inline-md, 12px);
+        --_space-inline-sm: var(--space-inline-sm, 4px);
+        --_space-inline-md: var(--space-inline-md, 8px);
         --_space-stack-xs: var(--space-stack-xs, 4px);
         --_space-stack-sm: var(--space-stack-sm, 8px);
-        --_radius-md: var(--radius-md, 8px);
-        --_shadow-card: var(--shadow-card, 0 1px 2px rgba(16, 24, 40, 0.08));
+        --_radius-md: var(--radius-md, 4px);
+        --_shadow-card: var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06));
         /* Stacking layers. Declared here rather than inherited: an undefined
            custom property makes the z-index declaration invalid at
            computed-value time, so it is dropped and the element falls back to

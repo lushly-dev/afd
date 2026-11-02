@@ -60,7 +60,17 @@ export default config;
 }
 
 /** One `vitest run` of the selection; `cold` removes the caches first. */
-export async function runIncumbent({ snapshot, consumer, wrapper, kind, report, fonts, env = {} }) {
+export async function runIncumbent({
+	snapshot,
+	consumer,
+	wrapper,
+	kind,
+	report,
+	fonts,
+	env = {},
+	files = incumbents[consumer].files,
+	extraArgs = [],
+}) {
 	const descriptor = incumbents[consumer];
 	if (kind === 'cold')
 		for (const cache of coldCaches)
@@ -78,7 +88,8 @@ export async function runIncumbent({ snapshot, consumer, wrapper, kind, report, 
 		'--browser.ui=false',
 		'--reporter=json',
 		`--outputFile=${report}`,
-		...descriptor.files,
+		...extraArgs,
+		...files,
 	];
 	const start = performance.now();
 	const child = spawn(join(snapshot, 'node_modules/.bin/vitest'), args, {
