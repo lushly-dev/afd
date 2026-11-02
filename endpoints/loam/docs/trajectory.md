@@ -73,10 +73,10 @@ seam for it without implementing a draft. Source IDs refer to the
 | R2 | Agent skills, prompts and AFD contexts as app contributions delivered to the copilot | 1 | Surface catalog; phase 5 |
 | R3 | Overlays on the top layer with `inert` and anchor positioning, fallbacks retired by the watchlist | 2 | Overlay policy; phase 1 |
 | R4 | Scoped custom element registries with a polyfill only for Firefox before 159 | 2 | D34; phase 1 |
-| R5 | Routing on the Navigation API and URLPattern; view transitions where present | 2 | Libraries table; phase 0 |
+| R5 | Routing on the Navigation API; view transitions where present. Revised 2026-11-02 by D74: five fixed shapes need no URLPattern | 2 | Libraries table; phases 0 and 2 |
 | R6 | A surface catalog with versioned surface ids and a removal rule for deprecated surfaces | 3 | Architecture section 4; phase 1 |
 | R7 | Native apps as self-contained ES modules; no bundler coupling in the contract. Revised 2026-11-01 by D60: an import map is a seam, not the contract, since an inline one needs a CSP hash | 3 | App manifest; phase 1 |
-| R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 2 |
+| R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 4, moved 2026-11-02 by D75, with `bandFor`'s comparator as the seam |
 | R9 | A kernel behind the SDK interface, so Rust WebAssembly modules, a Rust-rendered chrome or a WebAssembly-component app kind can attach later without a contract change | 5 | Architecture sections 5 and 6; phases 0 and 6 |
 | R10 | Workspaces bound to provider organizations; a reserved tenant field; experiments with audiences | 6 | Data model; D32; phase 3 |
 | R11 | A copilot runtime adapter so the SDK can change, with agents, delegations, runs and sessions as Loam's records above it and AG-UI as the stream so another runtime can attach | 1 | Architecture sections 4 and 5; D27; phase 5 |
@@ -92,12 +92,12 @@ seam for it without implementing a draft. Source IDs refer to the
 
 | ID | Item | Status on 2026-10-30 | Next date | What changes for Loam |
 | --- | --- | --- | --- | --- |
-| W1 | MCP Apps specification | 2026-01-26 stable; development draft open; host support varies. Refreshed 2026-11-01: still the only dated version, `@modelcontextprotocol/ext-apps` at 2.0.4; a web host must use a sandbox proxy on a different origin (D62) | Unknown; follows the MCP release cycle | The host profile the sandboxed view implements, pinned in the phase 1 specification |
+| W1 | MCP Apps specification | 2026-01-26 stable; development draft open; host support varies. Refreshed 2026-11-01: still the only dated version, `@modelcontextprotocol/ext-apps` at 2.0.4; a web host must use a sandbox proxy on a different origin (D62). Refreshed 2026-11-02: unchanged | Unknown; follows the MCP release cycle | The host profile the sandboxed view implements, pinned in the phase 1 specification |
 | W2 | Serving resources from AFD servers | Done 2026-11-01: Rust #608, TypeScript #615; not in the in-process registry | None | A Loam view can be served to other hosts; views from a mounted server wait for phase 5 |
-| W3 | Scoped custom element registries in Firefox | Shipped in Firefox 159 on 2026-10-27; Chrome 146 and Safari 26 already shipped | When the support floor reaches 159 | Retire the polyfill (D34) |
+| W3 | Scoped custom element registries in Firefox | Shipped in Firefox 159 on 2026-10-27; Chrome 146 and Safari 26 already shipped; MDN's compatibility data agrees, read 2026-11-02 | When the support floor reaches 159 | Retire the polyfill (D34) |
 | W4 | CSS anchor positioning in Safari | Shipped in Safari 26 | Settled | Keep a fallback only for older engines |
 | W5 | Cross-document view transitions in Firefox | Not shipped | Interop 2026 hoped, unconfirmed | Cosmetic only |
-| W6 | Navigation API precommit handler in Safari | Missing | Unknown | Route guards use the fallback path |
+| W6 | Navigation API precommit handler in Safari | Missing. Refreshed 2026-11-02: `Navigation` is in Chrome 102, Firefox 147 and Safari 26.2; no precommit entry was readable in MDN's data, and phase 2 registers no such handler | Unknown | Route guards use the fallback path; without the API a link is a full load, which D74 keeps working |
 | W7 | Tauri line and mobile maturity | 2.12.5 on 2026-10-21; 3.0.0 in alpha; mobile younger than desktop | Tauri 3.0 | D33; the desktop lane pins a major |
 | W8 | WebAssembly components in browsers | Transpilation through jco only; no native implementation | Unknown | A component app kind stays reserved |
 | W9 | Rust frontends and web components | No support found in Dioxus or Leptos sources | Unknown | A Rust-rendered chrome stays reserved |
