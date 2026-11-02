@@ -201,8 +201,8 @@ import { contextSchema, captureRequestSchema, observationSchema, buildOutputSche
 import * as schema from '@lushly-dev/specimen/schema';
 assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
-assert.deepEqual(Object.keys(schema).sort(), ['buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'inspectRequestSchema', 'inspectResultSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'runRequestSchema', 'storyRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
-assert.equal(CAPTURE_VERSION, '0.2');
+assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'inspectRequestSchema', 'inspectResultSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'runRequestSchema', 'storyRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
+assert.equal(CAPTURE_VERSION, '0.3');
 assert.equal(NORMALIZATION_VERSION, '0.1');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);
@@ -277,13 +277,13 @@ import { createSpecimenBench } from '@lushly-dev/specimen';
 import * as integration from '@lushly-dev/specimen-afd';
 import * as endpoint from '@lushly-dev/specimen-cli';
 const { createSpecimenCommands, executeSpecimenCommand, executeSpecimenDiff } = integration;
-assert.deepEqual(Object.keys(integration).sort(), ['buildOutputSchema', 'contextSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'observationSchema', 'storyRunSchema', 'suiteRunSchema']);
+assert.deepEqual(Object.keys(integration).sort(), ['a11yRunSchema', 'buildOutputSchema', 'contextSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'observationSchema', 'storyRunSchema', 'suiteRunSchema']);
 assert.deepEqual(Object.keys(endpoint), ['runCli']);
 const root = new URL('./fixtures/', import.meta.url).pathname;
 const bench = await createSpecimenBench({ root });
 try {
 	const commands = createSpecimenCommands(bench);
-	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-build', 'specimen-diff', 'specimen-inspect', 'specimen-list', 'specimen-migrate', 'specimen-render', 'specimen-run', 'specimen-validate']);
+	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-a11y', 'specimen-build', 'specimen-diff', 'specimen-inspect', 'specimen-list', 'specimen-migrate', 'specimen-render', 'specimen-run', 'specimen-validate']);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-list', {})).success, true);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-unknown', {})).success, false);
 	assert.equal((await executeSpecimenDiff({ left: {}, right: {} })).error.code, 'VALIDATION_ERROR');
@@ -298,7 +298,7 @@ try {
 );
 execFileSync(process.execPath, ['runtime.mjs'], { cwd: fullRoot, stdio: 'inherit' });
 passed(
-	'integration present: eight command definitions, execution, invalid input and unknown command'
+	'integration present: nine command definitions, execution, invalid input and unknown command'
 );
 await writeFile(
 	join(fullRoot, 'consumer.ts'),

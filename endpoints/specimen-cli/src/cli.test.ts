@@ -45,6 +45,12 @@ function harness() {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		a11y: vi.fn(async () => ({
+			reports: [],
+			counts: { total: 0, passed: 0, warning: 0, failed: 0, notRun: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		runSuite: vi.fn(async () => ({
 			outcome: 'passed' as const,
 			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
@@ -65,6 +71,8 @@ function harness() {
 					policy: 'error' as const,
 					violations: [],
 					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
 				},
 			},
 			observation: null,
@@ -182,6 +190,28 @@ describe('specimen CLI', () => {
 		// Suite options need the suite: with a story id they are a mistake, not ignored.
 		expect(await runCli(['--root', root, 'run', 'button', '--workers', '2'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'run', '--workers', 'many'], h.io)).toBe(1);
+	});
+	it('dispatches a11y by id or filter, and exits nonzero when a check failed', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'a11y', 'button', '--checkpoint', 'mount'], h.io)).toBe(0);
+		expect(h.bench.a11y).toHaveBeenCalledWith({ id: 'button', context: {}, checkpoint: 'mount' });
+		expect(await runCli(['--root', root, 'a11y', '--tag', 'smoke', '--workers', '3'], h.io)).toBe(
+			0
+		);
+		expect(h.bench.a11y).toHaveBeenLastCalledWith({
+			context: {},
+			filter: { tags: ['smoke'] },
+			workers: 3,
+		});
+		h.bench.a11y = vi.fn(async () => ({
+			reports: [],
+			counts: { total: 1, passed: 0, warning: 0, failed: 1, notRun: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		}));
+		expect(await runCli(['--root', root, 'a11y'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'a11y', 'button', '--workers', '2'], h.io)).toBe(1);
 	});
 	it('dispatches validate with an optional story or file', async () => {
 		const h = harness();

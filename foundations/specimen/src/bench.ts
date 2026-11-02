@@ -3,6 +3,8 @@ import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
+	A11yRequest,
+	A11yRun,
 	BenchOptions,
 	CaptureRequest,
 	InspectRequest,
@@ -18,7 +20,7 @@ import type {
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
-import { parseCaptureRequest, parseSuiteRequest } from './validate.js';
+import { parseA11yRequest, parseCaptureRequest, parseSuiteRequest } from './validate.js';
 
 /** Discovery found stories it cannot index; `validate()` reports each problem. */
 export class DiscoveryError extends Error {
@@ -51,6 +53,11 @@ export interface SpecimenBench {
 	 */
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	/**
+	 * Run an accessibility check at a checkpoint, on one entry or those a filter selects: violations,
+	 * what axe could not decide, and the exceptions that applied. A story keeps its effective policy.
+	 */
+	a11y(request?: A11yRequest): Promise<A11yRun>;
+	/**
 	 * Resolve one specimen or retained story without capturing it: its args, its context and
 	 * its component's schema, from the manifest and the plugins' schema sources.
 	 */
@@ -78,7 +85,10 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	Object.freeze(config);
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
-	type Backend = Pick<SpecimenBench, 'render' | 'run' | 'runSuite' | 'inspect' | 'build' | 'close'>;
+	type Backend = Pick<
+		SpecimenBench,
+		'render' | 'run' | 'runSuite' | 'a11y' | 'inspect' | 'build' | 'close'
+	>;
 	let backend: Backend | undefined;
 	let closed = false;
 	let closing: Promise<void> | undefined;
@@ -173,6 +183,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
 			return enqueue((client) => client.run(request));
+		},
+		async a11y(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseA11yRequest(rawRequest);
+			return enqueue((client) => client.a11y(request));
 		},
 		async runSuite(rawRequest = {}) {
 			ensureDiscovered();

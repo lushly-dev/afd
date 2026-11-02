@@ -333,4 +333,34 @@ describe('diffObservations', () => {
 		diffObservations(left, right);
 		expect([left, right]).toEqual(saved);
 	});
+	it('treats a change in what axe found as a difference, and an unrun check as no evidence', () => {
+		const withAxe = (violations: { id: string; targets: string[] }[]) => {
+			const value = capture();
+			value.channels.a11y.axe = {
+				status: violations.length ? 'failed' : 'passed',
+				policy: 'error',
+				violations: violations.map((violation) => ({
+					...violation,
+					impact: null,
+					help: '',
+					details: [],
+				})),
+				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
+			};
+			return value;
+		};
+		const image = { id: 'image-alt', targets: ['img'] };
+		expect(diffObservations(withAxe([]), withAxe([])).differences).toEqual([]);
+		expect(diffObservations(withAxe([image]), withAxe([image])).differences).toEqual([]);
+		expect(diffObservations(withAxe([]), withAxe([image])).differences).toEqual([
+			{ channel: 'a11y', left: '', right: 'image-alt img' },
+		]);
+		expect(
+			diffObservations(capture(), withAxe([image])).differences.filter(
+				(difference) => difference.channel === 'a11y'
+			)
+		).toEqual([]);
+	});
 });

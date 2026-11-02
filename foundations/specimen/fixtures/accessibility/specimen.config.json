@@ -1,0 +1,76 @@
+{
+	"specimens": [
+		{
+			"id": "clean",
+			"title": "A11y/Clean",
+			"module": "./checks.specimens.ts",
+			"exportName": "Clean"
+		},
+		{
+			"id": "violating",
+			"title": "A11y/Violating",
+			"module": "./checks.specimens.ts",
+			"exportName": "Violating"
+		},
+		{
+			"id": "excepted",
+			"title": "A11y/Excepted",
+			"module": "./checks.specimens.ts",
+			"exportName": "Excepted"
+		},
+		{
+			"id": "partly-excepted",
+			"title": "A11y/PartlyExcepted",
+			"module": "./checks.specimens.ts",
+			"exportName": "PartlyExcepted"
+		},
+		{
+			"id": "other-rule",
+			"title": "A11y/OtherRule",
+			"module": "./checks.specimens.ts",
+			"exportName": "OtherRule"
+		},
+		{
+			"id": "in-shadow",
+			"title": "A11y/InShadow",
+			"module": "./checks.specimens.ts",
+			"exportName": "InShadow"
+		},
+		{
+			"id": "stale-exception",
+			"title": "A11y/StaleException",
+			"module": "./checks.specimens.ts",
+			"exportName": "StaleException"
+		},
+		{
+			"id": "disabled",
+			"title": "A11y/Disabled",
+			"module": "./checks.specimens.ts",
+			"exportName": "Disabled"
+		},
+		{
+			"id": "no-reason",
+			"title": "A11y/NoReason",
+			"module": "./checks.specimens.ts",
+			"exportName": "NoReason"
+		},
+		{
+			"id": "no-target",
+			"title": "A11y/NoTarget",
+			"module": "./checks.specimens.ts",
+			"exportName": "NoTarget"
+		},
+		{
+			"id": "undecided",
+			"title": "A11y/Undecided",
+			"module": "./checks.specimens.ts",
+			"exportName": "Undecided"
+		},
+		{
+			"id": "after-scenario",
+			"title": "A11y/AfterScenario",
+			"module": "./checks.specimens.ts",
+			"exportName": "AfterScenario"
+		}
+	]
+}

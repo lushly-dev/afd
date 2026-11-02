@@ -11,7 +11,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.2',
+			captureVersion: '0.3',
 			normalizationVersion: '0.1',
 			specimenId: 'button',
 			checkpoint: 'mount',
@@ -89,6 +89,32 @@ function bench(): SpecimenCommandBench {
 			limitations: ['No schema source describes plain-button.'],
 			plugins: [],
 		})),
+		a11y: vi.fn(async () => ({
+			reports: [
+				{
+					id: 'button',
+					checkpoint: 'mount',
+					status: 'failed' as const,
+					policy: 'error' as const,
+					violations: [
+						{
+							id: 'image-alt',
+							impact: 'critical',
+							help: 'Images must have alternative text',
+							targets: ['img'],
+							details: ['Fix any of the following'],
+						},
+					],
+					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
+					failures: [],
+				},
+			],
+			counts: { total: 1, passed: 0, warning: 0, failed: 1, notRun: 0 },
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		runSuite: vi.fn(async () => ({
 			outcome: 'passed' as const,
 			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
@@ -109,6 +135,8 @@ function bench(): SpecimenCommandBench {
 					policy: 'error' as const,
 					violations: [],
 					incomplete: 0,
+					incompleteChecks: [],
+					exceptions: [],
 					engine: '4.13.0',
 				},
 			},
@@ -134,6 +162,7 @@ describe('specimen commands', () => {
 			'specimen-build',
 			'specimen-validate',
 			'specimen-run',
+			'specimen-a11y',
 			'specimen-inspect',
 			'specimen-migrate',
 		]);
@@ -195,6 +224,21 @@ describe('specimen commands', () => {
 			id: 'button',
 			checkpoint: 'mount',
 		});
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('checks accessibility, and reports a failing check as a successful command', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-a11y', {
+			id: 'button',
+			checkpoint: 'mount',
+		});
+		expect(result.success).toBe(true);
+		expect(instance.a11y).toHaveBeenCalledWith({ id: 'button', checkpoint: 'mount' });
+		expect(result.data).toMatchObject({
+			counts: { failed: 1 },
+			reports: [{ id: 'button', status: 'failed', violations: [{ id: 'image-alt' }] }],
+		});
+		const invalid = await executeSpecimenCommand(instance, 'specimen-a11y', { other: true });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
 	});
 	it('runs a suite without an id, and refuses an id with suite options', async () => {

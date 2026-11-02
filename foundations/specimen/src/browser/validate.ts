@@ -1,4 +1,10 @@
-import type { ScenarioStep, SpecimenDefinition, SpecimenModule, Target } from '../types.js';
+import type {
+	NativeAccessibility,
+	ScenarioStep,
+	SpecimenDefinition,
+	SpecimenModule,
+	Target,
+} from '../types.js';
 
 const specimenFields = new Set([
 	'name',
@@ -8,6 +14,7 @@ const specimenFields = new Set([
 	'dispose',
 	'targets',
 	'scenario',
+	'a11y',
 ]);
 const metaFields = new Set(['title', 'description', 'component', 'args', 'render']);
 // Playwright 1.64's getByRole contract; abstract/unknown roles are not accepted.
@@ -245,6 +252,40 @@ function scenario(value: unknown, availableTargets: Record<string, Target>): Sce
 }
 
 /** Reject unsupported behavior before mounting or executing any scenario prefix. */
+function required(value: unknown, path: string): string {
+	if (typeof value !== 'string' || !value.trim())
+		throw new Error(`${path} is required: an exclusion must say why and where.`);
+	return value;
+}
+
+/** Native exclusions always carry a reason and, for a rule, a target; reports list them. */
+function accessibility(value: unknown): NativeAccessibility | undefined {
+	if (value === undefined) return undefined;
+	const raw = record(value, 'specimen.a11y');
+	fields(raw, new Set(['disabled', 'exceptions']), 'specimen.a11y');
+	if (raw.disabled !== undefined && raw.exceptions !== undefined)
+		throw new Error('specimen.a11y disables its checks or excepts rules, not both.');
+	if (raw.disabled !== undefined) {
+		const disabled = record(raw.disabled, 'specimen.a11y.disabled');
+		fields(disabled, new Set(['reason']), 'specimen.a11y.disabled');
+		return { disabled: { reason: required(disabled.reason, 'specimen.a11y.disabled.reason') } };
+	}
+	if (raw.exceptions === undefined) return {};
+	if (!Array.isArray(raw.exceptions)) throw new Error('specimen.a11y.exceptions must be an array.');
+	return {
+		exceptions: raw.exceptions.map((item, index) => {
+			const path = `specimen.a11y.exceptions[${index}]`;
+			const exception = record(item, path);
+			fields(exception, new Set(['rule', 'target', 'reason']), path);
+			return {
+				rule: required(exception.rule, `${path}.rule`),
+				target: required(exception.target, `${path}.target`),
+				reason: required(exception.reason, `${path}.reason`),
+			};
+		}),
+	};
+}
+
 export function validateSpecimen(
 	module: SpecimenModule,
 	exportName: string
@@ -271,6 +312,7 @@ export function validateSpecimen(
 			dispose: hook(raw.dispose, 'specimen.dispose'),
 			targets: availableTargets,
 			scenario: scenario(raw.scenario, availableTargets),
+			a11y: accessibility(raw.a11y),
 		},
 	};
 }

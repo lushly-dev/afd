@@ -131,6 +131,22 @@ function validateOptions(parsed: ParsedArguments): void {
 			'flake-cap',
 			'capture',
 		]),
+		a11y: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'file',
+			'tag',
+			'match',
+			'workers',
+		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
 		build: new Set(['root', 'config', 'output']),
 	};
@@ -146,12 +162,13 @@ function validateOptions(parsed: ParsedArguments): void {
 			: parsed.action === 'diff'
 				? 2
 				: 1;
-	const suite = parsed.action === 'run' && parsed.positionals.length === 0;
+	const selects = parsed.action === 'run' || parsed.action === 'a11y';
+	const suite = selects && parsed.positionals.length === 0;
 	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
-	if (parsed.action === 'run' && !suite)
+	if (selects && !suite)
 		for (const option of suiteOptions)
 			if (parsed.options.has(option) || parsed.flags.has(option))
-				throw new Error(`Option --${option} selects a suite; omit the story id to use it`);
+				throw new Error(`Option --${option} selects many; omit the id to use it`);
 	if (!suite && parsed.positionals.length !== expected)
 		throw new Error(
 			`${parsed.action} expects ${expected} positional argument${expected === 1 ? '' : 's'}`
@@ -181,7 +198,11 @@ function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
 }
 /** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
 function storiesFailed(result: CommandResult<unknown>): boolean {
-	const outcome = (result.data as { outcome?: string | { status?: string } } | undefined)?.outcome;
+	const data = result.data as
+		| { outcome?: string | { status?: string }; counts?: { failed?: number } }
+		| undefined;
+	if (data?.counts?.failed) return true;
+	const outcome = data?.outcome;
 	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
 	return outcome?.status === 'failed';
 }
@@ -265,7 +286,16 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value) raw[field] = value;
 				}
-				if (parsed.action === 'run' && parsed.positionals.length === 0)
+				if (parsed.action === 'a11y') {
+					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
+						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
+						context: { ...context, ...raw },
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'run' && parsed.positionals.length === 0)
 					result = await executeSpecimenCommand(bench, 'specimen-run', {
 						context: { ...context, ...raw },
 						...suiteInput(parsed),

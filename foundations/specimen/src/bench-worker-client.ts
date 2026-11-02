@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import type { SpecimenBench } from './bench.js';
 import type { LoadedConfig } from './config.js';
 import type {
+	A11yRequest,
+	A11yRun,
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
@@ -19,6 +21,7 @@ type WorkerOperation =
 	| { operation: 'render'; request: CaptureRequest }
 	| { operation: 'run'; request: RunRequest }
 	| { operation: 'runSuite'; request: SuiteRequest }
+	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'inspect'; request: InspectRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
@@ -216,6 +219,11 @@ export class BenchWorkerClient {
 			{ operation: 'run', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as StoryRun;
+	}
+	async a11y(request: A11yRequest): Promise<A11yRun> {
+		await this.ready;
+		// As a suite: each entry has its own deadline in the worker.
+		return (await this.request({ operation: 'a11y', request }, 3_600_000)) as A11yRun;
 	}
 	async runSuite(request: SuiteRequest): Promise<SuiteRun> {
 		await this.ready;

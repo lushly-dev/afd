@@ -1,4 +1,5 @@
 export {
+	a11yRunSchema,
 	buildOutputSchema,
 	contextSchema,
 	inspectResultSchema,

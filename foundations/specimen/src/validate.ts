@@ -1,4 +1,11 @@
-import type { BenchConfig, CaptureRequest, SpecimenContext, SuiteRequest } from './types.js';
+import type {
+	A11yRequest,
+	BenchConfig,
+	CaptureRequest,
+	SpecimenContext,
+	SuiteFilter,
+	SuiteRequest,
+} from './types.js';
 
 /**
  * Validation for the bench's own inputs: the configuration file, capture requests and
@@ -93,6 +100,47 @@ export function parseContext(
 
 const MAX_SUITE_WORKERS = 32;
 
+function suiteFilter(value: unknown, path: string): SuiteFilter {
+	const filter = record(value, path, ['ids', 'file', 'tags', 'match']);
+	return {
+		...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, `${path}.ids`) }),
+		...(filter.file === undefined ? {} : { file: text(filter.file, `${path}.file`) }),
+		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
+		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
+	};
+}
+
+export function parseA11yRequest(value: unknown): A11yRequest {
+	const fields = record(value, 'accessibility request', [
+		'id',
+		'filter',
+		'checkpoint',
+		'context',
+		'timeoutMs',
+		'workers',
+	]);
+	const request: A11yRequest = {};
+	if (fields.id !== undefined) request.id = text(fields.id, 'accessibility request.id');
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'accessibility request.filter');
+	if (request.id !== undefined && request.filter !== undefined)
+		fail('accessibility request', 'give an id or a filter, not both');
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, 'accessibility request.checkpoint');
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, 'accessibility request.context', true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'accessibility request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(
+			fields.workers,
+			'accessibility request.workers',
+			1,
+			MAX_SUITE_WORKERS
+		);
+	return request;
+}
+
 export function parseSuiteRequest(value: unknown): SuiteRequest {
 	const fields = record(value, 'suite request', [
 		'filter',
@@ -104,21 +152,8 @@ export function parseSuiteRequest(value: unknown): SuiteRequest {
 		'capture',
 	]);
 	const request: SuiteRequest = {};
-	if (fields.filter !== undefined) {
-		const filter = record(fields.filter, 'suite request.filter', ['ids', 'file', 'tags', 'match']);
-		request.filter = {
-			...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, 'suite request.filter.ids') }),
-			...(filter.file === undefined
-				? {}
-				: { file: text(filter.file, 'suite request.filter.file') }),
-			...(filter.tags === undefined
-				? {}
-				: { tags: tagList(filter.tags, 'suite request.filter.tags') }),
-			...(filter.match === undefined
-				? {}
-				: { match: text(filter.match, 'suite request.filter.match') }),
-		};
-	}
+	if (fields.filter !== undefined)
+		request.filter = suiteFilter(fields.filter, 'suite request.filter');
 	if (fields.context !== undefined)
 		request.context = parseContext(fields.context, 'suite request.context', true);
 	if (fields.timeoutMs !== undefined)

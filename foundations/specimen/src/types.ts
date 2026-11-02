@@ -1,7 +1,7 @@
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.2' as const;
+export const CAPTURE_VERSION = '0.3' as const;
 export const NORMALIZATION_VERSION = '0.1' as const;
 
 export interface SpecimenContext {
@@ -49,6 +49,7 @@ export interface SpecimenDefinition {
 	scenario?: ScenarioStep[];
 	ready?: () => void | Promise<void>;
 	dispose?: () => void | Promise<void>;
+	a11y?: NativeAccessibility;
 }
 export interface SpecimenModule {
 	default?: {
@@ -317,7 +318,7 @@ export interface Observation {
 	manifest: CaptureManifest;
 	channels: {
 		dom: { raw: string; normalized: string };
-		a11y: { snapshot: string; axe: 'not-run' };
+		a11y: { snapshot: string; axe: 'not-run' | AxeOutcome };
 		elements: ElementObservation[];
 		console: { errors: string[]; warnings: string[] };
 		visual: { path: string | null };
@@ -343,28 +344,69 @@ export interface ObservationDiff {
 	differences: ChannelDifference[];
 	limitations: string[];
 }
+/** One axe rule's finding: a violation, or a check it could not complete. */
+export interface AxeFinding {
+	id: string;
+	impact: string | null;
+	help: string;
+	targets: string[];
+	/** Axe's explanation for each target, such as the contrast it measured. */
+	details: string[];
+}
+/** A native exception and what it excused in this check; none means it may be stale. */
+export interface AxeException {
+	rule: string;
+	target: string;
+	reason: string;
+	matched: string[];
+}
+export interface AxeOutcome {
+	/** `warning`: violations under `parameters.a11y.test: 'todo'`. */
+	status: 'passed' | 'warning' | 'failed' | 'not-run';
+	policy: 'error' | 'todo' | 'off' | 'disabled' | 'manual';
+	reason?: string;
+	violations: AxeFinding[];
+	incomplete: number;
+	/** What axe could not decide and a person must, such as contrast over an image. */
+	incompleteChecks: AxeFinding[];
+	exceptions: AxeException[];
+	engine?: string;
+}
+/** A native specimen's accessibility policy. Every exclusion names why and, for a rule, where. */
+export interface NativeAccessibility {
+	disabled?: { reason: string };
+	/** Excuses `rule` on `target`, a CSS selector, and everything inside it. */
+	exceptions?: { rule: string; target: string; reason: string }[];
+}
+/** Check one entry by `id`, or those a `filter` selects; no id and no filter checks them all. */
+export interface A11yRequest {
+	id?: string;
+	filter?: SuiteFilter;
+	/** Defaults to `after-run`: a native scenario's end, or a story's play. */
+	checkpoint?: string;
+	context?: Partial<SpecimenContext>;
+	timeoutMs?: number;
+	workers?: number;
+}
+export interface A11yReport extends AxeOutcome {
+	id: string;
+	checkpoint: string;
+	/** What stopped the run before the check: a story's play, or a render. */
+	failures: { category: 'render' | 'play'; message: string }[];
+}
+export interface A11yRun {
+	reports: A11yReport[];
+	counts: { total: number; passed: number; warning: number; failed: number; notRun: number };
+	workers: number;
+	elapsedMs: number;
+}
 /** What a retained story's run found: the play, then the accessibility check. */
 export interface StoryOutcome {
 	/** `excluded`: no test exists for the story under the include and exclude tags. */
 	status: 'passed' | 'failed' | 'skipped' | 'excluded';
 	play: 'ran' | 'none';
 	failures: { category: 'render' | 'play' | 'a11y'; message: string }[];
-	a11y: {
-		/** `warning`: violations under `parameters.a11y.test: 'todo'`. */
-		status: 'passed' | 'warning' | 'failed' | 'not-run';
-		policy: 'error' | 'todo' | 'off' | 'disabled' | 'manual';
-		reason?: string;
-		violations: {
-			id: string;
-			impact: string | null;
-			help: string;
-			targets: string[];
-			/** Axe's explanation for each target, such as the contrast it measured. */
-			details: string[];
-		}[];
-		incomplete: number;
-		engine?: string;
-	};
+	a11y: AxeOutcome;
 }
 export interface BrowserRuntime {
 	/**
@@ -380,6 +422,8 @@ export interface BrowserRuntime {
 		entry: SpecimenEntry,
 		context: SpecimenContext
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
+	/** Check what is mounted, at this point: a retained story under its policy, or a specimen. */
+	checkAccessibility(): Promise<AxeOutcome>;
 	/** Render a retained story, then run its play and accessibility check, with no task between. */
 	mountAndRun(entry: SpecimenEntry, context: SpecimenContext): Promise<StoryOutcome>;
 	/** Resolve an entry without rendering it: args, context and the component's enriched schema. */

@@ -1,6 +1,7 @@
 import type {
 	InspectResult,
 	MountHandle,
+	NativeAccessibility,
 	ScenarioStep,
 	SpecimenContext,
 	SpecimenEntry,
@@ -116,6 +117,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		mountRoot.replaceChildren();
 		instrumentation.setMotionMode('natural');
 		requested = undefined;
+		nativeAccessibility = undefined;
 		active = false;
 		if (errors.length) {
 			const details = errors
@@ -159,6 +161,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	}
 
 	/** Upgrade, fonts and a frame: the native readiness contract. */
+	/** The mounted native specimen's accessibility policy. */
+	let nativeAccessibility: NativeAccessibility | undefined;
 	/** Tags a retained story still had undefined when it settled. */
 	const undefinedTags = new Set<string>();
 
@@ -287,6 +291,12 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!registered) throw new Error(`No command runner '${runner}' is registered.`);
 			return registered.runner.run(element, name, input);
 		},
+		async checkAccessibility() {
+			const runtime = await storyRuntime();
+			if (story?.mounted) return runtime.checkMountedStory(story.mounted);
+			if (!active) throw new Error('Mount a specimen before checking it.');
+			return runtime.checkNativeSpecimen(mountRoot, nativeAccessibility);
+		},
 		async mountAndRun(entry, context) {
 			// One chain with no frame between the render and the play and no import after the
 			// render, as Storybook's runner has it: a play and an accessibility check see a
@@ -326,6 +336,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				}
 				const module = await load();
 				const { meta, specimen } = validateSpecimen(module, entry.exportName);
+				nativeAccessibility = specimen.a11y;
 				for (const step of specimen.scenario ?? [])
 					if ('command' in step && !registry.runners.has(step.command.runner))
 						throw new Error(
