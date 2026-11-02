@@ -12,6 +12,8 @@ use umbel::cli::{Console, Environment};
 use umbel::plugins::sdk;
 use umbel::{Host, HostBuilder};
 
+pub mod eval;
+
 /// Spaces `main` (collections `handbook`, `code`) and `beta` (`notes`); the group `platform` with
 /// `human:ada` in it; both plugins enabled with their write grants allowed for both spaces.
 pub const CONFIG: &str = r#"

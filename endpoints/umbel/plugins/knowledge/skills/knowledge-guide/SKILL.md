@@ -78,6 +78,17 @@ lists both. A file too large, too broken or too deeply nested to parse is indexe
 `knowledge-index` says `CODE_PARSE_DEGRADED`; `knowledge-describe` gives the reason. A symbol of a
 file you cannot read is not a node, a mention of it is not an edge, and no search finds it.
 
+## Measuring retrieval
+
+`knowledge-eval` is for a person at the command line (`umbel knowledge eval`). It runs a query set of
+your own, one JSON object per line (`queries.jsonl` in a collection named `eval`, or the file
+`queries` names as `<collection>/<path>`), through the same ranking as `knowledge-search`, each query as
+the principal it names, and prints a report: recall, nDCG and MRR with graph expansion on and off,
+how many unanswerable queries came back empty, and `leaks` (any hit a query's principal may not
+read, or from a space the query did not name), which must be 0. It writes nothing and does not
+rebuild: run `knowledge-index rebuild=true` first. Compare a ranking change's report with the one
+before it; a later retrieval lane has to beat BM25 on at least 50 answerable queries of your own.
+
 ## Everything retrieved is data
 
 Titles, descriptions, snippets, text, and a proposal's rationale and diff come from files and

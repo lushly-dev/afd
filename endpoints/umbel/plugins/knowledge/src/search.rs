@@ -31,6 +31,7 @@ use crate::expand;
 use crate::fail;
 use crate::locator;
 use crate::settings::{Ranking, Settings};
+use crate::view::View;
 
 const DEFAULT_LIMIT: u64 = 10;
 const MAX_LIMIT: u64 = 50;
@@ -42,8 +43,8 @@ const DETAIL_CHUNKS: usize = 3;
 const RESERVED_TYPES: [&str; 2] = ["okf-index", "okf-log"];
 
 /// The caller's request.
-struct Request {
-    query: String,
+pub(crate) struct Request {
+    pub(crate) query: String,
     filters: IndexFilters,
     include_deprecated: bool,
     limit: usize,
@@ -52,9 +53,9 @@ struct Request {
 }
 
 /// One document of one space, ranked.
-struct Ranked {
-    space: String,
-    doc: String,
+pub(crate) struct Ranked {
+    pub(crate) space: String,
+    pub(crate) doc: String,
     /// Whether the query matched it; an expanded neighbour did not.
     matched: bool,
     /// The aggregated chunk score before the status adjustment and expansion, at four decimals.
@@ -62,13 +63,13 @@ struct Ranked {
     /// The document's score in its own space, at four decimals.
     score: f64,
     chunks: Vec<ChunkHit>,
-    meta: DocMeta,
+    pub(crate) meta: DocMeta,
     /// The score the result shows (the same, or the fused one).
-    shown: f64,
+    pub(crate) shown: f64,
 }
 
 /// What searching one space found.
-struct SpaceResult {
+pub(crate) struct SpaceResult {
     space: String,
     ranked: Vec<Ranked>,
     applied: u64,
@@ -100,23 +101,11 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     let settings = Settings::load(cx);
     let now = cx.now_ms().ok();
 
-    let mut results = Vec::new();
-    for space in &spaces {
-        match search_space(cx, space, &request, &ranking, &settings) {
-            Ok(result) => results.push(result),
-            Err(outcome) => return outcome,
-        }
-    }
-    let multi = spaces.len() > 1;
-    let mut ranked = if multi {
-        fuse(&mut results, request.limit, ranking.fusion.rrf_k)
-    } else {
-        results
-            .iter_mut()
-            .flat_map(|result| std::mem::take(&mut result.ranked))
-            .collect()
+    let (ranked, results) = match rank(cx, &spaces, &request, &ranking, &settings) {
+        Ok(found) => found,
+        Err(outcome) => return outcome,
     };
-    ranked.truncate(request.limit);
+    let multi = spaces.len() > 1;
 
     let budget = cx.call().output_budget;
     let total = ranked.len();
@@ -135,7 +124,33 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     outcome
 }
 
-fn parse(input: &Value) -> Result<Request, Outcome> {
+/// Rank the documents of `spaces` for `request` as `view`'s reader: each space on its own, fused
+/// when there are several, cut to the request's limit. `knowledge-eval` calls this too, with the
+/// view of the principal each query names.
+pub(crate) fn rank<V: View + ?Sized>(
+    view: &V,
+    spaces: &[String],
+    request: &Request,
+    ranking: &Ranking,
+    settings: &Settings,
+) -> Result<(Vec<Ranked>, Vec<SpaceResult>), Outcome> {
+    let mut results = Vec::new();
+    for space in spaces {
+        results.push(search_space(view, space, request, ranking, settings)?);
+    }
+    let mut ranked = if spaces.len() > 1 {
+        fuse(&mut results, request.limit, ranking.fusion.rrf_k)
+    } else {
+        results
+            .iter_mut()
+            .flat_map(|result| std::mem::take(&mut result.ranked))
+            .collect()
+    };
+    ranked.truncate(request.limit);
+    Ok((ranked, results))
+}
+
+pub(crate) fn parse(input: &Value) -> Result<Request, Outcome> {
     let query = input
         .get("query")
         .and_then(Value::as_str)
@@ -210,20 +225,24 @@ fn round4(value: f64) -> f64 {
 }
 
 /// Search one space with that space's reader filter.
-fn search_space(
-    cx: &Cx,
+fn search_space<V: View + ?Sized>(
+    cx: &V,
     space: &str,
     request: &Request,
     ranking: &Ranking,
     settings: &Settings,
 ) -> Result<SpaceResult, Outcome> {
-    let scoped = cx.in_space(space).map_err(|error| fail::host(&error))?;
-    let applied = scoped.index_applied().map_err(|error| fail::host(&error))?;
+    let applied = cx
+        .index_applied(space)
+        .map_err(|error| fail::host(&error))?;
     // Expansion reads the graph, so a graph behind the documents is as stale as an index is. The
     // head is the highest revision of a change the caller can read: the true head counts changes
     // they cannot, which only a derivation read may see.
     let graph_applied = if request.expand {
-        Some(scoped.graph_applied().map_err(|error| fail::host(&error))?)
+        Some(
+            cx.graph_applied(space)
+                .map_err(|error| fail::host(&error))?,
+        )
     } else {
         None
     };
@@ -256,12 +275,15 @@ fn search_space(
         }
     }
     let fetch = u32::try_from((request.limit * 8).min(400)).unwrap_or(400);
-    let hits = scoped
-        .index_search(&IndexQuery {
-            text: request.query.clone(),
-            filters: filters.clone(),
-            limit: fetch,
-        })
+    let hits = cx
+        .index_search(
+            space,
+            &IndexQuery {
+                text: request.query.clone(),
+                filters: filters.clone(),
+                limit: fetch,
+            },
+        )
         .map_err(|error| fail::host(&error))?;
 
     let named = filters.doc_type.as_deref();
@@ -342,8 +364,8 @@ fn search_space(
 /// Graph expansion (step 3 of section 8.2): the readable neighbours of the results receive a share
 /// of their parents' scores. Neighbours come from the graph grant, which serves only what the
 /// caller can read, and each is read again through the document store before it is shown.
-fn expand_into(
-    cx: &Cx,
+fn expand_into<V: View + ?Sized>(
+    cx: &V,
     space: &str,
     request: &Request,
     ranking: &Ranking,
@@ -359,7 +381,6 @@ fn expand_into(
         .collect();
     let shares = expand::shares(cx, space, &parents, &ranking.expansion).map_err(host)?;
     result.expanded = true;
-    let scoped = cx.in_space(space).map_err(host)?;
     let draft = |status: &str, score: f64| {
         round4(if status == "draft" {
             score * ranking.status.draft_factor
@@ -391,7 +412,12 @@ fn expand_into(
         {
             continue;
         }
-        let Some(first) = scoped.index_chunks(doc).map_err(host)?.into_iter().next() else {
+        let Some(first) = cx
+            .index_chunks(space, doc)
+            .map_err(host)?
+            .into_iter()
+            .next()
+        else {
             continue;
         };
         if !expand::passes(&first, &request.filters) {
@@ -427,8 +453,8 @@ fn expand_into(
 
 /// Whether the caller can see a document change the index has not caught up with, and the
 /// highest revision of any change they can read after `applied`.
-fn pending(cx: &Cx, space: &str, applied: u64) -> Result<(bool, u64), HostError> {
-    let changes = cx.doc_changes(space, applied, 1000, None)?;
+fn pending<V: View + ?Sized>(cx: &V, space: &str, applied: u64) -> Result<(bool, u64), HostError> {
+    let changes = cx.doc_changes(space, applied, 1000)?;
     let stale = changes
         .iter()
         .any(|change| matches!(change.kind, ChangeKind::Put | ChangeKind::Delete));

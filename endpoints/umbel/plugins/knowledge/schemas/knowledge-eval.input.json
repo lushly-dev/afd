@@ -1,0 +1,34 @@
+{
+	"type": "object",
+	"properties": {
+		"spaces": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"minItems": 1,
+			"maxItems": 8,
+			"description": "The spaces to evaluate; without it, the default space. A query whose spaces are not all among these is skipped, never run"
+		},
+		"queries": {
+			"type": "string",
+			"minLength": 3,
+			"maxLength": 512,
+			"description": "The query set: <collection>/<path> under each space's collection of that name, JSON Lines of eval-queries.v1; default eval/queries.jsonl"
+		},
+		"k": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 50,
+			"default": 10,
+			"description": "The cut-off of recall, nDCG and MRR, and the hits each query is run for"
+		},
+		"expand": {
+			"type": "string",
+			"enum": ["both", "on", "off"],
+			"default": "both",
+			"description": "Run with graph expansion on, off or both; the gate needs both"
+		}
+	},
+	"additionalProperties": false
+}

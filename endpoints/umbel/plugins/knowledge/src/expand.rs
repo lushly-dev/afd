@@ -8,11 +8,12 @@
 
 use std::collections::BTreeMap;
 
-use umbel_sdk::{Cx, HostError};
+use umbel_sdk::HostError;
 use umbel_store::{Direction, IndexChunk};
 
 use crate::graph::doc_node;
 use crate::settings::Expansion;
+use crate::view::View;
 
 /// The edges one neighbour read asks for.
 const EDGE_READ: u32 = 1000;
@@ -26,8 +27,8 @@ struct Reach {
 /// For each parent `(document, score)`, the share of its score each readable neighbour receives,
 /// summed over the parents. Parents are read in the order given; a neighbour reached by several
 /// relations of one parent gets the highest factor once.
-pub(crate) fn shares(
-    cx: &Cx,
+pub(crate) fn shares<V: View + ?Sized>(
+    cx: &V,
     space: &str,
     parents: &[(String, f64)],
     settings: &Expansion,
