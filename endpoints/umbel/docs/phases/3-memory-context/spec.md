@@ -40,10 +40,20 @@
   - **A `contentless_delete=1` table kept the canary in the file** after the same steps, which
     is why section 5.3 does not use one.
   - `"a" AND ("a" OR "b")` matches only rows with `a`, and ranks those with `b` higher.
-  - `VACUUM INTO`, then `DROP TABLE records_fts` in the copy, then `VACUUM INTO` a second file
-    left no canary in the second file.
+  - `ATTACH` of an empty `0600` file, then `INSERT ... SELECT` of the kept tables in one
+    transaction, left no canary in the file or its journal, kept rowids and mode, and made no
+    temporary file. `user_version` had to be set, since nothing copies it (5.4).
   - A rollback-journal database with `secure_delete=ON` no longer held a key's bytes after the
     key's row was updated to null, and left one file at rest.
+- **The key design's own review, 2026-11-02.** D82 to D85 had a separate independent review, and
+  sections 5.2 to 5.5, 7, 8.7, 8.8, 8.10, 9.4, 9.5, 11, 12 and 14 were revised from it. Its experiments
+  ran on the bundled SQLite 3.54.1, built in a scratch directory with a `chacha20poly1305` round trip,
+  and nothing was built in the repository. They are the source of 5.4's figures on FTS5 token prefixes,
+  a stale WAL replayed into a restored copy, a checkpoint refused inside a transaction and the old key
+  in `memory.keys-journal`. The checkpoint refusal, the `ATTACH` copy, the per-connection pragmas and
+  the token prefix cleared by recreating the table were re-run on Python's SQLite 3.53.4 while applying
+  it. Not run: a real power loss, the full two-file sequence across processes, Windows, Linux, and
+  filesystem or SSD behaviour.
 - **Done:** this specification.
 - **Not done:** everything in section [14](#14-implementation-plan), starting at step 1.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
@@ -129,8 +139,9 @@ Entered in the [glossary](../../architecture.md#12-glossary) in this pull reques
 | Expire | Pass `expiresAt`. An expired record is out of every default read but still stored until a sweep purges it |
 | Forget | Destroy a record's key and remove its text and metadata from live state, leaving a tombstone; `memory-forget`, for the caller's own records |
 | Sealed | Encrypted under the record's own key, with its identity bound as associated data |
-| Key file | `memory.keys`, the per-space SQLite file holding each record's key, beside `memory.sqlite3` and never in a backup |
-| Destroyed marker | The row left in the key file when a key is destroyed: an id and a time. It keeps a forget true across a crash or a restore |
+| Key file | `memory.keys`, the per-space SQLite file holding each record's key, beside `memory.sqlite3` and never in a `store-backup` copy |
+| Destroyed marker | The row left in the key file when a key is destroyed: an id, a time and whether a forget or a purge made it. It keeps a forget true across a crash or a restore |
+| Orphan key | A key file entry with a key and no row in this `memory.sqlite3`. A marker is never an orphan |
 | Confirm | A person at a terminal vouching for a memory, which sets its authority to `person` on a new version; `memory-confirm` |
 | Authority | What the host itself can vouch for about a record's source, as opposed to `origin`, which is what the writer claims |
 | Push | What reaches a model unasked: a session-start bundle. Recall and list are pull |
@@ -486,7 +497,8 @@ no graph**, for four reasons.
    knowledge index would move knowledge ranking, and a writer could raise or bury
    a document with term frequency alone.
 2. **Forgetting.** A tantivy delete is a tombstone until segments merge; terms and
-   stored text stay in the files. An ordinary FTS5 table's `secure-delete` removes them at once.
+   stored text stay in the files. An ordinary FTS5 table's `secure-delete` removes the stored text and
+   whole tokens at once, though token prefixes can stay in its index table (5.4).
 3. **The hot path.** A hook is a one-shot process. A tantivy commit takes the
    space's single index writer, which an indexing run may hold for minutes, and a
    record would be invisible until the next commit. An FTS5 row commits with its
@@ -509,18 +521,18 @@ object-safe, and `STORE_TRAITS_VERSION` becomes 2. Every read takes a
 
 | Method | Contract |
 | --- | --- |
-| `write(batch: MemoryBatch) -> Result<MemoryReceipt>` | One `BEGIN IMMEDIATE` transaction, all or nothing. `MemoryBatch { idempotency: Option<String>, capture_key: Option<String>, at, quota: Quota, entries: Vec<MemoryWrite> }`. In order: (1) roll forward any unsettled forget (5.4); (2) a used `(owner, authority, idempotency)` returns the first receipt with `replayed: true` and writes nothing; (3) a `capture_key` under one of the owner's **erased prefixes** (7.2) writes nothing and returns `refused: "erased"`; (4) purge at most 16 records past their purge date (8.8); (5) check the quota, over it is `QuotaExceeded { limit, retry_after_ms }` and writes nothing; (6) for each entry: when a **live** record with the same `owner`, `project`, `class`, `contentHash`, `authority` and access set exists, add an observation (`Observed`), and renew it if the entry says so (8.2); otherwise generate its key, seal it, insert the record, version 1, its access rows, derived row and FTS row (`Created`), and invalidate each `supersedes` target. Takes one revision per created, observed or superseded record |
-| `invalidate(req: Invalidate, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1. `req.expect_version` mismatch is `Conflict`. An unreadable or absent id is `NotFound` |
+| `write(batch: MemoryBatch) -> Result<MemoryReceipt>` | `MemoryBatch { idempotency: Option<String>, capture_key: Option<String>, at, quota: Quota, entries: Vec<MemoryWrite> }`. **First, outside the write's transaction**, since a checkpoint cannot run inside one: roll forward any unsettled marker (5.4), then purge at most 16 records past their purge date (8.8), each in its own committed transactions. A `Busy` there does not fail the call and is left for the next writer. A purge stays committed whatever the write answers, and its revisions are not in the receipt. **Then one `BEGIN IMMEDIATE` transaction, all or nothing.** In order: (1) a used `(owner, authority, idempotency)` returns the first receipt with `replayed: true` and writes no record; (2) a `capture_key` under one of the owner's **erased prefixes** (7.2) writes no record and returns `refused: "erased"`; (3) check the quota, over it is `QuotaExceeded { limit, retry_after_ms }` and writes no record; (4) for each entry: when a **live** record with the same `owner`, `project`, `class`, `contentHash`, `authority` and access set exists, add an observation (`Observed`), and renew it if the entry says so (8.2); otherwise generate its key, seal it, insert the record, version 1, its access rows, derived row and FTS row (`Created`), and invalidate each `supersedes` target. A row with a destroyed marker is not live. Takes one revision per created, observed or superseded record |
+| `invalidate(req: Invalidate, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1. `req.expect_version` mismatch is `Conflict`. An unreadable or absent id, or a row with a destroyed marker, is `NotFound`; an absent key entry is `KeyAbsent` |
 | `confirm(req: Confirm, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1, with the checks of 8.7 |
 | `get(id, as_of: AsOf, flags: ReadFlags, reader) -> Result<Option<MemoryRecord>>` | `None` for absent, purged, forgotten or unreadable alike. `KeyAbsent` or `SealInvalid` for a readable record that cannot be opened |
 | `history(id, reader) -> Result<Vec<MemoryRecord>>` | All versions, oldest first; empty when unreadable |
 | `list(query: MemoryList, reader) -> Result<MemoryPage>` | `MemoryList { scope: ScopeQuery, classes, tags, authorities, push: Option<PushFilter>, as_of, flags, order: Recorded, after, limit ≤ 500 }`, newest recorded first, then id. `MemoryMeta` has `subject` and no `text`. `MemoryPage` carries `unreadable`, a count |
-| `recall(query: RecallQuery, reader) -> Result<RecallPage>` | `RecallQuery { query: MemoryQuery, scope, classes, tags, authorities, push, as_of, flags, limit ≤ 200 }`. Matches and filters in one statement, and returns hits in rank order: BM25 rounded to four places, then `recordedAt` descending, then id ascending. A hit carries its rank, its record and a `snippet` (FTS5's `snippet()` over `text`, matches in `**`; the plugin cuts it to 240 characters at a character boundary), **and no score** (D70). A hit whose body does not open is left out and counted in `unreadable` |
+| `recall(query: RecallQuery, reader) -> Result<RecallPage>` | `RecallQuery { query: MemoryQuery, scope, classes, tags, authorities, push, as_of, flags, limit ≤ 200 }`. Matches and filters in one statement, and returns hits in rank order: BM25 rounded to four places, then `recordedAt` descending, then id ascending. A hit carries its rank, its record and a `snippet` (FTS5's `snippet()` over `text`, matches in `**`; the plugin cuts it to 240 characters at a character boundary), **and no score** (D70). A hit whose body does not open is left out and counted in `unreadable`, which also counts the readable records in scope with `indexed = 0` (5.3), since those can never match |
 | `left_out(scope, classes, push, as_of, reader) -> Result<LeftOut>` | Counts per class of readable, current records that `push` or the flag rule keeps out of a bundle: `{ authority, flagged }`. A separate query, so omission reporting never takes a candidate's place. Reads no key |
-| `forget(req: Forget) -> Result<ForgetReceipt>` | Erases by `ids`, or by `owner` with `session`, `project`, or `before`, in the order of 5.4. `ForgetReceipt { erased, ids (at most 100), not_found, wal: Clean \| Pending }`. Idempotent |
+| `forget(req: Forget) -> Result<ForgetReceipt>` | Erases by `ids`, or by `owner` with `session`, `project`, or `before`, in the order of 5.4. `ForgetReceipt { erased, ids (at most 100), not_found, wal: Clean \| Pending }`. `Pending` means the keys are destroyed and steps 3 to 5 have not all finished. Idempotent |
 | `sweep(req: Sweep) -> Result<SweepReceipt>` | Section 8.8. At most `limit` records per call, reports `remaining` |
 | `reindex() -> Result<ReindexReceipt>` | Section 5.4. `{ reindexed, unreadable, orphans_removed }` |
-| `backup(dest) -> Result<BackupReceipt>` | Section 5.4. Writes the stripped copy, never the key file |
+| `backup(dest) -> Result<BackupReceipt>` | Section 5.4. Writes the stripped copy to `<dest>/memory.sqlite3`, never the key file |
 | `key_status() -> Result<KeyStatus>` | `{ file: Present \| Missing \| Mismatch, unsettled, destroyed, orphans, absent }` |
 | `changes(after, limit ≤ 1000, reader, trace) -> Result<Vec<MemoryChange>>` | `{ rev, kind: Created \| Observed \| Invalidated \| Confirmed \| Erased \| Purged, id, recordVersion, trace_id, at }`, filtered by the access the record had at that change. No text |
 | `head() -> Result<Rev>` | The last memory revision, 0 when empty. A true count, so hidden from plugins (6.1) |
@@ -538,9 +550,10 @@ Vec<Authority>, unset_project: Vec<Authority> }` is section 9.3's rule as one SQ
 variants. `MEMORY_QUOTA_EXCEEDED` is retryable when the limit is a rate; the stored-record and
 stored-byte limits carry no `retry_after_ms`.
 
-**No file is created by a read.** When `memory.sqlite3` does not exist, every read answers
-`NotProvisioned`. The `memory` plugin turns that into an empty success, since nothing has been
-written. `context` turns it into the omission `lane-unavailable`. Only a `memory_write` call
+**No file is created by a read.** While the store is not provisioned, every read answers
+`NotProvisioned`: neither file exists, or `memory.sqlite3` has no `meta` row, which is what an
+interrupted first write leaves (5.4). The `memory` plugin turns that into an empty success, since
+nothing has been written. `context` turns it into the omission `lane-unavailable`. Only a `memory_write` call
 creates the files, so a `memory` grant with no memory plugin leaves the disk untouched.
 
 **The query.** `MemoryQuery::parse(text)` in `umbel-store`, so every backend gets
@@ -567,20 +580,21 @@ separate database**, so memory writes do not move the document head (no false
 `INDEX_STALE`), do not share a write lock with indexing, and can be erased and
 checkpointed on their own. Same pragmas as phase 2 (`journal_mode=WAL`,
 `synchronous=FULL`, macOS `fullfsync`, `busy_timeout = store.lock_timeout_ms`),
-plus **`secure_delete=ON`**. `PRAGMA user_version = 1`; a newer one is
+plus **`secure_delete=ON`**, all set **on every connection**, because `secure_delete` and `synchronous`
+reset per connection. `PRAGMA user_version = 1`; a newer one is
 `STORE_VERSION_UNSUPPORTED`. **The file is created with mode `0600`** (`OpenOptions` before
 SQLite opens it; SQLite copies that mode to its WAL and shared-memory files), because it holds
 whole conversations. Windows has no such mode; the doctor says so.
 
 | Table | Holds |
 | --- | --- |
-| `meta` | `store_id`, 128 random bits, matched against the key file (5.4) |
-| `records` | One row per record: `rowid INTEGER PRIMARY KEY`, id, class, owner, project, agent, session, capture key prefix, flags (JSON), `flagged`, `expires`, created revision, `stored_bytes`, `sealed` (the body, 5.4) |
+| `meta` | `store_id`, 128 random bits from the operating system, never the `random` grant, matched against the key file (5.4) |
+| `records` | One row per record: `rowid INTEGER PRIMARY KEY`, id, class, owner, project, agent, session, capture key prefix, flags (JSON), `flagged`, `expires`, created revision, `stored_bytes`, `indexed` (0 when `memory-reindex` or a rebuild could not open the row, with a partial index), `sealed` (the body, 5.4) |
 | `versions` | `(id, record_version)`: both intervals, `authority`, invalidation's `at`, `by` and `reason`, `superseded_by`, `confirmation`, the envelope JSON without its sealed fields, `sealed` (those fields and `invalidation.note`, 5.4) |
 | `record_access` | `(id, token)` |
 | `observations` | `(id, session, at)`: the first observation is the record's creation |
 | `record_derived` | `(id, content_hash, tags JSON)`: what the observation key and tag filters need in clear. Derived, left out of backups and rebuilt (5.4) |
-| `records_fts` | An ordinary FTS5 table over `subject, tags, text`, holding **its own plaintext copy**, `tokenize = 'porter unicode61 remove_diacritics 2'`, its `rowid` equal to `records.rowid`. Created and then configured with `INSERT INTO records_fts(records_fts, rank) VALUES('secure-delete', 1)`, which is not a create option. The store writes it in the record's transaction and deletes with `DELETE FROM records_fts WHERE rowid = ?`, which needs no key |
+| `records_fts` | An ordinary FTS5 table over `subject, tags, text`, holding **its own plaintext copy**, `tokenize = 'porter unicode61 remove_diacritics 2'`, its `rowid` equal to `records.rowid`. Created and then configured with `INSERT INTO records_fts(records_fts, rank) VALUES('secure-delete', 1)`, which is not a create option and is lost with the table, so every path that creates the table sets it again. The store writes it in the record's transaction and deletes with `DELETE FROM records_fts WHERE rowid = ?`, which needs no key |
 | `changes` | `rev INTEGER PRIMARY KEY`, kind, id, version, trace id, at, owner, agent, bytes |
 | `change_access` | `(rev, token)`: the access at that change, so a change stays as readable as the record was |
 | `tombstones` | `(id, erased_at, trace_id, kind)`: no owner, class, project, session or text |
@@ -593,6 +607,9 @@ in the file in the 2026-11-02 experiment, so it cannot serve a forget, and it ha
 An ordinary table can be deleted from without plaintext, which a crash recovery needs because
 the key may already be gone. The cost is a verbatim plaintext copy on disk while a record lives
 (5.4's limits), and about twice the bytes per record, which `stored_bytes` counts.
+
+**Never run `ANALYZE` or `PRAGMA optimize` on this store.** The bundled SQLite compiles `STAT4`, and its
+samples could copy FTS terms into `sqlite_stat4`, which forget does not touch.
 
 `recall` is one statement, in outline:
 
@@ -620,7 +637,7 @@ doctor adds these checks:
 | Check | Says |
 | --- | --- |
 | `stores.memory` | `memory.sqlite3` opens at a served version |
-| `stores.memory_keys` | The key file is present, matches `store_id` and passes `integrity_check`. Missing or mismatched is a **failure** naming the error of 5.4 |
+| `stores.memory_keys` | The key file is present, matches `store_id` and passes `integrity_check`. Missing or mismatched is a **failure** naming the error of 5.4. A store not yet provisioned passes |
 | `stores.memory_modes` | `memory.sqlite3` and `memory.keys` have no group or other bits, on Unix |
 | `stores.principals` | Section 3.2 |
 | `stores.sweep` | Section 8.8 |
@@ -630,19 +647,22 @@ doctor adds these checks:
 
 **Owner decision 1.** A record's text is encrypted under its own key. The keys live in a separate
 key file. A forget destroys the key **and** does the byte-level deletion. So a copy of
-`memory.sqlite3` taken before a forget cannot be opened after it, using the current key file.
+`memory.sqlite3` **made by `store-backup`** before a forget cannot be opened after it, using the
+current key file. The guarantee covers those copies only. A file-level copy (`cp`, rsync, Time
+Machine, a filesystem snapshot) also holds `records_fts`, so it holds every live record's text in
+clear, with no key needed, for as long as the copy exists.
 
 **The cipher.** XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11.0 (`cargo info`,
 2026-11-02; Apache-2.0 OR MIT; MSRV 1.85), with `default-features = false` and features `alloc`,
 `getrandom` and `zeroize`. Its README records one NCC Group audit with no significant findings;
-that audit predates 0.11. The lock has `chacha20` 0.10.2 already; this adds `aead`, `cipher`,
+that audit predates 0.11. The lock has `chacha20` 0.10.2 already; this adds `aead`, `cipher`, `inout`,
 `poly1305` and `universal-hash`. Chosen over `ring` and `aws-lc-rs`, which the lock holds only for
 the mounted loader's TLS and which offer no extended nonce and bring C and assembly into the
 store crate.
 
 | Item | Rule |
 | --- | --- |
-| Key | 32 bytes, one per record, from the operating system through the `getrandom` feature. **Never from the `random` grant**: that source is recorded in the journal's tape, so a key drawn from it would be written to the journal |
+| Key | 32 bytes, one per record, from the operating system through the `getrandom` feature, with `Key::generate()`; the crate's docs show `Key::<...>::generate()`, which does not compile. **Never from the `random` grant**: that source is recorded in the journal's tape, so a key drawn from it would be written to the journal |
 | Nonce | 24 random bytes from the same source, new for every seal. A record's key seals its body once and one version blob per version, so it is reused, and 192 random bits make a repeat negligible |
 | Sealed blob | Byte `0x01` (the seal version), the nonce, then ciphertext and tag |
 | Associated data | The canonical JSON array `["umbel-memory-seal/1", <space>, <record id>, <owner>, <part>, <recordVersion>]`, where `part` is `body` (version 0) or `version`. Moving a blob to another record, owner, space or version fails to open |
@@ -658,27 +678,32 @@ of meeting it, and phase 6's backends owe the same test.
 database in rollback-journal mode**:
 
 ```sql
+-- once, at creation
 PRAGMA application_id = 0x554D424B;  -- "UMBK"
 PRAGMA user_version = 1;
+CREATE TABLE meta (store_id TEXT NOT NULL);
+CREATE TABLE record_keys (
+  id TEXT PRIMARY KEY, key BLOB, destroyed_at INTEGER, kind TEXT, settled INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE INDEX unsettled ON record_keys (id) WHERE settled = 0;
+-- on every connection, because these reset per connection
 PRAGMA journal_mode = DELETE;
 PRAGMA secure_delete = ON;
 PRAGMA synchronous = EXTRA;          -- macOS fullfsync; busy_timeout = store.lock_timeout_ms
-CREATE TABLE meta (store_id TEXT NOT NULL);
-CREATE TABLE record_keys (
-  id TEXT PRIMARY KEY, key BLOB, destroyed_at INTEGER, settled INTEGER NOT NULL
-) WITHOUT ROWID;
-CREATE INDEX unsettled ON record_keys (id) WHERE settled = 0;
 ```
 
-A live entry has `key` set and `settled = 1`. Destroying a key sets `key` to null. The row stays
-as a **destroyed marker**, which holds an id and a time and no owner.
+A live entry has `key` set, `kind` null and `settled = 1`. Destroying a key sets `key` to null and
+`kind` to `forget` or `purge`. The row stays as a **destroyed marker**, which holds an id, a time and
+that kind, and no owner. An **orphan** is an entry with `key IS NOT NULL` and no row in `records`. A
+marker is never an orphan.
 
 - **Why SQLite and not a flat file.** Atomic update, multi-process locks, recovery and an integrity
   check are the same code and the same lock discipline as the store, with no new format to get
   wrong. The experiment shows a destroyed key's bytes leave the file.
 - **Why not WAL.** In WAL mode a key would stay in the main file until a checkpoint that a reader
   can block. In rollback mode the commit itself overwrites the page, and the file is one file at
-  rest, which is simple for a deployer to copy.
+  rest, which is simple for a deployer to copy. The old key does pass through the journal (limits,
+  below).
 - **Why `synchronous=EXTRA`.** Under `FULL`, a power loss just after commit can bring the unlinked
   journal back and undo the commit, resurrecting a destroyed key after the caller was told it was
   gone. `EXTRA` syncs the directory after the unlink.
@@ -688,43 +713,80 @@ as a **destroyed marker**, which holds an id and a time and no owner.
   cases across files, for no security gain: every owner's file would be readable by the same
   operating-system user until phase 5.
 
-**Lock order.** `memory.sqlite3`'s write lock first, then the key file's, in every writer. Readers
-take the key file's shared lock for one `SELECT` and hold no memory write lock, so nothing waits
-in a cycle. A writer that cannot get either within `store.lock_timeout_ms` fails `Busy` and has
-changed nothing.
+**Provisioning.** Only a `memory_write` creates either file. Any process checks for `memory.keys`
+first and `memory.sqlite3` second. The database is always created first, so a concurrent first write
+cannot look like a key file with no database. In order:
+
+1. Create `memory.sqlite3`, mode `0600`, if it is absent, without truncating, and switch it to WAL as
+   phase 2's `initialise` does.
+2. `BEGIN IMMEDIATE`. Create the schema if it is absent. If `meta` has a row, another process finished
+   provisioning: roll back and carry on.
+3. If `memory.keys` exists, adopt its `store_id`, because a process died before step 5. Otherwise take a
+   new `store_id` from the operating system, write it to `.memory-keys-<trace id>.tmp` (mode `0600`, the
+   schema above, no keys), commit, rename it to `memory.keys` and fsync the directory. A leftover
+   temporary file holds only a `store_id`, and this step removes any it finds.
+4. Inside the same transaction, insert the `store_id` into `meta`.
+5. Commit. **This commit is last**, so a database with no `meta` row is not provisioned, and the next
+   write starts again at step 1.
+
+**Lock order.** Every path that holds both locks takes `memory.sqlite3`'s write lock first, then the
+key file's. Settling a marker takes the key file's lock alone, for one commit, holding nothing else.
+Readers take its shared lock for one `SELECT` and hold no memory write lock. No path holds the key
+lock while it waits for the memory lock, so nothing waits in a cycle. A call that cannot get a lock
+within `store.lock_timeout_ms` fails `Busy`. Before a forget's erasure point that means no key was
+destroyed, though its erased prefixes stay (step 1 below). **After the erasure point a forget does not
+fail:** a `Busy`, a full disk or any other failure in steps 3 to 5 answers success with `wal: "pending"`
+and the warning `MEMORY_ERASURE_PENDING`, because the key is gone and roll-forward finishes the rest.
 
 **Writing.** Inside the memory transaction: generate the keys, commit them to the key file, seal,
-insert, commit memory. A crash between the two commits leaves orphan keys with no row, which are
-harmless and are removed by `sweep` or `reindex` under the memory write lock.
+insert, commit memory. A crash or a failed commit between the two commits leaves orphan keys, so no
+live row ever lacks a key. Orphans are harmless. **Only an explicit `memory-reindex` removes them**,
+never a sweep, a write or a restore's rebuild, because an orphan of this database may be the key of
+a live record in a database about to be put back.
 
-**Forgetting, in order** (sweep's purge is the same without the tombstone rows):
+**Forgetting, in order:**
 
 | # | Step | Durable by | A crash after this step |
 | --- | --- | --- | --- |
-| 1 | `BEGIN IMMEDIATE` on `memory.sqlite3`; resolve the ids | Nothing | Nothing happened. The caller saw no success and retries |
-| 2 | In the key file: `UPDATE record_keys SET key = NULL, destroyed_at = ?, settled = 0`, commit | Journal fsync, database fsync, journal unlink, directory fsync (`EXTRA`) | **The erasure point.** Memory rolls back, so rows stand, but no sealed blob opens from any copy. Reads treat a destroyed marker as forgotten and return no text. Plaintext remains in `records_fts` until roll-forward |
-| 3 | Delete `records_fts`, `record_derived`, `observations`, `record_access`, `versions`, `records`; insert `tombstones`, `changes`, `capture_erasures`; commit | WAL fsync (`FULL`) | Rows gone. Their old pages may remain in the WAL |
-| 4 | `wal_checkpoint(TRUNCATE)`. Busy is `wal: "pending"` | Database fsync | Roll-forward repeats it |
-| 5 | Mark the entries `settled = 1`, commit | As step 2 | Nothing outstanding |
+| 1 | `BEGIN IMMEDIATE` on `memory.sqlite3`; resolve the ids; insert `capture_erasures` from the rows (7.2); commit | WAL fsync (`FULL`) | No key destroyed. The caller saw no success and retries. Captures under the prefix are already refused |
+| 2 | `BEGIN IMMEDIATE` again, and hold it. In the key file, for each id: `INSERT INTO record_keys (id, key, destroyed_at, kind, settled) VALUES (?, NULL, ?, 'forget', 0) ON CONFLICT (id) DO UPDATE SET key = NULL, destroyed_at = excluded.destroyed_at, kind = excluded.kind, settled = 0`; commit. An upsert, because a record whose entry is absent needs a marker too | Journal fsync, database fsync, journal unlink, directory fsync (`EXTRA`) | **The erasure point.** Memory rolls back, so rows stand, but no sealed blob opens from any copy. Reads treat a destroyed marker as forgotten and return no text. Plaintext remains in `records_fts` until roll-forward |
+| 3 | For each id whose row still exists: delete `records_fts`, `record_derived`, `observations`, `record_access`, `versions`, `records`; insert `tombstones`, `changes`; commit | WAL fsync (`FULL`) | Rows gone. Their old pages may remain in the WAL |
+| 4 | Outside any transaction, because a checkpoint is refused inside one: `wal_checkpoint(TRUNCATE)`. Busy is `wal: "pending"`, and step 5 is skipped | Database fsync. The truncate itself is not followed by an fsync (`sqlite3.c:69338`), so old frames could reappear in the file after a power loss | Roll-forward repeats it |
+| 5 | Only after a `TRUNCATE` that succeeded: mark the entries `settled = 1`, commit | As step 2 | Nothing outstanding |
 | 6 | Return the receipt | | |
 
-**Roll-forward.** An unsettled marker means a forget did not finish. The store repeats steps 3 to
-5 for it, with `kind = "forget-recovered"` on the tombstone. It looks for unsettled markers when
-it opens read-write, at the start of each `write`, `forget`, `sweep` and `reindex`, and when a
-read meets a destroyed marker on a row. In that last case the read leaves out the row and tries
-roll-forward before it returns, and a `Busy` there is left for the next writer.
+**A purge**, from a sweep or before a write, is steps 2 to 6 with `kind = 'purge'`. It selects its records
+in step 2's transaction, writes no `capture_erasures` and no tombstone, and its `changes` rows have kind
+`Purged`.
 
-**When a key or the file is missing.** These are distinct errors and a doctor failure, **never an
-empty result**:
+**Roll-forward.** An unsettled marker means a forget or purge has not finished. A writer looks for
+them before its own transaction, at the start of each `write`, `invalidate`, `confirm`, `forget`, `sweep`
+and `reindex`. **A read never rolls forward**: it leaves the row out, writes nothing and waits on no
+write lock. For each unsettled marker:
+
+1. `BEGIN IMMEDIATE`. If the row still exists, repeat step 3 for it. Marker kind `forget` writes a
+   tombstone with `kind = "forget-recovered"` and a `changes` row of kind `Erased`. Marker kind `purge`
+   writes a `changes` row of kind `Purged` and no tombstone. If the row is gone, write nothing, which is
+   what stops a second tombstone while another process is still between its steps 3 and 5.
+2. Commit, then outside any transaction run step 4 with no wait (`busy_timeout = 0`).
+3. If the `TRUNCATE` succeeded, run step 5. If it was busy, the marker stays unsettled for the next writer.
+
+A `Busy` here is left for the next writer, and the caller's own transaction then follows its own lock rule.
+`capture_erasures` needs no repeat, since step 1 committed it before the key was destroyed.
+
+**When a key or the file is missing.** These are distinct errors and a doctor failure, **never a
+silent empty result**:
 
 | Situation | Answer |
 | --- | --- |
-| Neither file exists | Reads `NotProvisioned`; the first `memory_write` creates the key file, then the database, in that order, with one `store_id` |
-| `memory.sqlite3` exists, `memory.keys` does not | Every read of text and every write: `MEMORY_KEYS_MISSING`. Never recreated. Suggestion: restore the key file from your own backup, or move `memory.sqlite3` aside to start empty, which loses all memory |
-| `memory.keys` exists with another `store_id`, or `memory.sqlite3` does not exist | `MEMORY_KEYS_MISMATCH`. Never adopted. Suggestion: name the file you meant, or move the key file aside |
-| A row's entry is absent, not a marker | `memory-show` and `memory-confirm`: `MEMORY_KEY_ABSENT`. Recall, list, bundle and export leave it out, with the count in the warning `MEMORY_UNREADABLE`. `memory-status` and `store-check` count it |
+| Not provisioned: neither file exists, or `memory.sqlite3` has no `meta` row | Reads `NotProvisioned`; the first `memory_write` provisions, as above |
+| `memory.sqlite3` is provisioned, `memory.keys` does not exist | Every read of text and every write: `MEMORY_KEYS_MISSING`. Never recreated. Suggestion: restore the key file from your own backup; or, to start empty, stop every process using the space and remove `memory.sqlite3` with its `-wal` and `-shm`, which loses all memory |
+| `memory.keys` holds another `store_id`, or is not a key file | `MEMORY_KEYS_MISMATCH`. Never adopted. Suggestion: put back the key file that belongs to this database |
+| `memory.keys` exists, `memory.sqlite3` does not | `MEMORY_KEYS_MISMATCH` for reads and writes, and nothing is created. Suggestion: restore `memory.sqlite3`; or, to start empty, stop every process using the space and remove `memory.keys`, which loses all memory |
+| `context-bundle` meets either of those errors | A success: every memory section asked for is omitted with `lane-unavailable`, the error's code is raised as a warning, and knowledge is kept (9.4, 9.5) |
+| A row's entry is absent, not a marker | `memory-show`, `memory-invalidate` and `memory-confirm`: `MEMORY_KEY_ABSENT`. Recall, list, bundle and export leave it out, with the count in the warning `MEMORY_UNREADABLE`. `memory-status` and `store-check` count it |
 | A blob does not open | The same, as `MEMORY_SEAL_INVALID` |
-| A row's entry is a marker | The record is forgotten: `MEMORY_NOT_FOUND`, and roll-forward |
+| A row's entry is a marker | The record is forgotten: `MEMORY_NOT_FOUND` from every command |
 
 `memory-forget` and `memory-sweep` need no key to remove a row, so a record with an absent key can
 still be forgotten.
@@ -735,55 +797,98 @@ still be forgotten.
 | --- | --- |
 | `memory-export` | Opens what it returns. The exported file is plaintext outside Umbel and a later forget cannot reach it. Unreadable records are left out and counted |
 | `memory-import` | An ordinary write with fresh keys. Importing a file again after a forget writes a new record: that is a person naming a directory, and the skill says to remove the source file too (8.9) |
-| `memory-sweep` | Destroys keys, then rows, as above, leaving markers and no tombstone. Removes orphan keys. Also runs inside writes, at most 16 records per transaction (8.8) |
-| `memory-invalidate`, `memory-confirm` | Seal their version blob under the record's key. `MEMORY_KEY_ABSENT` when it is gone |
-| `store-check` | Reports and repairs nothing except a `TRUNCATE` checkpoint, which it now also runs on `memory.sqlite3`: `PRAGMA integrity_check` on both files; `INSERT INTO records_fts(records_fts) VALUES('integrity-check')`; access-table consistency; the journal cross-check of D66; `records`, `record_derived` and `records_fts` row counts equal; **every readable row opens** (absent keys, failed seals); orphan keys; unsettled markers |
-| `memory-reindex` | CLI only, one `BEGIN IMMEDIATE`: roll forward; empty `records_fts` and `record_derived`, opening each record and inserting them again; rows that do not open are skipped and reported, never deleted; orphan keys removed. Its answer to any FTS finding from `store-check` |
+| `memory-sweep` | Purges in the order above: keys, then rows, leaving markers and no tombstone. Also runs before writes, at most 16 records per call (8.8). Never removes orphan keys |
+| `memory-invalidate`, `memory-confirm` | Seal their version blob under the record's key, under the table above: `MEMORY_KEY_ABSENT` for an absent entry, `MEMORY_NOT_FOUND` for a marker |
+| `store-check` | Reports, and changes nothing except that it runs a `TRUNCATE` checkpoint, now on `memory.sqlite3` too, and after one that succeeds settles markers whose rows are gone: `PRAGMA integrity_check` on both files; `INSERT INTO records_fts(records_fts) VALUES('integrity-check')`; access-table consistency; the journal cross-check of D66; `records` with `indexed = 1`, `record_derived` and `records_fts` row counts equal; **every readable row opens** (absent keys, failed seals, each a finding whose answer is to restore the key file or forget the record); rows with a marker; orphan keys; unsettled markers |
+| `memory-reindex` | CLI only. Roll forward, then one `BEGIN IMMEDIATE`: delete rows with a marker, as the rebuild below does; drop and create `records_fts`, setting `secure-delete` again; empty `record_derived`; open each remaining record and insert it, with `indexed = 1`; a row that does not open gets `indexed = 0` and is reported, never deleted; remove orphan keys. After the commit, `wal_checkpoint(TRUNCATE)`. It is the answer to any FTS finding from `store-check`, and it clears token prefixes (limits, below). **Run it only on the database you mean to keep:** orphans are judged against this database, so on a restored older copy it deletes the keys of every later record |
 | `store-backup` | Below |
 
-**Backups.** `store-backup` writes the memory store in three statements, so the destination never
-holds plaintext, even after a crash:
+**Backups.** `store-backup` writes the memory store with no temporary copy, so plaintext never reaches
+a new file, even after a crash:
 
-1. `VACUUM INTO 'state/spaces/<space>/store/.memory-backup-<trace id>.tmp'`, mode `0600`. This copy
-   has plaintext and stays beside the live file.
-2. In that copy: `DROP TABLE records_fts; DROP TABLE record_derived;`.
-3. Create `<dest>/memory.sqlite3` empty with mode `0600`, then `VACUUM INTO` it from the copy, which
-   writes a new file with no freed pages. Delete the temporary file. A leftover temporary file
-   from a crash is removed by the next `store-backup` or `store-check`.
+1. Create `<dest>/memory.sqlite3` empty, with mode `0600`. Its journal takes the same mode. A file that
+   `VACUUM INTO` creates itself gets `0644`, and this path does not use it.
+2. On a connection to the live database, `ATTACH` it as `backup`.
+3. In one transaction, which reads one snapshot: create the kept tables from the schema, every table of
+   5.3 except `records_fts` and `record_derived`; `INSERT ... SELECT` each, rowids included; set
+   `PRAGMA backup.user_version = 1`, which nothing copies. Commit and `DETACH`.
+
+A crash leaves a partial destination and no manifest, with no plaintext in it or in its journal. Readers
+and writers of the live store carry on throughout.
 
 **The backup excludes the key file and the FTS index.** The manifest records its digest and
 `memoryKeys: "excluded"`, `memoryFts: "excluded"`, and the result carries the warning
-`MEMORY_KEYS_NOT_BACKED_UP`. Backing up the key file is the deployer's separate concern.
+`MEMORY_KEYS_NOT_BACKED_UP`. Backing up the key file is the deployer's separate concern. A `cp` during a
+commit can tear it, so stop every process using the space first, or create an empty `0600` file and
+`VACUUM INTO` it. **Take it after the database copy.** A key copy older than the database copy loses the
+records written between the two, which then answer `MEMORY_KEY_ABSENT`, and a newer one only adds orphans.
 
-**Restoring.** Restore is phase 6's as a command; by hand it is copying the file into place beside
-the key file. When a read-write open finds no `records_fts`, it takes `BEGIN IMMEDIATE` and rebuilds
-as `memory-reindex` does. Because rows from before a forget may have returned, this path also checks
-every row against the key file: a row with a marker is deleted, settled or not, with a tombstone, so
-**a forget survives a restore**. A killed rebuild rolls back and the next open repeats it. A hook
-that hits this may exceed its budget and fail open.
+**Restoring.** Restore is phase 6's as a command. By hand: stop every process using the space, remove
+`memory.sqlite3-wal` and `memory.sqlite3-shm`, then copy the backup to `memory.sqlite3`, beside the key
+file, with mode `0600`. Removing them matters: SQLite replays a stale WAL into the copy, so a record
+written after the backup appeared in a restored database, and `integrity_check` said ok. A file-level copy
+put back has its own `records_fts`, so no rebuild runs: a row with a marker reads as forgotten, its plaintext
+stays, and `store-check` reports it until `memory-reindex` removes it.
+
+**The rebuild.** Every open of a provisioned `memory.sqlite3` checks for `records_fts` in `sqlite_master`,
+**before any schema step**, and a missing table means a restored copy. If the key file is missing or
+mismatched, the open answers as the table above says. Otherwise it takes `BEGIN IMMEDIATE` and rebuilds in
+one transaction. It is the only time a read path writes or waits on the write lock, because nothing can be
+recalled until it has run.
+
+1. Check every row against the key file, because rows from before a forget may have returned. A row with
+   a marker, settled or not, is deleted. For kind `forget`, also insert a tombstone, a `changes` row of kind
+   `Erased` and the `capture_erasures` prefix from the row's owner and capture key prefix. For kind `purge`,
+   a `changes` row of kind `Purged` only. So **a forget survives a restore**.
+2. Create `records_fts`, setting `secure-delete` again, and `record_derived`. Open each remaining row and
+   insert it, with `indexed` as `memory-reindex` sets it.
+
+It writes nothing to the key file and removes no orphan keys. So the keys of records newer than the backup
+stay, and putting the newer database back, after a trial restore or the wrong backup, opens every one of
+them. A killed rebuild rolls back and the next open repeats it. A hook that hits this may exceed its budget
+and fail open.
 
 **The limits, plainly.** The owner asked for these to be stated here, in `memory-forget`'s fixed
 suggestion, the skill and the README:
 
 - **Losing the key file loses all memory.** There is no recovery, and `store-backup` does not cover it.
-- **Key-file backups can unlock forgotten records.** A copy of `memory.keys` taken before a forget,
-  with a copy of `memory.sqlite3`, opens that record until those backups age out. Copying the whole
-  workspace or its `state/` directory takes both together.
+- **The guarantee covers `store-backup` copies only.** A file-level copy of `memory.sqlite3` (`cp`, rsync,
+  Time Machine, a filesystem snapshot) holds every live record's text in clear, in `records_fts`, with no
+  key needed, for good. A forget cannot reach it.
+- **Key-file backups can bring forgotten records back.** A copy of `memory.keys` taken before a forget,
+  restored with a copy of `memory.sqlite3`, returns that record as live, including to the push, until those
+  backups age out. Copying the whole workspace or its `state/` directory takes both together.
 - **Journal metadata survives** (7.2).
-- **The FTS index stays plaintext on disk while a record lives.** Forget's secure-delete and
-  checkpoint handling are what remove it, so a crash, a held WAL or a filesystem snapshot can leave
-  it behind for a time.
+- **The FTS index stays plaintext on disk while a record lives**, and `record_derived` holds its tags and
+  `contentHash` in clear. Forget's secure-delete and checkpoint handling are what remove them, so a crash or
+  a held WAL can leave them behind for a time.
+- **Token prefixes can outlive a forget in the live file.** In the review's test, FTS5 `secure-delete` left
+  0 of 4800 forgotten tokens whole, but 64 prefixes unique to forgotten records stayed in `records_fts_idx`,
+  such as `payrolldmv`, and with tokens sharing a long prefix up to 24 of 25 characters. `optimize` does not
+  clear them. `memory-reindex` does. Backups exclude this table, so a `store-backup` copy holds none.
 - **Text copied elsewhere survives**: results already returned, harness transcripts, exports, and
   anything an agent copied into another command (7.2).
 - **Local same-user agents can read everything.** The key file sits beside the store with the same
-  owner and is not wrapped by a passphrase. This protects copies of `memory.sqlite3`, not a
-  process running as the user.
-- **File-level only.** Overwriting a page does not reach SSD remapping or filesystem snapshots.
+  owner and is not wrapped by a passphrase. This protects `store-backup` copies, not a process running as
+  the user.
+- **Clear labels are not authenticated.** Associated data binds identity, not `authority` or `flags`. A
+  tampered backup can set `authority` to `person` or clear `flagged`, and the body still opens.
+- **A restore loses later erased prefixes.** The rebuild writes back a window's prefix from a row that a
+  marker drops. A session-wide prefix is in no row, and a record written and forgotten after the backup has
+  no row, so those windows can be captured again after a restore.
+- **Some records cannot be forgotten from a person's CLI.** A record owned by `agent:loopback`, or by
+  `agent:<local_id>` on an instance without `on_behalf_of` (3.2), is not `human:<local_id>`'s, so the CLI
+  counts it in `notFound`. Its own principal can forget it by `ids` and cannot use a selector, which needs
+  `person`. Otherwise only expiry removes such records in bulk, until `memory-erase` (D85).
+- **File-level only.** Overwriting a page does not reach SSD remapping or filesystem snapshots. A destroy
+  writes the old key into `memory.keys-journal` (500 of 500 checked in the review) and then unlinks it
+  without overwriting. Unlinked WALs and temporary files behave the same way.
 
 ### 5.5 Conformance
 
 `conformance::run_all` runs on `Stores { documents, graph, index, memory:
-Option<..> }`; `None` reports the memory groups `Skipped`, as `index: None` did.
+Option<..>, memory_restore: Option<MemoryRestore> }`; `memory: None` reports the memory groups
+`Skipped`, as `index: None` did.
 Groups, each a function returning a report:
 
 | Group | Cases |
@@ -792,11 +897,18 @@ Groups, each a function returning a report:
 | `memory_bitemporal` | Each of the four questions in 4.1 over a fixed timeline; both boundaries of each half-open interval; a backdated invalidation; closing leaves the old version readable by `recorded`; a stale clock clamped; supersede with a future, an equal and an earlier `validFrom` |
 | `memory_access` | Three readers over 40 fixture records (`store/fixtures/memory/`): no unreadable id, subject, tag or change from `get`, `history`, `list`, `recall`, `changes` or `counts`; `get` answers `None` alike for absent, unreadable and forgotten; `Derivation` refused; one owner's idempotency key gives another owner a fresh write; `left_out` counts only what the reader can read; a read of an absent store is `NotProvisioned` and creates nothing |
 | `memory_recall` | Every query form with expected hit sets, including `+a b` returning only rows with `a` and ranking those with `b` higher; stemming (`rollback`/`rollbacks`); field weights; order and ties at four places; a hostile string (`"`, `*`, `NEAR(`, `col:`) is plain text or `Invalid`, never a parser error; scope and class filters; no score on a hit |
-| `memory_lifecycle` | Expiry at the boundary, `include_expired`, `include_flagged`, sweep, `remaining`, purge from an invalidation's `recordedAt` and a past `validUntil` kept until `expiresAt`, purge inside a write |
-| `memory_erasure` | After `forget`: all reads empty, the id's `changes` hold no text, a re-forget is `not_found` free of error, the idempotency key still replays and does not recreate, **a copy of the store taken before the forget cannot be read** |
+| `memory_lifecycle` | Expiry at the boundary, `include_expired`, `include_flagged`, sweep, `remaining`, purge from an invalidation's `recordedAt` and a past `validUntil` kept until `expiresAt`, purge before a write, which stays when the quota refuses that write |
+| `memory_erasure` | After `forget`: all reads empty, the id's `changes` hold no text, a re-forget is `not_found` free of error, the idempotency key still replays and does not recreate, **a copy made by `backup()` before the forget, once restored, cannot be read**, while a record not forgotten still reads from it |
 | `memory_quota` | Each limit trips exactly at its value, inside the transaction, under two writers |
 | `memory_concurrency` | Two threads, then two processes through `spawn_writer`, 200 interleaved writes and a reader: dense revisions, read your writes |
 | `memory_durability` | Reopen returns the same head and contents |
+
+**How the suite opens a backup copy.** `type MemoryRestore = fn(dir: &Path, space: &str, backup: &Path) ->
+Result<(), StoreError>`. It puts the copy that `backup(backup)` wrote in place of the live memory under `dir`, by
+the backend's own procedure, keeping its key material. The case calls `backup` on a directory of its own, forgets,
+drops every handle to the stores, calls `memory_restore`, and reopens through the factory. The embedded backend
+removes `-wal` and `-shm` and copies the file (5.4), and the fake supplies its own. `None` reports only this case
+`Skipped`, which is the embedded backend's state from step 3a until step 3b supplies it.
 
 `store/tests/memory_suite_detects.rs` runs them against a deliberately broken
 in-memory fake (an unfiltered read, an overwriting invalidate, a forget that keeps
@@ -861,7 +973,8 @@ own in one `supersedes`. AFD's confirmation is no barrier here: under `Enforce` 
 | `memory-forget` by selector | The same, and the caller has authority `person`, else `MEMORY_FORGET_HUMAN_REQUIRED`. `--yes` clears `dev.umbel/human-present`, so it is refused too |
 
 These hold for agents confined to MCP. **An agent with a shell can read and change the files
-directly** (section 11).
+directly** (section 11). Because a forget needs the record's own principal, a person's CLI cannot forget
+records owned by `agent:loopback` or by `agent:<local_id>` without `on_behalf_of`, a limit in 5.4.
 
 ### 6.4 Ledger, gate, events and replay
 
@@ -926,16 +1039,17 @@ meta-tool whose steps Umbel does not see before they resolve, so it stays a stat
 
 | Layer | After a forget | After a sweep's purge |
 | --- | --- | --- |
-| `record_keys` | The key destroyed; the row stays as a marker: id, time | Same |
-| `records`, `versions`, `observations`, `record_access`, `record_derived`, `records_fts` | Rows gone. `secure_delete` and FTS5 `secure-delete` overwrite them | Same |
+| `record_keys` | The key destroyed; the row stays as a marker: id, time, kind | Same |
+| `records`, `versions`, `observations`, `record_access`, `record_derived`, `records_fts` | Rows gone. `secure_delete` and FTS5 `secure-delete` overwrite them, except that token prefixes can stay in `records_fts_idx` until `memory-reindex` (5.4) | Same |
 | `tombstones` | `(id, erased_at, trace_id, kind)` | No row: an expired record needs no tombstone |
-| `capture_erasures` | The owner's erased key prefix, for a captured record: `<harness>:<session>:w<n>`, or `<harness>:<session>:` for a forget by `session`. Refuses later captures under it, including tails and closed windows of the same window, however late. A `captureKey` is under a prefix when it equals it, or when the prefix ends in `:` and the key starts with it, so `w1` does not cover `w10`. **Kept as long as tombstones** | No row |
+| `capture_erasures` | The owner's erased key prefix, for a captured record: `<harness>:<session>:w<n>`, or `<harness>:<session>:` for a forget by `session`. Committed before the key is destroyed, from the rows. Refuses later captures under it, including tails and closed windows of the same window, however late. A `captureKey` is under a prefix when it equals it, or when the prefix ends in `:` and the key starts with it, so `w1` does not cover `w10`. **Kept as long as tombstones** | No row |
 | `changes`, `change_access` | Kept: ids, times, owner, agent, byte counts. No text | Kept |
 | `idempotency` | Kept for 90 days, so a retried hook does not bring the record back. Scoped by owner and authority | Same |
-| The WAL | `wal_checkpoint(TRUNCATE)` in the same call; only `TRUNCATE` clears it, since a passive checkpoint leaves old frames in the file. Busy (a reader holds it): the result says `wal: "pending"` with the warning `MEMORY_ERASURE_PENDING` and a suggestion to re-run or run `store-check`, which now checkpoints this file. The FTS text may remain in the WAL until a later `TRUNCATE` succeeds. The sealed text is already unopenable | Same |
+| The WAL | `wal_checkpoint(TRUNCATE)` in the same call; only `TRUNCATE` clears it, since a passive checkpoint leaves old frames in the file. Busy (a reader holds it): the result says `wal: "pending"` with the warning `MEMORY_ERASURE_PENDING` and a suggestion to run `store-check`, which now checkpoints this file. The marker stays unsettled, and each later writer retries with no wait, until a `TRUNCATE` succeeds. Until then the FTS text may remain in the WAL. The sealed text is already unopenable | Same |
 | Journal, events | **Unchanged and append-only.** See below | Same |
 | `store-backup` copies | Not rewritten, and **unopenable with the current key file**: they hold sealed blobs with no plaintext and no FTS index (5.4). A restored copy drops the record again | Same |
-| Copies of `memory.keys` taken earlier | Not reachable. With a matching `memory.sqlite3` copy they open the record until they age out (5.4) | Same |
+| File-level copies of `memory.sqlite3` | Not reachable. Each holds every record live when it was taken, in clear in `records_fts`, with no key needed, for good (5.4) | Same |
+| Copies of `memory.keys` taken earlier | Not reachable. Restored with a matching `memory.sqlite3` copy, they return the record as live, including to the push, until they age out (5.4) | Same |
 | What a caller already received, harness transcripts, `memory-export` files, text an agent copied elsewhere | Outside Umbel; not reachable | Same |
 | Phase 4 proposals | A proposal or knowledge entry derived from it stays, by id in `derivedFrom`. Because `derivedFrom` requires a `contentHash`, **that hash of the forgotten text stays in the proposal** and can confirm a guess. Seam in section 13 | Same |
 
@@ -945,7 +1059,7 @@ keep the record id, the command, time, actor, person, trace id, the kept input k
 `class`, `session`, `id`, `ids`, `before`, `event`, `reason`, `harness`), byte counts, warning and error
 codes, and the event's envelope labels.
 
-**What else survives in a backup's rows or a marker.** For a forgotten record, a `memory.sqlite3` copy
+**What else survives in a backup's rows or a marker.** For a forgotten record, a `store-backup` copy
 from before the forget still shows in clear: id, class, owner, project, agent, session, capture key
 prefix, `flags`, `expiresAt`, created revision, stored size, both time intervals, `authority`,
 `confirmation`, `origin`, `access`, `sensitivity`, `confidence`, invalidation's `at`, `by` and `reason`,
@@ -953,7 +1067,7 @@ prefix, `flags`, `expiresAt`, created revision, stored size, both time intervals
 it is `subject`, `text`, `tags`, `constraints`, `sources`, `generated` or `contentHash`.
 
 **The tension, plainly.** After a forget, the record's words cannot be opened from Umbel's live state
-or its backups, but **the fact that a record with that id existed, who wrote it and when, and its
+or its `store-backup` copies, but **the fact that a record with that id existed, who wrote it and when, and its
 project and session labels, stays in the append-only journal**. Those may still be personal data. A
 deployment under an erasure obligation should treat `project` and `session` as non-personal labels,
 which the adapters' defaults do (10.2), and read the limits in 5.4.
@@ -969,18 +1083,37 @@ table.
 
 `store-embedded/tests/memory_erasure_bytes.rs` and `first-party/tests/forget_bytes.rs` write
 records holding random canaries (in subject, text, tag, constraint and source) by every route
-(remember, capture, import, batch, pipe), recall them, then forget. They then read **the raw bytes** of
-`memory.sqlite3`, its WAL, `memory.keys`, the journal, every event stream and the log, and assert no
-canary and no destroyed key is present in any. A second test holds a reader open across the forget,
-asserts `wal: "pending"`, closes it, re-runs and asserts the canary is gone.
+(remember, capture, import, batch, pipe), recall them, then forget. **Canaries are lowercase, do not
+stem and share no prefix**, because FTS5 stems and prefix-compresses its terms: with FTS `secure-delete`
+off, `CanaryZqxRunning` passed a raw grep while the index held `canaryzqxrun`. They then read **the raw
+bytes of every file in the store directory**, the journal, every event stream and the log, and assert no
+canary and no destroyed key is present in any. A control runs the same steps with FTS `secure-delete` off
+and must find the canary. A second test holds a reader open across the forget, asserts `wal: "pending"`
+and an unsettled marker, closes it, lets a later write retry, and asserts the canary is gone and the
+marker settled.
 
-**The backup test:** take a `store-backup`; assert no canary in the backup's raw bytes; forget; then
-open the backup beside the current `memory.keys` and assert every read returns `MEMORY_NOT_FOUND`, that
-AEAD with the current key file cannot open the blob, and that the rebuilt index holds no canary. Also, a
-capture of the forgotten tail's closed window is refused.
+**The backup test:** take a `store-backup`; assert no canary in any file of the destination; forget; then
+restore the copy by 5.4's procedure beside the current `memory.keys` and assert every read returns
+`MEMORY_NOT_FOUND`, that AEAD with the current key file cannot open the blob, and that the rebuilt index
+holds no canary. A record forgotten **after** the restore leaves no canary in the raw bytes either, since a
+rebuilt table must carry FTS `secure-delete` again. A capture of the forgotten tail's closed window is
+refused, from the prefix the rebuild wrote, and a session-wide prefix is not recovered, which asserts 5.4's
+stated limit. **A trial restore:** restore, open, put the newer database back, and every record still opens.
 
-**The crash test:** `store-embedded/tests/memory_keyfile.rs` spawns a writer that aborts after each step
-of 5.4's table (`UMBEL_TEST_CRASH_AT`, under a new `testkit` feature of `umbel-store-embedded`), reopens the store and asserts what that row says.
+**The crash test:** `store-embedded/tests/memory_keyfile.rs` spawns a writer that aborts at each crash point
+(`UMBEL_TEST_CRASH_AT`, under a new `testkit` feature of `umbel-store-embedded`), reopens the store and asserts
+the state 5.4 gives. The points are `provision-keys` (the key file renamed, `store_id` not committed),
+`write-keys` (keys committed, memory not), `forget-1` to `forget-5`, `purge-2` to `purge-4`, `backup-copy`
+(partway through the copy) and `rebuild` (partway through the rebuild). `UMBEL_TEST_FAIL_AT=forget-3` answers an
+I/O error at that step, and the call must return success with `MEMORY_ERASURE_PENDING`.
+
+**The pragmas:** `secure_delete`, `synchronous`, `fullfsync` on macOS and `busy_timeout` are read back on each
+new connection to both files, since they reset per connection.
+
+**Not tested: a real power loss.** An abort leaves the operating system's cache intact, so no test exercises
+`synchronous=EXTRA` or the unsynced truncate of step 4. That rests on the pragma assertion and on SQLite's
+documented behaviour and source.
+
 These tests are what speak for section 7.2's promise.
 
 ## 8. The `memory` plugin
@@ -1151,7 +1284,7 @@ Absent, forgotten and unreadable are one `MEMORY_NOT_FOUND`; `MEMORY_KEY_ABSENT`
 Input: `{ space?, id, at? (default now), reason ("wrong" | "outdated" | "duplicate" | "other"),
 note? (at most 500 characters, through mask and scan), expectVersion? }`. Result: `{ id,
 recordVersion, validUntil }`. Errors: `MEMORY_NOT_FOUND`, `MEMORY_NOT_OWNED`,
-`MEMORY_AUTHORITY_TOO_LOW`, `MEMORY_CONFLICT`, `MEMORY_INVALID` (a bad `at`). Invalidating an invalidated
+`MEMORY_AUTHORITY_TOO_LOW`, `MEMORY_CONFLICT`, `MEMORY_INVALID` (a bad `at`), `MEMORY_KEY_ABSENT` (5.4). Invalidating an invalidated
 record with an earlier `at` writes a new version, so a correction to the correction is itself on the
 record.
 
@@ -1161,14 +1294,15 @@ record.
 terminal, which is what puts an agent's note on the default push path. `confirm = "require-human"` shows
 the fixed prompt ("You are vouching for this record's text as your own; read it with memory-show
 first") and refuses `--yes` and `--approve`, as `src/cli/mod.rs` does already. The host then also requires
-authority `person`, so an agent environment variable (3.3) refuses it too. Prompts are static until
-phase 5, so `contentHash` is **the value `memory-show` printed, at least its first 16 hex digits**: the
-person has to have looked. A mismatch is `MEMORY_CONFIRM_MISMATCH`. The journal keeps `space` and `id`,
-never the hash.
+authority `person`, so an agent environment variable (3.3) refuses it too, with `MEMORY_CONFIRM_NOT_ALLOWED`.
+Prompts are static until phase 5, so `contentHash` is **the value `memory-show` printed, at least its first
+16 hex digits**. That ties the confirmation to the text shown, so a record that changed cannot be confirmed
+from an old command. It does not prove anyone read it: an agent can hand a person the whole command, hash
+included. A mismatch is `MEMORY_CONFIRM_MISMATCH`. The journal keeps `space` and `id`, never the hash.
 
 - The caller's effective principal must be the record's `principal`, or the caller a sharing writer who
   can read it.
-- `MEMORY_CONFIRM_NOT_ALLOWED`, naming the reason, when the record is flagged (a flagged record is never
+- `MEMORY_CONFIRM_NOT_ALLOWED`, naming the reason, when the caller lacks authority `person`, or the record is flagged (a flagged record is never
   pushed, so a person re-remembers it in their own words), or its authority is `transcript` (a whole
   window is not a statement), or it is already `person`.
 - It writes version n+1 as 4.1 says: the same text, the same valid interval, `authority: "person"`, and
@@ -1194,9 +1328,9 @@ process in this phase**: expiry takes effect in the query. A record is past its 
   `recordedAt` is older than `now − purge_after_days`.
 
 A fact written with a past `validUntil` ("server X until 2020") has no invalidation, so it waits for its
-`expiresAt`. A sweep purges by 5.4's order, removes idempotency rows past 90 days and orphan keys, and
-checkpoints. Result: `{ purged, remaining }`. **Every memory write also purges at most 16 such records**
-inside its transaction, so an unswept store still shrinks while it is in use and a deployer who never
+`expiresAt`. A sweep purges by 5.4's order, removes idempotency rows past 90 days and checkpoints. It leaves
+orphan keys alone. Result: `{ purged, remaining }`. **Every memory write also purges at most 16 such records**
+before its own transaction and in transactions of their own, so an unswept store still shrinks while it is in use and a deployer who never
 schedules anything does not keep expired text for ever. Quota counts **stored** records and bytes (8.11),
 so `stored_bytes` bounds the disk. A deployer runs a sweep from cron, CI or a `SessionEnd` adapter option.
 The doctor's `stores.sweep` warns when a space has records past their purge date and no sweep in 30 days
@@ -1228,7 +1362,9 @@ one step from instruction; hence those exclusions and the file header of 10.5.
 ### 8.10 Events
 
 Every mutation that took a revision gives one event, `changes.store = "memory"`; a no-op gives none
-(6.4). The record's `access` decides who can read the event, so a private record's events are private.
+(6.4). Revisions that no command's receipt reports make no event: roll-forward, a purge before a write and a
+restore's rebuild. `changes` is their record. A forget that fails at its step 3 takes no revision either, so
+it makes no event, though its journal entry stands. The record's `access` decides who can read the event, so a private record's events are private.
 `sources`, `contentHash`, `derivedFrom`, `constraints` and `generated` are `null` (6.2).
 
 | Command | `record` | `access` | `session` |
@@ -1296,9 +1432,9 @@ compile fails each write with `MEMORY_PACK_INVALID` rather than storing unmasked
 | `MEMORY_CONFLICT` | `expectVersion` mismatch |
 | `MEMORY_TTL_TOO_LONG`, `MEMORY_QUOTA_EXCEEDED`, `MEMORY_PACK_INVALID`, `CAPTURE_TOO_LARGE` | Limits and packs |
 | `MEMORY_FORGET_HUMAN_REQUIRED` | A forget selector without authority `person` |
-| `MEMORY_CONFIRM_NOT_ALLOWED`, `MEMORY_CONFIRM_MISMATCH` | Section 8.7 |
+| `MEMORY_CONFIRM_NOT_ALLOWED`, `MEMORY_CONFIRM_MISMATCH` | Section 8.7, including a caller without authority `person` |
 | `MEMORY_KEYS_MISSING`, `MEMORY_KEYS_MISMATCH`, `MEMORY_KEY_ABSENT`, `MEMORY_SEAL_INVALID` | Section 5.4 |
-| Warnings | `UNVERIFIED_CONTENT`, `CONTENT_FLAGGED`, `SECRETS_MASKED`, `RESULTS_LIMITED`, `MEMORY_UNREADABLE`, `MEMORY_HISTORY_PURGED`, `MEMORY_ERASURE_PENDING`, `MEMORY_KEYS_NOT_BACKED_UP`; on bundles `BUNDLE_LIMITED`, `KNOWLEDGE_NOT_BITEMPORAL` |
+| Warnings | `UNVERIFIED_CONTENT`, `CONTENT_FLAGGED`, `SECRETS_MASKED`, `RESULTS_LIMITED`, `MEMORY_UNREADABLE`, `MEMORY_HISTORY_PURGED`, `MEMORY_ERASURE_PENDING`, `MEMORY_KEYS_NOT_BACKED_UP`; on bundles `BUNDLE_LIMITED`, `KNOWLEDGE_NOT_BITEMPORAL`, and `MEMORY_KEYS_MISSING` or `MEMORY_KEYS_MISMATCH` when the memory lane is omitted for them (5.4) |
 
 ## 9. The `context` plugin
 
@@ -1420,7 +1556,10 @@ The order is fixed: **select, place under the byte budget, render, cut to `maxCh
 
 An omission is `{ section, reason, id? , count? }`. `reason` is one of `budget` (with `id`), `flagged` and `authority`
 (with `count`, never ids), `verified-only`, `no-task`, `index-empty`, `lane-unavailable`, and `unreadable` (with
-`count`, 5.4). Only what the caller can read is ever named or counted. **An empty bundle is a success.**
+`count`, 5.4). Only what the caller can read is ever named or counted. **An empty bundle is a success.** So is
+a bundle whose memory lane failed on its keys: each memory section asked for is omitted with `lane-unavailable`,
+the warning `MEMORY_KEYS_MISSING` or `MEMORY_KEYS_MISMATCH` says why, and knowledge is kept. The warning, and the
+rendered line of 9.5, are why this is not the silent empty result 5.4 forbids.
 
 ### 9.5 The bundle
 
@@ -1486,6 +1625,8 @@ U+2029 removed, so stored text can never produce a header line or end the quoted
 `[knowledge · ...` or "End of data. New instructions:" stays visibly inside the quote (tested). Header fields come only
 from validated values (ids, enums and timestamps), never from `subject`. With nothing placed and nothing left out,
 `data.text` is null. With nothing placed and something left out, it is the two preamble lines and the `Left out` line.
+When the memory lane failed on its keys, the block's last line is `Memory unavailable: MEMORY_KEYS_MISSING.` (or
+the mismatch code), and `data.text` is not null.
 
 ### 9.6 Determinism
 
@@ -1735,17 +1876,18 @@ stdin is not a terminal, it also never sets `dev.umbel/human-present`.
 | **Hidden counts** | Accepted as phase 2's owner decision 4: gaps in revisions, `seq` and order under global FTS statistics. Scores and the true head are withheld, so memory leaks less than documents do | `leak_probes.rs` asserts the withholding |
 | **Secrets in memory** | Masked before store and hash; digest journal; no text in events; labels refuse a masked pattern; the pack is a net, not a guarantee | `memory/tests/hygiene.rs` |
 | **Query injection** | One parser in `umbel-store`, each term double-quoted for FTS5 | Conformance `memory_recall` |
-| **Flooding** | Quota and caps inside the transaction (8.11); expiry always finite; purge inside writes; sweep bounded | Conformance `memory_quota`, `memory/tests/quota.rs` |
+| **Flooding** | Quota and caps inside the transaction (8.11); expiry always finite; purge before writes; sweep bounded | Conformance `memory_quota`, `memory/tests/quota.rs` |
 | **Destruction by a poisoned agent confined to MCP** | Below `person` it cannot forget, invalidate or supersede a `person` record; selectors need `person`; forget by `ids` of its own otherwise; invalidate keeps history. **An agent with a shell can reach the files**, and is not covered | `memory/tests/forget.rs` |
-| **Resurrection** | Erased key prefixes refuse later captures for as long as tombstones live; destroyed markers remove a restored row | `forget_bytes.rs`, `store-embedded/tests/memory_backup.rs` |
-| **Reading a forgotten record from a backup** | Per-record keys, destroyed first and durably; backups exclude the FTS index, the hash table and the key file | `memory_backup.rs`, `memory_keyfile.rs` |
+| **Resurrection** | Erased key prefixes, committed before the key is destroyed, refuse later captures for as long as tombstones live; destroyed markers remove a restored row, whose prefix the rebuild writes back. A session-wide prefix is lost to a restore (5.4) | `forget_bytes.rs`, `store-embedded/tests/memory_backup.rs` |
+| **Reading a forgotten record from a `store-backup` copy** | Per-record keys, destroyed first and durably; these copies exclude the FTS index, the hash table and the key file. A file-level copy holds live text in clear (5.4), and is not covered | `memory_backup.rs`, `memory_keyfile.rs` |
 | **Moving sealed data between records or owners** | Associated data binds space, id, owner, part and version | `store-embedded/tests/memory_seal.rs` |
 | **Export laundering** | Flagged and `transcript` excluded; the file header says unverified | `adapters/hook/tests/import_export.rs` |
 | **Path traversal through a hook** | No plugin reads a caller's path; `umbel-hook` requires a regular file and sends relative paths only | `adapters/hook/tests/*`, `memory/tests/security.rs` |
 
 **Not defended before phase 5:** every local process is as trusted as the workspace owner. It can read `memory.sqlite3`, the plaintext FTS index and `memory.keys`
 directly, and it can state any `project`, `session` or `person`-looking terminal. Principals are unverified on stdio, CLI and loopback HTTP, so another agent
-of the same principal can pre-empt a capture key on the CLI path. The FTS index and the labels are not encrypted at rest, and `memory.keys` is not wrapped by a
+of the same principal can pre-empt a capture key on the CLI path. The FTS index, `record_derived` and the labels are not encrypted at rest, a tampered backup can change
+clear labels such as `authority` and `flagged` with the body still opening, a file-level copy of `memory.sqlite3` holds live text in clear, and `memory.keys` is not wrapped by a
 passphrase. The README's paragraph on access before phase 5 gains memory and the limits of 5.4.
 
 ## 12. Exit criterion and tests
@@ -1776,9 +1918,10 @@ It indexes 40 documents, then asserts:
 5. **Leak probes pass**: the whole of `leak_probes.rs`, run against the same stores.
 6. **Deterministic bundles.** Two processes on the frozen clock return byte-identical `data`. Two stores written through the `umbel-store` API with
    fixed ids and a fixed clock, in two shuffled orders of the same writes, give an equal `digest`, on a rebuilt index.
-7. **Forget holds.** After `store-backup` and then `memory-forget`, the canaries are absent from the raw bytes of the database, its WAL, the key file,
-   the journal, the events and the backup, and the bundle omits the record. **The backup of `memory.sqlite3` opened beside the current key file cannot read
-   the record.** A later capture of the same window is refused. Losing `memory.keys` gives `MEMORY_KEYS_MISSING` and a doctor failure, never an empty result.
+7. **Forget holds.** After `store-backup` and then `memory-forget`, the canaries are absent from the raw bytes of every file in the store directory,
+   the journal, the events and the backup, and the bundle omits the record. **The `store-backup` copy of `memory.sqlite3`, restored beside the current key file, cannot read
+   the record.** A later capture of the same window is refused. Losing `memory.keys` gives `MEMORY_KEYS_MISSING` and a doctor failure, never a silent empty result, and
+   `context-bundle` keeps its knowledge and carries that warning.
 
 **CI.** A new `umbel.yml` job, `memory` (Linux and macOS): `cargo test -p umbel-plugin-memory -p umbel-plugin-context -p
 umbel-first-party -p umbel-hook`, with clippy and an MSRV check. The `check` job's `cargo test` excludes those crates. Store
@@ -1793,34 +1936,34 @@ checks locally first, so a step may run the macOS leg locally and record it, and
 | `tests/memory_grants.rs` | host | Each grant granted, denied, withheld; `allow`; components and mounts refused; identity overwritten; authority table of 3.3; access rule of 3.2, capture private whatever is sent; the host's scan; ownership and authority of 6.3; event `sources`, hash and `generated` nulled; `changes.store`; `replay`; no event on a no-op; a read creates no file |
 | `tests/journal_digest.rs` | host | A canary through a direct call, `afd-call`, `afd-batch`, `afd-pipe`, a plugin pipeline, the CLI, a failing call and a call that fails before any store: never in the journal, while `parse_journal` reads every line, events still project and `event-rebuild` gives the same lines. Asserts the stated limit: a plain `afd-pipe` step does journal what it was passed |
 | `tests/cli_stdin_input.rs` | host | `@-`: object, not an object, too large, refused by `require-human`; `dev.umbel/human-present` only at a terminal, without `--yes`, without an agent variable, never from a batch's `context` |
-| `tests/store_commands.rs`, `tests/doctor_stores.rs` (extended) | host | `store-show`'s `memory`; `store-check` on a damaged FTS table, a missing key entry and a failed seal; `store-backup`'s stripped copy and warning; the six doctor checks of 5.3 |
+| `tests/store_commands.rs`, `tests/doctor_stores.rs` (extended) | host | `store-show`'s `memory`; `store-check` on a damaged FTS table, a missing key entry and a failed seal; `store-backup`'s stripped copy and warning; row counts that pass after `memory-reindex` skipped a row, with the row still a finding; a `store.open` failure's suggestion that tells the deployer to keep `memory.sqlite3` and `memory.keys`; the six doctor checks of 5.3 |
 | `tests/default_tools.rs` | host | The default `tools/list` set and its measured size with all four plugins (principle 12, 9.7) |
 | `store/tests/memory_suite_detects.rs` | `umbel-store` | Section 5.5 |
 | `store/tests/memory_query.rs` | `umbel-store` | Parser forms, limits, positions; `+a b` compiled as 5.2 says |
 | `store-embedded/tests/memory_conformance.rs` | embedded | `run_all` with the memory groups |
-| `store-embedded/tests/memory_multiprocess.rs` | embedded | Two writer processes and a reader; lock timeout `Busy`; a killed writer loses no committed record; a memory write does not move `store.sqlite3`'s head; file modes on the database, its WAL and the key file |
-| `store-embedded/tests/memory_erasure_bytes.rs` | embedded | Raw-byte canaries, FTS `secure-delete` set by the `INSERT` form, WAL pending and clean, destroyed key bytes absent |
+| `store-embedded/tests/memory_multiprocess.rs` | embedded | Two writer processes and a reader; lock timeout `Busy`; a killed writer loses no committed record; a memory write does not move `store.sqlite3`'s head; file modes on the database, its WAL and the key file; the pragmas read back on each new connection to `memory.sqlite3`; two concurrent first writes end with one `store_id` |
+| `store-embedded/tests/memory_erasure_bytes.rs` | embedded | Raw-byte canaries of 7.4 over every file in the store directory, FTS `secure-delete` set by the `INSERT` form, the control with it off, WAL pending and retried until clean, a marker unsettled until then, destroyed key bytes absent; token prefixes cleared by `memory-reindex`; no `sqlite_stat4` table |
 | `store-embedded/tests/memory_seal.rs` | embedded | Round trip; a blob moved to another id, owner, space, part or version does not open; a flipped bit does not open; nonces differ; nothing sealed appears in `records` or `versions` in clear |
-| `store-embedded/tests/memory_keyfile.rs` | embedded | Section 5.4's table of missing and mismatched files, one case each; the crash at each step of the forget table, reopened; roll-forward from a read and from a write; two processes writing keys and a third forgetting; orphans removed only under the write lock |
-| `store-embedded/tests/memory_backup.rs` | embedded | Backup bytes hold no canary, no `records_fts`, no `record_derived` and no key; **a record forgotten after the backup cannot be read from it with the current key file**; restore rebuilds the index and drops marked rows; a crash in the backup leaves plaintext only in the store's own directory |
+| `store-embedded/tests/memory_keyfile.rs` | embedded | Section 5.4's table of missing and mismatched files, one case each; provisioning, with a database and no `meta`, adoption, and the temporary file; the crash at every point of 7.4, reopened; `UMBEL_TEST_FAIL_AT`; a marker and an absent entry through `get`, `invalidate` and `confirm`; a forget of an absent entry leaving a marker; roll-forward from each write path, a read writing nothing, one tombstone when two writers meet a marker, none for a purge, the `session` prefix surviving a crash; two processes writing keys and a third forgetting; orphans removed only by `memory-reindex` and never a marker; the pragmas read back on each new connection to the key file |
+| `store-embedded/tests/memory_backup.rs` | embedded | Backup bytes hold no canary, no `records_fts`, no `record_derived` and no key; rowids, mode `0600` and `user_version` kept; **a record forgotten after the backup cannot be read from it with the current key file**; restore rebuilds the index and drops marked rows, with a prefix written for a forget and none for a purge; a forget after the restore leaves no canary; restore, open, put the newer database back by the same procedure, and every record still opens; a file-level copy put back, reported by `store-check`; a crash in the backup leaves no plaintext and no temporary file; a read that opens a restored copy rebuilds it |
 | `plugins/memory/tests/remember.rs` | memory | Input shapes; pipeline order; observe, with authority in the key; renewal by `person` only and its cap; supersede, its one-millisecond and future cases, and `MEMORY_SCOPE_MISMATCH`; TTL caps; origin defaults; no text in results; `constraints` kept; labels refused when they match the pack |
 | `plugins/memory/tests/capture.rs` | memory | Contract validation, the field map of 10.1, classes, caps, whole-call refusal, idempotency, authority `transcript` from the CLI and `agent` from MCP, always private, a pre-empting key from another authority or owner has no effect, artifacts without bytes |
-| `plugins/memory/tests/recall_scope.rs` | memory | Every filter and project rule; flagged returned with its label; concise and detailed; sources; warnings including `MEMORY_UNREADABLE`; budget fitting against AFD's own check |
+| `plugins/memory/tests/recall_scope.rs` | memory | Every filter and project rule; flagged returned with its label; concise and detailed; sources; warnings including `MEMORY_UNREADABLE`, counting a row with `indexed = 0`; budget fitting against AFD's own check |
 | `plugins/memory/tests/bitemporal.rs` | memory | The four questions over commands, boundaries, backdating, expiry against `now`, correction of a correction, `recordedAt` clamped under a stale clock, `MEMORY_HISTORY_PURGED` |
-| `plugins/memory/tests/invalidate.rs` | memory | Ownership, authority, conflict, one answer for absent and unreadable |
-| `plugins/memory/tests/confirm.rs` | memory | `require-human`, `--yes` and `--approve` refused; an agent variable refused; MCP not offered; hash mismatch; flagged, `transcript` and `person` refused; the new version, `confirmation` and history; `verification` unchanged; journaled without the hash |
+| `plugins/memory/tests/invalidate.rs` | memory | Ownership, authority, conflict, one answer for absent and unreadable; `MEMORY_NOT_FOUND` for a marker and `MEMORY_KEY_ABSENT` for an absent entry |
+| `plugins/memory/tests/confirm.rs` | memory | `require-human`, `--yes` and `--approve` refused; an agent variable refused with `MEMORY_CONFIRM_NOT_ALLOWED`; MCP not offered; a marker is `MEMORY_NOT_FOUND`; hash mismatch; flagged, `transcript` and `person` refused; the new version, `confirmation` and history; `verification` unchanged; journaled without the hash |
 | `plugins/memory/tests/forget.rs` | memory | Selectors, `MEMORY_FORGET_HUMAN_REQUIRED`, `--yes` refused, others' records in `notFound`, a `person` record refused below `person`, erased prefixes refuse a later tail, closed window and session, idempotency key not recreating |
 | `plugins/memory/tests/hygiene.rs` | memory | Each secret kind masked, an unterminated PEM, `redactions`, pack override, a bad pack refuses the write, flags |
-| `plugins/memory/tests/quota.rs`, `retention.rs` | memory | Limits and `retry_after_ms`, pack ceilings, stored bytes; class defaults, sweep, `remaining`, no tombstone on purge, keys destroyed on purge, purge inside writes, a past `validUntil` kept until `expiresAt`, `expiringSoon` |
+| `plugins/memory/tests/quota.rs`, `retention.rs` | memory | Limits and `retry_after_ms`, pack ceilings, stored bytes; class defaults, sweep, `remaining`, no tombstone on purge, keys destroyed on purge, purge before writes, kept when the quota refuses the write, orphan keys left by a sweep, a past `validUntil` kept until `expiresAt`, `expiringSoon` |
 | `plugins/memory/tests/events.rs` | memory | Section 8.10's table, filtering by `access`, no text in any event |
 | `plugins/memory/tests/security.rs` | memory | Trust labels, no content in messages or logs, one answer for every absence |
 | `plugins/memory/tests/process.rs` | memory | A stdio server and one-shot CLI writes on one workspace |
 | `plugins/context/tests/selection.rs` | context | Terms, aggregation, status rules, `push_authorities` default and widening, `push_foreign_authorities`, project-less records, tiers and `per_authority_cap`, flagged never, `sections`, scope, `verified_only`, `asOf`, no-task holds no knowledge |
 | `plugins/context/tests/budget.rs` | context | Every rule of 9.4 in its order; small items after a large one; `omittedMore`; non-ASCII text against `maxChars` in UTF-16 units; fits to the byte against AFD's check |
 | `plugins/context/tests/labels.rs` | context | Every item's provenance and verification; omissions name only readable ids, and counts only what the caller reads; `sources` |
-| `plugins/context/tests/render.rs` | context | Forged headers, "end of data", control characters, U+2028 and U+2029; `maxChars`; items lose `text`; the `Left out` line, and an empty bundle with and without it |
+| `plugins/context/tests/render.rs` | context | Forged headers, "end of data", control characters, U+2028 and U+2029; `maxChars`; items lose `text`; the `Left out` line, and an empty bundle with and without it; the `Memory unavailable` line |
 | `plugins/context/tests/deterministic.rs` | context | Byte-equal repeat; digest across write orders with fixed ids; no `state` in the digest |
-| `plugins/context/tests/lanes_absent.rs` | context | Each optional grant missing; a `memory` grant and no file (`lane-unavailable`, no file created); empty stores; memory-only and index-only |
+| `plugins/context/tests/lanes_absent.rs` | context | Each optional grant missing; a `memory` grant and no file (`lane-unavailable`, no file created); a missing or mismatched key file (`lane-unavailable` with the warning, knowledge kept, success); empty stores; memory-only and index-only |
 | `plugins/context/tests/no_plugin_dependency.rs` | context | `cargo metadata`: neither plugin crate depends on another plugin crate |
 | `adapters/hook/tests/claude_code.rs` | hook | Each event's mapping and `SessionStart` source with the committed fixture; every included and excluded line kind; turns and `message.id`; windows, parts and keys; a torn line; state, and no process when no window closed; project from a worktree's `.git` file; relative paths; printed settings |
 | `adapters/hook/tests/generic.rs` | hook | The contract forwarded unchanged; `session-start` prints plainly |
@@ -1858,7 +2001,7 @@ at once; a transcript captured with `default_access = "space"` stays private.
 | Pack-pinned documents in a no-task bundle | When a deployer asks | Pack `bundle` |
 | Capturing tool use, or tool output, from a hook | Only by a new owner decision | The contract's `artifacts` and `tool-use` event, for a `generic` caller |
 | A Cursor profile; Gemini, Codex and Copilot profiles | When a harness's stdin reference and transcript format are verified | The `generic` profile; W18 |
-| Background sweep or a daemon | Never in the request path; scheduled later if asked | `memory-sweep` as a command; purge inside writes |
+| Background sweep or a daemon | Never in the request path; scheduled later if asked | `memory-sweep` as a command; purge before writes |
 | A second memory backend | Phase 6 | The suite; `memory.sqlite3`'s `store-backup` copy |
 
 ## 14. Implementation plan
@@ -1876,14 +2019,14 @@ code carries the `Plugin-isolation-exempt:` line.
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
 | 1 | Shapes and configuration | The schemas of section 2 with examples; envelope version 2 in `umbel-store` and `src/provenance.rs`; event version 2; manifest version 3 parsing (key stored); configuration version 4, with the policy keys and `principal.agent_env`; `init`'s `on_behalf_of`; version constants; `memory`, `memory_write` in the grant lists (still unavailable) | `schemas.rs`, `config_v4.rs`, `manifest_v3.rs` (parsing) | M |
-| 2 | Memory trait and suite | `store/src/memory.rs`, query parser with `+a b`, conformance groups with fixture, the in-memory fake | `memory_suite_detects.rs`, `memory_query.rs` | M |
-| 3a | Embedded memory store | `store-embedded/src/memory/`: schema, modes, FTS5, statements, erased prefixes, sweep, quota; `Stores.memory`; the `knowledge` job gains the groups. Text unsealed behind one function, for 3b. Repeats the status's SQLite experiments on the bundled 3.54.1 | `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` | L |
-| 3b | Sealing and the key file | `chacha20poly1305`; `memory.keys`; the sealed fields and `record_derived`; forget's order, roll-forward, `UMBEL_TEST_CRASH_AT`; every missing-key error; `reindex`, `backup`, `key_status`; `release`-profile cost per write and per recall recorded in the pull request. Checks that 3a's `write` and `forget` are not left with an unsealed path | `memory_seal.rs`, `memory_keyfile.rs`, `memory_backup.rs`, conformance re-run | L |
-| 4 | Host services and digest | The grants, section 6's rules, the host's scan, `Ledger`, `dev.umbel/no-change`, SDK methods, `HostError`; digest journaling, the redact step's replay stamp and warning shape, pipeline inheritance and the seal refusal; `dev.umbel/human-present` with its variables; `UMBEL_TEST_CLOCK` and `UMBEL_TEST_HUMAN_PRESENT` under `testkit`; CLI `@-`; `store-show`, `store-check`, `store-backup`; the six doctor checks; README paragraph | `memory_grants.rs`, `journal_digest.rs`, `cli_stdin_input.rs`, `manifest_v3.rs` (rest), store and doctor extensions | L |
+| 2 | Memory trait and suite | `store/src/memory.rs`, query parser with `+a b`, conformance groups with fixture and `MemoryRestore`, the in-memory fake | `memory_suite_detects.rs`, `memory_query.rs` | M |
+| 3a | Embedded memory store | `store-embedded/src/memory/`: schema, modes, FTS5, statements, erased prefixes, sweep, quota, a write's purge in transactions of its own before the write's, checkpoints outside them, per-connection pragmas and their read-back test; `Stores.memory`, with `memory_restore: None` so `memory_erasure`'s copy case reports `Skipped`; the `knowledge` job gains the groups. Text unsealed behind one function, for 3b. Repeats the status's SQLite experiments on the bundled 3.54.1 | `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` | L |
+| 3b | Sealing and the key file | `chacha20poly1305`; provisioning; `memory.keys`; the sealed fields and `record_derived`; forget's order with markers and their kinds, roll-forward, every crash point of 7.4 and `UMBEL_TEST_FAIL_AT`; every missing-key error; `reindex`, `backup` through `ATTACH`, the rebuild on open, `key_status`; `memory_restore`, so `memory_erasure`'s copy case runs; `release`-profile cost per write and per recall recorded in the pull request. Checks that 3a's `write` and `forget` are not left with an unsealed path | `memory_seal.rs`, `memory_keyfile.rs`, `memory_backup.rs`, `memory_erasure_bytes.rs` (markers, retries and `memory-reindex`), conformance re-run | L |
+| 4 | Host services and digest | The grants, section 6's rules, the host's scan, `Ledger`, `dev.umbel/no-change`, SDK methods, `HostError`; digest journaling, the redact step's replay stamp and warning shape, pipeline inheritance and the seal refusal; `dev.umbel/human-present` with its variables; `UMBEL_TEST_CLOCK` and `UMBEL_TEST_HUMAN_PRESENT` under `testkit`; CLI `@-`; `store-show`, `store-check`, `store-backup`; in `src/commands/store_check.rs`, `store.open`'s suggestion, which today says to move `state/spaces` aside and derive it again, becomes "Restore state/spaces from a backup. To derive the knowledge stores again, move store.sqlite3 and the index aside and run sources-sync and knowledge-index rebuild=true. Keep memory.sqlite3 and memory.keys: memory cannot be derived."; the six doctor checks; README paragraph | `memory_grants.rs`, `journal_digest.rs`, `cli_stdin_input.rs`, `manifest_v3.rs` (rest), store and doctor extensions | L |
 | 5 | Memory: writing | The plugin crate, packs, skill; the write pipeline; `memory-remember`, `memory-capture`, `memory-show`, `memory-status`; first-class suggestion; the `memory` CI job | `remember.rs`, `capture.rs`, `hygiene.rs`, `quota.rs`, `process.rs`, `events.rs` (write) | L |
 | 6 | Memory: reading and lifecycle | `memory-recall`, `-list`, `-invalidate`, `-confirm`, `-forget`, `-sweep`, `-reindex` | `recall_scope.rs`, `bitemporal.rs`, `invalidate.rs`, `confirm.rs`, `forget.rs`, `retention.rs`, `security.rs`, `events.rs` (rest) | L |
 | 7a | Shared helpers | Move the locator string and `is_stale` (`plugins/knowledge/src/search.rs`) from `plugins/knowledge/src/` to `umbel-okf`, which already derives the tier (`okf/src/frontmatter.rs`); knowledge unchanged in behaviour, its eval baseline untouched | Existing knowledge suite and `eval_gate.rs` | S |
-| 7b | Context | The plugin crate, pack, skill; selection with `PushFilter`, tiers and `left_out`; budget, rendering, determinism; first-class suggestion; the `tools/list` size test | `selection.rs`, `budget.rs`, `labels.rs`, `render.rs`, `deterministic.rs`, `lanes_absent.rs`, `no_plugin_dependency.rs`, `default_tools.rs` | L |
+| 7b | Context | The plugin crate, pack, skill; selection with `PushFilter`, tiers and `left_out`; budget, rendering, determinism; the keys-failed lane of 9.4; first-class suggestion; the `tools/list` size test | `selection.rs`, `budget.rs`, `labels.rs`, `render.rs`, `deterministic.rs`, `lanes_absent.rs`, `no_plugin_dependency.rs`, `default_tools.rs` | L |
 | 8 | Binary and adapters | `umbel-first-party`; `umbel-hook` with `claude-code` and `generic`, the transcript reader of 10.3, windows, state, `print-settings`, `status`, fail-open; the fixture; re-checks the reader's rules against the structure of an interactive CLI transcript and amends 10.3 if it differs; measures one-shot time and the job's timeout | `claude_code.rs`, `generic.rs`, `fail_open.rs` | M |
 | 9 | Import and export | `memory-import`, `memory-export`, `umbel-hook import` and `export` | `import_export.rs` | S |
 | 10 | Exit | `leak_probes.rs`, `poisoning.rs`, `forget_bytes.rs`, `exit_memory.rs`; STATUS.md marks phase 3 done with the run's evidence | The four | M |
@@ -1905,7 +2048,7 @@ one at a time, use `-p <crate>`, keep the full `--workspace` for each step's fin
 1. **Forget uses per-record keys, crypto-shredding** (D73, D82, D83; sections 5.4, 7). Each record's text is encrypted under its own key, in a separate key file. Forget destroys the key and also
    does the byte-level deletion. Backups exclude the key file and the FTS index, which is rebuilt on restore. Key-file backups are the deployer's concern. The limits are stated in 5.4: losing the key
    file loses all memory; key-file backups can unlock forgotten records until they age out; journal metadata survives; the FTS index stays plaintext on disk; text copied elsewhere survives; local same-user agents
-   can read everything. **The cost also accepted:** the journal stays append-only, and digest commands cannot be replayed from it, a narrowing of architecture section 8's "every command journaled; replay". They are still
+   can read everything. **Corrected after the key design's own review, 2026-11-02:** the guarantee covers `store-backup` copies, and a file-level copy holds every live record's text in clear, for good. **The cost also accepted:** the journal stays append-only, and digest commands cannot be replayed from it, a narrowing of architecture section 8's "every command journaled; replay". They are still
    recorded; store-backed results are already `replay: "recorded"` since phase 2.
 2. **Session start pushes `person` authority only by default** (D78, D84; sections 8.7, 9.3): `push_authorities = ["person"]`. `memory-confirm` promotes an agent's memory, at a terminal, refusing `--yes`, journaled. The
    bundle shows a "left out: N" line, so the agent can pull deliberately. Widening is one setting. **The default push will be nearly empty until a person confirms memories**, chosen because no measurement supports framing and a push

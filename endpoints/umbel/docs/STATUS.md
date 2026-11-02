@@ -1010,6 +1010,8 @@ starts.
   Written 2026-11-01 by the phase 3 owning agent, revised 2026-11-02 after an
   independent review. Last verified 2026-11-02 against `main` at `4a26cc0b`, by
   reading the code, scratch SQLite experiments and `pnpm verify`; no Rust built.
+- **Key design review:** D82 to D85 had their own independent review on 2026-11-02,
+  and the specification's key design was revised from it, in the same pull request.
 - **Done:** [the specification](phases/3-memory-context/spec.md), in
   [#685](https://github.com/lushly-dev/afd/pull/685), with D68 to D85, W18, and
   amendments to the architecture's components, host services, interfaces, data,
