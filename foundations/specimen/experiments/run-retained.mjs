@@ -8,6 +8,7 @@
  * the same kind of reason. `--plugin` installs the FAST-AF plugin and inspects every component
  * in the selection. `--mode identities` stops after the identity check; `--mode full` runs
  * every story instead of the selection, through `runSuite`, with `--workers` (default 2) for both.
+ * `--only incumbent` or `--only candidate` runs one side, so that it can be timed alone.
  *
  * The snapshot stays read-only apart from the Vite caches the incumbent writes and, with
  * `--plugin`, `.specimen-t05/`: a plugin module must be inside the bench root.
@@ -57,6 +58,9 @@ const mode = option('--mode', 'all');
 if (!['all', 'identities', 'full'].includes(mode))
 	throw new Error('--mode must be all, identities or full');
 const workers = option('--workers', '2');
+const only = option('--only');
+if (only && !['incumbent', 'candidate'].includes(only))
+	throw new Error('--only must be incumbent or candidate');
 await mkdir(output, { recursive: true });
 if ((await readdir(output)).length) throw new Error('Evidence output must be empty');
 
@@ -257,8 +261,27 @@ if (mode === 'identities') {
 	);
 	process.exit(result.identities.mismatches.length ? 1 : 0);
 }
+if (only === 'candidate') {
+	const { stories, elapsedMs } = await candidate([]);
+	await json(join(output, 'retained.json'), { ...result, candidate: { elapsedMs }, stories });
+	console.log(
+		`${consumer}: candidate only, ${stories.length} stories in ${elapsedMs.toFixed(0)} ms`
+	);
+	process.exit(stories.every((story) => story.status !== 'failed') ? 0 : 1);
+}
 // One runner at a time, to keep the shared host's load bounded.
 const reference = await incumbent();
+if (only === 'incumbent') {
+	await json(join(output, 'retained.json'), {
+		...result,
+		incumbent: reference.run,
+		tests: reference.tests,
+	});
+	console.log(
+		`${consumer}: incumbent only, ${reference.tests.length} tests in ${reference.run.elapsedMs.toFixed(0)} ms`
+	);
+	process.exit(reference.run.code === 0 ? 0 : 1);
+}
 const plugins = plugin ? [await pluginModule()] : [];
 const { stories, inspected, elapsedMs } = await candidate(plugins);
 result.candidate = { elapsedMs };
