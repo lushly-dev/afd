@@ -1,113 +1,113 @@
 {
-  "version": 1,
-  "fixture": {
-    "seed": 20261101,
-    "digest": "sha256:4fbd3143541158319a185103af994dad945dc646ce9f10711589db37477ecadf"
-  },
-  "k": 10,
-  "metrics": {
-    "byKind": {
-      "alias": {
-        "off": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 30,
-          "recall": 1.0
-        },
-        "on": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 30,
-          "recall": 1.0
-        }
-      },
-      "cross-space": {
-        "off": {
-          "mrr": 0.8333,
-          "ndcg": 0.8842,
-          "queries": 15,
-          "recall": 1.0
-        },
-        "on": {
-          "mrr": 0.8333,
-          "ndcg": 0.8181,
-          "queries": 15,
-          "recall": 1.0
-        }
-      },
-      "exact": {
-        "off": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 80,
-          "recall": 1.0
-        },
-        "on": {
-          "mrr": 1.0,
-          "ndcg": 0.9368,
-          "queries": 80,
-          "recall": 1.0
-        }
-      },
-      "field": {
-        "off": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 20,
-          "recall": 1.0
-        },
-        "on": {
-          "mrr": 1.0,
-          "ndcg": 0.9906,
-          "queries": 20,
-          "recall": 1.0
-        }
-      },
-      "multi-hop": {
-        "off": {
-          "mrr": 0.0,
-          "ndcg": 0.2754,
-          "queries": 20,
-          "recall": 0.0
-        },
-        "on": {
-          "mrr": 0.3917,
-          "ndcg": 0.7258,
-          "queries": 20,
-          "recall": 1.0
-        }
-      },
-      "phrase": {
-        "off": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 20,
-          "recall": 1.0
-        },
-        "on": {
-          "mrr": 1.0,
-          "ndcg": 1.0,
-          "queries": 20,
-          "recall": 1.0
-        }
-      }
-    },
-    "overall": {
-      "off": {
-        "mrr": 0.8784,
-        "ndcg": 0.9123,
-        "queries": 185,
-        "recall": 0.8919
-      },
-      "on": {
-        "mrr": 0.9207,
-        "ndcg": 0.9273,
-        "queries": 185,
-        "recall": 1.0
-      }
-    }
-  },
-  "unanswerable": {
-    "emptyRate": 1.0
-  }
+	"version": 1,
+	"fixture": {
+		"seed": 20261101,
+		"digest": "sha256:4fbd3143541158319a185103af994dad945dc646ce9f10711589db37477ecadf"
+	},
+	"k": 10,
+	"metrics": {
+		"byKind": {
+			"alias": {
+				"off": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 30,
+					"recall": 1.0
+				},
+				"on": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 30,
+					"recall": 1.0
+				}
+			},
+			"cross-space": {
+				"off": {
+					"mrr": 0.8333,
+					"ndcg": 0.8842,
+					"queries": 15,
+					"recall": 1.0
+				},
+				"on": {
+					"mrr": 0.8333,
+					"ndcg": 0.8181,
+					"queries": 15,
+					"recall": 1.0
+				}
+			},
+			"exact": {
+				"off": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 80,
+					"recall": 1.0
+				},
+				"on": {
+					"mrr": 1.0,
+					"ndcg": 0.9368,
+					"queries": 80,
+					"recall": 1.0
+				}
+			},
+			"field": {
+				"off": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 20,
+					"recall": 1.0
+				},
+				"on": {
+					"mrr": 1.0,
+					"ndcg": 0.9906,
+					"queries": 20,
+					"recall": 1.0
+				}
+			},
+			"multi-hop": {
+				"off": {
+					"mrr": 0.0,
+					"ndcg": 0.2754,
+					"queries": 20,
+					"recall": 0.0
+				},
+				"on": {
+					"mrr": 0.3917,
+					"ndcg": 0.7258,
+					"queries": 20,
+					"recall": 1.0
+				}
+			},
+			"phrase": {
+				"off": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 20,
+					"recall": 1.0
+				},
+				"on": {
+					"mrr": 1.0,
+					"ndcg": 1.0,
+					"queries": 20,
+					"recall": 1.0
+				}
+			}
+		},
+		"overall": {
+			"off": {
+				"mrr": 0.8784,
+				"ndcg": 0.9123,
+				"queries": 185,
+				"recall": 0.8919
+			},
+			"on": {
+				"mrr": 0.9207,
+				"ndcg": 0.9273,
+				"queries": 185,
+				"recall": 1.0
+			}
+		}
+	},
+	"unanswerable": {
+		"emptyRate": 1.0
+	}
 }
