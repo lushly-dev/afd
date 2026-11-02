@@ -1,3 +1,4 @@
+import { normalizeDom } from '../normalize.js';
 import type {
 	EventDeclaration,
 	InspectResult,
@@ -479,8 +480,6 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			return locate(mountRoot, selector);
 		},
 		async normalize(html) {
-			// Loaded on first use, so the bench page's shell does not carry the HTML parser.
-			const { normalizeDom } = await import('../normalize.js');
 			return normalizeDom(html);
 		},
 		dispose,

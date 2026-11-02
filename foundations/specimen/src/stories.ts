@@ -189,7 +189,9 @@ function sameFile(importPath: string, file: string, root: string): boolean {
 export function validateDiscovery(
 	discovery: Discovery,
 	root: string,
-	target?: ValidationTarget
+	target?: ValidationTarget,
+	/** The configured custom elements manifest's tags; a story's component should be one of them. */
+	manifestTags?: ReadonlySet<string>
 ): ValidationReport {
 	const issues: ValidationIssue[] = [];
 	const fileMatches = (importPath?: string) =>
@@ -246,6 +248,15 @@ export function validateDiscovery(
 	for (const entry of entries) {
 		const story = entry.story as StoryIdentity;
 		const where = { id: entry.id, importPath: entry.module, exportName: entry.exportName };
+		if (manifestTags && entry.component && !manifestTags.has(entry.component))
+			issues.push({
+				severity: 'warning',
+				code: 'COMPONENT_NOT_IN_MANIFEST',
+				message: `${entry.id}: component \`${entry.component}\` is not in the configured custom elements manifest, so inspection knows nothing about it`,
+				suggestion:
+					"Add the component to the manifest, or correct the story's `component` annotation.",
+				...where,
+			});
 		for (const [level, fields] of [
 			['meta', story.annotations.meta],
 			['story', story.annotations.story],

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parse5Normalize } from '../experiments/inputs/parse5-normalize.mjs';
 import { normalizeDom, normalizeElements } from './normalize.js';
 import type { ElementObservation } from './types.js';
 
@@ -109,6 +110,85 @@ describe('normalizeDom', () => {
 		const after =
 			'<svg><defs><path id="specimen-generated-2"></path></defs><use xlink:href="#specimen-generated-2"></use></svg><a href="/other#specimen-generated-1"></a>';
 		expect(normalizeDom(before)).toBe(normalizeDom(after));
+	});
+});
+
+describe('normalizeDom reads a serialization', () => {
+	// A browser's own output: what a capture holds, and what the parse5 reference must agree on.
+	it.each([
+		'<div z="1" a="2"> a  b\n<!--binding--></div>',
+		'<input disabled="" value="a&amp;b &quot;c&quot;" type="text">',
+		'<x-box><template shadowrootmode="open" shadowrootdelegatesfocus=""><slot name="a"></slot></template><i z="1" a="2">&nbsp;&amp;&lt;</i></x-box>',
+		'<x-a><template shadowrootmode="open"><x-b><template shadowrootmode="open"><i id="specimen-generated-3" for="specimen-generated-3"></i></template></x-b><i id="specimen-generated-3"></i></template></x-a>',
+		'<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="specimen-generated-1" gradientUnits="x"></linearGradient></defs><use xlink:href="#specimen-generated-1" href="#specimen-generated-1"></use></svg>',
+		'<style>a > b { color: red } /* <i z="1" a="2"> */</style><i z="1" a="2"></i>',
+		'<script>const a = \'<i z="1" a="2">\';</script>',
+		'<textarea>\nplain</textarea><pre>\n<i z="1" a="2"></i></pre>',
+		'<title>&lt;i z="1"&gt;</title><iframe src="x" a="1"><i z="1" a="2"></iframe>',
+		'<noscript><i z="1" a="2"></noscript><xmp><i z="1" a="2"></xmp><noembed><i z="1" a="2"></noembed><noframes><i z="1" a="2"></noframes>',
+		'<!-- <i z="1" a="2"> --><i z="1" a="2"></i><!---->',
+		'<a title="x>y" href="/z">1 < 2 &gt; 0</a>',
+		'<br><img alt="" src="a"><hr class="b" aria-hidden="true">',
+		'<table><tbody><tr><td z="1" a="2"></td></tr></tbody></table>',
+		'<select><option selected="" value="1">One</option></select>',
+		'<i data-b="" data-a="" data-c=""></i>',
+	])('as parse5 did: %s', (raw) => {
+		expect(normalizeDom(raw)).toBe(parse5Normalize(raw));
+	});
+
+	it('keeps a structure a parser would repair, as the DOM had it', () => {
+		for (const [raw, repaired] of [
+			['<table><tr></tr></table>', '<table><tbody><tr></tr></tbody></table>'],
+			['<p><div></div></p>', '<p></p><div></div><p></p>'],
+		] as const) {
+			expect(normalizeDom(raw)).toBe(raw);
+			expect(parse5Normalize(raw)).toBe(repaired);
+		}
+	});
+
+	it('keeps a text area’s text, which the parse5 reference cut after a leading newline', () => {
+		const raw = '<textarea>\n&lt;i&gt;</textarea>';
+		expect(normalizeDom(raw)).toBe(raw);
+		expect(parse5Normalize(raw)).toBe('<textarea>;i&gt;</textarea>');
+	});
+
+	it('keeps the escaping Chromium gave an attribute', () => {
+		const raw = '<iframe srcdoc="&lt;b&gt;"></iframe>';
+		expect(normalizeDom(raw)).toBe(raw);
+		expect(parse5Normalize(raw)).toBe('<iframe srcdoc="<b>"></iframe>');
+	});
+
+	it('reads the attribute forms HTML allows', () => {
+		expect(normalizeDom(`<i z=1 a='"' b m = "n" a="ignored" / ></i>`)).toBe(
+			'<i a="&quot;" b="" m="n" z="1"></i>'
+		);
+		expect(normalizeDom('<i z="1" a="2"/>')).toBe('<i a="2" z="1"/>');
+	});
+
+	it('finds no tags in what is not one', () => {
+		for (const raw of [
+			'1 < 2',
+			'<3',
+			'a <',
+			'</ i>',
+			'<?pi z="1" a="2">',
+			'<!doctype html>',
+			'<!-->',
+			'<!-- never closed <i z="1" a="2">',
+			'<i z="1" a="2"',
+			'<i z="1',
+			'<plaintext><i z="1" a="2"></i>',
+			'<script><i z="1" a="2">',
+		]) {
+			expect(normalizeDom(raw)).toBe(raw);
+		}
+	});
+
+	it('closes a scope only at its own end, ending with the outermost', () => {
+		const html = (id: number) =>
+			`</template><template><template></template><i id="specimen-generated-${id}"></i><i for="specimen-generated-${id}"></i></TEMPLATE><i for="specimen-generated-${id}"></i>`;
+		expect(normalizeDom(html(1))).toBe(normalizeDom(html(9)));
+		expect(normalizeDom(html(1))).toContain('missing_1');
 	});
 });
 

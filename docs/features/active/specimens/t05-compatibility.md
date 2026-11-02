@@ -242,9 +242,9 @@ The static build accounts every bench chunk under the proposal's categories, eac
 | Capture | The lazy DOM normalizer, Specimen's code and parse5 | 154,389 | Counts toward the total |
 | Total bench JavaScript | | 792,149 | 1,300,000 |
 
-A story's play helpers, such as `storybook/test`, are the consumer's own imports during the overlap and count as consumer code.
+A story's play helpers, such as `storybook/test`, are the consumer's own imports during the overlap and count as consumer code. [T06](t06-full-runner.md#budgets) corrected this: the proposal counts them as interaction support.
 
-The capture normalizer has been bench code counted as consumer code since T04 moved normalization into the page. It is now counted toward the total. It has no category of its own, and T04's recorded shell figure did not include it (G06).
+The capture normalizer has been bench code counted as consumer code since T04 moved normalization into the page. It is now counted toward the total. It has no category of its own, and T04's recorded shell figure did not include it (G06). [T06](t06-full-runner.md#budgets) replaced it with a small scan under the shell ceiling, which closes that question.
 
 ## Step 4: the preview-first codemod
 

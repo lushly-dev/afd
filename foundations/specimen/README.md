@@ -222,6 +222,15 @@ python3 -m http.server 4173 --directory /tmp/specimen-static
 
 The output directory must be empty. Open `/index.html` for the metadata index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
 
+A link can also carry `checkpoint`: `after-run` runs a retained story's play in the preview, for up to 15 seconds. Any other named checkpoint needs the host's real input, so the page shows the mount and names the `specimen render` command that reaches it. The preview's frame sets `data-specimen-preview="ready"` on its root element when it is done, and shows any error in `#specimen-page-error`.
+
+`specimen-build.json` describes the build without running it:
+
+- `entries`: each case's identity and `url`.
+- `categories` and `total`: the shell, interaction support and accessibility in minified bytes against their ceilings. A build over a ceiling fails. Capture code counts as shell, and a play's helpers, such as `storybook/test`, count as interaction support however a story imports them.
+- `reported`: what has no ceiling, namely the `catalog` of cases, the `incumbent` (what else a preview imports from Storybook) and `consumer` code.
+- `chunks`: every emitted chunk with its category and size.
+
 ## Use programmatically
 
 ```ts

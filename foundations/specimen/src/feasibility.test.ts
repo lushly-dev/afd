@@ -402,12 +402,25 @@ export const Good = {
 			const page = await browser.newPage();
 			const errors: string[] = [];
 			page.on('pageerror', (error) => errors.push(error.message));
+			const report = JSON.parse(await readFile(join(output, 'specimen-build.json'), 'utf8')) as {
+				chunks: { file: string; category: string }[];
+			};
+			const heavy = new Set(
+				report.chunks
+					.filter((chunk) => chunk.category === 'interaction' || chunk.category === 'accessibility')
+					.map((chunk) => chunk.file)
+			);
+			const loaded: string[] = [];
+			page.on('response', (response) => loaded.push(new URL(response.url()).pathname.slice(1)));
 			await page.goto(server.url);
 			expect(await page.getByRole('heading', { name: 'Specimens' }).count()).toBe(1);
 			expect(await page.getByRole('link', { name: /Feasibility\/Baseline/ }).count()).toBe(1);
 			await page.goto(`${server.url}/specimen.html?id=baseline`);
 			await page.frameLocator('iframe').getByRole('button', { name: 'Save' }).waitFor();
 			expect(errors).toEqual([]);
+			// A native specimen loads neither the helpers' runtime nor axe to be listed and mounted.
+			expect(loaded.length).toBeGreaterThan(0);
+			expect(loaded.filter((file) => heavy.has(file))).toEqual([]);
 			await page.goto(`${server.url}/specimen.html?id=viewport&viewport=375x812&theme=dark`);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const frame = page.frames().find((candidate) => candidate.parentFrame());

@@ -203,3 +203,20 @@ node foundations/specimen/experiments/run-retained.mjs --consumer fast-af \
 ```
 
 Specimen is configured from the evidence directory, so the snapshot is not edited. The exceptions are the Vite caches the incumbent writes and, with `--plugin`, a `.specimen-t05/` directory holding the plugin module, which must be inside the bench root. Lushly's Vitest config lists tracked files with `git ls-files`, so its snapshot needs a Git index of the pinned tree. `--mode identities` stops after the identity check; `--mode full` runs every story instead of the selection, through `runSuite`, with `--workers` (default 2) for both runners. See the [T05 record](../../../docs/features/active/specimens/t05-compatibility.md#step-5-the-consumers-stories-through-both-runners) and the [T06 record](../../../docs/features/active/specimens/t06-full-runner.md) for results.
+
+## The build, the normalizer and a consumer's tooling (T06)
+
+Each reads a real consumer, as [T06's step 6](../../../docs/features/active/specimens/t06-full-runner.md#step-6-budgets-the-review-page-and-the-consumers-tooling) records.
+
+```sh
+# Every link of a static build in Chromium, over a plain server.
+node experiments/check-index.mjs --dir BUILD --out FILE
+
+# The DOM normalizer against the parse5 reference it replaced, on every story's capture.
+node experiments/check-normalizer.mjs --root SNAPSHOT --config FILE --out FILE
+
+# Lushly's CEM check, typecheck and scaffold on a throwaway clone, and the new story in both runners.
+node experiments/check-scaffold.mjs --snapshot SNAPSHOT --fonts DIR --out DIR
+```
+
+`check-scaffold.mjs` clones with macOS `cp -c` and removes the clone at the end. `inputs/parse5-normalize.mjs` is the reference; `src/normalize.test.ts` also holds the normalizer to it, which is why parse5 stays a development dependency.

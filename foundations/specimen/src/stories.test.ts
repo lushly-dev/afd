@@ -81,6 +81,19 @@ describe('static story validation', () => {
 		expect(report).toEqual({ valid: true, scope: 'static', checked: 2, issues: [] });
 	});
 
+	it('warns of a story component the configured manifest does not describe', () => {
+		const entries = [
+			{ ...story('a'), component: 'x-known' },
+			{ ...story('b'), component: 'x-other' },
+		];
+		expect(validateDiscovery(discovery({ entries }), root).issues).toEqual([]);
+		const report = validateDiscovery(discovery({ entries }), root, undefined, new Set(['x-known']));
+		expect(report.valid).toBe(true);
+		expect(report.issues.map((issue) => [issue.severity, issue.code, issue.id])).toEqual([
+			['warning', 'COMPONENT_NOT_IN_MANIFEST', 'b'],
+		]);
+	});
+
 	it('fails on discovery errors and unsupported annotations at any level', () => {
 		const report = validateDiscovery(
 			discovery({
