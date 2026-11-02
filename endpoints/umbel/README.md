@@ -22,10 +22,15 @@ the plugin contract, is done too (its
 compiled, component and mounted plugins, serves their packs and skills, and
 scaffolds and checks them with `plugin new` and `plugin check`; the hello
 plugin answers alike built all three ways, and the todo example's conformance
-suite passes against it. Phase 2, knowledge, is under way: its store traits, the embedded
-SQLite and tantivy backend and, with step 4, the host services (store grants with allow lists,
-reader filters, `store-show`, `store-check`, `store-backup`) are in; the knowledge plugins are
-not yet. Nothing is released or published; the
+suite passes against it. Phase 2, knowledge, is done (its
+[specification](docs/phases/2-knowledge/spec.md) is met, with the exit criterion in
+`plugins/knowledge/tests/exit_thousand.rs`): the embedded SQLite and tantivy stores, the host
+services (store grants with allow lists, reader filters), the `sources` plugin that reads files into
+the stores, and the `knowledge` plugin (search, open, the structural graph, code symbols, proposals
+and verification, the eval harness) are in, behind the `umbel-knowledge` binary. Its fixture is
+synthetic with planted terms, so its recall measures the pipeline and regressions, not quality on
+real content. Access filtering is exact only for embedders until phase 5
+(see [below](#access-is-not-a-security-boundary-yet)). Nothing is released or published; the
 crate is `publish = false` and its release unit is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
 [STATUS.md](docs/STATUS.md) says exactly what is done.
@@ -163,6 +168,98 @@ after the next `knowledge-refresh`.
 
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
+
+## Run the knowledge plugin
+
+`umbel-knowledge` is the `umbel` command line with the `sources` and `knowledge` plugins compiled in
+(the stock `umbel` compiles in none). Enabling them is not enough: each plugin's write grants need an
+explicit `allow` list in `umbel.toml`: a plugin whose required grant has none does not load
+(`PLUGIN_GRANT_DENIED`, naming the grant and the line to add). The ones that matter, and who needs them:
+
+| Grant | Plugin | Needed for | `allow` entries |
+| --- | --- | --- | --- |
+| `documents_write` | `sources` | `sources-sync` (reading files into the document store) | `<space>/<collection>` or `<space>/*` |
+| `records_write` | `sources` | `sources-sync` (its bookkeeping records) | `<space>` or `*` |
+| `index_write` | `knowledge` | `knowledge-index` | `<space>` or `*` |
+| `graph_write` | `knowledge` | `knowledge-index` (the structural graph) | `<space>` or `*` |
+| `records_write` | `knowledge` | `knowledge-propose` and every proposal state | `<space>` or `*` |
+| `documents_write` | `knowledge` | applying a proposal with `knowledge-approve` | `<space>/<collection>` or `<space>/*` |
+| `content_write` | `knowledge` | applying a proposal (it writes the file) | `<space>/<collection>` or `<space>/*` |
+
+The first five are required. The last two are optional and only for applying proposals; without
+them the workspace loads and an approval is recorded, then stops with `PROPOSAL_APPLY_UNAVAILABLE`. A proposal also needs an *area* that says who may approve changes to
+a collection. This `umbel.toml` runs everything (a workspace made with `umbel-knowledge init
+~/umbel-ws` starts with only `config_version = 3`; add the rest):
+
+```toml
+config_version = 3
+default_space = "main"
+
+# The person at this machine's command line is human:ada; their agents are agent:ada.
+[principal]
+local_id = "ada"
+on_behalf_of = "ada"
+
+[spaces.main.collections.handbook]
+root = "spaces/main/handbook"          # inside the workspace, or an absolute path
+
+[spaces.main.collections.code]
+root = "spaces/main/src"
+kind = "code"                           # indexed by symbol (Rust, Python, TypeScript, JavaScript)
+
+[plugins]
+enabled = ["sources", "knowledge"]
+
+[plugins.sources]
+source = "compiled:sources"
+
+[plugins.sources.grants.documents_write]
+allow = ["main/*"]
+[plugins.sources.grants.records_write]
+allow = ["main"]
+
+[plugins.knowledge]
+source = "compiled:knowledge"
+
+[plugins.knowledge.grants.index_write]
+allow = ["main"]
+[plugins.knowledge.grants.graph_write]
+allow = ["main"]
+[plugins.knowledge.grants.records_write]
+allow = ["main"]
+[plugins.knowledge.grants.documents_write]
+allow = ["main/*"]
+[plugins.knowledge.grants.content_write]
+allow = ["main/*"]
+
+# Who may approve a change to the handbook.
+[plugins.knowledge.config.areas.handbook]
+space = "main"
+collection = "handbook"
+approvers = ["principal:human:ada"]
+allow_self_approval = true              # a one-person workspace; leave it out otherwise
+```
+
+Then put Markdown under `spaces/main/handbook` and source files under `spaces/main/src`, and:
+
+```sh
+cd ~/umbel-ws
+umbel-knowledge workspace doctor                       # "healthy": true
+umbel-knowledge call knowledge-refresh '{}'            # read the files, then build the index and graph
+umbel-knowledge call knowledge-search '{"query": "deploy checklist"}'
+umbel-knowledge call knowledge-open '{"doc": "handbook/deploy"}'
+umbel-knowledge call knowledge-propose '{"idempotency_key": "k1", "rationale": "why",
+  "evidence": [{"kind": "text", "ref": "where it came from"}],
+  "change": {"op": "create", "doc": "handbook/monitoring", "content": "# Monitoring\n..."}}'
+umbel-knowledge call knowledge-proposal-show '{"proposal": "p-..."}'   # read the diff and the flags
+umbel-knowledge call knowledge-approve '{"proposal": "p-..."}'         # a terminal: two prompts
+umbel-knowledge call knowledge-refresh '{}'            # the approved file is searchable again
+umbel-knowledge serve --stdio                          # the same commands to a harness over MCP
+```
+
+`knowledge-approve` asks twice at a terminal (the plugin's confirmation, then AFD's approval) and
+neither prompt shows the change: **read `knowledge-proposal-show` first.** It refuses without a
+terminal and to `--yes` or `--approve`.
 
 ## Access is not a security boundary yet
 
