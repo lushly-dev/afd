@@ -149,21 +149,30 @@ export class ViewStateRegistry {
 
 	/** Load persisted states from adapter and hydrate registered handlers. */
 	async hydrate(): Promise<void> {
-		if (!this.adapter) return;
-
-		try {
-			const result = await this.adapter.list<PersistedViewState>(this.table, {
+		await this.load(async (adapter) => {
+			const result = await adapter.list<PersistedViewState>(this.table, {
 				category: this.category,
 			});
-			for (const record of result.data) {
-				const handler = this.handlers.get(record.id);
-				if (handler && record.value) {
-					handler.set(cloneState(record.value));
-				}
-			}
-		} catch (err) {
-			console.warn('[afd-view-state] Hydration failed:', err);
-		}
+			return result.data;
+		});
+	}
+
+	/**
+	 * The same read as {@link hydrate} for one ID, so a handler registered later
+	 * gets its persisted state without the others' being written over. A missing
+	 * record, or one in another category, leaves the handler as it is.
+	 *
+	 * Await it before any `set` or `replace` on this ID: the record is applied
+	 * over the handler's state, so a change made first is lost in memory while
+	 * its scheduled write still reaches the adapter.
+	 */
+	async hydrateOne(id: string): Promise<void> {
+		if (!this.handlers.has(id)) return;
+
+		await this.load(async (adapter) => {
+			const record = await adapter.get<PersistedViewState>(this.table, id);
+			return record?.category === this.category ? [record] : [];
+		});
 	}
 
 	/** Immediately write all pending persistence. */
@@ -179,5 +188,24 @@ export class ViewStateRegistry {
 			await this.persistence.destroy();
 		}
 		this.handlers.clear();
+	}
+
+	private async load(
+		read: (
+			adapter: NonNullable<ViewStateRegistryOptions['adapter']>
+		) => Promise<PersistedViewState[]>
+	): Promise<void> {
+		if (!this.adapter) return;
+
+		try {
+			for (const record of await read(this.adapter)) {
+				const handler = this.handlers.get(record.id);
+				if (handler && record.value) {
+					handler.set(cloneState(record.value));
+				}
+			}
+		} catch (err) {
+			console.warn('[afd-view-state] Hydration failed:', err);
+		}
 	}
 }
