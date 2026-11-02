@@ -102,6 +102,8 @@ export interface PreparedStory {
 	mismatches: string[];
 	/** Calls made to action args, in order. */
 	actions: { name: string; args: unknown[] }[];
+	/** What the project itself sets `a11y.test` to, if anything, whatever a story does. */
+	projectPolicy: string | null;
 }
 
 const CONTEXT_THEMES = new Set(['light', 'dark', 'high-contrast']);
@@ -198,6 +200,7 @@ export function prepareStory(
 		unsupported,
 		mismatches,
 		actions,
+		projectPolicy: projectPolicy(project),
 	};
 }
 
@@ -341,6 +344,12 @@ function message(error: unknown): string {
 	if (error instanceof Error)
 		return `${error.name === 'Error' ? '' : `${error.name}: `}${error.message}`;
 	return String(error);
+}
+
+function projectPolicy(project: Annotations): string | null {
+	const a11y = project.parameters?.a11y;
+	const test = isPlainObject(a11y) ? (a11y as Fields).test : undefined;
+	return typeof test === 'string' ? test : null;
 }
 
 /** The a11y addon's effective policy for a story. */

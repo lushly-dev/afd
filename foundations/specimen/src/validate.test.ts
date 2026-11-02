@@ -6,6 +6,7 @@ import {
 	baselineRequestSchema,
 	captureRequestSchema,
 	contextSchema,
+	contractRequestSchema,
 	coverageRequestSchema,
 	matrixRequestSchema,
 	profileRequestSchema,
@@ -17,6 +18,7 @@ import {
 	parseCaptureRequest,
 	parseConfig,
 	parseContext,
+	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
@@ -416,6 +418,9 @@ describe('request parsing agrees with the public schemas', () => {
 			{ other: 1 },
 			null,
 		];
-		for (const value of values) agrees(coverageRequestSchema, parseCoverageRequest, value);
+		for (const value of values) {
+			agrees(coverageRequestSchema, parseCoverageRequest, value);
+			agrees(contractRequestSchema, parseContractRequest, value);
+		}
 	});
 });

@@ -30,6 +30,8 @@ export interface ComponentSchema {
 	tag: string;
 	/** The sources that contributed: `manifest`, then each plugin's id. */
 	sources: string[];
+	/** The module the manifest says defines it, relative to the manifest. */
+	module?: string;
 	properties: PropertySchema[];
 	/** Attributes without a property. */
 	attributes: PropertySchema[];

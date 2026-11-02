@@ -1,0 +1,5 @@
+{
+	"stories": ["src/*.stories.ts"],
+	"preview": ".storybook/preview.ts",
+	"manifest": "./custom-elements.json"
+}

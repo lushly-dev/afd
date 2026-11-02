@@ -218,6 +218,9 @@ node experiments/check-normalizer.mjs --root SNAPSHOT --config FILE --out FILE
 # Every 10th story rendered twice by the host, and the two captures compared.
 node experiments/check-repeat.mjs --root SNAPSHOT --config FILE --out FILE
 
+# FAST-AF's Fastbot story contract and its replacement side by side, unbroken and with each rule broken.
+node experiments/check-contract.mjs --snapshot SNAPSHOT --out FILE
+
 # Lushly's CEM check, typecheck and scaffold on a throwaway clone, and the new story in both runners.
 node experiments/check-scaffold.mjs --snapshot SNAPSHOT --fonts DIR --out DIR
 ```

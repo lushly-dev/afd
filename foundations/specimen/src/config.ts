@@ -31,6 +31,8 @@ export interface LoadedConfig {
 	plugins: string[];
 	/** Component schemas from the configured custom elements manifest, by tag. */
 	schemas: Record<string, ComponentSchema>;
+	/** The directory a schema's `module` is relative to. */
+	manifestDirectory: string | null;
 	/** Directories served at the page's origin, as absolute paths and URL prefixes. */
 	staticDirs: { from: string; to: string }[];
 	/** The performance baselines file, which recording may create. */
@@ -116,6 +118,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 	for (const plugin of config.plugins ?? [])
 		plugins.push(inside(root, await realpath(resolve(dirname(file), plugin)), plugin));
 	let schemas: Record<string, ComponentSchema> = {};
+	let manifestDirectory: string | null = null;
 	if (config.manifest) {
 		const manifest = inside(
 			root,
@@ -123,6 +126,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 			config.manifest
 		);
 		schemas = Object.fromEntries(readManifest(JSON.parse(await readFile(manifest, 'utf8'))));
+		manifestDirectory = dirname(manifest);
 	}
 	const staticDirs: LoadedConfig['staticDirs'] = [];
 	for (const entry of config.staticDirs ?? []) {
@@ -148,6 +152,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		digest: digest(text),
 		plugins,
 		schemas,
+		manifestDirectory,
 		staticDirs,
 		...(stories ? { stories } : {}),
 	};

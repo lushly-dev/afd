@@ -240,6 +240,29 @@ The configuration can waive an obligation, with a version and a reason. A waiver
 - **Any element with the tag counts,** including one inside another component.
 - **A failed case proves nothing.** `cases.failed` names each with its message, and `specimen coverage` exits non-zero when there is one. Unverified coverage alone does not fail the command.
 
+## Check the story contract
+
+`contract()` (`specimen-contract`, `specimen contract [TAG]`) reports what FAST-AF's Fastbot story contract would, on evidence from a run instead of source text. Each code is the rule it replaces, so the two can run side by side. It needs a custom elements manifest, and exits non-zero when `valid` is false: an error, or a case that failed.
+
+```ts
+const run = await bench.contract({ component: 'violet-button' });
+// { rules: 'fastbot-parity@1', valid: true, findings: [], counts, stats, cases, ... }
+```
+
+| Code | Evidence |
+| --- | --- |
+| `MISSING_STORY`, `MISSING_STORY_EXPORT` | A story file beside the module the manifest names, with a story discovery finds |
+| `MISSING_GLOBAL_A11Y_ERROR_POLICY` | The preview's own `a11y.test` is `error` |
+| `MISSING_AUTODOCS_TAG` | A story's index tags |
+| `MISSING_PLAY_FUNCTION` | A play ran |
+| `MISSING_DOCS_DESCRIPTION` (warning) | The composed `parameters.docs.description` |
+| `MISSING_BASELINE_STORY` | A story exported as `Overview` or `Default` |
+| `MISSING_STATE_STORY` | The element seen as `disabled`, `invalid`, `readonly`, `checked`, `selected` or `busy`, by attribute, live property or `data-` attribute, or that attribute set during a play |
+| `MISSING_FORMDATA_ASSERTION`, `MISSING_VALIDITY_ASSERTION` | For a form-associated element: a play ran `new FormData(form)` with it in the form, and something checked its validity |
+| `UNDOCUMENTED_A11Y_EXCEPTION` | A story turning axe off has `parameters.a11yException`, or an `A11Y_EXCEPTION:` comment in its file |
+
+This is parity, and coverage asks more. A story named `Disabled` that never disables anything fails here, where a check of its name would pass.
+
 ## Profile
 
 `profile()` (`specimen-profile`, `specimen profile [ID]`) measures entries at a checkpoint over a few fresh runs, one at a time, since a neighbour's work would be in every number. The default checkpoint is `mount`, the ready checkpoint, and the default is 3 runs. Each report has:

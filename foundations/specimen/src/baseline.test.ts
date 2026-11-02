@@ -56,6 +56,18 @@ describe('the declared baseline and the capture manifest', () => {
 		expect(manifest.context.observed.devicePixelRatio).toBe(1);
 	});
 
+	it('watches nothing in an ordinary capture', async () => {
+		const { channels } = await bench.render({ id: 'random-marker' });
+		expect(channels.evidence).toEqual({
+			expectations: [],
+			claims: [],
+			commands: [],
+			formData: [],
+			validity: [],
+			attributesSet: [],
+		});
+	});
+
 	it('records the fonts and remote requests a page made, and a declared ready hook', async () => {
 		const { manifest } = await bench.render({ id: 'with-resources', timeoutMs: 8000 });
 		expect(manifest.checkpoint.ready.steps).toEqual(['upgrade', 'ready-hook', 'fonts', 'frame']);

@@ -167,3 +167,76 @@ export function claims(
 		return { target, obligation, checkpoint, expectations };
 	});
 }
+
+/** An element's tag, and the hosts it sits inside: `checkValidity` on an inner input counts. */
+function tagsOf(element: Element): string[] {
+	const tags = [element.localName];
+	for (let root = element.getRootNode(); root instanceof ShadowRoot; root = root.host.getRootNode())
+		tags.push(root.host.localName);
+	return tags;
+}
+
+/**
+ * Whether anything read `FormData` or checked validity, and of which elements: form evidence is
+ * what ran, not what a story's source mentions. These call the real methods and change nothing.
+ */
+export function observeFormEvidence(): { formData: Set<string>; validity: Set<string> } {
+	const formData = new Set<string>();
+	const validity = new Set<string>();
+	const owners = new WeakMap<object, Element>();
+	const original = HTMLElement.prototype.attachInternals;
+	HTMLElement.prototype.attachInternals = function (this: HTMLElement) {
+		const internals = original.call(this);
+		owners.set(internals, this);
+		return internals;
+	};
+	globalThis.FormData = new Proxy(FormData, {
+		construct(target, args, newTarget) {
+			const form = args[0] as unknown;
+			if (form instanceof HTMLFormElement)
+				for (const element of form.elements) formData.add(element.localName);
+			return Reflect.construct(target, args, newTarget);
+		},
+	});
+	const watch = (prototype: object, of: (self: object) => Element[]) => {
+		for (const name of ['checkValidity', 'reportValidity'] as const) {
+			const method = Reflect.get(prototype, name) as (() => boolean) | undefined;
+			if (!method) continue;
+			Object.defineProperty(prototype, name, {
+				configurable: true,
+				writable: true,
+				value(this: object) {
+					for (const element of of(this)) for (const tag of tagsOf(element)) validity.add(tag);
+					return method.call(this);
+				},
+			});
+		}
+	};
+	for (const type of [HTMLInputElement, HTMLSelectElement, HTMLTextAreaElement, HTMLButtonElement])
+		watch(type.prototype, (self) => [self as Element]);
+	watch(HTMLFormElement.prototype, (self) => [...(self as HTMLFormElement).elements]);
+	watch(ElementInternals.prototype, (self) => {
+		const owner = owners.get(self);
+		return owner ? [owner] : [];
+	});
+	return { formData, validity };
+}
+
+/**
+ * Attributes set on the given tags as the page runs, as `tag:attribute`: a play may set a state,
+ * assert on it and clear it, and then a capture at its end would never see it.
+ */
+export function observeAttributes(tags: ReadonlySet<string>): Set<string> {
+	const seen = new Set<string>();
+	const { setAttribute, toggleAttribute } = Element.prototype;
+	Element.prototype.setAttribute = function (this: Element, name: string, value: string) {
+		if (tags.has(this.localName) && value !== 'false') seen.add(`${this.localName}:${name}`);
+		setAttribute.call(this, name, value);
+	};
+	Element.prototype.toggleAttribute = function (this: Element, name: string, force?: boolean) {
+		const on = toggleAttribute.call(this, name, force);
+		if (on && tags.has(this.localName)) seen.add(`${this.localName}:${name}`);
+		return on;
+	};
+	return seen;
+}

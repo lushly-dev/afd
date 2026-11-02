@@ -15,6 +15,7 @@ describe('the manifest schema source', () => {
 		const schema = readManifest(manifest).get('plain-switch');
 		expect(schema).toEqual({
 			tag: 'plain-switch',
+			module: 'plain-switch.ts',
 			sources: ['manifest'],
 			properties: [
 				{ name: 'checked', type: 'boolean', values: [true, false], attribute: 'checked' },

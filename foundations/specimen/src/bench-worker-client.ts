@@ -8,6 +8,8 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	ContractRequest,
+	ContractRun,
 	CoverageRequest,
 	CoverageRun,
 	InspectRequest,
@@ -30,6 +32,7 @@ type WorkerOperation =
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'coverage'; request: CoverageRequest }
+	| { operation: 'contract'; request: ContractRequest }
 	| { operation: 'profile'; request: ProfileRequest }
 	| { operation: 'matrix'; request: MatrixRequest }
 	| { operation: 'recordBaseline'; request: BaselineRequest }
@@ -242,6 +245,10 @@ export class BenchWorkerClient {
 	async recordBaseline(request: BaselineRequest): Promise<ProfileRun> {
 		await this.ready;
 		return (await this.request({ operation: 'recordBaseline', request }, 3_600_000)) as ProfileRun;
+	}
+	async contract(request: ContractRequest): Promise<ContractRun> {
+		await this.ready;
+		return (await this.request({ operation: 'contract', request }, 3_600_000)) as ContractRun;
 	}
 	async coverage(request: CoverageRequest): Promise<CoverageRun> {
 		await this.ready;

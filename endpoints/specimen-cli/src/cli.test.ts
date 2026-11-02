@@ -73,6 +73,16 @@ function harness() {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		contract: vi.fn(async () => ({
+			rules: 'fastbot-parity@1',
+			valid: true,
+			findings: [],
+			counts: { errors: 0, warnings: 0 },
+			stats: { components: 1, storyFiles: 1, scoped: false },
+			cases: { total: 1, passed: 1, failed: [] },
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		coverage: vi.fn(async () => ({
 			obligations: 'schema-partitions@1',
 			complete: false,
@@ -343,6 +353,25 @@ describe('specimen CLI', () => {
 			workers: 2,
 		});
 		expect(await runCli(['--root', root, 'coverage', 'a', 'b'], h.io)).toBe(1);
+	});
+	it('dispatches contract, and exits non-zero when it is not valid', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(await runCli(['--root', root, 'contract', 'violet-button'], h.io)).toBe(0);
+		expect(h.bench.contract).toHaveBeenLastCalledWith({ component: 'violet-button' });
+		expect(await runCli(['--root', root, 'contract', '--file', './a.stories.ts'], h.io)).toBe(0);
+		expect(h.bench.contract).toHaveBeenLastCalledWith({ filter: { file: './a.stories.ts' } });
+		vi.mocked(h.bench.contract).mockResolvedValueOnce({
+			rules: 'fastbot-parity@1',
+			valid: false,
+			findings: [{ code: 'MISSING_STORY', severity: 'error', message: 'a', suggestion: 'b' }],
+			counts: { errors: 1, warnings: 0 },
+			stats: { components: 1, storyFiles: 0, scoped: false },
+			cases: { total: 0, passed: 0, failed: [] },
+			workers: 2,
+			elapsedMs: 1,
+		});
+		expect(await runCli(['--root', root, 'contract'], h.io)).toBe(1);
 	});
 	it('exits non-zero when a case behind the coverage failed', async () => {
 		const h = harness();
