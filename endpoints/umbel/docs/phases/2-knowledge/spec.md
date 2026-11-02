@@ -103,8 +103,7 @@
   store checks, `confirm = "require-human"` on the CLI, `workspace-show`'s
   `access` and the README's paragraph on access before phase 5. See
   [Amendments from step 4](#amendments-from-step-4). **Step 5, `umbel-scan`,
-  `umbel-okf` and `sources-filesystem`**, 2026-11-01, in the step 5 pull
-  request: `umbel-scan` (the write scan, moved out of `mounted/scan.rs`, which
+  `umbel-okf` and `sources-filesystem`**, 2026-11-01, in [668](https://github.com/lushly-dev/afd/pull/668): `umbel-scan` (the write scan, moved out of `mounted/scan.rs`, which
   re-exports it, plus the hidden-text check), `umbel-okf` (frontmatter under
   the 64 KiB and field caps with no-frontmatter, malformed, empty and
   byte-order-mark decided, markdown structure with bounded work, link
