@@ -28,6 +28,10 @@ version is separate from each implementation's own package version.
 - [`output-budgets.md`](./output-budgets.md): per-command output budgets, a declaration, a per-call
   ask in `_meta["dev.afd/outputBudget"]` and the check after the handler, with the cases in
   [`output-budgets.json`](./output-budgets.json).
+- [`plugin-manifest.md`](./plugin-manifest.md): the shared plugin manifest, a host-neutral core
+  ([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json), with its own version) and the
+  contract a host's closed profile meets, with the cases in
+  [`plugin-manifest.json`](./plugin-manifest.json).
 
 The bounded TypeScript/Python protocol acceptance inventory is recorded in
 [`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.
@@ -67,6 +71,15 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
+version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract
+for one closed profile per host. It also holds the rules beyond the schema, the shared grant names,
+the instance rules, the collisions and the mapping onto command metadata. Umbel's manifest versions 1
+and 2 conform unchanged, and Loam's phase 1 writes the second profile. It is additive and `VERSION`
+does not change: no AFD package reads a manifest, and no existing fixture, vector, wire field or error
+code changes. The core's version is its own. Its cases are in `plugin-manifest.json`, which stays
+beside `vectors/` because Python and C++ have no reader.
 
 [`output-budgets.md`](./output-budgets.md) specifies per-command output budgets (Umbel decision D64):
 a command declares `outputBudget: { defaultBytes, maxBytes }`, shown on its tool as

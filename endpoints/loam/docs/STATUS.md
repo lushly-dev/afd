@@ -100,9 +100,9 @@ should never have to scan the codebase to learn what is current.
 - **Not done:**
   - Phase 1: the shared plugin manifest is approved
     ([proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md),
-    [status](../../../docs/features/active/plugin-manifest/STATUS.md)), but nothing of it is
-    built. Its step 1, the core schema and cases in `spec/`, lands before or with the phase 1
-    specification (spec first). Its step 2, Loam's profile, reader, `app check` and the mounted
+    [status](../../../docs/features/active/plugin-manifest/STATUS.md)), and its step 1, the core
+    schema and cases in `spec/` ([`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md)),
+    landed in [#677](https://github.com/lushly-dev/afd/pull/677). Its step 2, Loam's profile, reader, `app check` and the mounted
     loader's instances, is phase 1 work, proven against a real Umbel instance (D57). It also
     covers Umbel instances as headless apps (step 8, after Umbel's phase 2 and Loam's phase 5).
     The owner decided its questions on 2026-11-01 (D54 to D58).
@@ -236,3 +236,4 @@ starts.
 | 2026-11-01 | Phase 0 exit | Phase 0 exited: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`, step 7's merge). The ten open follow-ups were filed as issues #655 to #664 and linked from the specification. Also delivered beyond the plan: the resting field border at 3:1 ([#645](https://github.com/lushly-dev/afd/pull/645)). Next: the shared plugin manifest proposal, then the phase 1 specification, which the owner's grant lets the coordinator approve after an independent review |
 | 2026-11-01 | Design sub-agent | The [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md) and its status written: a host-neutral core of `$defs` in `spec/` and closed host profiles. Umbel's manifest conforms unchanged. Loam's profile owns the kind sections, the non-UI `app` section (`app.scope_levels`, never `scopes`) and `ui`. Umbel instances join as headless mounted apps, with instance prefixes, the conflict policy `error` and a connection per Loam host. Collisions C1 to C12 resolved; six owner questions, four for Umbel's owner and ten for the phase 1 specification recorded. Two independent reviews ran, and their findings were fixed. The 2026-10-30 follow-up closed; the prerequisites row and the phase 1 gate updated |
 | 2026-11-01 | Owner's decisions | The owner took every recommendation on the shared plugin manifest: D54 (native apps are trusted code), D55 (team Umbel instances under a read-all rule until Umbel's phase 5), D56 (only the owner or deployer sets a stdio command), D57 (phase 1 proves the mounted-server kind against a real Umbel instance) and D58 (the core and profiles, with Umbel instances as headless mounted apps). The proposal moved to `docs/features/active/` and the architecture is amended |
+| 2026-11-01 | Plugin manifest step 1 | [`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), the core and its cases, in [#677](https://github.com/lushly-dev/afd/pull/677). Loam's profile (step 2) is checked against them; a profile needs `type` and `"domains": true` to compile under Ajv's `strict: true`, as the corrected sketch in the proposal shows |

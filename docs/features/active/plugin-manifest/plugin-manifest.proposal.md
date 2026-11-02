@@ -166,6 +166,11 @@ Umbel's profile today is manifest versions 1 and 2, and it conforms to core vers
 - it owns `component`, `packs`, the command key `confirm`, the stdio mount keys and `bind_space`;
 - it names the grants that `store-write` and `workspace-write` need.
 
+Step 1 proved this, with one correction. Umbel's schema alone admits `mount.prefix = "afd"`, which the
+core refuses; Umbel's reader refuses it too, because the prefix must be one of `plugin.domains` and no
+domain may be `afd`. So the file conforms through schema and reader together, and the schema needs no
+change.
+
 Umbel adopts the core by `$ref` only if it chooses to (step 3).
 
 ### What the core holds (version 1)
@@ -264,6 +269,11 @@ phase 1 section 2, lines 475 to 483):
 
 `ui` is Loam's section. `dependencies` is never defined (Umbel D3, Loam D2).
 
+Step 1 sets each reserved key to `false` in the core, except `ui`, which it defines as an object, and
+does the same for `apps` in `expose`, `mutation` in a command, and `url` and `bearer_env` in `mount`.
+Because a profile `$ref`s the core, no profile can admit one of them, so the limit below on reserved
+keys is enforced by the schema and not only by this text.
+
 The core leaves out Umbel's packs (Umbel D46), which no other host has. The schema's patterns
 appear inline in Umbel's file (the semantic version, the command name, `output_budget`). Step 1
 names them as core definitions.
@@ -317,8 +327,11 @@ The core makes these rules shared, except where a row names one host:
 
 ### JSON Schema sketch
 
-The core: definitions only, open objects. Abbreviated. Step 1 writes it in full with Umbel's
-patterns.
+The core: definitions only, open objects. Abbreviated, so it does not compile by itself: its
+references to the definitions not shown do not resolve. Step 1 wrote it in full with Umbel's
+patterns, and [`spec/plugin-manifest.core.v1.json`](../../../../spec/plugin-manifest.core.v1.json) is
+the authority. It also names `example` and `pipelineStep` as definitions and adds the `false` keys
+under [Reserved](#what-the-core-holds-version-1).
 
 ```json
 {
@@ -416,23 +429,35 @@ patterns.
 The definitions not shown follow Umbel's text, without `additionalProperties: false`: `semver`,
 `commandName`, `schemaOrPath`, `jsonPath`, `relativePath`, `outputBudget`, `contextName`,
 `context`, `pipeline` with its step, `skill`, `config` and `mountTool`. So do the command keys not
-shown. Step 1 checks every code in `spec/error-codes.md` against the `errors` pattern.
+shown. Step 1 checked every code in `spec/error-codes.md` against the `errors` pattern, and all fit;
+`HTTP_<status>` is a family, and its members, such as `HTTP_503`, fit.
 
 A profile closes the core. Loam's sketch for step 2 follows. Loam's phase 1 decides the kind names,
 the sections' contents and the defaults, and closes every object as the contract requires (only
-three are shown).
+three are shown). Refusing `workspace-write` takes the same `effects` entry on a pipeline and a mount
+tool, which are not shown either. A conditional, such as a kind that needs its section, goes in `allOf`:
+beside the `$ref` it makes Ajv refuse valid manifests
+([Validators](../../../../spec/plugin-manifest.md#validators)).
+
+Step 1 corrected this sketch. As first written it compiled under Ajv's default options but failed
+under `strict: true`, the mode the Health dashboard uses: `type` must sit beside `properties` or
+`items` even when a `$ref` supplies it (`strictTypes`), and a `required` key must be listed in the same
+object's `properties` (`strictRequired`). Hence the `type` entries and `"domains": true` below. The
+corrected sketch compiles under `strict: true` and accepts the two Loam-profile worked examples, in
+Ajv and in Rust.
 
 ```json
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/loam/schemas/app-manifest.v1.json",
 	"title": "Loam app manifest, version 1 (conforms to plugin manifest core version 1)",
+	"type": "object",
 	"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
 	"properties": {
 		"manifest_version": { "const": 1 },
 		"protocol": { "const": 1 },
 		"plugin": { "$ref": "#/$defs/plugin" },
-		"commands": { "items": { "$ref": "#/$defs/command" } },
+		"commands": { "type": "array", "items": { "$ref": "#/$defs/command" } },
 		"app": { "$ref": "#/$defs/app" },
 		"native": { "$ref": "#/$defs/native" },
 		"view": { "$ref": "#/$defs/view" },
@@ -441,14 +466,16 @@ three are shown).
 	"unevaluatedProperties": false,
 	"$defs": {
 		"plugin": {
+			"type": "object",
 			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/plugin",
-			"properties": { "kind": { "enum": ["native", "view", "mounted"] } },
+			"properties": { "kind": { "enum": ["native", "view", "mounted"] }, "domains": true },
 			"required": ["domains"],
 			"unevaluatedProperties": false
 		},
 		"command": {
+			"type": "object",
 			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/command",
-			"properties": { "effects": { "items": { "not": { "const": "workspace-write" } } } },
+			"properties": { "effects": { "type": "array", "items": { "not": { "const": "workspace-write" } } } },
 			"unevaluatedProperties": false
 		},
 		"app": {
@@ -475,8 +502,11 @@ three are shown).
 ```
 
 The Rust validator Umbel uses, `jsonschema` 0.60.2 (`endpoints/umbel/Cargo.lock` line 1767),
-implements `unevaluatedProperties`. So does Ajv's 2020-12 build. Step 1's cases check that both
-behave the same.
+implements `unevaluatedProperties`. So does Ajv's 2020-12 build. Step 1's cases checked whether both
+behave the same. For a profile that follows the contract they do, on the answer and on the keys a
+refusal names ([STATUS](STATUS.md#step-1-verification)). In general they do not: with `if`, `then`,
+`else` or `dependentSchemas` beside the `$ref`, Ajv refuses what `jsonschema` accepts, so the contract
+forbids that shape.
 
 Some rules need more than a schema. Every reader applies them, naming the key and giving a
 suggestion, and each has cases:
@@ -493,7 +523,13 @@ suggestion, and each has cases:
   only".
 
 These are Umbel's rules from its phase 1 section 2, lines 449 to 473. The `tool_meta` and
-`requires` rules are new.
+`requires` rules are new. [`spec/plugin-manifest.md`](../../../../spec/plugin-manifest.md#rules-beyond-the-schema)
+is the authority, and step 1 added more of Umbel's rules that this list left out: the kind `mounted`
+and `mount` go together, a mount's prefix is one of `plugin.domains`, a pipeline's and a context's first
+segment is too, a pipeline's name may not repeat a command's, grants, step aliases and mount tools are
+unique, a command's contexts are declared, text holds no control character, schema files and skill
+directories exist, a `config` schema is a closed object, and `max_bytes` has output budgets' upper
+limit. `afd_contract`'s comparison also became a rule.
 
 ### Where Loam's contents go
 
@@ -917,7 +953,7 @@ kind `mounted`.
 | C9 | "Mount". The top-level `mount` is the MCP mount. Loam's "mount" is the shell-provided element an app renders into (architecture line 398) | `mount` is the MCP mount. Loam's surface keys name the app's element (`element`), not a `mount` |
 | C10 | "View". It is Loam's kind `view`, its `[view]` section, the sandboxed resources and the surface catalog's sidebar "views" | The kind and section are `view` (Loam D9). The resources are `ui.resources`. The sidebar key is Loam's phase 1 choice (`shape` in the example) |
 | C11 | `connectors`. The core reserves it for Umbel's federation contract after O1. Loam's agent packs carry `.mcp.json` "connectors" (architecture line 499) | `connectors` keeps the reserved meaning. Loam's agent packs mount `.mcp.json` servers as instances of kind `mounted` |
-| C12 | Instance and app. Umbel's `plugin.id` is "the default instance id" (schema line 244). Loam's app id is the command domain (Loam D18) | The app id is the identity, and the default instance id and prefix for the first instance. Each further instance names its own ([Instances](#app-identity-and-instance-identity)) |
+| C12 | Instance and app. Umbel's `plugin.id` is "the default instance id" (schema line 244). Loam's app id is the command domain (Loam D18) | The app id is the identity and the first instance's default id; the default prefix is `mount.prefix`, as the Instances table says (corrected in step 1). Each further instance names its own ([Instances](#app-identity-and-instance-identity)) |
 
 ### Mapping onto AFD
 
@@ -1042,12 +1078,17 @@ validator.
 **Cases and drift.**
 
 - Every reader runs `spec/plugin-manifest.json`.
-- A test outside `spec/` that reads it is declared in `EXTRA_INPUTS` (`scripts/affected/scope.mjs`
-  lines 34 to 39, which map `spec/` only to core, server and cli today).
+- A package test outside `spec/` that reads it is declared in `EXTRA_INPUTS`
+  (`scripts/affected/scope.mjs` lines 34 to 39, which map `spec/` only to core, server and cli today).
+  Step 1's `scripts/plugin-manifest.test.mjs` needs no entry: `pnpm check` runs the tooling tests whole.
 - `loam.yml`'s path filters (lines 6 to 20 and 23 to 36) gain `spec/plugin-manifest*`, with the
   Affected-units gate and `scripts/affected/suites.mjs` to match.
-- A check that Umbel's examples still conform to the core binds Umbel, so it is Umbel's to add, in
-  step 3.
+- `scripts/plugin-manifest.test.mjs` checks that Umbel's examples, manifests and scaffolds still
+  conform to the core, from outside Umbel, with no change to it. This corrects the earlier text, which
+  left any such check to step 3; the coordinator asked for it in step 1. It finds new versions and
+  manifests by name, so it does not stop Umbel adding one, but a new Umbel file or version that
+  breaks conformance fails `pnpm check`. Whether Umbel also runs the core's cases in its own
+  `tests/schemas.rs` is still step 3.
 
 ### Signing and trust
 
