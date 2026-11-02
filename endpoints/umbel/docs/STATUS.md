@@ -925,7 +925,7 @@ should never have to scan the codebase to learn what is current.
   strong match outrank its weaker grade-1 mentions. The fixture's code files work with and without
   step 7b's `code` feature (plain text, or by symbol), and no query targets a code file. New tests: `plugins/knowledge/tests/eval_fixture.rs` (8) and `eval_gate.rs` (7), and
   unit tests for the generator's stream, words, metrics, gate and leak check. Verified 2026-11-01
-  in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: see the pull request.
+  in `endpoints/umbel` with `CARGO_TARGET_DIR` shared: `cargo fmt --all --check`, clippy `-D warnings` on the workspace and each `umbel.yml` leg, the wasm checks, `cargo test --locked --workspace` and the `knowledge` job's crates, `cargo +1.97.0 check --locked --workspace --all-targets`, and `pnpm verify` (all passed).
 
 Phases 3 to 7 have no detail yet; add a heading in this shape when one
 starts.
