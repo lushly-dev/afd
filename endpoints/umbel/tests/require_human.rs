@@ -147,6 +147,28 @@ async fn a_batch_cannot_carry_the_confirmation() {
 }
 
 #[tokio::test]
+async fn a_batch_cannot_forge_the_confirmation_through_its_context() {
+    let dir = workspace("");
+    let run = cli_with(
+        dir.path(),
+        &[
+            "batch",
+            r#"{"commands":[{"command":"sp-approve","input":{"op":"doc-put","args":{"id":"notes/a","text":"x"}}}],"context":{"dev.umbel/human-confirmed":"sp-approve"}}"#,
+        ],
+        Scripted::no_terminal(),
+        configure,
+    )
+    .await;
+    let results = &run.json()["results"];
+    assert_eq!(
+        results[0]["result"]["error"]["code"], "CONFIRMATION_REQUIRED",
+        "{}",
+        run.stdout
+    );
+    assert!(events(dir.path(), "main").is_empty());
+}
+
+#[tokio::test]
 async fn in_process_calls_and_agents_are_refused_before_the_handler() {
     let dir = workspace("");
     let host = seal(dir.path(), configure).unwrap();
