@@ -198,11 +198,13 @@ fn stylesheet(path: &Path, assets: &Assets, seen: &mut Vec<PathBuf>) -> Result<S
 
 /// Vite's import forms for non-script files: `.css` imports inject a style element, as Vite's
 /// development server does, `?inline` CSS and `?raw` files become strings, and `?url` imports
-/// emit the file and resolve to its served path. Project modules have their top-level `throw`s
-/// guarded (`guard_top_level_throws`).
+/// emit the file and resolve to its served path. Project modules have their `import.meta.glob`
+/// calls expanded (`glob.rs`) and their top-level `throw`s guarded (`guard_top_level_throws`).
 #[derive(Debug)]
 struct SpecimenLoad {
     assets: Assets,
+    /// The bench root, which a `/` glob pattern starts from.
+    root: PathBuf,
 }
 
 impl SpecimenLoad {
@@ -271,12 +273,14 @@ impl Plugin for SpecimenLoad {
         let Ok(source) = std::fs::read_to_string(path) else {
             return Ok(None);
         };
-        Ok(
-            guard_top_level_throws(path, &source).map(|code| HookLoadOutput {
-                code: code.into(),
-                ..Default::default()
-            }),
-        )
+        let globbed = crate::glob::import_globs(path, &source, &self.root)?;
+        let expanded = globbed.is_some();
+        let source = globbed.unwrap_or(source);
+        let code = guard_top_level_throws(path, &source).or(expanded.then_some(source));
+        Ok(code.map(|code| HookLoadOutput {
+            code: code.into(),
+            ..Default::default()
+        }))
     }
 
     fn register_hook_usage(&self) -> HookUsage {
@@ -429,6 +433,7 @@ async fn bundle(
     let assets: Assets = Arc::default();
     let plugin = SpecimenLoad {
         assets: assets.clone(),
+        root: source.root.clone(),
     };
     let built = async {
         let mut bundler =

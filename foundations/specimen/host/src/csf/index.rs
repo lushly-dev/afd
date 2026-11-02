@@ -825,7 +825,7 @@ fn entries<'p, 'a>(
 
 /// Files under `directory` whose path relative to it matches `pattern`, skipping
 /// `node_modules` and dot-directories as Storybook's glob does.
-pub(super) fn walk(
+pub(crate) fn walk(
     directory: &Path,
     relative: &str,
     pattern: &str,
