@@ -12,6 +12,7 @@ import {
 	type AppPortV1,
 	type CallOptionsV1,
 	type KernelPortsV1,
+	type ViewBrokerV1,
 } from '../types.js';
 import type { AppRecord } from './operations.js';
 import { createAppStore } from './store.js';
@@ -29,10 +30,21 @@ export interface AppPortOptions {
 	ports: KernelPortsV1;
 	granted: ReadonlySet<string>;
 	load(): Promise<AppDefinitionV1>;
+	view?: ViewBrokerV1;
 }
 
-/** A path of the package as an absolute URL, or undefined when it would leave the package. */
+/**
+ * How long a view may not open a modal after a person closes one (9.7). A view that reopens at once would
+ * otherwise hold the whole shell inert, across a reload too, since its app is reopened (D66).
+ */
+export const VIEW_MODAL_COOLDOWN_MS = 5_000;
+
+/**
+ * A path of the package as an absolute URL, or undefined when it would leave the package. `%` and `\\`
+ * are refused, since what a server makes of `..%2f` is its own affair, and no URL here can check that.
+ */
 export function packageFile(packageUrl: string, path: string): string | undefined {
+	if (/[%\\]/.test(path)) return undefined;
 	const url = new URL(path, packageUrl).href;
 	return url.startsWith(packageUrl) ? url : undefined;
 }
@@ -43,6 +55,18 @@ export function createAppPort(options: AppPortOptions): {
 } {
 	const { record, manifest, config, packageUrl, host, ports, granted } = options;
 	const { instance } = record;
+	let modalRefusedUntil = 0;
+
+	/** A view's `modal-open`: a person who closes one gets time to leave before the next. */
+	async function viewModal<T>(run: () => Promise<CommandResult<T>>): Promise<CommandResult<T>> {
+		const opened = await run();
+		const overlayId = (opened.data as { overlayId?: string } | undefined)?.overlayId;
+		const held = overlayId === undefined ? undefined : host.overlays.whenClosed(overlayId);
+		void held?.settled.then(({ reason }) => {
+			if (reason === 'user') modalRefusedUntil = host.clock() + VIEW_MODAL_COOLDOWN_MS;
+		});
+		return opened;
+	}
 
 	function checkedCall<T>(
 		name: unknown,
@@ -63,6 +87,10 @@ export function createAppPort(options: AppPortOptions): {
 			return refuse('app-call-refuse');
 		}
 		if (parent !== undefined && host.isMutation(command)) return refuse('app-nested-refuse');
+		if (record.kind === 'view' && command === 'modal-open') {
+			if (host.clock() < modalRefusedUntil) return refuse('app-modal-refuse');
+			return viewModal(() => host.runAs<T>(command, input, callOptions, fields));
+		}
 		return host.runAs<T>(command, input, callOptions, fields);
 	}
 
@@ -127,6 +155,7 @@ export function createAppPort(options: AppPortOptions): {
 					}),
 				}
 			: {}),
+		...(options.view ? { view: options.view } : {}),
 	};
 	return {
 		port,

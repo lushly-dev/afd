@@ -95,6 +95,7 @@ export {
 	type KernelOptionsV0,
 	type KernelOptionsV1,
 	type KernelPortsV1,
+	type LinkedCallV1,
 	type LoamKernelV0,
 	type LoamKernelV1,
 	type McpTool,
@@ -102,4 +103,5 @@ export {
 	type MountTransportV1,
 	type ShellInfoV0,
 	type ShellInfoV1,
+	type ViewBrokerV1,
 } from './types.js';

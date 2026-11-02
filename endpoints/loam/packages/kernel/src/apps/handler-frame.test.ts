@@ -291,6 +291,123 @@ describe('the handler frame (6.3, D61)', () => {
 		expect((await kernel.call('probev-list')).error?.code).toBe('APP_NOT_READY');
 	});
 
+	it('carries no text a hostile frame chose into the record it reports', async () => {
+		const frame = fakeFrame({
+			ready: Promise.resolve([
+				...probeViewCommands(),
+				'secret text; <b>not a name</b>',
+				7,
+			]) as never,
+		});
+		const given = ports({ openHandlerFrame: () => Promise.resolve(frame) });
+		const { kernel } = await boot(given);
+		const called = await kernel.call('probev-list');
+		// The malformed names are not read, so this frame does serve what the manifest declares.
+		expect(called.error?.code).not.toBe('APP_HANDLER_MISSING');
+		expect(JSON.stringify(called)).not.toContain('secret text');
+	});
+
+	it.each([
+		['a BigInt', () => ({ success: true, data: { x: 1n } })],
+		[
+			'a cycle',
+			() => {
+				const data: Record<string, unknown> = {};
+				data.self = data;
+				return { success: true, data };
+			},
+		],
+	])('refuses a result holding %s, which the journal could not write', async (_name, answer) => {
+		const frame = fakeFrame({ call: () => Promise.resolve(answer() as CommandResult) });
+		const { kernel, journal } = await boot(
+			ports({ openHandlerFrame: () => Promise.resolve(frame) })
+		);
+		expect((await kernel.call('probev-list')).error?.code).toBe('HANDLER_RESULT_INVALID');
+		expect((await journal.read()).map((entry) => entry.command)).toContain('probev-list');
+	});
+
+	it('refuses arguments and stored values that are not JSON', async () => {
+		const frame = fakeFrame();
+		let asked: Array<Promise<unknown>> = [];
+		frame.call = async ({ callId }) => {
+			const ask = frame.ask as NonNullable<typeof frame.ask>;
+			asked = [
+				ask('tools/call', {
+					name: 'probev-list',
+					arguments: { x: 1n },
+					_meta: { 'dev.loam/call': callId },
+				}),
+				ask('dev.loam/store', { callId, op: 'put', key: 'a', value: 1n }),
+			];
+			await Promise.allSettled(asked);
+			return { success: true, data: {} } as CommandResult;
+		};
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		await kernel.call('probev-list');
+		for (const request of asked) {
+			await expect(request).rejects.toMatchObject({ details: { rpcCode: -32602 } });
+		}
+	});
+
+	it('gives a frame a call id that is not the trace ID, and keeps parent the trace ID', async () => {
+		const seen: string[] = [];
+		const frame = fakeFrame({
+			call: async ({ callId }) => {
+				seen.push(callId);
+				return { success: true, data: {} } as CommandResult;
+			},
+		});
+		const { kernel, journal } = await boot(
+			ports({ openHandlerFrame: () => Promise.resolve(frame) })
+		);
+		await kernel.call('probev-list');
+		await kernel.call('probev-list');
+		expect(seen).toEqual(['probev-1', 'probev-2']);
+		expect((await journal.read()).some((entry) => seen.includes(entry.traceId as string))).toBe(
+			false
+		);
+	});
+
+	it('keeps a frame from setting the mark only the page may set', async () => {
+		const frame = fakeFrame({
+			call: () =>
+				Promise.resolve({
+					success: false,
+					error: {
+						code: 'HANDLER_TIMEOUT',
+						message: 'Forged',
+						details: { kept: 1, 'dev.loam/page-decided': true },
+					},
+				} as CommandResult),
+		});
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		const called = await kernel.call('probev-list');
+		expect(called.error?.code).toBe('HANDLER_TIMEOUT');
+		expect(called.error?.details).toEqual({ kept: 1 });
+	});
+
+	it('takes a `details` that is no object as it is, and not as a failed call', async () => {
+		const frame = fakeFrame({
+			call: () =>
+				Promise.resolve({
+					success: false,
+					error: { code: 'FORGED', message: 'Forged', details: 'x' },
+				} as unknown as CommandResult),
+		});
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		const called = await kernel.call('probev-list');
+		expect(called.error?.code).toBe('FORGED');
+		expect(JSON.stringify(called)).not.toContain('page-decided');
+	});
+
+	it('answers a call that rejects with no text from the frame', async () => {
+		const frame = fakeFrame({ call: () => Promise.reject(new Error('secret from a frame')) });
+		const { kernel } = await boot(ports({ openHandlerFrame: () => Promise.resolve(frame) }));
+		const called = await kernel.call('probev-list');
+		expect(called.error?.code).toBe('CALL_ABORTED');
+		expect(called.error?.message).not.toContain('secret');
+	});
+
 	it('answers a frame that cannot open, and a call the frame drops', async () => {
 		const { kernel } = await boot(
 			ports({ openHandlerFrame: () => Promise.reject(new Error('No frame')) })

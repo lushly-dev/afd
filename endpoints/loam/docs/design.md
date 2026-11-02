@@ -493,6 +493,7 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 | `loam-status-item` | One item of the status bar: an optional muted label before its value | Step 7 (this pull request) |
 | `loam-notice` | A full-page notice in place of the shell ("Loam is open in another tab", a kernel version mismatch): `main` with an `h1`; it sets the font family itself, since no shell is present. With `embedded`, main's explanation of a refused or failed app: a `region` with its `h1`, its message and a suggestion. It loads when one is shown | Step 7 (this pull request); `embedded` in phase 1 step 4 |
 | `loam-mount` | The mount contract: a plain element whose shadow root uses one app's scoped registry, `all: initial` so tokens flow and inherited styles do not; shows `APP_ELEMENT_UNDEFINED` itself. It does not animate | Phase 1 step 4 |
+| `loam-view-frame` | Main's sandboxed view: the outer iframe, on the sandbox's origin, with its own title; a `status` line while it opens, the frame hidden until the view sends `initialized`, and an embedded `loam-notice` when it fails. It holds focus only as the frame's content does, and does not animate. It loads when a view app opens | Phase 1 step 5 |
 | `loam-list` | A `list` sidebar, and a kit element: a `violet-listbox` over `{ items }`, with `aria-busy` and "Loading…" while reading, one line for empty and `role="alert"` for a failed read; the active row has the focus ring, and a selection the control colors and a start-edge bar | Phase 1 step 4 |
 | `loam-part-header` | Main's header surface: a title, not a heading, since an app's main holds its `h1`, and up to three actions, the first primary; one that needs input is `aria-disabled` | Phase 1 step 4 |
 | `loam-app-entry` | One app in the rail or the tab bar: `aria-current="page"` with the selected colors and a start-edge bar, "(unavailable)" and `system/warning` for a failed or refused app, `aria-busy` while loading; in the rail its label is `aria-label` and a tooltip that Escape dismisses | Phase 1 step 4 |
@@ -645,3 +646,6 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   `loam-part-header`, `loam-app-entry`, `loam-status-action`, `loam-toast-region`,
   `loam-toast` and `loam-modal` join the chrome behind a dynamic import, with no
   new token. The contract stays version 1.
+- **2026-11-02. Sandboxed views (phase 1 step 5).** `loam-view-frame` joins the chrome in a chunk
+  of its own, with no new token. A view reads the contract's component ids through `dev.loam/tokens`,
+  and shell ids stay the shell's. The contract stays version 1.

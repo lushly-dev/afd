@@ -275,6 +275,30 @@
 			"title": "Loam/Apps/NoticeEmbeddedCompact",
 			"module": "./apps.specimens.ts",
 			"exportName": "NoticeEmbeddedCompact"
+		},
+		{
+			"id": "app-view-frame-loading",
+			"title": "Loam/Apps/ViewFrameLoading",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameLoading"
+		},
+		{
+			"id": "app-view-frame-loading-compact",
+			"title": "Loam/Apps/ViewFrameLoadingCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameLoadingCompact"
+		},
+		{
+			"id": "app-view-frame-failed",
+			"title": "Loam/Apps/ViewFrameFailed",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameFailed"
+		},
+		{
+			"id": "app-view-frame-failed-compact",
+			"title": "Loam/Apps/ViewFrameFailedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ViewFrameFailedCompact"
 		}
 	]
 }

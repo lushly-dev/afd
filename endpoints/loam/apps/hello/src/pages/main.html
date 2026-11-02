@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Hello</title>
+		<style>
+			body {
+				margin: 0;
+				padding: var(--space-layout-md);
+				background: var(--color-surface-page);
+				color: var(--color-text-primary);
+				font-family: 'Montserrat', 'Segoe UI', sans-serif;
+				font-size: var(--type-body-md-size);
+				line-height: var(--type-body-md-line);
+			}
+			h1 {
+				margin-block: 0 var(--space-stack-md);
+				font-size: var(--type-title-md-size);
+				line-height: var(--type-title-md-line);
+				font-weight: var(--type-title-md-weight);
+			}
+			form {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: end;
+				gap: var(--space-inline-sm);
+				margin-block-end: var(--space-stack-md);
+			}
+			label {
+				display: grid;
+				gap: var(--space-stack-xs);
+			}
+			input,
+			button {
+				box-sizing: border-box;
+				min-block-size: var(--size-target-comfortable);
+				padding-inline: var(--space-inline-sm);
+				border: 1px solid var(--color-field-border);
+				border-radius: var(--radius-sm);
+				font: inherit;
+			}
+			input {
+				background: var(--color-field-background);
+				color: var(--color-field-text);
+			}
+			button {
+				border-color: var(--color-action-primary-background);
+				background: var(--color-action-primary-background);
+				color: var(--color-action-primary-text);
+				cursor: pointer;
+			}
+			:focus-visible {
+				outline: 2px solid var(--color-focus-ring);
+				outline-offset: 1px;
+			}
+			p {
+				margin-block: 0 var(--space-stack-sm);
+			}
+			@media (forced-colors: active) {
+				body {
+					background: Canvas;
+					color: CanvasText;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Hello</h1>
+			<form id="greet">
+				<label>
+					Name
+					<input id="name" name="name" autocomplete="off" />
+				</label>
+				<button type="submit">Greet</button>
+			</form>
+			<p id="greeting" role="status"></p>
+			<p id="count"></p>
+			<p id="selected"></p>
+		</main>
+		<script type="module" src="../view-main.ts"></script>
+	</body>
+</html>

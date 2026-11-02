@@ -1,0 +1,83 @@
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "hello"
+title = "Hello"
+version = "0.1.0"
+description = "One command, a sidebar list and a main view: the reference app."
+kind = "view"
+domains = ["hello"]
+license = "MIT"
+
+[view]
+handlers = "dist/handlers.html"
+
+[app]
+scope_levels = ["workspace", "project"]
+
+[[grants]]
+name = "store"
+reason = "Keeps the names greeted."
+
+[[grants]]
+name = "clock"
+reason = "Stamps each greeting with the command context's clock."
+
+[[commands]]
+name = "hello-greet"
+title = "Greet someone"
+description = "Greet someone and remember the name, so it joins the sidebar's list."
+category = "hello"
+effects = ["store-write"]
+input_schema = "schemas/hello-greet.input.json"
+undoable = true
+tool_meta = { ui = { resourceUri = "ui://hello/main" } }
+
+[[commands]]
+name = "hello-list"
+title = "List greetings"
+description = "List the names greeted so far, as the sidebar's list."
+category = "hello"
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[[commands]]
+name = "hello-forget"
+title = "Forget a name"
+description = "Remove a greeted name from the list; the undo of hello-greet."
+category = "hello"
+effects = ["store-write"]
+input_schema = "schemas/hello-forget.input.json"
+
+[[skills]]
+name = "hello-guide"
+path = "skills/hello-guide"
+
+[config]
+schema = "schemas/config.schema.json"
+
+[ui]
+compositions = ["list-detail"]
+
+[[ui.resources]]
+uri = "ui://hello/main"
+path = "dist/main.html"
+
+[ui.layout]
+sidebar = { open = true, width = 260 }
+
+[ui.surfaces.rail]
+label = "Hello"
+icon = "system/document"
+order = 10
+
+[ui.surfaces.sidebar]
+shape = "list"
+command = "hello-list"
+title = "Greetings"
+
+[ui.surfaces.main]
+resource = "ui://hello/main"
+command = "hello-list"

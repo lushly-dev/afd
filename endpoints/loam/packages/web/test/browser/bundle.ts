@@ -1,6 +1,7 @@
 /** Bundles a test page's module into one script for `page.evaluate`, with Vite as the shell is built. */
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
+import { zodJitlessByDefault } from '../../scripts/narrow-zod.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -10,6 +11,8 @@ export async function bundlePage(name: string): Promise<string> {
 		configFile: false,
 		root: ROOT,
 		logLevel: 'silent',
+		// A page that brings Zod runs under a CSP with no `unsafe-eval`, as the shell does.
+		plugins: [zodJitlessByDefault()],
 		build: {
 			write: false,
 			minify: false,

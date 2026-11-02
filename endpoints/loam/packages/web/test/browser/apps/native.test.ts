@@ -94,7 +94,10 @@ describe('E1: hello loads native', () => {
 		// From the palette: `hello-greet` needs no input, so it runs with the deployment's default.
 		await page.keyboard.press('ControlOrMeta+K');
 		await page.locator('loam-palette input').fill('Greet someone');
-		await page.locator('loam-palette violet-option[data-command="hello-greet"]').waitFor();
+		// The whole list is there before the search narrows it, and Enter runs its first row.
+		await expect
+			.poll(() => page.locator('loam-palette violet-option').first().getAttribute('data-command'))
+			.toBe('hello-greet');
 		await page.keyboard.press('Enter');
 		await expect.poll(greets).toBe(2);
 		await expect

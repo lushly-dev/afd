@@ -272,10 +272,14 @@ export function serveHandlers(definition: AppDefinitionV1): void {
 		try {
 			return await handler(call.input as never, callContext(peer, call));
 		} catch (cause) {
+			// To the frame's console and not the result, which is journaled: what a thrown error says is
+			// not an app's answer, and may hold what a log should not, as for a native handler (9.6).
+			(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 			return failure({
 				code: 'HANDLER_THREW',
-				message: cause instanceof Error ? cause.message : String(cause),
-				suggestion: 'A handler returns `failure(...)`; fix the code that threw.',
+				message: `The handler of \`${call.command}\` threw.`,
+				suggestion:
+					"A handler returns `failure(...)`; read the handler frame's console, and fix the code that threw.",
 			});
 		}
 	});

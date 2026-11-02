@@ -16,6 +16,10 @@
 		"./apps": {
 			"types": "./dist/apps/index.d.ts",
 			"import": "./dist/apps/index.js"
+		},
+		"./view": {
+			"types": "./dist/view/view.d.ts",
+			"import": "./dist/view/view.js"
 		}
 	},
 	"scripts": {

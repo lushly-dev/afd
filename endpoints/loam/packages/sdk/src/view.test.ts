@@ -399,9 +399,11 @@ describe('serveHandlers', () => {
 		expect(posted.at(-1)).toMatchObject({ result: { error: { code: 'APP_HANDLER_MISSING' } } });
 		deliver(call('hello-boom', {}));
 		await tick();
+		// What it threw stays in the frame's console: the result is journaled (9.6, and step 5's decision).
 		expect(posted.at(-1)).toMatchObject({
-			result: { error: { code: 'HANDLER_THREW', message: 'Boom.' } },
+			result: { error: { code: 'HANDLER_THREW', message: 'The handler of `hello-boom` threw.' } },
 		});
+		expect(JSON.stringify(posted.at(-1))).not.toContain('Boom.');
 		deliver(call('hello-refuse', {}));
 		await tick();
 		expect(posted.at(-1)).toMatchObject({ result: { error: { code: 'NOPE' } } });
