@@ -7,6 +7,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./streamable-http": {
+			"types": "./dist/streamable-http.d.ts",
+			"import": "./dist/streamable-http.js"
 		}
 	},
 	"main": "./dist/index.js",

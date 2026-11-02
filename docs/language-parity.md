@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-11-01 (plugin manifest specified, an intended difference in Python and C++; output budgets and the public frontmatter reader in Rust, Umbel phase 2 step 0b; output budgets specified, Planned in the other languages); 2026-10-31 (journal context cap vectors in every language, #578; Rust shared file journal and `DirectClient` interface selection, Umbel phase 0 step 0; approval token vectors in every language, #458; hybrid tool strategy specified; TypeScript, Python and Rust implement it); 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
+| Updated | 2026-11-01 (browser-safe MCP transport entry in TypeScript, an intended difference elsewhere; plugin manifest specified, an intended difference in Python and C++; output budgets and the public frontmatter reader in Rust, Umbel phase 2 step 0b; output budgets specified, Planned in the other languages); 2026-10-31 (journal context cap vectors in every language, #578; Rust shared file journal and `DirectClient` interface selection, Umbel phase 0 step 0; approval token vectors in every language, #458; hybrid tool strategy specified; TypeScript, Python and Rust implement it); 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
@@ -187,6 +187,7 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` only works against the TS server | No | No: not declared |
+| Browser-safe MCP transport (`StreamableHttpTransport` at `@lushly-dev/afd-client/streamable-http`, with no Node.js builtin or `eventsource` of ours and a 340,000-byte budget; Loam phase 1 step 0a) | Yes | N/A | N/A | N/A |
 | In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: millisecond timeout and shallow JSON types enforced; exposure, `allow` and middleware remain gaps | Partial: approval-aware `DirectClient.call` with agent exposure and total deadline; no `pipe`, `allow` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | `DirectClient` interface selection (the interface calls run as, default `agent`, so a CLI host calls CLI-exposed commands) | Yes (`createDirectRegistry({ interface })`) | Yes (`DirectCommandRegistry(server, interface=...)`) | Yes (added in the Rust crate's Unreleased changes): `DirectClient::with_interface` | Yes: `DirectClientOptions::surface` |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
@@ -204,6 +205,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 |---|---|---|
 | UI packages (`view-state`, `adapters`, `local-db`) and auth React hooks | TypeScript only | The `afd` skill keeps React and browser integration in ecosystem layers, outside the core parity target. |
 | `IndexedDbAdapter` and `IndexedDbJournalSink` | TypeScript only | Browser features: IndexedDB and the Web Locks API exist only in browsers, workers and webviews. The journal format they store is the shared one (`spec/journal.md`). |
+| Browser entry for the MCP transport | TypeScript only | A bundler's concern: Python does not run in a browser, and Rust and C++ have no MCP client to expose. |
 | No HTTP transport, engine adapters or auth in the library | C++ | The C++ [scope principle](./features/complete/cpp-support/proposal.md#scope-principle-host-agnostic): hosts build these on middleware, `CommandContext::extra`, `TaskRunner` and `Clock`. Approval is the exception (#422): its tokens must match TypeScript's byte for byte, which a host should not have to reimplement. |
 | Synchronous handlers and cooperative deadlines | C++ | Decision D4. A late finish still produces the reference `TIMEOUT` result and error codes; nothing is interrupted. |
 | `CancellationSource` instead of a timeout controller | C++ | It is the C++ idiom for `AbortSignal` plus a deadline. |

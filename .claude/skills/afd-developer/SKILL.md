@@ -177,7 +177,7 @@ afd shell
 |---------|---------|
 | `@lushly-dev/afd-core` | Core types (CommandResult, CommandError, validateCommandName) |
 | `@lushly-dev/afd-server` | Zod-based MCP server factory |
-| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports + DirectClient |
+| `@lushly-dev/afd-client` | MCP client with Streamable HTTP and SSE/HTTP transports + DirectClient; the Streamable HTTP transport alone for browsers at `/streamable-http` |
 | `@lushly-dev/afd-testing` | JTBD scenario runner, test validators |
 | `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
 | `@lushly-dev/afd-cli` | Command-line interface |

@@ -167,7 +167,7 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 |---------|---------|
 | `@lushly-dev/afd-core` | Core types (CommandResult, CommandError, validateCommandName) |
 | `@lushly-dev/afd-server` | Zod-based MCP server factory |
-| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports + DirectClient |
+| `@lushly-dev/afd-client` | MCP client with Streamable HTTP and SSE/HTTP transports + DirectClient; the Streamable HTTP transport alone for browsers at `/streamable-http` |
 | `@lushly-dev/afd-testing` | JTBD scenario runner, surface validation, test validators |
 | `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
 | `@lushly-dev/afd-view-state` | Ecosystem-level UI view state management via commands; not part of the core cross-language parity surface |

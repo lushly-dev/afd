@@ -48,6 +48,10 @@ import {
   createJournalMiddleware,
 } from '@lushly-dev/afd-server/direct';
 
+// Browser, web worker or webview, calling a remote MCP server: the transport alone,
+// with the MCP SDK but no McpClient, eventsource of ours or Node.js builtins
+import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
+
 // Schema validation
 import { z } from 'zod';
 

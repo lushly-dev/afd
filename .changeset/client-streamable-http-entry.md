@@ -1,0 +1,5 @@
+---
+"@lushly-dev/afd-client": minor
+---
+
+Add the `@lushly-dev/afd-client/streamable-http` entry point, the package's first for browsers. It exports `StreamableHttpTransport`, `MODERN_PROTOCOL_VERSION` and the types `StreamableHttpTransportOptions`, `StreamableHttpMode`, `Transport`, `McpInitializeResult`, `McpRequest`, `McpResponse`, `McpTool`, `McpToolCallParams`, `McpToolCallResult`, `ElicitationHandler`, `ElicitationRequest` and `ElicitationResponse`, for a browser, web worker or webview that talks to an MCP server. It loads the official MCP SDK's client, but not `McpClient`, the deprecated `sse` and `http` transports or this package's `eventsource` dependency, and its module graph has no Node.js builtin. A test bundles it for the browser and holds it to 340,000 bytes minified. Under a strict Content-Security-Policy it needs no `'unsafe-eval'`, but Zod's probe for `new Function` is reported as a violation unless `config({ jitless: true })` runs first (#664). The root entry is unchanged and still exports the transport.
