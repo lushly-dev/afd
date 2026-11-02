@@ -37,6 +37,9 @@ export const EXTRA_INPUTS = [
 		prefix: 'spec/',
 		packages: ['@lushly-dev/afd-core', '@lushly-dev/afd-server', '@lushly-dev/afd-cli'],
 	},
+	// Loam's profile is checked against the plugin manifest core, and records the contract version.
+	{ prefix: 'spec/plugin-manifest', packages: ['@lushly-dev/loam-manifest'] },
+	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];

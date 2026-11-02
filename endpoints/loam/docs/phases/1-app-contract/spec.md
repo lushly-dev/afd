@@ -201,7 +201,7 @@ Five new TypeScript packages and two apps, all private and quarantined:
 
 | Directory | Package | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `endpoints/loam/packages/manifest/` | `@lushly-dev/loam-manifest` | `app-manifest.v1.json`, `deployment.v1.json`, `projection.v1.json`, generated types, standalone validators, the readers and refusals, the catalogs, and the two layout and chord constants the rules need, which the kernel re-exports. No DOM, no Node.js builtin in its root or `/validate` | `@lushly-dev/afd-core` (types); `zod` (`/validate` only); build-time: `ajv`, `json-schema-to-typescript`, `spec/plugin-manifest.core.v1.json` |
+| `endpoints/loam/packages/manifest/` | `@lushly-dev/loam-manifest` | `app-manifest.v1.json`, `deployment.v1.json`, `projection.v1.json`, generated types, standalone validators, the readers and refusals, the catalogs, and the two layout and chord constants the rules need, which the kernel re-exports. No DOM, no Node.js builtin in its root or `/validate` | `zod` and `ajv`'s `dist/runtime` helpers (`/validate` only); build-time: `ajv`, `json-schema-to-typescript`, `spec/plugin-manifest.core.v1.json` |
 | `endpoints/loam/packages/sdk/` | `@lushly-dev/loam-sdk` | The public contract: `defineApp`, the context and client types, the overlay types, the surface element contract; `/view` for sandboxed code. It depends on no kernel, and the kernel takes its types from here | `@lushly-dev/loam-manifest` (types), `@lushly-dev/afd-core` |
 | `endpoints/loam/packages/testing/` | `@lushly-dev/loam-testing` | The test kit an app's own tests use: `createAppTestKernel`. Part of the SDK contract for authors, and its own unit because it needs the kernel, which depends on the SDK | `@lushly-dev/loam-sdk`, `@lushly-dev/loam-kernel`, `@lushly-dev/afd-core`, `@lushly-dev/local-db` |
 | `endpoints/loam/packages/console/` | `@lushly-dev/loam-console` | `loam-console`: the command list, forms from input schemas, results through the adapters. It binds to the SDK's client only | `@lushly-dev/loam-sdk`, `@lushly-dev/afd-adapters`, `@lushly-dev/fast-element`, `@lushly-dev/violet-elements` (deep imports) |
@@ -227,7 +227,8 @@ The four phase 0 packages change as follows:
   `routes: []`, `fixed: false`, `private: true`,
   `gates: ["pnpm check", "loam.yml", "release-approval"]`. Nothing publishes.
 - **Repository contract.** `scripts/repository-contract.test.mjs`'s Loam test names
-  the eleven units and the new glob, and is renamed.
+  the eleven units and the new glob, and is renamed. Step 1 renames it and adds the glob and `manifest`;
+  each later step adds the units it creates, as the inventory entries do.
 - **Scripts:**
 
   | Package | Scripts |
@@ -315,7 +316,7 @@ It has a refusal case for each closed object, in `manifest/src/profile-cases.jso
 | `afd_contract` | Optional, for any kind. The rule `afd-contract` compares it with `spec/VERSION`, which `schema:build` writes into `manifest`'s `AFD_CONTRACT` constant |
 | `plugin.kind` | `enum: ["native", "view", "mounted"]` (L2) |
 | `plugin.domains` | Required, exactly `[plugin.id]` (D18). Otherwise `MANIFEST_DOMAIN_INVALID` |
-| `plugin.id` | The core's pattern, and not a shell domain or `afd`: `SHELL_DOMAINS_V1` is the architecture's section 5 list with `status` added (D68). Otherwise `MANIFEST_ID_RESERVED` |
+| `plugin.id` | The core's pattern, and not a shell domain or `afd`: `SHELL_DOMAINS_V1` is the architecture's section 5 list with `status` added (D68), and `auth`, the domain of the `auth-*` commands it names. Otherwise `MANIFEST_ID_RESERVED` |
 | `native` | `{ entry }`, a relative path to a JavaScript file. Required when and only when `kind = "native"`, in `allOf` |
 | `view` | `{ handlers? }`, a relative path to a single HTML file. Allowed only when `kind = "view"`, in `allOf` |
 | `mount` | `{ prefix, transport, only?, tools? }`. The rules `mounted` and `mount-prefix` tie it to the kind and to `plugin.domains`. `transport` is `http` or `stdio`. `tools[]` admits `tool`, `name` and `effects` of the core's keys, the profile narrowing `confirm_prompt`, `approval` and `first_class` away: the shell has no gate to back the first two in phase 1, and no first-class list. `command`, `cwd`, `env`, `bearer`, `bind_space`, `url` and `bearer_env` are not admitted |
@@ -335,7 +336,7 @@ It has a refusal case for each closed object, in `manifest/src/profile-cases.jso
 | `ui` | `{ surfaces?, layout?, compositions?, resources? }`, [Section 4](#4-surfaces-grants-and-compositions). A manifest with no `ui` is a headless app, and is valid in every kind |
 | `ui.resources[]` | `{ uri, path, title?, prefers_border?, csp?, permissions? }`. `uri` is `ui://<plugin.id>/<name>`; `path` is one HTML file; `csp` and `permissions` have MCP Apps' shapes, are admitted so a view can be exported to other hosts, and are ignored here with `VIEW_CSP_IGNORED` ([6.1](#61-the-sandbox-proxy)). Allowed only when `kind = "view"` |
 | Reserved (K9) | `connectors`, `backends`, `dependencies`, `signature`, `scopes`, `on_conflict`, `commands[].scopes`, `expose.apps`, `grants[].allow`, `grants[].targets`, each `false` in the core: `MANIFEST_RESERVED_KEY`, with the core's meaning in the message. So are `commands[].mutation`, which the host derives, and `mount.url` and `mount.bearer_env`, which are the deployer's |
-| Other hosts' keys | `component`, `packs`, `commands[].confirm`: `MANIFEST_RESERVED_KEY`, naming Umbel's profile. An Umbel `kind` is `MANIFEST_KIND_UNKNOWN`, naming the three kinds |
+| Other hosts' keys | `component`, `packs`, `commands[].confirm`, `mount.tools[].bind_space`: `MANIFEST_RESERVED_KEY`, naming Umbel's profile. So are `mount.command`, `cwd`, `env` and `bearer`, which name the deployer's entry. An Umbel `kind` is `MANIFEST_KIND_UNKNOWN`, naming the three kinds |
 | Later phases' keys | `agent`, `ui.documents`, `ui.new`, `ui.project_summary`, `ui.account`, `ui.settings`, `ui.experiments`, `ui.menus`, `ui.automations`: `MANIFEST_SURFACE_UNAVAILABLE`, naming the phase |
 
 A later phase that adds a key writes `app-manifest.v2.json` with
@@ -443,11 +444,11 @@ after the schema, by their names there. It does not restate them. Each refusal n
 | `unique` | `MANIFEST_DUPLICATE`, for what the profile admits; pipelines' parts through `readCoreManifest` |
 | `context-declared` | `MANIFEST_CONTEXT_UNDECLARED` |
 | `text` | `MANIFEST_TEXT_INVALID` |
-| `input-schema` | `MANIFEST_INPUT_SCHEMA_INVALID`. Loam's "AFD checker" is `z.fromJSONSchema`, which refuses `not`, `if` and `unevaluatedProperties`, among others |
-| `config-schema` | `MANIFEST_CONFIG_SCHEMA_INVALID` |
-| `output-budget` | Not reached: Loam refuses `output_budget`. Its cases pass through `readCoreManifest` |
+| `input-schema` | `MANIFEST_INPUT_SCHEMA_INVALID`. Loam's "AFD checker" is `z.fromJSONSchema`, which refuses `not` (but `{ not: {} }`), `if` and `unevaluatedProperties`, among others. It does not check a keyword's own shape, accepting `properties: 1`, so the reader also runs `schemas/json-schema-shape.json`, the 2020-12 metaschema's keyword types in one small document, whose test holds it equal to Ajv's metaschema over a table of schemas |
+| `config-schema` | `MANIFEST_CONFIG_SCHEMA_INVALID`. The same two checks, since the load runs `z.fromJSONSchema` on it |
+| `output-budget` | `MANIFEST_BUDGET_INVALID`, through `readCoreManifest` only: Loam refuses `output_budget` |
 | `skill-name` | `MANIFEST_SKILL_NAME` |
-| `tool-meta` | `MANIFEST_TOOL_META_INVALID`, and the `dev.loam/` prefix is refused as the host's own |
+| `tool-meta` | `MANIFEST_TOOL_META_INVALID`, and the `dev.loam/` prefix is refused as the host's own. A `ui.resourceUri` not in `ui.resources` is `MANIFEST_RESOURCE_UNKNOWN` |
 | `requires` | `MANIFEST_REQUIRES_UNKNOWN`, **a warning** (L8) |
 | `afd-contract` | `MANIFEST_AFD_CONTRACT` |
 | `path-inside-root`, `files` | `MANIFEST_PATH_ESCAPE`, `MANIFEST_FILE_MISSING`. These need a file system, so `app check` and `app pack` apply them, and the kernel, reading a packed JSON file in a page, cannot |
@@ -463,6 +464,10 @@ Loam's own rules, each with a case in `manifest/src/profile-cases.json`:
 | Any grant on a `mounted` manifest | `GRANT_NOT_APPLICABLE` |
 | `store-write` without the `store` grant; `external` without `http` | `GRANT_REQUIRED` |
 | A surface that its kind cannot use ([4.2](#42-surface-contracts)) | `MANIFEST_SURFACE_KIND` |
+| A repeated `ui.resources[].uri`, panel view id, status item id or chord | `MANIFEST_DUPLICATE` |
+| A `ui.resources[]` declaring `csp` or `permissions` | `VIEW_CSP_IGNORED`, a warning ([6.1](#61-the-sandbox-proxy)) |
+| A `view` manifest with commands and no `view.handlers` ([6.3](#63-the-handler-frame)) | `MANIFEST_SECTION_KIND` |
+| A manifest still holding a schema path ([2.1](#21-files-and-encoding)) | `MANIFEST_NOT_PACKED` |
 | An `element` that is not a valid custom element name, or starts `loam-` or `violet-` | `MANIFEST_ELEMENT_INVALID` |
 | A surface's `command` or binding names a command the manifest does not declare | `MANIFEST_COMMAND_UNKNOWN` |
 | A `resource` not in `ui.resources`, or a `ui.resources[].uri` outside `ui://<id>/` | `MANIFEST_RESOURCE_UNKNOWN` |
@@ -534,11 +539,17 @@ export const LAYOUT_DEFAULTS_V0: LayoutDefaultsV0;
 ```
 
 - **Validators.** `schema:build` compiles the schemas with Ajv's 2020 build, `strict: true`,
-  `allErrors: true`, and `ajv/dist/standalone` in the Health dashboard's pattern
+  `allErrors: true`, `inlineRefs: false` (which shares a core definition's function between a closing
+  profile's two paths), and `ajv/dist/standalone` in the Health dashboard's pattern
   (`report-validator.ts:32-41`), with the core added by `addSchema` from
-  `spec/plugin-manifest.core.v1.json`, into `dist/validate.generated.js`. The output's
-  `require`s of Ajv's runtime helpers are rewritten to imports. No `new Function`
-  runs in the page. A schema that does not compile strictly fails the build.
+  `spec/plugin-manifest.core.v1.json`, into three modules in `dist/`, so a page carries only what it reads
+  (the package has `sideEffects: false`): `validate.generated.js` (the profile and the projection),
+  `validate-shape.generated.js` (the keyword shapes) and `validate-host.generated.js` (the core's
+  `manifest` and the deployment file, for `readCoreManifest` and `readDeployment`). The output's
+  `require`s of Ajv's runtime helpers are rewritten to imports, and its unread `schemaPath`s dropped. No
+  `new Function` runs in the page. A schema that does not compile strictly fails the build. The types and
+  `AFD_CONTRACT` are committed in `src/_generated/`, a test holding them equal to a fresh generation; a
+  test compiles the validators in memory, so it needs no build.
 - **What the reader reports** follows the page's [Validators](../../../../../spec/plugin-manifest.md#validators): it
   drops Ajv's `if` errors, since the failure itself names the key, and reports each key once, since a closing
   profile reaches the core by two paths.
@@ -567,8 +578,8 @@ export const LAYOUT_DEFAULTS_V0: LayoutDefaultsV0;
   | `/commands/*/approval` | `MANIFEST_APPROVAL_UNAVAILABLE` |
   | `/commands/*/confirm_prompt` | `MANIFEST_CONFIRM_UNAVAILABLE` |
   | `/commands/*/output_budget` | `MANIFEST_BUDGET_UNAVAILABLE` |
-  | `/commands/*/first_class`, `/pipelines` | `MANIFEST_KEY_REFUSED` |
-  | `/native`, `/view` (wrong kind, from `allOf`) | `MANIFEST_SECTION_KIND` |
+  | `/commands/*/first_class`, `/pipelines`, `/mount/tools/*/confirm_prompt`, `/mount/tools/*/approval`, `/mount/tools/*/first_class` | `MANIFEST_KEY_REFUSED` |
+  | `/native`, `/view`, `/ui/resources` (wrong kind, from `allOf`) | `MANIFEST_SECTION_KIND` |
   | `/ui/compositions/*` | `MANIFEST_COMPOSITION_UNAVAILABLE` for a name in `COMPOSITIONS_V1`, else `MANIFEST_COMPOSITION_UNKNOWN` |
   | `/ui/surfaces/sidebar/shape` | `MANIFEST_SURFACE_UNAVAILABLE` for `tree`, else `MANIFEST_INVALID` |
   | Anything else | `MANIFEST_INVALID`, with the instance path and the schema's message |
@@ -642,6 +653,22 @@ command = ["umbel", "--workspace", "/home/me/notes-umbel", "serve", "--stdio"]
 | `projects`, `space` | Recorded and projected. Phase 2 enforces `projects` by membership (D55); `space` is pinned ([7.5](#75-a-mapped-space-is-pinned)) |
 | `expose` | `agent` and `palette` for the instance's commands that report no mutation; each defaults to `true`. `mcp` and `cli` may be `false`; `true` is refused in phase 1 (no surface; `DEPLOYMENT_EXPOSE_UNAVAILABLE`). `apps` is refused until D30 lands, naming phase 5 |
 | `commands."<name>"` | `expose`, `effects`, `destructive`. The only way to expose a command that reports a mutation (D65). A flag a named override leaves out is off. A name matching no discovered command is a warning on the instance, `INSTANCE_OVERRIDE_UNKNOWN` |
+
+`readDeployment` applies what the file alone can say, each refusal naming the key and giving a suggestion:
+
+| Refusal | Code |
+| --- | --- |
+| The schema: an unknown key at any depth, a value out of shape | `DEPLOYMENT_INVALID` |
+| A `deployment_version` it does not read | `DEPLOYMENT_VERSION_UNSUPPORTED` |
+| An entry with no mounted key whose table name is not its `app` | `DEPLOYMENT_INSTANCE_MISMATCH` |
+| A mounted key with no `audience` | `DEPLOYMENT_AUDIENCE_REQUIRED` |
+| `audience = "team"` with `transport = "stdio"` or a `command` | `DEPLOYMENT_TEAM_NEEDS_HTTP` |
+| `bearer_file` with `bearer_env` | `DEPLOYMENT_CREDENTIAL_CONFLICT` |
+| A `url` that is neither `https://` nor `http://` on a loopback address | `DEPLOYMENT_URL_INVALID` |
+| A key of the other transport, `transport = "http"` with no `url`, or `transport = "stdio"` with no `command` | `DEPLOYMENT_TRANSPORT_KEYS` |
+| `expose.mcp` or `expose.cli` true, or `expose.apps` | `DEPLOYMENT_EXPOSE_UNAVAILABLE` |
+
+What needs a package's manifest (the kind, the transport it defaults, `DEPLOYMENT_APP_MISMATCH`, a required `sandbox.origin`) is `loam deployment check`'s, in step 2. A projection that fails `readProjection` is `DEPLOYMENT_INVALID`, whichever key it names.
 
 ### 3.2 Writing the browser projection
 
@@ -1770,7 +1797,7 @@ new commands are small and the rest is lazy:
 | JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000 |
 | The kernel alone | As phase 0 | 231,360 |
 | CSS | As phase 0 | 8,496 |
-| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 150,000 |
+| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
 | `view` chunk: the view host | When a view app opens | 60,000 |
@@ -2041,7 +2068,7 @@ STATUS.md before it merges.
 | 0b | AFD: adapters without inline styles | `RenderOptions.styling?: 'inline' \| 'classes'`, default `inline`, so existing callers are unchanged. `classes` writes `class="afd-status-<type>"` and `afd-bold`; `css/afd-theme.css` gains the classes; a changeset | `pnpm check` |
 | 1 | Manifest package | The package, its inventory entry, the glob, `app-manifest.v1.json` from the proposal's corrected sketch, `deployment.v1.json`, `projection.v1.json`, strict standalone validators and generated types, the readers, refusals and catalogs, `mountCommandName`, `deriveMutation`, profile cases, the core's sections, Loam's profile added to `scripts/plugin-manifest.test.mjs`, the repository contract test, `EXTRA_INPUTS`, the `loam.yml` path filter | `pnpm check`, `loam.yml` |
 | 2 | SDK and CLI | `loam-sdk` (root, `/view`), `loam-cli`: `app new`, `app check`, `app pack`, `deployment check`, `deployment write`, `checkApp`, `singleFileHtml`; the `rules` cases that need files; E13's CLI part | `pnpm check` |
-| 3 | Kernel, version 1 | The interface, the ports, `kernel/src/apps/` for native and view, the commands, the port's checks, context fields, overlays' state, per-app layout, keybindings, replay with apps and the `probe` fixture; `@lushly-dev/loam-testing`; E8; regenerated `session-50`; the chrome's version check moved | `pnpm check`, `loam.yml` |
+| 3 | Kernel, version 1 | `LAYOUT_DEFAULTS_V0` re-exported from `manifest`, the phase 0 copy removed, and the test holding `SHELL_RESERVED_CHORDS_V1` equal to `SHELL_KEYBINDINGS_V0`, since step 1 changes no kernel code. The interface, the ports, `kernel/src/apps/` for native and view, the commands, the port's checks, context fields, overlays' state, per-app layout, keybindings, replay with apps and the `probe` fixture; `@lushly-dev/loam-testing`; E8; regenerated `session-50`; the chrome's version check moved | `pnpm check`, `loam.yml` |
 | 4 | Chrome and web, native apps | The nav's app list, `loam-mount`, surfaces, `loam-list`, the header, status items, overlays' elements, the kit loader, the web host's deployment read, the harness; hello native; tally; E1, E5, E6, E7, E9, E11 so far; `budget` rows; `design.md` and skill lines. The workflow's selectors | `pnpm check`, `loam.yml` |
 | 5 | Sandboxed view | The proxy, `loam-view-frame`, the broker, the handler frame, `/view`, hello view, E2 with the conformance fixture, `@modelcontextprotocol/ext-apps` as a dev dependency; `budget`'s `view` row | `pnpm check`, `loam.yml` |
 | 6 | Console | `loam-console`, `renderForm`, adapters with classes, E10, E11's console part, `budget`'s row | `pnpm check`, `loam.yml` |

@@ -123,6 +123,14 @@ Umbel ships validate against the core, its schemas add only the keys in P3 and c
 define, they refuse every core refusal in the cases, naming the same key, and they admit no value the
 core refuses, compared key by key. Umbel adopts the core by `$ref` only if it chooses to.
 
+### Loam's profile
+
+`endpoints/loam/packages/manifest/schemas/app-manifest.v1.json` conforms to core version 1 by `$ref`, as
+P1 describes. The same test checks it the same way, and the package's own test runs this page's
+`cases`, `rules`, `mutation` and `renaming` through its readers; `path-inside-root` and `files` need
+a file system, and run with Loam's `app check`. What the profile adds, narrows and refuses is in
+[Loam's phase 1 specification](../endpoints/loam/docs/phases/1-app-contract/spec.md#2-the-manifest-profile).
+
 ## Keys
 
 [`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json) holds each key's type, pattern and
@@ -397,6 +405,7 @@ A `pointer` is an RFC 6901 JSON Pointer, so `/` in a key is written `~1`.
 | Reader | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Loads [`plugin-manifest.json`](./plugin-manifest.json) | The cases and a reference check of the rules, in `scripts/plugin-manifest.test.mjs` | No reader ([intended](../docs/language-parity.md#intended-differences)) | Checked once with `jsonschema` 0.60.2 ([status](../docs/features/active/plugin-manifest/STATUS.md)); a permanent test is Umbel's choice | No reader ([intended](../docs/language-parity.md#intended-differences)) |
-| Reads a profile | Loam's, in its phase 1 | No | Umbel's, without the core | No |
+| Reads a profile | Loam's, by `@lushly-dev/loam-manifest` | No | Umbel's, without the core | No |
 
-No AFD package reads a manifest. Umbel's host reads its own profile, and Loam's kernel will read its.
+No AFD package reads a manifest. Umbel's host reads its own profile, and Loam's kernel will read its,
+through that package.

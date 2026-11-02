@@ -1,0 +1,130 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/projection.v1.json",
+	"title": "Loam browser projection, version 1",
+	"description": "deployment.json, written from the deployment file. It has no key for a location, a credential or a command line, and it is closed, so a projection holding one fails readProjection.",
+	"type": "object",
+	"properties": {
+		"deployment_version": {
+			"const": 1
+		},
+		"sandbox_origin": {
+			"type": ["string", "null"],
+			"pattern": "^https?://[^/?#\\s]+$"
+		},
+		"apps": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/app"
+			}
+		}
+	},
+	"required": ["deployment_version", "sandbox_origin", "apps"],
+	"additionalProperties": false,
+	"$defs": {
+		"app": {
+			"type": "object",
+			"properties": {
+				"instance": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"app": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"package": {
+					"type": "string",
+					"pattern": "^apps/[a-z][a-z0-9]{0,31}/$"
+				},
+				"order": {
+					"type": "integer"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"config": {
+					"type": "object"
+				},
+				"prefix": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/domain"
+				},
+				"audience": {
+					"enum": ["team", "person"]
+				},
+				"transport": {
+					"enum": ["http", "stdio"]
+				},
+				"route": {
+					"type": "string",
+					"pattern": "^mounts/[a-z][a-z0-9]{0,31}/mcp$"
+				},
+				"projects": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"uniqueItems": true
+				},
+				"space": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"commands": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/commandOverride"
+					}
+				}
+			},
+			"required": ["instance", "app", "package"],
+			"additionalProperties": false
+		},
+		"expose": {
+			"type": "object",
+			"properties": {
+				"agent": {
+					"type": "boolean"
+				},
+				"palette": {
+					"type": "boolean"
+				},
+				"mcp": {
+					"const": false
+				},
+				"cli": {
+					"const": false
+				},
+				"apps": false
+			},
+			"additionalProperties": false
+		},
+		"commandOverride": {
+			"type": "object",
+			"properties": {
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"effects": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/effects"
+				},
+				"destructive": {
+					"type": "boolean"
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

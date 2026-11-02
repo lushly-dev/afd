@@ -1,0 +1,730 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/app-manifest.v1.json",
+	"title": "Loam app manifest, version 1 (conforms to plugin manifest core version 1)",
+	"description": "Loam's closed profile of the plugin manifest core (spec/plugin-manifest.md, P1 to P6). Every object it admits is closed at its depth, conditionals sit in allOf, and a key it refuses is false. readManifest applies the rules beyond the schema.",
+	"type": "object",
+	"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/manifest",
+	"properties": {
+		"manifest_version": {
+			"const": 1
+		},
+		"protocol": {
+			"const": 1
+		},
+		"afd_contract": true,
+		"plugin": {
+			"$ref": "#/$defs/plugin"
+		},
+		"native": {
+			"$ref": "#/$defs/native"
+		},
+		"view": {
+			"$ref": "#/$defs/view"
+		},
+		"mount": {
+			"$ref": "#/$defs/mount"
+		},
+		"app": {
+			"$ref": "#/$defs/app"
+		},
+		"grants": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/grant"
+			}
+		},
+		"commands": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/command"
+			}
+		},
+		"contexts": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/context"
+			}
+		},
+		"pipelines": false,
+		"skills": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/skill"
+			}
+		},
+		"config": {
+			"$ref": "#/$defs/config"
+		},
+		"ui": {
+			"$ref": "#/$defs/ui"
+		}
+	},
+	"unevaluatedProperties": false,
+	"allOf": [
+		{
+			"if": {
+				"type": "object",
+				"properties": {
+					"plugin": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"const": "native"
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"type": "object",
+				"properties": {
+					"native": true
+				},
+				"required": ["native"]
+			},
+			"else": {
+				"type": "object",
+				"properties": {
+					"native": false
+				}
+			}
+		},
+		{
+			"if": {
+				"type": "object",
+				"properties": {
+					"plugin": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"const": "view"
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"type": "object"
+			},
+			"else": {
+				"type": "object",
+				"properties": {
+					"view": false,
+					"ui": {
+						"type": "object",
+						"properties": {
+							"resources": false
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"plugin": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/plugin",
+			"properties": {
+				"id": {
+					"type": "string",
+					"not": {
+						"enum": [
+							"shell",
+							"app",
+							"project",
+							"scope",
+							"document",
+							"presence",
+							"thread",
+							"copilot",
+							"run",
+							"automation",
+							"autonomy",
+							"approval",
+							"agent",
+							"pack",
+							"view-state",
+							"layout",
+							"toast",
+							"dialog",
+							"modal",
+							"popover",
+							"prompt",
+							"overlay",
+							"appearance",
+							"palette",
+							"status",
+							"setting",
+							"experiment",
+							"notification",
+							"event",
+							"account",
+							"persona",
+							"session",
+							"auth",
+							"afd"
+						]
+					}
+				},
+				"kind": {
+					"type": "string",
+					"enum": ["native", "view", "mounted"]
+				},
+				"domains": true
+			},
+			"required": ["domains"],
+			"unevaluatedProperties": false
+		},
+		"native": {
+			"type": "object",
+			"properties": {
+				"entry": {
+					"type": "string",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/relativePath",
+					"pattern": "\\.m?js$"
+				}
+			},
+			"required": ["entry"],
+			"unevaluatedProperties": false
+		},
+		"view": {
+			"type": "object",
+			"properties": {
+				"handlers": {
+					"type": "string",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/relativePath",
+					"pattern": "\\.html?$"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"app": {
+			"type": "object",
+			"properties": {
+				"scope_levels": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["workspace", "project"]
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"command": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/command",
+			"properties": {
+				"effects": {
+					"type": "array",
+					"items": {
+						"not": {
+							"const": "workspace-write"
+						}
+					}
+				},
+				"approval": {
+					"enum": ["none"]
+				},
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"examples": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/example"
+					}
+				},
+				"confirm_prompt": false,
+				"output_budget": false,
+				"first_class": false
+			},
+			"unevaluatedProperties": false
+		},
+		"expose": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/expose",
+			"unevaluatedProperties": false
+		},
+		"example": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/example",
+			"unevaluatedProperties": false
+		},
+		"grant": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/grant",
+			"unevaluatedProperties": false
+		},
+		"context": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/context",
+			"unevaluatedProperties": false
+		},
+		"skill": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/skill",
+			"unevaluatedProperties": false
+		},
+		"config": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/config",
+			"unevaluatedProperties": false
+		},
+		"mount": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/mount",
+			"properties": {
+				"tools": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/mountTool"
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"mountTool": {
+			"type": "object",
+			"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/mountTool",
+			"properties": {
+				"effects": {
+					"type": "array",
+					"items": {
+						"not": {
+							"const": "workspace-write"
+						}
+					}
+				},
+				"confirm_prompt": false,
+				"approval": false,
+				"first_class": false
+			},
+			"unevaluatedProperties": false
+		},
+		"ui": {
+			"type": "object",
+			"properties": {
+				"surfaces": {
+					"$ref": "#/$defs/surfaces"
+				},
+				"layout": {
+					"$ref": "#/$defs/layout"
+				},
+				"compositions": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": ["console", "list-detail"]
+					}
+				},
+				"resources": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/resource"
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"surfaces": {
+			"type": "object",
+			"properties": {
+				"rail": {
+					"$ref": "#/$defs/rail"
+				},
+				"sidebar": {
+					"$ref": "#/$defs/sidebar"
+				},
+				"header": {
+					"$ref": "#/$defs/header"
+				},
+				"main": {
+					"$ref": "#/$defs/main"
+				},
+				"inspector": {
+					"$ref": "#/$defs/inspector"
+				},
+				"panel": {
+					"$ref": "#/$defs/panel"
+				},
+				"status": {
+					"$ref": "#/$defs/status"
+				},
+				"keybindings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/keybinding"
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"rail": {
+			"type": "object",
+			"properties": {
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"icon": {
+					"enum": [
+						"system/attach",
+						"system/calendar",
+						"system/checkmark",
+						"system/clock",
+						"system/document",
+						"system/folder",
+						"system/search",
+						"system/warning"
+					]
+				},
+				"order": {
+					"type": "integer"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"sidebar": {
+			"type": "object",
+			"properties": {
+				"shape": {
+					"enum": ["list", "custom"]
+				},
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				},
+				"element": {
+					"type": "string",
+					"minLength": 1
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				}
+			},
+			"required": ["shape"],
+			"allOf": [
+				{
+					"if": {
+						"type": "object",
+						"properties": {
+							"shape": {
+								"const": "list"
+							}
+						},
+						"required": ["shape"]
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"command": true
+						},
+						"required": ["command"]
+					}
+				},
+				{
+					"if": {
+						"type": "object",
+						"properties": {
+							"shape": {
+								"const": "custom"
+							}
+						},
+						"required": ["shape"]
+					},
+					"then": {
+						"type": "object",
+						"properties": {
+							"element": true
+						},
+						"required": ["element"]
+					}
+				}
+			],
+			"unevaluatedProperties": false
+		},
+		"header": {
+			"type": "object",
+			"properties": {
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"actions": {
+					"type": "array",
+					"maxItems": 3,
+					"items": {
+						"$ref": "#/$defs/headerAction"
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"headerAction": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				},
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				}
+			},
+			"required": ["command", "label"],
+			"unevaluatedProperties": false
+		},
+		"main": {
+			"type": "object",
+			"properties": {
+				"element": {
+					"type": "string",
+					"minLength": 1
+				},
+				"resource": {
+					"type": "string",
+					"minLength": 1
+				},
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"inspector": {
+			"type": "object",
+			"properties": {
+				"element": {
+					"type": "string",
+					"minLength": 1
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				}
+			},
+			"required": ["element"],
+			"unevaluatedProperties": false
+		},
+		"panel": {
+			"type": "object",
+			"properties": {
+				"views": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"$ref": "#/$defs/panelView"
+					}
+				}
+			},
+			"required": ["views"],
+			"unevaluatedProperties": false
+		},
+		"panelView": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/contextName"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"element": {
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["id", "title", "element"],
+			"unevaluatedProperties": false
+		},
+		"status": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"maxItems": 4,
+					"items": {
+						"$ref": "#/$defs/statusItem"
+					}
+				}
+			},
+			"required": ["items"],
+			"unevaluatedProperties": false
+		},
+		"statusItem": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/contextName"
+				},
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				},
+				"priority": {
+					"type": "integer"
+				}
+			},
+			"required": ["id", "label"],
+			"unevaluatedProperties": false
+		},
+		"keybinding": {
+			"type": "object",
+			"properties": {
+				"chord": {
+					"type": "string",
+					"pattern": "^(?:Mod\\+(?:Shift\\+)?(?:Alt\\+)?[A-Z0-9]|(?:Mod\\+)?(?:Shift\\+)?(?:Alt\\+)?F(?:[1-9]|1[0-9]|2[0-4]))$"
+				},
+				"command": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+				}
+			},
+			"required": ["chord", "command"],
+			"unevaluatedProperties": false
+		},
+		"layout": {
+			"type": "object",
+			"properties": {
+				"sidebar": {
+					"$ref": "#/$defs/layoutSide"
+				},
+				"inspector": {
+					"$ref": "#/$defs/layoutSide"
+				},
+				"panel": {
+					"$ref": "#/$defs/layoutPanel"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"layoutSide": {
+			"type": "object",
+			"properties": {
+				"open": {
+					"type": "boolean"
+				},
+				"width": {
+					"type": "integer"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"layoutPanel": {
+			"type": "object",
+			"properties": {
+				"open": {
+					"type": "boolean"
+				},
+				"height": {
+					"type": "integer"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"resource": {
+			"type": "object",
+			"properties": {
+				"uri": {
+					"type": "string",
+					"minLength": 1
+				},
+				"path": {
+					"type": "string",
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/relativePath",
+					"pattern": "\\.html?$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"prefers_border": {
+					"type": "boolean"
+				},
+				"csp": {
+					"$ref": "#/$defs/resourceCsp"
+				},
+				"permissions": {
+					"$ref": "#/$defs/resourcePermissions"
+				}
+			},
+			"required": ["uri", "path"],
+			"unevaluatedProperties": false
+		},
+		"resourceCsp": {
+			"type": "object",
+			"properties": {
+				"connectDomains": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"resourceDomains": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"frameDomains": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"baseUriDomains": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"resourcePermissions": {
+			"type": "object",
+			"properties": {
+				"camera": {
+					"$ref": "#/$defs/resourcePermission"
+				},
+				"microphone": {
+					"$ref": "#/$defs/resourcePermission"
+				},
+				"geolocation": {
+					"$ref": "#/$defs/resourcePermission"
+				},
+				"clipboardWrite": {
+					"$ref": "#/$defs/resourcePermission"
+				}
+			},
+			"unevaluatedProperties": false
+		},
+		"resourcePermission": {
+			"type": "object",
+			"properties": {},
+			"unevaluatedProperties": false
+		}
+	}
+}

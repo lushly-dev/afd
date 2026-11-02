@@ -1,0 +1,160 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/deployment.v1.json",
+	"title": "Loam deployment file, version 1",
+	"description": "The deployer's loam.deployment.toml, read as JSON: the workspace app list with every instance entry, closed at every depth. Only @lushly-dev/loam-cli reads it; the browser gets the projection.",
+	"type": "object",
+	"properties": {
+		"deployment_version": {
+			"const": 1
+		},
+		"sandbox": {
+			"$ref": "#/$defs/sandbox"
+		},
+		"apps": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9]{0,31}$"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/instance"
+			}
+		}
+	},
+	"required": ["deployment_version", "apps"],
+	"additionalProperties": false,
+	"$defs": {
+		"sandbox": {
+			"type": "object",
+			"properties": {
+				"origin": {
+					"type": "string",
+					"pattern": "^https?://[^/?#\\s]+$"
+				}
+			},
+			"required": ["origin"],
+			"additionalProperties": false
+		},
+		"instance": {
+			"type": "object",
+			"properties": {
+				"app": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"package": {
+					"type": "string",
+					"minLength": 1
+				},
+				"order": {
+					"type": "integer"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"config": {
+					"type": "object"
+				},
+				"prefix": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/domain"
+				},
+				"audience": {
+					"enum": ["team", "person"]
+				},
+				"transport": {
+					"enum": ["http", "stdio"]
+				},
+				"url": {
+					"type": "string",
+					"minLength": 1
+				},
+				"bearer_file": {
+					"type": "string",
+					"minLength": 1
+				},
+				"bearer_env": {
+					"type": "string",
+					"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+				},
+				"command": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"cwd": {
+					"type": "string",
+					"minLength": 1
+				},
+				"projects": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"uniqueItems": true
+				},
+				"space": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"commands": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/commandOverride"
+					}
+				}
+			},
+			"required": ["app", "package"],
+			"additionalProperties": false
+		},
+		"expose": {
+			"type": "object",
+			"properties": {
+				"agent": {
+					"type": "boolean"
+				},
+				"palette": {
+					"type": "boolean"
+				},
+				"mcp": {
+					"const": false
+				},
+				"cli": {
+					"const": false
+				},
+				"apps": false
+			},
+			"additionalProperties": false
+		},
+		"commandOverride": {
+			"type": "object",
+			"properties": {
+				"expose": {
+					"$ref": "#/$defs/expose"
+				},
+				"effects": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/effects"
+				},
+				"destructive": {
+					"type": "boolean"
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}
