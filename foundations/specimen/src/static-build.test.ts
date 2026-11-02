@@ -99,6 +99,14 @@ describe('the build accounting', () => {
 		expect(new Set(report.chunks.map((chunk) => chunk.category))).not.toContain(undefined);
 	});
 
+	it('counts Specimen’s own helpers and all they bring, and brings no Storybook', async () => {
+		const native = await built('native', ['native/native.stories.ts']);
+		expect(native.report.reported.incumbent).toBe(0);
+		expect(native.report.categories.interaction?.bytes).toBeGreaterThan(200_000);
+		// Only the fixture's own code: nothing the helpers import is left to look like a consumer's.
+		expect(native.report.reported.consumer).toBeLessThan(5_000);
+	}, 120_000);
+
 	it('keeps the shell constant as stories grow: the catalog is what grows', async () => {
 		const one = await built('one', ['stories/ordered.stories.ts']);
 		expect(one.report.entries.length).toBeLessThan(whole.report.entries.length);

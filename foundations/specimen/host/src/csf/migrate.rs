@@ -1,7 +1,8 @@
 //! The preview-first codemod: for each retained story file, the native metadata it can gain
 //! without changing what Storybook runs. It proposes a meta `component` only when the
 //! custom elements manifest makes the choice unambiguous, keeps every existing field, and
-//! reports the Storybook imports it leaves in place. Files change only when `apply` is set.
+//! reports the Storybook imports. With `helpers`, it switches those Specimen has its own for,
+//! and nothing else. Files change only when `apply` is set.
 
 use super::index::{Specifier, bare, identifier_members, meta_object, walk};
 use oxc::ast::ast::{Expression, ImportDeclarationSpecifier, ObjectExpression, Program, Statement};
@@ -21,6 +22,9 @@ pub struct MigrateRequest {
     pub files: Option<Vec<String>>,
     #[serde(default)]
     pub apply: bool,
+    /// Switch helper and type imports to Specimen's own where it has every name imported.
+    #[serde(default)]
+    pub helpers: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,7 +45,10 @@ pub struct HelperImport {
     pub source: String,
     pub names: Vec<String>,
     pub type_only: bool,
-    /// Why the import stays as it is.
+    /// Specimen's module with every name this imports, when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native: Option<&'static str>,
+    /// What happens to the import, and why.
     pub reason: String,
 }
 
@@ -228,7 +235,41 @@ fn diff(path: &str, before: &str, after: &str) -> String {
     text
 }
 
-fn helper_imports(program: &Program) -> Vec<HelperImport> {
+const NATIVE_HELPERS: &str = "@lushly-dev/specimen/test";
+const NATIVE_TYPES: &str = "@lushly-dev/specimen/types";
+/// What `@lushly-dev/specimen/test` exports. A name not here keeps its import.
+const HELPER_NAMES: [&str; 6] = ["expect", "fn", "spyOn", "userEvent", "waitFor", "within"];
+/// What `@lushly-dev/specimen/types` offers a retained story.
+const TYPE_NAMES: [&str; 5] = ["Args", "Decorator", "Meta", "StoryContext", "StoryObj"];
+
+/// The module to import from instead, and the names it lacks when it cannot replace this import.
+fn native_module(
+    source: &str,
+    type_only: bool,
+    names: &[String],
+) -> Option<(&'static str, Vec<String>)> {
+    let (module, known): (&'static str, &[&str]) = if source == "storybook/test" {
+        (NATIVE_HELPERS, &HELPER_NAMES)
+    } else if type_only && source.starts_with("@storybook/web-components") {
+        (NATIVE_TYPES, &TYPE_NAMES)
+    } else {
+        return None;
+    };
+    let missing = names
+        .iter()
+        .filter(|name| !known.contains(&name.as_str()))
+        .cloned()
+        .collect();
+    Some((module, missing))
+}
+
+/// Each Storybook import and, with `helpers`, the source edits that switch it.
+fn helper_imports(
+    program: &Program,
+    helpers: bool,
+    manual: &mut Vec<String>,
+    edits: &mut Vec<(usize, usize, String)>,
+) -> Vec<HelperImport> {
     program
         .body
         .iter()
@@ -238,7 +279,7 @@ fn helper_imports(program: &Program) -> Vec<HelperImport> {
                 if source != "storybook/test" && !source.starts_with("@storybook/") {
                     return None;
                 }
-                let names = import
+                let names: Vec<String> = import
                     .specifiers
                     .iter()
                     .flatten()
@@ -249,17 +290,37 @@ fn helper_imports(program: &Program) -> Vec<HelperImport> {
                     })
                     .collect();
                 let type_only = import.import_kind.is_type();
+                let mut native = None;
+                let reason = match native_module(&source, type_only, &names) {
+                    Some((module, missing)) if missing.is_empty() => {
+                        native = Some(module);
+                        if helpers {
+                            // Only what is inside the quotes, so the file keeps its quote style.
+                            let span = import.source.span;
+                            edits.push((span.start as usize + 1, span.end as usize - 1, module.into()));
+                            format!("Switched to `{module}`, which has every name imported")
+                        } else {
+                            format!("Kept: `helpers` would switch this to `{module}`")
+                        }
+                    }
+                    Some((module, missing)) => {
+                        let missing = missing.join(", ");
+                        if helpers {
+                            manual.push(format!(
+                                "Replace `{missing}` from `{source}`: `{module}` does not have it, so the import stays."
+                            ));
+                        }
+                        format!("Kept: `{module}` does not have {missing}")
+                    }
+                    None if type_only => "Kept: a type only this framework has".into(),
+                    None => "Kept: a framework import the preview or story still needs".into(),
+                };
                 Some(HelperImport {
-                    reason: if source == "storybook/test" {
-                        "Kept: the play helpers have no native replacement yet; Storybook stays installed during the overlap".into()
-                    } else if type_only {
-                        "Kept: Specimen has no native `Meta`/`Specimen` types yet".into()
-                    } else {
-                        "Kept: a framework import the preview or story still needs".into()
-                    },
+                    reason,
                     source,
                     names,
                     type_only,
+                    native,
                 })
             }
             _ => None,
@@ -273,6 +334,7 @@ fn migrate_file(
     import_path: &str,
     modules: Option<&BTreeMap<String, Vec<String>>>,
     apply: bool,
+    helpers: bool,
 ) -> Result<FileMigration, String> {
     let source = std::fs::read_to_string(path)
         .map_err(|error| format!("{import_path} cannot be read: {error}"))?;
@@ -288,7 +350,9 @@ fn migrate_file(
         .ok_or_else(|| format!("{import_path}: the meta is not a statically readable object"))?;
     let members = identifier_members(meta);
     let retained: Vec<String> = members.iter().map(|(key, _)| key.to_string()).collect();
-    let imports = helper_imports(program);
+    let mut manual = Vec::new();
+    let mut edits = Vec::new();
+    let imports = helper_imports(program, helpers, &mut manual, &mut edits);
     let directory = path.parent().unwrap_or(Path::new("."));
     let mut candidates = BTreeSet::new();
     if let Some(modules) = modules {
@@ -320,7 +384,6 @@ fn migrate_file(
         .next()
         .unwrap_or(&file_name)
         .to_string();
-    let mut manual = Vec::new();
     let existing = members.iter().find(|(key, _)| *key == "component");
     let component = if let Some((_, value)) = existing {
         let literal = value.and_then(|value| match bare(value) {
@@ -375,8 +438,6 @@ fn migrate_file(
             candidates: candidates.clone(),
         }
     };
-    let mut diff_text = None;
-    let mut applied = false;
     if component.status == "proposed"
         && let Some(tag) = &component.tag
     {
@@ -400,7 +461,17 @@ fn migrate_file(
         } else {
             format!("component: {quote}{tag}{quote}, ")
         };
-        let after = format!("{}{insertion}{}", &source[..offset], &source[offset..]);
+        edits.push((offset, offset, insertion));
+    }
+    let mut diff_text = None;
+    let mut applied = false;
+    if !edits.is_empty() {
+        // From the end, so an edit never moves the offsets of those still to come.
+        edits.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+        let mut after = source.clone();
+        for (start, end, text) in &edits {
+            after.replace_range(*start..*end, text);
+        }
         diff_text = Some(diff(import_path, &source, &after));
         if apply {
             // Written only if the file is still what was read.
@@ -465,7 +536,13 @@ pub fn migrate(request: &MigrateRequest) -> Migration {
             {
                 continue;
             }
-            match migrate_file(&path, &import, modules.as_ref(), request.apply) {
+            match migrate_file(
+                &path,
+                &import,
+                modules.as_ref(),
+                request.apply,
+                request.helpers,
+            ) {
                 Ok(migration) => files.push(migration),
                 Err(problem) => problems.push(problem),
             }
@@ -526,6 +603,10 @@ mod tests {
     ] }"#;
 
     fn run(directory: &Path, apply: bool) -> Migration {
+        run_with(directory, apply, false)
+    }
+
+    fn run_with(directory: &Path, apply: bool, helpers: bool) -> Migration {
         migrate(&MigrateRequest {
             root: directory.to_path_buf(),
             base: directory.to_path_buf(),
@@ -537,6 +618,7 @@ mod tests {
             manifest: Some("custom-elements.json".into()),
             files: None,
             apply,
+            helpers,
         })
     }
 
@@ -620,6 +702,83 @@ mod tests {
             written.contains("const meta = { component: 'x-button', title: 'B' };"),
             "{written}"
         );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn switches_only_the_imports_specimen_has_every_name_for() {
+        let story = "import type { Meta, StoryObj } from \"@storybook/web-components-vite\";\nimport { expect, userEvent } from 'storybook/test';\nexport default { title: 'A', component: 'x-a' };\nexport const One = {};\n";
+        let directory = fixture(
+            "helpers",
+            &[
+                ("src/a.stories.ts", story),
+                (
+                    "src/b.stories.ts",
+                    "import { expect, fireEvent } from 'storybook/test';\nimport type { StorybookConfig } from '@storybook/web-components-vite';\nimport { setCustomElementsManifest } from '@storybook/web-components-vite';\nexport default { title: 'B', component: 'x-b' };\nexport const One = {};\n",
+                ),
+            ],
+        );
+        std::fs::write(directory.join("custom-elements.json"), MANIFEST).unwrap();
+        // Without `helpers` nothing moves, and the report says what it could do.
+        let without = run(&directory, true);
+        assert_eq!(without.summary.applied, 0);
+        let a = without
+            .files
+            .iter()
+            .find(|file| file.import_path.ends_with("a.stories.ts"))
+            .unwrap();
+        assert_eq!(a.imports[1].native, Some(NATIVE_HELPERS));
+        assert!(a.imports[1].reason.starts_with("Kept"));
+
+        let preview = run_with(&directory, false, true);
+        let by_file = |name: &str| {
+            preview
+                .files
+                .iter()
+                .find(|file| file.import_path.ends_with(name))
+                .unwrap()
+        };
+        let a = by_file("a.stories.ts");
+        assert!(
+            a.imports
+                .iter()
+                .all(|item| item.reason.starts_with("Switched"))
+        );
+        assert!(a.manual.iter().all(|task| !task.contains("Replace")));
+        // A name Specimen lacks keeps the whole import, as a task for a person.
+        let b = by_file("b.stories.ts");
+        assert_eq!(
+            b.imports
+                .iter()
+                .filter(|item| item.native.is_some())
+                .count(),
+            0
+        );
+        assert!(
+            b.manual.iter().any(|task| task.contains("`fireEvent`")),
+            "{:?}",
+            b.manual
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.join("src/a.stories.ts")).unwrap(),
+            story
+        );
+
+        let applied = run_with(&directory, true, true);
+        assert_eq!(applied.summary.applied, 1);
+        let written = std::fs::read_to_string(directory.join("src/a.stories.ts")).unwrap();
+        // Each keeps its own quotes, and nothing else changes.
+        assert_eq!(
+            written,
+            story
+                .replace(
+                    "\"@storybook/web-components-vite\"",
+                    "\"@lushly-dev/specimen/types\""
+                )
+                .replace("'storybook/test'", "'@lushly-dev/specimen/test'")
+        );
+        // Nothing is left to switch.
+        assert_eq!(run_with(&directory, true, true).summary.applied, 0);
         let _ = std::fs::remove_dir_all(&directory);
     }
 }

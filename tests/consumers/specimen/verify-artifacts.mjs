@@ -140,7 +140,14 @@ assert.equal(native.version, '2.2.0');
 assert.equal(native.bin, undefined);
 assert.equal(native.peerDependencies, undefined);
 assert.equal(native.optionalDependencies, undefined);
-assert.deepEqual(Object.keys(native.exports), ['.', './types', './schema', './evidence']);
+assert.deepEqual(Object.keys(native.exports), [
+	'.',
+	'./types',
+	'./schema',
+	'./evidence',
+	'./preview',
+	'./test',
+]);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
 const integration = packedManifest('@lushly-dev/specimen-afd');
@@ -205,6 +212,8 @@ assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_V
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
 assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
+const { setCustomElementsManifest } = await import('@lushly-dev/specimen/preview');
+setCustomElementsManifest({ modules: [] });
 assert.equal(CAPTURE_VERSION, '0.8');
 assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
@@ -240,6 +249,70 @@ for (const runtimeIsolation of ['in-process', 'process']) {
 );
 execFileSync(process.execPath, ['runtime.mjs'], { cwd: nativeRoot, stdio: 'inherit' });
 passed('native exports, schemas, in-process and process-worker render/reuse/build/close');
+
+// A retained story with Specimen's helpers and types, where no Storybook is installed.
+assert(!installed.some((name) => /^(?:@storybook\+|storybook@)/.test(name)), installed.join('\n'));
+await mkdir(join(nativeRoot, 'retained'));
+await writeFile(
+	join(nativeRoot, 'retained/specimen.config.json'),
+	JSON.stringify({ stories: ['*.stories.ts'] })
+);
+await writeFile(
+	join(nativeRoot, 'retained/press.stories.ts'),
+	`import { expect, fn, userEvent, waitFor, within } from '@lushly-dev/specimen/test';
+import type { Meta, StoryObj } from '@lushly-dev/specimen/types';
+type Args = { onPress?: () => void };
+const meta: Meta<Args> = {
+	title: 'Consumer/Press',
+	render: ({ onPress }) => {
+		const button = document.createElement('button');
+		button.textContent = 'Press';
+		if (onPress) button.addEventListener('click', onPress);
+		return button;
+	},
+};
+export default meta;
+export const Presses: StoryObj<Args> = {
+	args: { onPress: fn() },
+	play: async ({ args, canvasElement }) => {
+		const button = within(canvasElement).getByRole('button');
+		await userEvent.click(button);
+		await waitFor(() => expect(args.onPress).toHaveBeenCalledOnce());
+		await expect(button).toHaveTextContent('Press');
+	},
+};
+export const Fails: StoryObj<Args> = {
+	play: async ({ canvasElement }) => {
+		await expect(canvasElement).toHaveTextContent('Absent');
+	},
+};
+`
+);
+await writeFile(
+	join(nativeRoot, 'retained.mjs'),
+	`import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createSpecimenBench } from '@lushly-dev/specimen';
+import * as test from '@lushly-dev/specimen/test';
+assert.deepEqual(Object.keys(test).sort(), ['expect', 'fn', 'spyOn', 'userEvent', 'waitFor', 'within']);
+const bench = await createSpecimenBench({ root: new URL('./retained/', import.meta.url).pathname });
+try {
+	const status = async (id) => (await bench.run({ id })).outcome.status;
+	assert.equal(await status('consumer-press--presses'), 'passed');
+	assert.equal(await status('consumer-press--fails'), 'failed');
+	const out = new URL('./retained-site', import.meta.url).pathname;
+	await bench.build(out);
+	const report = JSON.parse(await readFile(out + '/specimen-build.json', 'utf8'));
+	assert.equal(report.reported.incumbent, 0);
+	assert(report.categories.interaction.bytes > 200000, 'the helpers count as interaction support');
+	assert(report.reported.consumer < 5000, 'nothing they bring counts as the consumer');
+} finally {
+	await bench.close();
+}
+`
+);
+execFileSync(process.execPath, ['retained.mjs'], { cwd: nativeRoot, stdio: 'inherit' });
+passed('a retained story runs on Specimen’s helpers and types with no Storybook installed');
 passed('requested-but-unavailable integration fails with ERR_MODULE_NOT_FOUND naming the package');
 
 const typeSource = await readFile(join(repository, 'foundations/specimen/src/types.ts'), 'utf8');
@@ -252,6 +325,17 @@ await writeFile(
 	`import * as Native from '@lushly-dev/specimen';
 import type * as Contracts from '@lushly-dev/specimen/types';
 import * as Schema from '@lushly-dev/specimen/schema';
+import { expect as check } from '@lushly-dev/specimen/test';
+const meta: Contracts.Meta<{ label: string }> = { title: 'Typed', render: ({ label }) => label };
+export const typed: Contracts.StoryObj<{ label: string }> = {
+	args: { label: 'A' },
+	play: async ({ args, canvasElement }) => {
+		await check(canvasElement).toHaveTextContent(args.label);
+	},
+};
+// @ts-expect-error A retained play's context has no \`mount\`.
+export const noMount: Contracts.StoryObj = { play: async ({ mount }) => void mount };
+export const fromMeta: Contracts.StoryObj<typeof meta> = { args: { label: 'B' } };
 export type RootCoverage = [${publicTypes.map((name) => `Native.${name}`).join(', ')}];
 export type TypeCoverage = [${publicTypes.map((name) => `Contracts.${name}`).join(', ')}];
 export type Bench = Native.SpecimenBench;

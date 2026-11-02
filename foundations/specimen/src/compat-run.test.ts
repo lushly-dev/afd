@@ -193,6 +193,20 @@ describe('retained stories end the same way in both runners', () => {
 	}, 300_000);
 });
 
+describe('Specimen’s own helpers and types', () => {
+	it('mean the same in both runners, passing and failing', async () => {
+		await agree('native', {
+			'Jest Dom Matchers': 'passed',
+			'Spies And User Events': 'passed',
+			'Typing And Waiting': 'passed',
+			'Asymmetric And Structural': 'passed',
+			'Wrong Value': 'failed:play',
+			'Jest Dom Matcher': 'failed:play',
+			'Never True': 'failed:play',
+		});
+	}, 300_000);
+});
+
 describe('a suite of retained stories', () => {
 	it('ends each story as its single run does, with two workers', async () => {
 		const bench = await createSpecimenBench({ root: compat });

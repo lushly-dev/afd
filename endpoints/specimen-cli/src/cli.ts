@@ -54,7 +54,7 @@ const valueOptions = new Set([
 	'gaps',
 	'out',
 ]);
-const flagOptions = new Set(['require-visual', 'apply', 'retry']);
+const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -91,7 +91,7 @@ function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
 		list: new Set(['root', 'config', 'output']),
 		validate: new Set(['root', 'config', 'output', 'id', 'file']),
-		migrate: new Set(['root', 'config', 'output', 'files', 'apply']),
+		migrate: new Set(['root', 'config', 'output', 'files', 'apply', 'helpers']),
 		render: new Set([
 			'root',
 			'config',
@@ -322,6 +322,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						? { files: (parsed.options.get('files') ?? '').split(',').filter(Boolean) }
 						: {}),
 					...(parsed.flags.has('apply') ? { apply: true } : {}),
+					...(parsed.flags.has('helpers') ? { helpers: true } : {}),
 				});
 			else if (parsed.action === 'validate')
 				result = await executeSpecimenCommand(bench, 'specimen-validate', {
@@ -465,7 +466,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, migrate [--files A,B] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

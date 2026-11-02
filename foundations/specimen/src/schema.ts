@@ -716,6 +716,7 @@ export const inspectResultSchema = z.strictObject({
 export const migrateRequestSchema = z.strictObject({
 	files: z.array(z.string().min(1)).min(1).optional(),
 	apply: z.boolean().optional(),
+	helpers: z.boolean().optional(),
 });
 export const migrationReportSchema = z.strictObject({
 	mode: z.enum(['preview', 'apply']),
@@ -734,6 +735,7 @@ export const migrationReportSchema = z.strictObject({
 					source: z.string(),
 					names: z.array(z.string()),
 					typeOnly: z.boolean(),
+					native: z.string().optional(),
 					reason: z.string(),
 				})
 			),
