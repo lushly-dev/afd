@@ -104,7 +104,8 @@ function buildThemeExtend(tokens: ResolvedToken[]): Record<string, unknown> {
 
 			case 'radius':
 			case 'borderRadius':
-				theme.borderRadius = buildFlatObject(categoryTokens, toTailwindRadius);
+				// Both categories feed one scale; on a shared key the later category wins
+				Object.assign(theme.borderRadius, buildFlatObject(categoryTokens, toTailwindRadius));
 				break;
 
 			case 'shadow':

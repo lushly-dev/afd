@@ -88,6 +88,35 @@ describe('swift transformer', () => {
 		expect(lineFor(swift, 'family')).toBe('public static let family = "Segoe UI"');
 	});
 
+	it('reads eight-digit hex in CSS RRGGBBAA order and keeps six-digit hex opaque', () => {
+		const swift = swiftTransformer.transform([token('color.gold-overlay', '#FFD70080')]);
+
+		expect(lineFor(swift, 'goldOverlay')).toBe(
+			'public static let goldOverlay = SwiftUI.Color(hex: "#FFD70080")',
+		);
+		expect(swift).toContain(
+			'        case 6: // RGB (24-bit)\n            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)\n',
+		);
+		expect(swift).toContain(
+			'        case 8: // RGBA (32-bit), CSS order: alpha last\n            (r, g, b, a) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)\n',
+		);
+		expect(swift).not.toContain('(a, r, g, b) = (int >> 24');
+	});
+
+	it('escapes quotes, backslashes and control characters in string literals', () => {
+		const swift = swiftTransformer.transform([
+			token('font.family', '"Segoe UI", sans-serif'),
+			token('content.path', 'icons\\(name)'),
+			token('content.lines', 'one\ntwo'),
+		]);
+
+		expect(lineFor(swift, 'family')).toBe(
+			'public static let family = "\\"Segoe UI\\", sans-serif"',
+		);
+		expect(lineFor(swift, 'path')).toBe('public static let path = "icons\\\\(name)"');
+		expect(lineFor(swift, 'lines')).toBe('public static let lines = "one\\ntwo"');
+	});
+
 	it('camel-cases kebab and snake property names', () => {
 		const swift = swiftTransformer.transform([
 			token('spacing.inset.card-padding', 4),

@@ -20,10 +20,18 @@ export interface TransformOptions {
 	/** CSS selector for variables (CSS only, default: ':root') */
 	selector?: string;
 
-	/** TypeScript export style */
+	/**
+	 * TypeScript export style: 'flat' emits one named constant per token;
+	 * 'nested' (default) emits those plus a nested `tokens` object
+	 */
 	exportStyle?: 'flat' | 'nested';
 
-	/** TypeScript export type */
+	/**
+	 * TypeScript export type: 'named' and 'both' (default) behave the same and
+	 * use named exports only. 'default' makes the nested object the default
+	 * export and, for the nested style, drops the named constants.
+	 * transformMulti always uses named exports.
+	 */
 	exportType?: 'named' | 'default' | 'both';
 
 	/** Pretty print output (JSON) */

@@ -67,6 +67,20 @@ describe('dart transformer', () => {
 		);
 	});
 
+	it('moves the alpha of eight-digit CSS hex to the front of the ARGB literal', () => {
+		const dart = dartTransformer.transform([
+			token('color.gold-overlay', '#FFD70080'),
+			token('color.scrim', '#00000033'),
+		]);
+
+		expect(declarationOf(dart, 'colorGoldOverlay')).toBe(
+			'static const Color colorGoldOverlay = Color(0x80FFD700);',
+		);
+		expect(declarationOf(dart, 'colorScrim')).toBe(
+			'static const Color colorScrim = Color(0x33000000);',
+		);
+	});
+
 	it('converts dimensions to doubles with a 16px base for rem and em', () => {
 		const dart = dartTransformer.transform([
 			token('spacing.px', '12px'),
@@ -94,6 +108,24 @@ describe('dart transformer', () => {
 
 		expect(declarationOf(dart, 'motionEasing')).toBe(
 			"static const String motionEasing = 'ease-in-out';",
+		);
+	});
+
+	it('escapes quotes, backslashes, interpolation dollars and control characters in strings', () => {
+		const dart = dartTransformer.transform([
+			token('font.family', `"Segoe UI", 'Helvetica Neue', sans-serif`),
+			token('content.path', 'icons\\$name'),
+			token('content.lines', 'one\ntwo'),
+		]);
+
+		expect(declarationOf(dart, 'fontFamily')).toBe(
+			`static const String fontFamily = '"Segoe UI", \\'Helvetica Neue\\', sans-serif';`,
+		);
+		expect(declarationOf(dart, 'contentPath')).toBe(
+			"static const String contentPath = 'icons\\\\\\$name';",
+		);
+		expect(declarationOf(dart, 'contentLines')).toBe(
+			"static const String contentLines = 'one\\ntwo';",
 		);
 	});
 

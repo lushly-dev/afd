@@ -49,7 +49,9 @@ export const typescriptTransformer: Transformer = {
 			lines.push('');
 		}
 
-		if (exportStyle === 'nested' || exportType === 'default' || exportType === 'both') {
+		// exportType 'both' adds the nested object only for the nested style, so
+		// exportStyle 'flat' takes effect with the default exportType
+		if (exportStyle === 'nested' || exportType === 'default') {
 			// Generate nested object export
 			if (includeComments) {
 				lines.push('// Nested token object');
@@ -71,7 +73,9 @@ export const typescriptTransformer: Transformer = {
 	transformMulti(tokens: ResolvedToken[], options: TransformOptions = {}): Map<string, string> {
 		const files = new Map<string, string>();
 		const groups = groupByCategory(tokens);
+		const nested = (options.exportStyle ?? 'nested') === 'nested';
 		const indexExports: string[] = [];
+		const tokenImports: string[] = [];
 
 		// Generate file per category
 		for (const [category, categoryTokens] of groups) {
@@ -81,6 +85,11 @@ export const typescriptTransformer: Transformer = {
 			});
 			files.set(`${category}.ts`, content);
 			indexExports.push(`export * from './${category}.js';`);
+			if (nested) {
+				tokenImports.push(
+					`import { tokens as tokens${tokenImports.length} } from './${category}.js';`,
+				);
+			}
 		}
 
 		// Generate index file
@@ -92,6 +101,15 @@ export const typescriptTransformer: Transformer = {
 			'',
 			...indexExports,
 		];
+
+		// Every nested category file exports its own `tokens`, which the star
+		// re-exports would export ambiguously (TS2308). A local `tokens` merging
+		// them takes precedence over the star re-exports.
+		if (tokenImports.length > 0) {
+			const merged = tokenImports.map((_, i) => `...tokens${i}`).join(', ');
+			indexLines.push('', ...tokenImports, '', `export const tokens = { ${merged} } as const;`);
+		}
+
 		files.set('index.ts', indexLines.join('\n'));
 
 		return files;
