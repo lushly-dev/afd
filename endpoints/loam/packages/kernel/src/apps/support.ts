@@ -17,6 +17,18 @@ export const readClock = (context: CommandContext): number => context.clock?.now
 export const readRandom = (context: CommandContext): number =>
 	context.random?.next() ?? Math.random();
 
+/**
+ * A frame's value as JSON, or nothing if it has no such form. Structured clone carries a `BigInt` and a
+ * cycle, which a journal cannot write: the entry would be lost and the command would still have run.
+ */
+export function asJson(value: unknown): { value: unknown } | undefined {
+	try {
+		return { value: JSON.parse(JSON.stringify(value)) };
+	} catch {
+		return undefined;
+	}
+}
+
 /** Whether a handler's answer is a `CommandResult`: a failure must carry a code and a message. */
 export function isCommandResult(value: unknown): value is CommandResult {
 	if (typeof value !== 'object' || value === null) return false;

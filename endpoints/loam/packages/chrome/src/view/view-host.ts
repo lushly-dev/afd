@@ -39,6 +39,9 @@ const PHASE_5_METHODS: ReadonlySet<string> = new Set([
 	'ui/update-model-context',
 ]);
 
+/** What would show over the next app, from a view already on its way out. */
+const OVERLAY_COMMANDS: ReadonlySet<unknown> = new Set(['toast-show', 'modal-open']);
+
 const refusal = (rpcCode: number, message: string, suggestion: string) => ({
 	code: 'VIEW_CALL_REFUSED',
 	message,
@@ -62,6 +65,7 @@ export class ViewHost {
 	#bound: AbortController | undefined;
 	#stopLinked: (() => void) | undefined;
 	#initialized = false;
+	#leaving = false;
 
 	constructor(options: ViewHostOptions) {
 		this.#options = options;
@@ -122,6 +126,10 @@ export class ViewHost {
 					hostContext: context(),
 				};
 			case 'tools/call':
+				// A view may save its state in teardown (MCP Apps), and it may not speak over the next app.
+				if (this.#leaving && OVERLAY_COMMANDS.has((params as { name?: unknown } | null)?.name)) {
+					throw refusal(-32600, 'This view is closing', 'Show this before the view is closed');
+				}
 				return broker.toolsCall(params);
 			case 'resources/read':
 				return broker.resourcesRead(params);
@@ -161,6 +169,7 @@ export class ViewHost {
 	/** On a switch away from a view that has sent `initialized`: at most `ms`, and the frame goes after. */
 	async teardown(ms: number): Promise<void> {
 		const { channel } = this.#options;
+		this.#leaving = true;
 		if (this.#bound) channel.notify('ui/notifications/tool-cancelled', { reason: 'app-switch' });
 		this.#stopRunning();
 		let timer: ReturnType<typeof setTimeout> | undefined;

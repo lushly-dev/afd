@@ -416,6 +416,117 @@ describe('E2: what a hostile view can reach', () => {
 		await opened.context.close();
 	});
 
+	it('cannot hold the shell behind a modal it keeps reopening', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		await inner.evaluate(() => {
+			setInterval(() => {
+				parent.postMessage(
+					{
+						jsonrpc: '2.0',
+						id: `hostile-${Math.random()}`,
+						method: 'tools/call',
+						params: { name: 'modal-open', arguments: { title: 'Again', body: 'And again' } },
+					},
+					'*'
+				);
+			}, 20);
+		});
+		const modal = page.locator('loam-modal dialog[open]');
+		await modal.waitFor();
+		await page.keyboard.press('Escape');
+		await expect.poll(() => modal.count()).toBe(0);
+		// The person has time to leave, which takes the view with it.
+		await page.locator('loam-rail loam-app-entry[instance="tally"] button').click();
+		await page.locator('tally-main').waitFor();
+		await expect.poll(() => page.locator('loam-view-frame').count()).toBe(0);
+		expect(await modal.count()).toBe(0);
+		const refused = (await journal(page)).filter((e) => e.command === 'app-modal-refuse');
+		expect(refused[0]?.error?.code).toBe('OVERLAY_COOLDOWN');
+		await opened.context.close();
+	});
+
+	it('cannot lose a journal entry with a value JSON cannot hold', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		const answer = await inner.evaluate(
+			() =>
+				new Promise<{ error?: { code: number } }>((resolve) => {
+					const listen = (event: MessageEvent) => {
+						if (event.data?.id !== 'bigint') return;
+						removeEventListener('message', listen);
+						resolve(event.data);
+					};
+					addEventListener('message', listen);
+					parent.postMessage(
+						{
+							jsonrpc: '2.0',
+							id: 'bigint',
+							method: 'tools/call',
+							params: { name: 'fixture-echo', arguments: { x: 1n } },
+						},
+						'*'
+					);
+				})
+		);
+		expect(answer.error?.code).toBe(-32602);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('sees no trace ID, and cannot show a toast over the next app as it leaves', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		const called = await rpc(inner, 'tools/call', { name: 'fixture-echo', arguments: {} });
+		expect(JSON.stringify(called)).not.toContain('traceId');
+		// It answers teardown with a toast, on its way out.
+		await inner.evaluate(() => {
+			addEventListener('message', (event) => {
+				if (event.data?.method !== 'ui/resource-teardown') return;
+				parent.postMessage(
+					{
+						jsonrpc: '2.0',
+						id: 'parting',
+						method: 'tools/call',
+						params: {
+							name: 'toast-show',
+							arguments: { message: 'Parting shot', durationMs: 30000 },
+						},
+					},
+					'*'
+				);
+			});
+		});
+		await openApp(page, 'tally');
+		await expect.poll(() => page.locator('loam-view-frame').count()).toBe(0);
+		expect(await page.locator('loam-toast').count()).toBe(0);
+		await opened.context.close();
+	});
+
+	it('still reaches WebRTC, which section 12 says no policy here stops', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		const offer = await inner.evaluate(async () => {
+			const connection = new RTCPeerConnection();
+			connection.createDataChannel('x');
+			const made = await connection.createOffer();
+			connection.close();
+			return made.type;
+		});
+		// This pins a known gap. If it fails, a browser closed it: amend section 12 and 9.7.
+		expect(offer).toBe('offer');
+		expect(opened.violations).toEqual([]);
+		await opened.context.close();
+	});
+
 	it("cannot set a base, since a srcdoc document holds the proxy's policy too", async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

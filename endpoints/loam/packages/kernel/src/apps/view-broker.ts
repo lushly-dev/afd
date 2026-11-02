@@ -8,7 +8,7 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import type { AppPortV1, LinkedCallV1, ViewBrokerV1 } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
-import { refuseRequest } from './support.js';
+import { asJson, refuseRequest } from './support.js';
 
 /** A view's resource, as MCP Apps types it (6.2). */
 const RESOURCE_MIME = 'text/html;profile=mcp-app';
@@ -56,7 +56,11 @@ export function createViewBroker({ manifest, sandboxOrigin, port }: ViewBrokerOp
 						'Add `app` to its `tool_meta.ui.visibility`'
 					);
 				}
-				return toolCallResult(await port().call(name, input ?? {}));
+				const json = asJson(input ?? {});
+				if (json === undefined) {
+					throw refuse("A tool's arguments are JSON", 'Pass arguments with no BigInt and no cycle');
+				}
+				return toolCallResult(await port().call(name, json.value));
 			},
 			async resourcesRead(params) {
 				const { uri } = (params ?? {}) as { uri?: unknown };

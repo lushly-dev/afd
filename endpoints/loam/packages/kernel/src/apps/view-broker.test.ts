@@ -60,6 +60,26 @@ describe('the view broker', () => {
 		}
 	);
 
+	it('refuses arguments that are not JSON, since the journal could not write them', async () => {
+		const { broker, call } = setup();
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		for (const args of [{ x: 1n }, cycle]) {
+			await expect(
+				broker.toolsCall({ name: 'probe-plain', arguments: args })
+			).rejects.toMatchObject({ details: { rpcCode: -32602 } });
+		}
+		expect(call).not.toHaveBeenCalled();
+	});
+
+	it('shows no trace ID, which counts every call in the kernel', async () => {
+		const { broker, call } = setup();
+		call.mockResolvedValueOnce(success({ ok: true }, { metadata: { traceId: 'loam-x-9', a: 1 } }));
+		const answer = await broker.toolsCall({ name: 'probe-plain' });
+		expect(JSON.stringify(answer)).not.toContain('loam-x-9');
+		expect(answer.structuredContent).toMatchObject({ metadata: { a: 1 } });
+	});
+
 	it('refuses a command its visibility hides from the app', async () => {
 		const { broker, call } = setup();
 		await expect(broker.toolsCall({ name: 'probe-model' })).rejects.toMatchObject({

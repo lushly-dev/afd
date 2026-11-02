@@ -18,6 +18,7 @@ import {
 	probeDeployment,
 } from '../testing.js';
 import type { AppDetailV1, AppSummaryV1, LoamKernelV1 } from '../types.js';
+import { packageFile } from './port.js';
 
 const kernels: LoamKernelV1[] = [];
 afterEach(async () => {
@@ -567,5 +568,22 @@ describe('disposal', () => {
 		const { kernel, probe } = await boot();
 		await kernel.dispose();
 		expect((await probe.call('shell-info-get')).error?.code).toBe('KERNEL_DISPOSED');
+	});
+});
+
+describe('packageFile', () => {
+	it('keeps a path inside the package, and refuses what a server might decode out of it', () => {
+		const root = 'https://shell.test/apps/x/';
+		expect(packageFile(root, 'dist/main.html')).toBe(`${root}dist/main.html`);
+		for (const path of [
+			'../other/a',
+			'/a',
+			'..%2f..%2fdeployment.json',
+			'%2e%2e/a',
+			'..\\a',
+			'a\\b',
+		]) {
+			expect(packageFile(root, path), path).toBeUndefined();
+		}
 	});
 });

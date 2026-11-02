@@ -35,7 +35,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 231_360,
 	appsMinified: 300_000,
 	surfacesMinified: 85_000,
-	viewMinified: 24_904,
+	viewMinified: 25_080,
 });
 
 /** Group a module id by the package it belongs to. */

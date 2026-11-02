@@ -298,6 +298,22 @@ export function createRefusalCommands(): ZodCommandDefinition[] {
 			},
 		}),
 		defineCommand<typeof refuseInput, never>({
+			name: 'app-modal-refuse',
+			description: 'Refuses a modal from a view a person just closed one of, and journals it',
+			category: 'app',
+			mutation: false,
+			executionTime: 'instant',
+			input: refuseInput,
+			async handler() {
+				return kernelFailure(
+					'OVERLAY_COOLDOWN',
+					'A person just closed a modal of this view, so it cannot open another yet',
+					'Ask again in a few seconds, or show a toast',
+					{ retryable: true }
+				);
+			},
+		}),
+		defineCommand<typeof refuseInput, never>({
 			name: 'app-nested-refuse',
 			description: 'Refuses a mutation from inside a handler, so the refusal reaches the journal',
 			category: 'app',

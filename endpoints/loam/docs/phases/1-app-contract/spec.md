@@ -1738,6 +1738,7 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 | `app-selection-get` | query | `{ instance }` | `{ id: string \| null }` |
 | `app-call-refuse` | internal | `{ command }` | Always `CALL_NOT_GRANTED`. Not in `listCommands` |
 | `app-nested-refuse` | internal | `{ command }` | Always `NESTED_MUTATION_REFUSED`. Not in `listCommands` |
+| `app-modal-refuse` | internal | `{ command }` | Always `OVERLAY_COOLDOWN`, for a view ([9.7](#97-decided-by-step-5)). Not in `listCommands` |
 | `app-selection-set` | mutation | `{ instance; id: string \| null }` | `{ id }`; undo restores it |
 | `status-item-set` | mutation | `{ id; value: string (0 to 40) }` | `{ id, value }`. Only the owning app; `shell` may not. An unknown id is `STATUS_ITEM_UNKNOWN` |
 | `toast-show`, `modal-open`, `overlay-dismiss`, `overlay-list` | [Section 8](#8-overlays-in-phase-1) | | |
@@ -1823,7 +1824,7 @@ new commands are small and the rest is lazy:
 | `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays, and what it imports that first paint has not loaded, such as the listbox | When a deployment lists an app, or the first toast or modal on a shell with none | 85,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 76,622 |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
-| `view` chunk: the view host | When a view app opens, or a view app's command is first called | 24,904. Step 5 measured 22,640, under 70% of the first ceiling of 60,000, so it is lowered by phase 0's rule ([9.7](#97-decided-by-step-5)) |
+| `view` chunk: the view host | When a view app opens, or a view app's command is first called | 25,080. Step 5 measured 22,800, under 70% of the first ceiling of 60,000, so it is lowered by phase 0's rule ([9.7](#97-decided-by-step-5)) |
 | `kit` chunks | Per element, on `kit.define` | None |
 | Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,024 (gzip 17,897) and 79,167 (21,338), each with its own FAST |
 
@@ -2123,15 +2124,46 @@ handler frame, in Chromium 156. E2 holds all of it.
   did not choose to report. Debugging it costs opening the frame's console. The test kit's in-process frame answers the
   same, and E2 scans the journal for a thrown string.
 - **That rule is about accidents, not hostility.** A hostile frame can return `failure({ message })` with any text, and
-  that is its own result, journaled as any is: what it can put there is bounded by nothing but what its app holds. So
-  the kernel does not try to tell one failure from another.
-- **The kernel takes no free text from a frame besides that result.** `CALL_ABORTED` no longer holds a cause's message.
-  A JSON-RPC error answered to `dev.loam/handler-call` is `HANDLER_RESULT_INVALID`, since it is no result, and its text
-  goes nowhere. `handlers-ready`'s names are read only if they look like command names, and the mismatch message names
-  only those, up to 512 characters, because `markFailed`'s record reaches `app-get` and so the journal.
+  that is its own result, journaled as any is. So the kernel does not try to tell one failure from another.
+- **The kernel takes no other free text from a frame.** `CALL_ABORTED` no longer holds a cause's message. A JSON-RPC
+  error answered to `dev.loam/handler-call` is `HANDLER_RESULT_INVALID`, since it is no result, and its text goes nowhere.
+  `handlers-ready`'s names are read only if they look like command names, and the mismatch message names only those, up
+  to 512 characters, because `markFailed`'s record reaches `app-get` and so the journal.
 - **`dev.loam/page-decided` is stripped** from what a frame returns. 9.5 made it a marker because "an app may return those
-  codes itself, and that is an ordinary result to compare"; a frame that set it could otherwise hide its results from
-  a replay.
+  codes itself, and that is an ordinary result to compare"; a frame that set it could otherwise hide its results from a
+  replay. A frame that writes and then never answers still earns it through `HANDLER_TIMEOUT`, as 9.5 accepts.
+
+**What the security review found (2026-11-02)**
+
+An independent review, with hostile fixtures in Chromium, confirmed the origin checks, the attributes and the message
+handling as written, and found these. The first is a limit of the design and is for the owner; the rest are fixed here
+unless they say otherwise.
+
+- **WebRTC leaves the sandbox.** Section 12 is corrected, and D62's consequences say so. A test pins that the API is
+  reachable, so a browser that closes it fails the test and this text gets corrected. The packets themselves were
+  checked by hand once, and are not in the suite, since a runner's UDP to loopback is not a thing to rest CI on.
+- **A command could run with no journal entry.** Structured clone carries a `BigInt` and a cycle, the journal's write
+  threw on them, and its `onError` dropped the entry, while the command had run and any store write stayed. That broke
+  6.3's promise. So what a frame returns, the `arguments` of a view's or a frame's `tools/call`, and a stored value go
+  through JSON first: a result that cannot is `HANDLER_RESULT_INVALID`, and the others are `-32602`.
+- **A view could lock the shell.** One that reopens `modal-open` at once holds the page inert behind `showModal()`, and
+  a reload brings it back, since its app is reopened: only clearing site data got out, against D66. So a view's
+  `modal-open` within 5 seconds of a person closing one of its modals is `OVERLAY_COOLDOWN`, journaled through the
+  internal `app-modal-refuse`, in `port.call`, so the first-paint kernel holds only that name. Native apps are unchanged,
+  since they are trusted. Modals opened and closed by the app itself count too, which costs an honest view nothing.
+- **A trace ID counts every call in the kernel,** which 9.1 keeps from a view as a seq. So `toolCallResult` drops
+  `metadata.traceId`, and a frame's `callId` and `context.traceId` are `<instance>-<n>`. `parent` is still the real one.
+  `OVERLAY_NOT_FOUND` against `OVERLAY_NOT_OWNER` still says that another app holds an `ovl-<n>`: 5.3 asks for that code,
+  it says no more than that, and it stays.
+- **A leaving view could toast over the next app,** answering teardown with `toast-show`. `toast-show` and `modal-open`
+  from a view are refused once teardown starts. Other calls still run, since MCP Apps lets a view save its state then.
+  A handler frame can still toast with its app closed, inside a call, which section 8 allows; overlays naming their
+  owner is a follow-up.
+- **`..%2f` in a path.** `packageFile` kept it inside the package as a URL, and a server that decodes `%2F` would serve
+  what is outside. It now refuses `%` and `\\` at run time. `app check`'s path shape is the core's, unchanged.
+- **Not fixed: size and rate.** A 5,000,000-character input was journaled whole, 2,000 calls took about 3 seconds, and the
+  journal has no retention, so one view can exhaust the origin's quota, which every app's store shares. That needs a
+  decision on limits across the journal and the store, so it is a follow-up.
 
 **The interface**
 
@@ -2162,13 +2194,14 @@ handler frame, in Chromium 156. E2 holds all of it.
 
 - **E2 holds it:** a native-only deployment and an empty shell request no `view-*` chunk and nothing under `sandbox/`,
   and hold no iframe.
-- **First paint** is 317,981 of 320,000 and 94,046 of 95,000 gzip, 59 and 22 more than step 4: the entry names one more
-  chunk. It was 318,100 and 94,344 until two things moved, which later steps should also watch for:
+- **First paint** is 318,000 of 320,000 and 94,056 of 95,000 gzip, 78 and 32 more than step 4: the entry names one more
+  chunk, and the kernel one more internal command. Before two things moved it was 318,100 and 94,344, and later steps
+  should watch for the same:
   - `ports.ts`'s own dynamic import put the bundler's preload helper in a chunk of its own, because the `deployment`
     chunk needed it without the shell's. So `main.ts` names the import and passes it to `readOrNotice`, as `loadView`.
   - `ref` in the view frame split `ref` out of the shared chunk. It queries its shadow root instead.
-- **Rows.** `view` is 22,640, so its ceiling falls from 60,000 to 24,904 by phase 0's rule. `surfaces` is 77,5xx of 85,000,
-  and `apps` 267,164 of 300,000. `budget` fails if the build has no `view-*` chunk.
+- **Rows.** `view` is 22,800, so its ceiling falls from 60,000 to 25,080 by phase 0's rule. `surfaces` is 77,451 of 85,000,
+  `apps` 268,338 of 300,000 and the kernel 226,628 of 231,360. `budget` fails if the build has no `view-*` chunk.
 
 **The repository**
 
@@ -2211,6 +2244,7 @@ to `LoamKernelErrorCode`. Each row is covered by a unit test or an exit test.
 | `VIEW_RESOURCE_UNAVAILABLE` | The resource file cannot be fetched | Main shows the failure | `app pack` |
 | `VIEW_READY_TIMEOUT` | No `initialized` in 15 seconds | The frame is removed and main shows the failure | Reopen; check the view calls `ui/initialize` |
 | `HANDLER_READY_TIMEOUT`, `HANDLER_TIMEOUT`, `HANDLER_RESULT_INVALID`, `HANDLER_NO_CALL`, `HANDLER_THREW`, `CALL_ABORTED` | [6.3](#63-the-handler-frame), [9.5](#95-decided-by-step-3) | A failure result | Per row |
+| `OVERLAY_COOLDOWN` | A view's `modal-open` within 5 seconds of a person closing one of its modals ([9.7](#97-decided-by-step-5)) | A failure result, journaled, retryable | Ask again in a few seconds, or show a toast |
 | `NESTED_MUTATION_REFUSED` | [5.3](#53-the-app-port) | A failure result, journaled | Do the mutation from the surface, or move it into this command's handler |
 | `VIEW_STATE_READ_ONLY` | `view-state-set` on `loam.apps` | A failure result, journaled | `app-open` |
 | `MOUNT_UNREACHABLE` | A network error, a 404, 405 or 502, a response that is not MCP (a static host's HTML), or a relay absent | `failed`, retryable | "Is the instance running? A browser reaches it through the hosted server." |
@@ -2423,16 +2457,20 @@ The manifest is untrusted input, and trust comes from the kind (the proposal's S
 - **Message channels.** The chrome and the proxy check `source` and `origin` on every message ([6.1](#61-the-sandbox-proxy)).
   A proxy framed by another site can only render that site's own HTML in an opaque iframe. A deployer
   sets `frame-ancestors` on `sandbox/`.
-- **What the sandbox does not stop.** As first written, this said a view may navigate its own frame with data in
-  the URL. In Chromium the proxy's `frame-src 'self'` refuses that for any other origin, and the view has only
-  replaced itself with an error page. It may still navigate to the sandbox's own origin, which sends that origin
-  a request with data in the URL and renders nothing, since `frame-ancestors` lists the shell alone: what reaches a
-  deployer's own log ([9.7](#97-decided-by-step-5)). `navigate-to` is gone from CSP, so this rests on `frame-src`.
-  A view is isolated from the shell and other apps. The broker gives it only its own app's commands, so what it can
-  leak is what its own app holds, to that log at most. Phase 7's sandbox policy for drafts revisits this, and the
-  browsers phase 6 adds must pass the same test.
-- **What a frame says.** A frame is untrusted, so what it says is treated as text it chose: see the rule on thrown
-  messages, command names and the page's marker in [9.7](#97-decided-by-step-5).
+- **What the sandbox does not stop.** **A view's data is not confidential from its author.** `connect-src` does not
+  cover WebRTC, so a view or a handler frame can send anything it holds to any host: on 2026-11-02 in Chromium 156, an
+  opaque inner frame's `RTCPeerConnection` sent STUN packets to a listener named in its configuration, with no CSP
+  violation. CSP's `webrtc 'block'` is ignored by that Chromium, and deleting the constructor is undone by a `srcdoc`
+  child frame, so nothing in this design closes it. So a view is isolated from the shell and from other apps: it cannot
+  reach their data or their commands. What it can leak is what its own app holds, including its store, its `config`
+  and what is pushed to it, and it can leak that anywhere. A deployer must not give an untrusted app data its author
+  should not see. Phase 7's sandbox policy for drafts starts from this, and a follow-up asks whether the browsers
+  phase 6 adds differ. As first written, this said only that a view may navigate its own frame with data in the URL.
+  That was wrong about navigation, and missed WebRTC: in Chromium the proxy's `frame-src 'self'` refuses navigation to
+  any other origin, and one to the sandbox's own origin sends a request and renders nothing, since `frame-ancestors`
+  lists the shell alone ([9.7](#97-decided-by-step-5)).
+- **What a frame says.** A frame is untrusted, so what it says is treated as text it chose, and what it sends must be
+  JSON: see [9.7](#97-decided-by-step-5).
 - **Personal data.** Phase 1 adds none beyond the Mock email and what apps store. Journal entries carry the
   input of each call, as phase 0's do; `redact` is where phase 3 extends.
 - **Prompt injection through mounted content** is phase 5's, with the copilot: phase 1 has no model. The
@@ -2631,3 +2669,8 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-02 | Phase 1 step 4 | A non-empty toast region has no F6 stop or chord, and is last in the Tab order, so reaching a toast by keyboard before its timer ends is hard. With phase 4's sticky toasts | Open; phase 4 |
 | 2026-11-02 | Phase 1 step 4 | The rail does not scroll when its entries overflow (9.6), and needs its tooltips out of the list, in a popover, first. In `unavailableApps`, a shell-owned modal does not refuse a switch, as section 8 has it, because no modal is likely in a page that could not load its apps | Open |
 | 2026-11-02 | Phase 1 step 4 | `scripts/affected/suites.mjs` still runs `pnpm -F "./endpoints/loam/packages/*" test`, without `apps/*`, because editing it selects the whole workspace; `pnpm check` covers the apps' units. Step 7 changes that entry anyway, as section 1 says | Open; step 7 |
+| 2026-11-02 | Phase 1 step 5 | **For the owner.** A view's data is not confidential from its author: WebRTC reaches any host, and no policy here stops it in Chromium 156 (section 12, D62). Decide whether that is acceptable for untrusted apps as phases 6 and 7 widen who deploys them, and whether to add `webrtc 'block'` for browsers that honour it | Open; owner |
+| 2026-11-02 | Phase 1 step 5 | Nothing limits a view's or a frame's message size, call rate or storage: a 5,000,000-character input is journaled whole, and one view can exhaust the origin's quota, shared by the journal and every app's store (9.7). A journal that cannot append drops the entry, so this also widens what escapes it. Decide limits across the broker, the journal and the store | Open |
+| 2026-11-02 | Phase 1 step 5 | With focus inside a view, the shell's chords (Mod+K, F6 and the rest) go to the frame's document and do nothing, since a cross-origin frame's keys never reach the shell. A person leaves with Tab. MCP Apps has no key-forwarding message; decide with phase 4's keybindings whether the SDK offers one | Open; phase 4 |
+| 2026-11-02 | Phase 1 step 5 | Run E2 in Firefox and WebKit, as the mount's follow-up above asks of its suite. 9.7's navigation and WebRTC results are Chromium's | Open; phase 6 |
+| 2026-11-02 | Phase 1 step 5 | Toasts and modals do not name the app that opened them, so an app's text can pass for the shell's, or for another app's: give an overlay its owner's name | Open; phase 4 |

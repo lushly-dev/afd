@@ -61,6 +61,7 @@ export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
  */
 export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-call-refuse',
+	'app-modal-refuse',
 	'app-nested-refuse',
 ]);
 
