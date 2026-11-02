@@ -406,6 +406,11 @@ fn the_petgraph_cache_is_keyed_by_revisions_and_reader_and_bounded() {
     assert_eq!(wide.graph.node_count(), 2, "another reader, another entry");
     let subgraph = store.subgraph(&outsider).expect("subgraph");
     assert_eq!(subgraph.nodes.len(), first.graph.node_count());
+    // The cached form converts back to exactly what the trait method reads from SQL, so the host
+    // can serve the whole-graph read from the cache.
+    assert_eq!(first.to_subgraph(), subgraph);
+    let wide_sql = store.subgraph(&insider).expect("subgraph");
+    assert_eq!(wide.to_subgraph(), wide_sql);
 
     // Tightening a document's access moves the head, not the graph's applied revision, and the
     // edges it hides must disappear at once: the key includes the head.

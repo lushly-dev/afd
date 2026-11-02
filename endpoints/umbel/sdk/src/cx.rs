@@ -364,6 +364,14 @@ pub trait HostServices: Send + Sync {
     fn graph_subgraph(&self, _space: &str) -> Result<Subgraph, HostError> {
         not_granted("graph")
     }
+    /// Grant `graph`: the store revision the space's graph reflects. Like
+    /// [`HostServices::index_applied`] it is shown to every reader.
+    ///
+    /// # Errors
+    /// As [`HostServices::graph_neighbors`].
+    fn graph_applied(&self, _space: &str) -> Result<Rev, HostError> {
+        not_granted("graph")
+    }
     /// Grant `graph_write`: replace the contributions of a batch's documents and record
     /// `applied`, in one transaction.
     ///
@@ -396,6 +404,27 @@ pub trait HostServices: Send + Sync {
     /// # Errors
     /// As [`HostServices::derive_changes`].
     fn derive_document(&self, _space: &str, _id: &str) -> Result<Option<Document>, HostError> {
+        not_granted("index_write")
+    }
+    /// A derivation read of the space's **true** head revision: the last revision of any change,
+    /// readable by the caller or not. It counts what the caller may not read, so it is offered
+    /// only where a derivation read is (the same rules as [`HostServices::derive_changes`]); a
+    /// command that answers a reader reports the highest revision of a change the reader can
+    /// read instead.
+    ///
+    /// # Errors
+    /// As [`HostServices::derive_changes`].
+    fn derive_head(&self, _space: &str) -> Result<Rev, HostError> {
+        not_granted("index_write")
+    }
+    /// Best-effort store maintenance after a run that wrote (the embedded backend's WAL
+    /// checkpoint, specification section 3.2). A busy store is not an error. Needs one of the
+    /// write grants allowed for the space.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`] (the message names `STORE_WRITE_NOT_ALLOWED` when a write grant
+    /// is held but not allowed for the space), [`HostError::Io`].
+    fn checkpoint(&self, _space: &str) -> Result<(), HostError> {
         not_granted("index_write")
     }
     /// The read methods as another principal (`knowledge-eval`). Only in a command exposed to

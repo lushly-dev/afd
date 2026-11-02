@@ -134,7 +134,12 @@
   `derivedFrom` the proposal and `confidence`, `applied`) that resumes after a stop; the
   frontmatter-only rewrite `umbel_okf::rewrite_keys`; the write scan on proposals; one host service,
   `reader_tokens`. See [Amendments from step 8](#amendments-from-step-8).
-- **Not done:** steps 7a, 7b, 9 and 10 of the [plan](#14-implementation-plan);
+  **Step 7a, part 1, the three host
+  services**, 2026-11-01, in the step 7a host pull request: `derive_head` (the store's true head,
+  under derivation reads only), `graph_applied` (a `graph` read) and `checkpoint` (the WAL
+  checkpoint after a run that wrote), and the whole-graph read served from the readable-graph
+  cache; see [Amendments from step 7a](#amendments-from-step-7a).
+- **Not done:** the rest of step 7a and steps 7b, 9 and 10 of the [plan](#14-implementation-plan);
   the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2274,6 +2279,17 @@ in the host's `tests/access_filter.rs`.
 | G14 | Section 8 lists `records_write`, `documents_write` and `content_write` without saying how a deployer's existing configuration copes | `records` and `records_write` are required (a proposal cannot exist without them), so an instance needs `[plugins.knowledge.grants.records_write] allow = [...]` as it needed `index_write`'s; `documents_write` and `content_write` stay optional and, with no `allow`, are withheld (`PROPOSAL_APPLY_UNAVAILABLE` at approve, after the decision is recorded). The tests' shared configuration allows all three | 3.3, 8 |
 | G15 | Section 9.3 names `umbel_okf::rewrite_keys` without a signature | `rewrite_keys(text, &[(key, Value)]) -> Result<String, RewriteError>`: a key's lines (its own and the more-indented or same-indentation `- ` lines that continue it) are replaced by a canonical block (scalars and flow values as JSON, lists as block sequences, `by` before `at`), missing keys are appended before the closing fence in the order given, a file with no frontmatter gets a block in front; line endings and a byte order mark are kept; the result is read back with the stores' reader and each requested value checked, else `RewriteError::NotApplied` | 9.3 |
 | G16 | Section 9.2 says an area's policy version is recorded at submission | It is recorded at submission and set again to the policy in force when the decision is recorded; a proposal for a collection kind other than markdown, or for `index.md` or `log.md`, is `PROPOSAL_INVALID` | 9.1, 9.2 |
+
+## Amendments from step 7a
+
+Step 7a is two pull requests. The first adds the three host services that step 6 recorded as
+missing (F1, F2, F4); it is host and SDK only. The second builds the structural graph in the
+knowledge plugin and adds its rows here.
+
+| # | Where the text and the code disagreed | What step 7a did | Section |
+| --- | --- | --- | --- |
+| H1 | Sections 3.5 and 8.7 want the exact head and the graph's applied revision, and step 6 (F1, F2, F4) approximated both because the SDK offered neither; section 8.7 also ends a run with the WAL checkpoint | `HostServices` gains `graph_applied(space)` (grant `graph`, a read like `index_applied`, so also on a `Reader`), `derive_head(space)` (the **true** head, which counts changes the caller may not read, so it is a **derivation read**: it needs a command with the `store-write` effect and `index_write` or `graph_write` allowed for the space, exactly as `derive_changes` does) and `checkpoint(space)` (best effort; needs any one of the four store write grants allowed for the space, never a `Reader`'s view; a busy store is not an error). `Cx` wraps all three; `SpaceCx` also gets `graph_applied`, `graph_edges` and `graph_subgraph`. A command that answers a reader still reports the highest revision of a change that reader can read (F4), because the true head is the hidden-count side channel of section 6 and owner decision 4 accepted only the leaks that section lists | 3.3, 3.5, 6, 8.7 |
+| H2 | Section 3.2 says the petgraph cache serves traversals and step 3 built it (C5), but nothing in the host used it: `graph_subgraph` read SQL every time | The host answers `graph_subgraph` from `SqliteStore::readable_graph` (keyed by the graph's applied revision, the head and the reader filter), converted back with the new `ReadableGraph::to_subgraph`, which returns exactly the nodes and edges, in the order, that `GraphStore::subgraph` reads from SQL (tested equal). A tightened access set therefore hides edges at once (tested through the host) | 3.2 |
 
 ## Follow-ups
 

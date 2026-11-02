@@ -865,3 +865,132 @@ async fn a_second_process_style_open_of_the_same_stores_sees_the_writes() {
     let _ = ALL_GRANTS;
     let _: &Path = dir.path();
 }
+
+#[tokio::test]
+async fn the_true_head_is_a_derivation_read_and_the_graphs_applied_revision_is_a_graph_read() {
+    let (_dir, host) = standard();
+    // One readable and two restricted documents: the agent reads only the first.
+    for (id, access) in [
+        ("notes/open", json!(["space"])),
+        ("notes/hidden-a", json!(["group:platform"])),
+        ("notes/hidden-b", json!(["group:platform"])),
+    ] {
+        let put = run(
+            &host,
+            "sp-write",
+            "main",
+            "doc-put",
+            json!({"id": id, "text": "x", "access": access}),
+        )
+        .await;
+        assert!(put.success, "{put:?}");
+    }
+    let readable = run(&host, "sp-read", "main", "doc-changes", json!({})).await;
+    assert_eq!(result(&readable), json!(["notes/open"]));
+    // A command that answers a reader cannot ask for the head, which counts the hidden changes.
+    let refused = run(&host, "sp-read", "main", "derive-head", json!({})).await;
+    assert_eq!(code(&refused), "NOT_GRANTED");
+    assert!(
+        message(&refused).contains("STORE_WRITE_NOT_ALLOWED"),
+        "{refused:?}"
+    );
+    // A derivation read sees the true head: three changes, two of them unreadable.
+    let head = run(&host, "sp-write", "main", "derive-head", json!({})).await;
+    assert_eq!(result(&head), json!(3));
+    // Only for a space the call named.
+    let other = run(&host, "sp-write", "beta", "derive-head", json!({})).await;
+    assert_eq!(result(&other), json!(0));
+
+    // The graph's applied revision is a read, like the index's, and moves with `apply`.
+    assert_eq!(
+        result(&run(&host, "sp-read", "main", "graph-applied", json!({})).await),
+        json!(0)
+    );
+    let applied = run(
+        &host,
+        "sp-write",
+        "main",
+        "graph-docs",
+        json!({"ids": ["notes/open"], "applied": 3}),
+    )
+    .await;
+    assert!(applied.success, "{applied:?}");
+    assert_eq!(
+        result(&run(&host, "sp-read", "main", "graph-applied", json!({})).await),
+        json!(3)
+    );
+}
+
+#[tokio::test]
+async fn the_readable_graph_cache_serves_the_whole_graph_read_and_a_tightened_access_hides_at_once()
+{
+    let (_dir, host) = standard();
+    let put = run(&host, "sp-write", "main", "doc-put", put("notes/a", "x")).await;
+    assert!(put.success, "{put:?}");
+    let applied = run(
+        &host,
+        "sp-write",
+        "main",
+        "graph-docs",
+        json!({"ids": ["notes/a"], "applied": 1}),
+    )
+    .await;
+    assert!(applied.success, "{applied:?}");
+    let nodes = |outcome: &CommandResult<Value>| result(outcome)["nodes"].clone();
+    let first = run(&host, "sp-read", "main", "graph-subgraph", json!({})).await;
+    assert_eq!(nodes(&first), json!(["doc:notes/a", "tag:shared"]));
+    assert_eq!(result(&first)["edges"], json!(1));
+    // Again: the same answer from the cache.
+    let again = run(&host, "sp-read", "main", "graph-subgraph", json!({})).await;
+    assert_eq!(result(&again), result(&first));
+    // The document's access is tightened: the head moves and the graph's applied revision does
+    // not, and the agent must not see the edges any longer.
+    let tightened = run(
+        &host,
+        "sp-write",
+        "main",
+        "doc-put",
+        json!({"id": "notes/a", "text": "x", "access": ["group:platform"]}),
+    )
+    .await;
+    assert!(tightened.success, "{tightened:?}");
+    let hidden = run(&host, "sp-read", "main", "graph-subgraph", json!({})).await;
+    assert_eq!(nodes(&hidden), json!([]));
+    assert_eq!(result(&hidden)["edges"], json!(0));
+}
+
+#[tokio::test]
+async fn a_checkpoint_needs_a_write_grant_allowed_for_the_space() {
+    let (_dir, host) = standard();
+    let done = run(&host, "sp-write", "main", "checkpoint", json!({})).await;
+    assert_eq!(result(&done), json!("checkpointed"));
+    // A read-only instance holds no write grant.
+    let text = config("", "", "");
+    let (_dir, read_only) = make(
+        &text,
+        StoreProbe::with_grants(&["documents", "index", "graph"], true),
+    );
+    let refused = run(&read_only, "sp-read", "main", "checkpoint", json!({})).await;
+    assert_eq!(code(&refused), "NOT_GRANTED");
+    assert!(
+        message(&refused).contains("STORE_WRITE_NOT_ALLOWED"),
+        "{refused:?}"
+    );
+    // A write grant allowed for another space does not reach this one.
+    let text = config(
+        "",
+        "",
+        "[plugins.sp.grants.index_write]\nallow = [\"main\"]\n",
+    );
+    let (_dir, narrow) = make(&text, StoreProbe::with_grants(&["index_write"], true));
+    assert!(
+        run(&narrow, "sp-write", "main", "checkpoint", json!({}))
+            .await
+            .success
+    );
+    let beta = run(&narrow, "sp-write", "beta", "checkpoint", json!({})).await;
+    assert!(
+        message(&beta).contains("STORE_WRITE_NOT_ALLOWED"),
+        "{beta:?}"
+    );
+}

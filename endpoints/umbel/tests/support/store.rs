@@ -221,6 +221,9 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
             .index_chunks(space, text(args, "id"))
             .map(|chunks| json!(chunks.len())),
         "index-applied" => cx.index_applied(space).map(|rev| json!(rev)),
+        "graph-applied" => cx.graph_applied(space).map(|rev| json!(rev)),
+        "derive-head" => cx.derive_head(space).map(|rev| json!(rev)),
+        "checkpoint" => cx.checkpoint(space).map(|()| json!("checkpointed")),
         "graph-nodes" => cx
             .graph_nodes(space, &list(args, "ids"))
             .map(|nodes| json!(nodes.iter().map(|n| n.id.clone()).collect::<Vec<_>>())),

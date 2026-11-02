@@ -241,6 +241,14 @@ macro_rules! reads {
                 self.guard(space)?;
                 self.services()?.graph_edges(space, kind, after, limit)
             }
+            /// Grant `graph`: the store revision the space's graph reflects.
+            ///
+            /// # Errors
+            /// See [`HostServices::graph_applied`].
+            pub fn graph_applied(&self, space: &str) -> Result<Rev, HostError> {
+                self.guard(space)?;
+                self.services()?.graph_applied(space)
+            }
             /// Grant `graph`: the whole readable graph of the space.
             ///
             /// # Errors
@@ -429,6 +437,25 @@ impl Cx {
         self.host()?.derive_document(space, id)
     }
 
+    /// A derivation read of the space's true head revision (counts changes the caller cannot
+    /// read; for the commands that build derived data).
+    ///
+    /// # Errors
+    /// See [`HostServices::derive_head`].
+    pub fn derive_head(&self, space: &str) -> Result<Rev, HostError> {
+        self.check_space(space)?;
+        self.host()?.derive_head(space)
+    }
+
+    /// Best-effort store maintenance after a run that wrote.
+    ///
+    /// # Errors
+    /// See [`HostServices::checkpoint`].
+    pub fn checkpoint(&self, space: &str) -> Result<(), HostError> {
+        self.check_space(space)?;
+        self.host()?.checkpoint(space)
+    }
+
     /// The read methods as another principal, in the call's spaces.
     ///
     /// # Errors
@@ -542,6 +569,35 @@ impl SpaceCx<'_> {
     pub fn graph_nodes(&self, ids: &[String]) -> Result<Vec<Node>, HostError> {
         self.cx.graph_nodes(&self.space, ids)
     }
+
+    /// Grant `graph`: the readable edges of one kind, after `after`.
+    ///
+    /// # Errors
+    /// See [`Cx::graph_edges`].
+    pub fn graph_edges(
+        &self,
+        kind: &str,
+        after: Option<&EdgeKey>,
+        limit: u32,
+    ) -> Result<Vec<Edge>, HostError> {
+        self.cx.graph_edges(&self.space, kind, after, limit)
+    }
+
+    /// Grant `graph`: the store revision the graph reflects.
+    ///
+    /// # Errors
+    /// See [`Cx::graph_applied`].
+    pub fn graph_applied(&self) -> Result<Rev, HostError> {
+        self.cx.graph_applied(&self.space)
+    }
+
+    /// Grant `graph`: the whole readable graph.
+    ///
+    /// # Errors
+    /// See [`Cx::graph_subgraph`].
+    pub fn graph_subgraph(&self) -> Result<Subgraph, HostError> {
+        self.cx.graph_subgraph(&self.space)
+    }
 }
 
 #[cfg(test)]
@@ -582,6 +638,9 @@ mod tests {
                 .map(drop),
         );
         not_granted(cx.graph_subgraph("main").map(drop));
+        not_granted(cx.graph_applied("main").map(drop));
+        not_granted(cx.derive_head("main").map(drop));
+        not_granted(cx.checkpoint("main"));
         not_granted(cx.derive_changes("main", 0, 10).map(drop));
         not_granted(cx.derive_document("main", "c/a").map(drop));
         not_granted(cx.as_reader("human:ada").map(drop));

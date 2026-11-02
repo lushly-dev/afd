@@ -38,6 +38,21 @@ pub(super) fn allows(entries: &[String], space: &str, collection: Option<&str>) 
     })
 }
 
+/// The grants that write the stores; a checkpoint is maintenance after any of them.
+const WRITE_GRANTS: [&str; 4] = [
+    "documents_write",
+    "records_write",
+    "index_write",
+    "graph_write",
+];
+
+/// Whether any entry of an `allow` list names `space`, whatever the collection.
+fn allows_space(entries: &[String], space: &str) -> bool {
+    entries.iter().any(|entry| {
+        entry == "*" || entry == space || entry.split_once('/').is_some_and(|(s, _)| s == space)
+    })
+}
+
 impl CallServices {
     /// A read or write on `space` needs `grant` and a space of this call.
     fn scoped(&self, grant: &str, space: &str) -> Result<()> {
@@ -412,7 +427,25 @@ impl CallServices {
 
     pub(super) fn svc_graph_subgraph(&self, space: &str) -> Result<Subgraph> {
         let (stores, filter) = self.reading("graph", space)?;
-        stores.graph.subgraph(&filter).map_err(host_error)
+        // The embedded backend serves the whole-graph read from its per-process cache, keyed by
+        // the graph's applied revision, the store's head and the reader filter (step 3, C5).
+        #[cfg(feature = "store-embedded")]
+        {
+            stores
+                .sqlite
+                .readable_graph(&filter)
+                .map(|graph| graph.to_subgraph())
+                .map_err(host_error)
+        }
+        #[cfg(not(feature = "store-embedded"))]
+        {
+            stores.graph.subgraph(&filter).map_err(host_error)
+        }
+    }
+
+    pub(super) fn svc_graph_applied(&self, space: &str) -> Result<Rev> {
+        let (stores, _filter) = self.reading("graph", space)?;
+        stores.graph.applied().map_err(host_error)
     }
 
     pub(super) fn svc_graph_apply(
@@ -443,6 +476,46 @@ impl CallServices {
         stores
             .documents
             .get_document(id, &ReaderFilter::derivation())
+            .map_err(host_error)
+    }
+
+    /// The store's true head: a count of every change, readable or not, so only a derivation read
+    /// sees it (rule 3; the hidden-count side channel of section 6).
+    pub(super) fn svc_derive_head(&self, space: &str) -> Result<Rev> {
+        let stores = self.deriving(space)?;
+        stores.documents.head().map_err(host_error)
+    }
+
+    /// Best-effort maintenance after a run that wrote: the instance must hold a write grant
+    /// allowed for the space (a `Reader`'s view holds none).
+    pub(super) fn svc_checkpoint(&self, space: &str) -> Result<()> {
+        self.writable()?;
+        let held = WRITE_GRANTS.iter().any(|grant| {
+            self.shared.granted.contains(*grant)
+                && self
+                    .shared
+                    .allow
+                    .get(*grant)
+                    .is_some_and(|entries| allows_space(entries, space))
+        });
+        if !held {
+            return Err(write_not_allowed(format!(
+                "a checkpoint of `{space}` needs a store write grant allowed for it"
+            )));
+        }
+        if !self
+            .spaces()
+            .iter()
+            .any(|allowed| allowed.as_str() == space)
+        {
+            return Err(ServiceError::NotGranted(format!(
+                "the space `{space}` is not one of this call's spaces"
+            )));
+        }
+        self.note_use();
+        self.stores(space)?
+            .documents
+            .checkpoint()
             .map_err(host_error)
     }
 
