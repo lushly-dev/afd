@@ -98,16 +98,14 @@ should never have to scan the codebase to learn what is current.
     [#615](https://github.com/lushly-dev/afd/pull/615), merged 2026-11-01
     as `c80a9b4d`).
 - **Not done:**
-  - Phase 1: the shared plugin manifest is proposed
+  - Phase 1: the shared plugin manifest is approved
     ([proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md),
     [status](../../../docs/features/active/plugin-manifest/STATUS.md)), but nothing of it is
     built. Its step 1, the core schema and cases in `spec/`, lands before or with the phase 1
     specification (spec first). Its step 2, Loam's profile, reader, `app check` and the mounted
-    loader's instances, is phase 1 work. It also covers Umbel instances as headless apps (step 8,
-    after Umbel's phase 2 and Loam's phase 5). The owner's questions 1 to 6 (native apps' trust
-    class, Umbel carrying `ui`, signing before W9, approval authority, a multi-member Loam over a
-    single-principal Umbel, stdio instances) are open. Question 4 decides who approves the `spec/`
-    addition, so answer it before step 1 lands. The others do not block the phase 1 specification.
+    loader's instances, is phase 1 work, proven against a real Umbel instance (D57). It also
+    covers Umbel instances as headless apps (step 8, after Umbel's phase 2 and Loam's phase 5).
+    The owner decided its questions on 2026-11-01 (D54 to D58).
   - Phase 3: the TypeScript token-verification layer, `scopes` and
     `credentials` (MCP Authorization proposal).
   - Phase 5: the `apps` exposure flag (D30); agent, delegation, run and
