@@ -18,7 +18,6 @@ import type {
 import type { AppContextV1, ModalInputV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
 import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
-import { focusPart } from '../elements/focus.js';
 import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
 import type { LoamMount } from '../elements/mount.js';
 import type { LoamNotice } from '../elements/notice.js';
@@ -27,6 +26,7 @@ import type { LoamShell, ShellApps } from '../elements/shell.js';
 import { type LoamStatusAction, STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { LoamStatusItem } from '../elements/status-item.js';
 import { defineAppElements } from './define-elements.js';
+import { focusFallback } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
 
@@ -34,6 +34,9 @@ type Part = 'sidebar' | 'inspector' | 'panel';
 
 const PARTS: readonly Part[] = ['sidebar', 'inspector', 'panel'];
 const PART_HEADINGS = { sidebar: 'Sidebar', inspector: 'Inspector' } as const;
+
+/** How long an app may take to open before main says it is opening. */
+const OPENING_NOTICE_MS = 400;
 
 interface AppList {
 	active: string | null;
@@ -85,23 +88,30 @@ const mainWithApp = css`
 	:host([data-app]) .landing {
 		display: none;
 	}
-	::slotted(loam-mount) {
+	::slotted(loam-mount),
+	::slotted(loam-notice) {
 		flex: 1 1 auto;
 		min-block-size: 0;
 	}
-`;
-
-/** Added to the rail and the tab bar: their entries scroll when they overflow (4.6). */
-const navWithApps = css`
-	.entries {
-		min-block-size: 0;
-		min-inline-size: 0;
-		max-block-size: 100%;
-		max-inline-size: 100%;
+	::slotted(loam-notice) {
 		overflow: auto;
 	}
+`;
+
+/** Added to the tab bar: its entries scroll when they overflow (4.6), and its settings entry stays. */
+const tabbarWithApps = css`
 	:host {
 		justify-content: safe center;
+	}
+	.entries {
+		min-inline-size: 0;
+		max-inline-size: 100%;
+	}
+	slot {
+		display: flex;
+		gap: var(--space-inline-sm);
+		min-inline-size: 0;
+		overflow-inline: auto;
 	}
 `;
 
@@ -118,9 +128,16 @@ export class AppSurfaces implements ShellApps {
 	#summaries: AppSummaryV1[] = [];
 	#started: Promise<void> | null = null;
 	#prepared: AppList | null = null;
+	#rendered = false;
+	#missedSwitch = false;
+	/** A selection set before an app's surfaces exist reaches them when they do. */
+	#selectionWritten = false;
+	#openingNotice: ReturnType<typeof setTimeout> | undefined;
 	#mainElements: HTMLElement[] = [];
 	#inspectorElements: HTMLElement[] = [];
 	#statusElements: HTMLElement[] = [];
+	#statusFor: string | null = null;
+	#baseTitle: string | null = null;
 	readonly #overlays: OverlaySurfaces;
 
 	constructor(shell: LoamShell, kernel: LoamKernelV1) {
@@ -171,7 +188,12 @@ export class AppSurfaces implements ShellApps {
 		void this.#kernel.call(command, {}).then((result) => {
 			if (result.success) return;
 			const message = result.error?.message ?? `${command} failed`;
-			void this.#kernel.call('toast-show', { message: message.slice(0, 200), tone: 'danger' });
+			// As long as a toast may last: this is the only report of a failure the person asked for.
+			void this.#kernel.call('toast-show', {
+				message: message.slice(0, 200),
+				tone: 'danger',
+				durationMs: 30_000,
+			});
 		});
 	}
 
@@ -195,13 +217,14 @@ export class AppSurfaces implements ShellApps {
 
 	async #start(): Promise<void> {
 		const shell = this.#shell;
-		for (const name of ['main', 'rail', 'tabbar']) {
-			this.#part<FASTElement>(name).$fastController.addStyles(
-				name === 'main' ? mainWithApp : navWithApps
-			);
-		}
+		this.#part<FASTElement>('main').$fastController.addStyles(mainWithApp);
+		this.#part<FASTElement>('tabbar').$fastController.addStyles(tabbarWithApps);
 		this.#overlays.attach();
-		if (!this.#prepared) await this.prepare();
+		const lateStart = !this.#prepared;
+		if (lateStart) await this.prepare();
+		const view = shell.ownerDocument.defaultView ?? window;
+		const nextFrame = () => new Promise((resolve) => view.requestAnimationFrame(resolve));
+		this.#rendered = true;
 		const { active, apps } = this.#prepared as AppList;
 		this.#renderNav(active, apps);
 		if (active !== null) {
@@ -211,32 +234,46 @@ export class AppSurfaces implements ShellApps {
 			this.#showing = active;
 			this.#applyToggles();
 			this.#setEmptyStates(false);
-			const view = shell.ownerDocument.defaultView ?? window;
-			view.requestAnimationFrame(() =>
-				view.requestAnimationFrame(() => void this.#enter(active, this.#token))
-			);
+			const token = this.#token;
+			void nextFrame()
+				.then(nextFrame)
+				.then(() => {
+					if (token === this.#token && this.#showing === active) void this.#enter(active, token);
+				});
 		}
+		// A live region that has just appeared may not be heard: let it settle before its first toast.
+		if (lateStart) await nextFrame().then(nextFrame);
+		// What the kernel said before the parts could show it.
+		if (this.#missedSwitch) this.#enqueue(() => this.#sync());
 		await this.#overlays.read();
 	}
 
+	/**
+	 * The chrome's teardown: what the shell put in its parts goes, so a reconnected shell starts clean,
+	 * and each app that activated gets its `deactivate` (5.5, 9.6).
+	 */
 	dispose(): void {
 		for (const cleanup of this.#cleanup.splice(0)) cleanup();
+		if (this.#rendered) this.#leave();
 		this.#overlays.dispose();
+		for (const entries of this.#entries.values()) for (const entry of entries) entry.remove();
+		this.#entries.clear();
 		for (const held of this.#held.values()) {
-			try {
-				void held.deactivate?.();
-			} catch (cause) {
-				reportError(cause);
-			}
+			const { deactivate } = held;
+			if (deactivate) void Promise.resolve().then(deactivate).catch(reportError);
 		}
 		this.#held.clear();
-		this.#token++;
+		this.#showing = null;
 	}
 
 	// ─── Kernel events ─────────────────────────────────────────────────────────────
 
 	#onEvent(event: KernelEventV1): void {
 		const { command } = event;
+		if (!this.#rendered) {
+			if (command === 'app-open' || command === 'app-close') this.#missedSwitch = true;
+			return;
+		}
 		if (!event.success) {
 			// A first call that failed to import marks its app failed.
 			if (event.instance !== undefined) this.#enqueue(() => this.#sync());
@@ -247,10 +284,13 @@ export class AppSurfaces implements ShellApps {
 		if (
 			command === 'app-open' ||
 			command === 'app-close' ||
-			(event.mutation && /^(toast|modal|overlay)-/.test(command))
+			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
+			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
+			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))
 		) {
 			this.#enqueue(() => this.#overlays.read());
 		}
+		if (command === 'app-selection-set') this.#selectionWritten = true;
 		const showing = this.#showing;
 		if (showing === null) return;
 		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
@@ -311,17 +351,31 @@ export class AppSurfaces implements ShellApps {
 		const newlyFailed = !changed && active !== null && nowFailed && !wasFailed(active);
 		this.#renderNav(active, apps);
 		if (!changed && !newlyFailed) return;
-		this.#leave();
+		const focusLeaves = this.#leave();
 		this.#showing = active;
+		if (changed) this.#selectionWritten = false;
 		await this.#shell.readLayout();
-		if (active === null) return;
+		await Updates.next();
+		if (focusLeaves) focusFallback(this.#shell);
+		if (active === null) {
+			this.#setTitle(null);
+			this.#overlays.announce('No app is open');
+			return;
+		}
 		// Not awaited: an app whose `activate` never settles must not stop the shell or another app (D66).
 		void this.#enter(active, this.#token);
 	}
 
+	#setTitle(title: string | null): void {
+		const doc = this.#shell.ownerDocument;
+		this.#baseTitle ??= doc.title;
+		doc.title = title === null ? this.#baseTitle : `${title} - ${this.#baseTitle}`;
+	}
+
 	/** What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. */
-	#leave(): void {
+	#leave(): boolean {
 		this.#token++;
+		clearTimeout(this.#openingNotice);
 		const shell = this.#shell;
 		const held = this.#showing === null ? undefined : this.#held.get(this.#showing);
 		const focus = deepActiveElement(shell.ownerDocument);
@@ -340,6 +394,7 @@ export class AppSurfaces implements ShellApps {
 		this.#mainElements = [];
 		this.#inspectorElements = [];
 		this.#statusElements = [];
+		this.#statusFor = null;
 		const main = this.#part<HTMLElement>('main');
 		delete main.dataset.app;
 		main.removeAttribute('aria-busy');
@@ -349,12 +404,12 @@ export class AppSurfaces implements ShellApps {
 		this.#declared = null;
 		this.#applyToggles();
 		this.#setEmptyStates(true);
-		if (leavingFocus) focusPart(main);
+		return leavingFocus;
 	}
 
 	#insideAppSurface(node: Node): boolean {
 		const surfaces = PARTS.map((part) => this.#part<Element>(part));
-		surfaces.push(this.#part<Element>('main'));
+		surfaces.push(this.#part<Element>('main'), this.#part<Element>('statusbar'));
 		let current: Node | null = node;
 		while (current) {
 			if (current instanceof Element && surfaces.includes(current)) return true;
@@ -378,10 +433,11 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	/** Restore a parked part where it was, after the part is shown again. */
-	async #restore(name: 'sidebar' | 'panel', parked: Parked): Promise<void> {
+	async #restore(name: 'sidebar' | 'panel', parked: Parked, stale: () => boolean): Promise<void> {
 		const part = this.#part<HTMLElement>(name);
 		part.prepend(...parked.elements);
 		await Updates.next();
+		if (stale()) return;
 		const body = part.shadowRoot?.querySelector('.body');
 		if (body) body.scrollTop = parked.body;
 		for (const [element, top, left] of parked.scroll) {
@@ -425,10 +481,15 @@ export class AppSurfaces implements ShellApps {
 		main.dataset.app = instance;
 		main.setAttribute('aria-busy', 'true');
 		const detail = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
-		if (stale() || !detail) return;
+		if (stale()) return;
+		if (!detail) {
+			main.removeAttribute('aria-busy');
+			return;
+		}
 		this.#declared = new Set(detail.surfaces);
 		this.#applyToggles();
 		this.#setEmptyStates(false);
+		this.#setTitle(detail.title);
 		if (detail.state === 'failed' || detail.state === 'refused') {
 			this.#setEmptyStates(true);
 			this.#explain(
@@ -437,17 +498,26 @@ export class AppSurfaces implements ShellApps {
 				detail.error?.code,
 				detail.error?.suggestion
 			);
+			this.#overlays.announce(`${detail.title} is unavailable`);
 			return;
 		}
 		const held = this.#hold(instance);
+		// A slow app says so; a fast one never shows this.
+		this.#openingNotice = setTimeout(() => {
+			if (!stale()) this.#explain(detail.title, `Opening ${detail.title}…`);
+			main.setAttribute('aria-busy', 'true');
+		}, OPENING_NOTICE_MS);
 		const failure = await this.#activate(held);
+		clearTimeout(this.#openingNotice);
 		if (stale()) return;
+		this.#dropMainElements();
 		if (failure !== undefined) {
 			held.failure = failure;
 			const after = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
 			if (stale()) return;
 			this.#setEmptyStates(true);
 			this.#explain(detail.title, failure, after?.error?.code, after?.error?.suggestion);
+			this.#overlays.announce(`${detail.title} is unavailable`);
 			if (after) {
 				// The nav follows; these surfaces already say why.
 				this.#summaries = this.#summaries.map((app) =>
@@ -458,6 +528,12 @@ export class AppSurfaces implements ShellApps {
 			return;
 		}
 		await this.#renderSurfaces(held, detail, stale);
+		if (!stale()) this.#overlays.announce(`${detail.title} opened`);
+	}
+
+	#dropMainElements(): void {
+		for (const element of this.#mainElements) element.remove();
+		this.#mainElements = [];
 	}
 
 	#hold(instance: string): HeldApp {
@@ -473,6 +549,8 @@ export class AppSurfaces implements ShellApps {
 	#activate(held: HeldApp): Promise<string | undefined> {
 		held.activation ??= (async () => {
 			const { port } = held;
+			// A view or mounted app has no module in the page, and nothing to activate.
+			if (port.manifest.plugin.kind !== 'native') return undefined;
 			let imported = false;
 			try {
 				const definition = await port.load();
@@ -482,8 +560,8 @@ export class AppSurfaces implements ShellApps {
 				const context = this.#contextOf(port, registry);
 				held.registry = registry;
 				held.context = context;
-				if (definition.deactivate) held.deactivate = () => definition.deactivate?.();
 				await definition.activate?.(context);
+				if (definition.deactivate) held.deactivate = () => definition.deactivate?.();
 				return undefined;
 			} catch (cause) {
 				const message = cause instanceof Error ? cause.message : String(cause);
@@ -544,9 +622,7 @@ export class AppSurfaces implements ShellApps {
 		const { manifest } = port;
 		const surfaces = manifest.ui?.surfaces ?? {};
 		const main = this.#part<HTMLElement>('main');
-		const needsInput = new Map(
-			this.#kernel.listCommands().map(({ name, needsInput: needs }) => [name, needs])
-		);
+		const needsInput = this.#needsInput();
 		if (surfaces.header) {
 			const header = this.#create<LoamPartHeader>('loam-part-header');
 			header.heading = surfaces.header.title ?? detail.title;
@@ -580,8 +656,10 @@ export class AppSurfaces implements ShellApps {
 				'heading',
 				sidebar.title ?? PART_HEADINGS.sidebar
 			);
-			if (held.sidebar) await this.#restore('sidebar', held.sidebar);
-			else if (sidebar.shape === 'list') {
+			if (held.sidebar) {
+				await this.#restore('sidebar', held.sidebar, stale);
+				if (stale()) return;
+			} else if (sidebar.shape === 'list') {
 				const list = this.#create<LoamList>('loam-list');
 				list.label = sidebar.title ?? detail.title;
 				held.list = list;
@@ -604,8 +682,10 @@ export class AppSurfaces implements ShellApps {
 			this.#inspectorElements.push(mount);
 		}
 		if (surfaces.panel) {
-			if (held.panel) await this.#restore('panel', held.panel);
-			else {
+			if (held.panel) {
+				await this.#restore('panel', held.panel, stale);
+				if (stale()) return;
+			} else {
 				this.#part<HTMLElement>('panel').prepend(
 					...surfaces.panel.views.map((view) => {
 						const mount = this.#mount(held, view.element, view.title);
@@ -618,7 +698,16 @@ export class AppSurfaces implements ShellApps {
 			}
 		}
 		if (stale()) return;
-		await this.#readStatus(port.instance);
+		// One read at a time: a surface that connected above is setting its status item already.
+		this.#enqueue(async () => {
+			if (stale()) return;
+			await this.#readStatus(port.instance);
+			if (!stale() && this.#selectionWritten) await this.#readSelection(port.instance);
+		});
+	}
+
+	#needsInput(): Map<string, boolean | undefined> {
+		return new Map(this.#kernel.listCommands().map(({ name, needsInput }) => [name, needsInput]));
 	}
 
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {
@@ -664,38 +753,41 @@ export class AppSurfaces implements ShellApps {
 		}
 	}
 
+	/** Each item by its id, updated in place, so a status button keeps focus when its value changes. */
 	async #readStatus(instance: string): Promise<void> {
 		const declared = this.#held.get(instance)?.port.manifest.ui?.surfaces?.status?.items ?? [];
-		for (const element of this.#statusElements) element.remove();
-		this.#statusElements = [];
 		if (declared.length === 0 || this.#showing !== instance) return;
 		const detail = await this.#kernel.call<AppDetailV1>('app-get', { instance });
 		if (this.#showing !== instance) return;
 		const values = detail.data?.statusItems ?? {};
-		const bar = this.#part<HTMLElement>('statusbar');
-		const anchor = bar.querySelector('.journal-status');
-		const needsInput = new Map(
-			this.#kernel.listCommands().map(({ name, needsInput: needs }) => [name, needs])
-		);
-		const sorted = [...declared].sort(
-			(a, b) => (a.priority ?? 0) - (b.priority ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-		);
-		for (const item of sorted) {
-			const element =
-				item.command !== undefined
-					? this.#create<LoamStatusAction>('loam-status-action')
-					: this.#create<LoamStatusItem>('loam-status-item');
-			element.slot = 'end';
-			element.dataset.statusItem = item.id;
-			(element as LoamStatusItem).label = item.label;
-			element.textContent = values[item.id] ?? '';
-			if (item.command !== undefined) {
-				const action = element as LoamStatusAction;
-				action.command = item.command;
-				action.disabled = needsInput.get(item.command) === true;
-			}
-			bar.insertBefore(element, anchor);
-			this.#statusElements.push(element);
+		if (this.#statusFor !== instance) {
+			const bar = this.#part<HTMLElement>('statusbar');
+			const anchor = bar.querySelector('.journal-status');
+			const needsInput = this.#needsInput();
+			const sorted = [...declared].sort(
+				(a, b) => (a.priority ?? 0) - (b.priority ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+			);
+			this.#statusElements = sorted.map((item) => {
+				const element =
+					item.command !== undefined
+						? this.#create<LoamStatusAction>('loam-status-action')
+						: this.#create<LoamStatusItem>('loam-status-item');
+				element.slot = 'end';
+				element.dataset.statusItem = item.id;
+				(element as LoamStatusItem).label = item.label;
+				if (item.command !== undefined) {
+					const action = element as LoamStatusAction;
+					action.command = item.command;
+					action.disabled = needsInput.get(item.command) === true;
+				}
+				bar.insertBefore(element, anchor);
+				return element;
+			});
+			this.#statusFor = instance;
+		}
+		for (const element of this.#statusElements) {
+			const value = values[element.dataset.statusItem as string] ?? '';
+			if (element.textContent !== value) element.textContent = value;
 		}
 	}
 }

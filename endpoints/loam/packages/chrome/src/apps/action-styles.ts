@@ -26,10 +26,10 @@ export const actionButton = css`
 		cursor: pointer;
 		transition: background-color var(--duration-fast) var(--easing-standard);
 	}
-	.action:hover {
+	.action:not([aria-disabled='true']):hover {
 		background: var(--color-action-secondary-hover);
 	}
-	.action:active {
+	.action:not([aria-disabled='true']):active {
 		background: var(--color-action-secondary-pressed);
 	}
 	.action:focus-visible {
@@ -41,10 +41,10 @@ export const actionButton = css`
 		background: var(--color-action-primary-background);
 		color: var(--color-action-primary-text);
 	}
-	.action.primary:hover {
+	.action.primary:not([aria-disabled='true']):hover {
 		background: var(--color-action-primary-hover);
 	}
-	.action.primary:active {
+	.action.primary:not([aria-disabled='true']):active {
 		background: var(--color-action-primary-pressed);
 	}
 	.action.danger {
@@ -58,8 +58,10 @@ export const actionButton = css`
 	.action.danger:active {
 		background: var(--color-action-danger-pressed);
 	}
-	.action[aria-disabled='true'] {
+	.action[aria-disabled='true'],
+	.action.primary[aria-disabled='true'] {
 		opacity: 0.55;
+		border-color: var(--color-action-secondary-border);
 		cursor: not-allowed;
 		background: var(--color-action-secondary-background);
 		color: var(--color-action-secondary-text);
@@ -72,12 +74,8 @@ export const actionButton = css`
 			background: ButtonFace;
 			color: ButtonText;
 		}
-		.action:hover,
-		.action:active,
-		.action.primary:hover,
-		.action.primary:active,
-		.action.danger:hover,
-		.action.danger:active {
+		.action:not([aria-disabled='true']):hover,
+		.action:not([aria-disabled='true']):active {
 			border-color: Highlight;
 			background: Highlight;
 			color: HighlightText;
@@ -85,7 +83,8 @@ export const actionButton = css`
 		.action:focus-visible {
 			outline-color: Highlight;
 		}
-		.action[aria-disabled='true'] {
+		.action[aria-disabled='true'],
+		.action.primary[aria-disabled='true'] {
 			border-color: GrayText;
 			background: ButtonFace;
 			color: GrayText;

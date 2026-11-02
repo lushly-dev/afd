@@ -50,15 +50,15 @@ const styles = css`
 	.label {
 		color: var(--color-text-muted);
 	}
-	.action:hover {
+	.action:not([aria-disabled='true']):hover {
 		background: var(--color-action-secondary-hover);
 		color: var(--color-text-primary);
 	}
-	.action:hover .label,
-	.action:active .label {
+	.action:not([aria-disabled='true']):hover .label,
+	.action:not([aria-disabled='true']):active .label {
 		color: var(--color-text-secondary);
 	}
-	.action:active {
+	.action:not([aria-disabled='true']):active {
 		background: var(--color-action-secondary-pressed);
 		color: var(--color-text-primary);
 	}
@@ -80,18 +80,21 @@ const styles = css`
 			border-color: ButtonText;
 			background: ButtonFace;
 		}
-		.action:hover,
-		.action:active {
+		.action:not([aria-disabled='true']):hover,
+		.action:not([aria-disabled='true']):active {
 			border-color: Highlight;
 			background: Highlight;
 			color: HighlightText;
 		}
-		.action:hover .label,
-		.action:active .label {
+		.action:not([aria-disabled='true']):hover .label,
+		.action:not([aria-disabled='true']):active .label {
 			color: HighlightText;
 		}
 		.action:focus-visible {
 			outline-color: Highlight;
+		}
+		.action:hover:focus-visible {
+			outline-color: HighlightText;
 		}
 		.action[aria-disabled='true'],
 		.action[aria-disabled='true'] .label {

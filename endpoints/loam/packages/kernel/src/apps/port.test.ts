@@ -381,7 +381,7 @@ describe('the native module (5.5)', () => {
 		kernels.push(kernel);
 		const called = await kernel.call('probe-list');
 		expect(called.error?.code).toBe('APP_ACTIVATION_FAILED');
-		expect(called.error?.message).toContain('Boom');
+		expect(JSON.stringify(called.error)).not.toContain('Boom');
 
 		const wrong = createFixturePorts({
 			'apps/probe/': { manifest: PROBE_MANIFEST, definition: {} as never },

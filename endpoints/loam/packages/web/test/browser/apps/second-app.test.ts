@@ -12,6 +12,7 @@ import {
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
+	focused,
 	openApp,
 	openShell,
 	packApp,
@@ -33,7 +34,7 @@ const PACKAGES = fileURLToPath(new URL('../../../../', import.meta.url));
 function sources(directory: string): string[] {
 	return readdirSync(directory).flatMap((name) => {
 		const path = join(directory, name);
-		if (name === 'node_modules' || name === 'dist') return [];
+		if (name === 'node_modules' || name === 'dist' || name === 'coverage') return [];
 		return statSync(path).isDirectory() ? sources(path) : [path];
 	});
 }
@@ -42,7 +43,7 @@ describe('E5: a second app lands with no shell change', () => {
 	it('names no second app in the kernel, the chrome or the host', () => {
 		const offenders = [
 			...sources(join(PACKAGES, 'kernel/src')),
-			...sources(join(PACKAGES, 'chrome/src')),
+			...sources(join(PACKAGES, 'chrome')),
 			...sources(join(PACKAGES, 'web/src')),
 		].filter((file) => /tally/i.test(readFileSync(file, 'utf8')));
 		expect(offenders).toEqual([]);
@@ -56,18 +57,24 @@ describe('E5: a second app lands with no shell change', () => {
 		const { page } = opened;
 		await openApp(page, 'tally');
 		await page.locator('tally-main violet-button.add').click();
-		await expect.poll(() => page.locator('tally-main x-card.total').textContent()).toBe('1');
+		await expect.poll(() => page.locator('tally-main .total').textContent()).toBe('1');
 		await expect
 			.poll(() => page.locator('loam-statusbar [data-status-item="total"]').textContent())
 			.toBe('1');
 		expect(await page.locator('loam-panel loam-mount h3').textContent()).toBe('History');
 		await page.locator('tally-history').waitFor();
 
-		// The status item has a command, so it is a button that runs it.
-		await page.locator('loam-status-action button').click();
+		// The status item has a command, so it is a button that runs it, and it keeps focus.
+		await page.locator('loam-status-action button').focus();
+		await page.keyboard.press('Enter');
 		await expect
 			.poll(() => page.locator('loam-statusbar [data-status-item="total"]').textContent())
-			.not.toBe('1');
+			.toBe('2');
+		expect((await focused(page)).hosts).toContain('loam-status-action');
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(() => page.locator('loam-statusbar [data-status-item="total"]').textContent())
+			.toBe('3');
 		expect(opened.errors).toEqual([]);
 		expect(opened.violations).toEqual([]);
 		await opened.context.close();

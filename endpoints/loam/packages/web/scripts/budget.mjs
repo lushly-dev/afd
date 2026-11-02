@@ -34,7 +34,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 231_360,
 	appsMinified: 300_000,
-	surfacesMinified: 50_000,
+	surfacesMinified: 85_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -93,12 +93,18 @@ async function measurePage() {
 		/^assets\/(apps|validate\.generated|deployment)-/.test(chunk.fileName)
 	);
 	if (appsChunks.length < 3) throw new Error('budget: the build has no `apps` chunks to measure');
-	const surfaces = [...chunks.values()].filter((chunk) =>
-		/^assets\/surfaces-/.test(chunk.fileName)
-	);
-	if (surfaces.length === 0)
+	if (![...chunks.keys()].some((name) => /^assets\/surfaces-/.test(name))) {
 		throw new Error('budget: the build has no `surfaces` chunk to measure');
+	}
 	const initialChunks = [...initial].map((name) => chunks.get(name)).filter(Boolean);
+	// With what it imports statically and first paint has not loaded, such as the listbox.
+	const surfaces = new Set();
+	const visitSurfaces = (fileName) => {
+		if (initial.has(fileName) || surfaces.has(fileName)) return;
+		surfaces.add(fileName);
+		for (const imported of chunks.get(fileName)?.imports ?? []) visitSurfaces(imported);
+	};
+	for (const name of chunks.keys()) if (/^assets\/surfaces-/.test(name)) visitSurfaces(name);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
@@ -110,7 +116,10 @@ async function measurePage() {
 		files: initialChunks.map((chunk) => chunk.fileName),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
-		surfacesMinified: surfaces.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
+		surfacesMinified: [...surfaces].reduce(
+			(sum, name) => sum + Buffer.byteLength(chunks.get(name).code),
+			0
+		),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
 		cssMinified:
@@ -173,7 +182,7 @@ const ROWS = [
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod'],
 	['appsMinified', "The kernel's `apps` chunks, minified, with the readers"],
-	['surfacesMinified', "The chrome's `surfaces` chunk, minified"],
+	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 ];
 
 export async function measure() {

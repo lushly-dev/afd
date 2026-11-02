@@ -82,7 +82,23 @@ describe('E6: overlays and a switch', () => {
 
 		await page.locator('hello-main violet-button.toast').click();
 		await page.locator('loam-toast').waitFor();
-		await page.locator('hello-main violet-button.modal').click();
+		// Opened through the port, as `overlays.modal` does, to hold what `waitOverlay` answers.
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				shadowRoot: ShadowRoot;
+				kernel: {
+					appPort(instance: string): {
+						call(name: string, input: unknown): Promise<{ data: { overlayId: string } }>;
+						waitOverlay(id: string): Promise<unknown>;
+					};
+				};
+			};
+			const held = window as unknown as { modalAnswer: Promise<unknown>; mountBefore: unknown };
+			const port = shell.kernel.appPort('hello');
+			const { data } = await port.call('modal-open', { title: 'Say hello?', body: 'Or not.' });
+			held.modalAnswer = port.waitOverlay(data.overlayId);
+			held.mountBefore = shell.shadowRoot.querySelector('loam-main loam-mount');
+		});
 		await page.locator('loam-modal dialog[open]').waitFor();
 		expect(await page.locator('loam-modal h2').textContent()).toBe('Say hello?');
 		const statusBefore = await page.locator('[data-status-item="count"]').count();
@@ -104,22 +120,17 @@ describe('E6: overlays and a switch', () => {
 		expect(list.data.overlays).toEqual([]);
 		await expect.poll(() => page.locator('loam-toast').count()).toBe(0);
 		await expect.poll(() => modalOpen(page)).toBe(false);
+		expect(
+			await page.evaluate(
+				() => (window as unknown as { modalAnswer: Promise<unknown> }).modalAnswer
+			)
+		).toMatchObject({ result: 'cancel', reason: 'app-switch' });
+		// What held focus has gone, and focus does not fall to the page.
+		expect((await focused(page)).part).toBe('main');
 		expect(await page.locator('hello-main').count()).toBe(0);
 		expect(await page.locator('hello-inspector').count()).toBe(0);
 		expect(await page.locator('loam-list').count()).toBe(0);
 		expect(await page.locator('[data-status-item="count"]').count()).toBe(0);
-
-		// The modal's answer reached hello, through the port's wait, though hello is gone from the page.
-		const entries = await page.evaluate(async () => {
-			const shell = document.querySelector('loam-shell') as unknown as {
-				journal: { read(): Promise<Array<{ command: string; result: { success: boolean } }>> };
-			};
-			return (await shell.journal.read()).map(({ command, result }) => ({
-				command,
-				success: result.success,
-			}));
-		});
-		expect(entries.some(({ command, success }) => command === 'modal-open' && !success)).toBe(true);
 
 		// Hello's chord is gone with it.
 		await page.keyboard.press('ControlOrMeta+Shift+H');
@@ -144,15 +155,16 @@ describe('E6: overlays and a switch', () => {
 			return {
 				same: list === (window as unknown as { listBefore: Element }).listBefore,
 				top,
-				main:
-					document
-						.querySelector('loam-shell')
-						?.shadowRoot?.querySelector('loam-main loam-mount') !== null,
+				// Main is re-created, where the sidebar is the same element.
+				mainIsNew:
+					(window as unknown as { mountBefore: unknown }).mountBefore !==
+					document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main loam-mount'),
 			};
 		});
 		expect(restored.same).toBe(true);
 		expect(restored.top).toBe(scrolled.top);
-		expect(restored.main).toBe(true);
+		expect(restored.mainIsNew).toBe(true);
+		expect(await page.locator('loam-main hello-main').count()).toBe(1);
 		expect(await page.locator('[data-status-item="count"]').textContent()).toBe('11');
 		expect(opened.errors).toEqual([]);
 		expect(opened.violations).toEqual([]);
@@ -229,7 +241,15 @@ describe('E6: overlays and a switch', () => {
 			.poll(() => page.locator('hello-main .answer').textContent())
 			.toBe('The modal closed with cancel');
 		await expect.poll(() => modalOpen(page)).toBe(false);
-		expect((await focused(page)).hosts).toContain('hello-main');
+		// Focus is back on the very button that opened it.
+		expect(
+			await page.evaluate(() => {
+				let element: Element | null = document.activeElement;
+				while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+				const host = (element?.getRootNode() as ShadowRoot | null)?.host;
+				return host?.classList.contains('modal') ?? false;
+			})
+		).toBe(true);
 		await opened.context.close();
 	});
 
@@ -266,6 +286,29 @@ describe('E6: overlays and a switch', () => {
 			return (palette as unknown as { isOpen?: boolean } | null)?.isOpen;
 		});
 		expect(paletteOpen).toBe(false);
+		await opened.context.close();
+	});
+
+	it('holds a toast that arrives during a modal, since it could not be heard or dismissed', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await kernelCall(page, 'toast-show', { message: 'Before', durationMs: 1000 });
+		await page.locator('loam-toast').waitFor();
+		await kernelCall(page, 'modal-open', { title: 'Sure?', body: 'Are you?' });
+		await page.locator('loam-modal dialog[open]').waitFor();
+		await kernelCall(page, 'toast-show', { message: 'During', durationMs: 1000 });
+		await surfacesIdle(page);
+		expect(await page.locator('loam-toast').count()).toBe(1);
+		// A shown toast's timer stops too.
+		await page.waitForTimeout(1300);
+		expect(await page.locator('loam-toast').count()).toBe(1);
+		await page.locator('loam-modal button.cancel').click();
+		await expect
+			.poll(() =>
+				page.locator('loam-toast').evaluateAll((all) => all.map((t) => t.getAttribute('message')))
+			)
+			.toEqual(['Before', 'During']);
+		await expect.poll(() => page.locator('loam-toast').count(), { timeout: 4000 }).toBe(0);
 		await opened.context.close();
 	});
 

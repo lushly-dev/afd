@@ -68,9 +68,6 @@ const mainStyles = css`
 		margin: 0;
 		color: var(--color-text-secondary);
 	}
-	p:empty {
-		display: none;
-	}
 	.form,
 	.actions {
 		display: flex;

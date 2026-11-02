@@ -62,14 +62,20 @@ describe('E1: hello loads native', () => {
 		// The registry is the app's own: the element is not global, and `kit` reached its template.
 		expect(await page.evaluate(() => customElements.get('hello-main') === undefined)).toBe(true);
 		expect(await page.evaluate(() => customElements.get('x-card') === undefined)).toBe(true);
-		const scoped = page.locator('hello-main');
 		await expect
 			.poll(() =>
-				scoped.evaluate(
-					(element) => element.shadowRoot?.querySelector('x-card')?.shadowRoot !== null
-				)
+				page
+					.locator('hello-main x-card')
+					.evaluate((card) => (card as unknown as { app?: string }).app)
 			)
-			.toBe(true);
+			.toBe('hello');
+		// Exactly one status item, as the first open renders it, whatever raced to set it.
+		await expect.poll(() => page.locator('[data-status-item="count"]').textContent()).toBe('0');
+		expect(await page.locator('[data-status-item="count"]').count()).toBe(1);
+		expect(await page.title()).toBe('Hello - Loam');
+		expect(await page.locator('loam-toast-region .announcement').textContent()).toBe(
+			'Hello opened'
+		);
 
 		const greets = async () =>
 			(await journal(page)).filter(({ command }) => command === 'hello-greet').length;
@@ -138,6 +144,24 @@ describe('E1: hello loads native', () => {
 		};
 		expect(selection.data.id).toBe('Ada');
 		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('reaches a selection set straight after an open', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await agentCall(page, 'hello-greet', { name: 'Ada' });
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { agent: { call(name: string, input: unknown): Promise<unknown> } };
+			};
+			await shell.kernel.agent.call('app-open', { instance: 'hello' });
+			await shell.kernel.agent.call('app-selection-set', { instance: 'hello', id: 'Ada' });
+		});
+		await expect
+			.poll(() => page.locator('hello-main x-card.selected').textContent())
+			.toContain('Selected: Ada');
+		await expect.poll(() => page.locator('loam-list violet-option[selected]').count()).toBe(1);
 		await opened.context.close();
 	});
 

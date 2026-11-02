@@ -4,9 +4,21 @@
  * a selection is an event, and the shell turns it into a command.
  */
 
-import { attr, css, FASTElement, html, observable, repeat, when } from '@lushly-dev/fast-element';
+import {
+	attr,
+	css,
+	FASTElement,
+	html,
+	Observable,
+	observable,
+	ref,
+	repeat,
+	Updates,
+	when,
+} from '@lushly-dev/fast-element';
 import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 import '@lushly-dev/violet-elements/dist/option/violet-option.js';
+import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 
 /** What a `list` sidebar's command returns per item. */
 export interface LoamListItem {
@@ -47,10 +59,11 @@ const template = html<LoamList>`
 		`
 	)}
 	${when(
-		(x) => x.failure === null && !x.busy && x.items.length === 0,
-		html<LoamList>`<p class="empty">${(x) => x.emptyMessage}</p>`
+		(x) => x.failure === null && x.items.length === 0,
+		html<LoamList>`<p class="empty">${(x) => (x.busy ? 'Loading…' : x.emptyMessage)}</p>`
 	)}
 	<violet-listbox
+		${ref('listbox')}
 		label="${(x) => x.label}"
 		value="${(x) => x.selected ?? ''}"
 		?hidden="${(x) => x.failure !== null || x.items.length === 0}"
@@ -76,6 +89,21 @@ const styles = css`
 	 */
 	violet-option {
 		--color-surface-highlight: var(--color-surface-subtle);
+	}
+	violet-listbox::part(control):focus-visible {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: var(--size-space-xs);
+	}
+	/* Focus stays on the list, so the active row is where the keyboard is (design.md, focus). */
+	violet-listbox:focus-within violet-option[data-active]::part(control) {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: calc(-1 * var(--shell-size-focus));
+	}
+	/* Selected: the control colors and a start-edge bar, since color alone is not enough. */
+	violet-option[selected]::part(control) {
+		border-inline-start: var(--size-space-xs) solid var(--color-control-selected-foreground);
+		background: var(--color-control-selected-background);
+		color: var(--color-control-selected-foreground);
 	}
 	.item-title {
 		font-size: var(--type-body-md-size);
@@ -104,16 +132,39 @@ const styles = css`
 		.failure .suggestion {
 			color: CanvasText;
 		}
-		/* violet-option sets forced-color-adjust: none, so its slotted text keeps author colors. */
+		/*
+		 * violet-option sets forced-color-adjust: none, so it keeps author colors, and fills its active
+		 * row as it does a selected one. Only a selection is filled here: the active row is outlined.
+		 */
+		violet-option::part(control) {
+			border-color: transparent;
+			background: Canvas;
+			color: ButtonText;
+		}
+		violet-option::part(control):hover {
+			border-color: ButtonText;
+			background: Canvas;
+		}
 		.item-title,
 		.item-description {
 			color: ButtonText;
 		}
-		violet-option[data-active] .item-title,
-		violet-option[data-active] .item-description,
+		violet-option[selected]::part(control),
+		violet-option[selected]::part(control):hover {
+			border-color: Highlight;
+			background: Highlight;
+			color: HighlightText;
+		}
 		violet-option[selected] .item-title,
 		violet-option[selected] .item-description {
 			color: HighlightText;
+		}
+		violet-listbox::part(control):focus-visible,
+		violet-listbox:focus-within violet-option[data-active]::part(control) {
+			outline-color: Highlight;
+		}
+		violet-listbox:focus-within violet-option[selected][data-active]::part(control) {
+			outline-color: HighlightText;
 		}
 	}
 `;
@@ -125,6 +176,8 @@ export class LoamList extends FASTElement {
 	declare selected: string | null;
 	declare failure: LoamListFailure | null;
 	declare busy: boolean;
+	declare listbox: VioletListbox;
+	#activeWatch = { handleChange: () => this.#syncActive() };
 
 	constructor() {
 		super();
@@ -136,9 +189,31 @@ export class LoamList extends FASTElement {
 		this.busy = false;
 	}
 
+	override connectedCallback(): void {
+		super.connectedCallback();
+		Observable.getNotifier(this.listbox).subscribe(this.#activeWatch, 'activeValue');
+		this.#syncActive();
+	}
+
+	override disconnectedCallback(): void {
+		Observable.getNotifier(this.listbox).unsubscribe(this.#activeWatch, 'activeValue');
+		super.disconnectedCallback();
+	}
+
 	busyChanged(): void {
-		this.toggleAttribute('aria-busy', this.busy);
 		if (this.busy) this.setAttribute('aria-busy', 'true');
+		else this.removeAttribute('aria-busy');
+	}
+
+	itemsChanged(): void {
+		if (this.$fastController?.isConnected) void Updates.next().then(() => this.#syncActive());
+	}
+
+	/** Mark the row the keyboard is on, as the palette does, since the option does not say. */
+	#syncActive(): void {
+		for (const option of this.listbox?.options ?? []) {
+			option.toggleAttribute('data-active', option.value === this.listbox.activeValue);
+		}
 	}
 
 	handleChange(event: CustomEvent<{ value: string }>): void {

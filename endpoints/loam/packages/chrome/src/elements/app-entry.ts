@@ -136,6 +136,10 @@ const styles = css`
 		.entry:focus-visible {
 			outline-color: Highlight;
 		}
+		.entry:hover:focus-visible,
+		.entry[aria-current='page']:focus-visible {
+			outline-color: HighlightText;
+		}
 		.tip {
 			border: 1px solid CanvasText;
 			background: Canvas;
@@ -169,7 +173,8 @@ export class LoamAppEntry extends FASTElement {
 	}
 
 	get accessibleLabel(): string {
-		return this.unavailable ? `${this.label} (unavailable)` : this.label;
+		if (this.unavailable) return `${this.label} (unavailable)`;
+		return this.state === 'loading' ? `${this.label} (loading)` : this.label;
 	}
 
 	override connectedCallback(): void {

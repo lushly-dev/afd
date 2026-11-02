@@ -1812,16 +1812,16 @@ new commands are small and the rest is lazy:
 
 | Measure | Loaded | Ceiling |
 | --- | --- | --- |
-| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000. Step 3 measured 319,794 and 93,012: 206 bytes were left, so step 4's chrome goes behind dynamic imports. Step 4 measured 317,894 and 94,569 ([9.6](#96-decided-by-step-4)) |
+| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000. Step 3 measured 319,794 and 93,012: 206 bytes were left, so step 4's chrome goes behind dynamic imports. Step 4 measured 317,922 and 94,024 ([9.6](#96-decided-by-step-4)) |
 | The kernel alone | As phase 0, without `src/apps/` | 231,360. Step 3 measured 225,238 |
 | CSS | As phase 0 | 8,496 |
-| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row. Step 4 confirms the ceiling: 265,153 over three chunks, 88% of it, so it is neither raised nor lowered ([9.6](#96-decided-by-step-4)) |
-| `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays | When a deployment lists an app, or the first toast or modal on a shell with none | 50,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 42,680 |
+| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row. Step 4 confirms the ceiling: 265,155 over three chunks, 88% of it, so it is neither raised nor lowered ([9.6](#96-decided-by-step-4)) |
+| `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays, and what it imports that first paint has not loaded, such as the listbox | When a deployment lists an app, or the first toast or modal on a shell with none | 85,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 76,622 |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
 | `view` chunk: the view host | When a view app opens | 60,000 |
 | `kit` chunks | Per element, on `kit.define` | None |
-| Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,055 (gzip 17,906) and 78,995 (21,252), each with its own FAST |
+| Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,024 (gzip 17,897) and 79,167 (21,338), each with its own FAST |
 
 `budget` gains the rows, and fails over them. Step 4 records the measured values; phase 0's rule
 applies: under 70% of a ceiling, it is lowered to the measurement plus 10%, and raising one
@@ -1975,9 +1975,9 @@ Chromium 156, natively,** with the two corrections below.
 
 **The budget**
 
-- **Measured.** The empty shell's JavaScript is 317,894 of 320,000 minified and 94,569 of 95,000 gzip, CSS 7,719
-  of 8,496, the kernel alone 226,603 of 231,360. No ceiling is raised. 431 gzip bytes are left, so **a later step
-  with any first-paint code moves something out first**.
+- **Measured.** The empty shell's JavaScript is 317,922 of 320,000 minified and 94,024 of 95,000 gzip, CSS 7,719
+  of 8,496, the kernel alone 226,603 of 231,360. No ceiling is raised. 2,078 bytes and 976 gzip bytes are left, so **a
+  later step with more first-paint code than that moves something out first**.
 - **What made room.** `loam-resize-handle` now loads with the palette, after first paint: until then a part has its
   border and nothing to drag, and no layout shifts. `loam-notice` loads when one is shown. `whenIdle` waits two frames, so idle work
   never lands before the first frame. The kernel's first-paint chunk gained only `unavailableApps`, the shell a seam of a
@@ -1989,11 +1989,11 @@ Chromium 156, natively,** with the two corrections below.
   the entry's static imports) was tried and was worse, 354,487 bytes: a barrel's static edge pulls in modules only a lazy
   chunk uses once tree-shaken.
 - **`apps` chunk.** With the host also reading the projection, the bundler parts `apps-*`, `validate.generated-*` and
-  `deployment-*`. They load together, so `budget`'s row sums them: 265,153, or 88% of the ceiling.
+  `deployment-*`. They load together, so `budget`'s row sums them: 265,155, or 88% of the ceiling.
 - **What first paint holds with an app.** `surfaces` and the `apps` chunks load before the shell's first frame in a
   deployment that lists an app, because 5.5's boot reads manifests before it registers commands, 9.1's kernel takes them
   before its one `hydrate()`, and the rail must be right in that frame. So the empty shell is under its ceilings and a
-  deployment with apps is about 350,000 bytes more, recorded here and limited only by those rows' ceilings. An app's own
+  deployment with apps is about 340,000 bytes more, recorded here and limited only by those rows' ceilings. An app's own
   module is never among them.
 - **E5 as written was wrong about one file.** 5.5's boot reads each package's `app-manifest.json`, so a second app adds
   its manifest before first paint as well as `deployment.json`. The test holds everything else byte for byte, with and
@@ -2022,6 +2022,9 @@ Chromium 156, natively,** with the two corrections below.
 
 **The chrome**
 
+- **`deactivate`** runs at the chrome's teardown, for what activated, since 5.5's "kernel disposal" cannot reach the chrome:
+  the kernel's interface has no such event, and the chrome owns what `activate` began. Removing `loam-shell` is that teardown,
+  and it also takes what the controller put in the parts. The web host never removes the shell, so a page's unload runs none.
 - **`ShellApps`** is all `loam-shell` knows of apps: `modalOpen`, `undeclared(part)`, `run(command)`, `start()`, `dispose()`.
   The shell loads `apps/surfaces.ts` before its first frame when `mountShell` says the deployment lists an app, or on the
   first toast or modal otherwise, so an agent's `toast-show` on an empty shell renders.
@@ -2038,17 +2041,33 @@ Chromium 156, natively,** with the two corrections below.
   when the modal closes, and a refused one never opened.
 - **A surface's command** (a header action, a status item, a chord) runs as a person's call, with no input. If it fails, the
   shell shows its message as a `danger` toast. One that needs input is `aria-disabled`, and its chord was refused at load.
-- **Focus.** A surface holding focus when it leaves moves focus to main, and so does a toast dismissed while focused. A modal
-  whose invoker has gone leaves focus to the browser, because the switch that removed it has moved focus already.
-- **A toast's timer** stops while it is hovered or holds focus, and restarts in full (WCAG 2.2.1).
-- **The live region stays open** while empty, since a region added with its text is not announced. So the popover is a
-  zero-size element in the top layer, and it is shown again after a modal, to stack above it.
+- **Focus.** A surface holding focus when it leaves moves focus to main, or the panel when a maximized panel has made main
+  inert, after the new layout is in. So do a toast dismissed while focused and a modal whose invoker has gone. A status button
+  is updated in place by its id, so a press keeps focus.
+- **A toast and a modal.** `showModal()` makes everything outside it inert, the top layer too, so a toast behind any modal (this
+  one, the palette or a compact drawer) can be neither heard nor dismissed. While one is open a new toast waits, and a
+  shown one's timer stops, and both go on when it closes. `overlay-list` still lists it, so only what is on screen waits. Section 8
+  has the region above: the region is simply under the modal's backdrop until then.
+- **A toast's timer** stops while it is hovered or holds focus, and restarts in full (WCAG 2.2.1). The failure of a command a
+  person ran from a surface lasts the longest a toast may, 30 seconds, since it is the only report of it. A sticky one is phase 4's.
+- **The live region stays open** while empty, since a region added with its text is not announced. It says `aria-atomic="false"`
+  and `aria-relevant="additions"`, so a new toast does not read the others again; a `danger` item stays `role="alert"` as section 8
+  says, and whether screen readers then speak it once is a follow-up. It also announces an app opening or being unavailable,
+  which nothing else says, and `document.title` names the app (WCAG 2.4.2).
+- **A slow app says so.** After 400 ms main shows "Opening Hello…", and `loam-list` says "Loading…".
+- **The rail does not scroll yet.** Its list would clip the tooltips beside it, and those are the rail's only visible labels. The
+  tab bar's entries scroll in their slot, with the settings entry outside it. A follow-up, for a deployment with more apps than the
+  rail has height.
+- **`loam-list` marks its rows itself,** because `violet-option` hides whether it is active, and its active and selected colors do
+  not reach 3:1: the active row gets the focus ring while the list holds focus, and a selection the control colors and a start-edge
+  bar. Under forced colors only a selection is filled.
+- **A view app's sidebar list works here,** and its main says step 5 serves it. `activate` is for native apps alone.
 
 **Handler error text (D66 and section 12)**
 
-A native handler's or `activate`'s thrown message **does not go through the journal's `redact`, because it never reaches the
-journal**. A throw from a handler goes to `reportError`, as 9.5 has it; a throw from `activate` goes to `reportError` and to
-main's notice, in that page alone, and the kernel's record, which `app-get` reports and so journals, says only that it threw.
+A native handler's, an import's or `activate`'s thrown message **does not go through the journal's `redact`, because it never
+reaches the journal**. A throw from a handler or an import goes to `reportError`; a throw from `activate` goes to `reportError` and
+to main's notice, in that page alone. The kernel's record, which `app-get` reports and so journals, says only that it threw.
 `redact` stays what section 12 says, the removal of a known field, because it cannot recognise a secret in free text. A failure
 an app returns is its own result, and is journaled as any result is. A view frame's `HANDLER_THREW` still carries the
 handler's message into the journal (11.2): step 5 decides that one, and this says what it should weigh.
@@ -2490,5 +2509,8 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-01 | Phase 1 specification | Measure the mount chunk with Rolldown once it shares Zod, and whether a small fetch-based client is worth having if 340,000 bytes proves a burden after first paint | Open |
 | 2026-11-01 | Phase 1 specification | Umbel's owner may annotate D37 and "Room for Loam", per the proposal's step 3; nothing is asked of Umbel by this phase | Open; Umbel's owner |
 | 2026-11-02 | Phase 1 step 4 | Specimen's `settle` waits on the global registry for each tag in an open shadow root, so it hangs to its deadline on an element only a scoped registry holds (`foundations/specimen/src/browser/index.ts:265`, `:534`). `chrome`'s `loam-mount` fixture defines the name globally as well to get past it; Specimen should ask the element's own registry | Open |
-| 2026-11-02 | Phase 1 step 4 | Only 431 gzip bytes are left for the empty shell (317,894 of 320,000 minified, 94,569 of 95,000 gzip). Zod is 178,000 of the page; a smaller first-paint schema layer would end this pressure, and each later step must otherwise move code out first | Open |
+| 2026-11-02 | Phase 1 step 4 | Only 2,078 bytes and 976 gzip bytes are left for the empty shell (317,922 of 320,000, 94,024 of 95,000). Zod is 178,000 of the page; a smaller first-paint schema layer would end this pressure, and each later step must otherwise move code out first | Open |
+| 2026-11-02 | Phase 1 step 4 | Screen-reader passes with NVDA and VoiceOver over the toast region, the nested `role="alert"`, the app-open announcement and the modal. axe and the ARIA snapshots cannot judge what is actually spoken | Open |
+| 2026-11-02 | Phase 1 step 4 | A non-empty toast region has no F6 stop or chord, and is last in the Tab order, so reaching a toast by keyboard before its timer ends is hard. With phase 4's sticky toasts | Open; phase 4 |
+| 2026-11-02 | Phase 1 step 4 | The rail does not scroll when its entries overflow (9.6), and needs its tooltips out of the list, in a popover, first. In `unavailableApps`, a shell-owned modal does not refuse a switch, as section 8 has it, because no modal is likely in a page that could not load its apps | Open |
 | 2026-11-02 | Phase 1 step 4 | `scripts/affected/suites.mjs` still runs `pnpm -F "./endpoints/loam/packages/*" test`, without `apps/*`, because editing it selects the whole workspace; `pnpm check` covers the apps' units. Step 7 changes that entry anyway, as section 1 says | Open; step 7 |

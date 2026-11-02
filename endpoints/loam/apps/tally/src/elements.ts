@@ -34,7 +34,7 @@ export class TallyCard extends FASTElement {
 
 const mainTemplate = html<TallyMain>`
 	<h1>Tally</h1>
-	<x-card class="total" role="status">${(x) => String(x.total)}</x-card>
+	<x-card><p role="status">Total: <span class="total">${(x) => String(x.total)}</span></p></x-card>
 	<violet-button class="add" appearance="primary" @click="${(x) => x.add()}">Add one</violet-button>
 `;
 
@@ -46,8 +46,11 @@ const mainStyles = css`
 		align-content: start;
 		padding: var(--space-layout-md);
 	}
-	h1 {
+	h1,
+	p {
 		margin: 0;
+	}
+	h1 {
 		font-size: var(--type-title-md-size);
 		line-height: var(--type-title-md-line);
 		font-weight: var(--type-title-md-weight);

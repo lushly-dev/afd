@@ -144,14 +144,18 @@ export class LoamModal extends FASTElement {
 			?.focus();
 	}
 
-	/** Close it, returning focus to the invoker when it is still there. */
-	hide(): void {
+	/** Close it, returning focus to the invoker. False when the invoker has gone, as a switch removes it. */
+	hide(): boolean {
 		this.overlayId = '';
-		if (!this.dialog.open) return;
+		if (!this.dialog.open) return true;
 		this.dialog.close();
 		const opener = this.#opener;
 		this.#opener = null;
-		if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+		if (opener instanceof HTMLElement && opener.isConnected && !opener.closest('[inert]')) {
+			opener.focus();
+			return true;
+		}
+		return false;
 	}
 
 	answer(result: 'confirm' | 'cancel'): void {

@@ -107,7 +107,7 @@ const nav = (variant: 'rail' | 'tabbar') => (wrapper: HTMLElement) => {
 	const part = document.createElement(`loam-${variant}`);
 	part.append(
 		entry(variant, 'hello', 'Hello', 'ready', true),
-		entry(variant, 'tally', 'Tally', 'ready'),
+		entry(variant, 'counter', 'Counter', 'ready'),
 		entry(variant, 'tray', 'Tray', 'refused'),
 		entry(variant, 'work', 'Work', 'loading')
 	);
@@ -190,7 +190,7 @@ export const [StatusAction, StatusActionCompact] = both(
 			command: string;
 		};
 		element.label = 'Total';
-		element.command = 'tally-add';
+		element.command = 'counter-add';
 		element.textContent = '3';
 		wrapper.append(element);
 	},

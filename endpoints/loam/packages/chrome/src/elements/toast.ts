@@ -1,12 +1,12 @@
 /**
  * @fileoverview `loam-toast-region` and `loam-toast` (phase 1 specification, section 8). The region is
  * `role="status"`, in the top layer with `popover="manual"`, and stays open while it is empty, because a
- * live region must be in the accessibility tree before its text arrives. An item's tone is its icon and
- * a word as well as its color. A `danger` item is `role="alert"`.
+ * live region must be in the accessibility tree before its text arrives. It announces additions alone,
+ * not every toast again. An item's tone is its icon and a word as well as its color; a `danger` item is
+ * `role="alert"`. A state's background may be translucent, so each sits on the floating surface.
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
-import { visuallyHidden } from './styles.js';
 
 export const TOAST_DISMISS_EVENT = 'loam-toast-dismiss';
 
@@ -30,6 +30,7 @@ const regionStyles = css`
 		inline-size: auto;
 		max-inline-size: min(92vw, var(--shell-size-main-min));
 		block-size: auto;
+		max-block-size: calc(100dvh - var(--shell-size-tabbar) - var(--shell-size-titlebar));
 		margin: 0;
 		padding: 0;
 		border: 0;
@@ -38,6 +39,17 @@ const regionStyles = css`
 		color: var(--color-text-primary);
 		pointer-events: none;
 	}
+	:host(:has(loam-toast)) {
+		overflow-block: auto;
+	}
+	.announcement {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
 `;
 
 export class LoamToastRegion extends FASTElement {
@@ -45,15 +57,17 @@ export class LoamToastRegion extends FASTElement {
 		super.connectedCallback();
 		this.setAttribute('role', 'status');
 		this.setAttribute('aria-live', 'polite');
+		this.setAttribute('aria-atomic', 'false');
+		this.setAttribute('aria-relevant', 'additions');
 		this.setAttribute('aria-label', 'Notifications');
 		this.setAttribute('popover', 'manual');
-		this.show();
+		this.showPopover();
 	}
 
-	/** Bring the region above what opened since, as the top layer stacks in opening order. */
-	show(): void {
-		if (this.matches(':popover-open')) this.hidePopover();
-		this.showPopover();
+	/** Say something no toast shows, such as an app opening. */
+	announce(text: string): void {
+		const announcement = this.shadowRoot?.querySelector('.announcement');
+		if (announcement) announcement.textContent = text;
 	}
 }
 
@@ -64,7 +78,7 @@ const toastTemplate = html<LoamToast>`
 		?hidden="${(x) => x.tone === 'info'}"
 		decorative
 	></violet-icon>
-	<span class="visually-hidden">${(x) => TONE_WORD[x.tone]}:</span>
+	<span class="word">${(x) => TONE_WORD[x.tone]}:</span>
 	<span class="message">${(x) => x.message}</span>
 	<button
 		class="dismiss"
@@ -78,7 +92,6 @@ const toastTemplate = html<LoamToast>`
 `;
 
 const toastStyles = [
-	visuallyHidden,
 	css`
 		:host {
 			display: flex;
@@ -103,19 +116,43 @@ const toastStyles = [
 				opacity: 0;
 			}
 		}
+		@media (prefers-reduced-motion: reduce) {
+			:host {
+				transition-duration: var(--duration-fast);
+			}
+		}
+		.word {
+			flex: none;
+			font-weight: var(--weight-semibold);
+		}
+		:host([tone='info']) .word,
+		:host([tone='success']) .word {
+			position: absolute;
+			inline-size: 1px;
+			block-size: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
 		:host([tone='success']) {
 			border-color: var(--color-state-success-border);
-			background: var(--color-state-success-background);
+			background:
+				linear-gradient(var(--color-state-success-background), var(--color-state-success-background)),
+				var(--color-surface-floating);
 			color: var(--color-state-success-text);
 		}
 		:host([tone='warning']) {
 			border-color: var(--color-state-warning-border);
-			background: var(--color-state-warning-background);
+			background:
+				linear-gradient(var(--color-state-warning-background), var(--color-state-warning-background)),
+				var(--color-surface-floating);
 			color: var(--color-state-warning-text);
 		}
 		:host([tone='danger']) {
 			border-color: var(--color-state-danger-border);
-			background: var(--color-state-danger-background);
+			background:
+				linear-gradient(var(--color-state-danger-background), var(--color-state-danger-background)),
+				var(--color-surface-floating);
 			color: var(--color-state-danger-text);
 		}
 		[hidden] {
@@ -183,6 +220,9 @@ const toastStyles = [
 			.dismiss:focus-visible {
 				outline-color: Highlight;
 			}
+			.dismiss:hover:focus-visible {
+				outline-color: HighlightText;
+			}
 		}
 	`,
 ];
@@ -220,7 +260,7 @@ attr(LoamToast.prototype, 'tone');
 
 export const toastRegionDefinition = {
 	name: 'loam-toast-region',
-	template: html<LoamToastRegion>`<slot></slot>`,
+	template: html<LoamToastRegion>`<slot></slot><span class="announcement"></span>`,
 	styles: regionStyles,
 } as const;
 export const toastDefinition = {

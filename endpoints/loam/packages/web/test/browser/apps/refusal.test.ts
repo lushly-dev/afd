@@ -167,6 +167,72 @@ describe('D66: nothing an app does stops the shell', () => {
 		await site.close();
 	});
 
+	it('keeps an import that throws out of the journal, and calls deactivate only for what activated', async () => {
+		const bare = (raw: Record<string, unknown>) => {
+			(raw.ui as { surfaces: Record<string, unknown> }).surfaces = { main: { element: 'x-y' } };
+			(raw.ui as { compositions?: unknown }).compositions = undefined;
+			(raw.ui as { layout?: unknown }).layout = undefined;
+		};
+		const throwing = await rawPackage('import-throws', await helloManifest(bare), {
+			'dist/native.js': "throw new Error('secret-import-text');\n",
+		});
+		const site = await serveDeployment({
+			config: deploymentFile(deploymentEntry('hello', throwing)),
+		});
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await entryButton(page, 'hello').click();
+		await page.locator('loam-main loam-notice').waitFor();
+		const entries = await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				journal: { read(): Promise<unknown[]> };
+			};
+			return JSON.stringify(await shell.journal.read());
+		});
+		expect(entries).not.toContain('secret-import-text');
+		expect(opened.errors.join(' ')).toContain('secret-import-text');
+		await opened.context.close();
+		await site.close();
+
+		const activating = await rawPackage('deactivates', await helloManifest(bare), {
+			'dist/native.js': `export default {
+	sdk: 1,
+	handlers: {
+		'hello-greet': async () => ({ success: true, data: {} }),
+		'hello-list': async () => ({ success: true, data: { items: [] } }),
+		'hello-forget': async () => ({ success: true, data: {} }),
+	},
+	activate(context) { context.registry.define('x-y', class extends HTMLElement {}); },
+	deactivate() { globalThis.helloDeactivated = (globalThis.helloDeactivated ?? 0) + 1; },
+};
+`,
+		});
+		const second = await serveDeployment({
+			config: deploymentFile(deploymentEntry('hello', activating)),
+		});
+		const back = await openShell(browser, second.origin);
+		await openApp(back.page, 'hello');
+		expect(await back.page.locator('loam-main x-y').count()).toBe(1);
+		expect(
+			await back.page.evaluate(() => (globalThis as { helloDeactivated?: number }).helloDeactivated)
+		).toBeUndefined();
+		// `deactivate` runs at the chrome's teardown, and what it put in the parts goes with it.
+		const left = await back.page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as HTMLElement;
+			const root = shell.shadowRoot as ShadowRoot;
+			shell.remove();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			return {
+				calls: (globalThis as { helloDeactivated?: number }).helloDeactivated,
+				mounts: root.querySelectorAll('loam-mount').length,
+				entries: root.querySelectorAll('loam-app-entry').length,
+			};
+		});
+		expect(left).toEqual({ calls: 1, mounts: 0, entries: 0 });
+		await back.context.close();
+		await second.close();
+	});
+
 	it('shows a surface that names an undefined element, in its mount', async () => {
 		const manifest = await helloManifest((raw) => {
 			(raw.ui as { surfaces: { main: { element: string } } }).surfaces.main.element = 'hello-gone';
