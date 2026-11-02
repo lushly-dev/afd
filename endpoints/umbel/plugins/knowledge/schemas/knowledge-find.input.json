@@ -1,0 +1,42 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"pattern": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024
+		},
+		"regex": {
+			"type": "boolean",
+			"default": false,
+			"description": "Read the pattern as a regular expression (no backreferences)"
+		},
+		"case_sensitive": {
+			"type": "boolean",
+			"default": false
+		},
+		"context_lines": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 5,
+			"default": 1
+		},
+		"max_matches": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 100,
+			"default": 20
+		}
+	},
+	"required": ["doc", "pattern"],
+	"additionalProperties": false
+}

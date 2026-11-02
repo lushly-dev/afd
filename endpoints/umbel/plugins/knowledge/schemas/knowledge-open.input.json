@@ -1,0 +1,50 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512,
+			"description": "A document id, <collection>/<path>"
+		},
+		"locator": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 700,
+			"description": "A locator as a search hit gives it; give doc or locator, not both"
+		},
+		"from_line": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "The first line of the window"
+		},
+		"lines": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 400,
+			"default": 120,
+			"description": "How many lines at most"
+		},
+		"chunk": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Open the lines of this chunk (an ordinal from a detailed hit)"
+		},
+		"heading": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 600,
+			"description": "Open the section under the heading with this slug"
+		},
+		"expect_hash": {
+			"type": "string",
+			"maxLength": 71,
+			"description": "The content hash you saw; a different one is reported as DOCUMENT_CHANGED"
+		}
+	},
+	"additionalProperties": false
+}

@@ -803,6 +803,27 @@
 					"private": true
 				}
 			]
+		},
+		{
+			"id": "umbel-plugin-knowledge",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "1663d506c591b4bd16a360ebbf24a83c2de5961e",
+			"authority": "none: new knowledge plugin crate and umbel-knowledge binary authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-knowledge",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/knowledge/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

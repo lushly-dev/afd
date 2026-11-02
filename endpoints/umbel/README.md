@@ -132,6 +132,18 @@ instructions or hides text is flagged and stored, never blocked. It needs the wr
 `documents_write` and `records_write` allowed for the space in `umbel.toml`, as the plugin's
 tests show.
 
+**Searching them.** [`plugins/knowledge`](plugins/knowledge) is the second, `compiled:knowledge`:
+`knowledge-index` brings a space's search index up to date, `knowledge-search` is fielded BM25 over
+the documents the caller may read (terms, phrases, `+`/`-`, `AND`/`OR`/`NOT`, `field:term`,
+`term^boost`, `prefix*`), and `knowledge-open`, `knowledge-find`, `knowledge-describe`,
+`knowledge-list` and `knowledge-changes` read them back. The pipeline `knowledge-refresh` runs the
+sync and then the index. Every part of a result that came from a document is labeled `trust:
+"content"`: it is data to read, never instructions. Results are fitted to a per-command output
+budget (fewer hits, a shorter window, and a warning that says so). The `umbel-knowledge` binary is
+the `umbel` command line with `sources` and `knowledge` compiled in (the stock `umbel` binary
+compiles in no plugin); enable both with `plugins.enabled = ["sources", "knowledge"]`, and allow
+`index_write` for the space (`[plugins.knowledge.grants.index_write] allow = ["main"]`).
+
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
 

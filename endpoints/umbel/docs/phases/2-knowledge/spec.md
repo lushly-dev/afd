@@ -114,8 +114,18 @@
   from `.umbel-access.toml`, results of totals plus readable ids), `sources-status`,
   its `frontmatter` pack and its skill, the host service `content_collections`
   and the `knowledge` CI job's new crates. See
-  [Amendments from step 5](#amendments-from-step-5).
-- **Not done:** steps 6 to 10 of the [plan](#14-implementation-plan);
+  [Amendments from step 5](#amendments-from-step-5). **Step 6, the knowledge core**,
+  2026-11-01, in [671](https://github.com/lushly-dev/afd/pull/671): the `umbel-plugin-knowledge` crate without the `code`
+  feature and the `umbel-knowledge` binary (the stock `umbel` stays empty); structure-aware
+  chunking (D59); `knowledge-index` by the section 8.7 procedure (index only: the writer first,
+  derivation reads, one commit that never lowers `applied`, totals plus readable ids);
+  `knowledge-search` (fielded BM25 through the query builder, the reader clause inside the query,
+  document-level hits with best chunk, locator and verification, explicit labeled multi-space
+  queries fused by rank and never written back); `knowledge-open`, `-find`, `-describe`,
+  `-list` and `-changes`; output budgets on every read command; content labels; the first-class
+  suggestions; the `knowledge-refresh` pipeline; the `ranking` pack and the skill. See
+  [Amendments from step 6](#amendments-from-step-6).
+- **Not done:** steps 7a to 10 of the [plan](#14-implementation-plan);
   the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2201,6 +2211,34 @@ Markdown files of this repository's `docs/`, `endpoints/umbel/docs/`, `packages/
 `.claude/skills/` and `spec/` (`okf/tests/flag_rate.rs`, which prints it): 17 files `instruction-like`
 (3.3 %), 1 `hidden-text` (0.2 %), none unreadable. The test asserts the rate stays under a quarter.
 
+## Amendments from step 6
+
+Step 6 read this specification against the host, the SDK, the index and the chunker's inputs, and
+made these smallest-correct changes. It needed no host change (no `Plugin-isolation-exempt:` line).
+Everything else is built as written; the named tests are `chunking.rs`, `query_syntax.rs`,
+`search.rs`, `open_find.rs`, `spaces.rs`, `budgets.rs`, `security.rs` (read side), `index.rs`,
+`process.rs` and a `smoke.rs`, all in `plugins/knowledge/tests/`.
+
+| # | Where the text and the code disagreed | What step 6 did | Section |
+| --- | --- | --- | --- |
+| F1 | Section 8.5's `knowledge-describe` reports "index and graph applied revisions" and counts backlinks from the graph, but the graph is built in step 7a and the SDK has no service for the graph's applied revision | `knowledge-index` writes the index only. `knowledge-describe` reads `links_to` edges **into** the document from the graph store through the `graph` grant, which counts only origins the caller's reader filter admits (`backlinks.count`; `atLeast` when 1000 edges were read), and reports `indexApplied`. There is no `graphApplied`: until step 7a the count is 0, and the tests seed the graph through the embedded store to prove the readable-only count. The links (`resolved`, `broken`, `external`) are computed from the document at read time, which settles the follow-up that `broken-links` goes stale (E6) for `describe`; a broken link names only what the link says, never the id it resolved to, because a document the caller cannot read must look like one that is not there | 7.3, 8.5 |
+| F2 | Section 8.7 lists totals "documents indexed and removed, chunks, nodes, edges, broken links", ends with a best-effort WAL checkpoint, and bounds a run by `limit` | Totals are `documents.indexed`, `documents.removed` and `chunks` (nodes, edges and broken links arrive with the graph, 7a). The checkpoint is not run: no host service exposes it to a plugin (SQLite's autocheckpoint and `store-check` cover it; sources-sync did the same). A **rebuild ignores `limit`** and applies every change in one run, because a commit never lowers the applied revision and a part-way rebuild would claim more than it holds. The result adds `applied`, `rebuild`, `ids` (at most 100, each `{ id, change }`), `idsMore` and `idsComplete` (false when more than 5000 candidates were not all examined), and the warnings `INDEX_REMAINING` and `CHUNKS_LIMITED` (readable ids only). The ids are the readable ones among the documents the run touched: a removal is named from the change log read as the caller (a deletion is as readable as the version it deleted), a written document must also be readable now; at most 5000 candidates are examined | 8.7 |
+| F3 | Section 7.2 rule 3 splits only an atomic block over 400 words, but a paragraph or a long line can also pass 400 words or the index's body limit (1 MiB) | **Any** block over 400 words is split at line boundaries, a line over the cap at word boundaries, and a word over 64 KiB at character boundaries; no chunk passes 64 KiB (`MAX_CHUNK_BYTES`). A chunk of no words is dropped, and a document with no content gets one empty chunk so its title, aliases and description still find it. Code is chunked as plain text, 60 lines at a time (also capped at 64 KiB), until step 7b | 7.2, 7.4 |
+| F4 | Section 8.2's `INDEX_STALE` compares the applied revision with "head", and `dev.umbel/index` carries `head`, but no service returns the head | `head` is the highest revision of a change the caller can read after `applied` (else `applied`), and `INDEX_STALE` is raised when the caller can read a document change (`put` or `delete`, not a bookkeeping record) after `applied`. A caller therefore learns nothing about changes they cannot read, which is also the owner's accepted leak and no more | 8.2 |
+| F5 | Section 8.2 makes the detailed snippet 480 characters; C11 left that to step 6 | Both formats show the index's 240-character snippet. A length on `IndexQuery` would change the store crate and its conformance suite for a cosmetic gain; the follow-up stays open | 8.2 |
+| F6 | Section 8.3's locator carries "the content hash" and section 8.2's detailed hit "the locator object" without saying which hash or which key | The locator's hash is the document's **current** stored hash (the index keeps no document hash), so `INDEX_STALE` is what warns that lines may have moved. A hit's `locator` is the string; the detailed hit's `locatorObject` is the object of `locator.v1.json` | 8.2, 8.3 |
+| F7 | Section 8.5 lists `verification` and `updated` among `knowledge-list`'s fields | `DocMeta` has neither (they are in the document, not the listing), so the list gives id, title, type, status, rev, content hash, size, sensitivity and flags. `knowledge-describe` has the rest. No access set is shown: the caller holds one token of it, not the whole list | 8.5 |
+| F8 | Section 8.5 says `knowledge-changes` gives "readable changes with document ids and hashes" and "revisions skip unreadable changes" | It shows `put` and `delete` changes only (the plugins' record changes are bookkeeping) and reports `nextAfterRev`, the last revision scanned, so a consumer never loops on a page of records | 8.5 |
+| F9 | Section 8.1 makes `meta.<key>` searchable "for keys the schema pack lists as `filterable`" (C9 moved that to the plugin), but the schema pack belongs to the `sources` plugin, which `knowledge` cannot read | The `knowledge` plugin has its own pack `ranking`: `data/ranking.toml` holds `[aggregation]` (`secondary_weight`, `secondary_count`), `[status]` (`draft_factor`), `[fusion]` (`rrf_k`) and `[index]` (`filterable`, empty by default). A space overrides it whole (D46). The expansion parameters join the file in step 7a | 8.1, 8.2 |
+| F10 | Section 8 lists the plugin's grants for the whole phase | Step 6 declares what it uses: `config`, `packs`, `clock`, `documents`, `index`, `index_write`, `graph` and the optional `content` (collection ids for link resolution in `knowledge-describe`). `records`, `records_write`, `graph_write`, `documents_write` and `content_write` come with steps 7a and 8; `index_write` needs `[plugins.knowledge.grants.index_write] allow = [...]` in `umbel.toml` | 8 |
+| F11 | Section 8.2 applies `verified_only` to "every search and open" | It also applies to `knowledge-find`; a document below the human tier is `DOCUMENT_NOT_VERIFIED` there and in open (the caller could read it, so no existence leaks). In search the filter only narrows: a requested tier below human cannot widen it | 8.2 |
+| F12 | Section 8.5 names `DOCUMENT_NOT_FOUND` for open and no other failure | New codes: `OPEN_ARGUMENTS_INVALID` (both or neither of `doc` and `locator`, or two ways to place the window), `LOCATOR_INVALID` (not a locator, or another space than the call's: pass `space`), `WINDOW_OUT_OF_RANGE`, `CHUNK_NOT_FOUND`, `HEADING_NOT_FOUND`, `DOCUMENT_NOT_VERIFIED`, `QUERY_INVALID` for a bad `knowledge-find` pattern or `updatedAfter`, `KNOWLEDGE_PACK_INVALID`, `KNOWLEDGE_INDEX_INVALID`. A window whose single line is longer than the whole budget is cut at a character boundary with `WINDOW_LIMITED` and `cutLine` (the only place a value is shortened; AFD's check still refuses a result that does not fit) | 8.5, 8.6 |
+| F13 | Section 8.6 has the handler fit "structurally" and AFD's check as backstop | The plugin measures exactly what AFD measures (the canonical JSON without `metadata`; a float with no fraction is written as an integer) and counts every warning inside the fit, so a result that fits to the byte passes and one byte less drops a hit (tested against AFD's own check). `knowledge-describe` leaves out the stored frontmatter and envelope first, then shortens its lists | 8.6 |
+| F14 | Section 8.4 has `knowledge-search` take `space` or `spaces` | The handler uses `CallContext.spaces` when `spaces` was given (the host's checked list) and `CallContext.space` otherwise; a multi-space search runs each space through `Cx::in_space` with that space's own reader filter and fuses by `1 / (rrf_k + rank)` at four decimals (ties by space, then document id); each hit keeps its `spaceScore` | 8.4 |
+| F15 | Section 8.7's pipeline takes `{ space }` | `space` is optional (a missing `$input.space` is absent, so both steps use the default space). The pipeline is registered only when `sources` is enabled | 8.7 |
+| F16 | Section 8.2 says `expand` is the graph expansion, "default `true`" | Accepted, and the result says `"expanded": false` until step 7a builds the graph and applies it | 8.2 |
+| F17 | Section 8.2 drops `deprecated` documents "unless `include_deprecated`" and excludes the reserved OKF files | Both are applied to the chunk hits after retrieval (the index's `status` filter takes one value), from `limit × 8` chunks, so a query dominated by deprecated chunks can return fewer than `limit` documents. A hit's document is read again through the document store's own filter and current state before it is shown, so an index that is behind never serves a document that was deleted or that became restricted | 8.2 |
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2214,4 +2252,4 @@ Markdown files of this repository's `docs/`, `endpoints/umbel/docs/`, `packages/
 | 2026-11-01 | A per-collection option to block, not only flag, content the write scan matches | When a deployer asks |
 | 2026-11-01 | Watching collection roots instead of explicit `knowledge-refresh` | Later |
 | 2026-11-01 | The `knowledge` job's timeout: 15 minutes, to lower to three times the slower hosted run when that is under 15 (C14) | After the first hosted runs |
-| 2026-11-01 | A length on `IndexQuery` so the detailed form's 480-character snippet needs no second search (C11) | Step 6 |
+| 2026-11-01 | A length on `IndexQuery` so the detailed form's 480-character snippet needs no second search (C11); step 6 kept 240 for both formats (F5) | Open, when a deployer asks |

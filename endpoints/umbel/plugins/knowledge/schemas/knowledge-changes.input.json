@@ -1,0 +1,28 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"after_rev": {
+			"type": "integer",
+			"minimum": 0,
+			"default": 0,
+			"description": "Changes after this store revision"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 1000,
+			"default": 100
+		},
+		"trace": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"description": "Only the changes one call made (an event's traceId)"
+		}
+	},
+	"additionalProperties": false
+}

@@ -3889,6 +3889,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "umbel-plugin-knowledge"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "chrono",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-okf",
+ "umbel-plugin-sources-filesystem",
+ "umbel-sdk",
+ "umbel-store",
+ "umbel-store-embedded",
+]
+
+[[package]]
 name = "umbel-plugin-sources-filesystem"
 version = "0.1.0"
 dependencies = [

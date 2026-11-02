@@ -113,7 +113,7 @@ jobs:
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
-        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem
+        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -171,9 +171,9 @@ jobs:
           workspaces: endpoints/umbel
           key: knowledge
       - name: Clippy
-        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem --all-targets -- -D warnings
+        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets -- -D warnings
       - name: Test
-        run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem
+        run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
       # The traits and types build for WebAssembly components (section 1); the backend does not.
       - name: Check umbel-store (wasm32-wasip2)
         run: cargo check --locked --target wasm32-wasip2 -p umbel-store
@@ -182,7 +182,7 @@ jobs:
         run: rustup toolchain install 1.97.0 --profile minimal
       - name: Check (MSRV 1.97)
         if: matrix.os == 'ubuntu-latest'
-        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem --all-targets
+        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).

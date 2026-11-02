@@ -1,0 +1,138 @@
+manifest_version = 2
+protocol = 1
+
+[plugin]
+id = "knowledge"
+title = "Knowledge"
+version = "0.1.0"
+description = "Lexical search, open, find and describe over the documents of a space, ranked by BM25 with structure-aware chunks; every result is filtered by who may read."
+kind = "compiled"
+domains = ["knowledge"]
+
+[[grants]]
+name = "config"
+reason = "Reads warn_unverified and verified_only."
+
+[[grants]]
+name = "packs"
+reason = "Reads the ranking pack a space may override."
+
+[[grants]]
+name = "clock"
+reason = "Tells which hits are past their stale_after date."
+
+[[grants]]
+name = "documents"
+reason = "Reads documents, their listing and their changes under the caller's reader filter."
+
+[[grants]]
+name = "index"
+reason = "Searches the space's index and reads its chunks under the caller's reader filter."
+
+[[grants]]
+name = "index_write"
+reason = "knowledge-index takes the index writer and replaces the chunks of changed documents."
+
+[[grants]]
+name = "graph"
+reason = "Counts a document's backlinks over the documents the caller can read."
+
+[[grants]]
+name = "content"
+required = false
+reason = "Learns the space's collection ids, so knowledge-describe resolves a link into another collection."
+
+[[commands]]
+name = "knowledge-search"
+description = "Search a space's documents: fielded BM25 with boolean, phrase, field, boost and prefix syntax. Hits are documents, each with its best passage, locator and verification status."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-search.input.json"
+category = "knowledge"
+tags = ["knowledge", "search"]
+version = "1.0.0"
+first_class = true
+output_budget = { default_bytes = 24000, max_bytes = 96000 }
+examples = [{ title = "Find the rollback runbook", input = { query = "rollback canary", limit = 5 } }]
+
+[[commands]]
+name = "knowledge-open"
+description = "Open a window of one document by line, chunk, heading or locator, with its content hash and neighbouring windows."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-open.input.json"
+category = "knowledge"
+tags = ["knowledge", "read"]
+version = "1.0.0"
+first_class = true
+output_budget = { default_bytes = 32000, max_bytes = 128000 }
+examples = [{ title = "Open the start of a document", input = { doc = "handbook/deploy/rollback" } }]
+
+[[commands]]
+name = "knowledge-find"
+description = "Find a text or a regular expression in one document, with context lines and a locator for each match."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-find.input.json"
+category = "knowledge"
+tags = ["knowledge", "read"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+
+[[commands]]
+name = "knowledge-describe"
+description = "Describe one document: its record without the bytes, its outline, its links and its backlinks."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-describe.input.json"
+category = "knowledge"
+tags = ["knowledge", "read"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+
+[[commands]]
+name = "knowledge-list"
+description = "List the documents of a space the caller can read, by collection, prefix or type, a page at a time."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-list.input.json"
+category = "knowledge"
+tags = ["knowledge", "read"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+
+[[commands]]
+name = "knowledge-changes"
+description = "List the document changes the caller can read after a store revision, for consumers that follow changes."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-changes.input.json"
+category = "knowledge"
+tags = ["knowledge", "read"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+
+[[commands]]
+name = "knowledge-index"
+description = "Bring a space's search index up to date with its documents. Reports totals and the ids the caller can read."
+effects = ["store-write"]
+input_schema = "schemas/knowledge-index.input.json"
+category = "knowledge"
+tags = ["knowledge", "index"]
+version = "1.0.0"
+examples = [{ title = "Index what changed", input = {} }]
+
+[[pipelines]]
+name = "knowledge-refresh"
+description = "Read a space's files into the document store, then bring its search index up to date."
+effects = ["store-write"]
+input_schema = { type = "object", properties = { space = { type = "string", description = "The space; default: the workspace's default space" } }, additionalProperties = false }
+steps = [
+  { command = "sources-sync", input = { space = "$input.space" }, as = "sync" },
+  { command = "knowledge-index", input = { space = "$input.space" } },
+]
+
+[[packs]]
+id = "ranking"
+path = "packs/ranking"
+
+[[skills]]
+name = "knowledge-guide"
+path = "skills/knowledge-guide"
+
+[config]
+schema = "schemas/config.schema.json"

@@ -1,0 +1,6 @@
+pack_version = 1
+id = "ranking"
+plugin = "knowledge"
+version = "1.0.0"
+title = "Ranking"
+description = "The numbers that turn chunk scores into document rankings, and the frontmatter keys the index makes searchable as meta.<key>."

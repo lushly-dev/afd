@@ -1,0 +1,20 @@
+# Ranking parameters of the knowledge plugin (specification sections 8.1 and 8.2). A space may
+# override this whole file under spaces/<space>/packs/knowledge/ranking/data/ranking.toml.
+
+[aggregation]
+# A document's score is its best chunk's score plus this weight times the sum of its next best
+# chunks (as many as secondary_count).
+secondary_weight = 0.1
+secondary_count = 2
+
+[status]
+# A draft document's score is multiplied by this.
+draft_factor = 0.8
+
+[fusion]
+# A multi-space search fuses the per-space rankings by reciprocal rank: 1 / (rrf_k + rank).
+rrf_k = 60
+
+[index]
+# Frontmatter keys the index makes searchable as meta.<key> (scalars only).
+filterable = []
