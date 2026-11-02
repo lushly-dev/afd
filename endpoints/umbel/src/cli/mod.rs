@@ -503,7 +503,14 @@ async fn run_command(
     writers.exit_for(&result)
 }
 
-async fn run_batch(host: &Host, request: BatchRequest<Value>, writers: &mut Writers<'_>) -> i32 {
+async fn run_batch(
+    host: &Host,
+    mut request: BatchRequest<Value>,
+    writers: &mut Writers<'_>,
+) -> i32 {
+    // The request's `context` is caller input merged into `extra`, where host-owned keys such as
+    // the terminal confirmation mark live, so it is dropped, as the MCP route ignores it.
+    request.context = None;
     let mut context = host.cli_context();
     context.interface = Some(CommandInterface::Cli);
     let result = host
