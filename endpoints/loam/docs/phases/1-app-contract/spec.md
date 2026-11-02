@@ -2212,6 +2212,9 @@ unless they say otherwise.
 - **`dist/sandbox/` also lands on the shell's origin,** since `deployment write` copies `--dist` whole. It is unused
   there, and harmless: `proxy.js` opens nothing on its own, and what it renders is opaque. A deployer serves it on the
   second origin too, as 6.1 says.
+- **E1 had a race,** which this step's full runs caught about one time in three, in code it did not change. The palette
+  lists every command before a search narrows them, so the test's wait for `hello-greet` passed at once and Enter ran
+  the first row. It now waits for `hello-greet` to be first.
 - **`web` takes dev dependencies** on `@modelcontextprotocol/ext-apps`, pinned at 2.0.4, and `@lushly-dev/loam-sdk`, for
   the fixtures in `test/browser/pages/`. No workflow, `scripts/affected/` or root manifest changed.
 

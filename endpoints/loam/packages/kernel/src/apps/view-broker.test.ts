@@ -27,8 +27,8 @@ function setup() {
 describe('the view broker', () => {
 	it('sends tools/call through the port, and shapes the answer as MCP does', async () => {
 		const { broker, call } = setup();
-		const answer = await broker.toolsCall({ name: 'tally-add', arguments: { amount: 1 } });
-		expect(call).toHaveBeenCalledWith('tally-add', { amount: 1 });
+		const answer = await broker.toolsCall({ name: 'other-add', arguments: { amount: 1 } });
+		expect(call).toHaveBeenCalledWith('other-add', { amount: 1 });
 		expect(answer).toEqual({
 			content: [{ type: 'text', text: JSON.stringify(success({ ok: true })) }],
 			structuredContent: success({ ok: true }),

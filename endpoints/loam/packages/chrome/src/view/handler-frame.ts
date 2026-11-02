@@ -4,9 +4,10 @@
  * only carries messages.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
 import type { HandlerFrameV1 } from '@lushly-dev/loam-kernel';
 import { ChannelError, ProxyChannel } from './channel.js';
+
+type HandlerResult = Awaited<ReturnType<HandlerFrameV1['call']>>;
 
 export interface HandlerFrameOptions {
 	document: Document;
@@ -40,10 +41,10 @@ export function openHandlerFrame(options: HandlerFrameOptions): HandlerFrameV1 {
 		ready,
 		async call(request, signal) {
 			try {
-				return (await channel.request('dev.loam/handler-call', request, signal)) as CommandResult;
+				return (await channel.request('dev.loam/handler-call', request, signal)) as HandlerResult;
 			} catch (cause) {
 				// A frame's answer that is no result, whatever it says: the kernel reports it, without its text.
-				if (cause instanceof ChannelError) return undefined as unknown as CommandResult;
+				if (cause instanceof ChannelError) return undefined as unknown as HandlerResult;
 				throw cause;
 			}
 		},
