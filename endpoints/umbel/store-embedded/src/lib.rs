@@ -10,6 +10,7 @@ mod documents;
 mod error;
 mod graph;
 mod index;
+mod inspect;
 mod readable_graph;
 mod schema;
 mod sql;
@@ -20,6 +21,7 @@ use umbel_store::StoreError;
 
 pub use connection::StoreOptions;
 pub use index::{IndexCheck, IndexInfo, TantivyIndex};
+pub use inspect::StoreCounts;
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 
 /// The file and directory names under a space's state directory (section 3.2).

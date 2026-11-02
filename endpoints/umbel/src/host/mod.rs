@@ -16,6 +16,7 @@ use crate::events::{EventsError, ProjectingSink, Projector, RepairReport};
 use crate::middleware;
 use crate::plugins::{self, Catalog, CompiledPlugin, LoadedPlugins, LoadedSkill};
 use crate::principal::{Authentication, Principal, Transport};
+use crate::store::{Hub, Stores};
 use crate::surfaces;
 use crate::workspace::{Workspace, codes};
 use afd::server::{McpServer, SkillCatalog};
@@ -146,6 +147,8 @@ impl HostBuilder {
         let plan_cell: Arc<OnceLock<surfaces::FirstClassPlan>> = Arc::new(OnceLock::new());
         let loaded_cell: Arc<OnceLock<Arc<LoadedPlugins>>> = Arc::new(OnceLock::new());
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
+        let stores: Hub = Arc::new(Stores::new(Arc::clone(&workspace)));
+        let ledger = Arc::new(plugins::Ledger::default());
         let catalog = Catalog::new(&self.compiled)?;
         let compiled_catalog = Arc::new(catalog.manifests().clone());
 
@@ -171,9 +174,27 @@ impl HostBuilder {
                 Arc::clone(&plan_cell),
                 Arc::clone(&loaded_cell),
                 Arc::clone(&compiled_catalog),
+                Arc::clone(&stores),
             ),
             commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
         ];
+        #[cfg(feature = "store-embedded")]
+        let builtins = {
+            let mut builtins = builtins;
+            builtins.push(commands::store_show(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins.push(commands::store_check(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins.push(commands::store_backup(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins
+        };
         for Builtin { definition, schema } in builtins {
             register(&registry, Pending::Schema(definition, schema))?;
         }
@@ -193,6 +214,8 @@ impl HostBuilder {
         let loaded = Arc::new(plugins::load(&plugins::Inputs {
             workspace: &workspace,
             projector: &projector,
+            stores: &stores,
+            ledger: &ledger,
             registry: &registry,
             catalog: &catalog,
             mount_roots: &self.mount_roots,
@@ -222,7 +245,7 @@ impl HostBuilder {
             self.clock.as_ref(),
         )?;
         let server = serve_skills(server, &loaded)?;
-        install_middleware(&registry, &workspace, &loaded)?;
+        install_middleware(&registry, &workspace, &loaded, &ledger)?;
         install_journal(&registry, &workspace, &projector);
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
@@ -278,14 +301,14 @@ fn register(registry: &CommandRegistry, pending: Pending) -> Result<(), HostErro
     })
 }
 
-/// Whether the command's input schema has a `space` property.
-fn has_space_property(registry: &CommandRegistry, name: &str) -> bool {
+/// Whether the command's input schema has a property called `property`.
+fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool {
     registry
         .get_tool(name)
         .and_then(|tool| {
             tool.get("inputSchema")?
                 .get("properties")?
-                .get("space")
+                .get(property)
                 .cloned()
         })
         .is_some()
@@ -301,6 +324,7 @@ fn install_middleware(
     registry: &Arc<CommandRegistry>,
     workspace: &Arc<Workspace>,
     loaded: &LoadedPlugins,
+    ledger: &Arc<plugins::Ledger>,
 ) -> Result<(), HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
@@ -308,7 +332,18 @@ fn install_middleware(
             .iter()
             .filter(|command| match loaded.gate.get(&command.name) {
                 Some(entry) => entry.space_command,
-                None => has_space_property(registry, &command.name),
+                None => has_property(registry, &command.name, "space"),
+            })
+            .map(|command| command.name.clone())
+            .collect(),
+    );
+    // A `spaces` input is checked like `space` (phase 2 specification, section 3.3, rule 9).
+    let with_spaces: Arc<HashSet<String>> = Arc::new(
+        commands
+            .iter()
+            .filter(|command| match loaded.gate.get(&command.name) {
+                Some(entry) => entry.spaces_command,
+                None => has_property(registry, &command.name, "spaces"),
             })
             .map(|command| command.name.clone())
             .collect(),
@@ -341,12 +376,29 @@ fn install_middleware(
                 .map(|space| space.to_string())
         })
     };
-    registry.add_middleware(middleware::space_check(with_space, Arc::clone(&resolve)));
+    let resolve_many: middleware::ResolveSpaces = {
+        let resolver = Arc::clone(workspace);
+        Arc::new(move |input, context| {
+            resolver
+                .resolve_spaces(input, context)
+                .map(|spaces| spaces.into_iter().map(|space| space.to_string()).collect())
+        })
+    };
+    registry.add_middleware(middleware::space_check(
+        with_space,
+        with_spaces,
+        Arc::clone(&resolve),
+        Arc::clone(&resolve_many),
+    ));
     let entries: BTreeMap<_, _> = loaded.gate.clone();
     registry.add_middleware(middleware::plugin_gate(
         Arc::new(entries),
-        resolve,
-        workspace.default_space().to_string(),
+        middleware::GateContext {
+            workspace: Arc::clone(workspace),
+            ledger: Arc::clone(ledger),
+            resolve_many,
+            default_space: workspace.default_space().to_string(),
+        },
     ));
 
     let key = workspace.approval_key()?;
@@ -402,6 +454,16 @@ impl Host {
     /// The workspace.
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
+    }
+
+    /// Whether `command` is a plugin command with `confirm = "require-human"`: only a person at a
+    /// terminal confirms it, and the CLI refuses `--yes` and `--approve` for it.
+    #[cfg(feature = "cli")]
+    pub(crate) fn requires_human(&self, command: &str) -> bool {
+        self.loaded
+            .gate
+            .get(command)
+            .is_some_and(|entry| entry.require_human)
     }
 
     /// What the load sequence decided for every plugin instance, for `plugin-check`'s `boot`.

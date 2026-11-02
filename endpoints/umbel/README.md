@@ -22,8 +22,10 @@ the plugin contract, is done too (its
 compiled, component and mounted plugins, serves their packs and skills, and
 scaffolds and checks them with `plugin new` and `plugin check`; the hello
 plugin answers alike built all three ways, and the todo example's conformance
-suite passes against it. Phase 2, knowledge, is next and needs its
-specification written and approved first. Nothing is released or published; the
+suite passes against it. Phase 2, knowledge, is under way: its store traits, the embedded
+SQLite and tantivy backend and, with step 4, the host services (store grants with allow lists,
+reader filters, `store-show`, `store-check`, `store-backup`) are in; the knowledge plugins are
+not yet. Nothing is released or published; the
 crate is `publish = false` and its release unit is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
 [STATUS.md](docs/STATUS.md) says exactly what is done.
@@ -121,6 +123,30 @@ one command, one pack and one skill, built compiled, as a component and mounted.
 
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
+
+## Access is not a security boundary yet
+
+Phase 2 gives every document, chunk, node and edge an access set and turns the caller's principal
+into a reader filter that every store query applies before ranking; a space's `readers` decide who
+may open it at all (`SPACE_NOT_READABLE`). That filtering is **exact only for embedders and
+tests**, who set the principal themselves. Until phase 5 verifies callers, nothing vouches for who
+is on the other end of stdio or loopback HTTP: every stdio caller is the one principal
+`agent:<principal.local_id>` (acting for `principal.on_behalf_of` when you set it), every HTTP
+caller is `agent:loopback`, and the CLI is always `human:<principal.local_id>`. So on those
+surfaces access is a policy, not a boundary, and it protects nothing a local process could not
+read from the files. To make one person's CLI and that person's agents line up, set
+`principal.local_id` and `principal.on_behalf_of` to the same id. `workspace-show` reports this as
+`access: { principals: "unverified", exact: ["library"] }` until phase 5 changes it. Hidden
+content and ids are never returned, but hidden counts are not fully hidden: scores, revision and
+`seq` gaps, `store-show`'s head and the totals of index-building commands can reveal how many
+hidden things exist (an accepted limit, listed in the specification's section 6).
+
+A plugin's write grants (`content_write`, `documents_write`, `records_write`, `index_write`,
+`graph_write`) are not given by enabling it: each needs `[plugins.<id>.grants.<grant>] allow =
+[...]` in `umbel.toml` (`<space>/<collection>` or `<space>/*` for files and documents, `<space>`
+or `*` for the rest). A compiled plugin's store grants are trusted code, not a sandbox, and a
+command marked `confirm = "require-human"` runs only when a person answers its prompt at a
+terminal: `--yes` and `--approve` do not count, and MCP and agents never reach it.
 
 ## Documents
 

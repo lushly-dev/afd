@@ -9,6 +9,7 @@ use crate::host::RESERVED_VERBS;
 use crate::plugins::{
     CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check,
 };
+use crate::store::Hub;
 use crate::surfaces::{self, FirstClassPlan};
 use crate::workspace::{Located, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult};
@@ -23,6 +24,8 @@ struct Handler {
     plan: Arc<OnceLock<FirstClassPlan>>,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    stores: Hub,
 }
 
 impl Handler {
@@ -85,6 +88,23 @@ impl CommandHandler for Handler {
         })
         .await
         .unwrap_or_else(|_| doctor::run_with_catalog(self.workspace.root(), &self.catalog));
+        #[cfg(feature = "store-embedded")]
+        {
+            let stores = Arc::clone(&self.stores);
+            let workspace = Arc::clone(&self.workspace);
+            let ids = ["stores.version", "stores.access", "stores.lag"];
+            let found = tokio::task::spawn_blocking(move || {
+                super::store_doctor_checks(&workspace, &stores)
+            })
+            .await;
+            if let Ok(found) = found {
+                for (id, found) in ids.into_iter().zip(found) {
+                    if let Some(check) = report.checks.iter_mut().find(|c| c.id == id) {
+                        *check = found;
+                    }
+                }
+            }
+        }
         if let Some(registry) = registry {
             for check in &mut report.checks {
                 if check.status != CheckStatus::Skip {
@@ -124,6 +144,7 @@ pub(crate) fn workspace_doctor(
     plan: Arc<OnceLock<FirstClassPlan>>,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
+    stores: Hub,
 ) -> Builtin {
     let definition = CommandDefinition::new(
         "workspace-doctor",
@@ -136,6 +157,7 @@ pub(crate) fn workspace_doctor(
             plan,
             loaded,
             catalog,
+            stores,
         },
     )
     .with_category("workspace")

@@ -180,6 +180,12 @@ pub(super) fn call_context(
         command: name.to_owned(),
         trace_id: context.trace_id.clone().unwrap_or_default(),
         space: has_space.then(|| services.space().as_str().to_owned()),
+        spaces: services
+            .spaces()
+            .iter()
+            .map(|space| space.as_str().to_owned())
+            .collect(),
+        output_budget: context.output_budget(),
         actor_kind: actor
             .as_ref()
             .map(|actor| as_text(&actor.kind))
@@ -203,7 +209,7 @@ fn as_text<T: serde::Serialize>(value: &T) -> String {
 #[async_trait]
 impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
-        let services = self.services.call(&input, &context);
+        let services = self.services.call_command(&self.name, &input, &context);
         let call = call_context(&self.name, self.has_space, &services, &context);
         let plugin = Arc::clone(&self.plugin);
         let name = self.name.clone();

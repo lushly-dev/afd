@@ -174,6 +174,17 @@ impl PluginError {
         )
     }
 
+    /// `PLUGIN_GRANT_DENIED` for a required write grant the instance gives no usable allow list.
+    pub(crate) fn grant_denied_because(instance: &str, grant: &str, why: &str) -> Self {
+        Self::new(
+            codes::PLUGIN_GRANT_DENIED,
+            format!("plugins.{instance}: the grant `{grant}` is required by the plugin, but {why}"),
+            format!(
+                "Add [plugins.{instance}.grants.{grant}] allow = [...] to umbel.toml, naming only spaces the instance is enabled for; enabling a plugin does not consent to a grant that writes."
+            ),
+        )
+    }
+
     /// `PLUGIN_GRANT_DENIED` for a required grant that `deny` withholds.
     pub(crate) fn grant_denied(instance: &str, grant: &str) -> Self {
         Self::new(

@@ -132,6 +132,9 @@ fn wit_error(error: ServiceError) -> types::HostError {
         ServiceError::NotFound(message) => types::HostError::NotFound(message),
         ServiceError::Invalid(message) => types::HostError::Invalid(message),
         ServiceError::TooLarge(message) => types::HostError::TooLarge(message),
+        // World 1.0.0 is frozen; no component holds a store grant in protocol 1, so these cannot
+        // arise from a call, and world 1.1.0 carries them by name (specification section 3.3).
+        other => types::HostError::Invalid(other.to_string()),
     }
 }
 

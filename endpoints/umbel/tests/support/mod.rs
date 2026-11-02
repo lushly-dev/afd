@@ -4,6 +4,7 @@
 pub mod mcp;
 pub mod plugins;
 pub mod process;
+pub mod store;
 
 use afd::{
     ApprovalPolicy, CommandContext, CommandDefinition, CommandHandler, CommandParameter,

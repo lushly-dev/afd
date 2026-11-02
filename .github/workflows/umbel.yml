@@ -87,8 +87,9 @@ jobs:
           workspaces: endpoints/umbel
       - name: Format
         run: cargo fmt --all --check
-      # The embedded store builds SQLite's C code; the `knowledge` job owns it, so these jobs keep
-      # their build time and timeouts (phase 2 specification, section 12).
+      # The embedded backend's own tests belong to the `knowledge` job. The host depends on the
+      # backend through its default feature `store-embedded` (phase 2 step 4), so this job builds
+      # SQLite and tantivy once anyway; `--exclude` only keeps the backend's tests out of it.
       - name: Clippy
         run: cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings
       - name: Clippy (library only, no default features)

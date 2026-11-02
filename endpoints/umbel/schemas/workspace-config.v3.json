@@ -338,9 +338,16 @@
 							"events",
 							"clock",
 							"random",
+							"content",
+							"content_write",
 							"documents",
+							"documents_write",
+							"records",
+							"records_write",
 							"index",
+							"index_write",
 							"graph",
+							"graph_write",
 							"memory",
 							"http",
 							"secrets"
@@ -412,19 +419,59 @@
 					}
 				},
 				"grants": {
-					"description": "Reserved (D42): the per-instance allow-list of the future write, http and secrets grants.",
+					"description": "The per-instance allow lists of the write grants (D42, phase 2 specification section 3.3, rule 1): enabling an instance is not consent to a grant that writes. A required write grant with no list, or with an entry naming a space the instance is not enabled for, fails the load with PLUGIN_GRANT_DENIED (an optional one is withheld).",
 					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": false,
-						"properties": {
-							"allow": {
-								"type": "array",
-								"items": {
-									"type": "string"
-								}
-							}
+					"additionalProperties": false,
+					"properties": {
+						"content_write": {
+							"$ref": "#/$defs/collectionAllow"
+						},
+						"documents_write": {
+							"$ref": "#/$defs/collectionAllow"
+						},
+						"records_write": {
+							"$ref": "#/$defs/spaceAllow"
+						},
+						"index_write": {
+							"$ref": "#/$defs/spaceAllow"
+						},
+						"graph_write": {
+							"$ref": "#/$defs/spaceAllow"
 						}
+					}
+				}
+			}
+		},
+		"collectionAllow": {
+			"description": "Entries <space>/<collection> or <space>/*.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]{0,62}/([a-z][a-z0-9-]{0,62}|\\*)$"
+					}
+				}
+			}
+		},
+		"spaceAllow": {
+			"description": "Entries <space> or *.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^([a-z][a-z0-9-]{0,62}|\\*)$"
 					}
 				}
 			}

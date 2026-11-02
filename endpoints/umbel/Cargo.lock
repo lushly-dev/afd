@@ -3776,6 +3776,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rmcp",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -3791,6 +3792,7 @@ dependencies = [
  "umbel-plugin-hello",
  "umbel-sdk",
  "umbel-store",
+ "umbel-store-embedded",
  "wasmtime",
  "wasmtime-wasi",
  "wasmtime-wasi-io",
@@ -3866,6 +3868,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
+ "umbel-store",
  "wit-bindgen 0.63.0",
 ]
 

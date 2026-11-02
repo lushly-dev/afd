@@ -208,6 +208,21 @@ impl TantivyIndex {
         })
     }
 
+    /// The number of chunks `reader` can read (all of them for a derivation read).
+    ///
+    /// # Errors
+    /// `Io` or `Corrupt` if the index cannot be read.
+    pub fn count_readable(&self, reader: &ReaderFilter) -> Result<u64, StoreError> {
+        let searcher = self.searcher()?;
+        let query: Box<dyn tantivy::query::Query> = match query::reader_clause(&self.fields, reader)
+        {
+            Some(clause) => clause,
+            None => Box::new(tantivy::query::AllQuery),
+        };
+        let count = query.count(&searcher).map_err(|e| map_tantivy(&e))?;
+        Ok(u64::try_from(count).unwrap_or(0))
+    }
+
     /// Validate the checksum of every file of every live segment (`store-check`).
     ///
     /// # Errors
