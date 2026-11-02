@@ -240,6 +240,21 @@ The configuration can waive an obligation, with a version and a reason. A waiver
 - **Any element with the tag counts,** including one inside another component.
 - **A failed case proves nothing.** `cases.failed` names each with its message, and `specimen coverage` exits non-zero when there is one. Unverified coverage alone does not fail the command.
 
+## Propose specimens
+
+`suggest()` (`specimen-suggest`, `specimen suggest TAG`) proposes native specimens and claims for a component's gaps: those named by `gaps`, or what a coverage run leaves unverified. Everything it returns is `unverified`: run it and correct it, and only that run counts.
+
+```sh
+specimen suggest violet-button --out src/button/violet-button.specimens.ts
+```
+
+`entries` are the configuration entries to add, and `--out` never writes over an existing file.
+
+- **What the schema decides is written to hold or fail on its merits,** such as an attribute's value in the state being claimed.
+- **What only a person knows fails until replaced.** A form's submitted value and what a command changes are written as `REPLACE_WITH_WHAT_THIS_SHOULD_BE`, marked `placeholder`, so a proposal cannot pass unread.
+- **Assumptions are noted,** such as that a click causes an event, in a comment on the specimen and in `note`.
+- **What it cannot propose is listed in `skipped`,** with the reason.
+
 ## Check the story contract
 
 `contract()` (`specimen-contract`, `specimen contract [TAG]`) reports what FAST-AF's Fastbot story contract would, on evidence from a run instead of source text. Each code is the rule it replaces, so the two can run side by side. It needs a custom elements manifest, and exits non-zero when `valid` is false: an error, or a case that failed.

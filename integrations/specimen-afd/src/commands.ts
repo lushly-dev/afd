@@ -28,6 +28,8 @@ import {
 	profileRunSchema,
 	runRequestSchema,
 	storyRunSchema,
+	suggestRequestSchema,
+	suggestRunSchema,
 	suiteRequestSchema,
 	suiteRunSchema,
 } from '@lushly-dev/specimen/schema';
@@ -62,6 +64,8 @@ import type {
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
+	SuggestRequest,
+	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
 	ValidationReport,
@@ -150,6 +154,7 @@ export interface SpecimenCommandBench {
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
 	contract(request: ContractRequest): Promise<ContractRun>;
+	suggest(request: SuggestRequest): Promise<SuggestRun>;
 	coverage(request: CoverageRequest): Promise<CoverageRun>;
 	matrix(request: MatrixRequest): Promise<MatrixRun>;
 	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
@@ -332,6 +337,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Set profile.baselines in the configuration, and give an id or a filter.'
 			),
 	});
+	const suggest = defineCommand({
+		...common,
+		name: 'specimen-suggest',
+		description:
+			"Propose native specimens and claims for a component's gaps, always as unverified: run them and correct them. Nothing it returns counts as coverage, and an expectation it cannot derive fails until replaced.",
+		mutation: false,
+		input: suggestRequestSchema,
+		output: suggestRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.suggest(input),
+				suggestRunSchema,
+				'SPECIMEN_SUGGEST_FAILED',
+				'Configure a custom elements manifest that describes the component.'
+			),
+	});
 	const contract = defineCommand({
 		...common,
 		name: 'specimen-contract',
@@ -439,6 +460,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		profile,
 		baseline,
 		contract,
+		suggest,
 		coverage,
 		matrix,
 		inspect,
@@ -477,6 +499,7 @@ export async function executeSpecimenCommand(
 		profile,
 		baseline,
 		contract,
+		suggest,
 		coverage,
 		matrix,
 		inspect,
@@ -501,6 +524,8 @@ export async function executeSpecimenCommand(
 			return execute(profile, input);
 		case 'specimen-baseline':
 			return execute(baseline, input);
+		case 'specimen-suggest':
+			return execute(suggest, input);
 		case 'specimen-contract':
 			return execute(contract, input);
 		case 'specimen-coverage':

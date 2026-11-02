@@ -9,6 +9,7 @@ import type {
 	MatrixRequest,
 	ProfileRequest,
 	SpecimenContext,
+	SuggestRequest,
 	SuiteFilter,
 	SuiteRequest,
 } from './types.js';
@@ -114,6 +115,22 @@ function suiteFilter(value: unknown, path: string): SuiteFilter {
 		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
 		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
 	};
+}
+
+export function parseSuggestRequest(value: unknown): SuggestRequest {
+	const fields = record(value, 'suggest request', ['component', 'gaps', 'timeoutMs', 'workers']);
+	const request: SuggestRequest = {
+		component: text(fields.component, 'suggest request.component'),
+	};
+	if (fields.gaps !== undefined) {
+		if (!Array.isArray(fields.gaps)) fail('suggest request.gaps', 'expected an array');
+		request.gaps = fields.gaps.map((gap, index) => text(gap, `suggest request.gaps[${index}]`));
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'suggest request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'suggest request.workers', 1, MAX_SUITE_WORKERS);
+	return request;
 }
 
 export function parseContractRequest(value: unknown): ContractRequest {

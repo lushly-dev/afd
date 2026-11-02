@@ -51,6 +51,8 @@ const valueOptions = new Set([
 	'capture',
 	'runs',
 	'note',
+	'gaps',
+	'out',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -135,6 +137,7 @@ function validateOptions(parsed: ParsedArguments): void {
 		]),
 		coverage: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
 		contract: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
+		suggest: new Set(['root', 'config', 'output', 'gaps', 'out', 'workers']),
 		a11y: new Set([
 			'root',
 			'config',
@@ -391,6 +394,20 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 							...suiteInput(parsed),
 						}
 					);
+				} else if (parsed.action === 'suggest') {
+					result = await executeSpecimenCommand(bench, 'specimen-suggest', {
+						component: parsed.positionals[0],
+						...(parsed.options.has('gaps')
+							? { gaps: (parsed.options.get('gaps') ?? '').split(',').filter(Boolean) }
+							: {}),
+						...suiteInput(parsed),
+					});
+					const out = parsed.options.get('out');
+					// Never over a file someone may have corrected.
+					if (out && result.success)
+						await writeFile(resolve(root, out), (result.data as { source: string }).source, {
+							flag: 'wx',
+						});
 				} else if (parsed.action === 'contract') {
 					result = await executeSpecimenCommand(bench, 'specimen-contract', {
 						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),

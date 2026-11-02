@@ -1,6 +1,6 @@
 # T07 coverage and rule replacement
 
-**State, 2026-11-02:** in progress. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is done and merged in [#695](https://github.com/lushly-dev/afd/pull/695). Step 3, rule replacement, is implemented on branch `lush/specimens-t07-contract`. The remaining step is listed [below](#remaining-steps).
+**State, 2026-11-02:** complete when step 4 merges. All of T07's acceptance is met on the branch, with [what it leaves open](#what-t07-leaves-open) listed at the end. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is done and merged in [#695](https://github.com/lushly-dev/afd/pull/695). Step 3, rule replacement, is done and merged in [#696](https://github.com/lushly-dev/afd/pull/696). Step 4, `specimen-suggest` and the adapter, is implemented on branch `lush/specimens-t07-suggest`.
 
 **One decision for the owner:** a real story bug needs fixing or waiving before FAST-AF's cutover. See [the finding](#finding-a-disabled-story-that-disables-nothing).
 
@@ -189,9 +189,41 @@ Every rule has its replacement, a passing example, a failing fixture in `compat/
 
 Fastbot's other commands are out of this step's scope: token, FAST-pattern, attribute and form-parity validation read component source, not stories. Its profile rules were replaced in [T06](t06-full-runner.md#step-4-specimen-profile). Lushly has no story contract, and this was not run on it.
 
+## Step 4: `specimen-suggest` and the Fastbot adapter
+
+`bench.suggest()`, `specimen-suggest` and `specimen suggest TAG` propose native specimens and claims for a component's gaps, as the [README](../../../../foundations/specimen/README.md#propose-specimens) describes. It is also the scaffold's replacement: `--out` writes the module beside a new component.
+
+The proposal requires that generation "MUST NOT mark coverage complete". A test holds each part of that:
+
+| Requirement | How it holds |
+| --- | --- |
+| Proposals are unverified | Every result says `status: 'unverified'`, and running `suggest` changes nothing coverage reports |
+| The agent runs and corrects them | Saved and run on the fixture, everything the schema could decide reaches `verified` on its merits. The one thing it could not, a form's submitted value, fails with `REPLACE_WITH_WHAT_THIS_SHOULD_BE` until replaced |
+| Complete only after correction | With that value corrected, the same run reports `complete: true`, the only way to get there |
+| Meaningful assertions | Each proposal asserts the state it claims, and a state it cannot derive is never written as something that passes vacuously |
+
+### The adapter
+
+`experiments/inputs/fastbot-adapter.py` turns `specimen contract`'s output into what Fastbot's `fastaf_validate_story_contract` returns, so that Fastbot's hooks and callers keep the shape they read. `check-contract.mjs` holds it to the real command: on FAST-AF's snapshot its keys and its `stats` equal Fastbot's, and each of the 11 breakages comes through it.
+
+It is ready for FAST-AF to adopt at T08, and is not installed: Fastbot lives in FAST-AF's repository. A profile adapter is not needed yet. [T06 found](t06-full-runner.md#findings-on-the-consumers) that neither consumer's hooks, CI or scripts call the profile validators, so there is no active gate to adapt.
+
+## What T07 leaves open
+
+Each of T07's requirements is met, on the evidence above. These stay open:
+
+- **Your decision: the calendar story.** [`violet-calendar`'s `Disabled` story](#finding-a-disabled-story-that-disables-nothing) needs fixing upstream, or a waiver the contract does not yet support, before the contract can gate FAST-AF.
+- **Consumers have no claims yet.** Coverage on both consumers tops out at `represented`, so nothing is `verified`. Adopting `claim` or native specimens is migration work, and no gate depends on it: the proposal keeps this separate from parity.
+- **Coverage and FAST-AF's plugin.** The plugin's schema path is tested on its fixture, not on the real FAST-AF stories, so `VioletButtonAppearance`-style aliases are open-ended in the [figures above](#on-the-consumers).
+- **Fastbot's source-reading rules.** Its token, FAST-pattern, attribute and form-parity commands read component source and are out of this task's scope.
+- **Installing the adapter and retiring rules,** which are T08's, in FAST-AF's repository.
+- **Lushly's budget.** [4,353 bytes of interaction support remain](#budgets-after-this-step), until T08's native helper entry.
+
 ## Remaining steps
+
+None.
 
 1. ~~`specimen-coverage` from observed evidence.~~ Merged in #692.
 2. ~~Claims and waivers.~~ Merged in #695.
-3. ~~Rule replacement.~~ Implemented on branch.
-4. **`specimen-suggest` and the scaffold.** Proposed specimens and claims stay unverified until run. The scaffold emits supported specimens with meaningful assertions.
+3. ~~Rule replacement.~~ Merged in #696.
+4. ~~`specimen-suggest` and the adapter.~~ Implemented on branch.

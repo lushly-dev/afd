@@ -1,0 +1,12 @@
+{
+	"manifest": "./custom-elements.json",
+	"specimens": [
+		{
+			"id": "existing",
+			"title": "Suggest/Existing",
+			"module": "./existing.specimens.ts",
+			"exportName": "Existing",
+			"component": "fixture-suggest"
+		}
+	]
+}

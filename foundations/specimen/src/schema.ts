@@ -467,6 +467,37 @@ export const profileRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+export const suggestRequestSchema = z.strictObject({
+	component: z.string().min(1),
+	gaps: z.array(z.string().min(1)).optional(),
+	timeoutMs: suiteRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+export const suggestRunSchema = z.strictObject({
+	component: z.string(),
+	status: z.literal('unverified'),
+	file: z.string(),
+	source: z.string(),
+	entries: z.array(
+		z.strictObject({
+			id: z.string(),
+			title: z.string(),
+			module: z.string(),
+			exportName: z.string(),
+			component: z.string(),
+		})
+	),
+	suggestions: z.array(
+		z.strictObject({
+			obligation: z.string(),
+			exportName: z.string(),
+			note: z.string().optional(),
+			placeholder: z.boolean().optional(),
+		})
+	),
+	skipped: z.array(z.strictObject({ obligation: z.string(), reason: z.string() })),
+	elapsedMs: z.number(),
+});
 export const contractRequestSchema = z.strictObject({
 	component: z.string().min(1).optional(),
 	filter: suiteRequestSchema.shape.filter,

@@ -47,11 +47,30 @@ async function fastbot() {
 		{ env, maxBuffer: 64 * 1024 * 1024 }
 	);
 	const report = JSON.parse(stdout.trim().split('\n').at(-1));
+	const { success: _success, ...raw } = report;
 	return {
+		raw,
 		errors: report.errors ?? [],
 		warnings: report.warnings ?? [],
 		stats: report.stats ?? null,
 	};
+}
+
+/** The contract's run, through the adapter FAST-AF could adopt: Fastbot's own output shape. */
+async function adapted(report) {
+	const input = join(work, 'contract.json');
+	await writeFile(input, JSON.stringify(report));
+	const { stdout } = await run(
+		'python3',
+		[
+			'-I',
+			join(import.meta.dirname, 'inputs/fastbot-adapter.py'),
+			input,
+			join(clone, elements, 'src'),
+		],
+		{ env }
+	);
+	return JSON.parse(stdout);
 }
 
 const { createSpecimenBench } = await import(new URL('../dist/index.js', import.meta.url).href);
@@ -169,6 +188,13 @@ await run('cp', ['-cR', source, clone], { env });
 const result = { snapshot: source, startedAt: new Date().toISOString() };
 try {
 	const [before, after] = [await fastbot(), await specimen({ workers: 2 })];
+	const shaped = await adapted(after);
+	const shapeOf = (report) => Object.keys(report).sort().join();
+	result.adapter = {
+		shapeMatches: shapeOf(shaped) === shapeOf(before.raw),
+		statsMatch: JSON.stringify(shaped.stats) === JSON.stringify(before.stats),
+		keys: Object.keys(shaped).sort(),
+	};
 	result.unbroken = {
 		fastbot: { errors: before.errors, warnings: before.warnings, stats: before.stats },
 		specimen: {
@@ -195,12 +221,15 @@ try {
 			const fromBot = codes([...bot.errors, ...bot.warnings]);
 			const report = await specimen({ component });
 			const fromSpecimen = codes(report.findings);
+			const shapedBroken = await adapted(report);
+			const fromAdapter = codes([...shapedBroken.errors, ...shapedBroken.warnings]);
 			const entry = {
 				rule,
 				component,
 				fastbot: fromBot,
 				specimen: fromSpecimen,
-				agree: fromBot.includes(rule) && fromSpecimen.includes(rule),
+				adapter: fromAdapter,
+				agree: fromBot.includes(rule) && fromSpecimen.includes(rule) && fromAdapter.includes(rule),
 				severity: report.findings.find((item) => item.code === rule)?.severity ?? null,
 				expectedSeverity: severity ?? 'error',
 				casesFailed: report.cases.failed,
@@ -217,6 +246,8 @@ try {
 	const stronger = after.findings.filter((item) => item.severity === 'error' && !isKnown(item));
 	result.known = after.findings.filter(isKnown);
 	result.agree =
+		result.adapter.shapeMatches &&
+		result.adapter.statsMatch &&
 		result.broken.every((entry) => entry.agree) &&
 		codes(before.errors).join() === codes(stronger).join();
 } finally {

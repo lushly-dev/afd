@@ -9,6 +9,7 @@ export {
 	observationSchema,
 	profileRunSchema,
 	storyRunSchema,
+	suggestRunSchema,
 	suiteRunSchema,
 } from '@lushly-dev/specimen/schema';
 export {
