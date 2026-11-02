@@ -222,8 +222,9 @@ export const SUITES = [
 			},
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted' },
 			{ run: 'pnpm --filter @afd/example-todo test:conformance:umbel-mounted --mode modern' },
+			// Cargo builds into CARGO_TARGET_DIR when it is set (an absolute shared directory).
 			{
-				run: 'bash endpoints/umbel/tests/scripts/external-clients.sh endpoints/umbel/target/debug/umbel-todo packages/cli/dist/bin.js packages/examples/todo/scenarios',
+				run: 'bash endpoints/umbel/tests/scripts/external-clients.sh "${CARGO_TARGET_DIR:-endpoints/umbel/target}/debug/umbel-todo" packages/cli/dist/bin.js packages/examples/todo/scenarios',
 			},
 		],
 	},
