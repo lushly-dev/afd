@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** written 2026-11-02 and revised the same day after an independent review (see
+- **State:** written 2026-11-02 and revised the same day after two independent reviews (see
   [Review](#review-2026-11-02)). Awaiting the coordinator's approval. Nothing is implemented.
 - **Last verified:** 2026-11-02 against `main` at `980cc1aa`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -64,7 +64,7 @@
   every mutation is an event; 15, AFD first.
 - **Decisions:** D4 and D31 for scope; D5 and D29 for the rail; D32 for a single tenant; D55 and D56 for instances; D63 for the workspace store; D65 for a pinned space; D66
   for failures; D67 for the catalog; D68 for the app port.
-- **New decisions this specification and its sibling propose:** D69 to D82, listed in
+- **New decisions this specification and its sibling propose:** D69 to D83, listed in
   [Amendments](#amendments-to-the-architecture-and-the-decision-log) and added to the decision log by this pull request. The coordinator approves them by approving the
   specifications. None changes a trust model or D54 to D58.
 - **Carried from phase 1, handled here:**
@@ -194,7 +194,7 @@ The boot splits at the first frame.
 | **A** | Before the first frame, in every deployment | `deployment.json` read by a hand-written check; `createKernel` over the stores, with the first-paint commands; each app's layout record registered from its boot record; `hydrate`; the chrome's parts, the rail from `app-list` |
 | **B** | After the first frame | The late commands; the readers, validators and `kernel/src/apps/`; every package's manifest, validated; the app commands and the surfaces; a persisted or URL-named app opening |
 
-**Stage A trusts the projection for display, and for nothing else.** What the boot record says reaches the rail as text and a layout's first shape. No command, grant, module or surface comes of it. Stage B reads the
+**Stage A trusts the projection for display, and for one value more.** What the boot record says reaches the rail as text and a layout's first shape. No command, grant, module or surface comes of it. **The one value is `workspace.id`,** which becomes the kernel's workspace: line 1 of every call, and every record's `workspace`. It stays when stage B refuses the projection. So `readBoot` holds it to its pattern ([4.2](#42-the-deployment-file-version-2)), and a boot record that lies about anything else is corrected by stage B, which E1 tests. Stage B reads the
 projection with `readProjection` and each manifest with `readManifest`, as phase 1 does, before anything of that app registers, so phase 1's "a manifest is untrusted input: the kernel validates it at load even though `app
 pack` did" still holds. Whoever can change `deployment.json` on the shell's origin can change the shell's own JavaScript, so a boot record that lies costs only that deployer's rail, until stage B corrects it. **This is not a trust-model
 change.**
@@ -258,7 +258,7 @@ export interface BootAppV2 {
 export function readBoot(raw: unknown): BootProjectionV2 | undefined;
 ```
 
-An entry with a field out of shape takes that field's default and stays listed, since stage B will refuse it with its reason. `undefined` loads the reader at once and shows "Loam cannot start" with the refusal, as phase 1's 9.4 does: that is a
+An entry with a display field out of shape takes that field's default and stays listed, since stage B will refuse it with its reason. **`instance` and `app` have no default:** an entry whose `instance` or `app` fails the projection's pattern (`^[a-z][a-z0-9]{0,31}$`) is dropped, since it would otherwise name a layout id and a view-state record. A `workspace.id` off its pattern makes the whole result `undefined`, which loads the reader at once and shows "Loam cannot start" with the refusal, as phase 1's 9.4 does: that is a
 `deployment.json` from nothing Loam wrote.
 
 #### Stage A in the kernel
@@ -288,7 +288,9 @@ With no `boot`, as in every test and the test kit, `createKernelParts` runs stag
 
 **A call before stage B ends.** `run` waits rather than failing: if `name` is not a registered command, or is in `NEEDS_STAGE_B` (`app-get`, `app-command-list`, `app-instance-list`, `app-instance-refresh`, `app-selection-get`, `app-selection-set`, `status-item-set`), it awaits `startApps()` first. So a chord before stage B ends runs a moment later, an agent's first call works, and a real unknown name still answers `COMMAND_NOT_FOUND`. `listCommands()` lists what is registered, and the chrome and the palette re-read it on `appsReady`, since `setAppCommands` drops the palette's index anyway.
 
-**Boot-only commands** (`workspace-deployment-apply`, `document-trash-expire`) are in `BOOT_ONLY`. `run` answers `COMMAND_NOT_FOUND` for those names unless `fields === BOOT_FIELDS`, an object in the kernel's closure that no caller can name, so no person, app or agent reaches them, on either interface. `INTERNAL_COMMANDS` filtering a list would not be enough, as `kernel.agent.call` would still run it. A replay reaches them through `replayJournal`'s target, which calls the registry directly.
+**Boot-only commands** (`workspace-deployment-apply`, `document-trash-expire`) are in `BOOT_ONLY`. `run` answers `COMMAND_NOT_FOUND` for those names unless `fields === BOOT_FIELDS`, an object in the kernel's closure that no caller can name, so no person, app or agent reaches them, on either interface. `INTERNAL_COMMANDS` filtering a list would not be enough, as `kernel.agent.call` would still run it. A replay reaches them through `replayJournal`'s target, which calls the registry directly. **That guard is in `run`, and a server does not call `run`:** `createMcpHandler` executes from its own command map, so `mcpOptions().commands` leaves out `BOOT_ONLY` and `INTERNAL_COMMANDS` ([3.3](#33-over-mcp)).
+
+**What `run` may do.** `replayKernel`'s target calls `registry.execute` (`testing.ts:322`), so **`run` never executes in a replay, and it changes no state a replay must reproduce.** Every such change is in a handler or a middleware, which a replay runs. What stays in `run` is the requested scope, which a journal entry restores, the wait for stage B, the boot-only guard and the event.
 
 #### Stage A and B in the chrome
 
@@ -321,12 +323,13 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 **Loam and AFD together, step 1.** One pull request, so first paint never holds both layers:
 
 - **`@lushly-dev/afd-view-state` and `@lushly-dev/afd-auth`.** Their `commands.ts` move to `zod/mini` and `defineCommandWithSchema`, each schema beside its JSON Schema as a literal, each package's test holding every literal equal to `toJSONSchema(schema)`. A changeset, minor, for both.
+- **`auth-session-get` needs a route into first paint alone.** `createAuthCommands` (`packages/auth/src/commands.ts:38`) builds all three together. So `@lushly-dev/afd-auth/commands` gains `createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)`, in modules of their own, and `createAuthCommands` returns both, unchanged for other callers. First paint imports the first and `late/` the second, so `checkNames`' `COMMAND_NAME_DUPLICATE` never sees `auth-session-get` twice. `createViewStateCommands` goes to `late/` whole, since boot calls none of its three.
 - **`kernel/src/commands.ts`, `app-commands.ts`, `overlays.ts` and `context-fields.ts`** move the same way.
 - **The registry splits.** Only the six boot commands of [2.2](#22-two-stages-d69) stay in first paint, with their literals. Every other shell command's definition, the view-state and auth commands' with them, moves to `kernel/src/late/`, loaded in stage B. `run`'s wait makes this invisible to a caller. With no `boot`, stage B runs inside `createKernel`, so a unit test sees every command at once and phase 0's tests read as before.
 - **Classic Zod moves to stage B.** `apps/definitions.ts` keeps `fromJSONSchema` and `defineCommand`, from classic, in the `apps` closure, and `narrowZodFromJsonSchema` stays, for the reason it was written. Honestly stated: **classic's schemas leave first paint, and about 40 KB of `zod/v4/core` that classic and the MCP client widen stays,** since a bundler tree-shakes across chunks ([9.5](../1-app-contract/spec.md#95-decided-by-step-3)). Mini's floor of 23,829 bytes is not reachable while `apps` or the MCP client use classic; a follow-up asks whether it should be.
 - **`zodJitlessByDefault`** needs no change: classic and Mini share `zod/v4/core`'s `globalConfig`, the object it starts `jitless` (#664), and E2's CSP checks hold that.
 
-**The acceptance.** Step 1 must reach **at most 272,000 bytes and 82,000 gzip** for first paint, what the ceilings less the ledger below leave. The shim's 276,547 and 83,146 held no literals, about 1,000 and 200 for six commands, and did not move any definitions out, an estimated 15,000 to 20,000 and 4,000 to 5,000, unmeasured. So the expected result is about 258,000 to 265,000. If it misses, the agent stops and amends this section, with the measurement, and with what else could move.
+**The acceptance.** Step 1 must reach **at most 272,000 bytes and 82,000 gzip** for first paint, what the ceilings less the ledger below leave. The shim's 276,547 and 83,146 held no literals, about 1,000 and 200 for six commands, and did not move any definitions out, an estimated 15,000 to 20,000 and 4,000 to 5,000, unmeasured. So the expected result is about 258,000 to 265,000. **If it misses, the agent stops.** A ceiling rises only by a pull request with the measurement and the coordinator's approval. The named fallback comes first: `ICONS_V1` and `loam-tooltip` move after the first frame, leaving a blank icon slot for that frame, in a rail of fixed width so nothing shifts; estimated 3,000 to 4,000 bytes and 1,000 to 1,400 gzip, unmeasured.
 
 ### 2.4 The budget, and the rule
 
@@ -339,7 +342,7 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 | `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** | 318,497, 94,561 | 300,000, 91,000 | Step 1 sets them. Lowered from 320,000 and 95,000 |
 | `cssMinified` | As phase 0 | 7,719 | 8,496 | Unchanged |
 | `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 226,747 | 231,360 until step 1, then the measurement plus 10% | Step 1 |
-| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | None | 60,000 | Step 1 |
+| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | None | 75,000, a first estimate from the ledger below | Step 1 |
 | `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 279,342 | At most 400,000: step 1 sets it to its measurement plus 5%. The one raise, for bytes that left first paint | Step 1 |
 | `surfacesMinified` | As phase 1, and it loads after first paint | 78,554 | 85,000 | Unchanged |
 | `viewMinified`, `consoleMinified`, `mountMinified` | As phase 1, with `apps` counted as loaded | 22,800, 83,325, 217,081 | 25,080, 91,222, 238,268 | Unchanged. `view` holds the editor's frame host unless step 12 amends it |
@@ -349,21 +352,34 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 
 `budget.mjs` adds the `--json` keys, keeps `hello` and `tally` as recorded rows and adds `tasks`, `notes` and `checklist`.
 
-**The ledger.** What first paint may gain, by step, in bytes and gzip bytes, from step 1's acceptance. A lazy chunk's boundary costs first paint too, as [9.8](../1-app-contract/spec.md#98-decided-by-step-6) measured, so each has a line. Each step records its real figure here.
+**The ledger.** What first paint may gain, by step, in bytes and gzip bytes, from step 1's acceptance. A lazy chunk's boundary costs first paint too, as [9.8](../1-app-contract/spec.md#98-decided-by-step-6) measured, so each has a line. **Step 1's real figures replace its line as the running base,** and each step records its real figure here and carries it down. Steps 0a and 0b land before step 1, on today's margin of 1,503 and 439.
 
 | Step | Adds to first paint | Allowance | Running |
 | --- | --- | --- | --- |
+| 0a | Nothing: `defineCommandWithSchema` is reached by no first-paint code yet. Its pull request records the measurement | 0, 0 | Today's |
 | 1 | The acceptance above: what is left after moving out classic's schemas, `toJSONSchema` and the non-boot definitions | | 272,000, 82,000 |
 | 0b | `hydrateOne`, a method on a class first paint holds | 200, 100 | 272,200, 82,100 |
-| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the review at 8,292 and 2,688) | 9,800, 3,300 | 282,000, 85,400 |
-| 4 | `decideAccess`, the field, the middleware, the project cache, the `late` boundary | 4,200, 1,600 | 286,200, 87,000 |
-| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 288,200, 87,800 |
-| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 293,800, 89,900 |
-| 7 | The `sections` boundary | 150, 100 | 293,950, 90,000 |
-| 10 | The `editor` boundary | 150, 100 | 294,100, 90,100 |
-| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 294,700, 90,350 |
+| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 282,000, 85,600 |
+| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 286,600, 87,400 |
+| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 288,600, 88,200 |
+| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 294,200, 90,300 |
+| 7 | The `sections` boundary | 150, 100 | 294,350, 90,400 |
+| 10 | The `editor` boundary | 150, 100 | 294,500, 90,500 |
+| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 295,100, 90,750 |
 
-That total leaves 5,300 and 650 under the ceilings. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
+That total leaves 4,900 and **250 gzip** under the ceilings. **Gzip is the binding margin,** and if step 1 lands where it is expected to, it gains about 2,000 to 4,000 more. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
+
+**The `late` chunk's ledger,** a rough count for about 70 commands, each a schema, a literal and a handler. Each step records its real figure, and a step that would pass the ceiling moves logic to a chunk of its own first.
+
+| Step | Adds | Allowance | Running |
+| --- | --- | --- | --- |
+| 1 | The non-boot shell, view-state, auth, overlay and app commands, about 25 | 20,000 | 20,000 |
+| 4 | `project-*`, `workspace-*`, `scope-set`, `section-open`, `app-route-set`, `applyScopeChange` | 14,000 | 34,000 |
+| 7 | `project-summary-get`, `resourceLinkUrl` | 2,000 | 36,000 |
+| 9 | The registry, the `document-*` commands, the check | 16,000 | 52,000 |
+| 10 | `editor-*`, `validateEditorState` | 6,000 | 58,000 |
+| 11 | `new-list`, the palette's document rows | 3,000 | 61,000 |
+| 12 | `document-link-*`, `createDocumentIndex` | 5,000 | 66,000 |
 
 ## 3. Scope
 
@@ -397,7 +413,7 @@ So a handler reads `context.scope`, the journal keeps it (`spec/journal.md`), an
 | --- | --- |
 | `kernel.call`, `kernel.agent.call` | `options.scope`, if given, otherwise the active scope at the moment of the call. `run` sets it on the context per call, so it is explicit per request; no registry or connection holds it |
 | `options.scope: 'workspace'` | The active workspace with no project: what a dual-scope app's workspace list asks for ([7.4](#74-sidebar-header-and-status-bar)) |
-| An app's port | **The scope its surface was created under**, `LoamSurfaceElementV1.scope`, bound at creation, so a press in flight during a switch stays in the project it was pressed in; or `'workspace'`. A port given any other value refuses it with `SCOPE_NOT_GRANTED`: an app never chooses a project. The one exception is the shell's own client for an embed, in the [documents specification](../2-documents/spec.md#92-embed) |
+| An app's surface | **The scope its [surface port](#36-a-surfaces-port-d83) was created with,** so a press in flight during a switch stays in the project it was pressed in; or `level: 'workspace'`. A surface given anything else refuses it with `SCOPE_NOT_GRANTED`: an app never chooses a project. Only the chrome creates a surface port, so an embed's scope is the shell's choice, not the app's ([documents specification](../2-documents/spec.md#92-embed)) |
 | A nested call | The outer call's effective scope. A handler's `context.client` takes `{ level: 'workspace' }` and nothing wider |
 | A view's or a frame's `tools/call` | `_meta["dev.loam/level"]: 'workspace'` is that level. Nothing else in `_meta` is read for scope, and `dev.loam/scope` from a frame is ignored, so the SDK's `level` works in `/view` |
 | MCP `tools/call` | `params._meta["dev.loam/scope"]`, and absent means the workspace with no project ([3.3](#33-over-mcp)) |
@@ -411,7 +427,7 @@ So a handler reads `context.scope`, the journal keeps it (`spec/journal.md`), an
 
   ```ts
   export interface KernelMcpOptions {
-  	/** Every registered command, with `expose.mcp` as phase 6 will decide; the test sets it on all. */
+  	/** Every registered command but `BOOT_ONLY` and `INTERNAL_COMMANDS`, with `expose.mcp` as phase 6 will decide; the test sets it on all. */
   	commands: readonly ZodCommandDefinition[];
   	/** The auth middleware, the journal's, then the scope middleware (3.4): the kernel's own chain. */
   	middleware: readonly CommandMiddleware[];
@@ -424,6 +440,8 @@ So a handler reads `context.scope`, the journal keeps it (`spec/journal.md`), an
 - **Absent is the workspace.** There is no active scope on a server, and D4 forbids connection state: `scopeMiddleware` reads an absent field as `{ workspace }`. So `required` stays `false`, `afd-help` works with none, and a client that sends nothing never lands in somebody's project.
 - **`tools/list` does not vary.** A declared field never changes it (`spec/context-fields.md`). E5 compares the lists across scopes, on one connection.
 - **The claim is checked.** `spec/context-fields.md`: a field "is a claim", and "a handler that acts on a claimed scope checks the caller's access to it first". The scope middleware does ([3.4](#34-the-order-of-a-call-d72)), on every path, so nothing distinguishes a value from `_meta`.
+- **Boot-only and internal commands are not served.** `createMcpHandler` builds its own command map and never calls `run` (`packages/server/src/server.ts:132-141`), so `run`'s guard cannot help: `workspace-deployment-apply` with a forged `projects`, or `document-trash-expire { before }` with a date far ahead, would otherwise be a client's to call. `mcpOptions()` leaves them out, and E5 asserts they are not listed and answer `COMMAND_NOT_FOUND`.
+- **What this proof leaves out.** E5 runs the handler, the declaration and the kernel's middleware. It skips everything only `run` does: a default scope from the active scope, the wait for stage B, the event and `dev.loam/seq`. **Identity over MCP is unproved:** a server's actor is `{ kind: 'agent' }` with no id (`server.ts:140`), which `decideAccess` reads as `local`, so a signed-in person's agent is refused from that person's restricted project, and any caller with no session could enter a project restricted to `local`. How `onBehalfOf` maps to a member is phase 3's decision ([Follow-ups](#follow-ups)).
 - **Outbound,** to a mounted instance: [section 9](#9-mounted-instances).
 
 ### 3.4 The order of a call (D72)
@@ -434,12 +452,26 @@ The chain is the kernel's: auth, then journal, as `kernel.ts:244-247` has it, th
 
 | Shell commands | Rule |
 | --- | --- |
-| `appearance-*`, `auth-*`, `layout-*`, `view-state-*`, `palette-*`, `shell-info-get`, `overlay-*`, `toast-show`, `modal-open`, `status-item-set`, `app-*`, `scope-get`, `section-*`, `workspace-*`, `editor-*` | Runs at any scope. `layout-*` uses `context.scope`'s project to choose the record, not the active scope, so a replay finds the same one |
+| `appearance-*`, `auth-*`, `palette-*`, `shell-info-get`, `overlay-*`, `toast-show`, `modal-open`, `status-item-set`, `app-*`, `scope-get`, `section-*`, `workspace-*` | Runs at any scope |
+| `layout-*`, `editor-*` | Each reads and writes **`context.scope`'s record,** `loam.layout.<owner>[@<project>]` or `loam.editor[@<project>]`, not the active scope's, so a replay finds the same one. A record not yet registered is registered then, from the owner's preset, so a `layout-set` between the stages works in the session and in a replay. With a project in `context.scope`, `decideAccess` runs first, and a refusal is `PROJECT_NOT_FOUND` |
+| `view-state-get`, `view-state-set`, `view-state-list` | An id holding `@<project>` runs `decideAccess` on that project. Refused, it answers as an id that was never registered, and `view-state-list` leaves it out, so a signed-out person cannot read a restricted project's id or open documents through `view-state-get { id: 'loam.editor@prj_atlas' }`. `view-state-set` answers `VIEW_STATE_READ_ONLY` for `loam.scope`, `loam.apps`, any `loam.editor` record and `loam.new.recent`, naming the command that owns each |
 | `scope-set`, `project-get`, `project-update`, `project-archive`, `project-restore`, `project-summary-get` | **`decideAccess` on the project they name,** first, and `PROJECT_NOT_FOUND` the same as line 2. `scope-set`'s and `project-update`'s rows say what else they refuse |
 | `project-create`, `project-list` | No project is named. `project-list` filters each row through `decideAccess` |
 | `document-*`, `new-list` | The [documents specification's check](../2-documents/spec.md#42-the-check-on-every-document-command), and `decideAccess` on any `project` they name |
 
-**The active scope after a change of actor.** After a successful `auth-*` command, `run` re-runs `decideAccess` on the active scope, and if refused moves it to the workspace, writing `loam.scope`, in memory and by view-state, unjournaled but for that command's own entry, since a replay's same command does the same. A person who signs out inside a restricted project lands at workspace level, and is never locked out.
+**One function changes the scope.** `applyScopeChange(to, reason, context)`, in `kernel/src/late/scope-change.ts`, holds [4.3's switch rules](#43-the-project-store): it writes `loam.scope` and `loam.apps`, clears selections, dismisses a left app's overlays, swaps the editor state, and records a `ScopeChangeV2` for that call's event ([11.1](#111-kernel-interface-version-2)). Its callers:
+
+| Caller | When | `reason` |
+| --- | --- | --- |
+| `scope-set` | Always, and `previous` comes from the persisted `loam.scope`, not from memory, since stage A may already hold the URL's project ([6.3](#63-the-scope-and-the-url)) | `scope-set` |
+| `document-open` | The document is in another scope | `document-open` |
+| `project-archive` | The active project is the one archived | `project-archive` |
+| `scopeMiddleware`, **after `next()`** for a successful `auth-*` command | `decideAccess` refuses the active project for the actor the adapter now reports | `actor` |
+| `scopeMiddleware`, **before `next()`** on any call | `actorKey(context)` differs from the last actor it saw, and `decideAccess` refuses the active project. So a session that expires, which runs no `auth-*` command, takes effect at the next call | `actor` |
+
+A person who signs out inside a restricted project lands at workspace level, and is never locked out. **Both middleware callers are inside the chain, so a replay hits them,** with the same result in the same order, and a later `scope-set { project: null }` replays with zero differences. `reason: 'actor'` is not refused by a `shell`-owned modal, which it cancels, since no person chose it. Until stage B has loaded `late/`, no `auth-*` command can have run, so stage A needs no copy of this function.
+
+**The chrome keys on the event,** `scopeChanged` and `mainChanged`, and never on a command's name, so all four callers recreate surfaces ([7.6](#76-surfaces-on-a-scope-change)), move the URL ([6.3](#63-the-scope-and-the-url)) and re-read the rail ([7.2](#72-the-elements)) the same way.
 
 For one call of an owned command `name`, with requested scope `r` and actor `a`:
 
@@ -505,6 +537,37 @@ The shell knows a resource's project in two cases.
   **It is a helper, and the store is the boundary.** With or without `resource_keys`, `context.store` holds only the call's effective scope, so a cross-project write cannot happen by construction, in any kind. `resource_keys` gives the refusal its suggestion. The search is one `list` of the table, on a call that was going to miss, and happens only when the key is absent from this scope.
 
 - **A mounted command** names no store. The space pin does what it can ([9.2](#92-a-call)).
+
+### 3.6 A surface's port (D83)
+
+Binding a surface's scope needs an object per surface. Today there is one port and one broker per instance (`kernel/src/types.ts:105`, `apps/view-broker.ts:47`), and `broker.toolsCall(params)` has no idea which surface called (`chrome/src/view/view-host.ts:133`), so a view's press sent in Atlas and arriving after `scope-set`, before its teardown, would write to Beacon. So:
+
+```ts
+export interface SurfaceOptionsV2 {
+	/** Fixed for this surface's life. Only the chrome calls `surface`; an app never holds a port. */
+	scope: ScopeV1;
+	/** An embed: every mutation is `EMBED_READ_ONLY`. */
+	readOnly?: boolean;
+}
+
+export interface SurfacePortV2 {
+	readonly scope: ScopeV1;
+	readonly readOnly: boolean;
+	/** `options.level: 'workspace'` is the only widening. Any other scope is `SCOPE_NOT_GRANTED`. */
+	call<T = unknown>(name: string, input?: unknown, options?: { signal?: AbortSignal; level?: 'workspace' }): Promise<CommandResult<T>>;
+	/** The view's broker, closed over this surface. Absent for any other kind. */
+	readonly view?: ViewBrokerV1;
+}
+
+export interface AppPortV2 extends AppPortV1 {
+	surface(options: SurfaceOptionsV2): SurfacePortV2;
+}
+```
+
+- **The chrome makes one per surface,** when it creates the mount or frame, and drops it with the surface. `loam-view-frame` takes `surface.view`, so `toolsCall(params)` and `runBound` close over its scope. A view's `tools/call` has no way to name a surface, so a frame cannot claim another's.
+- **A native surface's context** is `{ ...held.context, client: surface }`, in `#mount` (`surfaces.ts:850`), so an element's `context.client` is bound to it. That is a contract, as all of a native app is (D54). For a view it is a boundary.
+- **The checks of phase 1's 5.3** run in `surface.call` as they do in `port.call`, then `readOnly`: a command the registry reports as a mutation is refused through the internal `app-embed-refuse`, journaled.
+- **`port.call`** stays, for the chrome and tests, and uses the active scope. A handler's `context.client` is the nested client, which holds the outer call's scope. A handler frame's own `tools/call` and `dev.loam/store` take theirs from `callId`.
 
 ## 4. The stores
 
@@ -579,9 +642,9 @@ export interface WorkspaceAppV1 {
 2. Otherwise run the boot-only command `workspace-deployment-apply { generation, workspace, entries }`, journaled, whose `entries` are the projection's without `boot`, each checked by the projection's own entry schema, never `unknown`. So an empty projection with no record does nothing: **an empty shell's journal is unchanged**, which phase 0's E2 holds. A project created on an empty shell creates the `workspace` row then.
 3. It upserts each entry, keeping each record's `overrides`; sets `listed` to the generation; and sets `listed: null` on a record the projection no longer lists, and keeps it, so its `app-<instance>` table and its documents' records survive a deployment that drops and later restores it.
 
-**How the kernel uses it.** `loadApps` takes `deployment.apps` as it does, each entry overlaid with its record's `overrides`, read by `workspaceApps` in stage A. **A disabled instance is left out of `loadApps` and listed with `state: 'disabled'`,** a new `AppStateV2`, shown in the workspace's app list and not the rail. In stage A, `bootApps` reads `workspace-app` too, so the rail is right in the first frame.
+**How the kernel uses it.** `loadApps` takes `deployment.apps` as it does, each entry overlaid with its record's `overrides`, read by `workspaceApps` in stage A. **A disabled instance is a gate, not an omission:** `loadApps` reads it as any other, so a replay, whose fresh store has no overrides until a `workspace-app-set` entry arrives, registers the same commands. `gated` and `apps.open` read `workspaceApps` at each call, and answer `APP_DISABLED`, so `workspace-app-set { enabled }` takes effect at once, in the session and in a replay alike, and no reload is needed. It is listed with `state: 'disabled'`, a new `AppStateV2`, in the workspace's app list and not the rail, and its commands are left out of the palette. A disabled mounted instance is not discovered; enabling one runs `app-instance-refresh`. In stage A, `bootApps` reads `workspace-app` too, so the rail is right in the first frame.
 
-**Commands.** Only `enabled`, `order` and `title` can change. **E10 scans every registered command's input schema that a person, app or agent can reach for `command`, `cwd`, `url`, `bearer`, `transport`, `route`, `projects`, `space`, `expose`, `audience` and `prefix`,** and finds them only on mounted tools, which are the server's own; and it **calls** `workspace-deployment-apply` on both interfaces and through a port, each answering `COMMAND_NOT_FOUND`. So D55's and D56's "no command, app or agent may write it" hold by construction, as phase 1's E4 held for its three.
+**Commands.** Only `enabled`, `order` and `title` can change. **E10 scans every registered command's input schema that a person, app or agent can reach for `command`, `cwd`, `url`, `bearer`, `transport`, `route`, `projects`, `space`, `expose`, `audience` and `prefix`,** and finds them only on mounted tools, which are the server's own; and it **calls** `workspace-deployment-apply` on both interfaces and through a port, each answering `COMMAND_NOT_FOUND`. So D55's and D56's "no command, app or agent may write it" hold by construction, as phase 1's E4 held for its three: **for a person, an agent and a view. For a native app it is a contract** (D54), since a module in the page can open the store's IndexedDB itself, as D77 says of `context.store`.
 
 `workspace-app-set` has no role check in phase 2, since every reacher is a member. Phase 3 restricts it to an owner, by the seam of [3.4](#34-the-order-of-a-call-d72).
 
@@ -639,17 +702,17 @@ export interface ProjectV1 {
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `project-create` | mutation | `{ name; slug?; icon?; access? }`. A missing `slug` comes from `name`, lower-cased, with runs of anything else as `-`, and leading and trailing `-` trimmed | `ProjectV1`. Undo: `project-archive` |
-| `project-list` | query | `{ status?: 'active' \| 'archived' \| 'all'; limit?: 1 to 200; offset? }`, default `active` | `{ projects: ProjectV1[], total }`, only those `decideAccess` allows |
-| `project-get` | query | `{ project }`, an `id` or a slug | `ProjectV1` |
+| `project-list` | query | `{ status?: 'active' \| 'archived' \| 'all'; limit?: 1 to 200; offset? }`, default `active` | `{ projects: ProjectV1[], total }`, only those `decideAccess` allows. Through a port, each row is `AppProjectV1`, with no `access`, `memberEpoch`, `createdBy` or `updatedBy` |
+| `project-get` | query | `{ project }`, an `id` or a slug | `ProjectV1`, or through a port `AppProjectV1` |
 | `project-update` | mutation | `{ project; name?; icon?; access? }` | `ProjectV1`. Undo restores the previous values |
 | `project-archive` | mutation | `{ project }` | `{ project, scope }`. Undo: `project-restore` |
 | `project-restore` | mutation | `{ project }` | `{ project }`. Undo: `project-archive` |
 | `project-summary-get` | query | `{ project }` | [7.7](#77-project-summary) |
-| `scope-get` | query, first paint | `{}` | `{ scope: ScopeV1, workspace: { id, name }, project: ProjectV1 \| null }` |
+| `scope-get` | query, first paint | `{}` | `{ scope: ScopeV1, workspace: { id, name }, project: ProjectV1 \| null }`. **Through a port: `{ scope }` alone, the call's effective scope, with no record,** so a workspace-only app narrowed under Atlas learns no project, and no app reads `access.members` |
 | `scope-set` | mutation | `{ project: string \| null; app?: string }`, an `id` or a slug; `app` opens that instance after the switch, for the undo | `{ scope, previous, active, app: 'kept' \| 'left' }`. Undo: `scope-set { project: previous, app: left }` |
 | `workspace-get` | query | `{}` | `WorkspaceV1`, or the projection's values when no row exists yet |
 | `workspace-app-list` | query | `{}` | `{ apps: WorkspaceAppV1[] }`, the deployer's keys read-only |
-| `workspace-app-set` | mutation | `{ instance; enabled?; order?; title? }` | `WorkspaceAppV1`. Undo restores the overrides. An `enabled` change reloads that app at the next stage B, and the result's `reload: true` says so: phase 2 builds the registries once per page for a change in the app set |
+| `workspace-app-set` | mutation | `{ instance; enabled?; order?; title? }` | `WorkspaceAppV1`. Undo restores the overrides. It takes effect at once ([4.1](#41-the-workspace-store-d73)) |
 | `workspace-deployment-apply` | internal | `{ generation; workspace; entries }` | `{ added, changed, unlisted }` |
 | `section-open` | mutation | `{ section: 'projects' \| 'documents'; path?: string }` | `{ section, previous }` |
 | `section-get` | query, first paint | `{}` | `{ section: string \| null, path: string }` |
@@ -659,9 +722,9 @@ All have `SHELL_EXPOSE`. `scope-get` and `section-get` are in first paint; the r
 
 **The record `loam.apps`** becomes `{ active: string | null; section: string | null; path: string }`, a persisted record with fewer keys reading their defaults. `path` is the active app's or section's `<rest>`, persisted so a reload at `/` restores it, and cleared by `app-open`, `section-open` and any change of scope.
 
-**A switch's rules** (the proposal's "Switching project keeps the active app when it supports the new scope and returns to the projects section when it does not"), atomically, inside `scope-set`, as a switch's overlay rules run inside `app-open`:
+**A switch's rules** (the proposal's "Switching project keeps the active app when it supports the new scope and returns to the projects section when it does not"), atomically, in `applyScopeChange` ([3.4](#34-the-order-of-a-call-d72)), as a switch's overlay rules run inside `app-open`:
 
-| Before | `scope-set` to | Active app | Then |
+| Before | Changing to | Active app | Then |
 | --- | --- | --- | --- |
 | A dual-scope app | A project, or none | Kept | Its surfaces are recreated ([7.6](#76-surfaces-on-a-scope-change)) |
 | A project-only app | Another project | Kept | The same |
@@ -670,7 +733,7 @@ All have `SHELL_EXPOSE`. `scope-get` and `section-get` are in first paint; the r
 | A workspace-only app | None | Unchanged | Nothing: it was already at workspace level |
 | No app, a section | Anything | None | The section reads the new scope |
 
-"Left" dismisses the app's overlays as `app-switch`, as phase 1's section 8 does. A selection is cleared on any change of scope. A `shell`-owned modal refuses the switch with `OVERLAY_MODAL_BUSY`.
+"Left" dismisses the app's overlays as `app-switch`, as phase 1's section 8 does. A selection is cleared on any change of scope. A `shell`-owned modal refuses the switch with `OVERLAY_MODAL_BUSY`, but for `reason: 'actor'`, which cancels it.
 
 ## 5. The store grant (D77)
 
@@ -689,8 +752,9 @@ export function storeRecordId(scope: ScopeV1, key: string): string {
 | Record | `scope` is `ScopeV1`, as phase 1 left room for. `scopeKey` is new: `w`, or `p:<project>`, a string so `queryRows` can filter on it. An old record's `scope: null` and missing `scopeKey` read as the workspace |
 | `list(prefix?)` | `adapter.list(table, { scopeKey })`, then the prefix. A phase 1 row has no `scopeKey`, so workspace level also reads rows with `scope: null`: the list reads the table with no filter at workspace level and drops every row with a `p~` id. Project level filters |
 | `delete`, `get` | By `storeRecordId` |
-| The port's `store` | For the chrome and tests: the active scope, at the moment of each operation |
+| The port's `store` | For the chrome and tests: the active scope, at the moment of each operation. A surface never gets it |
 | `dev.loam/store` from a handler frame | Bound to the call's effective scope, as the frame's clock is to its call, by `callId` |
+| **A query cannot write** | Today `storeRequest` checks the grant and the call, and not whether the call is a mutation (`apps/handler-frame.ts:146-177`), so a query's handler could write, and an embed could change data through one. With the command's `mutation` false, `put` and `delete` are refused: in a frame `STORE_WRITE_IN_QUERY`, `-32601`, a boundary; in `createAppStore`'s `readOnly` for a native handler, a rejected promise with that code, a contract. No shipped app is affected: hello's and tally's writes are all under `store-write` |
 | A workspace-only app | Always workspace level, whatever is active, by narrowing |
 | Moving a resource between scopes | The architecture says it is "an app command with undo". An app can only do it from a surface, with two calls at the two levels, since a handler's store holds one scope. Documents move through `document-move`, which the shell does ([documents specification](../2-documents/spec.md#41-commands)) |
 
@@ -698,7 +762,7 @@ export function storeRecordId(scope: ScopeV1, key: string): string {
 
 | Grant | The app gets | Enforced |
 | --- | --- | --- |
-| `projects` | `context.projects`: `active(): Promise<ProjectV1 \| null>`, `list()`, `get(ref)`. It may read, never write ("apps never create or delete projects"). `project-list` and `project-get` join what the port may call with this grant | Through the port, for a view; a contract for a native app (D54) |
+| `projects` | `context.projects`: `active(): Promise<AppProjectV1 \| null>`, `list()`, `get(ref)`. It may read, never write ("apps never create or delete projects"), and sees no members. `active()` answers the call's effective scope, so `null` for a workspace-only app. `project-list` and `project-get` join what the port may call with this grant | Through the port, for a view; a contract for a native app (D54) |
 | `documents` | The [documents specification](../2-documents/spec.md#11-the-documents-grant) | The same |
 
 `GRANT_UNAVAILABLE` for those two goes away as each step serves it. `GRANT_CATALOG_V1` already says `servedFrom: 2`.
@@ -757,14 +821,14 @@ This is new work the seam did not foresee, and it is the reason D74 exists.
 **Two truths, one rule: a person's navigation is a command, and a command moves the URL. All of this is the chrome's;** the kernel holds state and refuses what it must.
 
 - **URL to state.** `createRouter` intercepts a same-origin navigation, as it does, and calls `onRoute(route, { replace, info })`. The chrome compares `route` with `scope-get`, `app-list`'s `active` and `section-get`, and for what differs calls `scope-set`, then `app-open`, `section-open`, `app-route-set` or `document-open`, each a journaled command, in that order. An `app` route whose instance does not support the scope, or does not exist, goes to `not-found`.
-- **State to URL.** On a successful event of `scope-set`, `app-open`, `app-close`, `section-open`, `app-route-set`, `document-open`, `editor-activate`, `editor-close` or `project-archive`, from anyone, the chrome formats the state, and if it differs from `location` calls `navigation.navigate(url, { history: 'push', info: 'loam-state' })`, or `history.pushState` where the API is absent. `editor-activate` and `editor-close` use `replace`. A handler seeing `info === 'loam-state'` does nothing else. A `layout-*` or a query never moves the URL.
+- **State to URL.** On a kernel event with `scopeChanged` or `mainChanged`, from anyone, whatever the command ([3.4](#34-the-order-of-a-call-d72), [11.1](#111-kernel-interface-version-2)), the chrome formats the state, and if it differs from `location` calls `navigation.navigate(url, { history: mainChanged, info: 'loam-state' })`, or `history.pushState` or `replaceState` where the API is absent. `mainChanged` is `'push'` or `'replace'`, and the kernel sets it wherever `loam.apps` or the active scope's active tab changes: `editor-activate` and `editor-close` say `replace`, and so do `document-trash` and `document-move` when they close the active tab; the rest say `push`. So a sign-out, an archive and a trashed document's closed tab each move the URL, with no list here to keep. A handler seeing `info === 'loam-state'` does nothing else. A `layout-*` or a query never moves the URL.
 - **While a route is being applied, state to URL is suspended,** by a `#applying` count in the router's owner, and compares once at the end. So a traverse's `scope-set` then `app-open` does not push between them, which would destroy forward history. E8 holds `history.length`, and that Forward still works.
 - **Back and forward** are navigations, so they run commands, and the journal records them as what they did.
 - **Boot.** The record `loam.scope` is `{ project: string | null }` by id, read-only through `view-state-set` as `loam.apps` is, with `VIEW_STATE_READ_ONLY` naming `scope-set`. `mountShell`'s host parses the URL first and passes `initialScope`:
   1. **Stage A.** The URL's project slug, when `decideAccess` allows and the cache has it, is the active scope in memory, unjournaled, for the first frame. Otherwise the persisted record, and otherwise the workspace. A named project that fails shows `not-found`, the same for missing and refused. `not-found` paints as phase 0 has it.
-  2. **Stage B.** If that differs from the record, the chrome runs `scope-set`, so the change is journaled, and then `app-open` or `section-open` for the route.
+  2. **Stage B.** If that differs from the record, the chrome runs `scope-set`, so the change is journaled, and then `app-open` or `section-open` for the route. `scope-set`'s `previous` is the persisted record's, so the entry is what a replay computes, though stage A already held the project in memory.
   3. **`/`.** If the state names something to show, `navigation.navigate(format(state), { history: 'replace', info: 'loam-state' })`. If not, `/` stays, with the landing, as phases 0 and 1 have it, and an empty shell's URL does not move.
-- **Reload** of any shape restores it, with the same first frame.
+- **Reload** of any shape restores it, with the same first frame, **but for a restricted project under the Mock:** `web/src/host.ts:106` builds a new `MockAuthAdapter` per page, so a reload signs out, stage A's `decideAccess` refuses, and the person lands at workspace level until they sign in again. A URL naming that project shows `not-found` until then. A provider whose session survives a reload is phase 3's.
 - **`shell-open`** is phase 5's, and takes a `ResourceLinkV1` by this scheme ([documents specification](../2-documents/spec.md#91-a-resource-link)).
 
 ## 7. The rail, the projects section and the parts
@@ -805,7 +869,7 @@ Each under the [component checklist](../../design.md#the-component-checklist), w
 | `loam-projects-section` | `sections` chunk | [7.7](#77-project-summary) |
 | `loam-tree` | `documents` chunk, for a `tree` sidebar | A tree over `violet-tree`, in the same way `loam-list` is over the listbox |
 
-- **`loam-rail` and `loam-tabbar`** gain two `ul`s, `aria-label="Project apps"` and `aria-label="Workspace apps"`, and keep `<slot>` out: `RailBands`, a controller in `chrome/src/rail/`, owns the entries in first paint, reads `app-list` and `scope-get`, and re-reads after `app-open`, `app-close`, `scope-set`, `project-*`, `workspace-app-set` and `appsReady`. `AppSurfaces` stops putting entries in the nav.
+- **`loam-rail` and `loam-tabbar`** gain two `ul`s, `aria-label="Project apps"` and `aria-label="Workspace apps"`, and keep `<slot>` out: `RailBands`, a controller in `chrome/src/rail/`, owns the entries in first paint, reads `app-list` and `scope-get`, and re-reads on an event with `scopeChanged` or `mainChanged`, after `project-*` and `workspace-app-set`, and on `appsReady`. `AppSurfaces` stops putting entries in the nav.
 - **The divider** is `color.border.subtle` between the lists, `aria-hidden`, since the lists' names say what it says.
 - **Compact.** `loam-tabbar`'s order is the same, one scrolling line, with the divider vertical. The switcher's list opens as the palette's list does, as a modal drawer's list.
 - **The title bar's** first text stays `Loam` in phase 2. A workspace switcher ("workspace ▾" in the proposal's drawing) has nothing to switch to until phase 3, so it is named here as the seam and left out; `document.title` and the status bar name the workspace.
@@ -830,9 +894,9 @@ The rail's lists scroll with `overflow-block: auto` and `scrollbar-width: thin`.
 
 ### 7.6 Surfaces on a scope change
 
-**Nothing of Atlas stays under Beacon.** On `scope-set`, for a kept app:
+**Nothing of Atlas stays under Beacon.** On an event with `scopeChanged`, whichever command caused it, for a kept app:
 
-- Every surface of the app is dropped and recreated: mounts, parked or not, and a view, through `ui/resource-teardown` as a switch does. `activate` does not run again. So an app needs no scope-change code; it reads `scope` when it is created. Phase 1's parking stays what it was, across an app switch within one scope.
+- Every surface of the app is dropped and recreated, each with a new [surface port](#36-a-surfaces-port-d83): mounts, parked or not, and a view, through `ui/resource-teardown` as a switch does. `activate` does not run again. So an app needs no scope-change code; it reads `scope` when it is created. Phase 1's parking stays what it was, across an app switch within one scope.
 - `LoamSurfaceElementV1` gains `scope?: ScopeV1`, and `route?: string`, assigned before it connects. A view gets `dev.loam/scope` and `dev.loam/route`, in `hostContext`, and a change of route as `host-context-changed`. A route is a property change and recreates nothing.
 - Status items, overlays and keybindings follow the app, as a switch has them, except that a kept app's keep their chords. A value of `status-item-set` is per instance and scope: `statusItems` in `app-get` answers for the active scope.
 - **Per-app layout** is the architecture's "keyed by app and scope". `appLayoutId(instance, project?)` is `loam.layout.<instance>` at workspace level, so phase 1's records are kept, and `loam.layout.<instance>@<project id>` in a project. A workspace-only app has only the first. **The record registers on first entry**, with the manifest's preset, and then `viewState.hydrateOne(id)` (step 0b) reads a persisted one, since `hydrate` reads a whole category and would write over what is in memory. Sections have `loam.layout.~projects` and `loam.layout.~documents`, registered in stage A. `isLayoutId` already covers these.
@@ -858,7 +922,7 @@ export interface ProjectSummaryV1 {
 
 **`project-summary-get`.**
 
-- `decideAccess` on the named project, then for each enabled app with a summary, in parallel, `runAs(command, {}, { signal }, { parent, scope })` with a 2,000-millisecond deadline. So each is **a nested query**, journaled with `parent` when it ends. Nothing mutates. `kernel/src/late/project-summary.ts`.
+- `decideAccess` on the named project, then for each enabled app with a summary, in parallel, `runAs(command, {}, { signal }, { parent, scope })` with a 2,000-millisecond deadline. So each is **a nested query**, journaled with `parent` when it ends. Nothing mutates: a handler's write under it is `STORE_WRITE_IN_QUERY` ([section 5](#5-the-store-grant-d77)), a boundary for a view and a contract for a native app. `kernel/src/late/project-summary.ts`.
 - **On replay, `project-summary-get` answers from its record:** it joins `REPLAY_RECORDED_QUERIES`, since a wall-clock deadline decided its result and a call that timed out left no nested entry to answer from. Its answer depends on what has loaded, as the others there do.
 - The result is `{ project, summaries: Array<{ instance; title; icon; summary?: ProjectSummaryV1; error?: { code; message; suggestion } }> }`, sorted by the rail's order. One app's failure is that row's error, and the rest stand: `PROJECT_SUMMARY_TIMEOUT`, `PROJECT_SUMMARY_INVALID` (`readProjectSummary`, hand-written, reads each field for what it is, and drops what is over a bound), or the command's own failure.
 - **The shell never reads resources,** only what each app returns (architecture section 7). What an app says is text: `loam-projects-section` renders with bindings, never markup, and a link is navigation, never execution (architecture, "Resource link").
@@ -931,9 +995,11 @@ So: **a server that declares `dev.loam/scope` sees it, and validates it, as any 
 Recorded by the field ([3.2](#32-the-field)), so these are what changes.
 
 - **Every entry** has `context.scope` when the kernel set one, on both interfaces. It is an id, never a secret, so `journal: true` is allowed (`spec/context-fields.md`).
-- **Replay.** `replayKernel` runs stage B inside `createKernelParts`, with `internals.replaying: true`, so its registries hold everything from the first entry, and step 5 of [stage B](#22-two-stages-d69) is skipped: the entries are what ran. The middleware runs as it did, with the same store, project records and actor, the Mock's id now the same ([3.4](#34-the-order-of-a-call-d72)): an access refusal in the journal is the same refusal in a replay, and a project created by an earlier entry is in the cache by then, with the same id off the tape.
-- **Boot-only state.** The URL's `initialScope` is the first frame's. What it changes reaches the journal as `scope-set` in stage B, so a replay never needs a URL. A `layout-set` between the stages carries `context.scope`, and `layout-*` reads the record from that ([3.4](#34-the-order-of-a-call-d72)), so it replays against the same record.
-- **`resetSession`.** Where the trace IDs' base changes (9.5), a replay forgets overlays, selections, and the documents specification's dirty tabs. Scope, `loam.apps` and layouts are persisted, so they carry over, as 9.5's rule has it.
+- **Replay.** `replayKernel` runs stage B inside `createKernelParts`, with `internals.replaying: true`, so its registries hold everything from the first entry, and step 5 of [stage B](#22-two-stages-d69) is skipped: the entries are what ran. The middleware runs as it did, with the same store and project records: an access refusal in the journal is the same refusal in a replay, and a project created by an earlier entry is in the cache by then, with the same id off the tape.
+- **The actor.** Replay runs one Mock across the whole journal (`testing.ts:283`), and its session lasts an hour from when the replay signs in, so neither a reload nor an expiry would match the session. So `KernelPartsInternals.actorOf(traceId)` gives the journal's recorded actor, and `scopeMiddleware`, running after auth, sets `context.actor` from it. A refusal stays a refusal, and an allow an allow, whatever the Mock holds. The Mock's id, now stable, keeps `createdBy` and a project's `members` the same across a real reload.
+- **Boot-only state.** The URL's `initialScope` is the first frame's. What it changes reaches the journal as `scope-set` in stage B, so a replay never needs a URL. A `layout-set` between the stages can land before that `scope-set`: it carries `context.scope`, and `layout-*` reads, and if need be registers, the record from that ([3.4](#34-the-order-of-a-call-d72)), so it replays against the same record.
+- **`resetSession`.** Where the trace IDs' base changes (9.5), a replay forgets overlays, selections, the documents specification's dirty tabs **and auth:** it becomes async and signs the replay's Mock out, as a real reload does (`host.ts:106`; `kernel.ts:409` leaves auth alone today), because the boot's journaled `auth-session-get` would otherwise differ, and `REPLAY_IGNORE` does not cover `data.status`. Scope, `loam.apps` and layouts are persisted, so they carry over, as 9.5's rule has it. A reload inside a restricted project is `scope-set { project: null }` in the journal, from stage B.
+- **A disabled instance** replays the same, since it is a gate on `workspace-app-set`'s state, not an omission from `loadApps` ([4.1](#41-the-workspace-store-d73)).
 - **`REPLAY_RECORDED_QUERIES`** gains `project-summary-get`, for [7.7](#77-project-summary)'s reason. `workspace-deployment-apply` re-executes from its own `entries`, so a replay needs no projection.
 - **The undo of a scope-dropping command** is recorded in its result as every other's.
 - **The scripted session.** `web/test/browser/scope/session-scope.ts`: create two projects, switch, run each kind of app at each level, a refused cross-project call, archive and restore, and reload in the middle. E4 replays it with zero differences. `SESSION_50`'s calls are unchanged, and `session:record` regenerates it, since `shell-info-get` has new fields, as in phase 1.
@@ -964,9 +1030,21 @@ export interface CallOptionsV2 extends CallOptionsV1 {
 	scope?: ScopeV1 | 'workspace';
 }
 
+export interface ScopeChangeV2 {
+	from: ScopeV1;
+	to: ScopeV1;
+	/** The instance a switch left, if any. */
+	left?: string;
+	reason: 'scope-set' | 'document-open' | 'project-archive' | 'actor';
+}
+
 export interface KernelEventV2 extends KernelEventV1 {
 	/** The call's effective scope. */
 	scope?: ScopeV1;
+	/** The active scope changed in this call, by `applyScopeChange` (3.4). */
+	scopeChanged?: ScopeChangeV2;
+	/** What main shows changed, and how the URL should follow (6.3). */
+	mainChanged?: 'push' | 'replace';
 	/** The document an instance command named (documents specification). */
 	document?: string;
 }
@@ -1000,12 +1078,12 @@ export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool'> {
 ```
 
 - **The move.** As phase 1's: `LoamKernelV1` stays exported for the `extends`, the chrome checks `version === 2`, and its full-page mismatch error names both.
-- **`AppsRuntime`** gains `scopeLevelsOf(name)` and `checkResource(name, input, scope)`, and `summaries()` returns `AppSummaryV2`. `EMPTY_APPS` answers `undefined` and `[]`. `KernelParts` gains `mcpOptions()`, and `KernelPartsInternals` gains `replaying`.
+- **`AppsRuntime`** gains `scopeLevelsOf(name)` and `checkResource(name, input, scope)`, and `summaries()` returns `AppSummaryV2`. `EMPTY_APPS` answers `undefined` and `[]`. `KernelParts` gains `mcpOptions()`, its `resetSession` returns a promise, and `KernelPartsInternals` gains `replaying` and `actorOf`. `appPort(instance)` returns `AppPortV2` ([3.6](#36-a-surfaces-port-d83)). `scopesSeen`, by trace ID as `seqs` is, carries the scope, `scopeChanged` and `mainChanged` from the handler and middleware to `run`'s event.
 - **`createKernel`** rejects only as phase 0 does.
 
 ### 11.2 Commands and the port
 
-Section 4's and the documents specification's. `APP_CALLABLE_SHELL_COMMANDS_V1` keeps its name for phase 1's nine, and `appCallable(grants)` in `apps/port.ts` adds `scope-get` always, `project-list` and `project-get` with `projects`, and the documents specification's with `documents`. Anything else is `CALL_NOT_GRANTED`, as phase 1's check order has it.
+Section 4's and the documents specification's. `APP_CALLABLE_SHELL_COMMANDS_V1` keeps its name for phase 1's nine, and `appCallable(grants)` in `apps/port.ts` adds `scope-get` and `app-route-set`, for its own instance, always, `project-list` and `project-get` with `projects`, and [the documents specification's list](../2-documents/spec.md#11-the-documents-grant) with `documents`. Anything else is `CALL_NOT_GRANTED`, as phase 1's check order has it.
 
 `palette-search` and `listCommands` keep phase 1's rule, and also leave out a command of an app not `available` in the active scope. It stays callable by name, and answers as [3.4](#34-the-order-of-a-call-d72) says. That is the catalog's "filtered by active app and scope".
 
@@ -1050,7 +1128,7 @@ export interface AppContextV1 {
 }
 ```
 
-`AppContextV1` holds no scope, since `activate` runs once and a scope changes: a surface reads its element's `scope`. `@lushly-dev/loam-sdk/view`'s `ViewHostContextV1` gains `dev.loam/scope`, `dev.loam/route` and `dev.loam/selectionLevel`. `app-route-set` joins what an app may call, for its own instance alone, with `path` refused as [its row](#43-the-project-store) says, so a view cannot walk the URL into another project.
+`AppContextV1` holds no scope, since `activate` runs once and a scope changes: a surface reads its element's `scope`. `@lushly-dev/loam-sdk/view`'s `ViewHostContextV1` gains `dev.loam/scope`, `dev.loam/route` and `dev.loam/selectionLevel`. `app-route-set`'s `path` is refused as [its row](#43-the-project-store) says, so a view cannot walk the URL into another project.
 
 `@lushly-dev/loam-testing`'s `createAppTestKernel` gains `scope?: { project?: string }`, which creates that project in the headless kernel and sets it, and `port` follows. `app new`'s scaffold writes `manifest_version = 2`, with `scope_levels = ["workspace"]` written out and a comment naming the other values.
 
@@ -1075,6 +1153,8 @@ Every code has a suggestion and is added to `LoamKernelErrorCode` or the deploym
 | `DEPLOYMENT_INVALID` | A projection that passes `readBoot` and fails `readProjection` | Each app `failed`, in stage B. Phase 1's notice stays for a file `readBoot` cannot read | Rewrite the deployment |
 | `MANIFEST_RESOURCE_KEY_INVALID`, `MANIFEST_SUMMARY_INVALID` | [8.3](#83-new-keys) | The package is refused | The fix |
 | `SIDEBAR_RESULT_INVALID` | A `tree` over its bounds | Shown in the part | Report to the app's owner |
+| `APP_DISABLED` | `app-open` or a call into a disabled instance ([4.1](#41-the-workspace-store-d73)) | A failure, journaled | `workspace-app-set { enabled: true }` |
+| `STORE_WRITE_IN_QUERY` | A `put` or `delete` under a command that is not a mutation ([section 5](#5-the-store-grant-d77)) | The store call is refused; the handler decides what it answers | Declare `store-write` on the command |
 | `APP_ROUTE_INVALID` | A `.` or `..` segment in `app-route-set`, or a path over 1,024 characters | A failure, journaled | Use a path under the app's own base |
 | `LATE_COMMANDS_UNAVAILABLE` | The `late` chunk did not load ([2.2](#22-two-stages-d69)) | A failure, retryable, for each name stage A does not hold | Reload; check that the deployment serves its assets |
 
@@ -1085,7 +1165,9 @@ Every code has a suggestion and is added to `LoamKernelErrorCode` or the deploym
 - **The URL** is untrusted input ([6.1](#61-the-shapes)). A slug is looked up. Nothing from it reaches markup or a store's key but through the lookup. An app's path cannot hold a dot segment, in `app-route-set` or `formatRoute`.
 - **The scope** is a claim on every path. Nothing but `decideAccess` and the store use it as authority, and neither takes a stronger word than the record's.
 - **Scope in a store's id.** `checked` refuses a `p~` key, so a key cannot name another scope's record. `project` in the id comes from the context, never from an app.
-- **A view and its scope.** The port gives a view only its active scope, or workspace level, and the record `id` it names in `dev.loam/store` is built by the kernel. A frame's `callId` ties a store call to the call's scope.
+- **A view and its scope.** A view's broker is its [surface port's](#36-a-surfaces-port-d83), closed over the scope that surface was created with, so its calls run there or at workspace level, whatever is active when they arrive. The record `id` a frame names in `dev.loam/store` is built by the kernel, and a frame's `callId` ties a store call to the call's scope. A query's handler cannot write ([section 5](#5-the-store-grant-d77)).
+- **What a view can learn.** Through a port, `scope-get` holds no record, a project has no members, and a document outside the call's scope answers as a missing one ([documents specification](../2-documents/spec.md#42-the-check-on-every-document-command)).
+- **Identity over MCP** is not decided, and nothing here is safe to serve to a real client until phase 3 maps `onBehalfOf` ([3.3](#33-over-mcp)).
 - **Native apps** remain trusted code (D54): `context.store`'s scope is a contract for one, since it shares the page, and a boundary for a view.
 - **What a view holds.** Documents let a view editor hold document content, so [phase 1's section 12](../1-app-contract/spec.md#12-security) reaches further: **a view's data is not confidential from its author,** and a document type served as a view can send what it reads anywhere over WebRTC. Phase 2 ships one view type, `checklist`, first-party. It therefore does not depend on the owner's answer to #711. If the owner decides otherwise, `checklist` becomes native at no cost to the phase, and the second document type's proof is unchanged.
 - **Limits (#710).** A journaled command's input is unbounded, and now a document's content is what commands carry. The [documents specification](../2-documents/spec.md#44-limits) bounds that one path; #710 stays open for the broker and the journal in general.
@@ -1112,20 +1194,20 @@ The phase exits when every test below and the [documents specification's D1 to D
 
 | # | Criterion | Job | Test |
 | --- | --- | --- | --- |
-| E1 | **One first paint** ([section 2](#2-first-paint)) | Chromium | Through a new `measureFirstPaint(page)` in the harness, which lists what was requested **before the mark `loam-stage-b`**, so it does not depend on when a machine reports `first-contentful-paint` ([2.1](#21-what-was-measured)): the empty shell, hello, and hello with tally **request the same chunks, byte for byte**, with `deployment.json` differing and no `app-manifest.json`. The JavaScript's sum is at or under 300,000 and equals `budget`'s row. None of `apps-`, `validate.generated-`, `deployment-`, `surfaces-` or `late-` is among them. `apps/layout.test.ts:110`'s and phase 1's E5 assertions on `requestedBeforeFirstPaint` become this. The harness holds `apps/*/app-manifest.json` and each stage B chunk: **with them held, a frame paints,** by `first-contentful-paint` firing, with the rail listing hello, tally and a refused fixture with its "(unavailable)", and main `aria-busy` with no landing for a persisted active app. Under 4x CPU and 2.1's network, `first-contentful-paint` is recorded in the run, not asserted. Step 5 adds a deep link, and step 6 adds tasks |
-| E2 | **Budgets** | `loam` job's "Bundle budget" step; Chromium for what names it | Bundle budget: every row of [2.4](#24-the-budget-and-the-rule) passes, with `jsMinified` at or under 300,000 and `jsGzip` at or under 91,000. Each step's pull request records its ledger line. Chromium: A1 to A3 stay within budget, `__zod_globalConfig.jitless` is true and no `securitypolicyviolation` fires, in the empty shell and after stage B |
+| E1 | **One first paint** ([section 2](#2-first-paint)) | Chromium | Through a new `measureFirstPaint(page)` in the harness, which lists what was requested **before the mark `loam-stage-b`**, so it does not depend on when a machine reports `first-contentful-paint` ([2.1](#21-what-was-measured)): the empty shell, hello, and hello with tally **request the same chunks, byte for byte**, with `deployment.json` differing and no `app-manifest.json`. The JavaScript's sum is at or under 300,000 and equals `budget`'s row. None of `apps-`, `validate.generated-`, `deployment-`, `surfaces-` or `late-` is among them. `apps/layout.test.ts:110`'s and phase 1's E5 assertions on `requestedBeforeFirstPaint` become this. The harness holds `apps/*/app-manifest.json` and each stage B chunk: **with them held, a frame paints,** by `first-contentful-paint` firing, with the rail listing hello, tally and a refused fixture with its "(unavailable)", and main `aria-busy` with no landing for a persisted active app. Under 4x CPU and 2.1's network, `first-contentful-paint` is recorded in the run, not asserted. **Boot records:** a hostile record, with markup in a title, a bad `instance`, and a bad `workspace.id`, renders as text, drops that entry, and shows "Loam cannot start"; a record that lies about title, levels and parts is corrected by stage B, whose manifest wins. Step 5 adds a deep link, and step 6 adds tasks |
+| E2 | **Budgets** | `loam` job's "Bundle budget" step; Chromium; `loam` job's "AFD's lean path" step for `entry-points.test.ts` | Bundle budget: every row of [2.4](#24-the-budget-and-the-rule) passes, with `jsMinified` at or under 300,000 and `jsGzip` at or under 91,000. Each step's pull request records its ledger line. Chromium: A1 to A3 stay within budget, `__zod_globalConfig.jitless` is true and no `securitypolicyviolation` fires, in the empty shell and after stage B |
 | E3 | **Two projects, a project-scoped app, a workspace-only app and a dual-scope app behave as the proposal describes** | Chromium | Tally, tasks and hello, with projects Atlas and Beacon. No project: tally and hello in the bottom band, tasks dimmed in the top, and its `app-open` is `SCOPE_PROJECT_REQUIRED`, journaled. Atlas: hello moves to the top as one element, tasks opens. Hello's sidebar shows `In Atlas` and `In <workspace>`, with a value stored at each kept apart, and a focused entry keeps focus when it moves. Beacon, from tasks: tasks stays, with Beacon's records, and nothing of Atlas in the deep DOM. To no project from tasks: the projects section. From tally to Atlas: the project's home. A `kernel.agent` `tally-add` under Atlas runs at workspace level and is journaled with its effective scope. Switcher by keyboard, with Escape returning focus. `bandFor` units cover every row of 7.1. A mounted fixture with `projects` is dimmed elsewhere |
-| E4 | **Scope in the context, the journal and replay** | Units; Chromium | Kernel unit: each path of 3.2 reaches `context.scope`, on both interfaces. A press in flight during a switch keeps its surface's scope. Each row of 3.4's shell-command table: signing out inside a restricted project lands at workspace level, with `scope-get`, `layout-get` and `auth-sign-in` working throughout; `project-restore` works on an archived project; each named-project command refuses a project the actor may not enter. `session-scope.ts`, signed in, with a reload in the middle, replays with zero differences, including a refusal, a project created by that person, and a summary answered from its record. `workspace-deployment-apply` is not applied twice in a replay. An entry with no `scope` replays as the workspace. `diffJournals` reports `context` for two sessions that differ only in scope. Under Chromium, an IndexedDB journal holds `context.scope` |
-| E5 | **The scope travels in `_meta` over MCP**, through a test-only handler | Units: `kernel/src/mcp-scope.test.ts` | `kernel` takes a dev dependency on `@lushly-dev/afd-client`. A real `createMcpHandler` from `@lushly-dev/afd-server` with `mcpOptions()`, on a loopback `node:http` server, and `StreamableHttpTransport` as its client, in both eras. One connection: `tools/list` equal across scopes; a `probe` app's echo command with `_meta["dev.loam/scope"]` Atlas, then Beacon, then none, each seeing its own and none seeing another's, and the journal holding each value. A `restricted` project refused for another actor, on that same command. `_meta["dev.loam/caller"]`, `app`, `instance`, `replay` and `parent` are not read: the context holds no such value. `afd-call`'s `meta` argument gives the same. Malformed: `VALIDATION_ERROR` naming the field. Its header comment says that it proves the declaration and the middleware, and not a hosted server |
+| E4 | **Scope in the context, the journal and replay** | Units; Chromium | Kernel unit: each path of 3.2 reaches `context.scope`, on both interfaces. A press in flight during a switch keeps its surface's scope. Each row of 3.4's shell-command table: signing out inside a restricted project lands at workspace level, with `scope-get`, `layout-get` and `auth-sign-in` working throughout, **nothing of Atlas in the deep DOM, the URL moved and the rail re-read, by Chromium, and a later `scope-set` replaying with zero differences;** the same for a Mock session expired by a fake clock, at its next call, for `document-open` across scopes and for `project-archive` of the active project; `view-state-get` and `view-state-list` on a restricted project's `@` ids, signed out, answer as unregistered; `project-restore` works on an archived project; each named-project command refuses a project the actor may not enter. `session-scope.ts`, signed in, with a reload in the middle **and a sign-in after it,** replays with zero differences, including a refusal after the reload, a project created by that person, and a summary answered from its record. A `layout-set` between the stages after a URL boot, and a disabled instance's `app-open`, replay the same. `workspace-deployment-apply` is not applied twice in a replay. An entry with no `scope` replays as the workspace. `diffJournals` reports `context` for two sessions that differ only in scope. Under Chromium, an IndexedDB journal holds `context.scope` |
+| E5 | **The scope travels in `_meta` over MCP**, through a test-only handler | Units: `kernel/src/mcp-scope.test.ts` | `kernel` takes a dev dependency on `@lushly-dev/afd-client`. A real `createMcpHandler` from `@lushly-dev/afd-server` with `mcpOptions()`, on a loopback `node:http` server, and `StreamableHttpTransport` as its client, in both eras. One connection: `tools/list` equal across scopes; a `probe` app's echo command with `_meta["dev.loam/scope"]` Atlas, then Beacon, then none, each seeing its own and none seeing another's, and the journal holding each value. **`BOOT_ONLY` and `INTERNAL_COMMANDS` are not in `tools/list`, and calling each answers `COMMAND_NOT_FOUND`.** A project restricted to a named member is refused on that same command, because a server's actor reads as `local`: that shows the middleware ran, and not that identity works over MCP, which [3.3](#33-over-mcp) says is unproved. `_meta["dev.loam/caller"]`, `app`, `instance`, `replay` and `parent` are not read: the context holds no such value. `afd-call`'s `meta` argument gives the same. Malformed: `VALIDATION_ERROR` naming the field. Its header comment says that it proves the declaration and the middleware, and not `run`, identity or a hosted server |
 | E6 | **Scope reaches a mounted instance**, through a test-only relay (D55, D65) | Mounted | A real `umbel` with `space = { atlas = "main" }`: `work-hello-greet` in Atlas answers with `space: "main"`, `space: "other"` is `MOUNT_SPACE_PINNED`, and neither reaches Umbel, by the relay's log. In a project outside `projects`, and at workspace level, `MOUNT_PROJECT_NOT_LISTED`, with no request. A non-member of a restricted project gets `PROJECT_NOT_FOUND`, with no request. `web` takes a dev dependency on `@lushly-dev/afd-server`. A fixture AFD server through the same relay, `test/mounted/scope-server.ts`, declaring `dev.loam/scope`, echoes it through a first-class tool and through `afd-call`, and a stock `umbel` answers the same with the key present. Discovery carries none. The journal's entry has `scope`, `instance` and `replay: 'recorded'`. `git diff --exit-code origin/main -- endpoints/umbel` is in the step's checks |
 | E7 | **A cross-project mutation is refused after the access decision** | Units; Chromium | Kernel unit and a Chromium scenario through the palette and `kernel.agent`, with the journal read after each: `tasks-complete { task }`, in Atlas, for a task of Beacon, is `SCOPE_MISMATCH` naming Beacon with its `scope-set` suggestion; for a restricted project the actor is not in, it reaches the handler as a missing key, and nothing in the result names the project; a `scope` on a restricted project, for a non-member, is `PROJECT_NOT_FOUND`, with the same bytes as for a project that does not exist. A view's `dev.loam/store` under Atlas reads nothing of Beacon's key, and a key starting `p~` is a `TypeError`. A nested query keeps the outer scope. A view asking `scope` through `tools/call`'s `_meta` is ignored. `document-rename` is the [documents specification's](../2-documents/spec.md#14-exit-criterion-and-tests) D6 |
 | E8 | **The URL scheme** | Units; Chromium | `parseRoute` and `formatRoute` tables. Chromium over `serveDeployment`, with `base_path = "/"` and again with `/loam/`: a deep link to each shape loads, under the CSP, with `base-uri 'none'`, and shows what it names. Back and forward run commands, journaled, with `history.length` unchanged by a traverse and Forward still available. `scope-set` from `kernel.agent` moves the URL. A view's `app-route-set` with a `..` is `APP_ROUTE_INVALID`, and the URL stays. A route to a missing project and to a refused one both show "Nothing here", identically. `/` stays on an empty shell, and is replaced for a persisted app. A scan of `web/src` and `chrome/src` finds no `baseURI`. `deployment write`'s `index.html` and `404.html` hold the rewritten URLs |
 | E9 | **The projects section and `project-summary`** | Chromium | Create from the form, a refused slug shown beside its field, rename keeping the URL, archive, refuse a mutation in it with `PROJECT_ARCHIVED`, restore. The home shows tasks' counts and a link that navigates. A summary that hangs, one that throws and one over its bounds each show as their row, and the rest stand. It replays from its record with the app's handler stopped, whatever the deadline did. A hostile `title` and `label` render as text |
 | E10 | **The stores and the migration** (D63, D73) | Units; Chromium | Both adapters: each table's fields, a write without its workspace or actor refused. Phase 1's `app-<instance>` rows, written by a fixture with `scope: null`, read at workspace level and keep their ids. A store row of project Atlas is invisible to Beacon, to workspace level and to `list`. A new generation adds, changes and unlists, keeping `overrides`, journaled, and a second boot journals nothing. An empty shell journals none of it, and phase 0's E2 is unchanged. A scan of the store's rows and the browser's files for each mounted fixture's URL, token and command line finds none. **Every reachable command's input schema is scanned for `command`, `cwd`, `url`, `bearer`, `transport`, `route`, `projects`, `space`, `expose`, `audience` and `prefix`, and each boot-only command is called on both interfaces and through a port, answering `COMMAND_NOT_FOUND`** |
-| E11 | **The manifest** | Units; the `CI` workflow's `test:tooling` for `scripts/plugin-manifest.test.mjs` | `profile-cases.json` covers each new key and refusal. A v1 document with a v2 key is refused with its suggestion; every valid v1 case reads under v2. Hello and tally load as version 1 and tasks as version 2, side by side. `scripts/plugin-manifest.test.mjs` passes with the v2 profile. `schema:build` compiles under `strict: true` |
+| E11 | **The manifest** | Units; `loam` job's "AFD's lean path" step for `scripts/plugin-manifest.test.mjs` | `profile-cases.json` covers each new key and refusal. A v1 document with a v2 key is refused with its suggestion; every valid v1 case reads under v2. Hello and tally load as version 1 and tasks as version 2, side by side. `scripts/plugin-manifest.test.mjs` passes with the v2 profile. `schema:build` compiles under `strict: true` |
 | E12 | **Accessibility and captures** | Chromium | Specimen captures of each new element in the three themes and two densities, with an ARIA snapshot; #707's workaround stays. Axe with phase 0's tags on the shell with bands and a dimmed entry, the switcher open, the projects section's list and home, a dual sidebar, in each theme and density, under `forcedColors: 'active'` and in the compact class, zero violations. 40 rail entries scroll by keyboard, each tooltip unclipped. F6's order holds. A scope change is announced in the live region. #708's screen-reader passes stay open, and E12's record says axe cannot judge them |
 | E13 | **What exited stays exited** | Chromium; Mounted; Units | Phases 0's and 1's exit tests still pass, amended only for what this specification changes, each listed in the step that makes it: the rail's empty state (7.1); `loam-new-button` in the title bar; `DEPLOYMENT_INVALID` (2.2); the assertions on `requestedBeforeFirstPaint` (E1); a journal's boot reads with apps, which `app-get` no longer opens; `session-50` regenerated in step 2; `chrome/src/router.test.ts`, as `matchRoute` and URLPattern go; `kernel.test.ts:146`'s `kernelInterface`; `deployment_version` in the fixtures and tests, and `web/src/deployment.test.ts:6` against E8's scan; the scaffold's test, as `app new` writes version 2; and `layout.test.ts:276` stays as it is, which [6.1](#61-the-shapes) keeps true |
-| E14 | **No job was skipped** | The exit step | See [step 14](#16-implementation-plan). So it can be read, `loam.yml`'s unit, `test:browser` and `test:mounted` steps add `--reporter=verbose`, and **every exit test's title starts with its row's `E<n>:` or `D<n>:`** |
+| E14 | **No job was skipped** | The exit step | See [step 14](#16-implementation-plan). So it can be read: **every exit test's title starts `P2-E<n>:` or `P2-D<n>:`,** since phases 0 and 1 already hold titles such as `E7:` (`web/test/browser/stores.test.ts:47`); `vitest.browser.config.ts`, `vitest.conformance.config.ts` and `vitest.mounted.config.ts` set `reporters: ['verbose']`, since `test:browser` chains two runs with `&&` (`web/package.json:16`) and a flag would reach only the last; and the unit step passes `--reporter=verbose` |
 
 ## 16. Implementation plan
 
@@ -1135,26 +1217,27 @@ Each step is one pull request, merged on green. It updates its specification's s
 | --- | --- | --- | --- |
 | 0a | AFD: a lean schema path in `/define` and `/direct` | [2.3](#23-the-lean-schema-layer-d70): `defineCommandWithSchema`, the bound on `$ZodType`, the graph, the messages, the entry-point test, the skill, a changeset. **No package moves to Mini here,** so first paint does not change | `pnpm check`, `pnpm verify` |
 | 0b | AFD: `ViewStateRegistry.hydrateOne`, and a stable Mock id | [7.6](#76-surfaces-on-a-scope-change); `MockAuthAdapter`'s user id from the email ([3.4](#34-the-order-of-a-call-d72)); tests, a changeset | `pnpm check` |
-| 1 | Kernel on the lean layer | **Moves out.** [2.3](#23-the-lean-schema-layer-d70): view-state, auth and the kernel on Mini, in one pull request; classic in the `apps` closure; the literals' tests; the six boot commands in first paint and `kernel/src/late/`, with `startApps` holding only the late commands so far; `budget.mjs`'s closures and new ceilings; the acceptance of 2.3, or an amendment. #658 closed with the measurement | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
+| 1 | Kernel on the lean layer | **Moves out.** [2.3](#23-the-lean-schema-layer-d70): view-state, auth, with `createAuthSessionGetCommand` and `createAuthMutationCommands`, and the kernel on Mini, in one pull request; classic in the `apps` closure; the literals' tests; the six boot commands in first paint and `kernel/src/late/`, with `startApps` holding only the late commands so far; `budget.mjs`'s closures and new ceilings; the acceptance of 2.3, or an amendment. #658 closed with the measurement | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
 | 2 | Two-stage boot | **Moves out.** [2.2](#22-two-stages-d69): `deployment.v2.json`, `projection.v2.json`, boot records, generation, `base_path`'s schema; `readBoot`; `bootApps`; stages A and B; `KernelOptionsV2`, `KERNEL_INTERFACE_VERSION = 2` and `session-50` regenerated; `afterFirstFrame`; `loam-app-entry` to first paint; `measureFirstPaint`; E1 so far. #701 and #709's second half closed | `pnpm check`, `loam.yml`, `budget` |
 | 3 | Manifest version 2 | [Section 8](#8-the-manifest-version-2-d76): the schema, the rule, the v1 test, the cases, `scripts/plugin-manifest.test.mjs`, the keys of this specification and the documents specification's, each refused by a rule in `loam-rules.ts` until its step removes that line: `tree`, `resource_keys` in step 4 and 6, `ui.project_summary` in 7, `ui.documents` and `ui.new` in 9 and 11; E11 | `pnpm check`, `loam.yml` |
-| 4 | Scope and stores | Sections [3](#3-scope), [4](#4-the-stores), [5](#5-the-store-grant-d77), [10](#10-journal-and-replay-with-scope), [11](#11-the-kernel-and-the-sdk): the field, `scopeMiddleware`, `decideAccess`, `ProjectCache`, `src/late/`, the tables, `workspace-deployment-apply`, store scoping, `resource_keys`, `mcpOptions()`, the SDK's additions, `createAppTestKernel`'s `scope`; E4's units, E5, E7's units, E10, and `session-50` regenerated; the domains | `pnpm check`, `loam.yml`, `budget` |
-| 5 | The URL scheme | [Section 6](#6-the-url-scheme-d74): `parseRoute`, `formatRoute`, the router, the base, `index.html`'s rewrite and `404.html`, `loam.scope`, the scope's and the URL's rules, the harness's fallback; E8 | `pnpm check`, `loam.yml`, `budget` |
-| 6 | The rail and the parts | [7.1 to 7.6](#71-the-bands-d75), `tasks` without its `ui.project_summary` and `ui.new`, which steps 7 and 11 add, the switcher, `loam-tooltip` with #709's first half, the dual sidebar, `tree`'s reader, breadcrumbs, the status bar, per-scope layouts, `AGENTS.md`, `design.md` and the skill, `suites.mjs` and `loam.yml`'s `lint:tokens`; E3, E12 so far; phase 0's rail tests amended | `pnpm check`, `pnpm verify` (it selects the whole workspace), `loam.yml`, `budget`, `theme:check`, `lint:tokens` |
-| 7 | The projects section | [7.7](#77-project-summary), `project-summary-get`, `ui.project_summary`, `sections` row; E9, E12 so far | `pnpm check`, `loam.yml`, `budget` |
+| 4 | Scope and stores | Sections [3](#3-scope), [4](#4-the-stores), [5](#5-the-store-grant-d77), [10](#10-journal-and-replay-with-scope), [11](#11-the-kernel-and-the-sdk): the field, `scopeMiddleware`, `decideAccess`, `ProjectCache`, `src/late/`, the tables, `workspace-deployment-apply`, store scoping, `resource_keys`, `mcpOptions()`, `applyScopeChange` with its middleware callers, `scopeChanged` and `mainChanged`, `AppPortV2` and `SurfacePortV2`, `STORE_WRITE_IN_QUERY`, `resetSession`'s sign-out and `actorOf`, `diffJournals`' `context`, the SDK's additions, `createAppTestKernel`'s `scope`; E4's, E7's and E10's units, and E5; the domains. Its Chromium parts wait for step 7 | `pnpm check`, `loam.yml`, `budget` |
+| 5 | The URL scheme | [Section 6](#6-the-url-scheme-d74): `parseRoute`, `formatRoute`, the router, the base, `index.html`'s rewrite and `404.html`, `loam.scope`, the scope's and the URL's rules, the harness's fallback; E8 so far: workspace, project and app shapes. Step 7 adds the projects section's, and step 11 the documents section's and a document's, which closes it | `pnpm check`, `loam.yml`, `budget` |
+| 6 | The rail and the parts | [7.1 to 7.6](#71-the-bands-d75), `tasks` without its `ui.project_summary` and `ui.new`, which steps 7 and 11 add, the switcher, `loam-tooltip` with #709's first half, the dual sidebar, `tree`'s reader, breadcrumbs, the status bar, per-scope layouts, `AGENTS.md`, `design.md` and the skill, `suites.mjs` and `loam.yml`'s `lint:tokens`; E3 so far: its clauses that land in the projects section wait for step 7; E12 so far; phase 0's rail tests amended | `pnpm check`, `pnpm verify` (it selects the whole workspace), `loam.yml`, `budget`, `theme:check`, `lint:tokens` |
+| 7 | The projects section | [7.7](#77-project-summary), `project-summary-get`, `ui.project_summary`, `sections` row, and `ResourceLinkV1` with `resourceLinkUrl` from the [documents specification's 9.1](../2-documents/spec.md#91-a-resource-link), which E9 needs. `session-scope.ts`, and the Chromium parts of E4, E7 and E10, since the rail and the section are now there. E3 and E9 close; E8 and E12 so far | `pnpm check`, `loam.yml`, `budget` |
 | 8 | Mounted scope | [Section 9](#9-mounted-instances), `scope-server.ts`; E6. Its diff touches nothing under `endpoints/umbel/` | `pnpm check`, `test:mounted`, `git diff --exit-code origin/main -- endpoints/umbel`, `loam.yml` |
 | 9 | Document records | [Documents](../2-documents/spec.md#15-implementation-plan) | |
 | 10 | The editor area and `notes` | [Documents](../2-documents/spec.md#15-implementation-plan) | |
 | 11 | New and the documents section | [Documents](../2-documents/spec.md#15-implementation-plan) | |
 | 12 | References and embed | [Documents](../2-documents/spec.md#15-implementation-plan) | |
 | 13 | The second type | [Documents](../2-documents/spec.md#15-implementation-plan) | |
-| 14 | Exit | STATUS.md and both status blocks record the exit run; follow-ups filed; D69's and D70's results recorded in [2.4](#24-the-budget-and-the-rule). **E14, no job skipped:** after the last step merges, run `loam.yml` by `workflow_dispatch` on `main`, whose `AFD_SCOPE` of `all` opens every gate, and run `node scripts/loam-exit-check.mjs <run id>`, written in this step. It reads `gh run view <id> --json jobs` and fails unless **every job, `Affected units`, `Build, unit and Chromium` and `Mounted against Umbel`, says `success`, and none `skipped` or `cancelled`;** and it reads `gh run view <id> --log` and fails unless each row's `E<n>:` or `D<n>:` title appears with a pass in the log of the job its row names, not assumed from the job's success. It also requires the latest `CI` run on that commit to say `success`, for `scripts/plugin-manifest.test.mjs` and `entry-points.test.ts`. Phase 1's `mounted` job skipped silently for a whole pull request, because it read a gate output that was never set, and its pull request still went green. `scripts/repository-contract.test.mjs:315-330` holds the output key; this holds the run. The script's output goes in STATUS.md's exit line | `loam.yml` on `main`, by hand, with the script above |
+| 14 | Exit | STATUS.md and both status blocks record the exit run; follow-ups filed; D69's and D70's results recorded in [2.4](#24-the-budget-and-the-rule). **E14, no job skipped:** after the last step merges, run both `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`. A manual run has `AFD_SCOPE` of `all`, which opens every gate, where a push has `affected` (`ci.yml:39`). Then run `node scripts/loam-exit-check.mjs <loam run id> <ci run id>`, written in this step. It fails unless: (1) by `gh run view <id> --json jobs`, **every job of `loam.yml`, `Affected units`, `Build, unit and Chromium` and `Mounted against Umbel`, and every job of `ci.yml`, says `success`, and none `skipped` or `cancelled`;** (2) by `gh run view <loam id> --log`, each row's `P2-E<n>:` or `P2-D<n>:` title appears with a pass, in the log of each job its row names, not assumed from the job's success; (3) no such title anywhere in that log is marked skipped or todo. **`ci.yml`'s log cannot show a test's title,** since `pnpm check` runs under lefthook with `output: [summary, failure]` (`lefthook.yml:12-14`), which hides a passing test's output. So step 14 adds to `loam.yml`'s `loam` job a step named "AFD's lean path", running `pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose` and `node --test --test-reporter=spec scripts/plugin-manifest.test.mjs`, whose tests are titled `P2-E2:` and `P2-E11:`, and `ci.yml`'s dispatch proves the whole workspace. Phase 1's `mounted` job skipped silently for a whole pull request, because it read a gate output that was never set, and its pull request still went green. `scripts/repository-contract.test.mjs:315-330` holds the output key; this holds the run. The script's output goes in STATUS.md's exit line | `loam.yml` and `ci.yml` on `main`, by hand, with the script above |
 
 Order:
 
 - Steps 0a and 0b run in parallel, first, since D15 puts AFD first and step 1 needs 0a.
 - Step 1 needs 0a. Step 2 needs 1, **because it adds first-paint code and step 1 is what moves code out.** Step 3 may run beside step 2: it touches only the manifest package and its tests.
-- Step 4 needs 0b, 2 and 3. Steps 5 and 6 need 4; step 6 needs 5 for breadcrumbs, so it follows. Steps 7 and 8 need 6 and may run in parallel. Steps 9 and onward need 6, and are ordered in their specification.
+- Step 4 needs 0b, 2 and 3. Steps 5 and 6 need 4; step 6 needs 5 for breadcrumbs, so it follows. Steps 7 and 8 need 6 and may run in parallel. Step 9 needs 6, and the rest are ordered in their specification; step 11 also needs 7.
+- **An exit test named in several steps closes in the last,** and each earlier step adds its clauses under the same `P2-` title.
 - Step 14 is last.
 
 **Host capacity.** Steps 1 and later run Chromium, and 8 builds the stock `umbel`. On a shared machine: under a load of 20, `cargo -j4`, one Vitest worker, a shared `CARGO_TARGET_DIR`, which the harness honors.
@@ -1166,7 +1249,7 @@ This pull request adds to the [decision log](../../decisions.md):
 - **D69.** A real deployment's first paint: two stages. Stage A paints from a projection the CLI validated, with boot records for display only; stage B reads and validates everything else, after the first frame. The empty shell and a deployment with apps request the same JavaScript before their first frame. Settles #701. Not a trust-model change: nothing but display comes of a boot record.
 - **D70.** The shell's commands use Zod Mini and literal JSON Schemas, through `defineCommandWithSchema`, which AFD's `/define` and `/direct` gain with no run-time dependency on classic Zod or `toJSONSchema`; only the six commands boot calls stay in first paint, and the rest load in stage B. Classic's schemas move to stage B with `fromJSONSchema`. Settles #658's question; `defineCommand` is unchanged for every other caller.
 - **D71.** Scope is `{ workspace, project? }`, ids, in the declared context field `scope`, `dev.loam/scope`, `journal: true`. In process, the kernel sets it per call, from `options.scope` or the active scope. Over MCP, it is the one declared field, and absent means workspace level: no connection or server holds an active scope. Revisits nothing in D31.
-- **D72.** An owned command's order: the workspace, the access decision, the app's levels, narrowing, the resource check, an archived project, a mounted instance's rules, then the handler, all inside the journal's middleware, so each refusal is journaled. A shell command runs at any scope and checks what it names, so a person can never be locked out. Missing and refused look the same. `resource_keys` gives the kernel what it needs to name the right project; the store is what makes the crossing impossible.
+- **D72.** One function, `applyScopeChange`, changes the active scope, for `scope-set`, `document-open`, `project-archive` and a change of actor, and the chrome keys on the event it leaves. An owned command's order: the workspace, the access decision, the app's levels, narrowing, the resource check, an archived project, a mounted instance's rules, then the handler, all inside the journal's middleware, so each refusal is journaled. A shell command runs at any scope and checks what it names, so a person can never be locked out. Missing and refused look the same. `resource_keys` gives the kernel what it needs to name the right project; the store is what makes the crossing impossible.
 - **D73.** The workspace store takes the projection's entries at each new generation, with the deployer's keys read-only to every command; what a person may change is `enabled`, `order` and `title`. Locations, credentials and `command` stay in the deployment file. Fulfils D63's consequence and keeps D55's and D56's "no command may write it".
 - **D74.** The URL scheme is the architecture's, relative to a deployment's `base_path`. `deployment write` makes `index.html`'s URLs absolute and writes `404.html`; `base-uri 'none'` stays; the page computes its base from its entry's URL. A person's navigation runs commands; a command moves the URL. Back and forward are navigations. No URLPattern (revises R5's wording).
 - **D75.** The rail's two bands: Projects, the switcher and Documents head the top; a project-only app is dimmed there with no project; a dual-scope app moves between the bands as one element (reads D29 as the proposal does). An empty shell's rail holds the two sections. R8 moves to phase 4.
@@ -1174,6 +1257,7 @@ This pull request adds to the [decision log](../../decisions.md):
 - **D77.** A record of the `store` grant is keyed by scope in one function, with workspace level keeping phase 1's ids, so no migration runs. `context.store` holds only the call's effective scope.
 - **D78.** `dev.loam/scope` goes to a mounted instance on each command's call, as `_meta`, ids only; `projects` holds slugs, and a call outside them never reaches the network. A server that does not declare the key drops it. Supplies D55's access decision and D65's pin.
 - **D79 to D82:** in the [documents specification](../2-documents/spec.md#amendments).
+- **D83.** A surface has its own port: `appPort(instance).surface({ scope, readOnly })`, created by the chrome with the surface and dropped with it, so a call runs in the scope the surface was created under, whatever is active when it arrives, and an embed's read-only is enforced per surface. For a view it is a boundary, since its broker closes over it; for a native app a contract (D54).
 
 The decision log's D4, D5, D29, D31, D63 and D68 gain notes pointing to these, and D55 a note of the phase 3 condition in [9.1](#91-an-instance-and-its-projects-d55). What D54 to D58 decided is not altered.
 
@@ -1196,6 +1280,8 @@ See the [Review](../2-documents/spec.md#review-2026-11-02) of the documents spec
 | --- | --- | --- | --- |
 | 2026-11-02 | Phase 2 specification | Classic Zod after first paint, and the core it widens in first paint. `z.fromJSONSchema` in `apps`, and the MCP client's `zod/v4` in `mount`, each hold it: replacing the first alone does not reach Mini's floor of 23,829 bytes. Measure when a deployment's time to first usable app is measured | Open; new issue at step 1 |
 | 2026-11-02 | Phase 2 specification | **A condition of phase 3's specification:** restrict `project-create` for a slug a team instance lists, and changing such a project's `members`, to an owner, before any multi-member deployment, or D55's "every member" stops being the deployer's statement ([9.1](#91-an-instance-and-its-projects-d55)). Also `PROJECT_SLUG_TAKEN`'s leak, and `workspace-app-set`'s role | Open; phase 3 |
+| 2026-11-02 | Second review | **Identity over MCP, for phase 3:** a server's actor is `{ kind: 'agent' }` with no id, read as `local`. Decide how `onBehalfOf` maps to a member before any client is served, so a person's agent can enter that person's project and a caller with no session cannot enter one restricted to `local` ([3.3](#33-over-mcp)) | Open; phase 3 |
+| 2026-11-02 | Second review | A session a provider ends with no command, such as an expiry, takes effect at the next call ([3.4](#34-the-order-of-a-call-d72)). Until then the screen is stale, though no new read succeeds. Phase 3 may have the kernel hear `onAuthStateChange`, journaled | Open; phase 3 |
 | 2026-11-02 | Phase 2 specification | A project's slug cannot change. With redirects, if a consumer asks | Open |
 | 2026-11-02 | Phase 2 specification | Deleting a project, with a retention rule for what apps stored under it | Open |
 | 2026-11-02 | Phase 2 specification | Keep Mod+P, or another chord, for the project switcher, with phase 4's keybindings | Open; phase 4 |
