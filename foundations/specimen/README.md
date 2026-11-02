@@ -1,10 +1,12 @@
 # Specimens
 
-Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+**Preview.** Specimen works end to end on [AFD's FAST-AF stories](../fast-af/README.md#stories), which use it as their only runner. Its API can still change, it is not published, and Lushly has not moved to it yet.
+
+A native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes its operations as `specimen-*` commands, through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
-The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, the full runner, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
+It runs stories in Storybook's format, with their plays, helpers and accessibility checks, and needs [no Storybook installed](#helpers-and-types). On FAST-AF's 407 stories, three consecutive full runs against Storybook [agreed on every story](../../docs/features/active/specimens/t08-cutover.md#qualifying-pairs). On a first measurement it uses more CPU than Storybook over a full suite, about 1.6 to 1.8 times per story, and about a quarter of the memory in its largest process. The [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md) is the design, and [its status](../../docs/features/active/specimens/STATUS.md) lists what is still open.
 
 ## Run the fixtures
 
