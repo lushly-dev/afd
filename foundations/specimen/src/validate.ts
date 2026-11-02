@@ -3,6 +3,8 @@ import type {
 	BaselineRequest,
 	BenchConfig,
 	CaptureRequest,
+	MatrixAxes,
+	MatrixRequest,
 	ProfileRequest,
 	SpecimenContext,
 	SuiteFilter,
@@ -170,6 +172,62 @@ export function parseBaselineRequest(value: unknown): BaselineRequest {
 	const request: BaselineRequest = profileFields(fields, 'baseline request');
 	if (fields.notes !== undefined) request.notes = tagList(fields.notes, 'baseline request.notes');
 	return request;
+}
+
+export function parseMatrixRequest(value: unknown): MatrixRequest {
+	const fields = record(value, 'matrix request', [
+		'id',
+		'axes',
+		'checkpoint',
+		'context',
+		'timeoutMs',
+		'workers',
+		'observations',
+	]);
+	const axes = record(fields.axes, 'matrix request.axes', [
+		'theme',
+		'viewport',
+		'container',
+		'locale',
+		'reducedMotion',
+		'motion',
+	]);
+	const parsed: Record<string, unknown[]> = {};
+	for (const [axis, values] of Object.entries(axes)) {
+		if (values === undefined) continue;
+		const path = `matrix request.axes.${axis}`;
+		if (!Array.isArray(values) || values.length === 0) fail(path, 'expected at least one value');
+		// Each value through the context's own validation, as a capture would read it.
+		parsed[axis] = values.map(
+			(item, index) =>
+				parseContext({ [axis]: item }, `${path}[${index}]`, true)[axis as keyof SpecimenContext]
+		);
+	}
+	if (!Object.keys(parsed).length) fail('matrix request.axes', 'expected at least one axis');
+	return {
+		id: text(fields.id, 'matrix request.id'),
+		axes: parsed as MatrixAxes,
+		...(fields.checkpoint === undefined
+			? {}
+			: { checkpoint: text(fields.checkpoint, 'matrix request.checkpoint') }),
+		...(fields.context === undefined
+			? {}
+			: { context: parseContext(fields.context, 'matrix request.context', true) }),
+		...(fields.timeoutMs === undefined
+			? {}
+			: { timeoutMs: integer(fields.timeoutMs, 'matrix request.timeoutMs', 1, 60_000) }),
+		...(fields.workers === undefined
+			? {}
+			: { workers: integer(fields.workers, 'matrix request.workers', 1, MAX_SUITE_WORKERS) }),
+		...(fields.observations === undefined
+			? {}
+			: {
+					observations:
+						typeof fields.observations === 'boolean'
+							? fields.observations
+							: fail('matrix request.observations', 'expected a boolean'),
+				}),
+	};
 }
 
 export function parseSuiteRequest(value: unknown): SuiteRequest {

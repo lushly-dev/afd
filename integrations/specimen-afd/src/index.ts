@@ -3,6 +3,7 @@ export {
 	buildOutputSchema,
 	contextSchema,
 	inspectResultSchema,
+	matrixRunSchema,
 	observationSchema,
 	profileRunSchema,
 	storyRunSchema,

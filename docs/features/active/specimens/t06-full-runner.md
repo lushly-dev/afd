@@ -5,7 +5,8 @@
 - Step 1, exact agreement on both consumers' full retained suites, is done and merged in [#674](https://github.com/lushly-dev/afd/pull/674).
 - Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
 - Step 3, `specimen-a11y` and native accessibility exceptions, is done and merged in [#679](https://github.com/lushly-dev/afd/pull/679).
-- Step 4, `specimen-profile` and baselines, is implemented on branch `lush/specimens-t06-profile`.
+- Step 4, `specimen-profile` and baselines, is done and merged in [#681](https://github.com/lushly-dev/afd/pull/681).
+- Step 5, `specimen-matrix` and declared event history, is implemented on branch `lush/specimens-t06-matrix`.
 
 The remaining steps are listed [below](#remaining-steps).
 
@@ -249,11 +250,45 @@ Real measurements at `mount` on this host, under load of about 9, with Chromium 
 
 Each page's bundle is unminified, as under a development server, so transfer sizes are larger than a build's.
 
+## Step 5: `specimen-matrix` and declared events
+
+The [README](../../../../foundations/specimen/README.md#declare-events) documents both. Neither has an incumbent to agree with: Storybook has no matrix, and no retained story declares events, so these are the proposal's native contract, tested on fixtures in `fixtures/events/`.
+
+### Declared events
+
+| Obligation | What it does |
+| --- | --- |
+| Declared types and targets | `events` on a native specimen. "There is no promise to capture every possible event": nothing else is observed |
+| Listeners before insertion | The mount root's listener is installed before the specimen is rendered |
+| Relevant roots and targets | A document-level listener cannot see a non-composed event. A declared target, and its open shadow root, get their own listeners once the target exists, and a fixture proves a non-composed event inside a shadow root is seen |
+| Ordered history | Type, target, step interval, composed, bubbling, trusted and a `CustomEvent`'s `detail`, with functions and nodes described rather than serialized |
+| An expectation states its interval | `expect` must name an earlier step in `since`. Fixtures prove an earlier event, or the same event on another target, cannot satisfy it |
+| Missing observation surfaces first | An expectation of an undeclared event fails validation, before anything runs. A target that never resolved makes the channel `partial`, with its name |
+
+Two limits, recorded in the output rather than hidden:
+
+- An event of a declared type before its target exists is kept with `target: null`, since it cannot be ruled out. A fixture shows a click on another button recorded this way, ahead of the target appearing.
+- A non-composed event inside a target's shadow tree, fired during mount before the target is bound, is not seen. Nothing can listen there yet.
+
+Schema and plugin event declarations, which the proposal says may supplement these, are not read yet. Retained stories declare none, so their channel is `not-requested`. `channels.events` replaces the old `EVENT_CAPTURE_NOT_IMPLEMENTED` reason, and `CAPTURE_VERSION` moves to `0.4`.
+
+### The matrix
+
+| Obligation | What it does |
+| --- | --- |
+| One isolated capture per cell | Each combination is its own capture in its own browser context, run in the worker pool. At most 64 cells; more is an error that says how many |
+| Comparable cells diff against the first | `diffObservations`, allowing differences on the requested axes only. Fixtures show a theme changing styles but not the DOM, and a viewport changing the DOM |
+| Unavailable cells stay visible | A cell that fails to capture is `unavailable` with its reason, and is not an error. If it would have been the first, the first captured cell becomes the comparison |
+
+A cell the comparison refuses, because a story settled a context of its own, reports `insufficient-evidence` with the reason.
+
+Each request parser now has a test that it agrees with its public Zod schema on the same inputs, as the configuration's already did. Those tests found two real disagreements in this step, now fixed: the matrix schema accepted any theme string that the bench then refused, and the parser ignored a non-boolean `observations`.
+
 ## Remaining steps
 
 1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
 2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Merged in #676.
 3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Merged in #679.
-4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Implemented on branch.
-5. **`specimen-matrix` and declared event history.**
+4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Merged in #681.
+5. ~~`specimen-matrix` and declared event history.~~ Implemented on branch.
 6. **CEM and story typechecks, scaffold output,** and verified index links and budgets.

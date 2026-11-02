@@ -104,6 +104,42 @@ const suite = await bench.runSuite({
 
 Each story reports its `attempts` and a `flakeId` in the form `storybook:<file>::<name>`, the key a consumer's flake records already use. `sourcesChanged` is true if a bundled source changed during the run, in which case the stories ran against the sources as they were when it started.
 
+## Declare events
+
+A native specimen's `events` names the events a capture should record, and an `expect` step checks one was seen:
+
+```ts
+export const Primary: SpecimenDefinition = {
+  render,
+  targets: { control: { role: 'button', name: 'Save' } },
+  events: [{ type: 'click', target: 'control' }],
+  scenario: [
+    { id: 'activate', action: { click: 'control' } },
+    { id: 'clicked', expect: { event: 'click', since: 'activate' } },
+    { capture: 'after-click' },
+  ],
+};
+```
+
+`channels.events` lists each event in order: its type, target, the named step whose interval it fell in, whether it was composed, bubbling and trusted, and a `CustomEvent`'s `detail`. An `expect` must name the step that begins its interval, so an earlier event cannot satisfy it, and an expectation the specimen does not declare fails before running. It waits up to `timeoutMs` (default 1,000 ms) within the render's deadline.
+
+Only declared types are observed. The mount root's listener is installed before insertion and sees what is composed or in its light tree. A target, and its open shadow root, get their own listeners once the target exists, so a non-composed event inside it is seen. Until a target exists, an event of that type is kept with `target: null`, since it cannot be ruled out. A target that never resolved makes the channel `partial`. With no `events`, the channel is `not-requested`. Retained stories declare none.
+
+`diffObservations` treats a change in the events' types, targets and intervals as a difference when both captures recorded them.
+
+## Compare contexts
+
+`matrix()` (`specimen-matrix`, `specimen matrix ID`) captures one entry once per combination of explicit axes, each in its own browser context, at most 64 cells:
+
+```ts
+const run = await bench.matrix({
+  id: 'button',
+  axes: { theme: ['light', 'dark'], viewport: [{ width: 375, height: 812 }, { width: 1280, height: 720 }] },
+});
+```
+
+Each cell after the first captured one reports a `diff` against it: its status, the channels that changed, and any limitations. A cell that could not be captured stays in the report as `unavailable` with its reason, and is not an error. `observations: true` keeps each capture. The default checkpoint is a native scenario's end, or a retained story's `mount`.
+
 ## Check accessibility
 
 `a11y()` (`specimen-a11y`, `specimen a11y [ID]`) runs axe at a checkpoint, on one entry by `id` or those a `filter` selects. The default checkpoint, `after-run`, is a native scenario's end or a retained story's play. Each report lists:

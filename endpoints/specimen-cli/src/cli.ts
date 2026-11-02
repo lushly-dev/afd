@@ -149,6 +149,19 @@ function validateOptions(parsed: ParsedArguments): void {
 			'match',
 			'workers',
 		]),
+		matrix: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'workers',
+		]),
 		profile: new Set([
 			'root',
 			'config',
@@ -309,8 +322,9 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				const context: Partial<SpecimenContext> = {};
 				const viewport = parsed.options.get('viewport');
 				const container = parsed.options.get('container');
-				if (viewport) context.viewport = dimensions(viewport);
-				if (container) context.container = dimensions(container);
+				// A matrix reads these as lists of axis values, below.
+				if (viewport && parsed.action !== 'matrix') context.viewport = dimensions(viewport);
+				if (container && parsed.action !== 'matrix') context.container = dimensions(container);
 				// Validate raw values through the AFD schema rather than coercing a typo to a context.
 				const raw: Record<string, string> = {};
 				for (const [option, field] of [
@@ -322,7 +336,32 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					const value = parsed.options.get(option);
 					if (value) raw[field] = value;
 				}
-				if (parsed.action === 'profile' || parsed.action === 'baseline') {
+				if (parsed.action === 'matrix') {
+					const list = (option: string) =>
+						(parsed.options.get(option) ?? '').split(',').filter(Boolean);
+					const axes = {
+						...(parsed.options.has('theme') ? { theme: list('theme') } : {}),
+						...(parsed.options.has('viewport')
+							? { viewport: list('viewport').map(dimensions) }
+							: {}),
+						...(parsed.options.has('container')
+							? { container: list('container').map(dimensions) }
+							: {}),
+						...(parsed.options.has('locale') ? { locale: list('locale') } : {}),
+						...(parsed.options.has('reduced-motion')
+							? { reducedMotion: list('reduced-motion') }
+							: {}),
+						...(parsed.options.has('motion') ? { motion: list('motion') } : {}),
+					};
+					result = await executeSpecimenCommand(bench, 'specimen-matrix', {
+						id: parsed.positionals[0],
+						axes,
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'profile' || parsed.action === 'baseline') {
 					const runs = parsed.options.get('runs');
 					if (runs !== undefined && !Number.isInteger(Number(runs)))
 						throw new Error('--runs expects a whole number');

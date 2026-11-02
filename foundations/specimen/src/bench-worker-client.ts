@@ -10,6 +10,8 @@ import type {
 	CaptureRequest,
 	InspectRequest,
 	InspectResult,
+	MatrixRequest,
+	MatrixRun,
 	Observation,
 	ProfileRequest,
 	ProfileRun,
@@ -26,6 +28,7 @@ type WorkerOperation =
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'profile'; request: ProfileRequest }
+	| { operation: 'matrix'; request: MatrixRequest }
 	| { operation: 'recordBaseline'; request: BaselineRequest }
 	| { operation: 'inspect'; request: InspectRequest }
 	| { operation: 'build'; outDir: string }
@@ -224,6 +227,10 @@ export class BenchWorkerClient {
 			{ operation: 'run', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as StoryRun;
+	}
+	async matrix(request: MatrixRequest): Promise<MatrixRun> {
+		await this.ready;
+		return (await this.request({ operation: 'matrix', request }, 3_600_000)) as MatrixRun;
 	}
 	async profile(request: ProfileRequest): Promise<ProfileRun> {
 		await this.ready;

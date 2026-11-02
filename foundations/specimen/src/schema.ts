@@ -88,6 +88,20 @@ const axeOutcomeShape = {
 	engine: z.string().optional(),
 };
 const axeOutcomeSchema = z.strictObject(axeOutcomeShape);
+const eventsChannelSchema = z.strictObject({
+	declared: z.array(z.strictObject({ type: z.string(), target: z.string().optional() })),
+	history: z.array(
+		z.strictObject({
+			type: z.string(),
+			target: z.string().nullable(),
+			step: z.string().nullable(),
+			composed: z.boolean(),
+			bubbles: z.boolean(),
+			trusted: z.boolean(),
+			detail: z.unknown(),
+		})
+	),
+});
 export const observationSchema = z
 	.object({
 		manifest: z
@@ -114,6 +128,7 @@ export const observationSchema = z
 				a11y: z
 					.object({ snapshot: z.string(), axe: z.union([z.literal('not-run'), axeOutcomeSchema]) })
 					.strict(),
+				events: eventsChannelSchema,
 				elements: z.array(element),
 				console: z.object({ errors: z.array(z.string()), warnings: z.array(z.string()) }).strict(),
 				visual: z.object({ path: z.string().nullable() }).strict(),
@@ -351,6 +366,56 @@ export const profileRunSchema = z.strictObject({
 		errored: z.number().int().nonnegative(),
 	}),
 	orphanedBaselines: z.array(z.string()),
+	elapsedMs: z.number().nonnegative(),
+});
+
+export const matrixRequestSchema = z.strictObject({
+	id: z.string().min(1),
+	// Each axis's values are what the same context field accepts.
+	axes: z
+		.strictObject({
+			theme: z.array(contextSchema.shape.theme).min(1).optional(),
+			viewport: z.array(contextSchema.shape.viewport).min(1).optional(),
+			container: z.array(contextSchema.shape.container.unwrap()).min(1).optional(),
+			locale: z.array(contextSchema.shape.locale).min(1).optional(),
+			reducedMotion: z.array(contextSchema.shape.reducedMotion).min(1).optional(),
+			motion: z.array(contextSchema.shape.motion).min(1).optional(),
+		})
+		.refine((axes) => Object.keys(axes).length > 0, 'Give at least one axis.'),
+	checkpoint: z.string().min(1).optional(),
+	context: captureRequestSchema.shape.context,
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+	observations: z.boolean().optional(),
+});
+export const matrixRunSchema = z.strictObject({
+	id: z.string(),
+	checkpoint: z.string(),
+	axes: z.array(z.string()),
+	cells: z.array(
+		z.strictObject({
+			context: z.record(z.string(), z.unknown()),
+			status: z.enum(['captured', 'unavailable']),
+			reason: z.string().optional(),
+			diff: z
+				.strictObject({
+					status: z.enum(['changed', 'no-change-observed', 'insufficient-evidence']),
+					channels: z.array(z.string()),
+					differences: z.number().int().nonnegative(),
+					limitations: z.array(z.string()),
+				})
+				.nullable(),
+			observation: observationSchema.optional(),
+		})
+	),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		captured: z.number().int().nonnegative(),
+		unavailable: z.number().int().nonnegative(),
+		changed: z.number().int().nonnegative(),
+		unchanged: z.number().int().nonnegative(),
+		insufficient: z.number().int().nonnegative(),
+	}),
 	elapsedMs: z.number().nonnegative(),
 });
 

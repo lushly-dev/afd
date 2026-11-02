@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defaultContext } from './config.js';
-import { captureRequestSchema, contextSchema } from './schema.js';
-import { parseCaptureRequest, parseConfig, parseContext } from './validate.js';
+import {
+	a11yRequestSchema,
+	baselineRequestSchema,
+	captureRequestSchema,
+	contextSchema,
+	matrixRequestSchema,
+	profileRequestSchema,
+	suiteRequestSchema,
+} from './schema.js';
+import {
+	parseA11yRequest,
+	parseBaselineRequest,
+	parseCaptureRequest,
+	parseConfig,
+	parseContext,
+	parseMatrixRequest,
+	parseProfileRequest,
+	parseSuiteRequest,
+} from './validate.js';
 
 // The configuration rules as Zod expresses them; validation itself does not load Zod.
 const configSchema = z
@@ -219,5 +236,137 @@ describe('bench validation matches the Zod schemas', () => {
 			'capture request.timeoutMs'
 		);
 		expect(() => parseContext({ ...defaultContext, locale: 'not a locale' })).toThrow('BCP 47');
+	});
+});
+
+describe('request parsing agrees with the public schemas', () => {
+	const filters = [
+		{},
+		{ ids: ['a'] },
+		{ ids: [] },
+		{ ids: [''] },
+		{ ids: 'a' },
+		{ file: 'a.ts' },
+		{ file: '' },
+		{ tags: ['smoke'] },
+		{ tags: 'smoke' },
+		{ match: 'x' },
+		{ match: '' },
+		{ other: 'x' },
+		'x',
+		null,
+	];
+	const contexts = [
+		{},
+		{ theme: 'dark' },
+		{ theme: 'sepia' },
+		{ viewport: { width: 0 } },
+		{ other: 1 },
+	];
+	const timeouts = [1, 60_000, 60_001, 0, 1.5, '5'];
+
+	it('agrees on suite requests', () => {
+		const values = [
+			{},
+			...filters.map((filter) => ({ filter })),
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0, 1.5, '2'].map((workers) => ({ workers })),
+			...[true, false, 'yes', 1].map((retry) => ({ retry })),
+			...[0, 1000, 1001, -1, 1.5].map((flakeCap) => ({ flakeCap })),
+			...['all', 'failed', 'none', 'some', 1].map((capture) => ({ capture })),
+			{ other: 1 },
+			null,
+			[],
+		];
+		for (const value of values) agrees(suiteRequestSchema, parseSuiteRequest, value);
+	});
+
+	it('agrees on accessibility requests', () => {
+		const values = [
+			{},
+			{ id: 'a' },
+			{ id: '' },
+			{ id: 1 },
+			...filters.map((filter) => ({ filter })),
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(a11yRequestSchema, parseA11yRequest, value);
+		expect(() => parseA11yRequest({ id: 'a', filter: {} })).toThrow('not both');
+	});
+
+	it('agrees on profile and baseline requests', () => {
+		const values = [
+			{},
+			{ id: 'a' },
+			{ id: '' },
+			...filters.map((filter) => ({ filter })),
+			...[1, 7, 8, 0, 1.5, '3'].map((runs) => ({ runs })),
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			...contexts.map((context) => ({ context })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(profileRequestSchema, parseProfileRequest, value);
+		for (const value of [
+			...values,
+			{ notes: ['after cutover'] },
+			{ notes: [] },
+			{ notes: [''] },
+			{ notes: 'x' },
+		])
+			agrees(baselineRequestSchema, parseBaselineRequest, value);
+		expect(() => parseProfileRequest({ id: 'a', filter: {} })).toThrow('not both');
+		expect(() => parseBaselineRequest({ id: 'a', filter: {} })).toThrow('not both');
+	});
+
+	it('agrees on matrix requests', () => {
+		const axes = [
+			{ theme: ['light', 'dark'] },
+			{ theme: ['sepia'] },
+			{ theme: [] },
+			{ theme: 'light' },
+			{ viewport: [{ width: 375, height: 812 }] },
+			{ viewport: [{ width: 0, height: 812 }] },
+			{ viewport: [{ width: 375 }] },
+			{ container: [{ width: 375 }] },
+			{ container: [{ width: 375, height: 200 }] },
+			{ container: [{ height: 200 }] },
+			{ locale: ['en-US', 'de'] },
+			{ locale: ['not a locale'] },
+			{ locale: [''] },
+			{ reducedMotion: ['reduce', 'no-preference'] },
+			{ reducedMotion: ['sometimes'] },
+			{ motion: ['natural', 'settled'] },
+			{ motion: ['fast'] },
+			{ other: ['x'] },
+			{},
+			null,
+		];
+		const values = [
+			...axes.map((value) => ({ id: 'a', axes: value })),
+			{ axes: { theme: ['light'] } },
+			{ id: '', axes: { theme: ['light'] } },
+			{ id: 'a' },
+			{ id: 'a', axes: { theme: ['light'] }, checkpoint: 'mount' },
+			{ id: 'a', axes: { theme: ['light'] }, checkpoint: '' },
+			...contexts.map((context) => ({ id: 'a', axes: { theme: ['light'] }, context })),
+			...timeouts.map((timeoutMs) => ({ id: 'a', axes: { theme: ['light'] }, timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ id: 'a', axes: { theme: ['light'] }, workers })),
+			{ id: 'a', axes: { theme: ['light'] }, observations: true },
+			{ id: 'a', axes: { theme: ['light'] }, observations: false },
+			{ id: 'a', axes: { theme: ['light'] }, observations: 'yes' },
+			{ id: 'a', axes: { theme: ['light'] }, other: 1 },
+			null,
+		];
+		for (const value of values) agrees(matrixRequestSchema, parseMatrixRequest, value);
 	});
 });

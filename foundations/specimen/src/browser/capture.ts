@@ -240,6 +240,7 @@ export function captureDocument(
 		};
 	});
 	return {
+		events: { declared: [], history: [], unresolved: [] },
 		dom: serialize(root, elements),
 		elements: observations,
 		limitations: [...new Set(limitations)],
