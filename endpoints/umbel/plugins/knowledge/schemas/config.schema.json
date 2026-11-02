@@ -20,6 +20,45 @@
 			},
 			"default": ["bm25"],
 			"description": "The retrieval lanes; bm25 is the only one (no embedding model by default)"
+		},
+		"areas": {
+			"type": "object",
+			"default": {},
+			"description": "Approval areas: the part of a space one approval policy governs. The most specific collection and prefix governs a document; a proposal for a document no area covers is PROPOSAL_NO_AREA",
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]{0,62}$"
+					},
+					"collection": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]{0,62}$"
+					},
+					"prefix": {
+						"type": "string",
+						"default": "",
+						"maxLength": 512,
+						"description": "A document id prefix inside the collection; empty is the whole collection"
+					},
+					"approvers": {
+						"type": "array",
+						"default": [],
+						"items": {
+							"type": "string",
+							"pattern": "^(principal:human:[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}|group:[a-z][a-z0-9-]{0,62})$"
+						},
+						"description": "principal:human:<id> or group:<id> entries; empty admits any human"
+					},
+					"allow_self_approval": {
+						"type": "boolean",
+						"default": false
+					}
+				},
+				"required": ["space", "collection"],
+				"additionalProperties": false
+			}
 		}
 	},
 	"additionalProperties": false

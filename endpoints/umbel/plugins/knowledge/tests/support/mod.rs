@@ -3,11 +3,12 @@
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use afd::{Actor, ActorKind, CommandInterface, CommandResult, fixed_clock};
 use serde_json::{Value, json};
 use tempfile::TempDir;
+use umbel::cli::{Console, Environment};
 use umbel::plugins::sdk;
 use umbel::{Host, HostBuilder};
 
@@ -47,6 +48,12 @@ source = "compiled:knowledge"
 
 [plugins.knowledge.grants.index_write]
 allow = ["main", "beta"]
+[plugins.knowledge.grants.records_write]
+allow = ["main", "beta"]
+[plugins.knowledge.grants.documents_write]
+allow = ["main/*", "beta/*"]
+[plugins.knowledge.grants.content_write]
+allow = ["main/*", "beta/*"]
 "#;
 
 pub struct Fx {
@@ -146,6 +153,41 @@ impl Fx {
         )
     }
 
+    /// Run the command line in process from the workspace, as the person `principal.local_id`
+    /// names, with `console` for a terminal; the JSON on stdout, and the exit code.
+    pub async fn command_line(&self, console: Arc<dyn Console>, args: &[&str]) -> (i32, Value) {
+        let mut environment = Environment::from_process();
+        environment.cwd = self.dir.path().to_path_buf();
+        environment.workspace = None;
+        environment.console = console;
+        let mut stdout = Vec::new();
+        let code = umbel::cli::run(
+            std::iter::once("umbel").chain(args.iter().copied()),
+            &environment,
+            &mut stdout,
+            |builder: HostBuilder| {
+                builder
+                    .with_compiled(Arc::new(sdk(umbel_plugin_sources_filesystem::plugin())))
+                    .with_compiled(Arc::new(sdk(umbel_plugin_knowledge::plugin())))
+                    .with_clock(fixed_clock(1_767_225_600_000))
+            },
+        )
+        .await;
+        let text = String::from_utf8(stdout).unwrap();
+        let value = serde_json::from_str(&text)
+            .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}): {text}"));
+        (code, value)
+    }
+
+    /// Call `command` on the command line at a terminal where the person answers yes.
+    pub async fn at_terminal(&self, command: &str, input: Value) -> Value {
+        let console = Terminal::new(true, true);
+        let (_, value) = self
+            .command_line(console, &["call", command, &input.to_string()])
+            .await;
+        value
+    }
+
     /// A person at the command line: `human:local`.
     pub async fn cli(&self, command: &str, input: Value) -> Value {
         json_of(
@@ -180,6 +222,38 @@ impl Fx {
     /// The document stores' head revision of a space, from the SQLite file.
     pub fn state_dir(&self, space: &str) -> PathBuf {
         self.path(&format!("state/spaces/{space}"))
+    }
+}
+
+/// A scripted terminal: whether a person can answer, what they answer, and what was asked.
+pub struct Terminal {
+    pub interactive: bool,
+    pub answer: bool,
+    pub asked: Mutex<Vec<String>>,
+}
+
+impl Terminal {
+    pub fn new(interactive: bool, answer: bool) -> Arc<Self> {
+        Arc::new(Self {
+            interactive,
+            answer,
+            asked: Mutex::new(Vec::new()),
+        })
+    }
+
+    pub fn asked(&self) -> Vec<String> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+impl Console for Terminal {
+    fn is_interactive(&self) -> bool {
+        self.interactive
+    }
+
+    fn ask(&self, text: &str) -> bool {
+        self.asked.lock().unwrap().push(text.to_owned());
+        self.answer
     }
 }
 

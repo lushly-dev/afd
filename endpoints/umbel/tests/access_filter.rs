@@ -496,3 +496,55 @@ async fn workspace_show_says_how_far_access_filtering_holds() {
     assert_eq!(data["versions"]["event"], 1);
     assert_eq!(data["versions"]["store"], 1);
 }
+
+#[tokio::test]
+async fn reader_tokens_are_the_callers_own_tokens_and_nobody_elses() {
+    let (_dir, host) = workspace();
+    let tokens = |actor: Actor, space: &'static str| {
+        let host = &host;
+        async move {
+            result(
+                &as_actor(
+                    host,
+                    actor,
+                    "sp-read",
+                    read(space, "reader-tokens", json!({})),
+                )
+                .await,
+            )
+        }
+    };
+    // human:grace is in the group platform; the group everyone has `*` as a member.
+    assert_eq!(
+        tokens(human("grace"), "main").await,
+        json!([
+            "group:everyone",
+            "group:platform",
+            "principal:human:grace",
+            "space"
+        ])
+    );
+    // An agent acting for a person is that person.
+    assert_eq!(
+        tokens(acting_for("ci-bot", "grace"), "main").await,
+        json!([
+            "group:everyone",
+            "group:platform",
+            "principal:human:grace",
+            "space"
+        ])
+    );
+    assert_eq!(
+        tokens(human("nobody"), "main").await,
+        json!(["group:everyone", "principal:human:nobody", "space"])
+    );
+    // A space the caller may not read refuses before any token is given.
+    let refused = as_actor(
+        &host,
+        human("nobody"),
+        "sp-read",
+        read("beta", "reader-tokens", json!({})),
+    )
+    .await;
+    assert_eq!(code(&refused), "SPACE_NOT_READABLE");
+}

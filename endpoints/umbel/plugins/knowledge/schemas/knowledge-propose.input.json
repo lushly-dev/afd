@@ -1,0 +1,105 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"idempotency_key": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"description": "Chosen by the caller (a run id plus a step works). The same key with the same change returns the existing proposal; the same key with another change is PROPOSAL_KEY_REUSED"
+		},
+		"change": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["create", "update", "deprecate", "verify"]
+				},
+				"doc": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512,
+					"description": "A document id, <collection>/<path>"
+				},
+				"baseHash": {
+					"type": "string",
+					"maxLength": 71,
+					"description": "The content hash you read; required for update, deprecate and verify, left out for create"
+				},
+				"content": {
+					"type": "string",
+					"description": "The whole new file including frontmatter, for create and update"
+				},
+				"supersededBy": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512,
+					"description": "For deprecate: the document id or /-prefixed path that replaces it"
+				},
+				"verification": {
+					"type": "object",
+					"properties": {
+						"note": {
+							"type": "string",
+							"maxLength": 1000
+						},
+						"staleAfter": {
+							"type": "string",
+							"maxLength": 64,
+							"description": "An absolute datetime with a UTC offset"
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"required": ["op", "doc"],
+			"additionalProperties": false
+		},
+		"rationale": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4000
+		},
+		"evidence": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"enum": ["document", "url", "text", "record"]
+					},
+					"ref": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 1024
+					},
+					"contentHash": {
+						"type": "string",
+						"maxLength": 71
+					},
+					"excerpt": {
+						"type": "string",
+						"maxLength": 1000
+					}
+				},
+				"required": ["kind", "ref"],
+				"additionalProperties": false
+			}
+		},
+		"confidence": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		},
+		"run": {
+			"type": "string",
+			"maxLength": 128
+		}
+	},
+	"required": ["idempotency_key", "change", "rationale", "evidence"],
+	"additionalProperties": false
+}

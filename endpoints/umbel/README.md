@@ -142,7 +142,20 @@ sync and then the index. Every part of a result that came from a document is lab
 budget (fewer hits, a shorter window, and a warning that says so). The `umbel-knowledge` binary is
 the `umbel` command line with `sources` and `knowledge` compiled in (the stock `umbel` binary
 compiles in no plugin); enable both with `plugins.enabled = ["sources", "knowledge"]`, and allow
-`index_write` for the space (`[plugins.knowledge.grants.index_write] allow = ["main"]`).
+`index_write` and `records_write` for the space (`[plugins.knowledge.grants.index_write] allow =
+["main"]`, and the same under `records_write`).
+
+**Changing them by proposal.** The knowledge base changes only by proposal. `knowledge-propose`
+(create, update, deprecate or verify a document, with a rationale and evidence) stores a decision
+trace and changes nothing; `knowledge-proposal-list` and `knowledge-proposal-show` read it. A person
+at a terminal decides: `knowledge-approve` writes the file and the document, `knowledge-reject`
+records a reason, and `knowledge-verify` attests a document. Those three run only on the command
+line, at a terminal, and are never reached from MCP or an agent. Declare who approves what as
+areas (`[plugins.knowledge.config.areas.<id>]` with `space`, `collection`, an optional `prefix`,
+`approvers` as `principal:human:<id>` or `group:<id>` entries, and `allow_self_approval`); an area
+is required for a document to be proposed. To apply a proposal the instance also needs
+`documents_write` and `content_write` allowed for the collection. An approved document is searchable
+after the next `knowledge-refresh`.
 
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
