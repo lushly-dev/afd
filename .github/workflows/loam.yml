@@ -18,13 +18,9 @@ on:
       - 'packages/client/**'
       - 'packages/adapters/**'
       - 'packages/testing/**'
-      - 'packages/rust/**'
       # The core Loam's manifest profile conforms to, and the contract version it records.
       - 'spec/plugin-manifest*'
       - 'spec/VERSION'
-      # Umbel is the mounted proof's server (phase 1 specification, section 14).
-      - 'endpoints/umbel/**'
-      - '!endpoints/umbel/docs/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/loam.yml'
@@ -44,11 +40,8 @@ on:
       - 'packages/client/**'
       - 'packages/adapters/**'
       - 'packages/testing/**'
-      - 'packages/rust/**'
       - 'spec/plugin-manifest*'
       - 'spec/VERSION'
-      - 'endpoints/umbel/**'
-      - '!endpoints/umbel/docs/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/loam.yml'
@@ -80,7 +73,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
 
   loam:
     name: Build, unit and Chromium

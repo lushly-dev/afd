@@ -11,8 +11,8 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
-  under the owner's delegation, after that review (D17). Nothing in it is implemented;
-  each step's state is one line in STATUS.md's phase 1 block.
+  under the owner's delegation, after that review (D17). Implementation is in progress: steps 0b, 1
+  and 2 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -113,10 +113,11 @@
     ([`specification/2026-01-26/apps.mdx`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx)),
     read 2026-11-01; `@modelcontextprotocol/ext-apps` 2.0.4 on npm. See
     [Trajectory refresh](#trajectory-refresh).
-- **Done:** this specification.
-- **Not done:** everything in the
-  [implementation plan](#15-implementation-plan); STATUS.md's phase 1 block has
-  one line per step.
+- **Done:** this specification, and the steps STATUS.md's phase 1 block marks merged. Step 2 delivered
+  `@lushly-dev/loam-sdk` and `@lushly-dev/loam-cli`, the `rules` cases that need files and E13's CLI
+  part; [11.2](#112-decided-by-step-2) records what it decided.
+- **Not done:** the rest of the [implementation plan](#15-implementation-plan). Of E13, the test kit's
+  items wait for step 3, and the scaffold's own test, which imports the test kit, runs from there.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
   [#677](https://github.com/lushly-dev/afd/pull/677). The proposal says that step "lands before Loam's phase 1
   specification is approved, or in the same pull request", which holds.
@@ -245,8 +246,10 @@ The four phase 0 packages change as follows:
 - **`.github/workflows/loam.yml`.** See [Section 14](#14-exit-criterion-and-tests)
   for what runs; the workflow changes are:
   - The path filters gain `spec/plugin-manifest*`, `spec/VERSION`, `packages/client/**`,
-    `packages/adapters/**`, `packages/testing/**`, `endpoints/umbel/**`,
-    `!endpoints/umbel/docs/**` and `packages/rust/**`.
+    `packages/adapters/**` and `packages/testing/**`. **Step 7** adds `endpoints/umbel/**`,
+    `!endpoints/umbel/docs/**` and `packages/rust/**`, with its `mounted` job, and the exception they
+    need in `scripts/repository-contract.test.mjs`'s Umbel test: until a job runs against Umbel, an Umbel
+    change has nothing to run here. Step 1 added them early, and step 2 moved them out.
   - The `pnpm -F` selectors for typecheck, units and tokens gain
     `./endpoints/loam/apps/*`. `lint:tokens` gains console, hello and tally.
   - The `scope` job gets a second output, `mounted`, from
@@ -932,8 +935,8 @@ export function defineApp(definition: AppDefinitionV1): AppDefinitionV1;
 
 export interface AppDefinitionV1 {
 	readonly sdk: 1;
-	/** One per command in the manifest, by its full name. */
-	handlers: Record<string, AppCommandHandlerV1>;
+	/** One per command in the manifest, by its full name. `never` so a handler may type its input. */
+	handlers: Record<string, AppCommandHandlerV1<never>>;
 	/** Runs once, before the first surface renders. Not for commands, which run without it. */
 	activate?(context: AppContextV1): void | Promise<void>;
 	deactivate?(): void | Promise<void>;
@@ -1049,6 +1052,7 @@ export interface OverlayResultV1 {
   	readResource(uri: string): Promise<string>;
   	onToolInput(listener: (args: unknown) => void): () => void;
   	onToolResult(listener: (result: CommandResult) => void): () => void;
+  	onToolCancelled(listener: (reason?: string) => void): () => void;
   	onHostContext(listener: (context: Partial<ViewHostContextV1>) => void): () => void;
   	onTeardown(listener: () => void | Promise<void>): () => void;
   }
@@ -1797,7 +1801,7 @@ new commands are small and the rest is lazy:
 | JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000 |
 | The kernel alone | As phase 0 | 231,360 |
 | CSS | As phase 0 | 8,496 |
-| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured |
+| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it does not yet hold the kernel's `src/apps/`, and step 4 must confirm it by measuring the whole chunk |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
 | `view` chunk: the view host | When a view app opens | 60,000 |
@@ -1913,6 +1917,7 @@ Node program with no kernel. Output is a `CommandResult` as JSON; exit 0 on succ
 
   `--dep-spec <spec>` sets the dependency spec for the Loam units in that `package.json`; the default is
   `workspace:*`, and an app outside the workspace passes a `link:` or tarball path, since nothing publishes.
+  A path names one package, so `{unit}` in the spec becomes each unit's short name (`link:/repo/packages/{unit}`).
   A view's `vite.config.ts` imports `singleFileHtml` from `@lushly-dev/loam-cli/vite`. `app new` then runs `app check` on
   the result. A refused id (a shell domain, a bad pattern)
   writes nothing.
@@ -1972,6 +1977,97 @@ test/app.test.ts
 `endpoints/loam/apps/tally/` is native: `tally-add`, `tally-get` with `store`; main; a panel view;
 a status item. **No file in `kernel`, `chrome` or `web/src` names it.** `tally`'s own custom element is
 named `x-card`, as is one of hello's, so E1 shows their scoped registries keep them apart.
+
+### 11.2 Decided by step 2
+
+What the sections above left open, and what the code showed. Later steps build on these.
+
+**The CLI's entries**
+
+- **`checkApp(files, options?)`.** `options` holds `symlinks` (a link's path to its target, relative to the link's
+  directory, the shape of `spec/plugin-manifest.json`'s `rules`), `manifest` (the path in the map) and `surface`.
+- **`validateCommandSurface` is injected.** `@lushly-dev/afd-testing` has one entry, and its root imports Node.js builtins,
+  so `/check` cannot import it and stay free of them. `app check` passes it. Phase 7's shell command passes one, or AFD gives
+  the testing package a narrower entry then. The token lint is `app check`'s too, since it runs a process.
+- **A root entry.** `@lushly-dev/loam-cli` exports `appCheck`, `appNew`, `appPack`, `runCli` and `readAppManifest(dir,
+  manifest?)`. The last is how a scaffold's test gets its manifest, because this is the only unit that reads TOML.
+- **`--manifest`** is on `app check` as well as `app pack`, because hello has no `loam-app.toml` to check otherwise. Its paths
+  stay relative to `<dir>`.
+
+**`app check` and `app pack`**
+
+- **The token lint is a refusal,** `APP_TOKEN_LINT`, naming each violation, so `app pack` fails on it. When it cannot run (the
+  theme is not built) it is the warning `TOKEN_LINT_UNAVAILABLE`, and with no file to lint it says nothing.
+- **Surface findings** are `SURFACE_<RULE>`, for example `SURFACE_DESCRIPTION_QUALITY`. Findings of severity `info` are left out.
+- **One file.** A built `ui.resources[].path` or `view.handlers` with an external script or stylesheet is `VIEW_NOT_SINGLE_FILE`.
+  Those paths and `native.entry` also take `MANIFEST_PATH_ESCAPE`, as the core's paths do.
+- **What a refusal looks like.** The failure's `error.code` is the first refusal's, and `error.details` holds `refusals`,
+  `warnings`, `exposure`, `kind` and `trust`, so the trust line survives a failed check.
+- **`APP_ENTRY_AT_ROOT`.** `native.entry`'s whole directory goes in a package, so an entry directly in the root is refused.
+- **`.loam-output`.** `app pack` and `deployment write` each mark what they write with this file, and replace a directory only when it is
+  empty or holds the mark. A file with a common name, such as `app-manifest.json` or `deployment.json`, is not leave for a recursive delete.
+  The mark is not copied, and a directory holding one, such as hello's package for another manifest, is left out of a copy.
+- **`APP_PACK_OUT_INVALID`.** `--out` may not be the app or above it, may not hold what is being packed, and is replaced only as above.
+  `--out` inside the entry's directory (`dist/package`) is left out of the copy.
+- **The core's path shape.** The reader sees the schema that replaced a path, so `app check` applies `jsonPath` itself: an absolute or `..` path is
+  `MANIFEST_PATH_ESCAPE`, and anything else off that shape is `MANIFEST_INVALID`. A test holds both patterns equal to the core's.
+- **A link loop** in what is copied is refused by `app pack` as `MANIFEST_PATH_ESCAPE`, and skipped by `deployment write`.
+- **`APP_DIR_NOT_EMPTY`.** `app new` overwrites nothing.
+
+**The scaffold**
+
+- **Mounted** gets `loam-app.toml`, `package.json` and `README.md`: section 11's list has no use for the rest with no command
+  and no source.
+- **View** also gets `src/handlers.html`, the page Vite needs to reach `src/handlers.ts`. Each page is its own Vite build, chosen
+  with `--mode`, because two pages in one build share a chunk, and a shared chunk cannot be inlined.
+- **`singleFileHtml`** differs from the Health dashboard's in more than the CSP: it takes a page with no stylesheet, inlines where
+  the reference was, turns off Vite's preload polyfill, and fails on anything left beside the page, including a dynamic import's chunk.
+
+**The deployment file**
+
+- **Codes.** `DEPLOYMENT_APP_MISMATCH` and the kind-dependent `DEPLOYMENT_*` of 3.1 are what the kernel will refuse at load, so a
+  write warns of them and `deployment check` fails. These stop a write: `DEPLOYMENT_CREDENTIAL_UNREADABLE`, for 3.2's "a credential
+  that cannot be read", and `DEPLOYMENT_PATH_INVALID`, for a `--dist` with no `index.html` or CSP, an `--out` overlapping what is
+  read or holding other files, or a `--mounts-out` inside anything served.
+- **A view with no `[sandbox]`** is `VIEW_SANDBOX_ORIGIN_INVALID`, the kernel's own code.
+- **`sandbox.origin` is canonical,** a new refusal in `readDeployment`: the projection's pattern admits `;` and `"`, and this value
+  reaches the shell's CSP.
+- **`config` with no `config.schema`** is `APP_CONFIG_INVALID`, and its message names paths and rules, never values. Step 3's load
+  must answer the same.
+- **Secrets in what is served.** A package and `--dist` are served whole, so the deployment file or a `bearer_file` inside one stops a write
+  (`DEPLOYMENT_PATH_INVALID`), and a package's case fails `deployment check` too. `--out` may not hold them, and `--mounts-out` may not replace them.
+- **A TOML error** in the deployment file names the line and column and quotes nothing, since the parser's own message quotes the source, which
+  holds `url` and `command`.
+- **Only a package is copied.** A `package` with no readable `app-manifest.json` stays in the projection, with `APP_PACKAGE_UNAVAILABLE`, and none
+  of its files are served. `--dist` is copied by the same rule as a package, so a link leaving it is skipped.
+- **`frame-src`.** Today's `web/index.html` has none, so the write adds it before `object-src`. Step 4 or 5 adds `'none'` to the
+  source, as 6.1 says, and the write then replaces it.
+- **Symbolic links.** A link that leaves what is being copied is not copied: `APP_PACKAGE_LINK_SKIPPED`, a warning.
+- **`bearer_file`** is relative to the deployment file, as `package` is, and its contents are trimmed. `deployment check` reads
+  credentials too, so it fails where a write would stop.
+
+**The SDK**
+
+- **Changed from 5.2 as first written:** `handlers` takes `AppCommandHandlerV1<never>`, since under `strict` a handler that typed its input could
+  not be assigned to one taking `unknown`, and the caller casts; and `onToolCancelled` is added, since 6.2 pushes `tool-cancelled` and nothing heard it.
+- **`/view`** is written and unit-tested over a fake parent window here. It first meets real frames in step 5's E2, which may amend it.
+- **Codes.** A refused `tools/call` is a failure, not a rejection. It takes the code in the JSON-RPC error's `data.code` when the host
+  names one, otherwise `VIEW_CALL_REFUSED`. So step 5's broker sends `HANDLER_NO_CALL` as `data: { code, suggestion }`. An answer with no
+  result is `VIEW_RESULT_INVALID`, an aborted call is `CALL_ABORTED`, and a frame's handler that throws is `HANDLER_THREW`.
+- **Early pushes.** `connectView` holds a `tool-input`, `tool-result` or context change until its first listener, since a view may await
+  something else after connecting.
+- **Exports beyond 5.2:** `KIT_ELEMENT_NAMES_V1`, the list behind `KitElementNameV1`, for the chrome's loader, and `mulberry32` from
+  `/view`, for a test kit that must reproduce a frame's `random()`. `ManifestV1` is re-exported from the root.
+- **`TRUST_LINES_V1` and `NOTICES_V1`** are in `manifest`'s root, not the CLI, so step 3's `app-get` and the console say the same words.
+
+**The repository**
+
+- **The bin is committed,** `bin/loam.mjs`, importing `dist/cli.js`. pnpm links a dependent's bin at install, and only to a file that exists then, so a
+  bin in `dist/` would not reach the scaffold's or hello's `loam` scripts after a fresh install.
+- **`web` takes its dev dependency on `@lushly-dev/loam-cli` in this step,** not step 4, so `pnpm -F "@lushly-dev/loam-web..." build` builds
+  what the CLI's tests import in `loam.yml` and in `suites.mjs`, and neither file's build line changes. Editing `scripts/affected/` selects the
+  whole workspace.
+- **`spec/plugin-manifest*` reaches the CLI's test** through `manifest`'s `EXTRA_INPUTS` row and its dependents, so `scope.mjs` needs no row.
 
 ## 12. Security
 
@@ -2072,7 +2168,7 @@ STATUS.md before it merges.
 | 4 | Chrome and web, native apps | The nav's app list, `loam-mount`, surfaces, `loam-list`, the header, status items, overlays' elements, the kit loader, the web host's deployment read, the harness; hello native; tally; E1, E5, E6, E7, E9, E11 so far; `budget` rows; `design.md` and skill lines. The workflow's selectors | `pnpm check`, `loam.yml` |
 | 5 | Sandboxed view | The proxy, `loam-view-frame`, the broker, the handler frame, `/view`, hello view, E2 with the conformance fixture, `@modelcontextprotocol/ext-apps` as a dev dependency; `budget`'s `view` row | `pnpm check`, `loam.yml` |
 | 6 | Console | `loam-console`, `renderForm`, adapters with classes, E10, E11's console part, `budget`'s row | `pnpm check`, `loam.yml` |
-| 7 | Mounted, against Umbel | Step 0a's use in `web`, `discoverInstance`, naming, exposure, pinning, the journal's marks, replay of recorded entries, the relay, the Umbel fixture, `build:umbel`, `test:mounted`, the `mounted` job, `suites.mjs`, `AGENTS.md`, hello mounted, E3, E4, E9's mounted part. Its diff touches nothing under `endpoints/umbel/`, as the proposal's acceptance requires | `pnpm check`, `pnpm -F @lushly-dev/loam-web test:mounted`, `git diff --exit-code origin/main -- endpoints/umbel`, `loam.yml` |
+| 7 | Mounted, against Umbel | Step 0a's use in `web`, `discoverInstance`, naming, exposure, pinning, the journal's marks, replay of recorded entries, the relay, the Umbel fixture, `build:umbel`, `test:mounted`, the `mounted` job with `loam.yml`'s Umbel and `packages/rust` path filters and the Umbel contract test's exception for them, `suites.mjs`, `AGENTS.md`, hello mounted, E3, E4, E9's mounted part. Its diff touches nothing under `endpoints/umbel/`, as the proposal's acceptance requires | `pnpm check`, `pnpm -F @lushly-dev/loam-web test:mounted`, `git diff --exit-code origin/main -- endpoints/umbel`, `loam.yml` |
 | 8 | Exit | STATUS.md and this block record the exit run; follow-ups filed; the proposal's step 2 marked done | `loam.yml` on `main` |
 
 Order:

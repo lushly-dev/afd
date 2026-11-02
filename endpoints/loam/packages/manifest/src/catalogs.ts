@@ -254,3 +254,25 @@ export const LAYOUT_DEFAULTS_V0: LayoutDefaultsV0 = {
 	panel: { default: 240, min: 120 },
 	mainMin: 360,
 };
+
+/** What `app check`, `app-get` and an app's README say of each kind (D54). */
+export const TRUST_LINES_V1 = {
+	native: {
+		code: 'TRUSTED_NOT_SANDBOXED',
+		line: "Trusted, not sandboxed. Native apps share the shell's page, so this app's grants are a contract, not a boundary. Ship untrusted code as a view.",
+	},
+	view: { code: 'SANDBOXED', line: 'Sandboxed: its grants are enforced.' },
+	mounted: { code: 'EXTERNAL', line: 'External: its results are labeled untrusted.' },
+} as const;
+
+/** The notices `app check`, `deployment check` and the console show (D55, D56, D65). */
+export const NOTICES_V1 = {
+	MOUNT_ANNOTATIONS_UNTRUSTED:
+		"A mounted server's annotations are its own claim: they set display and defaults, never a security decision, and the deployment entry's overrides win.",
+	TEAM_INSTANCE_NOTICE:
+		'A team instance is mounted only where every member of its projects may read all of it.',
+	TEAM_INSTANCE_SINGLE_PRINCIPAL:
+		"Umbel sees one principal for every member of this instance's projects. Mount it only where each of them may read all of it.",
+	STDIO_TRUSTED_CODE:
+		"This instance runs as the host's OS user. It is trusted code, not sandboxed.",
+} as const;

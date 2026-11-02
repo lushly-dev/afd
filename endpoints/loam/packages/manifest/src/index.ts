@@ -12,10 +12,12 @@ export {
 	ICONS_V1,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutDefaultsV0,
+	NOTICES_V1,
 	SHELL_DOMAINS_V1,
 	SHELL_RESERVED_CHORDS_V1,
 	SURFACE_CATALOG_V1,
 	type SurfaceEntry,
+	TRUST_LINES_V1,
 } from './catalogs.js';
 export type {
 	DeploymentRead,
