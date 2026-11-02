@@ -84,8 +84,8 @@ Loam's phase 1 and Umbel, whether any field contradicts a recorded decision, and
 about the code is wrong.
 
 It spot-checked about 40 citations and found nearly all accurate. It reported 3 must-fix,
-15 should-fix and 7 nit findings. Every one was checked against the source and held up. All were
-fixed in the revision:
+15 should-fix and 7 nit findings. The main claims were checked against the source and held up; the
+rest were taken from the reviewer's evidence. All were fixed in the revision:
 
 - **Must-fix.**
   - (1) Loam's sketch closed `plugin` without its own `$ref`, which refuses every valid manifest:
