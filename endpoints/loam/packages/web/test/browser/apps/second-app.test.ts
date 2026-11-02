@@ -93,6 +93,9 @@ describe('E5: a second app lands with no shell change', () => {
 			await opened.context.close();
 			return Object.fromEntries(
 				site.log
+					// The palette loads when the page is idle, which on a busy machine can fall before the first
+					// contentful paint in either deployment, and no app decides it.
+					.filter(({ path }) => !/^\/assets\/(?:palette|resize-handle)-/.test(path))
 					.filter(({ path }) => paths.includes(path === '/' ? '/' : path))
 					.map(({ path, bytes }) => [path, bytes])
 			);
