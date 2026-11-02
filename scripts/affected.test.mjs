@@ -157,6 +157,8 @@ test('files map to owning packages, unit roots and shared inputs', (t) => {
 	assert.deepEqual(scope(['packages/rust/src/lib.rs', 'docs/a.md', 'AGENTS.md']).affected, []);
 	assert.equal(scope(['tsconfig.json']).mode, 'all');
 	assert.equal(scope(['scripts/affected/scope.mjs']).mode, 'all');
+	// The local suite list reaches no package; its own tests run through the tooling tests.
+	assert.deepEqual(scope(['scripts/affected/suites.mjs']).affected, []);
 	assert.equal(scope(['packages\\core\\a.ts']).changed[0], '@x/core');
 });
 

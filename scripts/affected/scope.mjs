@@ -29,6 +29,8 @@ export const GLOBAL_FILES = new Set([
 	'tsconfig.json',
 ]);
 const GLOBAL_PREFIXES = ['scripts/affected/'];
+/** Under a global prefix, but only lists what `pnpm verify` runs; no package reads it. */
+const SCOPE_INERT = new Set(['scripts/affected/suites.mjs']);
 
 /** Repository inputs outside any package that package tests read directly. */
 export const EXTRA_INPUTS = [
@@ -126,7 +128,10 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		if (!reasons.has(name)) reasons.set(name, why);
 	};
 	for (const file of changedFiles) {
-		if (GLOBAL_FILES.has(file) || GLOBAL_PREFIXES.some((prefix) => file.startsWith(prefix)))
+		if (
+			GLOBAL_FILES.has(file) ||
+			(GLOBAL_PREFIXES.some((prefix) => file.startsWith(prefix)) && !SCOPE_INERT.has(file))
+		)
 			return whole(`${file} affects every package`, { base, files: changedFiles });
 		if (file === 'pnpm-lock.yaml') {
 			const lock = changedImporters(...readLockfile(run, root, base));

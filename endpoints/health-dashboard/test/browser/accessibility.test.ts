@@ -131,12 +131,16 @@ describe('keyboard', () => {
 			(f) => f.host === 'violet-button' || f.tag === 'violet-button'
 		);
 		expect(browse.indicator).toBe(true);
-		const chooser = page.waitForEvent('filechooser');
+		// Listening turns on Playwright's interception, and a chooser that opens before it lands
+		// never fires the event: the round trip orders them. The timeouts, shorter than the test's,
+		// name the step that stalled.
+		const chooser = page.waitForEvent('filechooser', { timeout: 10_000 });
+		await page.evaluate(() => undefined);
 		await page.keyboard.press('Enter');
 		const picker = await chooser;
 		expect(picker.isMultiple()).toBe(true);
 		await picker.setFiles(fixturePath('reports/mixed-status.report.json'));
-		await page.waitForSelector('section.report');
+		await page.waitForSelector('section.report', { timeout: 10_000 });
 		await context.close();
 	});
 

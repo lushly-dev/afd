@@ -16,3 +16,9 @@ packages:
   - "packages/examples/todo/frontends/*"
   - "packages/examples/todo-directclient/backend"
   - "packages/examples/showcase/backend"
+
+# Dependabot resolves with a 3-day minimum release age and fails every update while the lockfile
+# holds a younger version, so a local lockfile refresh keeps to the same window.
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - "@lushly-dev/*"
