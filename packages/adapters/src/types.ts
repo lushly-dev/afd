@@ -38,6 +38,14 @@ export interface RenderOptions {
 	 * @default undefined (no limit)
 	 */
 	maxOutputLength?: number;
+
+	/**
+	 * How spans carry their status and weight. `inline` writes a `style` attribute. `classes`
+	 * writes `afd-status-<type>` and `afd-bold`, defined in `css/afd-theme.css`, for a
+	 * Content-Security-Policy of `style-src 'self'`, which refuses `style` attributes.
+	 * @default 'inline'
+	 */
+	styling?: 'inline' | 'classes';
 }
 
 /**

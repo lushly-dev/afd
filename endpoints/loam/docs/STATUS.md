@@ -185,7 +185,7 @@ should never have to scan the codebase to learn what is current.
 - **Steps** ([plan](phases/1-app-contract/spec.md#15-implementation-plan); one
   line each, so parallel pull requests touch different lines):
   - 0a, AFD browser-safe MCP transport: not started.
-  - 0b, AFD adapters without inline styles: not started.
+  - 0b, AFD adapters without inline styles: merged in [#680](https://github.com/lushly-dev/afd/pull/680). `RenderOptions.styling: 'classes'` replaces every `style` attribute with `afd-status-<type>` and `afd-bold`, which `css/afd-theme.css` defines.
   - 1, manifest package: not started; the proposal's step 1 it builds on merged in [#677](https://github.com/lushly-dev/afd/pull/677).
   - 2, SDK and CLI: not started.
   - 3, kernel version 1: not started.
@@ -261,3 +261,4 @@ starts.
 | 2026-11-01 | Plugin manifest step 1 | [`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), the core and its cases, in [#677](https://github.com/lushly-dev/afd/pull/677). Loam's profile (step 2) is checked against them; a profile needs `type` and `"domains": true` to compile under Ajv's `strict: true`, as the corrected sketch in the proposal shows |
 | 2026-11-01 | Phase 1 specification | The [phase 1 specification](phases/1-app-contract/spec.md) written and reviewed independently: the manifest profile, a deployment file with a browser projection, the surface catalog and grants, the three loader kinds with a sandbox proxy on a second origin and a handler frame, the minimal console, toast and modal, kernel interface 1 and the SDK, `app new` and `app check`, and the proof against a real Umbel through a test-only relay. D59 to D68 proposed; L1 to L10 decided; the trajectory refreshed, with W29 and W30 added. Documents only: nothing implemented |
 | 2026-11-01 | Phase 1 approval | The coordinator approved the phase 1 specification under the owner's delegation, after an independent review (35 findings, all addressed), deciding D59 to D68. Steps 0a, 0b and 1 start next |
+| 2026-11-01 | Phase 1 step 0b | [#680](https://github.com/lushly-dev/afd/pull/680): `@lushly-dev/afd-adapters` renders without `style` attributes under `styling: 'classes'`, through every `WebAdapter` method and `styledSpan`; `inline` stays the default, with its output pinned by a snapshot taken from the previous source. An unknown status renders as `neutral`, so it never reaches the class attribute. Step 6's stylesheet must map `afd-bold` as well as the `afd-status-*` classes |

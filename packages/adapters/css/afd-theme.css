@@ -8,6 +8,10 @@
  *   --afd-success: var(--violet-color-semantic-success);
  *   --afd-error: var(--violet-color-semantic-error);
  *   etc.
+ *
+ * The classes below style output rendered with `styling: 'classes'`. A document's
+ * stylesheet does not reach into a shadow root: load this file there, or define the
+ * classes in the shadow root's own stylesheet.
  */
 
 :root {
@@ -28,4 +32,33 @@
 
 	/* Default text - inherits from parent */
 	--afd-text: inherit;
+}
+
+/* Spans rendered with `styling: 'classes'`; the same declarations as `styling: 'inline'` */
+.afd-status-success {
+	color: var(--afd-success, #22c55e);
+}
+
+.afd-status-failure {
+	color: var(--afd-error, #ef4444);
+}
+
+.afd-status-warning {
+	color: var(--afd-warning, #f59e0b);
+}
+
+.afd-status-info {
+	color: var(--afd-info, #3b82f6);
+}
+
+.afd-status-muted {
+	color: var(--afd-muted, #6b7280);
+}
+
+.afd-status-neutral {
+	color: inherit;
+}
+
+.afd-bold {
+	font-weight: bold;
 }
