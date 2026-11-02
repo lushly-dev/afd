@@ -5,238 +5,23 @@
  * with automatic JSON Schema generation for MCP tool definitions.
  */
 
-import type {
-	ApprovalPolicy,
-	CommandContext,
-	CommandDefinition,
-	CommandExample,
-	CommandParameter,
-	CommandResult,
-	ExposeOptions,
-	JsonSchema,
-} from '@lushly-dev/afd-core';
-import { validateCommandName } from '@lushly-dev/afd-core/commands';
-import { type ZodType, z } from 'zod';
+import type { JsonSchema } from '@lushly-dev/afd-core';
+import type { ZodObject, ZodRawShape, ZodType } from 'zod';
+import { $ZodObject, type $ZodType } from 'zod/v4/core';
+import {
+	defineCommandWithSchema,
+	type ZodCommandDefinition,
+	type ZodCommandOptions,
+} from './define-core.js';
+import { zodToJsonSchema } from './json-schema.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Options for defining a command with Zod schema.
- */
-export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
-	/** Unique command name in kebab-case (e.g., 'todo-create') */
-	name: string;
-
-	/** Human-readable description of what the command does */
-	description: string;
-
-	/** Zod schema for input validation */
-	input: TInput;
-
-	/**
-	 * Optional Zod schema describing the command's output data shape.
-	 * Used for agent introspection — not validated at runtime.
-	 * Describes the shape of `CommandResult.data`, not the full envelope.
-	 */
-	output?: ZodType<TOutput>;
-
-	/** Command handler function */
-	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
-
-	/** A short human-readable label, reported as the MCP tool `title` and by afd-detail */
-	title?: string;
-
-	/** Category for grouping related commands */
-	category?: string;
-
-	/** Whether this command performs side effects */
-	mutation?: boolean;
-
-	/** Command version for tracking changes */
-	version?: string;
-
-	/** Tags for additional categorization */
-	tags?: string[];
-
-	/** Commands that should be called before this one. Metadata only — not enforced at runtime. */
-	requires?: string[];
-
-	/** Estimated execution time category */
-	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
-
-	/** Error codes this command may return */
-	errors?: string[];
-
-	/**
-	 * Whether this command returns a HandoffResult for protocol handoffs.
-	 * When true, the command will automatically be tagged with 'handoff'.
-	 */
-	handoff?: boolean;
-
-	/**
-	 * The specific handoff protocol this command uses (if handoff is true).
-	 * When specified, the command will also be tagged with 'handoff:{protocol}'.
-	 */
-	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
-
-	/**
-	 * Whether this command performs destructive/irreversible actions.
-	 * When true, frontends SHOULD prompt for user confirmation before
-	 * applying the result locally.
-	 */
-	destructive?: boolean;
-
-	/**
-	 * Custom confirmation prompt message for destructive commands.
-	 * If not provided, frontends MAY use a generic confirmation message.
-	 * @example "Delete 'Buy groceries' permanently?"
-	 */
-	confirmPrompt?: string;
-
-	/**
-	 * Whether this command can be undone.
-	 * Implementation is consumer-specific; AFD only carries the flag.
-	 */
-	undoable?: boolean;
-
-	/**
-	 * Whether a call needs a human's approval before the handler runs: `'required'`,
-	 * `'not-required'` (the default), or a function of the validated input and context.
-	 * Enforced by `createApprovalMiddleware`; reported as `_meta.approval`.
-	 */
-	approval?: ApprovalPolicy<z.infer<TInput>>;
-
-	/**
-	 * Which interfaces this command is exposed to.
-	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
-	 * Defaults to `defaultExpose` if not specified.
-	 */
-	expose?: ExposeOptions;
-
-	/**
-	 * Concrete input examples to help agents construct valid payloads.
-	 * Each example is validated against the input schema at define-time.
-	 */
-	examples?: CommandExample<z.input<TInput>>[];
-
-	/**
-	 * Contexts this command belongs to. When context-based tool scoping is enabled,
-	 * only commands matching the active context (or commands without contexts) are visible.
-	 */
-	contexts?: string[];
-
-	/**
-	 * Extra `_meta` entries for this command's tool, its grouped action entry and afd-detail
-	 * (`spec/mcp-resources.md`, T1). Keys are reverse-DNS prefixed with two or more labels, outside
-	 * `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui`, the MCP Apps
-	 * key (`{ resourceUri: 'ui://app/view.html' }`). An MCP server refuses any other key when it
-	 * registers the command, so an entry never replaces one the server sets. (`defineCommand` and
-	 * the in-process registry do not check, to keep the `/direct` entry within its size budget.)
-	 */
-	toolMeta?: Record<string, unknown>;
-
-	/**
-	 * The input schema shown on every surface (tool `inputSchema`, afd-detail, afd-schema,
-	 * afd-docs), in place of the one generated from `input`. `input` still validates every call.
-	 * It must be a JSON object whose `type` is `"object"`; nothing else in it is checked. Keeping
-	 * `input` no wider than this schema is the caller's duty (`spec/mcp-resources.md`, V1).
-	 */
-	advertisedInputSchema?: JsonSchema;
-}
-
-/**
- * A command definition that includes Zod schema for runtime validation.
- */
-export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput = unknown> {
-	/** Unique command name */
-	name: string;
-
-	/** Human-readable description */
-	description: string;
-
-	/** Zod schema for input validation */
-	inputSchema: TInput;
-
-	/** JSON Schema shown on every surface (for MCP tools): the advertised schema when one was given */
-	jsonSchema: JsonSchema;
-
-	/** Command handler */
-	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
-
-	/** Display label (MCP tool `title`) */
-	title?: string;
-
-	/** Category for grouping */
-	category?: string;
-
-	/** Whether this is a mutation */
-	mutation?: boolean;
-
-	/** Command version */
-	version?: string;
-
-	/** Tags for categorization */
-	tags?: string[];
-
-	/** Commands that should be called before this one. Metadata only — not enforced at runtime. */
-	requires?: string[];
-
-	/** Execution time category */
-	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
-
-	/** Possible error codes */
-	errors?: string[];
-
-	/** Whether this command returns a HandoffResult */
-	handoff?: boolean;
-
-	/** The specific handoff protocol this command uses */
-	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
-
-	/** Whether this command is destructive (triggers confirmation UI) */
-	destructive?: boolean;
-
-	/** Custom confirmation prompt message */
-	confirmPrompt?: string;
-
-	/** Whether this command can be undone */
-	undoable?: boolean;
-
-	/** Pre-execution approval policy (enforced by `createApprovalMiddleware`) */
-	approval?: ApprovalPolicy<z.infer<TInput>>;
-
-	/**
-	 * Which interfaces this command is exposed to.
-	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
-	 */
-	expose?: ExposeOptions;
-
-	/** Concrete input examples validated against the input schema */
-	examples?: CommandExample<z.input<TInput>>[];
-
-	/** Zod schema for output validation (optional) */
-	outputSchema?: ZodType;
-
-	/** JSON Schema for the output data shape (derived from outputSchema) */
-	outputJsonSchema?: JsonSchema;
-
-	/** Contexts this command belongs to */
-	contexts?: string[];
-
-	/** Extra `_meta` entries for this command's tool (`spec/mcp-resources.md`, T1) */
-	toolMeta?: Record<string, unknown>;
-
-	/**
-	 * Convert to standard CommandDefinition format.
-	 */
-	toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput>;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN FUNCTION
-// ═══════════════════════════════════════════════════════════════════════════════
+export {
+	defineCommandWithSchema,
+	jsonSchemaToParameters,
+	type ZodCommandDefinition,
+	type ZodCommandOptions,
+} from './define-core.js';
+export { type ZodToJsonSchemaOptions, zodToJsonSchema } from './json-schema.js';
 
 /**
  * Define a command with Zod schema for type-safe input validation.
@@ -265,209 +50,23 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 export function defineCommand<TInput extends ZodType, TOutput>(
 	options: ZodCommandOptions<TInput, TOutput>
 ): ZodCommandDefinition<TInput, TOutput> {
-	const nameCheck = validateCommandName(options.name);
-	if (!nameCheck.valid) {
-		console.warn(`[AFD] ${nameCheck.reason}`);
-	}
-
-	const { advertisedInputSchema } = options;
-	if (
-		advertisedInputSchema !== undefined &&
-		(advertisedInputSchema === null ||
-			typeof advertisedInputSchema !== 'object' ||
-			Array.isArray(advertisedInputSchema) ||
-			advertisedInputSchema.type !== 'object')
-	) {
-		throw new Error(
-			`command "${options.name}": advertisedInputSchema must be a JSON Schema object whose type is "object"`
-		);
-	}
-
 	// Input schemas describe what a caller may send (defaults optional, transforms by their
-	// input type); output schemas describe what the handler returns. An advertised schema replaces
-	// the generated one on every surface; the Zod schema still validates.
-	const jsonSchema = advertisedInputSchema ?? zodToJsonSchema(options.input, { io: 'input' });
+	// input type); output schemas describe what the handler returns. An advertised schema is not
+	// converted: it replaces the generated one on every surface.
+	const jsonSchema: JsonSchema =
+		options.advertisedInputSchema ?? zodToJsonSchema(options.input, { io: 'input' });
 	const outputJsonSchema = options.output
 		? zodToJsonSchema(options.output, { io: 'output' })
 		: undefined;
 
-	// Build tags with automatic handoff tags if handoff is enabled
-	const tags = buildHandoffTags(options.tags, options.handoff, options.handoffProtocol);
-
-	// Validate examples against input schema at define-time
-	if (options.examples) {
-		for (const example of options.examples) {
-			const parsed = options.input.safeParse(example.input);
-			if (!parsed.success) {
-				const issues = parsed.error.issues
-					.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-					.join(', ');
-				throw new Error(
-					`Example "${example.title}" for command "${options.name}" fails schema validation: ${issues}`
-				);
-			}
-		}
-	}
-
-	return {
-		name: options.name,
-		description: options.description,
-		inputSchema: options.input,
-		jsonSchema,
-		handler: options.handler,
-		title: options.title,
-		category: options.category,
-		mutation: options.mutation,
-		version: options.version,
-		tags,
-		requires: options.requires,
-		executionTime: options.executionTime,
-		errors: options.errors,
-		handoff: options.handoff,
-		handoffProtocol: options.handoffProtocol,
-		destructive: options.destructive,
-		confirmPrompt: options.confirmPrompt,
-		undoable: options.undoable,
-		approval: options.approval,
-		expose: options.expose,
-		examples: options.examples,
-		outputSchema: options.output,
-		outputJsonSchema,
-		contexts: options.contexts,
-		toolMeta: options.toolMeta,
-
-		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
-			return {
-				name: options.name,
-				description: options.description,
-				title: options.title,
-				category: options.category,
-				mutation: options.mutation,
-				version: options.version,
-				tags,
-				requires: options.requires,
-				executionTime: options.executionTime,
-				errors: options.errors,
-				handoff: options.handoff,
-				handoffProtocol: options.handoffProtocol,
-				destructive: options.destructive,
-				confirmPrompt: options.confirmPrompt,
-				undoable: options.undoable,
-				approval: options.approval,
-				expose: options.expose,
-				// Examples are raw inputs (before defaults and transforms); core types them by the
-				// handler input, which differs only for schemas with defaults or transforms.
-				examples: options.examples as CommandExample<z.infer<TInput>>[] | undefined,
-				contexts: options.contexts,
-				toolMeta: options.toolMeta,
-				parameters: jsonSchemaToParameters(jsonSchema),
-				returns: outputJsonSchema,
-				handler: options.handler as (
-					input: unknown,
-					context?: CommandContext
-				) => Promise<CommandResult<TOutput>>,
-			};
-		},
-	};
-}
-
-/**
- * Build tags array with automatic handoff tags if handoff is enabled.
- * Adds 'handoff' tag and optionally 'handoff:{protocol}' tag.
- */
-function buildHandoffTags(
-	existingTags?: string[],
-	handoff?: boolean,
-	handoffProtocol?: string
-): string[] | undefined {
-	if (!handoff) {
-		return existingTags;
-	}
-
-	const tags = new Set(existingTags ?? []);
-	tags.add('handoff');
-
-	if (handoffProtocol) {
-		tags.add(`handoff:${handoffProtocol}`);
-	}
-
-	return Array.from(tags);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SCHEMA CONVERSION HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Options for {@link zodToJsonSchema}.
- */
-export interface ZodToJsonSchemaOptions {
-	/**
-	 * Which side of the schema to describe.
-	 *
-	 * - `'input'` (default): what a caller may send. Fields with `.default()` are
-	 *   optional, and `.transform()`/`.pipe()` are described by their input type.
-	 *   Use this for command inputs and MCP tool `inputSchema`s.
-	 * - `'output'`: what parsing produces. Defaulted fields are required, and a
-	 *   `.transform()` cannot be represented (Zod throws). Use this for output schemas.
-	 */
-	io?: 'input' | 'output';
-}
-
-/**
- * Convert a Zod schema to JSON Schema (draft-7).
- *
- * @param schema - Zod schema to convert
- * @param options - Conversion options; `io` defaults to `'input'`
- * @returns JSON Schema representation
- */
-export function zodToJsonSchema(schema: ZodType, options: ZodToJsonSchemaOptions = {}): JsonSchema {
-	const result = z.toJSONSchema(schema, { target: 'draft-7', io: options.io ?? 'input' });
-
-	if (typeof result === 'object' && result !== null) {
-		const { $schema, ...rest } = result as Record<string, unknown>;
-		const jsonSchema = rest as unknown as JsonSchema;
-		if (!jsonSchema.type) {
-			return { type: 'object', ...rest } as JsonSchema;
-		}
-		return jsonSchema;
-	}
-
-	return { type: 'object' } as JsonSchema;
-}
-
-/**
- * Convert JSON Schema to CommandParameter array for @lushly-dev/afd-core compatibility.
- */
-export function jsonSchemaToParameters(schema: JsonSchema): CommandParameter[] {
-	const parameters: CommandParameter[] = [];
-
-	if (schema.type === 'object' && schema.properties) {
-		// Handle required - it might be an array or undefined
-		const requiredFields = Array.isArray(schema.required) ? schema.required : [];
-
-		for (const [name, propSchema] of Object.entries(schema.properties)) {
-			const prop = propSchema as JsonSchema;
-			parameters.push({
-				name,
-				type: prop.type ?? 'string',
-				description: prop.description ?? `Parameter: ${name}`,
-				required: requiredFields.includes(name),
-				default: prop.default,
-				enum: prop.enum,
-				schema: prop,
-			});
-		}
-	}
-
-	return parameters;
+	return defineCommandWithSchema({ ...options, jsonSchema, outputJsonSchema });
 }
 
 /**
  * Get the field names a caller must provide for a Zod object schema.
  * Fields with `.default()` or `.optional()` are not required.
  */
-export function getRequiredFields(schema: ZodType): string[] {
+export function getRequiredFields(schema: $ZodType): string[] {
 	const jsonSchema = zodToJsonSchema(schema, { io: 'input' });
 	// Handle required - it might be an array or undefined
 	return Array.isArray(jsonSchema.required) ? jsonSchema.required : [];
@@ -476,6 +75,6 @@ export function getRequiredFields(schema: ZodType): string[] {
 /**
  * Check if a Zod schema represents an object type.
  */
-export function isObjectSchema(schema: ZodType): schema is z.ZodObject<z.ZodRawShape> {
-	return schema instanceof z.ZodObject;
+export function isObjectSchema(schema: ZodType): schema is ZodObject<ZodRawShape> {
+	return schema instanceof $ZodObject;
 }

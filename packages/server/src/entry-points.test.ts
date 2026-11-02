@@ -5,9 +5,11 @@
  * browser. The bundle fails if anything in the module graph imports the MCP
  * SDK or a Node.js builtin. `/direct` is also held to size budgets for AFD's
  * own code, and a host that does not import `createDirectToolSurface` must not
- * bundle the tool router, the tool list or the bootstrap tools.
+ * bundle the tool router, the tool list or the bootstrap tools. A host on the lean path must bundle
+ * neither classic Zod nor `toJSONSchema`.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -38,7 +40,7 @@ interface EsbuildPluginBuild {
 interface EsbuildResult {
 	errors: EsbuildMessage[];
 	metafile?: {
-		inputs: Record<string, unknown>;
+		inputs: Record<string, { imports: { path: string }[] }>;
 		outputs: Record<string, { inputs: Record<string, { bytesInOutput: number }> }>;
 	};
 	outputFiles?: { contents: Uint8Array }[];
@@ -143,6 +145,7 @@ describe('@lushly-dev/afd-server/define', () => {
 
 	it('re-exports the same command definition helpers as the root entry', () => {
 		expect(define.defineCommand).toBe(root.defineCommand);
+		expect(define.defineCommandWithSchema).toBe(root.defineCommandWithSchema);
 		expect(define.zodToJsonSchema).toBe(root.zodToJsonSchema);
 		expect(define.getRequiredFields).toBe(root.getRequiredFields);
 		expect(define.isObjectSchema).toBe(root.isObjectSchema);
@@ -188,7 +191,9 @@ const HOST_IMPORTS =
  * - 38.1 KB for a host that imports the registry, the journal and `defineCommand`
  *   (37.3 KB before #577; 35.3 KB before part 3, whose contexts add 2.0 KB to the registry;
  *   32.2 KB before declared context fields). The budget stays 39 KB: neither the tool surface
- *   nor approvals are in it.
+ *   nor approvals are in it. Measured again 2026-11-02 with esbuild 0.28.2 on the lean path: 38,588
+ *   bytes before it and under 39,000 after, with almost nothing to spare, since `issue-message.ts`
+ *   was cut down to fit. The next addition here moves something out or changes this budget openly.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -308,5 +313,106 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(result.errors.map((message) => message.text)).toEqual([]);
 		const size = result.outputFiles?.[0]?.contents.length ?? Number.POSITIVE_INFINITY;
 		expect(size).toBeLessThanOrEqual(budget.bytes);
+	});
+});
+
+/** What a host on the lean path imports from AFD. */
+const LEAN_IMPORTS = 'createDirectRegistry, createJournalMiddleware, defineCommandWithSchema';
+
+/** Zod's root and classic API, its locales, and the two modules of `toJSONSchema`. */
+const NOT_LEAN =
+	/zod\/(index\.js|v4\/index\.js|v4\/classic\/|v4\/locales\/|v4\/core\/(to-json-schema|json-schema-processors)\.js)/;
+
+describe('the lean schema path', () => {
+	const bundleImports = (specifier: string, imports: string) =>
+		bundleForBrowser(specifier, {
+			minify: true,
+			stdin: {
+				contents: `export { ${imports} } from '${specifier}';`,
+				resolveDir: packageRoot,
+				sourcefile: 'browser-entry.js',
+			},
+		});
+
+	it.each([
+		['/direct', LEAN_IMPORTS],
+		['/define', 'defineCommandWithSchema, failure, success'],
+	])(
+		'P2-E2: %s leaves classic Zod and toJSONSchema out of its output',
+		async (subpath, imports) => {
+			const result = await bundleImports(`${PACKAGE_NAME}${subpath}`, imports);
+
+			expect(result.errors.map((message) => message.text)).toEqual([]);
+			const output = modulesInOutput(result);
+			expect(output.some((path) => path.endsWith('src/define-core.ts'))).toBe(true);
+			expect(output.some((path) => /zod\/v4\/core\/parse\.js$/.test(path))).toBe(true);
+			expect(output.filter((path) => NOT_LEAN.test(path))).toEqual([]);
+
+			// And no AFD module that made it into the output imports them, even for a value that tree-shook.
+			const importedByAfd = output
+				.filter((path) => /src\/[^/]+\.ts$/.test(path))
+				.flatMap((path) => result.metafile?.inputs[path]?.imports ?? [])
+				.map((imported) => imported.path);
+			expect(importedByAfd.filter((path) => NOT_LEAN.test(path))).toEqual([]);
+		}
+	);
+
+	it('defineCommand, by contrast, brings toJSONSchema and still no classic Zod', async () => {
+		const result = await bundleImports(`${PACKAGE_NAME}/direct`, `${LEAN_IMPORTS}, defineCommand`);
+
+		const output = modulesInOutput(result);
+		expect(output.some((path) => /json-schema-processors\.js$/.test(path))).toBe(true);
+		expect(output.filter((path) => /zod\/(index\.js|v4\/classic\/)/.test(path))).toEqual([]);
+	});
+
+	it('runs a Zod Mini host with no locale, and its errors stay actionable', async () => {
+		const result = await bundleForBrowser(`${PACKAGE_NAME}/direct`, {
+			stdin: {
+				contents: `
+					import * as z from 'zod/mini';
+					import {
+						createDirectRegistry,
+						createJournalMiddleware,
+						defineCommandWithSchema,
+						MemoryJournalSink,
+						success,
+					} from '${PACKAGE_NAME}/direct';
+
+					const panelOpen = defineCommandWithSchema({
+						name: 'panel-open',
+						description: 'Open a panel',
+						input: z.object({ id: z.string() }),
+						jsonSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+						async handler(input) {
+							return success({ id: input.id });
+						},
+					});
+					const registry = createDirectRegistry([panelOpen], {
+						middleware: [createJournalMiddleware(new MemoryJournalSink())],
+					});
+					console.log(JSON.stringify({
+						opened: await registry.execute('panel-open', { id: 'settings' }),
+						refused: await registry.execute('panel-open', { id: 7 }),
+						tools: registry.listCommands(),
+					}));
+				`,
+				resolveDir: packageRoot,
+				sourcefile: 'browser-entry.js',
+			},
+		});
+		expect(result.errors.map((message) => message.text)).toEqual([]);
+		expect(modulesInOutput(result).filter((path) => NOT_LEAN.test(path))).toEqual([]);
+
+		const code = new TextDecoder().decode(result.outputFiles?.[0]?.contents);
+		const printed = JSON.parse(
+			execFileSync(process.execPath, ['--input-type=module'], { input: code, encoding: 'utf8' })
+		);
+
+		expect(printed.opened.data).toEqual({ id: 'settings' });
+		expect(printed.refused.error.code).toBe('VALIDATION_ERROR');
+		expect(printed.refused.error.suggestion).toContain(
+			'id: Invalid input: expected string, received number'
+		);
+		expect(printed.tools[0].inputSchema.required).toEqual(['id']);
 	});
 });

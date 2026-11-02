@@ -7,11 +7,8 @@
 import type { CommandExample } from '@lushly-dev/afd-core';
 import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
-import {
-	type ContextField,
-	type DescribedContextField,
-	describeContextFields,
-} from '../context-fields.js';
+import type { ContextField } from '../context-fields.js';
+import { type DescribedContextField, describeContextFields } from '../context-fields-describe.js';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
 import type { ToolStrategy } from '../server-types.js';
 import { describableCommands, type GetDescribedCommands } from './described-command.js';

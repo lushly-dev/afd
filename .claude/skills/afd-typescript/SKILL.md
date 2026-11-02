@@ -41,7 +41,7 @@ import {
 } from '@lushly-dev/afd-server';
 
 // Browser, web worker or webview: no MCP SDK, no Node.js builtins
-import { defineCommand } from '@lushly-dev/afd-server/define';
+import { defineCommand, defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import {
   createDirectRegistry,
   createDirectToolSurface, // the MCP tool surface, only when asked for
@@ -59,6 +59,33 @@ import { z } from 'zod';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
 ```
+
+## The Lean Path in a Browser Bundle
+
+`defineCommand` runs `toJSONSchema` as a module loads, and is bound to classic Zod. Where first paint
+counts, use `defineCommandWithSchema`: a classic or Zod Mini schema to validate, and the JSON Schema as
+a literal, so `/define` and `/direct` reach only `zod/v4/core`.
+
+```typescript
+import * as z from 'zod/mini';
+import { defineCommandWithSchema, success } from '@lushly-dev/afd-server/define';
+
+const panelOpen = defineCommandWithSchema({
+  name: 'panel-open',
+  description: 'Open a panel',
+  input: z.object({ id: z.string() }),
+  jsonSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  async handler(input) {
+    return success({ id: input.id });
+  },
+});
+```
+
+- Hold each literal equal to `zodToJsonSchema(schema)` in a test: nothing compares them at run time.
+- Import Mini as `import * as z from 'zod/mini'`. esbuild cannot tree-shake `import { z }`, and keeps its locales and `toJSONSchema`.
+- `output` is not converted. Pass `outputJsonSchema` to advertise it.
+- Importing `defineCommand` or `createDirectToolSurface` brings `toJSONSchema` back, and the surface brings classic Zod.
+- With no locale, `VALIDATION_ERROR` rebuilds the common messages. A format keeps its own name (`Invalid email`), and a rarer code says `Invalid input` with its path. Never assert on those words where classic may also load.
 
 ## Command Definition
 

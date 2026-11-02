@@ -303,7 +303,7 @@ With no `boot`, as in every test and the test kit, `createKernelParts` runs stag
 
 Phase 0's and phase 1's budgets met Zod by narrowing around it. This step removes it from first paint.
 
-**AFD, step 0a.** `@lushly-dev/afd-server` keeps every signature and gains one export. **This step adds the path, and moves nobody onto it,** so first paint does not change, and it stays within today's margin of 1,503 bytes and 439 gzip:
+**AFD, step 0a.** `@lushly-dev/afd-server` keeps every signature and gains one export. **This step adds the path, and moves nobody onto it,** so first paint gains only what it must, [measured below](#23-the-lean-schema-layer-d70), within today's margin of 1,503 bytes and 439 gzip:
 
 ```ts
 // @lushly-dev/afd-server/define and /direct, in a new module `define-core.ts`.
@@ -318,7 +318,17 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 - **Messages.** A Mini schema with no locale says `Invalid input`, and classic registers English only on first constructing a type (`zod/v4/classic/schemas.js:9-12`), so one schema's text would change on the page when classic loads. **`formatZodIssue` (`validation.ts:73-84`) builds its message from `issue.code`, `expected` and `path` when `issue.message` is the bare `Invalid input`,** and no locale is added to first paint, whose bytes it would cost. A table test holds a Mini schema's `VALIDATION_ERROR` message and suggestion equal to the same classic schema's, so "actionable errors" holds and other callers see no change.
 - **`checkContextFields`** does no conversion. `describeContextFields`, which calls `zodToJsonSchema` only at discovery, moves to `context-fields-describe.ts`, which only `createDirectToolSurface` and the servers import.
 - **`packages/server/src/entry-points.test.ts`** bundles an entry that imports `createDirectRegistry`, `createJournalMiddleware` and `defineCommandWithSchema`, and fails if the output includes `zod/v4/classic` or the module of `toJSONSchema`. Its other budgets stay.
-- **Also.** The `afd-typescript` skill names `defineCommandWithSchema`, through its source under Botcore, with `pnpm skills:sync`; a changeset, minor, for `afd-server`.
+- **Also.** The `afd-typescript` skill names `defineCommandWithSchema`; a changeset, minor, for `afd-server`. **Corrected by step 0a:** `skills/exports.json` lists `afd-typescript` as local, so its `SKILL.md` is the source, with no Botcore source to sync.
+
+**What step 0a measured and decided, correcting the above.**
+
+- **The ledger's "nothing" did not hold, and the margin did.** The registry reaches the message builder, and `defineCommand` the new modules, so first paint gained 621 bytes and 330 gzip: 319,118 and 94,891 against 318,497 and 94,561, inside today's margin, leaving 882 and 109 for what lands before step 1.
+- **The message table is partial, because its budget is.** All of English cost 2,323 bytes here, and `entry-points.test.ts`'s host budget of 39,000 had 412 to spare at esbuild 0.28.2. So `issue-message.ts` rebuilds a wrong type, a value, a size other than a file's, an unknown key, a regex and a discriminator, equal to classic in the table. A format keeps its own name (`Invalid email` for `Invalid email address`), and a rarer code stays bare, with its path, each pinned in a second table. **So those texts still change on the page when classic loads in stage B.** Every shape the first-paint commands use today is in the first table, except `.email()`. That budget now has almost nothing left: the next addition to the registry's graph moves something out or raises it openly.
+- **The message needs the issue's `input`,** to say what it received, and Zod drops that unless asked, so validation parses with `{ reportInput: true }`. It never reaches a result, a log or the journal. It runs only with no locale loaded, so a schema's own text, an error map and a chosen locale stay as they are. `applyContextFields` and `examples` use it too, so a Mini context field says the same.
+- **`outputSchema` widens as well,** since a Mini output has to fit. A caller reading it, or `ContextField.schema`, as classic needs a cast; nothing here does. `ZodCommandDefinition` with no type argument keeps `inputSchema` classic, so its readers compile.
+- **`checkContextFields` recognises a schema by `_zod`,** since `$ZodType` promises no `safeParse` method.
+- **The entry itself, one command through Vite:** classic with `defineCommand` 122,951 and 36,782; Mini with `defineCommand` 74,338 and 24,065; Mini with `defineCommandWithSchema` 52,106 and 17,201. So `toJSONSchema` alone is 22,232 and 6,864, as 2.1's shim found (21,597 and 6,551). Mini's own saving here is larger than the shim's only because this host has no lazy classic beside it, so it says nothing about step 1, whose acceptance stands unmeasured. Under esbuild, import `* as z from 'zod/mini'`: `import { z }` keeps all of Zod, locales and `toJSONSchema` included.
+
 
 **Loam and AFD together, step 1.** One pull request, so first paint never holds both layers:
 
@@ -356,7 +366,7 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 
 | Step | Adds to first paint | Allowance | Running |
 | --- | --- | --- | --- |
-| 0a | Nothing: `defineCommandWithSchema` is reached by no first-paint code yet. Its pull request records the measurement | 0, 0 | Today's |
+| 0a | Planned as nothing. Measured: the message builder and the moved modules, which the registry and `defineCommand` reach ([2.3](#23-the-lean-schema-layer-d70)) | 621, 330 | 319,118, 94,891 |
 | 1 | The acceptance above: what is left after moving out classic's schemas, `toJSONSchema` and the non-boot definitions | | 272,000, 82,000 |
 | 0b | `hydrateOne`, a method on a class first paint holds | 200, 100 | 272,200, 82,100 |
 | 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 282,000, 85,600 |
@@ -1215,7 +1225,7 @@ Each step is one pull request, merged on green. It updates its specification's s
 
 | Step | Pull request | Contents | Checks |
 | --- | --- | --- | --- |
-| 0a | AFD: a lean schema path in `/define` and `/direct` | [2.3](#23-the-lean-schema-layer-d70): `defineCommandWithSchema`, the bound on `$ZodType`, the graph, the messages, the entry-point test, the skill, a changeset. **No package moves to Mini here,** so first paint does not change | `pnpm check`, `pnpm verify` |
+| 0a | AFD: a lean schema path in `/define` and `/direct` | [2.3](#23-the-lean-schema-layer-d70): `defineCommandWithSchema`, the bound on `$ZodType`, the graph, the messages, the entry-point test, the skill, a changeset. **No package moves to Mini here,** so first paint gains only the 621 bytes and 330 gzip 2.3 records | `pnpm check`, `pnpm verify` |
 | 0b | AFD: `ViewStateRegistry.hydrateOne`, and a stable Mock id | [7.6](#76-surfaces-on-a-scope-change); `MockAuthAdapter`'s user id from the email ([3.4](#34-the-order-of-a-call-d72)); tests, a changeset | `pnpm check` |
 | 1 | Kernel on the lean layer | **Moves out.** [2.3](#23-the-lean-schema-layer-d70): view-state, auth, with `createAuthSessionGetCommand` and `createAuthMutationCommands`, and the kernel on Mini, in one pull request; classic in the `apps` closure; the literals' tests; the six boot commands in first paint and `kernel/src/late/`, with `startApps` holding only the late commands so far; `budget.mjs`'s closures and new ceilings; the acceptance of 2.3, or an amendment. #658 closed with the measurement | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
 | 2 | Two-stage boot | **Moves out.** [2.2](#22-two-stages-d69): `deployment.v2.json`, `projection.v2.json`, boot records, generation, `base_path`'s schema; `readBoot`; `bootApps`; stages A and B; `KernelOptionsV2`, `KERNEL_INTERFACE_VERSION = 2` and `session-50` regenerated; `afterFirstFrame`; `loam-app-entry` to first paint; `measureFirstPaint`; E1 so far. #701 and #709's second half closed | `pnpm check`, `loam.yml`, `budget` |
