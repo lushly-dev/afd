@@ -1,0 +1,296 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "src/x-good.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-good",
+					"customElement": true,
+					"tagName": "x-good",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-autodocs.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-autodocs",
+					"customElement": true,
+					"tagName": "x-no-autodocs",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-play.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-play",
+					"customElement": true,
+					"tagName": "x-no-play",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-docs.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-docs",
+					"customElement": true,
+					"tagName": "x-no-docs",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-baseline.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-baseline",
+					"customElement": true,
+					"tagName": "x-no-baseline",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-state-cleared.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-state-cleared",
+					"customElement": true,
+					"tagName": "x-state-cleared",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-state-derived.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-state-derived",
+					"customElement": true,
+					"tagName": "x-state-derived",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-state.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-state",
+					"customElement": true,
+					"tagName": "x-no-state",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-a11y-off.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-a11y-off",
+					"customElement": true,
+					"tagName": "x-a11y-off",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-a11y-documented.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-a11y-documented",
+					"customElement": true,
+					"tagName": "x-a11y-documented",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-form-good.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-form-good",
+					"customElement": true,
+					"tagName": "x-form-good",
+					"attributes": []
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-form-silent.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-form-silent",
+					"customElement": true,
+					"tagName": "x-form-silent",
+					"attributes": []
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-form-text-only.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-form-text-only",
+					"customElement": true,
+					"tagName": "x-form-text-only",
+					"attributes": []
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-export.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-export",
+					"customElement": true,
+					"tagName": "x-no-export",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "src/x-no-story.ts",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "x-no-story",
+					"customElement": true,
+					"tagName": "x-no-story",
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						}
+					]
+				}
+			]
+		}
+	]
+}

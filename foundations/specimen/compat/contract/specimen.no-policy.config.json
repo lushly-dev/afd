@@ -1,0 +1,4 @@
+{
+	"stories": ["src/x-good.stories.ts"],
+	"manifest": "./custom-elements.json"
+}

@@ -253,9 +253,12 @@ describe('specimen-coverage', () => {
 					reason: "'plain-button' was not observed in this state at after-run.",
 				},
 			]);
+			// One story only says so, and another really read the form: the run decides.
 			const form = of('fixture-field', 'form:participation');
-			expect(form?.level).toBe('asserted');
-			expect(form?.reason).toBe('No expectation it names read real FormData.');
+			expect(form?.level).toBe('verified');
+			expect(form?.evidence.map((item) => item.specimen)).toEqual([
+				'fixtures-claims--form-read-in-play',
+			]);
 		} finally {
 			await retained.close();
 		}

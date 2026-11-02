@@ -1,6 +1,8 @@
 # T07 coverage and rule replacement
 
-**State, 2026-11-02:** in progress. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is implemented on branch `lush/specimens-t07-claims`. The remaining steps are listed [below](#remaining-steps).
+**State, 2026-11-02:** in progress. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is done and merged in [#695](https://github.com/lushly-dev/afd/pull/695). Step 3, rule replacement, is implemented on branch `lush/specimens-t07-contract`. The remaining step is listed [below](#remaining-steps).
+
+**One decision for the owner:** a real story bug needs fixing or waiving before FAST-AF's cutover. See [the finding](#finding-a-disabled-story-that-disables-nothing).
 
 T07's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): distinguish represented, asserted, verified, missing and unknown obligations; add coverage, suggest and Fastbot adapters; and give each existing required rule positive and failing detection evidence and a retirement record before deletion. Unknown required obligations MUST block acceptance.
 
@@ -75,7 +77,7 @@ These are measurements and not failures, and nothing gates on them yet. `verifie
 | --- | --- |
 | "Assertion presence elsewhere in the file is insufficient" | Evidence comes from expectations that ran in this case. One about another target leaves the obligation `asserted` |
 | "Disabled represented MUST NOT imply activation suppressed" | `represented` proves the state only. An `absent` event expectation is what proves inertness, and it fails if the event fires |
-| "Form participation MUST use actual FormData/validity evidence" | A `form` expectation builds real `FormData` from the target's form; a `validity` one calls its `checkValidity()`. A play's claim alone stays `asserted` until step 3 |
+| "Form participation MUST use actual FormData/validity evidence" | A `form` expectation builds real `FormData` from the target's form; a `validity` one calls its `checkValidity()`. A play's claim alone reaches `verified` only when the run saw that happen |
 | "Slots MUST be inspected at their targets" | From step 1: each slot's assigned nodes |
 | "Legacy plays without it retain test results but MUST report unproven coverage as unknown" | A play with no `claim` adds no claim. Its stories count as `represented` for what they show, and nothing more |
 | "No automatic waivers for migration gaps" | Waivers come only from the configuration, versioned, and appear in the report with any that match nothing |
@@ -99,9 +101,97 @@ Capture 0.7 adds `channels.evidence`: the expectations that held, the claims, an
 
 Lushly has 5,853 bytes of interaction support left, because `storybook/test` takes 575,816 of it. Replacing that helper at T08 should free most of it, and until then a larger Storybook release could fail Lushly's build.
 
+## Step 3: rule replacement
+
+`bench.contract()`, `specimen-contract` and `specimen contract [TAG]` report what Fastbot's story contract would, on evidence from a run. Each finding's code is the rule it replaces, so the two can run side by side. The [README](../../../../foundations/specimen/README.md#check-the-story-contract) lists the evidence for each.
+
+This asks only what Fastbot asks, so it is the parity half of [the two questions above](#two-separate-questions), and nothing in it depends on coverage's stronger levels. Every obligation it reports is decided, so none is `unknown`.
+
+### Side by side on FAST-AF
+
+`experiments/check-contract.mjs` runs Fastbot's real rule, from the snapshot's own plugin, and the replacement on a throwaway clone of FAST-AF `24e4eb86`. It runs them first as the clone is, and then with one rule deliberately broken at a time.
+
+| | Fastbot | Replacement |
+| --- | --- | --- |
+| Components | 77 | 77 |
+| Story files | 79 | 79 |
+| Stories run | None, it reads source | 407, all passed, in 50 s with two workers |
+| Errors, unbroken | 0 | 1, [the finding below](#finding-a-disabled-story-that-disables-nothing) |
+| Warnings, unbroken | 0 | 0 |
+
+| Rule | Breakage on the clone | Fastbot reports it | Replacement reports it |
+| --- | --- | --- | --- |
+| `MISSING_STORY` | Delete `violet-badge`'s story file | Yes | Yes |
+| `MISSING_GLOBAL_A11Y_ERROR_POLICY` | Set the preview's policy to `todo` | Yes | Yes |
+| `MISSING_AUTODOCS_TAG` | Remove the tag | Yes | Yes |
+| `MISSING_PLAY_FUNCTION` | Rename every `play` | Yes | Yes |
+| `MISSING_DOCS_DESCRIPTION` | Rename every `description` | Yes | Yes, as a warning |
+| `MISSING_STORY_EXPORT` | Leave only a default export | Yes | Yes |
+| `MISSING_BASELINE_STORY` | Rename `Overview` | Yes | Yes |
+| `MISSING_STATE_STORY` | Remove `violet-button`'s `disabled` | Yes | Yes |
+| `MISSING_FORMDATA_ASSERTION` | Read `violet-text-field`'s form without `FormData` | Yes | Yes |
+| `MISSING_VALIDITY_ASSERTION` | Use `:valid` in place of `checkValidity()` | Yes | Yes |
+| `UNDOCUMENTED_A11Y_EXCEPTION` | Turn axe off on a story | Yes | Yes |
+
+Two notes on reading this. Renaming `play` also made two stories fail, because the replacement refuses the unknown `unplayed` annotation my breakage introduced. And an empty story file makes Fastbot report four codes where the replacement reports one, since the file's other rules have nothing to apply to.
+
+### Finding: a `Disabled` story that disables nothing
+
+**The one disagreement on the unbroken snapshot is a real bug in a FAST-AF story, which Fastbot cannot see.** `violet-calendar`'s `Disabled` story passes `disabled: true`, and its meta's `render` builds an HTML string from a list of args that leaves `disabled` out. So the story renders an enabled calendar: 0 of its 44 inner buttons are disabled. Fastbot accepts it because the export's name contains the word.
+
+This is the owner's to act on. Fixing the story upstream, or waiving it with a reason, is required before the replacement can gate FAST-AF, and it is not fixed here: AFD's evidence is bound to the snapshot, and the story's source is FAST-AF's. Waivers cover coverage today, not this contract, so a waiver would need adding.
+
+The first run flagged three more, and those were limits of my evidence, now fixed:
+
+- `violet-data-grid-pill-select`'s play sets `invalid`, asserts on it and clears it, so a capture at the end cannot see it. A contract run now records attributes set on watched tags.
+- `violet-color-picker` and `violet-file-upload` show invalidity through a derived `data-invalid`, which now counts.
+
+### Where evidence replaces text
+
+| Rule | Fastbot passes | The replacement also requires |
+| --- | --- | --- |
+| `MISSING_STATE_STORY` | A story name containing the word | The element really in that state, at some point in a story of that file |
+| `MISSING_FORMDATA_ASSERTION` | `FormData(` anywhere in the file, a comment included | `new FormData(form)` ran, with the component in the form |
+| `MISSING_VALIDITY_ASSERTION` | `checkValidity()` anywhere in the file | Its validity was checked as the case ran, directly or through an inner control |
+| `MISSING_PLAY_FUNCTION` | `play:` anywhere in the file | A play ran |
+| `MISSING_AUTODOCS_TAG` | The word anywhere in the file | The tag in a story's index entry |
+
+Form evidence is observed by wrapping `FormData` and the `checkValidity` and `reportValidity` methods, which still call the real ones. Only coverage and contract runs install these wrappers, from the lazy scenario support chunk, so an ordinary capture runs nothing extra. A play's claim about a form now reaches `verified` when the run saw this, and stays `asserted` when it did not. Capture 0.8 records these in `channels.evidence`.
+
+### Budgets after this step
+
+The form evidence went into the lazy scenario support chunk, so the shell stays under its ceiling. Lushly's interaction support has 4,353 bytes left, as [step 2](#step-2-claims-and-waivers) warned.
+
+| Category | Ceiling | FAST-AF | Lushly |
+| --- | --- | --- | --- |
+| Shell | 50,000 | 45,329 | 45,329 |
+| Interaction support | 600,000 | 498,250 | 595,647 |
+| Accessibility | 650,000 | 586,666 | 586,666 |
+| **Total** | **1,300,000** | **1,130,245** | **1,227,642** |
+
+### Retirement records
+
+Every rule has its replacement, a passing example, a failing fixture in `compat/contract/` that `src/contract.test.ts` runs in CI, and the side-by-side result above. **No rule is retired by this.** The proposal keeps Fastbot's rules running beside these through parity qualification, so deletion is T08's, and Fastbot lives in FAST-AF's repository.
+
+| Rule | Passing example | Failing fixture | Ready to retire at T08? |
+| --- | --- | --- | --- |
+| `MISSING_STORY` | `x-good` | `x-no-story` | Yes |
+| `MISSING_GLOBAL_A11Y_ERROR_POLICY` | `specimen.config.json` | `specimen.no-policy.config.json` | Yes |
+| `MISSING_AUTODOCS_TAG` | `x-good` | `x-no-autodocs` | Only once docs are operational, as the proposal says; `specimen-inspect` exists, and generated docs do not |
+| `MISSING_PLAY_FUNCTION` | `x-good` | `x-no-play` | Yes |
+| `MISSING_DOCS_DESCRIPTION` | `x-good` | `x-no-docs` | Yes |
+| `MISSING_STORY_EXPORT` | `x-good` | `x-no-export` | Yes |
+| `MISSING_BASELINE_STORY` | `x-good` | `x-no-baseline` | Yes |
+| `MISSING_STATE_STORY` | `x-good`, `x-state-cleared`, `x-state-derived` | `x-no-state` | After the calendar story is fixed or waived |
+| `MISSING_FORMDATA_ASSERTION` | `x-form-good` | `x-form-silent`, `x-form-text-only` | Yes |
+| `MISSING_VALIDITY_ASSERTION` | `x-form-good` | `x-form-silent`, `x-form-text-only` | Yes |
+| `UNDOCUMENTED_A11Y_EXCEPTION` | `x-a11y-documented` | `x-a11y-off` | Yes |
+
+Fastbot's other commands are out of this step's scope: token, FAST-pattern, attribute and form-parity validation read component source, not stories. Its profile rules were replaced in [T06](t06-full-runner.md#step-4-specimen-profile). Lushly has no story contract, and this was not run on it.
+
 ## Remaining steps
 
 1. ~~`specimen-coverage` from observed evidence.~~ Merged in #692.
-2. ~~Claims and waivers.~~ Implemented on branch.
-3. **Rule replacement.** Each rule above gets a replacement with equivalent executable evidence, a passing and a failing fixture, and a retirement record, run beside Fastbot on the FAST-AF snapshot. FormData and validity become runtime evidence rather than text.
+2. ~~Claims and waivers.~~ Merged in #695.
+3. ~~Rule replacement.~~ Implemented on branch.
 4. **`specimen-suggest` and the scaffold.** Proposed specimens and claims stay unverified until run. The scaffold emits supported specimens with meaningful assertions.

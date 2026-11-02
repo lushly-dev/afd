@@ -2,7 +2,7 @@ import type { ComponentCoverage, CoverageLevel } from './coverage.js';
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.7' as const;
+export const CAPTURE_VERSION = '0.8' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export interface SpecimenContext {
@@ -119,6 +119,12 @@ export interface EvidenceChannel {
 	claims: ClaimRecord[];
 	/** Commands the scenario ran, by name. */
 	commands: string[];
+	/** In a coverage or contract run: tags in a form that `new FormData(form)` read, a play's included. */
+	formData: string[];
+	/** In such a run: tags whose validity something checked, with their shadow hosts. */
+	validity: string[];
+	/** In such a run: `tag:attribute` for each attribute set on a watched tag. */
+	attributesSet: string[];
 }
 export interface EventRecord {
 	type: string;
@@ -309,6 +315,8 @@ export interface InspectResult {
 		decorators: number;
 		render: 'story' | 'meta' | 'project' | 'default';
 		unsupported: string[];
+		/** What the preview itself sets `parameters.a11y.test` to, whatever this story does. */
+		projectPolicy: string | null;
 	};
 	/** Requested context that the entry does not get, and other limits of what was resolved. */
 	limitations: string[];
@@ -331,6 +339,35 @@ export interface SuiteFilter {
 export interface CoverageWaivers {
 	version: string;
 	entries: { component: string; obligation: string; reason: string }[];
+}
+export interface ContractRequest {
+	/** One component: runs its own story file. */
+	component?: string;
+	filter?: SuiteFilter;
+	timeoutMs?: number;
+	workers?: number;
+}
+export interface ContractFinding {
+	/** The Fastbot rule this replaces, such as `MISSING_STATE_STORY`. */
+	code: string;
+	severity: 'error' | 'warning';
+	message: string;
+	suggestion: string;
+	component?: string;
+	file?: string;
+	attribute?: string;
+}
+export interface ContractRun {
+	/** The rules applied, by version. */
+	rules: string;
+	/** No error, and no case failed. */
+	valid: boolean;
+	findings: ContractFinding[];
+	counts: { errors: number; warnings: number };
+	stats: { components: number; storyFiles: number; scoped: boolean };
+	cases: { total: number; passed: number; failed: { id: string; message: string }[] };
+	workers: number;
+	elapsedMs: number;
 }
 export interface CoverageRequest {
 	/** One component's tag; defaults to every component the schemas describe. */

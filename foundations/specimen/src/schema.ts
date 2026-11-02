@@ -222,6 +222,9 @@ export const observationSchema = z
 								.strict()
 						),
 						commands: z.array(z.string()),
+						formData: z.array(z.string()),
+						validity: z.array(z.string()),
+						attributesSet: z.array(z.string()),
 					})
 					.strict(),
 				elements: z.array(element),
@@ -464,6 +467,36 @@ export const profileRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+export const contractRequestSchema = z.strictObject({
+	component: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	timeoutMs: suiteRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+export const contractRunSchema = z.strictObject({
+	rules: z.string().min(1),
+	valid: z.boolean(),
+	findings: z.array(
+		z.strictObject({
+			code: z.string().min(1),
+			severity: z.enum(['error', 'warning']),
+			message: z.string(),
+			suggestion: z.string(),
+			component: z.string().optional(),
+			file: z.string().optional(),
+			attribute: z.string().optional(),
+		})
+	),
+	counts: z.strictObject({ errors: z.number(), warnings: z.number() }),
+	stats: z.strictObject({ components: z.number(), storyFiles: z.number(), scoped: z.boolean() }),
+	cases: z.strictObject({
+		total: z.number(),
+		passed: z.number(),
+		failed: z.array(z.strictObject({ id: z.string(), message: z.string() })),
+	}),
+	workers: z.number(),
+	elapsedMs: z.number(),
+});
 export const coverageRequestSchema = z.strictObject({
 	component: z.string().min(1).optional(),
 	filter: suiteRequestSchema.shape.filter,
@@ -588,6 +621,7 @@ export const matrixRunSchema = z.strictObject({
 export const componentSchemaSchema = z.strictObject({
 	tag: z.string(),
 	sources: z.array(z.string()),
+	module: z.string().optional(),
 	properties: z.array(propertySchema),
 	attributes: z.array(propertySchema),
 	slots: z.array(z.strictObject({ name: z.string(), description: z.string().optional() })),
@@ -635,6 +669,7 @@ export const inspectResultSchema = z.strictObject({
 			decorators: z.number().int().nonnegative(),
 			render: z.enum(['story', 'meta', 'project', 'default']),
 			unsupported: z.array(z.string()),
+			projectPolicy: z.string().nullable(),
 		})
 		.optional(),
 	limitations: z.array(z.string()),

@@ -13,6 +13,7 @@ import {
 	loadConfig,
 	resolveContext,
 } from './config.js';
+import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
@@ -48,6 +49,8 @@ import {
 	CAPTURE_VERSION,
 	type CaptureCheckpoint,
 	type Completeness,
+	type ContractRequest,
+	type ContractRun,
 	type CoverageRequest,
 	type CoverageRun,
 	type InspectRequest,
@@ -76,6 +79,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
@@ -821,6 +825,25 @@ export async function createInProcessBench(
 				orphanedBaselines: [],
 				elapsedMs: performance.now() - started,
 			};
+		},
+		async contract(rawRequest: ContractRequest = {}): Promise<ContractRun> {
+			ensureOpen();
+			return runContract(
+				{
+					config,
+					prepare: async () => {
+						const runtime = await ensureHost();
+						await runtime.request('prepare', {}, BUNDLE_GRACE);
+					},
+					inspect: (id) => api.inspect({ id }),
+					runStory: (id, timeoutMs, observe) =>
+						runStory(
+							{ id, ...(timeoutMs ? { timeoutMs } : {}) },
+							{ capture: 'all', reuseBundle: true, observe }
+						),
+				},
+				parseContractRequest(rawRequest)
+			);
 		},
 		async coverage(rawRequest: CoverageRequest = {}): Promise<CoverageRun> {
 			ensureOpen();

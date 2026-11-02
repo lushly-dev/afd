@@ -8,6 +8,8 @@ import type {
 	BaselineRequest,
 	BenchOptions,
 	CaptureRequest,
+	ContractRequest,
+	ContractRun,
 	CoverageRequest,
 	CoverageRun,
 	InspectRequest,
@@ -31,6 +33,7 @@ import {
 	parseA11yRequest,
 	parseBaselineRequest,
 	parseCaptureRequest,
+	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
@@ -78,6 +81,12 @@ export interface SpecimenBench {
 	 * nothing, and an obligation nothing could show stays unknown.
 	 */
 	coverage(request?: CoverageRequest): Promise<CoverageRun>;
+	/**
+	 * Run a story file's cases and report what FAST-AF's Fastbot would, on evidence from the run
+	 * instead of source text: co-located stories, the accessibility policy, plays, baseline and
+	 * state stories, and form evidence.
+	 */
+	contract(request?: ContractRequest): Promise<ContractRun>;
 	/**
 	 * Measure entries at a checkpoint over a few fresh runs, one at a time: paint and load timings,
 	 * ready and capture time, DOM size, requests, heap and console counts, flags and, when a
@@ -127,6 +136,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'runSuite'
 		| 'a11y'
 		| 'coverage'
+		| 'contract'
 		| 'profile'
 		| 'matrix'
 		| 'recordBaseline'
@@ -249,6 +259,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			ensureDiscovered();
 			const request = parseBaselineRequest(rawRequest);
 			return enqueue((client) => client.recordBaseline(request));
+		},
+		async contract(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseContractRequest(rawRequest);
+			return enqueue((client) => client.contract(request));
 		},
 		async coverage(rawRequest = {}) {
 			ensureDiscovered();

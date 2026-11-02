@@ -13,6 +13,8 @@ import {
 	baselineRequestSchema,
 	buildOutputSchema,
 	captureRequestSchema,
+	contractRequestSchema,
+	contractRunSchema,
 	coverageRequestSchema,
 	coverageRunSchema,
 	inspectRequestSchema,
@@ -44,6 +46,8 @@ import type {
 	A11yRun,
 	BaselineRequest,
 	CaptureRequest,
+	ContractRequest,
+	ContractRun,
 	CoverageRequest,
 	CoverageRun,
 	InspectRequest,
@@ -145,6 +149,7 @@ export interface SpecimenCommandBench {
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
+	contract(request: ContractRequest): Promise<ContractRun>;
 	coverage(request: CoverageRequest): Promise<CoverageRun>;
 	matrix(request: MatrixRequest): Promise<MatrixRun>;
 	recordBaseline(request: BaselineRequest): Promise<ProfileRun>;
@@ -327,6 +332,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Set profile.baselines in the configuration, and give an id or a filter.'
 			),
 	});
+	const contract = defineCommand({
+		...common,
+		name: 'specimen-contract',
+		description:
+			"Run story files' cases and report what FAST-AF's Fastbot story contract would, on evidence from the run instead of source text: co-located stories, the accessibility policy, plays, baseline and state stories, and form evidence. Each code is the rule it replaces.",
+		mutation: false,
+		input: contractRequestSchema,
+		output: contractRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.contract(input),
+				contractRunSchema,
+				'SPECIMEN_CONTRACT_FAILED',
+				'Configure a custom elements manifest, and use specimen-list to check the filter.'
+			),
+	});
 	const coverage = defineCommand({
 		...common,
 		name: 'specimen-coverage',
@@ -417,6 +438,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		a11y,
 		profile,
 		baseline,
+		contract,
 		coverage,
 		matrix,
 		inspect,
@@ -454,6 +476,7 @@ export async function executeSpecimenCommand(
 		a11y,
 		profile,
 		baseline,
+		contract,
 		coverage,
 		matrix,
 		inspect,
@@ -478,6 +501,8 @@ export async function executeSpecimenCommand(
 			return execute(profile, input);
 		case 'specimen-baseline':
 			return execute(baseline, input);
+		case 'specimen-contract':
+			return execute(contract, input);
 		case 'specimen-coverage':
 			return execute(coverage, input);
 		case 'specimen-matrix':

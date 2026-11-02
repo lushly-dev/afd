@@ -33,7 +33,7 @@ interface ManifestDeclaration {
 }
 interface Manifest {
 	schemaVersion?: string;
-	modules?: { declarations?: ManifestDeclaration[] }[];
+	modules?: { path?: string; declarations?: ManifestDeclaration[] }[];
 }
 
 /** The finite values a type text allows, or `undefined` when it allows others too. */
@@ -110,6 +110,7 @@ export function readManifest(value: unknown): Map<string, ComponentSchema> {
 			schemas.set(tag, {
 				tag,
 				sources: ['manifest'],
+				...(module.path ? { module: module.path } : {}),
 				properties,
 				attributes,
 				slots: (declaration.slots ?? []).map((slot) => ({

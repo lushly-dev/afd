@@ -240,8 +240,18 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		playClaims.push({ element, obligation, expectation });
 		expectations.push({ id: expectation, kind: 'play', target: element.localName });
 	};
-	/** The properties a coverage run asked to read live, by tag. */
+	/** The properties a coverage run asked to read live, by tag, and attributes set on those tags. */
 	let observed: SpecimenEntry['observe'];
+	let attributesSet: Set<string> | undefined;
+	let formEvidence: { formData: Set<string>; validity: Set<string> } | undefined;
+	const observeEntry = async (entry: SpecimenEntry) => {
+		observed = entry.observe;
+		// Only when asked, before the story's modules, so that an ordinary capture runs nothing extra.
+		if (!observed || formEvidence) return;
+		const { observeAttributes, observeFormEvidence } = await import('./expectations.js');
+		formEvidence = observeFormEvidence();
+		attributesSet = observeAttributes(new Set(Object.keys(observed)));
+	};
 	/** Whether the mounted native specimen declared a ready hook. */
 	let readyHook = false;
 	/** The installed plugins, once something has asked for them. */
@@ -339,6 +349,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 					decorators: annotations.decorators.length,
 					render: annotations.renderSource,
 					unsupported: prepared.unsupported,
+					projectPolicy: prepared.projectPolicy,
 				};
 			} else {
 				const load = loaders[entry.id];
@@ -449,7 +460,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (active)
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			active = true;
-			observed = entry.observe;
+			await observeEntry(entry);
 			const { runStory } = await storyRuntime();
 			await mountRetained(entry, context, { settle: false });
 			if (!story?.mounted) throw new Error('A retained story did not mount.');
@@ -464,7 +475,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			const load = loaders[entry.id];
 			if (!load) throw new Error(`No specimen module is registered for ${entry.id}.`);
 			active = true;
-			observed = entry.observe;
+			await observeEntry(entry);
 			if (entry.story) {
 				try {
 					return await mountRetained(entry, context, {});
@@ -581,6 +592,9 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 						})),
 					],
 					commands: [...commandsRun],
+					formData: [...(formEvidence?.formData ?? [])].sort(),
+					validity: [...(formEvidence?.validity ?? [])].sort(),
+					attributesSet: [...(attributesSet ?? [])].sort(),
 				},
 			};
 			if (eventRecorder) observation.events = eventRecorder.read();

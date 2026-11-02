@@ -3,6 +3,7 @@ import type {
 	ClaimRecord,
 	CoverageWaivers,
 	ElementObservation,
+	EvidenceChannel,
 	ExpectationRecord,
 	Observation,
 } from './types.js';
@@ -279,7 +280,8 @@ function unproven(
 	id: string,
 	claim: ClaimRecord,
 	ran: ExpectationRecord[],
-	commands: readonly string[]
+	{ commands, formData, validity }: EvidenceChannel,
+	tag: string
 ): string | null {
 	const onTarget = (record: ExpectationRecord) =>
 		record.target === claim.target || record.kind === 'play';
@@ -293,10 +295,19 @@ function unproven(
 		const name = id.slice('command:'.length);
 		if (!commands.includes(name)) return `The scenario did not run the command '${name}'.`;
 	}
-	if (id === 'form:participation' && !ran.some((record) => record.kind === 'form'))
-		return 'No expectation it names read real FormData.';
-	if (id === 'form:validity' && !ran.some((record) => record.kind === 'validity'))
-		return 'No expectation it names read checkValidity().';
+	// A play's word counts only with evidence that it read the form or checked validity.
+	if (
+		id === 'form:participation' &&
+		!ran.some((record) => record.kind === 'form') &&
+		!formData.includes(tag)
+	)
+		return 'Nothing in this case read real FormData from a form holding it.';
+	if (
+		id === 'form:validity' &&
+		!ran.some((record) => record.kind === 'validity') &&
+		!validity.includes(tag)
+	)
+		return 'Nothing in this case checked its validity.';
 	return null;
 }
 
@@ -317,7 +328,7 @@ function applyClaims(
 	const invalid: InvalidClaim[] = [];
 	for (const { id: specimen, observation } of cases) {
 		const checkpoint = observation.manifest.checkpoint.name;
-		const { claims, expectations, commands } = observation.channels.evidence;
+		const { claims, expectations } = observation.channels.evidence;
 		for (const claim of claims.filter((item) => item.checkpoint === checkpoint)) {
 			const fail = (reason: string) =>
 				invalid.push({ specimen, target: claim.target, obligation: claim.obligation, reason });
@@ -345,7 +356,13 @@ function applyClaims(
 				fail(`'${claim.target}' was not observed in this state at ${checkpoint}.`);
 				continue;
 			}
-			const why = unproven(claim.obligation, claim, ran, commands);
+			const why = unproven(
+				claim.obligation,
+				claim,
+				ran,
+				observation.channels.evidence,
+				element.tag
+			);
 			const level: CoverageLevel = why ? 'asserted' : 'verified';
 			if (RANK[level] < RANK[owed.level]) continue;
 			if (RANK[level] > RANK[owed.level]) owed.evidence = [];

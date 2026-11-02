@@ -23,13 +23,28 @@ export const DisabledInPlay: Story = {
 	},
 };
 
-/** A play's word is not form evidence: this stays asserted until a run sees real FormData. */
+/** A play's word is not form evidence: with no real FormData in the run, this stays asserted. */
 export const FormInPlay: Story = {
 	render: () => document.createElement('fixture-field'),
 	play: async ({ canvasElement }) => {
 		const field = canvasElement.querySelector('fixture-field') as Element;
 		await expect(field.localName).toBe('fixture-field');
 		claim(field, 'form:participation', 'in-a-form');
+	},
+};
+
+/** The same claim, when the play really read the form: the run saw it, so it counts. */
+export const FormReadInPlay: Story = {
+	render: () => {
+		const form = document.createElement('form');
+		form.append(document.createElement('fixture-field'));
+		return form;
+	},
+	play: async ({ canvasElement }) => {
+		const form = canvasElement.querySelector('form') as HTMLFormElement;
+		const field = form.querySelector('fixture-field') as Element;
+		await expect(new FormData(form) instanceof FormData).toBe(true);
+		claim(field, 'form:participation', 'read-the-form');
 	},
 };
 

@@ -11,7 +11,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.7',
+			captureVersion: '0.8',
 			normalizationVersion: '0.2',
 			specimenId: 'button',
 			capturedUtc: '2026-11-01T00:00:00.000Z',
@@ -54,7 +54,14 @@ function observation(): Observation {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
 			events: { declared: [], history: [] },
-			evidence: { expectations: [], claims: [], commands: [] },
+			evidence: {
+				expectations: [],
+				claims: [],
+				commands: [],
+				formData: [],
+				validity: [],
+				attributesSet: [],
+			},
 			elements: [],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -141,6 +148,16 @@ function bench(): SpecimenCommandBench {
 				errored: 0,
 			},
 			orphanedBaselines: [],
+			elapsedMs: 1,
+		})),
+		contract: vi.fn(async () => ({
+			rules: 'fastbot-parity@1',
+			valid: true,
+			findings: [],
+			counts: { errors: 0, warnings: 0 },
+			stats: { components: 1, storyFiles: 1, scoped: false },
+			cases: { total: 1, passed: 1, failed: [] },
+			workers: 2,
 			elapsedMs: 1,
 		})),
 		coverage: vi.fn(async () => ({
@@ -239,6 +256,7 @@ describe('specimen commands', () => {
 			'specimen-a11y',
 			'specimen-profile',
 			'specimen-baseline',
+			'specimen-contract',
 			'specimen-coverage',
 			'specimen-matrix',
 			'specimen-inspect',
