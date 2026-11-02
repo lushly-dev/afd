@@ -35,7 +35,7 @@ export const ShellPalette = {
 			async () => ({ kernel: (await mediaKernel()).kernel }),
 			async (shell) => {
 				await shell.openPalette('layout');
-				await until(() => shell.palette.isOpen && shell.palette.results.length > 0);
+				await until(() => shell.palette?.isOpen === true && shell.palette.results.length > 0);
 			}
 		),
 } satisfies SpecimenDefinition;
