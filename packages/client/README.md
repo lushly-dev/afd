@@ -284,6 +284,50 @@ const client = createClient({
 On MCP 2026-07-28 there is no session: select a context per request with
 `_meta["dev.afd/context"]` (see `@lushly-dev/afd-server`), not `afd-context-enter`.
 
+#### In a browser: `@lushly-dev/afd-client/streamable-http`
+
+The root entry loads `McpClient`, the deprecated transports and `eventsource`. This entry, the
+package's first for browsers, exports the transport alone, for a browser, web worker or webview:
+
+```typescript
+import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
+
+const transport = new StreamableHttpTransport('https://example.com/mcp', {
+  clientName: 'my-app',
+  clientVersion: '1.0.0',
+  mode: 'auto', // or 'legacy', 'modern'
+});
+
+await transport.connect();
+const response = await transport.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+console.log(transport.protocolVersion, response.result);
+transport.disconnect();
+```
+
+It exports `StreamableHttpTransport`, `MODERN_PROTOCOL_VERSION`, and the types
+`StreamableHttpTransportOptions`, `StreamableHttpMode`, `Transport`, `McpInitializeResult`,
+`McpRequest`, `McpResponse`, `McpTool`, `McpToolCallParams`, `McpToolCallResult`,
+`ElicitationHandler`, `ElicitationRequest` and `ElicitationResponse`.
+
+- `send` serves `initialize`, `tools/list` and `tools/call`, and answers any other method with a
+  JSON-RPC `-32601`. Reconnection and batches belong to `McpClient`, which is not here, and so do
+  request timeouts: `send` sets none of its own, so pass it an `AbortSignal`.
+- Its module graph has no Node.js built-in and no `eventsource` of this package. A test bundles it
+  with esbuild for the browser and holds it to 340,000 bytes minified (327,336 measured, with the
+  MCP SDK and Zod in it).
+- Under a strict Content-Security-Policy (`script-src 'self'`) it needs no `'unsafe-eval'`, but Zod,
+  which the SDK brings, probes for `new Function`, and the browser reports that probe as a
+  `securitypolicyviolation` even though Zod catches the refusal and uses its interpreter. To avoid
+  the report, call `config({ jitless: true })` from `zod` in a module imported before this entry,
+  on the same copy of Zod the SDK resolves ([#664](https://github.com/lushly-dev/afd/issues/664)).
+  A test fails if the bundle gains another way to compile code.
+- It needs a bundler that honors the `browser` export condition: the SDK chooses its JSON Schema
+  validator with it, and without it the bundle takes the Node.js one.
+- A page on another origin needs the server to allow it through CORS: MCP's headers trigger a
+  preflight, and the response must expose `Mcp-Session-Id`. AFD's server does both for an allowed
+  origin.
+- A browser-safe `DirectClient` is a separate entry, [#655](https://github.com/lushly-dev/afd/issues/655).
+
 ### SSE Transport (Deprecated)
 
 The AFD server's 2024-11-05 lane: a persistent `/sse` stream plus `POST /message`. It is kept for
