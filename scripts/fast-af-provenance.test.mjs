@@ -110,5 +110,6 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		assert.equal(blob(bytes), byPath.get(file.upstream_path).git_blob, file.path);
 		checked++;
 	}
-	assert(checked > 700, `only ${checked} unchanged upstream files`);
+	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers.
+	assert(checked > 650, `only ${checked} unchanged upstream files`);
 });

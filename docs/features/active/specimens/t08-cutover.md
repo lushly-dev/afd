@@ -1,6 +1,6 @@
 # T08 consumer cutover and distribution
 
-**State, 2026-11-02:** in progress, on [the owner's decisions](#the-owners-decisions). Native helpers and types are done. Nothing has been cut over, no consumer's gates or Storybook configuration have changed, and nothing has been published.
+**State, 2026-11-02:** in progress, on [the owner's decisions](#the-owners-decisions). Native helpers and types are done, and [AFD's FAST-AF stories now run here on Specimen](#afds-fast-af-stories), with no Storybook. Lushly has not changed, and nothing has been published.
 
 T08's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): three consecutive qualifying full runner pairs on accepted consumer main snapshots with no migration change between them, normal consumer gates passing, review, scaffold and flake behaviour preserved, legacy Fluent exceptions accounted for, and exact rollback checkpoints. Package admission and main delivery go through their normal workflows.
 
@@ -11,9 +11,9 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 | Three consecutive pairs agree exactly | Rehearsed on both consumers, [below](#the-rehearsal) | Must be repeated on the accepted snapshots at cutover |
 | Resource gate | **On a first measurement, full suites use more CPU than Storybook.** [The owner accepts that for now](#the-owners-decisions) | Done for now, stays open as a follow-up |
 | Budgets | Met on both consumers, including Lushly's upgrade, and [lower on native helpers](#native-helpers-and-types) | Done, re-measured each change |
-| Replacement gates | Every story rule has its evidence and retirement record ([T07](t07-coverage.md#retirement-records)) | One story needs the owner's decision |
+| Replacement gates | Every story rule has its evidence and retirement record ([T07](t07-coverage.md#retirement-records)). [`specimen contract` now gates AFD's stories](#afds-fast-af-stories) | Done here. Lushly has no story contract to replace |
 | Native helpers and types | [Done](#native-helpers-and-types) | Done |
-| Normal consumer gates, with no root Storybook | Not started | Lushly's and FAST-AF's repositories |
+| Normal consumer gates, with no root Storybook | FAST-AF: [done here](#afds-fast-af-stories). Lushly: not started | Lushly's repository |
 | Rollback checkpoints | Not started | At each consumer's cutover |
 | Legacy Fluent exceptions | Not started | Lushly |
 | Human review of the index | Links verified ([T06](t06-full-runner.md#the-review-page)); no person has reviewed it | **Owner** |
@@ -112,11 +112,47 @@ The codemod reads story files. On Lushly's snapshot these also need attention:
 - `frames.story-helpers.ts` imports `instrument` from `storybook/internal/instrumenter`, which is the 67,152 bytes above.
 - `.storybook/preview.ts` calls `setCustomElementsManifest`.
 
+## AFD's FAST-AF stories
+
+These stories were frozen copies that nothing in AFD ran, since upstream's Storybook configuration and Fastbot were not imported. Now they run here, which answers G12.
+
+| Piece | What it is |
+| --- | --- |
+| `specimen.config.json`, `specimen/preview.ts` | What upstream's Storybook preview gave every story, without what only its toolbar and addons read |
+| The 79 story files | `specimen migrate --helpers --apply`, which changed exactly their two import lines |
+| `pnpm test:stories` | Typechecks the stories, runs every one with its accessibility check, applies the story contract, and builds the review page within its budgets |
+| The `stories` job in `specimen.yml` | Runs that when `violet-elements`, fast-element or Specimen changes |
+
+`violet-elements` takes Specimen as a development dependency only, so its packed package is unchanged, and `check-boundaries` now treats `.stories.` files as it does `.spec.` files.
+
+**Fastbot.** It was not imported, so there is no adapter to install here and no rule to delete. `specimen contract` is the gate, and it applies every rule Fastbot's story contract did. The adapter stays in `experiments/` for anyone still running Fastbot upstream.
+
+| On AFD's stories | Result |
+| --- | --- |
+| Stories run | 407 of 407 passed |
+| Story contract, `fastbot-parity@1` | 0 errors, 0 warnings, over 77 components and 79 story files |
+| Budgets | Shell 45,329, interaction support 457,025, accessibility 586,666, total 1,089,020 |
+| Storybook's code in the build | None |
+
+The gate fails when it should: with the calendar bug below put back, the same run reports `MISSING_STATE_STORY` and exits 1.
+
+### The calendar story
+
+The [`Disabled` story that disabled nothing](t07-coverage.md#finding-a-disabled-story-that-disables-nothing) now passes `disabled` through, and its play asserts every inner button is disabled.
+
+**Fixing the story found a real bug in the component.** A disabled calendar disabled only its 2 navigation buttons. Its 42 day buttons stayed enabled and focusable, doing nothing when pressed, and the whole calendar was dimmed, which failed axe's contrast check. `violet-calendar` now passes its `disabled` state into the grid, so every day button is really disabled, and the dimming on the root is gone, since disabled buttons already dim themselves. A spec covers disabling and re-enabling. An accessibility exception would have hidden this.
+
+### Pairs on AFD's stories
+
+`experiments/run-afd-pairs.mjs` compares the two runners on AFD's exact stories and components. AFD has no Storybook, so that side is an overlay outside the repository: upstream's Storybook configuration and dependencies, with AFD's `src`, tokens, manifest and built packages over them, and Storybook's helpers restored in each story. Specimen's side is AFD's own configuration. So the two sides share no helper code.
+
+**A first dry run disagreed on one story, and the reason is already on record.** `components-switch--disabled` failed axe on a cold Storybook run, at 3.17:1 on disabled text, and passed on Specimen. This is [T06's finding](t06-full-runner.md#finding-storybooks-check-can-miss-a-components-rendered-state): both runners normally check before a FAST component applies its args, and a frame slipping through on a cold start shows the settled state. With warm caches, two more pairs agreed on all 407.
+
 ## What is left
 
-- AFD's FAST-AF stories running here, with the calendar story fixed and `specimen contract` as a gate.
+- The qualifying pairs on AFD's main, once this is merged, and on Lushly's at its cutover.
 - The docs marking Specimen as a preview.
-- The qualifying runs, on the accepted snapshots.
 - An issue for Lushbot, and the owner's review of the index.
+- **For the owner, from T06:** because of that timing, AFD's gate cannot see this contrast problem on disabled text, in this story or in the listbox's two. [Whether to offer a settled check](STATUS.md) is still open.
 
 T09 to T11 are optional additions and are not prerequisites for cutover.

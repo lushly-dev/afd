@@ -295,6 +295,21 @@ describe("violet-calendar", () => {
             expect(buttons).toHaveLength(2);
             expect(Array.from(buttons ?? []).every(button => button.disabled)).toBe(true);
         });
+
+        it("disables every day when the calendar is disabled, and restores them after", async () => {
+            const calendar = await renderCalendar(element => {
+                element.disabled = true;
+            });
+            const days = () => Array.from(calendar.shadowRoot?.querySelectorAll<HTMLButtonElement>(".day-button") ?? []);
+
+            expect(days().length).toBeGreaterThan(0);
+            expect(days().every(button => button.disabled)).toBe(true);
+
+            calendar.disabled = false;
+            await nextFrame();
+
+            expect(days().some(button => !button.disabled)).toBe(true);
+        });
     });
 
     describe("single selection", () => {

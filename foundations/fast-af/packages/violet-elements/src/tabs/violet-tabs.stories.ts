@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, waitFor } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, waitFor } from "@lushly-dev/specimen/test";
 
 import "../tab-panel/violet-tab-panel";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";

@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, userEvent } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, userEvent } from "@lushly-dev/specimen/test";
 
 import "./violet-tool-result-card";
 import type { VioletToolResultCard, VioletToolResultState } from "./violet-tool-result-card";

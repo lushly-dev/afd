@@ -159,6 +159,7 @@ test('tests, dev dependencies and excluded examples do not become runtime edges'
 		peerDependenciesMeta: { '@x/violet': { optional: true } },
 	});
 	f.write('foundations/afd/base/src/unit.test.ts', "import '@x/violet/private';");
+	f.write('foundations/afd/base/src/unit.stories.ts', "import '@x/violet/private';");
 	f.npm('packages/examples/demo', '@x/example', { dependencies: { '@x/base': '*' } });
 	assert.deepEqual(f.check().errors, []);
 	f.npm('packages/unknown', '@x/unknown');

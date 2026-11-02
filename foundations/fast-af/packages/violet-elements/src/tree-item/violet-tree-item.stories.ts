@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, within } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, within } from "@lushly-dev/specimen/test";
 
 import "../tree/violet-tree";
 import "./violet-tree-item";

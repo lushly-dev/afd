@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9978ea6e3454df174cd8cecd5a032f9f8781c12c032c2cc4632afb32f755c41a",
+      "current_import_sha256": "431f94b19240029cd549e9665eb058533dec4ae77c874f178d153aec4ffe45f6",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -5565,11 +5565,11 @@
       "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
-      "current_import_sha256": "9c666c1417b1023be518c7ea018e0f05a15e853c4a97f7a0d0afcfc3417869f3",
+      "current_import_sha256": "4ce1333b691c35bf103dba8ff792b071cf773cbe29831b82c40e45fe35011a60",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5620,6 +5620,18 @@
       "import_reason": "Imported exact staged bytes"
     },
     {
+      "path": "foundations/fast-af/packages/violet-elements/scripts/run-stories.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e8b421e54cc7e1abbb5803d55db6f0c21fcc47180ea675c4abbbfb4ad0760dd1",
+      "stage_classification": "not-in-staging",
+      "stage_reason": "AFD-authored",
+      "import_classification": "added-after-staging",
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+    },
+    {
       "path": "foundations/fast-af/packages/violet-elements/scripts/verify-package-exports.mjs",
       "upstream_path": "packages/violet-elements/scripts/verify-package-exports.mjs",
       "upstream_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
@@ -5630,6 +5642,30 @@
       "stage_reason": "Added upstream after the import; Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact upstream bytes (fast-af #235)"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/specimen.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "65e37c55a5df136fab9e7c9500a2acc9dd003a139fa7fb19d964836c02878331",
+      "stage_classification": "not-in-staging",
+      "stage_reason": "AFD-authored",
+      "import_classification": "added-after-staging",
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/specimen/preview.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "f29a25781b789335604745536f8a92673ea1a4468e7ef7fb271c298ebab6ea67",
+      "stage_classification": "not-in-staging",
+      "stage_reason": "AFD-authored",
+      "import_classification": "added-after-staging",
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion-item/violet-accordion-item.spec.ts",
@@ -5649,11 +5685,11 @@
       "upstream_sha256": "122ace98f24df68c9c8cc1d8d2ff65d8078d4df72f87848b1ad6e1887455f075",
       "staged_path": "packages/violet-elements/src/accordion-item/violet-accordion-item.stories.ts",
       "staged_sha256": "122ace98f24df68c9c8cc1d8d2ff65d8078d4df72f87848b1ad6e1887455f075",
-      "current_import_sha256": "122ace98f24df68c9c8cc1d8d2ff65d8078d4df72f87848b1ad6e1887455f075",
+      "current_import_sha256": "20472bda43f2efa48bae4fc12e0beb3c0042ee44a2dcb47994026a0c7c7931f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion-item/violet-accordion-item.ts",
@@ -5685,11 +5721,11 @@
       "upstream_sha256": "afd69691468be6c954facd384938e9ce2ddc9e3a8f8b4744c1087d7c221728b9",
       "staged_path": "packages/violet-elements/src/accordion/violet-accordion.stories.ts",
       "staged_sha256": "afd69691468be6c954facd384938e9ce2ddc9e3a8f8b4744c1087d7c221728b9",
-      "current_import_sha256": "afd69691468be6c954facd384938e9ce2ddc9e3a8f8b4744c1087d7c221728b9",
+      "current_import_sha256": "a829eea1bf8b3ea1f9e47b273a89fd4c8b8c8b46602f7f8f2f076c53a0e02d85",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion/violet-accordion.ts",
@@ -5721,11 +5757,11 @@
       "upstream_sha256": "5d543f803a6d261998466016799fba7f77dcf6ed29ab1b4f1b1f70dc6cc375f2",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.stories.ts",
       "staged_sha256": "5d543f803a6d261998466016799fba7f77dcf6ed29ab1b4f1b1f70dc6cc375f2",
-      "current_import_sha256": "5d543f803a6d261998466016799fba7f77dcf6ed29ab1b4f1b1f70dc6cc375f2",
+      "current_import_sha256": "b8bff9f06ed4ad1fa922c7206b89e7e07cf07f9b22f5cf8ab6e758fe911c0d7c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/alert/violet-alert.ts",
@@ -5757,11 +5793,11 @@
       "upstream_sha256": "6cc8a6dad487623ee40f127d7d264d75b6eca238725ac96949819f7e1c092f9a",
       "staged_path": "packages/violet-elements/src/badge/violet-badge.stories.ts",
       "staged_sha256": "6cc8a6dad487623ee40f127d7d264d75b6eca238725ac96949819f7e1c092f9a",
-      "current_import_sha256": "6cc8a6dad487623ee40f127d7d264d75b6eca238725ac96949819f7e1c092f9a",
+      "current_import_sha256": "ae9c8b9d873799d6bb28245ecd9574d6798665bb29f7d319344d15023a9777e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/badge/violet-badge.ts",
@@ -5793,11 +5829,11 @@
       "upstream_sha256": "980e357d05cb1768af8d5f987e31e10892bc4b9b9a8c05b93b724580bbbee340",
       "staged_path": "packages/violet-elements/src/breadcrumb-item/violet-breadcrumb-item.stories.ts",
       "staged_sha256": "980e357d05cb1768af8d5f987e31e10892bc4b9b9a8c05b93b724580bbbee340",
-      "current_import_sha256": "980e357d05cb1768af8d5f987e31e10892bc4b9b9a8c05b93b724580bbbee340",
+      "current_import_sha256": "7a8a0d41d1bfed50dea017a8ace487129b2188349b683956eb7a0ac14c4cca0a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/breadcrumb-item/violet-breadcrumb-item.ts",
@@ -5829,11 +5865,11 @@
       "upstream_sha256": "a674e799b33deaa9a00ac72f9b027632fd0157e7cb42a95a8889dc98d3fca533",
       "staged_path": "packages/violet-elements/src/breadcrumb/violet-breadcrumb.stories.ts",
       "staged_sha256": "a674e799b33deaa9a00ac72f9b027632fd0157e7cb42a95a8889dc98d3fca533",
-      "current_import_sha256": "a674e799b33deaa9a00ac72f9b027632fd0157e7cb42a95a8889dc98d3fca533",
+      "current_import_sha256": "7f20a611613edac4d83f3af8af20e4ee26797b5cdcee4d36dac69a080a1b3bd1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/breadcrumb/violet-breadcrumb.ts",
@@ -5865,11 +5901,11 @@
       "upstream_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
       "staged_path": "packages/violet-elements/src/button/violet-button.stories.ts",
       "staged_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
-      "current_import_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
+      "current_import_sha256": "51d0b6bcda7b1a7938a7a8bdab5d418935674184ffda9890636e0b54a5bb6752",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact upstream bytes (fast-af #235); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/button/violet-button.ts",
@@ -5889,11 +5925,11 @@
       "upstream_sha256": "26686c2890ff2bd5fd081c02a61102d7407b020432841b774da1d82317ceb049",
       "staged_path": "packages/violet-elements/src/calendar/violet-calendar.spec.ts",
       "staged_sha256": "26686c2890ff2bd5fd081c02a61102d7407b020432841b774da1d82317ceb049",
-      "current_import_sha256": "26686c2890ff2bd5fd081c02a61102d7407b020432841b774da1d82317ceb049",
+      "current_import_sha256": "a1ebcbab6a1c670101c4787e8442e87fbd03ff00fda5df29526566b855526cef",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/calendar/violet-calendar.stories.ts",
@@ -5901,11 +5937,11 @@
       "upstream_sha256": "7617c02d3c15b02e6b70bae9af1d4d06be83a91d5ec3ec157ec9f09f1bd04336",
       "staged_path": "packages/violet-elements/src/calendar/violet-calendar.stories.ts",
       "staged_sha256": "7617c02d3c15b02e6b70bae9af1d4d06be83a91d5ec3ec157ec9f09f1bd04336",
-      "current_import_sha256": "7617c02d3c15b02e6b70bae9af1d4d06be83a91d5ec3ec157ec9f09f1bd04336",
+      "current_import_sha256": "6fc0453f58fc3dbcbd124543e77f57789809f1b2dd99f29e01a87a04f909af81",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/calendar/violet-calendar.ts",
@@ -5913,11 +5949,11 @@
       "upstream_sha256": "80c517528df6caac2236dbf763c6cd82598e96f8f3963f621dfec9ae43f0afd3",
       "staged_path": "packages/violet-elements/src/calendar/violet-calendar.ts",
       "staged_sha256": "80c517528df6caac2236dbf763c6cd82598e96f8f3963f621dfec9ae43f0afd3",
-      "current_import_sha256": "80c517528df6caac2236dbf763c6cd82598e96f8f3963f621dfec9ae43f0afd3",
+      "current_import_sha256": "c6ca9fda069ccb606045c45067fe13c854fa47a29d925c332b52cccc61d41b2c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.spec.ts",
@@ -5937,11 +5973,11 @@
       "upstream_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
       "staged_path": "packages/violet-elements/src/card/violet-card.stories.ts",
       "staged_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
-      "current_import_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
+      "current_import_sha256": "a788030174030a9b6aa13db2e2962cc5b9b62a0204f7791eab62b78952c42c35",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.ts",
@@ -5973,11 +6009,11 @@
       "upstream_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
       "staged_path": "packages/violet-elements/src/carousel/violet-carousel.stories.ts",
       "staged_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
-      "current_import_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
+      "current_import_sha256": "4a66c61a7add78f31332fdce11c854435e76f90a49c4846a9778919f039f4746",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/carousel/violet-carousel.ts",
@@ -6009,11 +6045,11 @@
       "upstream_sha256": "ed33c0775e3d82166b9f1188a326897162806ced1e966114bc0432f2a7aa87e1",
       "staged_path": "packages/violet-elements/src/checkbox/violet-checkbox.stories.ts",
       "staged_sha256": "ed33c0775e3d82166b9f1188a326897162806ced1e966114bc0432f2a7aa87e1",
-      "current_import_sha256": "ed33c0775e3d82166b9f1188a326897162806ced1e966114bc0432f2a7aa87e1",
+      "current_import_sha256": "4c8f79bd5bb98ffc87de2bed356dec234424c2978b35898383b9a149ee06dc89",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/checkbox/violet-checkbox.ts",
@@ -6045,11 +6081,11 @@
       "upstream_sha256": "24d8607f99c2045ad230afc14313508882f5a8a5e8bbe241701e5485b609a4ae",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.stories.ts",
       "staged_sha256": "24d8607f99c2045ad230afc14313508882f5a8a5e8bbe241701e5485b609a4ae",
-      "current_import_sha256": "24d8607f99c2045ad230afc14313508882f5a8a5e8bbe241701e5485b609a4ae",
+      "current_import_sha256": "f0e911e8c16ee48c407858222f207d4ac52b59fd031a5b505601089d04b3f76e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.ts",
@@ -6093,11 +6129,11 @@
       "upstream_sha256": "d7f9b64d267ba654db375cbb53f8ccf4ea9e2b7cea0a4c12ddaad328f5e7d3c0",
       "staged_path": "packages/violet-elements/src/color-swatch/violet-color-swatch.stories.ts",
       "staged_sha256": "d7f9b64d267ba654db375cbb53f8ccf4ea9e2b7cea0a4c12ddaad328f5e7d3c0",
-      "current_import_sha256": "d7f9b64d267ba654db375cbb53f8ccf4ea9e2b7cea0a4c12ddaad328f5e7d3c0",
+      "current_import_sha256": "531490ece1fa59d8936afd6571762bdfce50a327f18175eff344d95c4d40f095",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-swatch/violet-color-swatch.ts",
@@ -6129,11 +6165,11 @@
       "upstream_sha256": "3fcd1af2d813e37fb2426babad0ecaecaad8c224a26c4510919b46125b0f4209",
       "staged_path": "packages/violet-elements/src/combobox/violet-combobox.stories.ts",
       "staged_sha256": "3fcd1af2d813e37fb2426babad0ecaecaad8c224a26c4510919b46125b0f4209",
-      "current_import_sha256": "3fcd1af2d813e37fb2426babad0ecaecaad8c224a26c4510919b46125b0f4209",
+      "current_import_sha256": "dfb3cbc44cf492da1daa7df198734791a2e53477466170f57191968bfb53ec57",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.ts",
@@ -6165,11 +6201,11 @@
       "upstream_sha256": "2605af090616c3821526df212942b81cda6846dfdcd6b45b757d89ddeb3733dd",
       "staged_path": "packages/violet-elements/src/conversation/violet-approval-card.stories.ts",
       "staged_sha256": "2605af090616c3821526df212942b81cda6846dfdcd6b45b757d89ddeb3733dd",
-      "current_import_sha256": "2605af090616c3821526df212942b81cda6846dfdcd6b45b757d89ddeb3733dd",
+      "current_import_sha256": "c234347705b95f00e1de09cff02cbe2c8eb0096e88480e263008f3e213063c23",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-approval-card.ts",
@@ -6201,11 +6237,11 @@
       "upstream_sha256": "d24f2b66d86fa0bf7ab5bd94b4108bf7479a6a0c7a41ae9a764ccf348b3ef416",
       "staged_path": "packages/violet-elements/src/conversation/violet-chat-composer.stories.ts",
       "staged_sha256": "d24f2b66d86fa0bf7ab5bd94b4108bf7479a6a0c7a41ae9a764ccf348b3ef416",
-      "current_import_sha256": "d24f2b66d86fa0bf7ab5bd94b4108bf7479a6a0c7a41ae9a764ccf348b3ef416",
+      "current_import_sha256": "723bb8ae74cc1ee1d9a28b4d6a3fa4909cf021c2b01384caacff02943b5e5a4f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-composer.ts",
@@ -6237,11 +6273,11 @@
       "upstream_sha256": "5302a0b372a786ffd348def5434702e5eb08b567984f1ea183ee50efb1eeb7ed",
       "staged_path": "packages/violet-elements/src/conversation/violet-chat-suggestions.stories.ts",
       "staged_sha256": "5302a0b372a786ffd348def5434702e5eb08b567984f1ea183ee50efb1eeb7ed",
-      "current_import_sha256": "5302a0b372a786ffd348def5434702e5eb08b567984f1ea183ee50efb1eeb7ed",
+      "current_import_sha256": "e200e60fb20910504279619674b6959daca22010e7759ad4fbe33d3b602a3d11",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-suggestions.ts",
@@ -6273,11 +6309,11 @@
       "upstream_sha256": "d56e6fa42f68500a893150236e04f98941b1b01c79b1a3d2140ef73bc303aa4e",
       "staged_path": "packages/violet-elements/src/conversation/violet-conversation-thread.stories.ts",
       "staged_sha256": "d56e6fa42f68500a893150236e04f98941b1b01c79b1a3d2140ef73bc303aa4e",
-      "current_import_sha256": "d56e6fa42f68500a893150236e04f98941b1b01c79b1a3d2140ef73bc303aa4e",
+      "current_import_sha256": "a4fbc9b22152d586c69b551a7c28efc96d640bd758c73d0c27d9b70ba18da273",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-conversation-thread.ts",
@@ -6309,11 +6345,11 @@
       "upstream_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.stories.ts",
       "staged_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
-      "current_import_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
+      "current_import_sha256": "dfd4874f9f4c18b7b395453834281ae70447e73e334aa2fbaa309666c4042ea4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #232)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact upstream bytes (fast-af #232); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.ts",
@@ -6345,11 +6381,11 @@
       "upstream_sha256": "0ebb2c7c7445abadc82799b94eeb9f7252320a36216c2f1fafd34e830eb5eddf",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-status.stories.ts",
       "staged_sha256": "0ebb2c7c7445abadc82799b94eeb9f7252320a36216c2f1fafd34e830eb5eddf",
-      "current_import_sha256": "0ebb2c7c7445abadc82799b94eeb9f7252320a36216c2f1fafd34e830eb5eddf",
+      "current_import_sha256": "6cf7a3688f838b6f2109390ac9b89baf0e39dc9c89dbd8f7b4ca890c33fb7f62",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-status.ts",
@@ -6381,11 +6417,11 @@
       "upstream_sha256": "75afbcb6e26341fe57c129250ec5a6e92d35b1d33cd5c0bd79a2618fe5881acf",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-text.stories.ts",
       "staged_sha256": "75afbcb6e26341fe57c129250ec5a6e92d35b1d33cd5c0bd79a2618fe5881acf",
-      "current_import_sha256": "75afbcb6e26341fe57c129250ec5a6e92d35b1d33cd5c0bd79a2618fe5881acf",
+      "current_import_sha256": "20c8f7b2ded4903d33620918bd2a6d608afbab55f4fc325d31fa1b80c8699c55",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-text.ts",
@@ -6417,11 +6453,11 @@
       "upstream_sha256": "a9447df7c2382bf0432065443fc2cd6f140c1cf223b6c3cfd43e4957af8ca705",
       "staged_path": "packages/violet-elements/src/conversation/violet-message.stories.ts",
       "staged_sha256": "a9447df7c2382bf0432065443fc2cd6f140c1cf223b6c3cfd43e4957af8ca705",
-      "current_import_sha256": "a9447df7c2382bf0432065443fc2cd6f140c1cf223b6c3cfd43e4957af8ca705",
+      "current_import_sha256": "a383620b09088ac629bf78642146c991b95b44588400367b6a424f2efae4b515",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message.ts",
@@ -6453,11 +6489,11 @@
       "upstream_sha256": "5a6e941bdccf1fdd8ca37ffac0f9af581b394cb7e6fd349cdd5a9662e075348e",
       "staged_path": "packages/violet-elements/src/conversation/violet-reasoning-block.stories.ts",
       "staged_sha256": "5a6e941bdccf1fdd8ca37ffac0f9af581b394cb7e6fd349cdd5a9662e075348e",
-      "current_import_sha256": "5a6e941bdccf1fdd8ca37ffac0f9af581b394cb7e6fd349cdd5a9662e075348e",
+      "current_import_sha256": "b180ba347e9a6ca367a4ef1e52271d850237e91b8734bbaf06ed4c9251d418d1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-reasoning-block.ts",
@@ -6489,11 +6525,11 @@
       "upstream_sha256": "3428698dcdaffab8d10126b080b758a274bd84e59ac3aa995287e23a18d48ffc",
       "staged_path": "packages/violet-elements/src/conversation/violet-source-citation.stories.ts",
       "staged_sha256": "3428698dcdaffab8d10126b080b758a274bd84e59ac3aa995287e23a18d48ffc",
-      "current_import_sha256": "3428698dcdaffab8d10126b080b758a274bd84e59ac3aa995287e23a18d48ffc",
+      "current_import_sha256": "1496f0b142015e4394db20db0bb98421ed68edd3289722a43db91af012e70271",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-source-citation.ts",
@@ -6525,11 +6561,11 @@
       "upstream_sha256": "d7dffd3e63698869aea4618e7d9f2e0ae5e359e12e1cd49ecdf3a0787f156173",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-call-card.stories.ts",
       "staged_sha256": "d7dffd3e63698869aea4618e7d9f2e0ae5e359e12e1cd49ecdf3a0787f156173",
-      "current_import_sha256": "d7dffd3e63698869aea4618e7d9f2e0ae5e359e12e1cd49ecdf3a0787f156173",
+      "current_import_sha256": "3fd35fd9d10ae9eb11ed589b160535a581e20712c849a59cef653cdbdcf2647a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-call-card.ts",
@@ -6561,11 +6597,11 @@
       "upstream_sha256": "30db49c6ce15e6c7babe99796022e268f17bdf3c996a91b6a54259d27dc5b8cc",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-result-card.stories.ts",
       "staged_sha256": "30db49c6ce15e6c7babe99796022e268f17bdf3c996a91b6a54259d27dc5b8cc",
-      "current_import_sha256": "30db49c6ce15e6c7babe99796022e268f17bdf3c996a91b6a54259d27dc5b8cc",
+      "current_import_sha256": "fd62001ca54457f8d85f7698a607493c856d393f15ab8e8bc5cf80fc17a9a682",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-result-card.ts",
@@ -6609,11 +6645,11 @@
       "upstream_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.stories.ts",
       "staged_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
-      "current_import_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
+      "current_import_sha256": "2e9a823d2f9b92a6f656afee2d18247327aa3303649e0dbdb16e4be34fb040ef",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.ts",
@@ -6909,11 +6945,11 @@
       "upstream_sha256": "c674f5f24bcb075dc1a9258f5fde094837de3f972b089b1040515e6d1eba08ec",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.stories.ts",
       "staged_sha256": "c674f5f24bcb075dc1a9258f5fde094837de3f972b089b1040515e6d1eba08ec",
-      "current_import_sha256": "c674f5f24bcb075dc1a9258f5fde094837de3f972b089b1040515e6d1eba08ec",
+      "current_import_sha256": "a30bdb89f037555051dc2b316570fc9e210a6b2e5fda9eb10692451ae2e3adff",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.ts",
@@ -6981,11 +7017,11 @@
       "upstream_sha256": "b27e0b46dc63a4e2a59c88dd271e2b0ea3eeeb4474b3fca2ba984a75bf945812",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-persona-picker.stories.ts",
       "staged_sha256": "b27e0b46dc63a4e2a59c88dd271e2b0ea3eeeb4474b3fca2ba984a75bf945812",
-      "current_import_sha256": "b27e0b46dc63a4e2a59c88dd271e2b0ea3eeeb4474b3fca2ba984a75bf945812",
+      "current_import_sha256": "63031bbc183585c636c01f34fedd2dee891fda050d4a5da0f82b6d188d0120e9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-persona-picker.ts",
@@ -7017,11 +7053,11 @@
       "upstream_sha256": "3018e48a14405a3eaf52ad921ed108f0c7aca73a04d55afcf93c56dccd2450f9",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-pill-select.stories.ts",
       "staged_sha256": "3018e48a14405a3eaf52ad921ed108f0c7aca73a04d55afcf93c56dccd2450f9",
-      "current_import_sha256": "3018e48a14405a3eaf52ad921ed108f0c7aca73a04d55afcf93c56dccd2450f9",
+      "current_import_sha256": "b3068a1351c4ab541caa38bdf414c7bcf2982a9fd293c47a4d0629aacdf3f31b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-pill-select.ts",
@@ -7113,11 +7149,11 @@
       "upstream_sha256": "285adba81d0c3fa3051b1ac1b76f662dbca80bd299ac888871af8c7ced3ba7cd",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-rating.stories.ts",
       "staged_sha256": "285adba81d0c3fa3051b1ac1b76f662dbca80bd299ac888871af8c7ced3ba7cd",
-      "current_import_sha256": "285adba81d0c3fa3051b1ac1b76f662dbca80bd299ac888871af8c7ced3ba7cd",
+      "current_import_sha256": "23b834a481ab89dea8b606c51c275a47dd148b8fa8b4258e71f4446f7fe12dd3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-rating.ts",
@@ -7161,11 +7197,11 @@
       "upstream_sha256": "a4d16f40fae6a498a9df29a9aa2fecfeba004c8ee3ebf266d2f143856f9f06a1",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.stories.ts",
       "staged_sha256": "a4d16f40fae6a498a9df29a9aa2fecfeba004c8ee3ebf266d2f143856f9f06a1",
-      "current_import_sha256": "a4d16f40fae6a498a9df29a9aa2fecfeba004c8ee3ebf266d2f143856f9f06a1",
+      "current_import_sha256": "19a1ec42cc0f1eec2a69fdcd5b182fdd4878c5a17d4580379dd654d3dd421f29",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.ts",
@@ -7233,11 +7269,11 @@
       "upstream_sha256": "f46fa795a101c5689c31e7098ddf608aebfb4c293da33b21315fb8618c01ae82",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-rich-editors.stories.ts",
       "staged_sha256": "f46fa795a101c5689c31e7098ddf608aebfb4c293da33b21315fb8618c01ae82",
-      "current_import_sha256": "f46fa795a101c5689c31e7098ddf608aebfb4c293da33b21315fb8618c01ae82",
+      "current_import_sha256": "4b22b1a10f12920f9501a8c72aeee9b07de1d6734e26488ff771b6560b6320c3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-selection.spec.ts",
@@ -7377,11 +7413,11 @@
       "upstream_sha256": "8bbcde190e9d0dda070def253e97f6ba93b3d7123b56785893bfaf6a3e290cd4",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid.stories.ts",
       "staged_sha256": "8bbcde190e9d0dda070def253e97f6ba93b3d7123b56785893bfaf6a3e290cd4",
-      "current_import_sha256": "8bbcde190e9d0dda070def253e97f6ba93b3d7123b56785893bfaf6a3e290cd4",
+      "current_import_sha256": "3d98dd6804bb18209bf261be61627e282d0eff1ccbcce6f6323569c5c19e5c24",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.styles.ts",
@@ -7425,11 +7461,11 @@
       "upstream_sha256": "af6493966d731a6ed8d420ac35c821e4321171054014b67a79d1de0ddaf71dd3",
       "staged_path": "packages/violet-elements/src/date-picker/violet-date-picker.stories.ts",
       "staged_sha256": "af6493966d731a6ed8d420ac35c821e4321171054014b67a79d1de0ddaf71dd3",
-      "current_import_sha256": "af6493966d731a6ed8d420ac35c821e4321171054014b67a79d1de0ddaf71dd3",
+      "current_import_sha256": "ef2250d5ec976d134017087fdeeb8abc99fadb3f1b9f2236ab5eb73f6ac72e48",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-picker/violet-date-picker.ts",
@@ -7461,11 +7497,11 @@
       "upstream_sha256": "32477c4252edc818f34ca51943ee8e34a25eddb200e300c8692b63a59551a4bf",
       "staged_path": "packages/violet-elements/src/date-range-picker/violet-date-range-picker.stories.ts",
       "staged_sha256": "32477c4252edc818f34ca51943ee8e34a25eddb200e300c8692b63a59551a4bf",
-      "current_import_sha256": "32477c4252edc818f34ca51943ee8e34a25eddb200e300c8692b63a59551a4bf",
+      "current_import_sha256": "08343689ae0356ff3445fa1f2a8d7a7640578ba33c89148e7f4a016b4ec42d82",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-range-picker/violet-date-range-picker.ts",
@@ -7521,11 +7557,11 @@
       "upstream_sha256": "2b4dfde4ee19823b515575143d87ff18030a884f82987fc92f65ee56d8363e7f",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.stories.ts",
       "staged_sha256": "2b4dfde4ee19823b515575143d87ff18030a884f82987fc92f65ee56d8363e7f",
-      "current_import_sha256": "2b4dfde4ee19823b515575143d87ff18030a884f82987fc92f65ee56d8363e7f",
+      "current_import_sha256": "f7c33dc6e2c047b17a63b9f9e5d15e165ad6c7097c22866dbf6ef550a481059f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.ts",
@@ -7557,11 +7593,11 @@
       "upstream_sha256": "01e5f4d5e1bba84afab4f9db1fafc903401e48c9156f1a21437c54669022cbc1",
       "staged_path": "packages/violet-elements/src/divider/violet-divider.stories.ts",
       "staged_sha256": "01e5f4d5e1bba84afab4f9db1fafc903401e48c9156f1a21437c54669022cbc1",
-      "current_import_sha256": "01e5f4d5e1bba84afab4f9db1fafc903401e48c9156f1a21437c54669022cbc1",
+      "current_import_sha256": "6ded3356cfe5c81edd1c74dcfb7ee42843dc6a1a309683caaf7387eb9d520a3a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/divider/violet-divider.ts",
@@ -7593,11 +7629,11 @@
       "upstream_sha256": "fc389509f2c23c402176623eb1f464322bc8435a8d233e55621dc7f5f72cafb1",
       "staged_path": "packages/violet-elements/src/empty-state/violet-empty-state.stories.ts",
       "staged_sha256": "fc389509f2c23c402176623eb1f464322bc8435a8d233e55621dc7f5f72cafb1",
-      "current_import_sha256": "fc389509f2c23c402176623eb1f464322bc8435a8d233e55621dc7f5f72cafb1",
+      "current_import_sha256": "3dd93d6a4a2d382e38e2afdc67ce5c5327cf17e7fe6a5d18c08efbfe8338b81c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/empty-state/violet-empty-state.ts",
@@ -7629,11 +7665,11 @@
       "upstream_sha256": "8a418d4d3e11a5f90b326fb48dd21ce55bc95133fb8c373f2b4ec1f22df925de",
       "staged_path": "packages/violet-elements/src/file-explorer/violet-file-explorer.stories.ts",
       "staged_sha256": "8a418d4d3e11a5f90b326fb48dd21ce55bc95133fb8c373f2b4ec1f22df925de",
-      "current_import_sha256": "8a418d4d3e11a5f90b326fb48dd21ce55bc95133fb8c373f2b4ec1f22df925de",
+      "current_import_sha256": "d1861090142500a1bb08b4d52096a82a87861443e61b296d7833da6941dc4afa",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/file-explorer/violet-file-explorer.ts",
@@ -7665,11 +7701,11 @@
       "upstream_sha256": "3758fc25b855b99f2180b59e31ba7dc0f5e4c36c0a93c444365af10a1db9b399",
       "staged_path": "packages/violet-elements/src/file-upload/violet-file-upload.stories.ts",
       "staged_sha256": "3758fc25b855b99f2180b59e31ba7dc0f5e4c36c0a93c444365af10a1db9b399",
-      "current_import_sha256": "3758fc25b855b99f2180b59e31ba7dc0f5e4c36c0a93c444365af10a1db9b399",
+      "current_import_sha256": "9286aa497353dd5587fadc448aa44c61482323f5f9032578aad4d23ead1bd67f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/file-upload/violet-file-upload.ts",
@@ -7761,11 +7797,11 @@
       "upstream_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
       "staged_path": "packages/violet-elements/src/foundations/violet-foundations.stories.ts",
       "staged_sha256": "8e7a3b7bf5965977aea863255ca8c68b8fdc15468ce3d2bd54368d08f7ce2958",
-      "current_import_sha256": "cc6789bf946420ae8b5f58764adff39ae321d3227b1fcf3c17dd32fc7bd118a1",
+      "current_import_sha256": "b3637ee657bd92719e9e73e3460814530cdf9ff61135c8a42930e5c6b82cf47c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Read the token values through token-registry.ts from the export: the cards show the custom property and the dark and high-contrast values in place of the retired registry's prose; and rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/violet-safe-url.ts",
@@ -7869,11 +7905,11 @@
       "upstream_sha256": "649c3ad576457bdea032bd1137f6cb685a76e5cc474e52391552960dbba0eff1",
       "staged_path": "packages/violet-elements/src/gantt/violet-gantt.stories.ts",
       "staged_sha256": "649c3ad576457bdea032bd1137f6cb685a76e5cc474e52391552960dbba0eff1",
-      "current_import_sha256": "649c3ad576457bdea032bd1137f6cb685a76e5cc474e52391552960dbba0eff1",
+      "current_import_sha256": "1ccc8e437c0ef070092944288200c08288e0b9320421d2daacd8fbaf23daf40c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.styles.ts",
@@ -7929,11 +7965,11 @@
       "upstream_sha256": "ad35f77e928dc4a3d02c4763c747faf2fcf8ac7be9ee41baf463b5e20be1fa63",
       "staged_path": "packages/violet-elements/src/icon-button/violet-icon-button.stories.ts",
       "staged_sha256": "ad35f77e928dc4a3d02c4763c747faf2fcf8ac7be9ee41baf463b5e20be1fa63",
-      "current_import_sha256": "ad35f77e928dc4a3d02c4763c747faf2fcf8ac7be9ee41baf463b5e20be1fa63",
+      "current_import_sha256": "6e83ac3a3536dbc35a9568a61ba42fe205fbf95f79bbeaf795f33f220c042477",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/icon-button/violet-icon-button.ts",
@@ -8193,11 +8229,11 @@
       "upstream_sha256": "160fd3061629acb6d1146664c1addf6a7fbc1baf3943023f9c001b7d42d60eb2",
       "staged_path": "packages/violet-elements/src/icon/violet-icon.stories.ts",
       "staged_sha256": "160fd3061629acb6d1146664c1addf6a7fbc1baf3943023f9c001b7d42d60eb2",
-      "current_import_sha256": "160fd3061629acb6d1146664c1addf6a7fbc1baf3943023f9c001b7d42d60eb2",
+      "current_import_sha256": "24f57282318f9edffa6fb1f525664c1712fbe327c455b29449efed05a4109e8b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/icon/violet-icon.ts",
@@ -8229,11 +8265,11 @@
       "upstream_sha256": "32b802bf1a718661b69a9bb48287a25a52724045aacbebf6b98317e73b19ebed",
       "staged_path": "packages/violet-elements/src/image/violet-image.stories.ts",
       "staged_sha256": "32b802bf1a718661b69a9bb48287a25a52724045aacbebf6b98317e73b19ebed",
-      "current_import_sha256": "32b802bf1a718661b69a9bb48287a25a52724045aacbebf6b98317e73b19ebed",
+      "current_import_sha256": "d43708c11f9f7c2e1277eb62447dc7052659e72131deecf3365c494b4e6d2ea9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/image/violet-image.ts",
@@ -8289,11 +8325,11 @@
       "upstream_sha256": "d8da4d6e5a9b453457d77a9f45d25c2e6f9ccf509ac10b685582a0d8189c16d7",
       "staged_path": "packages/violet-elements/src/listbox/violet-listbox.stories.ts",
       "staged_sha256": "d8da4d6e5a9b453457d77a9f45d25c2e6f9ccf509ac10b685582a0d8189c16d7",
-      "current_import_sha256": "d8da4d6e5a9b453457d77a9f45d25c2e6f9ccf509ac10b685582a0d8189c16d7",
+      "current_import_sha256": "774e46854ed1bfef809685f341e9fc13fb9dc4e58a9597d886953e803ce45bda",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.ts",
@@ -8325,11 +8361,11 @@
       "upstream_sha256": "48768ce8c12ea1994ce0518a2baeb7c27b2674cb8ea48a8cfc957186bb526ce6",
       "staged_path": "packages/violet-elements/src/menu/violet-menu-item.stories.ts",
       "staged_sha256": "48768ce8c12ea1994ce0518a2baeb7c27b2674cb8ea48a8cfc957186bb526ce6",
-      "current_import_sha256": "48768ce8c12ea1994ce0518a2baeb7c27b2674cb8ea48a8cfc957186bb526ce6",
+      "current_import_sha256": "6972685a830042974c6fd06f4d47529033cc295352f38d8e762f74c88007d04b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu-item.ts",
@@ -8361,11 +8397,11 @@
       "upstream_sha256": "ff8d142a30de13d2a0537265f1f6870f5f8e1b86bc6b5578af6295599955bf88",
       "staged_path": "packages/violet-elements/src/menu/violet-menu.stories.ts",
       "staged_sha256": "ff8d142a30de13d2a0537265f1f6870f5f8e1b86bc6b5578af6295599955bf88",
-      "current_import_sha256": "ff8d142a30de13d2a0537265f1f6870f5f8e1b86bc6b5578af6295599955bf88",
+      "current_import_sha256": "53d468c3c7562fae932ecb811c75c4d48a5a580c66b041d386a95aab24874a83",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu.ts",
@@ -8397,11 +8433,11 @@
       "upstream_sha256": "4592b9036b2ffa65f0c6d0b706c0791fb802a6bccc151028f0d0c396d722bb5a",
       "staged_path": "packages/violet-elements/src/option-group/violet-option-group.stories.ts",
       "staged_sha256": "4592b9036b2ffa65f0c6d0b706c0791fb802a6bccc151028f0d0c396d722bb5a",
-      "current_import_sha256": "4592b9036b2ffa65f0c6d0b706c0791fb802a6bccc151028f0d0c396d722bb5a",
+      "current_import_sha256": "3f57b3a6c3d667800232a70de792b17e2b704486b99d87b8927429bbd22c5cba",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option-group/violet-option-group.ts",
@@ -8433,11 +8469,11 @@
       "upstream_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
       "staged_path": "packages/violet-elements/src/option/violet-option.stories.ts",
       "staged_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
-      "current_import_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
+      "current_import_sha256": "cc2394c3b4aa646bd56ae487fbf384945e13ca7b44b76aa3b63eef9329c31b0f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.ts",
@@ -8469,11 +8505,11 @@
       "upstream_sha256": "2881189f7dec463a77fe141e0c2151b7991c6fadcf4fb4bb7382bc9e2fe79fff",
       "staged_path": "packages/violet-elements/src/pagination/violet-pagination.stories.ts",
       "staged_sha256": "2881189f7dec463a77fe141e0c2151b7991c6fadcf4fb4bb7382bc9e2fe79fff",
-      "current_import_sha256": "2881189f7dec463a77fe141e0c2151b7991c6fadcf4fb4bb7382bc9e2fe79fff",
+      "current_import_sha256": "63d14690a098ecfdafd710b350b6ac2e313428c869072bc4cb8c7914a0cc5cc8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/pagination/violet-pagination.ts",
@@ -8505,11 +8541,11 @@
       "upstream_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
       "staged_path": "packages/violet-elements/src/persona/violet-persona.stories.ts",
       "staged_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
-      "current_import_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
+      "current_import_sha256": "ae93f4d62c39720a4c47b6e6b6faff0d7e833dd7434d7354b2aa57c6d9994fe6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/persona/violet-persona.ts",
@@ -8541,11 +8577,11 @@
       "upstream_sha256": "f05bb434b8d92acef0e33185c5b7f61e84bb8f75c4f14a94486697b3f8f36edc",
       "staged_path": "packages/violet-elements/src/popover/violet-popover.stories.ts",
       "staged_sha256": "f05bb434b8d92acef0e33185c5b7f61e84bb8f75c4f14a94486697b3f8f36edc",
-      "current_import_sha256": "f05bb434b8d92acef0e33185c5b7f61e84bb8f75c4f14a94486697b3f8f36edc",
+      "current_import_sha256": "d9093cb2aafabcb6dea90d3d420a6c5d9c3e3216f82a3e980ac1d6a8614279e8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/popover/violet-popover.ts",
@@ -8577,11 +8613,11 @@
       "upstream_sha256": "16a53dfac8f160d81110bd8c178e198aa0e802bebf97fb7473c35dccc1cb6d69",
       "staged_path": "packages/violet-elements/src/progress/violet-progress.stories.ts",
       "staged_sha256": "16a53dfac8f160d81110bd8c178e198aa0e802bebf97fb7473c35dccc1cb6d69",
-      "current_import_sha256": "16a53dfac8f160d81110bd8c178e198aa0e802bebf97fb7473c35dccc1cb6d69",
+      "current_import_sha256": "9a34a479d7c9d9eda00202816dea47b5165b8d48e44375b1e1e387dca7d0332a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/progress/violet-progress.ts",
@@ -8613,11 +8649,11 @@
       "upstream_sha256": "000526ce2a86cf8461b02778054d250ef8cc8143fada52cdc419efd2c16ee3b0",
       "staged_path": "packages/violet-elements/src/radio-group/violet-radio-group.stories.ts",
       "staged_sha256": "000526ce2a86cf8461b02778054d250ef8cc8143fada52cdc419efd2c16ee3b0",
-      "current_import_sha256": "000526ce2a86cf8461b02778054d250ef8cc8143fada52cdc419efd2c16ee3b0",
+      "current_import_sha256": "673e836387259ad08cf2459eedc165adcd9c136ea4beaf9e10af2201433b6b9d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/radio-group/violet-radio-group.ts",
@@ -8649,11 +8685,11 @@
       "upstream_sha256": "ebf89fc3ff8708cd43ca0d2dc7490bf84d163af24c3615a001183e76e3a77332",
       "staged_path": "packages/violet-elements/src/radio/violet-radio.stories.ts",
       "staged_sha256": "ebf89fc3ff8708cd43ca0d2dc7490bf84d163af24c3615a001183e76e3a77332",
-      "current_import_sha256": "ebf89fc3ff8708cd43ca0d2dc7490bf84d163af24c3615a001183e76e3a77332",
+      "current_import_sha256": "d154f34a71fbf4f8b8bcacff7a2019103ebcbcc8a53d27d5717fb6c81b4fe1a8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/radio/violet-radio.ts",
@@ -8685,11 +8721,11 @@
       "upstream_sha256": "a02678461d7331637da7073fcc48d5e740d5baa9e582b0d3eb49fbfa25fd4460",
       "staged_path": "packages/violet-elements/src/segment/violet-segment.stories.ts",
       "staged_sha256": "a02678461d7331637da7073fcc48d5e740d5baa9e582b0d3eb49fbfa25fd4460",
-      "current_import_sha256": "a02678461d7331637da7073fcc48d5e740d5baa9e582b0d3eb49fbfa25fd4460",
+      "current_import_sha256": "db9749e75bf258835d2c3fa3de350866833c04a736961f4f848df2a692a527ed",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segment/violet-segment.ts",
@@ -8721,11 +8757,11 @@
       "upstream_sha256": "00362c95cd612cb786e3b3b39c25a9468ad7492ad188ee16650ed33f9d67f14c",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.stories.ts",
       "staged_sha256": "00362c95cd612cb786e3b3b39c25a9468ad7492ad188ee16650ed33f9d67f14c",
-      "current_import_sha256": "00362c95cd612cb786e3b3b39c25a9468ad7492ad188ee16650ed33f9d67f14c",
+      "current_import_sha256": "16e3e55c2c6241843de0bf43ba89aa783830240430447b48d10f673682ae7efd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.ts",
@@ -8757,11 +8793,11 @@
       "upstream_sha256": "130ebc949e368114fcf643b23d8f6f2c1e2b568cae1d6c97395805cf4eba1bca",
       "staged_path": "packages/violet-elements/src/select/violet-select.stories.ts",
       "staged_sha256": "130ebc949e368114fcf643b23d8f6f2c1e2b568cae1d6c97395805cf4eba1bca",
-      "current_import_sha256": "130ebc949e368114fcf643b23d8f6f2c1e2b568cae1d6c97395805cf4eba1bca",
+      "current_import_sha256": "6f7afc5045dda2e31546c0da93f801de1452c7b8d5bcb0c150fc20feeb88f058",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/select/violet-select.ts",
@@ -8793,11 +8829,11 @@
       "upstream_sha256": "9084ec61cb6e7efe3cd3b9f5e5da466803ba93e6c79672dfb8dc1ae9d70f5e41",
       "staged_path": "packages/violet-elements/src/skeleton/violet-skeleton.stories.ts",
       "staged_sha256": "9084ec61cb6e7efe3cd3b9f5e5da466803ba93e6c79672dfb8dc1ae9d70f5e41",
-      "current_import_sha256": "9084ec61cb6e7efe3cd3b9f5e5da466803ba93e6c79672dfb8dc1ae9d70f5e41",
+      "current_import_sha256": "1c60f721450ed7318ca5bcdd14046eae2c1d60890bd6d73aa1c0f23ac46785d6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/skeleton/violet-skeleton.ts",
@@ -8817,11 +8853,11 @@
       "upstream_sha256": "be0d75dd438598afd0c074e3f7ee7dcd471671f9a38cac1b283c4e277d606970",
       "staged_path": "packages/violet-elements/src/slider/violet-range-slider.stories.ts",
       "staged_sha256": "be0d75dd438598afd0c074e3f7ee7dcd471671f9a38cac1b283c4e277d606970",
-      "current_import_sha256": "be0d75dd438598afd0c074e3f7ee7dcd471671f9a38cac1b283c4e277d606970",
+      "current_import_sha256": "cdff88b358df125771e8a9deb9d848b8f9d6c5867f8428d6511e14945c7eb483",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-range-slider.ts",
@@ -8853,11 +8889,11 @@
       "upstream_sha256": "35b5746a4970f8437e8869f0546f75d9aff0fdbe675f2f54d76cff7e3fe8943d",
       "staged_path": "packages/violet-elements/src/slider/violet-slider.stories.ts",
       "staged_sha256": "35b5746a4970f8437e8869f0546f75d9aff0fdbe675f2f54d76cff7e3fe8943d",
-      "current_import_sha256": "35b5746a4970f8437e8869f0546f75d9aff0fdbe675f2f54d76cff7e3fe8943d",
+      "current_import_sha256": "77d09157ecd952701e4c6fca9c260d128c0c1dc29aab0d66b832ed6f8674984c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-slider.ts",
@@ -8889,11 +8925,11 @@
       "upstream_sha256": "be1e9192702f5e5c58f1a3b8f81de90421f607d81f8b1e7e583e6764ffeebe50",
       "staged_path": "packages/violet-elements/src/snackbar/violet-snackbar.stories.ts",
       "staged_sha256": "be1e9192702f5e5c58f1a3b8f81de90421f607d81f8b1e7e583e6764ffeebe50",
-      "current_import_sha256": "be1e9192702f5e5c58f1a3b8f81de90421f607d81f8b1e7e583e6764ffeebe50",
+      "current_import_sha256": "cee06eeb2f566aec901969c74ae75f3ebbdbdaeb3584d6b0cc489378086ea6c0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/snackbar/violet-snackbar.ts",
@@ -8925,11 +8961,11 @@
       "upstream_sha256": "f54c3d5ebba8e0f7429c8248783f53c903d7e99b112621a562ce677271447c85",
       "staged_path": "packages/violet-elements/src/spinner/violet-spinner.stories.ts",
       "staged_sha256": "f54c3d5ebba8e0f7429c8248783f53c903d7e99b112621a562ce677271447c85",
-      "current_import_sha256": "f54c3d5ebba8e0f7429c8248783f53c903d7e99b112621a562ce677271447c85",
+      "current_import_sha256": "92e37dd6daa7787276e826865f89864c4b81b929e02d72f4ae4158490d6045c3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/spinner/violet-spinner.ts",
@@ -8961,11 +8997,11 @@
       "upstream_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.stories.ts",
       "staged_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
-      "current_import_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
+      "current_import_sha256": "6923da68548dd85163f3b20c62979127ba17fb85c415dc8ce3869efa28eddec4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.ts",
@@ -8997,11 +9033,11 @@
       "upstream_sha256": "a51b4162e90e1c87f113946f43c3577fa483411dc4a157e8e2565d6e9178f3f9",
       "staged_path": "packages/violet-elements/src/tab-panel/violet-tab-panel.stories.ts",
       "staged_sha256": "a51b4162e90e1c87f113946f43c3577fa483411dc4a157e8e2565d6e9178f3f9",
-      "current_import_sha256": "a51b4162e90e1c87f113946f43c3577fa483411dc4a157e8e2565d6e9178f3f9",
+      "current_import_sha256": "50b068d30a8ab673950cfb446abf39329feb2bca35b7728d069692d4810701e6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.ts",
@@ -9033,11 +9069,11 @@
       "upstream_sha256": "e3da9d47960beb95379549f6f7243b85c90db4144f27dc9be88da8ff2337a512",
       "staged_path": "packages/violet-elements/src/tab/violet-tab.stories.ts",
       "staged_sha256": "e3da9d47960beb95379549f6f7243b85c90db4144f27dc9be88da8ff2337a512",
-      "current_import_sha256": "e3da9d47960beb95379549f6f7243b85c90db4144f27dc9be88da8ff2337a512",
+      "current_import_sha256": "d273799128acb9d9c4d9ec924cfde2096d84e97d5241addea74f926f9d9ece14",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab/violet-tab.ts",
@@ -9069,11 +9105,11 @@
       "upstream_sha256": "a362337a00d07a2fddc32183e88f5662c081e890c36f1e7806e6f4d22ac5e39d",
       "staged_path": "packages/violet-elements/src/tabs/violet-tabs.stories.ts",
       "staged_sha256": "a362337a00d07a2fddc32183e88f5662c081e890c36f1e7806e6f4d22ac5e39d",
-      "current_import_sha256": "a362337a00d07a2fddc32183e88f5662c081e890c36f1e7806e6f4d22ac5e39d",
+      "current_import_sha256": "3a54c16a3f134c656f180465173c18279f05a98042b42a3dfcbe299e536a6660",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tabs/violet-tabs.ts",
@@ -9105,11 +9141,11 @@
       "upstream_sha256": "4d5a4b59c8d6b65bf89ace15861c7d2bb282042b1437683591885b7d080318d5",
       "staged_path": "packages/violet-elements/src/teaching-tip/violet-teaching-tip.stories.ts",
       "staged_sha256": "4d5a4b59c8d6b65bf89ace15861c7d2bb282042b1437683591885b7d080318d5",
-      "current_import_sha256": "4d5a4b59c8d6b65bf89ace15861c7d2bb282042b1437683591885b7d080318d5",
+      "current_import_sha256": "fe8406782fc388a79c99544c7975ff2d4fb345b10d0dc4b5f78a9df5f47daf2f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/teaching-tip/violet-teaching-tip.ts",
@@ -9141,11 +9177,11 @@
       "upstream_sha256": "9957bd5e21409cddc67e4d172ab7794881fd2f9fcecec34d7f8fb45e82334860",
       "staged_path": "packages/violet-elements/src/text-area/violet-text-area.stories.ts",
       "staged_sha256": "9957bd5e21409cddc67e4d172ab7794881fd2f9fcecec34d7f8fb45e82334860",
-      "current_import_sha256": "9957bd5e21409cddc67e4d172ab7794881fd2f9fcecec34d7f8fb45e82334860",
+      "current_import_sha256": "040e0936a47cac6ddeeb0b6d648a6d343bd98f94a03736d7c463d55592c8bb12",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-area/violet-text-area.ts",
@@ -9189,11 +9225,11 @@
       "upstream_sha256": "a023727abd58b4753c9d9bc4757d81b9b1cb47e0bbef686c583f3cd3b26e1ebb",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.stories.ts",
       "staged_sha256": "a023727abd58b4753c9d9bc4757d81b9b1cb47e0bbef686c583f3cd3b26e1ebb",
-      "current_import_sha256": "a023727abd58b4753c9d9bc4757d81b9b1cb47e0bbef686c583f3cd3b26e1ebb",
+      "current_import_sha256": "df17b2c6d7dd6f9d55d2b0a890b7e62be1fb9b0887afb16a5e14bcb30ccae14e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.ts",
@@ -9225,11 +9261,11 @@
       "upstream_sha256": "f59fa76a42652c4b23b8d1f93591c1f618e9b34d257010a45e07f355716b1b3b",
       "staged_path": "packages/violet-elements/src/text/violet-text.stories.ts",
       "staged_sha256": "f59fa76a42652c4b23b8d1f93591c1f618e9b34d257010a45e07f355716b1b3b",
-      "current_import_sha256": "f59fa76a42652c4b23b8d1f93591c1f618e9b34d257010a45e07f355716b1b3b",
+      "current_import_sha256": "52515a4312121f2ff1d1ed81522067d8f3b7e2418221d445f6684d4d461425f8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text/violet-text.ts",
@@ -9285,11 +9321,11 @@
       "upstream_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
       "staged_path": "packages/violet-elements/src/theme/violet-theme.stories.ts",
       "staged_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
-      "current_import_sha256": "c2432e1f23426574847bc51269774ffb1d1a9e117f8104c2af8c14bcfd7bdc9d",
+      "current_import_sha256": "d8a4beb7b7fb503edde490ffc359aa4ba568279b0e7e62662b3943258768a319",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Offer the generated high-contrast preset in the scoped theme story's preset control (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Offer the generated high-contrast preset in the scoped theme story's preset control (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/violet-theme.ts",
@@ -9333,11 +9369,11 @@
       "upstream_sha256": "f04e3662cc510bfd85c8960b22c04026e72aa3c05018d054ac34e5afbd8e120d",
       "staged_path": "packages/violet-elements/src/time-picker/violet-time-picker.stories.ts",
       "staged_sha256": "f04e3662cc510bfd85c8960b22c04026e72aa3c05018d054ac34e5afbd8e120d",
-      "current_import_sha256": "f04e3662cc510bfd85c8960b22c04026e72aa3c05018d054ac34e5afbd8e120d",
+      "current_import_sha256": "4fb9d96deb451c28122c3cd5d25a6d8e441a45efa58bc407726312c5c3f9adef",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/time-picker/violet-time-picker.ts",
@@ -9369,11 +9405,11 @@
       "upstream_sha256": "17f0cea4cca053351c1df362fad179ef191f29707118af0a225af5ff0ced17fa",
       "staged_path": "packages/violet-elements/src/toast/violet-toast.stories.ts",
       "staged_sha256": "17f0cea4cca053351c1df362fad179ef191f29707118af0a225af5ff0ced17fa",
-      "current_import_sha256": "17f0cea4cca053351c1df362fad179ef191f29707118af0a225af5ff0ced17fa",
+      "current_import_sha256": "b8df6ec7a1c4359198f0418f0121d112d801eccab1f8dd960463a14b3c1b73fc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/toast/violet-toast.ts",
@@ -9405,11 +9441,11 @@
       "upstream_sha256": "36bc0d66ec613a0134c0fbb95816d68e3a0f8525e05917ca17c28e8b541fa17e",
       "staged_path": "packages/violet-elements/src/tooltip/violet-tooltip.stories.ts",
       "staged_sha256": "36bc0d66ec613a0134c0fbb95816d68e3a0f8525e05917ca17c28e8b541fa17e",
-      "current_import_sha256": "36bc0d66ec613a0134c0fbb95816d68e3a0f8525e05917ca17c28e8b541fa17e",
+      "current_import_sha256": "f0608796a67a447ed27fb81ac0ee92c58b0ec8c60a67b8628a4ad4b2d7e9a26d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.ts",
@@ -9441,11 +9477,11 @@
       "upstream_sha256": "67bee0e7eaf7204882a94004a0810dce96abbf3da8a382244ea356e4fe7153e4",
       "staged_path": "packages/violet-elements/src/tree-item/violet-tree-item.stories.ts",
       "staged_sha256": "67bee0e7eaf7204882a94004a0810dce96abbf3da8a382244ea356e4fe7153e4",
-      "current_import_sha256": "67bee0e7eaf7204882a94004a0810dce96abbf3da8a382244ea356e4fe7153e4",
+      "current_import_sha256": "62612afa0aa3b864987d8a4ed3403798b61a2a3ed332cb15fa1082a6c4926d9b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree-item/violet-tree-item.ts",
@@ -9477,11 +9513,11 @@
       "upstream_sha256": "a4a4a92f13814e43ac7da81e9920558ed8ae7a624514d561c38b958aefc10b96",
       "staged_path": "packages/violet-elements/src/tree/violet-tree.stories.ts",
       "staged_sha256": "a4a4a92f13814e43ac7da81e9920558ed8ae7a624514d561c38b958aefc10b96",
-      "current_import_sha256": "a4a4a92f13814e43ac7da81e9920558ed8ae7a624514d561c38b958aefc10b96",
+      "current_import_sha256": "9b2770f048537ca8d78739f7951d5a5d0871722bd1270c5b7ec8891d3d610c08",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree/violet-tree.ts",
@@ -9590,6 +9626,18 @@
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact upstream bytes (fast-af #235)"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/tsconfig.stories.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a348b52a3e138c1b1667305bd3330c305cb56a0d984e34b17f4389aac3e639fc",
+      "stage_classification": "not-in-staging",
+      "stage_reason": "AFD-authored",
+      "import_classification": "added-after-staging",
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/vitest.config.ts",

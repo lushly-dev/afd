@@ -215,6 +215,11 @@ node experiments/check-index.mjs --dir BUILD --out FILE
 # The DOM normalizer against the parse5 reference it replaced, on every story's capture.
 node experiments/check-normalizer.mjs --root SNAPSHOT --config FILE --out FILE
 
+# T08's qualifying pairs for AFD's own FAST-AF stories: Storybook on an overlay, which is upstream's
+# configuration and dependencies with AFD's sources, tokens, manifest and built packages over them and
+# Storybook's helpers restored, against Specimen on AFD's configuration. The overlay's index is --index.
+node experiments/run-afd-pairs.mjs --overlay DIR --index FILE --fonts DIR --out DIR [--pairs 3] [--workers 2]
+
 # Every 10th story rendered twice by the host, and the two captures compared.
 node experiments/check-repeat.mjs --root SNAPSHOT --config FILE --out FILE
 

@@ -156,10 +156,6 @@ const styles = css`
         opacity: 0.45;
     }
 
-    :host([disabled]) .root {
-        opacity: 0.7;
-    }
-
     @media (forced-colors: active) {
         .root,
         .nav,
@@ -340,7 +336,7 @@ export class VioletCalendar extends FASTElement {
             focused: this.focusedDate,
             min: this.min,
             max: this.max,
-            disabledDate: this.disabledDates,
+            disabledDate: this.disabled ? () => true : this.disabledDates,
         });
     }
 

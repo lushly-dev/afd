@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, waitFor } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, waitFor } from "@lushly-dev/specimen/test";
 
 import "./violet-data-grid-persona-picker";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";

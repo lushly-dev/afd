@@ -1,6 +1,6 @@
 import { html } from "@lushly-dev/fast-element";
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, userEvent, waitFor } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
 import "../button/violet-button";
 import "./violet-data-grid-pill-select";

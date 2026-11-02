@@ -1,8 +1,9 @@
 //! The preview-first codemod: for each retained story file, the native metadata it can gain
 //! without changing what Storybook runs. It proposes a meta `component` only when the
 //! custom elements manifest makes the choice unambiguous, keeps every existing field, and
-//! reports the Storybook imports. With `helpers`, it switches those Specimen has its own for,
-//! and nothing else. Files change only when `apply` is set.
+//! reports the Storybook imports. With `helpers`, it instead switches those Specimen has its own
+//! for, and does nothing else: naming a component changes a story's args, so it stays a separate
+//! step. Files change only when `apply` is set.
 
 use super::index::{Specifier, bare, identifier_members, meta_object, walk};
 use oxc::ast::ast::{Expression, ImportDeclarationSpecifier, ObjectExpression, Program, Statement};
@@ -22,7 +23,8 @@ pub struct MigrateRequest {
     pub files: Option<Vec<String>>,
     #[serde(default)]
     pub apply: bool,
-    /// Switch helper and type imports to Specimen's own where it has every name imported.
+    /// Switch helper and type imports to Specimen's own, where it has every name imported, instead
+    /// of naming components.
     #[serde(default)]
     pub helpers: bool,
 }
@@ -438,7 +440,8 @@ fn migrate_file(
             candidates: candidates.clone(),
         }
     };
-    if component.status == "proposed"
+    if !helpers
+        && component.status == "proposed"
         && let Some(tag) = &component.tag
     {
         // Matches the file's quote style, read from the title's literal.
@@ -779,6 +782,16 @@ mod tests {
         );
         // Nothing is left to switch.
         assert_eq!(run_with(&directory, true, true).summary.applied, 0);
+        // Naming a component stays its own step, even where the manifest makes one unambiguous.
+        let button = "import './x-button.js';\nexport default { title: 'Button' };\nexport const One = {};\n";
+        std::fs::write(directory.join("src/x-button.ts"), "").unwrap();
+        std::fs::write(directory.join("src/x-button.stories.ts"), button).unwrap();
+        assert_eq!(run_with(&directory, true, true).summary.applied, 0);
+        assert_eq!(
+            std::fs::read_to_string(directory.join("src/x-button.stories.ts")).unwrap(),
+            button
+        );
+        assert_eq!(run(&directory, true).summary.applied, 1);
         let _ = std::fs::remove_dir_all(&directory);
     }
 }

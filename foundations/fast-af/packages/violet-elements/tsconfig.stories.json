@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.lib.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node", "vite/client"]
+  },
+  "include": ["src/**/*.stories.ts", "specimen/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
