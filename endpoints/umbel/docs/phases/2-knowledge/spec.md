@@ -154,7 +154,17 @@
   `MISSING` nodes, a size bound and a symbol bound), chunks per top-level definition with its
   comments, `defines` and `mentions` edges under the graph's access rules, `CODE_PARSE_DEGRADED`
   and `codeIndexing` in `knowledge-describe`; see [Amendments from step 7b](#amendments-from-step-7b).
-- **Not done:** steps 9 and 10 of the [plan](#14-implementation-plan);
+  **Step 9, the eval harness**, 2026-11-01, in the step 9 pull request: the fixture generator
+  `umbel_plugin_knowledge::eval::fixture` (PCG32 and the pseudo-word generator implemented in the
+  crate; 1000 markdown documents and 50 code files across `alpha` and `beta`, seed `20261101`, its tree
+  pinned by a SHA-256 constant), the seeded 220-query set (`eval-queries.v1`), `knowledge-eval`
+  (CLI only, `inspect`; the report, `eval-report.v1`, is the result; each query runs through the
+  same ranking code as `knowledge-search` as the principal it names, by `Cx::as_reader`), recall@k,
+  nDCG@k and MRR@k with expansion on and off, the zero-leak check, `eval::gate::check` (the CI gate
+  and `plugins/knowledge/eval/baseline.json`) and `eval::gate::lane_gate` (the seam: 50 answerable
+  queries at least), and the `knowledge` job uploading the report as an artifact; see
+  [Amendments from step 9](#amendments-from-step-9).
+- **Not done:** step 10 of the [plan](#14-implementation-plan);
   the exit criterion.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
@@ -2345,6 +2355,30 @@ the dev profile's `opt-level = 2` for these crates; a release `umbel-knowledge` 
 feature after a cold build without it (326 s). Size of the release `umbel-knowledge` binary: **31.8 MB to 36.5 MB
 unstripped (+4.7 MB, +15 %)** and **24.5 MB to 29.2 MB stripped (+4.7 MB, +19 %)**.
 
+## Amendments from step 9
+
+Step 9 read this specification against the host, the SDK and the plugin as step 7a left it, and
+made these smallest-correct changes. It needed no host change (no `Plugin-isolation-exempt:` line).
+The ranking code that `knowledge-search` runs is now generic over a `View` (the read methods that
+`Cx` and the `Reader` of `Cx::as_reader` both have), so `knowledge-eval` runs that one code path
+as another principal; nothing in a search's behaviour changed. The named tests are
+`plugins/knowledge/tests/eval_fixture.rs` and `eval_gate.rs`, and the unit tests of the PCG32
+stream (the reference vector), the word generator, the metrics, the gate and the leak check.
+
+| # | Where the text and the code disagreed | What step 9 did | Section |
+| --- | --- | --- | --- |
+| J1 | Section 10.3 gives `queries?` as "a path in the workspace" and 10.1 has the generator write `eval/queries.jsonl` at the workspace root, but a plugin has no path into the workspace, only into a collection's root through the `content` grant (section 11: no path leaks) | `queries` is `<collection>/<path>`, read with `content_read` from every call space that has a collection of that name; the default is `eval/queries.jsonl`, so a space's own query set is the file `queries.jsonl` in a collection named `eval` (rooted at `spaces/<space>/eval`, which holds no Markdown, so nothing is ingested). The fixture declares that collection in `alpha` and writes the whole seeded set, cross-space queries included, to `spaces/alpha/eval/queries.jsonl`. Query ids are unique across the files read | 10.1, 10.3 |
+| J2 | Section 10.1 gives `generate(seed, out) -> FixtureManifest`, which cannot report a filesystem error | `generate(seed, out) -> io::Result<FixtureManifest>`; `build(seed)` returns the whole `Fixture` in memory (files, queries, topics) and `digest(&files)` is the pinned function: SHA-256 over every file in path order as the path, a NUL, the length in decimal, a NUL and the bytes | 10.1 |
+| J3 | Section 10.3 counts "returned documents the query's principal may not read" without saying how the harness knows | A hit is a leak when its space is not among the query's spaces, or when the principal's reader tokens (`Reader::reader_tokens`, the host's own list for that principal) hold none of the tokens of the document's **stored access set** (the `DocMeta` the search read again through the document store). That is a check of the filter's decision against the stored data, not a second run of the filter; `is_leak` is a pure function with its own test, and `eval_gate.rs` shows an outsider receives none of the 20 restricted answers while a member receives all 20 first. A principal the space's `readers` refuse is given nothing (`SPACE_NOT_READABLE` is an empty run, not a failure) | 10.3 |
+| J4 | Section 10.3 reports "the corpus digest" and "the host version" | `corpusDigest` is the SHA-256 over `<space>\t<id>\t<content hash>` lines of the documents the **calling person** can read, spaces in order; the fixture's `umbel.toml` puts `human:local` in the `restricted` group, so the digest covers all 1050 documents (the seeded queries run as `human:eval-reader`, who is in no group). `hostVersion` is the plugin crate's version, which the workspace keeps equal to the host's (no host export exists; adding one would be a host change). `rankingDigest` is the SHA-256 of `data/ranking.toml` as the call read it, so a space's override is what is hashed | 10.3 |
+| J5 | Section 10.3 defines recall, nDCG and the gain but not MRR's relevance, a query with no answer, or the unanswerable rate across runs | MRR is the reciprocal rank of the first **grade-2** document in the top k, else 0. A query set line of an answerable kind with no grade-2 document is `EVAL_QUERIES_INVALID`. An unanswerable query is empty only when **every** run it had (expansion on and off) returned nothing; `meanTopScore` averages the highest first-hit score over those with a hit. `queries.answerable`, `unanswerable` and `permission` count the queries run, and `skipped` those not run (`total` is the sum), so the lane gate's 50 counts queries actually evaluated | 10.3, 10.4 |
+| J6 | Section 10.4 states the gate and the lane gate as prose | Both are pure functions of reports: `eval::gate::check(report, baseline)` (leaks 0, unanswerable empty rate 1.0, overall recall@k and nDCG@k with expansion on at least 0.85 and 0.70, multi-hop recall with expansion not below without, no metric in the baseline more than 0.02 lower, compared in ten-thousandths so float noise never decides) and `eval::gate::lane_gate(bm25, lane)` (both over at least 50 answerable queries and the same queries and k, no leaks, nDCG at least 0.01 above and recall not more than 0.005 below). `eval_gate.rs` applies `check` in CI. The baseline is `plugins/knowledge/eval/baseline.json`: `{ version, fixture: { seed, digest }, k, metrics, unanswerable: { emptyRate } }`, and the test requires its fixture digest to equal the generator's, so changing the generator forces a new baseline in the same pull request. Its README gives the three commands that regenerate it | 10.4 |
+| J7 | Section 12 has the `knowledge` job upload "the eval report" and the exit test write it | `eval_gate.rs` writes the report to the file named by `UMBEL_EVAL_REPORT`; the job sets it to a file in `runner.temp` and uploads it with `actions/upload-artifact` (pinned by SHA, `if: always()`, one artifact per matrix leg). Step 10's `exit_thousand.rs` may write the same file | 12 |
+| J8 | Section 10.1 says the fixture is "entirely synthetic" with "words from a pseudo-word generator" | The prose, titles, headings, aliases, tags, symbols and every key term are pseudo-words. What is not is fixed scaffolding: Markdown, frontmatter keys, code syntax, and the sentence frames of the planted text ("`X` is the `a` `b` of this entry", "Compare the `X` note before `a` `b`", the twelve scan sentences), which use a few dozen common English words and name nothing. `eval_fixture.rs` pins that list, so a real name cannot enter. Generated words are built only from the letters `b d f g h j k l m n p r s t v z` and vowels, ending in a syllable no English stemmer strips; the unanswerable words are built from syllables that each start with `q`, `w`, `x`, `c` or `y`, so none can equal a stem the corpus holds, and the test checks that against every token of every generated file under `en_stem`, not only the key terms | 10.1 |
+| J9 | Section 10.1 says 30 % of the handbook is verified and 10 % restricted | The restricted share is exact (45 of 450: the 20 permission topics' answers and 25 entries) and so is the deprecated (22 entries, none an answer or a bridge, each with `superseded_by` a live entry); verification (30 %) and staleness (10 % past, about 30 % future) are per-document draws. The answers of the permission topics are the restricted ones, so no answerable query's qrels name a restricted document and no permission probe's qrels name a public one (tested) | 10.1, 10.2 |
+| J10 | Section 10.3 asks for the same report on Linux and macOS | Everything the report holds except `latency` is a function of the fixture, the index and the ranking: it is rounded to four decimals, nothing in it is ordered by a hash map, and `eval_gate.rs` builds the fixture and index twice and requires the two reports equal without `latency`, and the same host's second run equal. A byte-identical report across operating systems is **not** asserted by a test: tantivy computes an IDF with the platform's `ln`, so a score might differ in the fourth decimal on another libm, which the 0.02 tolerance of the baseline absorbs and the hosted Linux and macOS legs would show | 10.3 |
+| J11 | Section 10.3 gives `knowledge-eval` no output budget, and every other read command has one | It declares none (the report of 220 queries is about 240 KB and is the result by design), is exposed to the CLI alone, and is stamped `dev.umbel/replay: "recorded"` because it used `as_reader` | 8.6, 10.3 |
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2354,7 +2388,7 @@ unstripped (+4.7 MB, +15 %)** and **24.5 MB to 29.2 MB stripped (+4.7 MB, +19 %)
 | 2026-11-01 | Documents as MCP resources once a permission-filtered listing exists (`kb://`) | After phase 5 |
 | 2026-11-01 | Restore from `store-backup` | Phase 6 |
 | 2026-11-01 | Partitioned BM25 statistics per access set, or coarsened scores, and an end to count leaks (owner decision 4) | Phase 5 prerequisite |
-| 2026-11-01 | Chunk size against the research (S57 found about 250-token chunks with overlap best in one study; phase 2 uses larger, overlap-free structural chunks): measure alternatives with the eval harness once the baseline exists | After step 9 |
+| 2026-11-01 | Chunk size against the research (S57 found about 250-token chunks with overlap best in one study; phase 2 uses larger, overlap-free structural chunks): measure alternatives with the eval harness (the baseline exists since step 9) | Open, when a deployer asks |
 | 2026-11-01 | A per-collection option to block, not only flag, content the write scan matches | When a deployer asks |
 | 2026-11-01 | Watching collection roots instead of explicit `knowledge-refresh` | Later |
 | 2026-11-01 | The `knowledge` job's timeout: 15 minutes, to lower to three times the slower hosted run when that is under 15 (C14) | After the first hosted runs |
@@ -2364,3 +2398,5 @@ unstripped (+4.7 MB, +15 %)** and **24.5 MB to 29.2 MB stripped (+4.7 MB, +19 %)
 | 2026-11-01 | `knowledge-path` copies the cached readable graph per call (H9); a backend-side traversal would avoid it | Phase 6 |
 | 2026-11-01 | Mentions of a nested symbol by its bare name (`apply_step` for `Type::apply_step`) need a symbol table that follows the code documents (I1); today only qualified names, and a top-level symbol's name, are mentions | When a deployer asks |
 | 2026-11-01 | Symbol queries for more languages (Go, Java, C and C++) and richer kinds (fields, variants, Python module constants); the grammar crates and one query file each | When a deployer asks |
+| 2026-11-01 | Graph expansion scores a neighbour at `expansion_weight` x its parent's whole score, which for a strong lexical match is above a weaker direct match: on the seeded fixture the nine link neighbours of an answer (13.7) outrank its two grade-1 passing mentions (5.4), so nDCG@10 of the exact queries is 0.9368 with expansion and 1.0 without, and of the cross-space queries 0.8181 against 0.8842, while multi-hop recall goes from 0 to 1. Recall is unaffected. A normalised or capped share (or a lower weight) is a ranking change to try against the baseline in its own pull request | Open, a ranking pull request when a deployer asks |
+| 2026-11-01 | The `knowledge` job gained `eval_gate` (about 50 seconds locally in a debug build) and the seeded fixture's sync and rebuild; measure the job on its first hosted run against the 15-minute timeout (C14) | Open, phase 2 owning agent, after the first hosted run |

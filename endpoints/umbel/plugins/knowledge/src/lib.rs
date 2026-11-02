@@ -26,8 +26,12 @@
 //!   proposals as decision traces; `knowledge-approve`, `-reject` and `-verify` are for a person at a
 //!   terminal, and applying a proposal writes the file and the document with the proposal as lineage.
 //!
+//! - `knowledge-eval` (CLI only) runs a seeded query set through the same ranking code as
+//!   `knowledge-search`, as the principals the queries name, and returns the report; [`eval`] also
+//!   holds the fixture generator and the gate.
+//!
 //! Code symbols (the `code` feature) turn a source file into chunks per definition and `defines` and
-//! `mentions` edges; the eval harness is a later step of the phase.
+//! `mentions` edges.
 #![forbid(unsafe_code)]
 
 mod budget;
@@ -35,6 +39,7 @@ pub mod chunk;
 pub mod code;
 mod describe;
 mod doc;
+pub mod eval;
 mod expand;
 mod fail;
 mod find;
@@ -49,6 +54,7 @@ mod search;
 mod settings;
 mod stale;
 mod traverse;
+mod view;
 
 use serde_json::Value;
 use umbel_sdk::{Asset, Cx, Outcome, Plugin, failure};
@@ -88,6 +94,7 @@ impl Plugin for Knowledge {
             "knowledge-path" => traverse::path(&input, cx),
             "knowledge-outline" => outline::run(&input, cx),
             "knowledge-stale" => stale::run(&input, cx),
+            "knowledge-eval" => eval::run(&input, cx),
             other => proposal::dispatch(other, &input, cx).unwrap_or_else(|| failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the knowledge plugin has no command `{other}`"),

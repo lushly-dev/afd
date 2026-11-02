@@ -172,13 +172,24 @@ jobs:
           key: knowledge
       - name: Clippy
         run: cargo clippy --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets -- -D warnings
+      # `eval_gate` runs `knowledge-eval` on the seeded thousand-document fixture, holds the report to
+      # the gate and to `plugins/knowledge/eval/baseline.json`, and writes the report here.
       - name: Test
+        env:
+          UMBEL_EVAL_REPORT: ${{ runner.temp }}/knowledge-eval-report.json
         run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
       # Without the `code` feature (tree-sitter and its grammars) code collections are plain text.
       - name: Clippy (knowledge without code)
         run: cargo clippy --locked -p umbel-plugin-knowledge --no-default-features --all-targets -- -D warnings
       - name: Test (knowledge without code)
         run: cargo test --locked -p umbel-plugin-knowledge --no-default-features
+      - name: Upload the eval report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: knowledge-eval-report-${{ matrix.os }}
+          path: ${{ runner.temp }}/knowledge-eval-report.json
+          if-no-files-found: warn
       # The traits and types build for WebAssembly components (section 1); the backend does not.
       - name: Check umbel-store (wasm32-wasip2)
         run: cargo check --locked --target wasm32-wasip2 -p umbel-store

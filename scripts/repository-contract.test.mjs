@@ -343,7 +343,9 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 			);
 	const umbel = read('.github/workflows/umbel.yml');
 	assert.match(umbel, /permissions:\n {2}contents: read/);
-	assert.doesNotMatch(umbel, /publish|upload|id-token|secrets\./);
+	// The knowledge job uploads its eval report as a workflow artifact; that is not publication.
+	assert.doesNotMatch(umbel, /publish|upload(?!-artifact)|id-token|secrets\./);
+	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
 });
 
 test('every published package type-checks its tests', () => {

@@ -8,6 +8,8 @@ use umbel_okf::structure::count_lines;
 use umbel_sdk::{Cx, HostError};
 use umbel_store::{DocMeta, Document, ListQuery};
 
+use crate::view::View;
+
 /// A serde enum's wire spelling (`stable`, `human`, `internal`), for fields the index and the
 /// results spell as strings.
 pub(crate) fn label<T: Serialize>(value: &T) -> String {
@@ -19,7 +21,11 @@ pub(crate) fn label<T: Serialize>(value: &T) -> String {
 
 /// The metadata of the stored document `id` when the caller's reader filter admits it: a metadata
 /// read, so no bytes are loaded.
-pub(crate) fn meta(cx: &Cx, space: &str, id: &str) -> Result<Option<DocMeta>, HostError> {
+pub(crate) fn meta<V: View + ?Sized>(
+    cx: &V,
+    space: &str,
+    id: &str,
+) -> Result<Option<DocMeta>, HostError> {
     let collection = id
         .split_once('/')
         .map(|(collection, _)| collection.to_owned());
@@ -38,7 +44,7 @@ pub(crate) fn meta(cx: &Cx, space: &str, id: &str) -> Result<Option<DocMeta>, Ho
 }
 
 /// Whether the caller's reader filter admits the stored document `id`.
-pub(crate) fn readable(cx: &Cx, space: &str, id: &str) -> Result<bool, HostError> {
+pub(crate) fn readable<V: View + ?Sized>(cx: &V, space: &str, id: &str) -> Result<bool, HostError> {
     Ok(meta(cx, space, id)?.is_some())
 }
 
