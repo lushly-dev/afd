@@ -12,10 +12,15 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 0,
+				"kernelInterface": 1,
 				"layoutState": 0,
 				"storeInterface": 0,
 				"tokenContract": 1,
+				"manifestVersion": 1,
+				"appProtocol": 1,
+				"surfaceCatalog": 1,
+				"compositionLibrary": 1,
+				"sdk": 1,
 				"host": "test",
 				"store": "memory"
 			},
@@ -148,11 +153,11 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793575827213",
-					"expiresAt": "2026-11-02T00:30:27.213Z"
+					"id": "mock-session-1793608037914",
+					"expiresAt": "2026-11-02T09:27:17.914Z"
 				},
 				"user": {
-					"id": "mock-user-1793575827213",
+					"id": "mock-user-1793608037914",
 					"email": "person@example.com",
 					"name": "person"
 				}
@@ -181,11 +186,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:6010b828e3cd81459630a7e888c3ee8de7b07149064d88bc621572cf54945d7e",
+			"hash": "sha256:1432e5f32517441a670facb0a7cdf57c66768356d47d079ef1cc6dfe09ab8c3f",
 			"interface": "palette"
 		},
 		"result": {
@@ -240,11 +245,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:769ecdd3d7fb692799f67cddd9e4092d3b0becf18b3c955d0968a0107efde2b7",
+			"hash": "sha256:01dd40588f6e9a93dff063307a946e7371fc3c39215f6aa51fe111af5d7e1d04",
 			"interface": "palette"
 		},
 		"result": {
@@ -299,11 +304,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:e974432d3231ea089fb73868b29db09504f3b343d85340088b5f4ab19da8b656",
+			"hash": "sha256:7f28d1d6280a848cb1227d357366754d9eaa6792c15046fcb434c71202e1444c",
 			"interface": "palette"
 		},
 		"result": {
@@ -358,11 +363,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:acd5ea164f0cdd3cc10865426f8fdc9aa193f668071a68fec1a0cfc1f40826f8",
+			"hash": "sha256:48e250e1df07388dc5d68fa54e03e70e6cae4e9a160565e74dc2343ef8f0f807",
 			"interface": "palette"
 		},
 		"result": {
@@ -417,11 +422,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:2d1b87e9883dccd7718e71d323cac7837d54468b0467e22d1d8bba526ffa25f7",
+			"hash": "sha256:f0ea0b0c3049598d182f70f5d40f4b9bfcd1799622d953bf5d094d620a788a85",
 			"interface": "palette"
 		},
 		"result": {
@@ -476,11 +481,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:6aedba73f7abe7423660c58ef18877ec11bdb1bc1091388449f51bae34a640d4",
+			"hash": "sha256:b1102073c13e9db05f673264fbf746eec8f2369882010e798540ae66958e3734",
 			"interface": "palette"
 		},
 		"result": {
@@ -535,11 +540,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:62c14047f0c85fc95f6690c90e70e286bb2c9fd5b1d034a57f4202f293950802",
+			"hash": "sha256:517a425e6ea2aaac042f0258f0d547c194c3b9058b42203cdbf084fd49854117",
 			"interface": "palette"
 		},
 		"result": {
@@ -594,11 +599,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f80b8fbe77c71ea0d1c52e8114a332ebb04c4164c92d60ba1e2641bcc037e65d",
+			"hash": "sha256:18a525ff602d7ba2108f15964f41741e848a13991ab16cda136d59348444750c",
 			"interface": "palette"
 		},
 		"result": {
@@ -639,11 +644,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:e53d52ea366ca0786faadd2afd882f7e4e97993580819ccca76a340ea004b035",
+			"hash": "sha256:1e2630421f8eef58393d70188f55a8e1977d32b27852fe78db5c8ccb9ff1b838",
 			"interface": "palette"
 		},
 		"result": {
@@ -684,11 +689,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b0ded5215a1dfae75b86f8f6b58077300596918f39571690dc420af8053f1e07",
+			"hash": "sha256:87d29b8cf364eb3ba859e7f8d285b74aac6fdab54bc87ef4e396dcfed0540a0a",
 			"interface": "palette"
 		},
 		"result": {
@@ -724,11 +729,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:3aa45bdf053ce837d31faf65d7675c2c8b86868e9918b66c4a9d8ecfa4f36005",
+			"hash": "sha256:2d9017a594269f04c3afe86dafd239e38bc0a771c9b682c2ccb21a5ccb1f2002",
 			"interface": "palette"
 		},
 		"result": {
@@ -756,11 +761,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f686e8ac312d5825696b7bbe666241f62fc8f8803aeb31067383330c2a2108e5",
+			"hash": "sha256:ce5cc7cb1a45a36196ad92683326f08f5a10156d11b204fd844fcaefb22661f6",
 			"interface": "palette"
 		},
 		"result": {
@@ -790,11 +795,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b540390c593db70d61cd51eb67150c3805cf925e77d35718f45891680f6f6ed3",
+			"hash": "sha256:94df3e3b80025bc78ece4a0fe1086880f85cd3e85f807786fbce27b15b904610",
 			"interface": "palette"
 		},
 		"result": {
@@ -822,11 +827,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:2c316bfc8309eaca2a7fc4174456e6c91d0462d51a6b84d542b132b0130a70cc",
+			"hash": "sha256:8ff18d115c3e3cab331e0f8af311d29c8a3521d8f56d1a674b710e49433ff7ba",
 			"interface": "palette"
 		},
 		"result": {
@@ -856,11 +861,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:4cf85fbbb80a70f442b8c73880eb61972fc30954bcc8c9c4ec4613a9a4948845",
+			"hash": "sha256:b82255b21b34927ac5133fa71ef07df64b046c175a79fdd43ee225f6dc062fb7",
 			"interface": "palette"
 		},
 		"result": {
@@ -896,11 +901,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f59c710a3dcde4025a464eadfef35d9c905622eaa79bb6aa129416489096c3ef",
+			"hash": "sha256:50e783e7ac86466a7039b217a1367495feeb6a01b32d2b16f6826e0a7e78963b",
 			"interface": "palette"
 		},
 		"result": {
@@ -934,11 +939,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:7e47ad2c96c22539352db2668c94742c045cf7248fb6f1ecd2b15c71689e5352",
+			"hash": "sha256:28ee886929a2a45ed6ad7ab0c17f1a8a2ff82b04877a21c81e08dc7fc40b944c",
 			"interface": "palette"
 		},
 		"result": {
@@ -968,11 +973,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:9edf7ff1768823ab98fc0d864e9954e5912f8ad6089480ed33f7859b51255924",
+			"hash": "sha256:b6a174203d24c0549af2e77e0fdccef697b83bfc733930547ceb749459bed604",
 			"interface": "agent"
 		},
 		"result": {
@@ -1019,11 +1024,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f0aff1fa8979438e45d4aee759f92f526c3c3555ac896161d616e668e26861b1",
+			"hash": "sha256:9600e4722c6832b5030bbed11129e2d2e7d29398ff1d7a3533d94ad83ad7dc81",
 			"interface": "agent"
 		},
 		"result": {
@@ -1080,11 +1085,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f7de34154ef5e7270548da60d1dfa820350c6e5e5b8a33b4f405283371a6beea",
+			"hash": "sha256:28d204ca0c92ef4a1f3ce49c1920c2467ef048619cea97ec6fc6a6bce4d6bf38",
 			"interface": "agent"
 		},
 		"result": {
@@ -1186,11 +1191,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f2db5b359c288b30b4f05827ad219b6b6e2c3afc7b843b457378cf624cea2cff",
+			"hash": "sha256:6b235e6fa053b39021b9efdd3e89ca5934c8f1afdca4dbab299cfde590a13186",
 			"interface": "agent"
 		},
 		"result": {
@@ -1234,11 +1239,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:0b792a6403a6a91c6f5fe54d6cc9d65e9c1fbee8b079d8191d92bf1ba335cc04",
+			"hash": "sha256:b1066b5fc0d1d4000648438640a82b23f06fbee7cdec08605f2014a14e780230",
 			"interface": "agent"
 		},
 		"result": {
@@ -1333,11 +1338,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b9475af2067aa7454c8041b0e6620fe19d7b64ebaeba4b5775ab1763f0463b44",
+			"hash": "sha256:7d2a5b5f12162309a332b8f2844e01577ac4064201f0e5b4b695fab0afa75f59",
 			"interface": "agent"
 		},
 		"result": {
@@ -1373,11 +1378,17 @@
 							"theme": "dark",
 							"density": "compact"
 						}
+					},
+					{
+						"id": "loam.apps",
+						"state": {
+							"active": null
+						}
 					}
 				],
-				"total": 2
+				"total": 3
 			},
-			"reasoning": "Found 2 registered view state(s)",
+			"reasoning": "Found 3 registered view state(s)",
 			"confidence": 1,
 			"metadata": {
 				"executionTimeMs": 1,
@@ -1403,11 +1414,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:150374b41c5478d5f9a221ff770ad5d2f65c65753014e9dc351ae05eeb049ff7",
+			"hash": "sha256:4356c64591026cd5607250dbac8c1068e4ca2a3719bf7c384b5a19e59e43cf72",
 			"interface": "agent"
 		},
 		"result": {
@@ -1462,11 +1473,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b7d89547a717ea355b52b298eb040851ac7b85eb78ac0fce17dde26c7c99a391",
+			"hash": "sha256:f53f4ba868e0d2aa635e82d46cbc860630ed9d2c09d1da0de1d011a4edbdc9c2",
 			"interface": "agent"
 		},
 		"result": {
@@ -1521,11 +1532,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:8e07b503d3237f3d7b380bc50390e4c3b2549233f61da6c183c1ffe759f830e3",
+			"hash": "sha256:6915d2823dd2dafe2e49c3356211ef0943d0d3f2a2cf35918b5383c01bcd08da",
 			"interface": "agent"
 		},
 		"result": {
@@ -1581,11 +1592,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:4487f526daf9eebd54742db03022c1364bec0c510970826acf3710d43a683ba9",
+			"hash": "sha256:b5c430849e2d1a6f862a38567bcc4ba804b51dddee9823253a7ee9645629732f",
 			"interface": "agent"
 		},
 		"result": {
@@ -1639,11 +1650,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:d6df094a3165a8c9368aac2fb530da1fd658cfecd7d41fc5b100df1457ae43bc",
+			"hash": "sha256:6f7f21f30a978325870c3631be7349141e09bc4f45d42e08033b00022093721c",
 			"interface": "agent"
 		},
 		"result": {
@@ -1682,11 +1693,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:ac80f9bdd75a5a80f97adab0b8c18830966d6e12aca46c7857b5094b53c3dc3d",
+			"hash": "sha256:76e01fa3860375acb817165f106dbe41454b895f8a3d51ff74f02f8497c3633f",
 			"interface": "agent"
 		},
 		"result": {
@@ -1725,11 +1736,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:278171ed503cd5362b41e33d40d3b8600ebea4f598a2e292a97ede9ed3392afe",
+			"hash": "sha256:6b2dd5168f0e26ff322881ef2aa28d5487c5e574c52d3e3c224ee4677ed8ace1",
 			"interface": "agent"
 		},
 		"result": {
@@ -1776,20 +1787,25 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:891a40d08e877bf139e26f5d7239bcc98c6f96fd00f540d58c663628d8cf4f0b",
+			"hash": "sha256:629f4f3de28ccfc18b3b4c197e0b008c6a698a873925ce6154bde2b8a20f6037",
 			"interface": "agent"
 		},
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 0,
+				"kernelInterface": 1,
 				"layoutState": 0,
 				"storeInterface": 0,
 				"tokenContract": 1,
+				"manifestVersion": 1,
+				"appProtocol": 1,
+				"surfaceCatalog": 1,
+				"compositionLibrary": 1,
+				"sdk": 1,
 				"host": "test",
 				"store": "memory"
 			},
@@ -1818,11 +1834,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f9cff31b075e8ba66dea5cca0786ff88a86019033eb3397c3e09ee9ac631c06e",
+			"hash": "sha256:8382493422f50f0070f81c84e3587e7ed0c01c5d07eeed80cbf207b13f2c95b0",
 			"interface": "palette"
 		},
 		"result": {
@@ -1878,11 +1894,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:c22a6db1ed5684f4d57aefa4770ee474bd4ec8a8204fff5dbd07207e17bf49e9",
+			"hash": "sha256:2f8e92a93bc2bfee9e99ddd37f71b4f7f8910acf0e1ee9945446a5cbd087cbb6",
 			"interface": "palette"
 		},
 		"result": {
@@ -1937,11 +1953,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:cc2cc514e5a47573b77fd7eeca1f451bff95554691f6ec5724da31f1568d0f98",
+			"hash": "sha256:0504d0ea68c53331c8cd3e82100b6950a9a326bf5a998ecff04122b4b9a67836",
 			"interface": "palette"
 		},
 		"result": {
@@ -1992,11 +2008,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:6ba392d19f5d829060f61f6b2573efa2cd2e787ada751a617717096d350d9996",
+			"hash": "sha256:a5dbc68d2647cab3f7df4741f82e1685ee958912d5304b6f2bd9afd98054a9d2",
 			"interface": "palette"
 		},
 		"result": {
@@ -2061,11 +2077,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:c14476ceb56bd3d0b9426e17613ec537beb24d5ad9d465c987b06527220f5db0",
+			"hash": "sha256:5add487ef7476cd809ad8d666febf47cf010960a27a128ddda8d3bcfa9148073",
 			"interface": "palette"
 		},
 		"result": {
@@ -2115,11 +2131,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:c05610de82e77676239105727b215d23957dd5d8d0dfdbc1daad81a13ae424b7",
+			"hash": "sha256:295410d5584b5da328338cb194a5ce12950ca36ec6146c527a9c81fa8d51fc5e",
 			"interface": "palette"
 		},
 		"result": {
@@ -2175,11 +2191,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:2253163761b20aa73d5af2946731ee3d0d96aedc7db711c0a04dd0f480262525",
+			"hash": "sha256:8d6c109f0d1fa767160f34f693e8147c5d95af1caa0d74fac3834c4ce3790ab8",
 			"interface": "palette"
 		},
 		"result": {
@@ -2219,11 +2235,11 @@
 		},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:9a47e7aef42f49664a5a5def26204039cc6c26c966b7514b50e95e31109507b9",
+			"hash": "sha256:3e8479f6db3e76082fd1c890f2cd0d7dccac028187901eb76afaccb617fbce53",
 			"interface": "palette"
 		},
 		"result": {
@@ -2258,11 +2274,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b6e659e55f9e672834eb8fbbfcc44b5ff84fbc4f1dacc1e6bc23a4b458ce766a",
+			"hash": "sha256:2593d2d3281099ddebcfdff35240d1f450b02c2f1b09d304accfe62e1aac4ab9",
 			"interface": "palette"
 		},
 		"result": {
@@ -2270,11 +2286,11 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793575827213",
-					"expiresAt": "2026-11-02T00:30:27.213Z"
+					"id": "mock-session-1793608037914",
+					"expiresAt": "2026-11-02T09:27:17.914Z"
 				},
 				"user": {
-					"id": "mock-user-1793575827213",
+					"id": "mock-user-1793608037914",
 					"email": "person@example.com",
 					"name": "person"
 				}
@@ -2300,11 +2316,11 @@
 		"input": {},
 		"actor": {
 			"kind": "human",
-			"id": "mock-user-1793575827213",
+			"id": "mock-user-1793608037914",
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f5f28d4bd5bf420dcf5a0138372c5448d3bcaeaeb2e879e15c506bc001f3249b",
+			"hash": "sha256:8f0d5c8bd97d8ddde7738f28d59448bca7cfd00b4dc533a5aba1470233e650ad",
 			"interface": "palette"
 		},
 		"result": {

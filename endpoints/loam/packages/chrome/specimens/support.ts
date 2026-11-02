@@ -4,7 +4,7 @@
  * Specimen chooses the theme through media (D53), so fixtures resolve `system` from `matchMedia`.
  */
 
-import { APPEARANCE_QUERIES, type LoamKernelV0 } from '@lushly-dev/loam-kernel';
+import { APPEARANCE_QUERIES, type LoamKernelV1 } from '@lushly-dev/loam-kernel';
 import {
 	createFixedEnvironment,
 	createTestKernel,
@@ -57,12 +57,12 @@ export interface ShellFixture {
 
 /** Mount the shell over `kernel` into a container, after running `calls` on it. */
 export function shellFixture(
-	create: () => Promise<{ kernel: LoamKernelV0; calls?: readonly SessionCall[] }>,
+	create: () => Promise<{ kernel: LoamKernelV1; calls?: readonly SessionCall[] }>,
 	afterMount?: (shell: LoamShell) => Promise<void>
 ): ShellFixture {
 	const element = document.createElement('div');
 	element.dataset.fixture = 'shell';
-	let kernel: LoamKernelV0 | undefined;
+	let kernel: LoamKernelV1 | undefined;
 	const ready = (async () => {
 		const created = await create();
 		kernel = created.kernel;

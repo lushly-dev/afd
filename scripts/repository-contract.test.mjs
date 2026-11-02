@@ -234,7 +234,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 	assert.deepEqual(errors, []);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/packages\/\*"$/m);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/apps\/\*"$/m);
-	const loam = ['manifest', 'sdk', 'cli', 'theme', 'kernel', 'chrome', 'web'];
+	const loam = ['manifest', 'sdk', 'testing', 'cli', 'theme', 'kernel', 'chrome', 'web'];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
 		assert.equal(unit.family, 'loam');
@@ -272,12 +272,16 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		const declared = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
 		assert.ok(!declared.some((target) => names.has(target)), manifestPath);
 	}
-	// The kernel has no DOM, foundation or other Loam dependency; the chrome reaches Violet only
-	// through FAST-AF's components.
+	// The kernel has no DOM or foundation dependency, and of Loam takes only the manifest's catalogs and
+	// the SDK's types; the chrome reaches Violet only through FAST-AF's components.
 	assert.ok(
 		!dependencies['@lushly-dev/loam-kernel'].some((target) =>
-			/fast-element|violet|specimen|loam-/.test(target)
+			/fast-element|violet|specimen/.test(target)
 		)
+	);
+	assert.deepEqual(
+		dependencies['@lushly-dev/loam-kernel'].filter((target) => target.includes('loam-')),
+		['@lushly-dev/loam-manifest', '@lushly-dev/loam-sdk']
 	);
 	assert.deepEqual(dependencies['@lushly-dev/loam-chrome'], [
 		'@lushly-dev/fast-element',

@@ -1,25 +1,32 @@
 /**
  * @fileoverview The kernel's test kit, `@lushly-dev/loam-kernel/testing` (phase 0 specification,
- * 6.4, 6.7 and 8.2): `replayKernel`, `diffJournals`, the sessions and the reference workspace.
- * No DOM dependency.
+ * 6.4, 6.7 and 8.2; phase 1 specification, 7.6): `replayKernel`, `diffJournals`, the sessions, the
+ * reference workspace and the `probe` fixture app. No DOM dependency.
  */
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
-import { type CommandContext, type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
+import {
+	type CommandContext,
+	type CommandResult,
+	type JournalEntry,
+	MemoryJournalSink,
+} from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
 	type JournalReplayTarget,
 	type ReplayDifference,
+	type ReplayEntryReport,
 	type ReplayReport,
 	replayJournal,
 } from '@lushly-dev/afd-server/direct';
+import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
-import { LoamKernelError } from './errors.js';
+import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { createFixedEnvironment } from './session.js';
-import type { KernelEnvironmentV0, LoamKernelV0 } from './types.js';
+import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV1 } from './types.js';
 
 export {
 	createReferenceWorkspace,
@@ -40,6 +47,16 @@ export {
 	type TestKernel,
 	type TestKernelOptions,
 } from './session.js';
+export {
+	createFixturePorts,
+	type FixturePackage,
+	type FixturePorts,
+	PROBE_MANIFEST,
+	PROBE_SESSION,
+	probeDefinition,
+	probeDeployment,
+	probeViewManifest,
+} from './testing-probe.js';
 
 // ─── Replay ─────────────────────────────────────────────────────────────────────
 
@@ -71,17 +88,112 @@ export interface ReplayKernelOptions {
 	 * disposes it. Added by step 7 for E2's replay fixture.
 	 */
 	keep?: boolean;
+	/** The recording kernel's deployment. */
+	deployment?: ProjectionV1;
+	/** Ports that serve the deployment's packages in process, so a view replays with no iframe. */
+	ports?: KernelPortsV1;
+}
+
+/** A replay's report, with the entries it answered from the record instead of running them. */
+export interface KernelReplayReport extends ReplayReport {
+	/** Their `seq`s, so nothing claims they re-ran. */
+	recorded: number[];
 }
 
 export interface ReplayKernelResult {
-	report: ReplayReport;
+	report: KernelReplayReport;
 	/** `layout-get` after the last entry. */
 	layout: LayoutStateV0;
 	/** `appearance-get` after the last entry. */
 	appearance: AppearanceV0;
 	/** The replayed kernel, when `keep` was set; the caller disposes it. */
-	kernel?: LoamKernelV0;
+	kernel?: LoamKernelV1;
 }
+
+/**
+ * Queries whose answers depend on what has loaded, not on a command, so a replay answers them from the
+ * record (phase 1 specification, 7.6).
+ */
+export const REPLAY_RECORDED_QUERIES: readonly string[] = Object.freeze([
+	'app-list',
+	'app-get',
+	'app-command-list',
+	'app-instance-list',
+]);
+
+/** Whether a replay answers `entry` from its record, because re-running it would prove nothing. */
+function answeredFromRecord(entry: JournalEntry): boolean {
+	const details = entry.result.error?.details as Record<string, unknown> | undefined;
+	return (
+		REPLAY_RECORDED_QUERIES.includes(entry.command) ||
+		entry.context?.replay === 'recorded' ||
+		entry.context?.parent !== undefined ||
+		details?.[PAGE_DECIDED] === true
+	);
+}
+
+/**
+ * Whether the validated input a journal holds is what `given` asks for. A schema may fill in a default,
+ * so only what the call names must match.
+ */
+function sameCall(recorded: unknown, given: unknown): boolean {
+	if (given === undefined) return true;
+	if (Array.isArray(given)) {
+		return (
+			Array.isArray(recorded) &&
+			recorded.length === given.length &&
+			given.every((item, index) => sameCall(recorded[index], item))
+		);
+	}
+	if (typeof given === 'object' && given !== null) {
+		if (typeof recorded !== 'object' || recorded === null) return false;
+		return Object.entries(given).every(([key, value]) =>
+			sameCall((recorded as Record<string, unknown>)[key], value)
+		);
+	}
+	return recorded === given;
+}
+
+/**
+ * A handler's nested calls during a replay: answered from the entries with that `parent`, in order, and
+ * what differs from them is kept against the outer call, whose result may not show it.
+ */
+function nestedReplay(entries: readonly JournalEntry[]) {
+	const byParent = new Map<string, JournalEntry[]>();
+	for (const entry of entries) {
+		const parent = entry.context?.parent;
+		if (typeof parent !== 'string') continue;
+		byParent.set(parent, [...(byParent.get(parent) ?? []), entry]);
+	}
+	const problems = new Map<string, string>();
+	return {
+		problems,
+		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
+			const queue = byParent.get(parent);
+			const next = queue?.[0];
+			if (next?.command !== name || !sameCall(next.input, input)) return undefined;
+			queue?.shift();
+			return next.result;
+		},
+		unrecorded(parent: string, name: string): void {
+			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
+		},
+		/** The outer call has finished: every call the record holds for it should have happened. */
+		finish(parent: string): void {
+			const left = byParent.get(parent)?.[0];
+			if (left && !problems.has(parent)) {
+				problems.set(
+					parent,
+					`The handler did not call '${left.command}', which the journal records`
+				);
+			}
+		},
+	};
+}
+
+/** A replayed session ends where its trace IDs stop sharing their base: the page was reloaded. */
+const traceBaseOf = (traceId: string | undefined): string | undefined =>
+	traceId?.slice(0, traceId.lastIndexOf('-'));
 
 /** The first difference of a report, for a divergence message. */
 function firstDivergence(report: ReplayReport) {
@@ -94,6 +206,48 @@ function firstDivergence(report: ReplayReport) {
 		status: entry.status,
 		difference,
 		error: entry.error,
+	};
+}
+
+/** The report with each entry whose nested calls differed marked `different`, even if its result did not. */
+function withNestedProblems(
+	report: ReplayReport,
+	entries: readonly JournalEntry[],
+	problems: ReadonlyMap<string, string>,
+	recorded: number[]
+): KernelReplayReport {
+	const problemBySeq = new Map(
+		entries.flatMap((entry) => {
+			const problem = entry.traceId === undefined ? undefined : problems.get(entry.traceId);
+			return problem === undefined ? [] : [[entry.seq, problem] as const];
+		})
+	);
+	const reported = report.entries.map((entry): ReplayEntryReport => {
+		const problem = problemBySeq.get(entry.seq);
+		if (problem === undefined) return entry;
+		return {
+			...entry,
+			status: 'different',
+			differences: [
+				...(entry.differences ?? []),
+				{
+					path: '',
+					kind: 'changed',
+					recorded: 'the nested calls in the journal',
+					replayed: problem,
+				},
+			],
+		};
+	});
+	const count = (status: ReplayEntryReport['status']) =>
+		reported.filter((entry) => entry.status === status).length;
+	return {
+		...report,
+		entries: reported,
+		same: count('same'),
+		different: count('different'),
+		diverged: report.diverged || problemBySeq.size > 0,
+		recorded,
 	};
 }
 
@@ -120,26 +274,57 @@ export async function replayKernel(
 			details: { firstSeq: first.seq },
 		});
 	}
-	const { kernel, registries } = await createKernelParts({
-		store: new MemoryAdapter(),
-		storeKind: 'memory',
-		journal: new MemoryJournalSink(),
-		auth: new MockAuthAdapter(),
-		environment: options.environment ?? createFixedEnvironment(),
-		host: 'test',
-		...(options.commands !== undefined ? { commands: options.commands } : {}),
-	});
+	const nested = nestedReplay(ordered);
+	const parts = await createKernelParts(
+		{
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: options.environment ?? createFixedEnvironment(),
+			host: 'test',
+			...(options.commands !== undefined ? { commands: options.commands } : {}),
+			...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
+			...(options.ports !== undefined ? { ports: options.ports } : {}),
+		},
+		{
+			answerNested: (parent, name, input) => nested.answer(parent, name, input),
+			nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
+		}
+	);
+	const { kernel } = parts;
 	let kept = false;
 	try {
+		const recorded: number[] = [];
+		const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
+		let session = traceBaseOf(ordered[0]?.traceId);
 		const target: JournalReplayTarget = {
-			execute(name: string, input: unknown, context: CommandContext = {}) {
+			async execute(name: string, input: unknown, context: CommandContext = {}) {
+				const base = traceBaseOf(context.traceId);
+				if (base !== session) {
+					session = base;
+					parts.resetSession();
+				}
+				const entry = byTrace.get(context.traceId);
+				if (entry && answeredFromRecord(entry)) {
+					recorded.push(entry.seq);
+					return entry.result;
+				}
+				const { registries } = parts;
 				const registry = context.interface === 'agent' ? registries.agent : registries.palette;
-				return registry.execute(name, input, context);
+				const result = await registry.execute(name, input, context);
+				if (context.traceId !== undefined) nested.finish(context.traceId);
+				return result;
 			},
 		};
-		const report = await replayJournal(target, ordered, {
-			ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
-		});
+		const report = withNestedProblems(
+			await replayJournal(target, ordered, {
+				ignore: [...REPLAY_IGNORE, ...(options.ignore ?? [])],
+			}),
+			ordered,
+			nested.problems,
+			recorded
+		);
 		if (report.diverged) {
 			const divergence = firstDivergence(report);
 			const where = divergence?.difference?.path ? ` at ${divergence.difference.path}` : '';

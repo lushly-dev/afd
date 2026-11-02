@@ -7,6 +7,9 @@
  */
 
 import type { CommandError } from '@lushly-dev/afd-core';
+import { LAYOUT_DEFAULTS_V0 } from '@lushly-dev/loam-manifest';
+
+export { LAYOUT_DEFAULTS_V0 };
 
 /** The shell's layout, version 0. The same in every layout class. */
 export interface LayoutStateV0 {
@@ -29,19 +32,40 @@ export interface LayoutPatchV0 {
 	compact?: Partial<LayoutStateV0['compact']>;
 }
 
-/**
- * Sizes in CSS pixels. The theme's `shell.size.*` tokens hold the same values, and the theme
- * package's `theme:check` fails when they disagree.
- */
-export const LAYOUT_DEFAULTS_V0 = {
-	sidebar: { default: 260, min: 200, max: 480 },
-	inspector: { default: 300, min: 240, max: 520 },
-	panel: { default: 240, min: 120 },
-	mainMin: 360,
-} as const;
-
-/** The view-state id of the layout. */
+/** The view-state id of the layout: the no-app record, and the name a caller reads any record by. */
 export const LAYOUT_VIEW_STATE_ID = 'loam.layout';
+
+/** The view-state id of one instance's layout (phase 1 specification, 4.5). */
+export function appLayoutId(instance: string): string {
+	return `${LAYOUT_VIEW_STATE_ID}.${instance}`;
+}
+
+/** The parts an app declares in its manifest for them to be available (4.5). */
+export type LayoutPart = 'sidebar' | 'inspector' | 'panel';
+
+/** Whether a view-state id is a layout record: the no-app one or an instance's. */
+export function isLayoutId(id: string): boolean {
+	return id === LAYOUT_VIEW_STATE_ID || id.startsWith(`${LAYOUT_VIEW_STATE_ID}.`);
+}
+
+/** The part a layout patch or state opens that is not in `declared`, if any. */
+export function undeclaredOpening(
+	patch: unknown,
+	declared: ReadonlySet<LayoutPart>
+): LayoutPart | undefined {
+	if (!isRecord(patch)) return undefined;
+	const opened = (part: LayoutPart): boolean => {
+		const fields = patch[part];
+		return isRecord(fields) && fields.open === true;
+	};
+	const compact = isRecord(patch.compact) ? patch.compact : {};
+	const parts: LayoutPart[] = ['sidebar', 'inspector', 'panel'];
+	return parts.find(
+		(part) =>
+			!declared.has(part) &&
+			(opened(part) || compact.drawer === part || (part === 'panel' && compact.sheet === true))
+	);
+}
 
 /** A fresh copy of the default layout. */
 export function createDefaultLayout(): LayoutStateV0 {

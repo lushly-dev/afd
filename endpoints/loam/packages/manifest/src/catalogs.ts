@@ -3,6 +3,8 @@
  * need (phase 1 specification, section 4). No validator and no DOM: the shell reads these at boot.
  */
 
+export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
+
 /** One surface of the catalog. */
 export interface SurfaceEntry {
 	id: string;
@@ -226,7 +228,7 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 	'auth',
 ];
 
-/** The chords the shell keeps, as `SHELL_KEYBINDINGS_V0` does; from step 3 the kernel's test holds them equal. */
+/** The chords the shell keeps, as `SHELL_KEYBINDINGS_V0` does; the kernel's test holds them equal. */
 export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [
 	'Mod+K',
 	'Mod+B',
@@ -235,25 +237,6 @@ export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [
 	'F6',
 	'Shift+F6',
 ];
-
-/** The bounds {@link LAYOUT_DEFAULTS_V0} holds, in CSS pixels. */
-export interface LayoutDefaultsV0 {
-	readonly sidebar: { readonly default: 260; readonly min: 200; readonly max: 480 };
-	readonly inspector: { readonly default: 300; readonly min: 240; readonly max: 520 };
-	readonly panel: { readonly default: 240; readonly min: 120 };
-	readonly mainMin: 360;
-}
-
-/**
- * Sizes in CSS pixels. The theme's `shell.size.*` tokens hold the same values, and the theme
- * package's `theme:check` fails when they disagree.
- */
-export const LAYOUT_DEFAULTS_V0: LayoutDefaultsV0 = {
-	sidebar: { default: 260, min: 200, max: 480 },
-	inspector: { default: 300, min: 240, max: 520 },
-	panel: { default: 240, min: 120 },
-	mainMin: 360,
-};
 
 /** What `app check`, `app-get` and an app's README say of each kind (D54). */
 export const TRUST_LINES_V1 = {

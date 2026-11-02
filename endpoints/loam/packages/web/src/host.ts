@@ -10,7 +10,7 @@ import {
 	IndexedDbJournalSink,
 	type IndexedDbJournalSinkOptions,
 } from '@lushly-dev/afd-core/journal-indexeddb';
-import { createKernel, type KernelEnvironmentV0, type LoamKernelV0 } from '@lushly-dev/loam-kernel';
+import { createKernel, type KernelEnvironmentV0, type LoamKernelV1 } from '@lushly-dev/loam-kernel';
 
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 
@@ -53,7 +53,7 @@ export interface HostKernelOptions {
 const LOCK_RETRY_MS = 100;
 
 export type HostKernel =
-	| { kind: 'ready'; kernel: LoamKernelV0; journal: IndexedDbJournalSink }
+	| { kind: 'ready'; kernel: LoamKernelV1; journal: IndexedDbJournalSink }
 	| { kind: 'locked'; error: IndexedDbJournalError };
 
 /** Take the journal's writer lock, then create the kernel over the IndexedDB stores. */

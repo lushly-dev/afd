@@ -14,15 +14,15 @@ import {
 } from './kernel.js';
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
-import type { KernelEventV0, KernelOptionsV0, LoamKernelV0 } from './types.js';
+import type { KernelEventV1, KernelOptionsV1, LoamKernelV1 } from './types.js';
 
-const kernels: LoamKernelV0[] = [];
+const kernels: LoamKernelV1[] = [];
 
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
 
-function options(overrides: Partial<KernelOptionsV0> = {}): KernelOptionsV0 {
+function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -35,7 +35,7 @@ function options(overrides: Partial<KernelOptionsV0> = {}): KernelOptionsV0 {
 	};
 }
 
-async function kernel(overrides: Partial<KernelOptionsV0> = {}) {
+async function kernel(overrides: Partial<KernelOptionsV1> = {}) {
 	const opts = options(overrides);
 	const created = await createKernel(opts);
 	kernels.push(created);
@@ -132,7 +132,7 @@ describe('registries and exposure', () => {
 
 	it('returns COMMAND_NOT_FOUND for an unknown name, with a mutation-free event', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV0[] = [];
+		const events: KernelEventV1[] = [];
 		k.subscribe((event) => events.push(event));
 		expect((await k.call('nothing-here')).error?.code).toBe('COMMAND_NOT_FOUND');
 		expect(events).toEqual([
@@ -143,21 +143,26 @@ describe('registries and exposure', () => {
 	it('reports shell info echoing the options', async () => {
 		const { kernel: k } = await kernel({ host: 'browser', storeKind: 'indexeddb' });
 		expect((await k.call('shell-info-get')).data).toEqual({
-			kernelInterface: 0,
+			kernelInterface: 1,
 			layoutState: 0,
 			storeInterface: 0,
 			tokenContract: 1,
+			manifestVersion: 1,
+			appProtocol: 1,
+			surfaceCatalog: 1,
+			compositionLibrary: 1,
+			sdk: 1,
 			host: 'browser',
 			store: 'indexeddb',
 		});
-		expect(k.version).toBe(0);
+		expect(k.version).toBe(1);
 	});
 });
 
 describe('the journal', () => {
 	it('gives both registries one sequence, and events carry seq', async () => {
 		const { kernel: k, journal } = await kernel();
-		const events: KernelEventV0[] = [];
+		const events: KernelEventV1[] = [];
 		const unsubscribe = k.subscribe((event) => events.push(event));
 		await k.call('layout-set', { sidebar: { open: false } });
 		await k.agent.call('layout-get');
@@ -257,7 +262,7 @@ describe('the journal', () => {
 
 	it('keeps a throwing listener from changing the result or the other listeners', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV0[] = [];
+		const events: KernelEventV1[] = [];
 		const reportError = vi.fn();
 		vi.stubGlobal('reportError', reportError);
 		try {
@@ -339,7 +344,7 @@ describe('E1 (kernel unit): every layout change goes through the shared validato
 		expect((await k.call('view-state-set', { id: 'nope', state: {} })).error?.code).toBe(
 			'VIEW_STATE_NOT_FOUND'
 		);
-		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(2);
+		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(3);
 	});
 
 	it('sets, refuses and undoes with layout-set', async () => {
@@ -428,7 +433,7 @@ describe('the palette commands', () => {
 		const limited = await k.call<{ items: unknown[] }>('palette-search', { query: '', limit: 3 });
 		expect(limited.data?.items).toHaveLength(3);
 		const all = await k.call<{ items: unknown[] }>('palette-search', { query: '' });
-		expect(all.data?.items).toHaveLength(16);
+		expect(all.data?.items).toHaveLength(20);
 		expect((await k.call('palette-search', { query: 'a', limit: 51 })).error?.code).toBe(
 			'VALIDATION_ERROR'
 		);
@@ -540,7 +545,7 @@ describe('review findings', () => {
 
 	it('gives concurrent calls on both interfaces distinct seqs', async () => {
 		const { kernel: k } = await kernel();
-		const events: KernelEventV0[] = [];
+		const events: KernelEventV1[] = [];
 		k.subscribe((event) => events.push(event));
 		await Promise.all(
 			Array.from({ length: 20 }, (_, i) =>
@@ -563,7 +568,7 @@ describe('review findings', () => {
 				read: async () => [],
 			};
 			const { kernel: k } = await kernel({ journal: failing as never });
-			const events: KernelEventV0[] = [];
+			const events: KernelEventV1[] = [];
 			k.subscribe((event) => events.push(event));
 			expect((await k.call('layout-get')).success).toBe(true);
 			expect(events[0]?.seq).toBeUndefined();

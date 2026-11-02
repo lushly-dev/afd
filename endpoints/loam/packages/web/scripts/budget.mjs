@@ -7,8 +7,9 @@
  * Builds the shell with Vite in production mode and measures what the empty shell loads before
  * first paint: `index.html`'s entry and every chunk it imports statically (a chunk imported
  * dynamically loads later). It also builds `@lushly-dev/loam-kernel` alone, minified with its
- * dependencies, as Vite bundles it for the browser. It fails when a measure is over its ceiling.
- * `dist/` is rebuilt, so run it after `build` or in its place.
+ * dependencies, as Vite bundles it for the browser. The page's `apps` chunk, the kernel's `src/apps/`
+ * with the readers and validators, has a row of its own (phase 1 specification, 9.2). It fails when a
+ * measure is over its ceiling. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -17,6 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { build } from 'vite';
+import { narrowZodFromJsonSchema, zodJitlessByDefault } from './narrow-zod.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -30,6 +32,7 @@ export const CEILINGS = Object.freeze({
 	jsGzip: 95_000,
 	cssMinified: 8_496,
 	kernelMinified: 231_360,
+	appsMinified: 300_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -83,6 +86,8 @@ async function measurePage() {
 	const css = [];
 	for (const match of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="\.?\/?([^"]+)"/g))
 		css.push(match[1]);
+	const appsChunks = [...chunks.values()].filter((chunk) => /^assets\/apps-/.test(chunk.fileName));
+	if (appsChunks.length === 0) throw new Error('budget: the build has no `apps` chunk to measure');
 	const initialChunks = [...initial].map((name) => chunks.get(name)).filter(Boolean);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
@@ -94,6 +99,7 @@ async function measurePage() {
 	return {
 		files: initialChunks.map((chunk) => chunk.fileName),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
+		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
 		cssMinified:
@@ -110,6 +116,7 @@ async function measureKernel() {
 			configFile: false,
 			root: ROOT,
 			logLevel: 'warn',
+			plugins: [zodJitlessByDefault(), narrowZodFromJsonSchema()],
 			build: {
 				outDir,
 				emptyOutDir: true,
@@ -117,7 +124,12 @@ async function measureKernel() {
 				target: 'es2022',
 				minify: true,
 				lib: { entry, formats: ['es'], fileName: 'kernel' },
-				rolldownOptions: { output: { codeSplitting: false } },
+				// As phase 0 measured it, without `src/apps/`, which the empty shell never loads. What
+				// that chunk widens in the shared Zod is counted on the page's row (9.5).
+				rolldownOptions: {
+					external: (id) => /[\\/]apps[\\/]index\.js$/.test(id),
+					output: { codeSplitting: false },
+				},
 			},
 		});
 		const output = (Array.isArray(result) ? result : [result]).flatMap((entry) => entry.output);
@@ -136,6 +148,7 @@ const ROWS = [
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod'],
+	['appsMinified', "The kernel's `apps` chunk, minified, with the readers"],
 ];
 
 export async function measure() {

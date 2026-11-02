@@ -1,5 +1,7 @@
 /**
- * @fileoverview The shell's phase 0 commands (phase 0 specification, 6.3).
+ * @fileoverview The shell's phase 0 commands (phase 0 specification, 6.3), as phase 1 keys their
+ * layout by the active app (phase 1 specification, 4.5). The app and overlay commands are in
+ * `app-commands.ts` and `overlays.ts`.
  *
  * Range checks run in the handlers through the shared validators, never in the input schemas,
  * so a refusal reaches the journal; input-schema failures return before middleware and change
@@ -27,21 +29,25 @@ import {
 	resolveTheme,
 	validateAppearancePatch,
 } from './appearance.js';
+import { kernelFailure } from './errors.js';
 import {
-	createDefaultLayout,
+	isLayoutId,
 	LAYOUT_VIEW_STATE_ID,
+	type LayoutPart,
 	type LayoutPatchV0,
 	type LayoutStateV0,
 	layoutAsPatch,
 	layoutUndoPatch,
+	undeclaredOpening,
 	validateLayoutPatch,
 	validateLayoutState,
 } from './layout.js';
+import type { OverlayStore } from './overlays.js';
 import type { PaletteItem } from './palette-index.js';
-import type { ShellState } from './shell-state.js';
-import type { KernelEnvironmentV0, KernelOptionsV0, ShellInfoV0 } from './types.js';
+import { APPS_VIEW_STATE_ID, type ShellState } from './shell-state.js';
+import type { KernelEnvironmentV0, KernelOptionsV0, ShellInfoV1 } from './types.js';
 
-/** Every shell command's exposure in phase 0: no CLI or MCP surface until phase 6. */
+/** Every shell command's exposure in phase 0 and 1: no CLI or MCP surface until phase 6. */
 export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
 	palette: true,
 	agent: true,
@@ -49,7 +55,16 @@ export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
 	cli: false,
 });
 
-/** The shell's phase 0 command names, in registration order. */
+/**
+ * The commands `listCommands` never reports: each only answers a refusal the app port runs through
+ * the journal (phase 1 specification, 5.3).
+ */
+export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
+	'app-call-refuse',
+	'app-nested-refuse',
+]);
+
+/** The shell's command names, in registration order. */
 export const SHELL_COMMAND_NAMES = [
 	'view-state-get',
 	'view-state-set',
@@ -66,6 +81,20 @@ export const SHELL_COMMAND_NAMES = [
 	'auth-sign-out',
 	'auth-session-get',
 	'shell-info-get',
+	'app-list',
+	'app-get',
+	'app-open',
+	'app-close',
+	'app-command-list',
+	'app-instance-list',
+	'app-instance-refresh',
+	'app-selection-get',
+	'app-selection-set',
+	'status-item-set',
+	'toast-show',
+	'modal-open',
+	'overlay-dismiss',
+	'overlay-list',
 ] as const;
 
 /** Most results `palette-search` returns, and its default. */
@@ -78,6 +107,7 @@ export interface ShellCommandDeps {
 	auth: AuthAdapter;
 	host: KernelOptionsV0['host'];
 	storeKind: KernelOptionsV0['storeKind'];
+	overlays: OverlayStore;
 	/** Searches the palette registry's commands; built once the registries exist. */
 	search(query: string, limit: number): PaletteItem[];
 }
@@ -117,10 +147,45 @@ function withResolved(state: AppearanceStateV0, environment: KernelEnvironmentV0
 	return { ...state, resolved: resolveTheme(state.theme, environment) };
 }
 
+/** The refusal for a layout write that would open a part the app did not declare (4.5). */
+function partUndeclared(part: LayoutPart) {
+	return kernelFailure(
+		'LAYOUT_PART_UNDECLARED',
+		`The active app does not declare the ${part}, so it cannot open`,
+		`Declare \`ui.surfaces.${part}\` in the app's manifest, or leave the part closed; its size may still be set`,
+		{ details: { part, key: `ui.surfaces.${part}` } }
+	);
+}
+
+/** `loam.layout` means the active owner's record; a real id means itself (4.5). */
+function layoutRecordId(id: string, deps: ShellCommandDeps): string {
+	return id === LAYOUT_VIEW_STATE_ID ? deps.state.layoutId() : id;
+}
+
 /**
- * `view-state-set` checking `loam.layout` and `loam.appearance` through the shared validators
+ * `view-state-get` reading `loam.layout` from the active owner's record, and answering under the id
+ * it was asked for, so it still equals `layout-get`.
+ */
+function routeViewStateGet(
+	command: ZodCommandDefinition,
+	deps: ShellCommandDeps
+): ZodCommandDefinition {
+	const original = command.handler;
+	return {
+		...command,
+		async handler(input, context) {
+			const { id } = input as { id: string };
+			const result = await original({ id: layoutRecordId(id, deps) }, context);
+			return result.success ? { ...result, data: { ...(result.data as object), id } } : result;
+		},
+	};
+}
+
+/**
+ * `view-state-set` checking layout records and `loam.appearance` through the shared validators
  * before it runs, so a refusal is a `VALIDATION_ERROR` result (journaled) rather than a throw from
- * the handler. The handlers check again, for callers of the registry itself.
+ * the handler, and writing `loam.layout` to the active owner's record, since the registry persists
+ * under the id it is given. The handlers check again, for callers of the registry itself.
  */
 function guardViewStateSet(
 	command: ZodCommandDefinition,
@@ -135,16 +200,30 @@ function guardViewStateSet(
 				state: Record<string, unknown>;
 				replace?: boolean;
 			};
-			if (id === LAYOUT_VIEW_STATE_ID) {
-				const checked = replace
-					? validateLayoutState(state)
-					: validateLayoutPatch(deps.state.layout(), state);
-				if (!checked.valid) return failure(checked.error);
+			if (id === APPS_VIEW_STATE_ID) {
+				return kernelFailure(
+					'VIEW_STATE_READ_ONLY',
+					`'${APPS_VIEW_STATE_ID}' cannot be written through view-state-set`,
+					'Use app-open or app-close, which also apply the overlay and surface rules'
+				);
+			}
+			const recordId = layoutRecordId(id, deps);
+			if (isLayoutId(recordId)) {
+				const current = deps.state.layoutOf(recordId);
+				if (current) {
+					const checked = replace
+						? validateLayoutState(state)
+						: validateLayoutPatch(current, state);
+					if (!checked.valid) return failure(checked.error);
+					const undeclared = undeclaredOpening(state, deps.state.declaredParts(recordId));
+					if (undeclared) return partUndeclared(undeclared);
+				}
 			} else if (id === APPEARANCE_VIEW_STATE_ID) {
 				const checked = validateAppearancePatch(deps.state.appearance(), state, replace === true);
 				if (!checked.valid) return failure(checked.error);
 			}
-			return original(input, context);
+			const result = await original({ ...(input as object), id: recordId }, context);
+			return result.success ? { ...result, data: { ...(result.data as object), id } } : result;
 		},
 	};
 }
@@ -180,7 +259,10 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			const patch = input as LayoutPatchV0;
 			const checked = validateLayoutPatch(previous, patch);
 			if (!checked.valid) return failure(checked.error);
-			viewState.set(LAYOUT_VIEW_STATE_ID, patch as Record<string, unknown>);
+			const id = state.layoutId();
+			const undeclared = undeclaredOpening(patch, state.declaredParts(id));
+			if (undeclared) return partUndeclared(undeclared);
+			viewState.set(id, patch as Record<string, unknown>);
 			return success(state.layout(), {
 				undoCommand: 'layout-set',
 				undoArgs: layoutUndoPatch(previous, patch) as Record<string, unknown>,
@@ -191,7 +273,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	const layoutReset = defineCommand<typeof empty, LayoutStateV0>({
 		name: 'layout-reset',
 		title: 'Reset layout',
-		description: 'Restore the default layout: sidebar open, inspector and panel closed',
+		description: "Restore the active app's first layout, or the default with no app active",
 		category: 'layout',
 		mutation: true,
 		undoable: true,
@@ -200,8 +282,8 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		async handler() {
 			const previous = state.layout();
 			viewState.replace(
-				LAYOUT_VIEW_STATE_ID,
-				createDefaultLayout() as unknown as Record<string, unknown>
+				state.layoutId(),
+				state.layoutInitial() as unknown as Record<string, unknown>
 			);
 			return success(state.layout(), {
 				undoCommand: 'layout-set',
@@ -256,6 +338,14 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		executionTime: 'instant',
 		input: paletteOpenInput,
 		async handler() {
+			if (deps.overlays.modalOpen()) {
+				return kernelFailure(
+					'OVERLAY_MODAL_BUSY',
+					'A modal is open, so the palette cannot open',
+					'Close the modal first',
+					{ retryable: true }
+				);
+			}
 			return success({ open: true as const });
 		},
 	});
@@ -291,7 +381,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const shellInfoGet = defineCommand<typeof empty, ShellInfoV0>({
+	const shellInfoGet = defineCommand<typeof empty, ShellInfoV1>({
 		name: 'shell-info-get',
 		description: 'Get the shell interface versions, the host and the store backend',
 		category: 'shell',
@@ -300,10 +390,15 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		input: empty,
 		async handler() {
 			return success({
-				kernelInterface: 0 as const,
+				kernelInterface: 1 as const,
 				layoutState: 0 as const,
 				storeInterface: 0 as const,
 				tokenContract: 1 as const,
+				manifestVersion: 1 as const,
+				appProtocol: 1 as const,
+				surfaceCatalog: 1 as const,
+				compositionLibrary: 1 as const,
+				sdk: 1 as const,
 				host: deps.host,
 				store: deps.storeKind,
 			});
@@ -311,7 +406,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	});
 
 	return [
-		viewStateGet as unknown as ZodCommandDefinition,
+		routeViewStateGet(viewStateGet as unknown as ZodCommandDefinition, deps),
 		guardViewStateSet(viewStateSet as unknown as ZodCommandDefinition, deps),
 		viewStateList as unknown as ZodCommandDefinition,
 		layoutGet,
