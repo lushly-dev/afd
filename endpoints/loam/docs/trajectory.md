@@ -75,7 +75,7 @@ seam for it without implementing a draft. Source IDs refer to the
 | R4 | Scoped custom element registries with a polyfill only for Firefox before 159 | 2 | D34; phase 1 |
 | R5 | Routing on the Navigation API and URLPattern; view transitions where present | 2 | Libraries table; phase 0 |
 | R6 | A surface catalog with versioned surface ids and a removal rule for deprecated surfaces | 3 | Architecture section 4; phase 1 |
-| R7 | Native apps as ES modules under import maps; no bundler coupling in the contract | 3 | App manifest; phase 1 |
+| R7 | Native apps as self-contained ES modules; no bundler coupling in the contract. Revised 2026-11-01 by D60: an import map is a seam, not the contract, since an inline one needs a CSP hash | 3 | App manifest; phase 1 |
 | R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 2 |
 | R9 | A kernel behind the SDK interface, so Rust WebAssembly modules, a Rust-rendered chrome or a WebAssembly-component app kind can attach later without a contract change | 5 | Architecture sections 5 and 6; phases 0 and 6 |
 | R10 | Workspaces bound to provider organizations; a reserved tenant field; experiments with audiences | 6 | Data model; D32; phase 3 |
@@ -92,8 +92,8 @@ seam for it without implementing a draft. Source IDs refer to the
 
 | ID | Item | Status on 2026-10-30 | Next date | What changes for Loam |
 | --- | --- | --- | --- | --- |
-| W1 | MCP Apps specification | 2026-01-26 stable; development draft open; host support varies | Unknown; follows the MCP release cycle | The host profile the sandboxed view implements; the exact `_meta` key and MIME type pinned in the phase 1 specification |
-| W2 | Serving resources from AFD servers | Not implemented; a prerequisite shared with Umbel | Before phase 1 | Whether a Loam view can be served to other hosts |
+| W1 | MCP Apps specification | 2026-01-26 stable; development draft open; host support varies. Refreshed 2026-11-01: still the only dated version, `@modelcontextprotocol/ext-apps` at 2.0.4; a web host must use a sandbox proxy on a different origin (D62) | Unknown; follows the MCP release cycle | The host profile the sandboxed view implements, pinned in the phase 1 specification |
+| W2 | Serving resources from AFD servers | Done 2026-11-01: Rust #608, TypeScript #615; not in the in-process registry | None | A Loam view can be served to other hosts; views from a mounted server wait for phase 5 |
 | W3 | Scoped custom element registries in Firefox | Shipped in Firefox 159 on 2026-10-27; Chrome 146 and Safari 26 already shipped | When the support floor reaches 159 | Retire the polyfill (D34) |
 | W4 | CSS anchor positioning in Safari | Shipped in Safari 26 | Settled | Keep a fallback only for older engines |
 | W5 | Cross-document view transitions in Firefox | Not shipped | Interop 2026 hoped, unconfirmed | Cosmetic only |
@@ -120,6 +120,8 @@ seam for it without implementing a draft. Source IDs refer to the
 | W26 | OWASP agentic Top 10 and incident roundups | 2026 edition with ASI09; quarterly roundups | Quarterly | The autonomy policy and approval metrics (D41) |
 | W27 | Agent plugin formats | Claude's plugin directories and Agent Skills converge on files; Cowork, Claude Code, VS Code and Raycast each load something | Unknown | The agent-pack loader (D44) follows Agent Skills first |
 | W28 | CRDT and sync-engine choice | Yjs the most deployed; Automerge with a Rust core; Postgres sync engines for structured data | Before the collaboration specification | Which library sits behind the document store interface (D46) |
+| W29 | Signing for plugins and apps | The owner decided on 2026-11-01 that signing waits; `signature` stays reserved in the manifest; workspace-store digests and D47's owner approval cover published apps. Tracks Umbel's watch row W9, on Agent Skills versioning and security | When Umbel's W9 settles | Whether Loam's published apps gain a signature (D58) |
+| W30 | Browsers restricting a public page calling loopback | Chrome's Local Network Access, since 142, gates it behind a permission, split into `local-network` and `loopback-network` in 145; Firefox and Safari not found on 2026-11-01 | Before phase 6 | Another reason a browser reaches an instance through the hosted server (D64) |
 
 ## Deliberately not chased
 

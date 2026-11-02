@@ -1190,6 +1190,9 @@ Each is a question, not an assumption. U1 alone would amend a recorded rule (Umb
 
 ### For Loam's phase 1 specification
 
+Answered on 2026-11-01 by [Loam's phase 1 specification](../../../../endpoints/loam/docs/phases/1-app-contract/spec.md#what-this-phase-serves),
+and they stand when it is approved; see [STATUS.md](STATUS.md#resolutions-of-l1-to-l10). Every recommendation below is taken, and L5 and L6 are answered.
+
 - **L1.** File name and encoding. Recommendation: TOML for authors, as Umbel's; JSON for
   builder-written artifacts and at runtime.
 - **L2.** The kind names. Recommendation: `native`, `view`, `mounted`.
