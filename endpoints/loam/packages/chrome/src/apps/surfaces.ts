@@ -251,6 +251,11 @@ export class AppSurfaces implements ShellApps {
 		// What the kernel said before the parts could show it.
 		if (this.#missedSwitch) this.#enqueue(() => this.#sync());
 		await this.#overlays.read();
+		// In the background after first paint: a slow or failed instance holds up nothing (7.3).
+		void nextFrame()
+			.then(nextFrame)
+			.then(() => this.#kernel.startInstances())
+			.catch(reportError);
 	}
 
 	/**
@@ -279,13 +284,18 @@ export class AppSurfaces implements ShellApps {
 			if (command === 'app-open' || command === 'app-close') this.#missedSwitch = true;
 			return;
 		}
+		// From anyone: an agent's, or the automatic one. The console says what it found (7.3).
+		if (command === 'app-instance-refresh') {
+			this.#enqueue(() => this.#sync());
+			if (event.instance === this.#showing) this.#enqueue(() => this.#reloadConsole());
+			return;
+		}
 		if (!event.success) {
 			// A first call that failed to import marks its app failed.
 			if (event.instance !== undefined) this.#enqueue(() => this.#sync());
 			return;
 		}
 		if (command === 'app-open' || command === 'app-close') this.#enqueue(() => this.#sync());
-		else if (command === 'app-instance-refresh') this.#enqueue(() => this.#sync());
 		if (
 			command === 'app-open' ||
 			command === 'app-close' ||
@@ -351,9 +361,12 @@ export class AppSurfaces implements ShellApps {
 		const { active, apps } = list.data;
 		const wasFailed = (instance: string) =>
 			this.#summaries.find((app) => app.instance === instance)?.state === 'failed';
-		const nowFailed = apps.find((app) => app.instance === active)?.state === 'failed';
+		const now = apps.find((app) => app.instance === active);
+		const nowFailed = now?.state === 'failed';
 		const changed = active !== this.#showing;
-		const newlyFailed = !changed && active !== null && nowFailed && !wasFailed(active);
+		// A mounted instance's console stays, and says what changed.
+		const newlyFailed =
+			!changed && active !== null && nowFailed && now?.kind !== 'mounted' && !wasFailed(active);
 		this.#renderNav(active, apps);
 		if (!changed && !newlyFailed) return;
 		const focusLeaves = this.#leave();
@@ -497,10 +510,14 @@ export class AppSurfaces implements ShellApps {
 		this.#applyToggles();
 		this.#setEmptyStates(false);
 		this.#setTitle(detail.title);
-		if (detail.kind === 'mounted' && detail.state === 'failed') {
-			// Its console says why, and has the Refresh button (7.7). A failed app has no port.
+		if (detail.kind === 'mounted' && detail.state !== 'refused') {
+			// Its console says why it failed, and has the Refresh button (7.7). A mounted app has no port.
 			await this.#renderConsole(detail, stale);
-			if (!stale()) this.#overlays.announce(`${detail.title} is unavailable`);
+			if (!stale()) {
+				this.#overlays.announce(
+					detail.state === 'failed' ? `${detail.title} is unavailable` : `${detail.title} opened`
+				);
+			}
 			return;
 		}
 		if (detail.state === 'failed' || detail.state === 'refused') {
@@ -814,6 +831,16 @@ export class AppSurfaces implements ShellApps {
 		main.append(mount);
 		this.#mainElements.push(mount);
 		main.removeAttribute('aria-busy');
+	}
+
+	/** The console in main re-reads, after a discovery it may not have asked for. */
+	async #reloadConsole(): Promise<void> {
+		for (const element of this.#mainElements) {
+			const surface = element.localName === 'loam-mount' ? (element as LoamMount).surface : null;
+			if (surface?.localName === CONSOLE_ELEMENT) {
+				await (surface as unknown as { reload(): Promise<void> }).reload();
+			}
+		}
 	}
 
 	#needsInput(): Map<string, boolean | undefined> {

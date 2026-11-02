@@ -452,6 +452,9 @@ importers:
       '@lushly-dev/afd-auth':
         specifier: workspace:*
         version: link:../../../../packages/auth
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../../../packages/client
       '@lushly-dev/afd-core':
         specifier: workspace:*
         version: link:../../../../packages/core

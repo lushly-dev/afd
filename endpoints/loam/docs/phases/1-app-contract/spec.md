@@ -12,9 +12,9 @@
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
   under the owner's delegation, after that review (D17). Implementation is in progress: steps 0a, 0b, 1,
-  2, 3, 4, 5 and 6 are merged, and each step's state is one line in STATUS.md's phase 1 block.
+  2, 3, 4, 5, 6 and 7 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
-  step 1 at `9be3ad12`. Evidence read in the repository:
+  step 1 at `9be3ad12`. The Umbel claims of section 7 were re-verified by step 7 on 2026-11-02 against the running binary ([9.9](#99-decided-by-step-7)). Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `types.ts:13-29` (`LoamKernelV0`, `options.commands` at `:64`);
     - `kernel.ts:103-126` (name refusal), `:177-185` (extra commands keep their
@@ -56,9 +56,11 @@
       `initialize`, `tools/list` and `tools/call` only).
     - Measured 2026-11-01 with esbuild 0.27, browser platform and conditions:
       the SDK's `Client` and `StreamableHTTPClientTransport` bundle to 324,094
-      bytes minified, 87,889 gzip, with no `new Function` and no `eval`; the
+      bytes minified, 87,889 gzip, with no `eval`; the
       SDK's browser shim uses the `@cfworker/json-schema` validator
-      (`@modelcontextprotocol/client` 2.4.0, `dist/shimsBrowser.mjs`).
+      (`@modelcontextprotocol/client` 2.4.0, `dist/shimsBrowser.mjs`). This first said it also held no
+      `new Function`. Zod has two aliased sites, `let e=Function; new e(...)`, which a search for those words
+      misses: step 7 corrected it ([9.9](#99-decided-by-step-7)).
   - **AFD adapters:** `packages/adapters/src`:
     - `utils.ts:27-37` (`styledSpan` writes a `style` attribute, which
       `style-src 'self'` refuses);
@@ -123,9 +125,10 @@
   what it decided. Step 5 delivered the proxy, `loam-view-frame`, the broker, the handler frame, hello view and E2 with
   its conformance fixture; [9.7](#97-decided-by-step-5) records what it decided and what the browser disproved. Step 6
   delivered `@lushly-dev/loam-console`, the console in main's mount, E10 and E11's console part; [9.8](#98-decided-by-step-6)
-  records what it decided.
-- **Not done:** the rest of the [implementation plan](#15-implementation-plan). E9's mounted part waits for
-  step 7.
+  records what it decided. Step 7 delivered the mounted kind against a stock `umbel`, through a test-only relay: discovery,
+  naming, exposure, pinning, the journal's marks, replay of recorded entries, E3, E4 and E9's mounted part;
+  [9.9](#99-decided-by-step-7) records what it decided and what Umbel and the browser disproved.
+- **Not done:** the rest of the [implementation plan](#15-implementation-plan). Step 8, the exit.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
   [#677](https://github.com/lushly-dev/afd/pull/677). The proposal says that step "lands before Loam's phase 1
   specification is approved, or in the same pull request", which holds.
@@ -1419,7 +1422,9 @@ export interface MountTransportV1 {
   calls that command for each `http` instance, in the background after first paint, with a 10-second deadline per
   instance, and so do the [triggers below](#when-to-discover-again):
   1. `connect`.
-  2. `listTools`, for the first-class tools' `_meta` and to learn the strategy.
+  2. ~~`listTools`, for the first-class tools' `_meta` and to learn the strategy.~~ Removed by step 7: listing tools
+     has the SDK check later results against a server's `outputSchema`, in the page, and `afd-help` reports the
+     strategy and the first-class tools ([9.9](#99-decided-by-step-7)). `listTools` stays on the port for phase 5's plain servers.
   3. `callTool('afd-help', { format: 'full' })`, by name (H7, H8). A tool error or a result
      that is not a `CommandResult` is `MOUNT_NOT_AFD`: phase 1 mounts AFD servers (D9), and
      its suggestion names a plain MCP server as phase 5's.
@@ -1485,7 +1490,8 @@ callee's declaration, which annotates D30.
 - **Precedence**, for whether a command is a mutation: the server's `mutation`; then the manifest's
   `mount.tools[].effects`, by `deriveMutation`, since a deployer chose that package; then the entry's
   `commands."<name>".effects`. For `destructive`: the server's, then the entry's. A command named under `commands`
-  takes exposure from there, a flag left out being off; every other takes the table's.
+  takes exposure from there, a flag left out being off; every other takes the table's. Tightened by step 7: a server's
+  `false` does not beat a deployer's manifest or entry that says it is a mutation or destructive ([9.9](#99-decided-by-step-7)).
 
 - **Annotations are the server's own claim.** They set display and defaults and are never a
   security decision: the server is untrusted (D41, Umbel D43), and the entry's overrides win.
@@ -1829,7 +1835,7 @@ new commands are small and the rest is lazy:
 | CSS | As phase 0 | 8,496 |
 | `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row. Step 4 confirms the ceiling: 265,155 over three chunks, 88% of it, so it is neither raised nor lowered ([9.6](#96-decided-by-step-4)) |
 | `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays, and what it imports that first paint has not loaded, such as the listbox | When a deployment lists an app, or the first toast or modal on a shell with none | 85,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 76,622 |
-| `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
+| `mount` chunk: the MCP client | When a deployment's mounted instance is discovered, after first paint | 238,268. The first ceiling was 340,000 (the measured 324,094 before Rolldown shares Zod). Step 7 measured 216,607 at first and 217,081 with `boundedFetch`, under 70% of it, so phase 0's rule lowered it ([9.9](#99-decided-by-step-7)) |
 | `console` chunk, with what it imports that first paint and `surfaces` have not loaded | When a console renders | 91,222. Step 6 measured 82,929, under 70% of the first ceiling, 150,000, so phase 0's rule lowered it to that plus 10% ([9.8](#98-decided-by-step-6)) |
 | `view` chunk: the view host | When a view app opens, or a view app's command is first called | 25,080. Step 5 measured 22,800, under 70% of the first ceiling of 60,000, so it is lowered by phase 0's rule ([9.7](#97-decided-by-step-5)) |
 | `kit` chunks | Per element, on `kit.define` | None |
@@ -2288,6 +2294,85 @@ What the sections above left open, and what the browser showed. Step 7 builds on
 - `AppCommandRowV1` has no `approval`, and 7.4 has it displayed, so step 7 adds the field and a row's flag.
 - A row's `value` is the command's name, and a mounted app's rows usually have no title, so E3 can find `work-hello-greet` as `violet-option[value="work-hello-greet"]`.
 
+### 9.9 Decided by step 7
+
+What the sections above left open, and what a real Umbel and the browser showed. **Everything here runs through a
+test-only relay** (D64): the real parts are the stock `umbel` binary, its bearer layer, the browser's MCP client under the
+CSP, discovery, the console and the journal. A hosted server, multi-member use, stdio and the desktop are not proved. The
+relay is in `web/test/mounted/` alone, and E4 scans `web/src` and `dist` for it.
+
+**What Umbel confirmed, and what it changed** (2026-11-02, `main` at `487f081f`, Umbel's phase 2 done)
+
+- **Held.** Over the bearer layer, `afd-help` with `format: 'full'` answers though it is unlisted (H7, H8), with `toolStrategy: "hybrid"`
+  and `firstClassTools`; `afd-detail` takes ten names; `event-ack` reports a mutation; `hello-greet` answers as 7.2 says; the stderr line
+  is as 7.2 matches, after rmcp's own log line. `umbel init` and `[plugins] enabled` work as written. Nothing under `endpoints/umbel/` changed.
+- **`afd-detail`'s `data` is an array,** not an object. And `found: false` comes with an `error`, which is read for nothing.
+- **A refusal names where the token is.** Umbel's 401 says "the token is in `<path>`", and the SDK's own message for some statuses holds
+  the response's body. So nothing in a failure comes from a transport or a server: each `MOUNT_*` has the kernel's own words, and a port's rejection
+  carries only a `code`. E4 scans for the token file, and a kernel test for what a thrown message held.
+- **`work-workspace-show` answers with the workspace's absolute path.** That is the server's own result, and it is journaled as one, labeled untrusted. A
+  deployer whose directory names matter should know. E4's scan is for an instance URL, its port, its token and its token file, which stay out.
+
+**What the browser and the hostile fixture showed**
+
+- **7.3's step 2 could stall the tab at every boot.** After `tools/list`, the SDK compiles each `outputSchema` and checks each later result against it
+  in the page, with `@cfworker/json-schema`, so a catastrophic `pattern` there runs on the main thread. With a fixture server, a 33-character value took
+  about 38 seconds, and since discovery runs at boot a reload would not have escaped it (D66). `afd-help` already reports the strategy and the
+  first-class tools, so discovery does not list tools. `listTools` stays on `MountTransportV1` for phase 5's plain servers, which must first have the
+  AFD transport pass the SDK a validator that does not run patterns on the main thread: a follow-up.
+- **A catastrophic `pattern` in an input schema** would stall the tab at Run, and a mounted schema is where untrusted ones first arrive. `compiled` in `console/src/form.ts`
+  now runs only a pattern with no group or alternation and at most two quantifiers, of at most 256 characters, on a value of at most 1,000, which leaves backtracking at most
+  quadratic. The first limit, on quantified groups alone, was not enough: an independent review stalled the tab with `(a|a)` repeated and with `a?` repeated. Anything else is not checked in the
+  page, and the server remains the authority, as 7.7 says, so `^[a-z]+(-[a-z]+)*$` loses its check before Run and keeps its helper text. A package's own Zod check of a `pattern` is unchanged: a follow-up keeps that row.
+- **`advertisedInputSchema` must say `type: 'object'`,** or `defineCommand` throws, which a command with no schema or with a root `anyOf` would otherwise reach. So a root with no type gains it, and keeps its keywords for
+  the form; one of another type becomes `{ type: 'object' }`. The server validates either way.
+- **What the security review found (2026-11-02).** An independent review, with hostile servers against the real kernel, transport and SDK, confirmed these, all fixed here:
+  - **A deep schema broke every list.** `needsInput` is recursive, so an `anyOf` nested 10,000 levels threw from `listCommands` everywhere, and did so again at each boot. A schema past 64 levels or 64 KiB is `MOUNT_SCHEMA_UNUSABLE`, a warning, and that command is not registered.
+  - **Nothing limited what a server sent.** After `initialize` the SDK holds a `GET` event stream with no deadline, and read 900 MiB from one connection into memory. `StreamableHttpTransportOptions` gains `fetch`, and the port's `boundedFetch` opens no such stream, since phase 1 uses no server push, and reads no response past 4 MiB. Section 7.3's "no headers" holds. Only this one option changed in AFD.
+  - **A deep result lost its journal entry.** `JSON.parse` takes 20,000 levels, and the journal's `JSON.stringify` overflows, so a call ran with no entry. A result past 256 levels is `MOUNT_RESULT_INVALID`.
+  - **The journal's bound leaked** through `metadata` and `error`, and an unbounded `description` reached each `app-command-list` entry. Over the bound, only the kernel's marks and an error's cut text stay. Discovery now keeps a title of 200 characters, a description of 4,000, 1,000 commands and 20 warnings, and a catalog of 200 KiB, `MOUNT_CATALOG_TOO_LARGE` past that. So a catalog always fits the journal's bound, and a replay always rebuilds it, as 7.6 says.
+  - **A case variant dodged a manifest's `effects`.** With `tool = "wipe"` naming a mutation, a server listing `Wipe` first had `work-wipe` exposed, and the real one in conflict. Overrides now key by the name the rule gives, and two tools that come to one name register neither: a server may not choose which a deployer's words apply to.
+  - **`AFD-call`, `afd_call` and ` afd-help` passed the `afd-*` filter,** which now reads any case and any separator.
+  - **A `suggestion` with no `toString`** threw in the console's live text. `parseMountedResult` drops what is not text, and the console reads only text.
+- **A hidden command is `COMMAND_NOT_EXPOSED`,** the registry's own answer, on both interfaces.
+- **Failed requests are the browser's own console errors.** The suite's `notNetwork` leaves out "Failed to load resource" for what it provokes; every other error fails the scenario.
+
+**Trust**
+
+- **Tightening 7.4's precedence (D65).** Read literally, a server's `mutation: false` beats a manifest's `effects = ["external"]`, and it would then be exposed by default. So a deployer's manifest or entry saying
+  it is a mutation, or the entry saying destructive, wins over a server's `false`. A server's `true` still stands against a deployer's `inspect`. Only narrowing can come of a difference.
+- **A server's `dev.loam/` keys never survive,** in `metadata` or `error.details`: a forged `dev.loam/trust`, `dev.loam/seq` or `dev.loam/page-decided` would say what the kernel did not. Its other keys stay, as 7.3 says.
+- **A first-class claim only routes.** A tool `afd-help` calls first-class is sent by its own name, any other through `afd-call`, to the same server. Both reach only that instance's route, which the projection's schema holds to `mounts/<instance>/mcp`.
+- **Every field a server sends is read for what it is,** with `Object.hasOwn` on the entry's overrides. A name a warning repeats is cut at 256 characters.
+
+**The interface**
+
+- **`AppsRuntime.contextOf(name, input)`** replaces `owners.get` in `run`, and `redact`, `applyCatalog` go with it, so the first-paint kernel holds no mounted logic. A mounted command's `CommandOwner` says `recorded`, and `app-instance-refresh`'s context names the instance, so its event reaches the chrome.
+- **The 256 KiB bound runs in `apps/`,** as `boundRecorded`, on any entry with `replay: 'recorded'`.
+- **A mounted instance has no port.** `appPort` still refuses it, and its console takes only its instance and a person's client, as 9.8 has it for a failed one. `#enter` renders the console for any mounted app that is not refused.
+- **States.** An `http` instance starts `loading`, is `ready` after discovery, and `failed` after a refresh that fails, which keeps its last good commands. A call into one then is `MOUNT_UNREACHABLE`, with the cause in `details`. A second ask during a discovery shares its answer, so two never race over the registries.
+- **`close()` at the port.** `StreamableHttpTransport.disconnect()` is synchronous and the SDK's close runs behind it, so `close()` resolves when no further call can go out, not when its `DELETE` is answered. No caller depends on more. A connection whose `protocolVersion` is undefined never finished a handshake, so `connect` rejects it as `MOUNT_UNREACHABLE`, and the port's `string` holds.
+- **The console re-reads on any refresh.** `AppSurfaces` calls `reload()` on the console in main for an `app-instance-refresh`, from anyone, and a console waits for its own Refresh to end. A mounted app that fails keeps its console, with its typed form, rather than being entered again. A row says "Needs approval", beside what else it says. The instance's warnings show under its counts.
+- **`hidden`** is what the instance registered less what the palette holds, in both `app-instance-list` and `app-command-list`. `commands` counts what it registered.
+
+**The budget: nothing of the mounted path loads before first paint, or at all without a mounted app**
+
+- **Measured.** First paint is 318,497 of 320,000 minified and 94,561 of 95,000 gzip, 497 and 506 more than step 6, for `contextOf`, the `mount` import in `main.ts` and the chunk's name. 1,503 and 439 are left. Moving the journal's bound out of the first-paint kernel saved 220 and 73.
+- **Rows.** `mount` is 217,081, or 64% of the first ceiling of 340,000, so it falls to 238,268 by phase 0's rule, from the first measurement of 216,607: Rolldown shares Zod with first paint, as the follow-up hoped, and the chunk holds no `new Function`, `eval` or second copy of Zod. `apps` is 279,342 of 300,000, 11,004 more than step 6. `surfaces` is 78,554 and `console` 83,325.
+- **Zod under the CSP (#664).** Confirmed in Chromium: E3 loads the `mount` chunk, reads `__zod_globalConfig.jitless` as true, and sees no `securitypolicyviolation`. The two aliased `new Function` sites stay in the shared `schemas` chunk and never run.
+- **E3 holds it:** nothing before `first-contentful-paint` is under `assets/mount-` or `mounts/`.
+
+**The repository**
+
+- **`build:umbel`** honors `$LOAM_UMBEL_TARGET_DIR` as the harness does, so a shared target for Umbel moves neither this and Specimen's host, which `foundations/specimen/src/host.ts` looks for in its default place.
+- **`suites.mjs`** now also runs typecheck, `theme:check`, `lint:tokens` and `budget`, and `apps/*`, as `loam.yml` does (#661). So editing it selected the whole workspace, as section 1 foresaw.
+- **The Umbel contract test's exception** names loam.yml's two filters, its gate and its two build lines, and any other mention still fails.
+- **`hostile-server.ts`** is a second test-only fixture, through the same relay: what a real Umbel will not send.
+
+**For the owner** (no decision is required of this step; D65 reads stronger than its table)
+
+- D65's consequence says a server cannot widen what the shell exposes by what it claims. Its table still lets a server's `mutation: false` put a command the deployer never named on the palette and the agent surface, up to the entry's `expose`. That is by design: 7.4's table is what was approved, a deployer who wants less names commands or sets `expose`, and phase 5 is where an agent first uses it. Recorded so the words and the table are read together.
+
 ## 10. Failure modes and error codes
 
 Decides L4 (D66). **Conflicts are `error`, against the shell and across apps; one app's failure
@@ -2327,6 +2412,7 @@ to `LoamKernelErrorCode`. Each row is covered by a unit test or an exit test.
 | `MOUNT_RESULT_INVALID` | Not a `CommandResult` | A failure | Report to the server's owner |
 | `MOUNT_TRANSPORT_UNAVAILABLE` | `stdio` on a browser host | `failed` | Use `http`, or the desktop or hosted lane |
 | `MOUNT_TOOL_UNNAMEABLE`, `INSTANCE_OVERRIDE_UNKNOWN` | [7.3](#73-the-transport-and-discovery), [3.1](#31-the-file) | A warning on the instance | Add an override |
+| `MOUNT_SCHEMA_UNUSABLE`, `MOUNT_CATALOG_TOO_LARGE` | A schema past 64 levels or 64 KiB; past 1,000 commands or a 200 KiB catalog ([9.9](#99-decided-by-step-7)) | A warning on the instance, and the command is not registered | Report it to the server's owner, or narrow with `mount.only` |
 | `MOUNT_SPACE_PINNED` | [7.5](#75-a-mapped-space-is-pinned) | A failure, journaled | Switch project, or drop `spaces` |
 | `DEPLOYMENT_INVALID` | `deployment.json` fails `readProjection` | The "Loam cannot start" notice | Rewrite the deployment |
 
@@ -2734,14 +2820,14 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-01 | Phase 1 specification | `resources/list`, `resources/read` and the skills calls in AFD's `StreamableHttpTransport` (`send` answers `-32601` for them), needed when a mounted instance's resources, skills and views surface in phase 5 | Open; for AFD, before phase 5 |
 | 2026-11-01 | Phase 1 specification | The MCP Apps standardized style variables (`--color-background-primary` and the rest), mapped from the token contract, for views from other servers | Open; phase 5 |
 | 2026-11-01 | Phase 1 specification | A scan of mounted descriptions before they reach the agent surface, reusing `packages/testing/src/surface/injection-vectors.json` as Umbel's loader does | Open; phase 5 |
-| 2026-11-01 | Phase 1 specification | Measure the mount chunk with Rolldown once it shares Zod, and whether a small fetch-based client is worth having if 340,000 bytes proves a burden after first paint | Open |
+| 2026-11-01 | Phase 1 specification | Measure the mount chunk with Rolldown once it shares Zod, and whether a small fetch-based client is worth having if 340,000 bytes proves a burden after first paint | Measured in step 7: 217,081, so its ceiling is 238,268 ([9.9](#99-decided-by-step-7)), and a smaller client is not worth having now |
 | 2026-11-01 | Phase 1 specification | Umbel's owner may annotate D37 and "Room for Loam", per the proposal's step 3; nothing is asked of Umbel by this phase | Open; Umbel's owner |
 | 2026-11-02 | Phase 1 step 4 | Specimen's `settle` waits on the global registry for each tag in an open shadow root, so it hangs to its deadline on an element only a scoped registry holds (`foundations/specimen/src/browser/index.ts:265`, `:534`). `chrome`'s `loam-mount` fixture defines the name globally as well to get past it; Specimen should ask the element's own registry | Open |
 | 2026-11-02 | Phase 1 step 4 | Only 2,078 bytes and 976 gzip bytes are left for the empty shell (317,922 of 320,000, 94,024 of 95,000). Zod is 178,000 of the page; a smaller first-paint schema layer would end this pressure, and each later step must otherwise move code out first | Open |
 | 2026-11-02 | Phase 1 step 4 | Screen-reader passes with NVDA and VoiceOver over the toast region, the nested `role="alert"`, the app-open announcement and the modal. axe and the ARIA snapshots cannot judge what is actually spoken | Open |
 | 2026-11-02 | Phase 1 step 4 | A non-empty toast region has no F6 stop or chord, and is last in the Tab order, so reaching a toast by keyboard before its timer ends is hard. With phase 4's sticky toasts | Open; phase 4 |
 | 2026-11-02 | Phase 1 step 4 | The rail does not scroll when its entries overflow (9.6), and needs its tooltips out of the list, in a popover, first. In `unavailableApps`, a shell-owned modal does not refuse a switch, as section 8 has it, because no modal is likely in a page that could not load its apps | Open |
-| 2026-11-02 | Phase 1 step 4 | `scripts/affected/suites.mjs` still runs `pnpm -F "./endpoints/loam/packages/*" test`, without `apps/*`, because editing it selects the whole workspace; `pnpm check` covers the apps' units. Step 7 changes that entry anyway, as section 1 says | Open; step 7 |
+| 2026-11-02 | Phase 1 step 4 | `scripts/affected/suites.mjs` still runs `pnpm -F "./endpoints/loam/packages/*" test`, without `apps/*`, because editing it selects the whole workspace; `pnpm check` covers the apps' units. Step 7 changes that entry anyway, as section 1 says | Done in step 7, with typecheck, `theme:check`, `lint:tokens` and `budget` (#661) |
 | 2026-11-02 | Phase 1 step 5 | **For the owner.** A view's data is not confidential from its author: WebRTC reaches any host, and no policy here stops it in Chromium 156 (section 12, D62). Decide whether that is acceptable for untrusted apps as phases 6 and 7 widen who deploys them, and whether to add `webrtc 'block'` for browsers that honour it | Open; owner |
 | 2026-11-02 | Phase 1 step 5 | Nothing limits a view's or a frame's message size, call rate or storage: a 5,000,000-character input is journaled whole, and one view can exhaust the origin's quota, shared by the journal and every app's store (9.7). A journal that cannot append drops the entry, so this also widens what escapes it. Decide limits across the broker, the journal and the store | Open |
 | 2026-11-02 | Phase 1 step 5 | With focus inside a view, the shell's chords (Mod+K, F6 and the rest) go to the frame's document and do nothing, since a cross-origin frame's keys never reach the shell. A person leaves with Tab. MCP Apps has no key-forwarding message; decide with phase 4's keybindings whether the SDK offers one | Open; phase 4 |
@@ -2749,5 +2835,9 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-02 | Phase 1 step 5 | Toasts and modals do not name the app that opened them, so an app's text can pass for the shell's, or for another app's: give an overlay its owner's name | Open; phase 4 |
 | 2026-11-02 | Phase 1 step 6 | `violet-listbox`'s `handleFocus` scrolls the active row into view on a press, so the row under the pointer moves and the click is lost (`foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.ts`). The console works around it; `loam-list` and the palette do not. Scroll only for keyboard focus, in the element, with the provenance entry | Open |
 | 2026-11-02 | Phase 1 step 6 | `violet-select`'s `position: fixed` list is misplaced inside `loam-mount`'s `contain: content`, for any native app using the kit's select. The console overrides `::part(panel)`; the element should use the top layer (`popover`), which containment does not reach | Open |
-| 2026-11-02 | Phase 1 step 6 | A catastrophic `pattern` in an untrusted schema can stall the tab when the form checks it at Run, and Zod's check does the same for a package's manifest. A linear regular-expression engine, or running the check off the main thread, before phase 5 widens who may mount | Open; before phase 5 |
+| 2026-11-02 | Phase 1 step 6 | A catastrophic `pattern` in an untrusted schema can stall the tab when the form checks it at Run, and Zod's check does the same for a package's manifest. A linear regular-expression engine, or running the check off the main thread, before phase 5 widens who may mount | The form's part done in step 7, with a limit on what it runs ([9.9](#99-decided-by-step-7)). A package's own Zod check is still open; before phase 5 |
 | 2026-11-02 | Phase 1 step 6 | `violet-text-field` with `type="number"` corrupts typing: its `:value` binding writes back the empty value an unreadable number reports, so `-2` becomes `2` (`foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.ts`). The console avoids that type; the kit's field and `violet-select`'s reopened option (`show()` does not resync its options) should be fixed in the elements, with `violet-option`'s empty value, `violet-checkbox`'s description and `violet-select`'s error color, which reads a name outside the contract | Open |
+| 2026-11-02 | Phase 1 step 7 | `tools/list` is unsafe in the page: the SDK checks later results against each listed `outputSchema` with a validator that runs its `pattern` on the main thread, so discovery does not call it ([9.9](#99-decided-by-step-7)). A plain MCP server in phase 5 must list tools, so AFD's `StreamableHttpTransport` needs an option passing the SDK a validator that does not, or the transport must run off the main thread | Open; for AFD, before phase 5 |
+| 2026-11-02 | Phase 1 step 7 | A server's `description` and `title` reach `kernel.agent.listCommands` with no untrusted label: only results carry one. Phase 5's copilot must label them, with the scan above | Open; phase 5 |
+| 2026-11-02 | Phase 1 step 7 | The route `mounts/<instance>/mcp` in phase 6 must require `Origin` or `Sec-Fetch-Site`: the test-only relay forwards a request with no `Origin`, as 7.1 has it, so a cross-site no-cors `GET` would carry the deployer's token, though its answer stays opaque | Open; phase 6 |
+| 2026-11-02 | Phase 1 step 7 | Run the mounted suite against a real hosted server, with its secrets, membership and limits, on the same route, and record that the relay's proof no longer stands alone | Open; phase 6 |

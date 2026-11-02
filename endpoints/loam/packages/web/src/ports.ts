@@ -2,11 +2,11 @@
  * @fileoverview `webPorts`: how the kernel reaches a package from a page (phase 1 specification, 9.4).
  * `importNative` takes an absolute URL, since a relative one would resolve against this chunk, and
  * stays under `script-src 'self'`. A handler frame is the chrome's, in the view chunk, which only a call
- * of a view app's command loads. A mounted transport arrives in step 7, and until then its port rejects,
- * which the kernel reports on that app.
+ * of a view app's command loads. A mounted transport is in the `mount` chunk, which loads only when a
+ * deployment's mounted instance is discovered, after first paint (7.3).
  */
 
-import type { HandlerFrameV1, KernelPortsV1 } from '@lushly-dev/loam-kernel';
+import type { HandlerFrameV1, KernelPortsV1, MountTransportV1 } from '@lushly-dev/loam-kernel';
 
 /** What the chrome's view chunk gives this port. */
 export interface ViewChunk {
@@ -18,6 +18,11 @@ export interface ViewChunk {
 	}): HandlerFrameV1;
 }
 
+/** What the `mount` chunk gives this port. */
+export interface MountChunk {
+	createMountTransport(url: string): MountTransportV1;
+}
+
 async function ok(url: string): Promise<Response> {
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`${url} answered ${response.status}`);
@@ -27,7 +32,8 @@ async function ok(url: string): Promise<Response> {
 export function webPorts(
 	document: Document,
 	sandboxOrigin: string | null,
-	loadView: () => Promise<ViewChunk>
+	loadView: () => Promise<ViewChunk>,
+	loadMount: () => Promise<MountChunk>
 ): KernelPortsV1 {
 	return {
 		baseUrl: document.baseURI,
@@ -44,6 +50,8 @@ export function webPorts(
 			const { openHandlerFrame } = await loadView();
 			return openHandlerFrame({ document, sandboxOrigin, title: `${instance} handlers`, html });
 		},
-		mountTransport: () => Promise.reject(new Error('Mounted transports arrive in phase 1 step 7')),
+		async mountTransport(_entry, url) {
+			return (await loadMount()).createMountTransport(url);
+		},
 	};
 }

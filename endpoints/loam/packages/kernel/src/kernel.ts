@@ -141,9 +141,11 @@ export interface KernelParts {
 	/**
 	 * Build two new registries with `commands` as the apps' commands, over the same journal. In-flight
 	 * calls finish on the old ones. Mounted discovery is what changes the set (phase 1 specification,
-	 * 9.1), and it arrives with step 7.
+	 * 9.1).
 	 */
 	setAppCommands(commands: readonly ZodCommandDefinition[]): void;
+	/** Register a mounted instance's catalog from a journal: a replay's discovery, with no network (7.6). */
+	applyCatalog(instance: string, catalog: unknown): void;
 	/** Forget what a page holds only in memory, as a reload does: overlays, selections, status values. */
 	resetSession(): void;
 }
@@ -226,10 +228,10 @@ export async function createKernelParts(
 	];
 	const seqs = new Map<string, number>();
 	// One journal middleware, shared by every registry, so they share one journal sequence.
-	const journal = createJournalMiddleware(
-		seqTrackingSink(options.journal, seqs),
-		kernelJournalOptions()
-	);
+	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
+		...kernelJournalOptions(),
+		redact: (record) => apps.redact(redactJournalRecord(record)),
+	});
 	const clock = options.clock ? { now: options.clock } : undefined;
 	const random = options.random ? { next: options.random } : undefined;
 
@@ -280,11 +282,11 @@ export async function createKernelParts(
 			if (answered) return answered as CommandResult<T>;
 		}
 		const traceId = `${traceBase}-${++calls}`;
-		const owner = apps.owners.get(name);
+		const owned = apps.contextOf(name, input);
 		const context: CommandContext & KernelCallFields = {
 			traceId,
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
-			...(owner !== undefined ? { app: owner.app, instance: owner.instance } : {}),
+			...owned,
 			...fields,
 		};
 		const result = await registries[iface].execute<T>(name, input ?? {}, context);
@@ -300,7 +302,7 @@ export async function createKernelParts(
 			mutation: mutations.get(name) ?? false,
 			...(seq !== undefined ? { seq } : {}),
 			...(fields.caller !== undefined ? { caller: fields.caller } : {}),
-			...(owner !== undefined ? { instance: owner.instance } : {}),
+			...(owned.instance !== undefined ? { instance: owned.instance } : {}),
 		};
 		for (const listener of [...listeners]) {
 			try {
@@ -333,6 +335,7 @@ export async function createKernelParts(
 				overlays,
 				owners: () => apps.owners,
 				isMutation: (name) => mutations.get(name) === true,
+				setCommands: setAppCommands,
 				commandRows(instance) {
 					const summaries = new Map(summarize(registries.palette).map((row) => [row.name, row]));
 					return registries.palette
@@ -402,6 +405,7 @@ export async function createKernelParts(
 			return registries;
 		},
 		setAppCommands,
+		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
 		resetSession() {
 			overlays.reset();
 			apps.resetSession();

@@ -41,6 +41,11 @@ export interface StreamableHttpTransportOptions {
 	mode?: StreamableHttpMode;
 	/** Answers form elicitations; without it the client declares no elicitation capability. */
 	onElicitation?: ElicitationHandler;
+	/**
+	 * The `fetch` every request goes through. A host that does not trust the server uses it to limit
+	 * what it reads, since the SDK reads a response whole and holds an event stream open with no deadline.
+	 */
+	fetch?: typeof fetch;
 }
 
 /**
@@ -103,6 +108,7 @@ export class StreamableHttpTransport implements Transport {
 		}
 		const transport = new SdkHttpTransport(new URL(this.url), {
 			...(this.options.headers && { requestInit: { headers: this.options.headers } }),
+			...(this.options.fetch && { fetch: this.options.fetch }),
 		});
 		client.onerror = (error) => {
 			if (this.client === client) this.errorHandler?.(error);

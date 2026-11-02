@@ -23,7 +23,8 @@ async function readApps(raw: unknown): Promise<HostKernelOptions['apps'] | strin
 		const read = (await import('./deployment.js')).readOrNotice(
 			raw,
 			document,
-			() => import('@lushly-dev/loam-chrome/view')
+			() => import('@lushly-dev/loam-chrome/view'),
+			() => import('./mount.js')
 		);
 		return read.ok ? read.apps : read.message;
 	} catch (error) {

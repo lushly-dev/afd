@@ -357,13 +357,25 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	assert.match(manifest, /^publish = false$/m);
 	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/packages\/rust"/m);
 	assert.match(read('.gitignore'), /^!endpoints\/umbel\/Cargo\.lock$/m);
-	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
-		if (workflow !== 'umbel.yml')
-			assert.doesNotMatch(
-				read(`.github/workflows/${workflow}`),
-				/endpoints\/umbel|unit umbel/,
-				workflow
-			);
+	// Loam's `mounted` job runs against a stock `umbel` (Loam D64): its filters, its gate and its build, only.
+	const loamMounted = [
+		"- 'endpoints/umbel/**'",
+		"- '!endpoints/umbel/docs/**'",
+		'--path endpoints/umbel/ ',
+		'working-directory: endpoints/umbel',
+		'workspaces: endpoints/umbel',
+	];
+	for (const workflow of readdirSync(join(repoRoot, '.github/workflows'))) {
+		if (workflow === 'umbel.yml') continue;
+		let text = read(`.github/workflows/${workflow}`);
+		if (workflow === 'loam.yml') {
+			for (const allowed of loamMounted) {
+				assert.ok(text.includes(allowed), `loam.yml has lost ${allowed}`);
+				text = text.replaceAll(allowed, '');
+			}
+		}
+		assert.doesNotMatch(text, /endpoints\/umbel|unit umbel/, workflow);
+	}
 	const umbel = read('.github/workflows/umbel.yml');
 	assert.match(umbel, /permissions:\n {2}contents: read/);
 	// The knowledge job uploads its eval report as a workflow artifact; that is not publication.

@@ -309,6 +309,10 @@ It exports `StreamableHttpTransport`, `MODERN_PROTOCOL_VERSION`, and the types
 `McpRequest`, `McpResponse`, `McpTool`, `McpToolCallParams`, `McpToolCallResult`,
 `ElicitationHandler`, `ElicitationRequest` and `ElicitationResponse`.
 
+- `fetch` sets the function every request goes through, for a host that does not trust the server
+  and must limit what it reads: the SDK reads a response whole, and holds an event stream open with
+  no deadline. Listing tools has the SDK check later results against each `outputSchema`, whose
+  `pattern` runs on the main thread; a host with an untrusted server needs to know that too.
 - `send` serves `initialize`, `tools/list` and `tools/call`, and answers any other method with a
   JSON-RPC `-32601`. Reconnection and batches belong to `McpClient`, which is not here, and so do
   request timeouts: `send` sets none of its own, so pass it an `AbortSignal`.

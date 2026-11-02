@@ -10,6 +10,8 @@ export interface ConsoleCommand {
 	description?: string;
 	mutation: boolean;
 	destructive: boolean;
+	/** Displayed. Enforcement is the server's own until phase 5 (7.4). */
+	approval: boolean;
 	inputSchema: unknown;
 }
 
@@ -28,6 +30,7 @@ export function readCommands(rows: unknown): ConsoleCommand[] {
 				...(typeof row.description === 'string' ? { description: row.description } : {}),
 				mutation: row.mutation === true,
 				destructive: row.destructive === true,
+				approval: row.approval === 'required',
 				inputSchema: row.inputSchema,
 			},
 		];
@@ -38,7 +41,12 @@ export const rowTitle = (command: ConsoleCommand): string => command.title || co
 
 /** Said in words, so a flag never rests on color. */
 export const rowFlag = (command: ConsoleCommand): string =>
-	command.destructive ? 'Destructive' : command.mutation ? 'Changes data' : '';
+	[
+		command.destructive ? 'Destructive' : command.mutation ? 'Changes data' : '',
+		command.approval ? 'Needs approval' : '',
+	]
+		.filter(Boolean)
+		.join(', ');
 
 export function filterCommands(commands: ConsoleCommand[], query: string): ConsoleCommand[] {
 	const wanted = query.trim().toLowerCase();

@@ -267,7 +267,25 @@ export const errorOf = (errors: Readonly<Record<string, string>>, name: string):
 /** JSON Schema counts characters, not UTF-16 code units. */
 const lengthOf = (value: string): number => [...value].length;
 
+/**
+ * A pattern runs in the page, on what a person typed, so a schema's can stall the tab: a mounted server's
+ * first way in (7.7, 9.9). With no group or alternation, at most two quantifiers and a value of at most
+ * {@link PATTERN_VALUE_MAX} characters, backtracking stays quadratic at worst. Anything else is not run here,
+ * and the server is the authority.
+ */
+const PATTERN_MAX = 256;
+const PATTERN_VALUE_MAX = 1_000;
+
+function patternIsBounded(pattern: string): boolean {
+	if (pattern.length > PATTERN_MAX) return false;
+	// Without what an escape or a character class holds, whose `+` and `)` mean themselves.
+	const plain = pattern.replace(/\\./g, '_').replace(/\[[^\]]*\]/g, '_');
+	if (/[()|]/.test(plain)) return false;
+	return (plain.match(/[*+?{]/g) ?? []).length <= 2;
+}
+
 function compiled(pattern: string): RegExp | null {
+	if (!patternIsBounded(pattern)) return null;
 	try {
 		return new RegExp(pattern, 'u');
 	} catch {
@@ -284,7 +302,11 @@ function checkString(value: string, rules: FormRules): string | null {
 	if (maxLength !== undefined && lengthOf(value) > maxLength) {
 		return `Enter at most ${maxLength} characters.`;
 	}
-	if (pattern !== undefined && compiled(pattern)?.test(value) === false) {
+	if (
+		pattern !== undefined &&
+		value.length <= PATTERN_VALUE_MAX &&
+		compiled(pattern)?.test(value) === false
+	) {
 		return `Enter a value that matches ${pattern}.`;
 	}
 	return null;

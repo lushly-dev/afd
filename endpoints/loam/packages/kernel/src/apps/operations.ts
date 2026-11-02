@@ -19,6 +19,7 @@ import type {
 	AppStateV1,
 	AppSummaryV1,
 } from '../types.js';
+import { boundRecorded, type MountedHost } from './mounted.js';
 import type { AppsHost } from './types.js';
 
 /** One entry of the deployment, whatever became of it. */
@@ -33,6 +34,8 @@ export interface AppRecord {
 	/** Absent when the manifest was refused or could not be read. */
 	readonly manifest?: ManifestV1;
 	port?: AppPortV1;
+	/** A mounted `http` instance's discovery and calls. */
+	mounted?: MountedHost;
 	state: AppStateV1;
 	error?: CommandError;
 	readonly warnings: ManifestRefusal[];
@@ -72,8 +75,8 @@ function summaryOf(record: AppRecord): AppSummaryV1 {
 }
 
 /** A mounted record as `app-instance-list` reports it: never a location or a credential. */
-function instanceOf(record: AppRecord): AppInstanceV1 {
-	const { entry } = record;
+function instanceOf(record: AppRecord, host: AppsHost): AppInstanceV1 {
+	const { entry, mounted } = record;
 	return {
 		instance: record.instance,
 		app: record.app,
@@ -82,9 +85,20 @@ function instanceOf(record: AppRecord): AppInstanceV1 {
 		transport: entry.transport ?? record.manifest?.mount?.transport ?? 'http',
 		state: record.state,
 		commands: record.commands.length,
-		hidden: 0,
+		hidden: record.commands.length - host.commandRows(record.instance).length,
+		...(mounted?.reading.protocolVersion !== undefined
+			? { protocolVersion: mounted.reading.protocolVersion }
+			: {}),
+		...(mounted?.reading.toolStrategy !== undefined
+			? { toolStrategy: mounted.reading.toolStrategy }
+			: {}),
+		...(mounted?.reading.discoveredAt !== undefined
+			? { discoveredAt: mounted.reading.discoveredAt }
+			: {}),
 		...(record.error !== undefined ? { error: record.error } : {}),
-		warnings: record.warnings.map(({ code, message }) => ({ code, message })),
+		warnings: [...record.warnings, ...(mounted?.reading.warnings ?? [])].map(
+			({ code, message }) => ({ code, message })
+		),
 		notices: [...record.notices],
 	};
 }
@@ -216,11 +230,38 @@ export function createOperations(
 		commandList(instance) {
 			const record = records.get(instance);
 			if (!record) return unknownApp(instance);
-			const commands: AppCommandRowV1[] = host.commandRows(instance);
+			const commands: AppCommandRowV1[] = host.commandRows(instance).map((row) => {
+				if (!record.mounted) return row;
+				const approval = record.mounted.approvalOf(row.name);
+				return { ...row, replay: 'recorded', ...(approval ? { approval } : {}) };
+			});
 			return success({ commands, hidden: record.commands.length - commands.length });
 		},
 		instances: () =>
-			[...records.values()].filter((record) => record.kind === 'mounted').map(instanceOf),
+			[...records.values()]
+				.filter((record) => record.kind === 'mounted')
+				.map((record) => instanceOf(record, host)),
+		contextOf(name, input) {
+			if (name === 'app-instance-refresh') {
+				const asked = (input as { instance?: unknown } | null | undefined)?.instance;
+				const record = typeof asked === 'string' ? records.get(asked) : undefined;
+				return {
+					replay: 'recorded',
+					...(record?.kind === 'mounted' ? { app: record.app, instance: record.instance } : {}),
+				};
+			}
+			const owner = host.owners().get(name);
+			if (!owner) return {};
+			return {
+				app: owner.app,
+				instance: owner.instance,
+				...(owner.recorded ? { replay: 'recorded' } : {}),
+			};
+		},
+		redact: boundRecorded,
+		applyCatalog(instance, catalog) {
+			records.get(instance)?.mounted?.applyCatalog(catalog);
+		},
 		async refreshInstance(instance) {
 			const record = records.get(instance);
 			if (record?.kind !== 'mounted') {
@@ -230,11 +271,12 @@ export function createOperations(
 					'List the mounted instances with app-instance-list'
 				);
 			}
+			if (record.mounted) return record.mounted.refresh();
 			return failure(
 				record.error ?? {
 					code: 'MOUNT_TRANSPORT_UNAVAILABLE',
 					message: 'This instance cannot be refreshed',
-					suggestion: 'Wait for phase 1 step 7',
+					suggestion: 'Use `http`, or the desktop or hosted lane.',
 					retryable: false,
 				}
 			);

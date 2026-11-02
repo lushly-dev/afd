@@ -923,25 +923,26 @@ describe('E11: the console for a mounted instance', () => {
 		await openApp(page, 'ops');
 		await page.locator('loam-console').waitFor();
 		await page.locator('loam-console .instance').waitFor();
+		await page.locator('loam-console [role="alert"]').waitFor();
 		const text = await page.locator('loam-console .stack').textContent();
 		expect(text).toContain('External: its results are labeled untrusted');
 		expect(text).toContain("Umbel sees one principal for every member of this instance's projects");
 		const alert = page.locator('loam-console [role="alert"]');
-		expect(await alert.textContent()).toContain('MOUNT_TRANSPORT_UNAVAILABLE');
+		expect(await alert.textContent()).toContain('MOUNT_UNREACHABLE');
 		expect(text).toContain('http');
 		expect(text).toContain('failed');
 		await page.locator('loam-console violet-button.refresh').click();
 		// Seen and heard, though a failed instance has no command and so no result section.
 		const refreshStatus = page.locator('loam-console .refresh-status');
-		await expect
-			.poll(() => refreshStatus.textContent())
-			.toBe('Refresh failed: MOUNT_TRANSPORT_UNAVAILABLE');
+		await expect.poll(() => refreshStatus.textContent()).toBe('Refresh failed: MOUNT_UNREACHABLE');
 		expect(await refreshStatus.isVisible()).toBe(true);
 		expect((await journal(page)).some(({ command }) => command === 'app-instance-refresh')).toBe(
 			true
 		);
 		await surfacesIdle(page);
 		expect(await axe(page)).toEqual([]);
+		// This deployment has no relay, so discovery's requests are the browser's own 404s to report.
+		opened.errors = opened.errors.filter((error) => !error.startsWith('Failed to load resource'));
 		await closeClean(opened);
 	});
 });
