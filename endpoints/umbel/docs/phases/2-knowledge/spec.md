@@ -9,17 +9,18 @@
 
 ## Status
 
-- **State:** specification in review, **revised** 2026-11-01 after the
+- **State:** **done** 2026-11-01; the exit criterion is met (step 10, [Exit evidence](#exit-evidence)).
+  Specification approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as
+  `e996aad1`; steps 0a to 9 merged the same day. It was revised 2026-11-01 after the
   independent review and the owner's decisions of the same day (see
-  [Revision 2026-11-01](#revision-2026-11-01)); not yet approved. Written
-  2026-11-01 by the phase 2 owning agent; phase 1's exit criterion was met
-  the same day (step 8, [#624](https://github.com/lushly-dev/afd/pull/624),
+  [Revision 2026-11-01](#revision-2026-11-01)); written 2026-11-01 by the phase 2 owning agent after phase 1's exit
+  criterion was met (step 8, [#624](https://github.com/lushly-dev/afd/pull/624),
   `886c3b4d`; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706)
-  on `main`). It adds decisions [D51 to D67](../../decisions.md) and the
-  architecture amendments they need, in the same pull request. Approval is
-  the owner's (D24). Section [15](#15-for-the-owner) records the owner's
-  decisions and the points still open.
-- **Last verified:** 2026-11-01 against `main` at `886c3b4d` (the revision re-read the code below and, for the revision's findings, `src/middleware.rs` (`sanitize`), `src/cli/prompt.rs`, `src/cli/parse.rs`, `src/host/mod.rs` (the CLI actor), `src/provenance.rs`, `src/commands/workspace_show.rs`, `sdk/src/outcome.rs`, `wit/umbel-plugin-1.0.0/world.wit` (`host-error`), and the crate sources of tantivy 0.27.0, tantivy-query-grammar 0.27.0, tree-sitter 0.27.1 and tree-sitter-typescript 0.23.2). Evidence, read
+  on `main`). It adds decisions [D51 to D67](../../decisions.md) and the architecture amendments they
+  needed. Approval was the owner's (D24). Section [15](#15-for-the-owner) records the owner's
+  decisions. (Superseded: "specification in review, not yet approved".)
+- **Last verified:** 2026-11-01 at the exit against `main` at `aa0ecda2` plus step 10 (see
+  [Exit evidence](#exit-evidence)); the specification itself, 2026-11-01 against `main` at `886c3b4d` (the revision re-read the code below and, for the revision's findings, `src/middleware.rs` (`sanitize`), `src/cli/prompt.rs`, `src/cli/parse.rs`, `src/host/mod.rs` (the CLI actor), `src/provenance.rs`, `src/commands/workspace_show.rs`, `sdk/src/outcome.rs`, `wit/umbel-plugin-1.0.0/world.wit` (`host-error`), and the crate sources of tantivy 0.27.0, tantivy-query-grammar 0.27.0, tree-sitter 0.27.1 and tree-sitter-typescript 0.23.2). Evidence, read
   in `endpoints/umbel`: `schemas/provenance-envelope.v0.json` (closed; the
   reserved fields `sources`, `generated`, `contentHash`, `derivedFrom`,
   `access`, `sensitivity`, `redactions`, `delegationChain` and `tenant` are
@@ -164,8 +165,12 @@
   and `plugins/knowledge/eval/baseline.json`) and `eval::gate::lane_gate` (the seam: 50 answerable
   queries at least), and the `knowledge` job uploading the report as an artifact; see
   [Amendments from step 9](#amendments-from-step-9).
-- **Not done:** step 10 of the [plan](#14-implementation-plan);
-  the exit criterion.
+- **Done (step 10, the exit),** 2026-11-01, in the step 10 pull request: `plugins/knowledge/tests/exit_thousand.rs`
+  asserts the four points of section 12 on the seeded fixture, and the exit criterion was re-run (see
+  [Exit evidence](#exit-evidence)). The fixture is synthetic with planted terms: its recall measures the
+  pipeline and regressions, not quality on real content.
+- **Not done:** nothing in the plan. Open follow-ups, one of them **must be done before real use** (the
+  dynamic confirmation prompt, G2): see the table.
 - **Follow-ups not yet issues:** listed in [Follow-ups](#follow-ups) and
   mirrored in [STATUS.md](../../STATUS.md#follow-ups-not-yet-issues).
 
@@ -2379,6 +2384,27 @@ stream (the reference vector), the word generator, the metrics, the gate and the
 | J10 | Section 10.3 asks for the same report on Linux and macOS | Everything the report holds except `latency` is a function of the fixture, the index and the ranking: it is rounded to four decimals, nothing in it is ordered by a hash map, and `eval_gate.rs` builds the fixture and index twice and requires the two reports equal without `latency`, and the same host's second run equal. A byte-identical report across operating systems is **not** asserted by a test: tantivy computes an IDF with the platform's `ln`, so a score might differ in the fourth decimal on another libm, which the 0.02 tolerance of the baseline absorbs and the hosted Linux and macOS legs would show | 10.3 |
 | J11 | Section 10.3 gives `knowledge-eval` no output budget, and every other read command has one | It declares none (the report of 220 queries is about 240 KB and is the result by design), is exposed to the CLI alone, and is stamped `dev.umbel/replay: "recorded"` because it used `as_reader` | 8.6, 10.3 |
 
+## Exit evidence
+
+Step 10, 2026-11-01, on `main` at `aa0ecda2` plus the step 10 pull request; commands run in
+`endpoints/umbel` with a private `CARGO_TARGET_DIR`.
+
+| Check | Result |
+| --- | --- |
+| `cargo test --locked -p umbel-plugin-knowledge --test exit_thousand` | 1 test, the four points of section 12, about 21 s (debug) |
+| `cargo test --locked --workspace` | 1032 passed, 0 failed, 1 ignored (a doctest), 107 suites |
+| The `knowledge` job's crates (`cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge`) | 364 passed, 46 suites; `-p umbel-plugin-knowledge --no-default-features` 169 passed, 21 suites |
+| The `check` job's test (the workspace without those crates) | 680 passed, 64 suites |
+| Every other `umbel.yml` leg | fmt, workspace clippy, the library-only, mounted, component and SDK clippy legs, `wasm32-wasip2` clippy and check, the component and hello-mcp builds, MSRV 1.97 (workspace and knowledge crates), knowledge clippy with and without `code`: exit 0 |
+| `pnpm verify` | 14 legs passed, including the todo conformance (`umbel-todo` and the mounted backend, both MCP eras, confirmations) and the external-clients check |
+| `knowledge-eval` (seed `20261101`, `k = 10`, 185 answerable queries) | with expansion: recall 1.0, nDCG 0.9273, MRR 0.9207; without: 0.8919, 0.9123, 0.8784; multi-hop recall 1.0 against 0.0; 15 of 15 unanswerable queries empty; 0 leaks in 220 queries; p50 5.4 ms, p95 40.6 ms (debug build) |
+| Smoke, fresh workspace, `umbel-knowledge` binary | `init`; the README's `umbel.toml`; `workspace doctor` healthy (24 checks, all `pass`); `knowledge-refresh`; `knowledge-search` and `knowledge-open`; `knowledge-propose`; `knowledge-approve` refused without a terminal and applied at a real pseudo-terminal (two prompts); refresh again and the approved document is found; index and graph at the head |
+
+The fixture is synthetic: its key terms are planted pseudo-words, so recall 1.0 says the pipeline
+finds what was planted and will show a regression, not how well it retrieves from real content.
+What the eval and the exit test do not cover: a real corpus, hosted-runner timing (follow-up),
+and verified callers (phase 5).
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2392,7 +2418,7 @@ stream (the reference vector), the word generator, the metrics, the gate and the
 | 2026-11-01 | A per-collection option to block, not only flag, content the write scan matches | When a deployer asks |
 | 2026-11-01 | Watching collection roots instead of explicit `knowledge-refresh` | Later |
 | 2026-11-01 | The `knowledge` job's timeout: 15 minutes, to lower to three times the slower hosted run when that is under 15 (C14) | After the first hosted runs |
-| 2026-11-01 | A dynamic confirmation prompt: a `confirm_prompt` that can name the proposal (id, area, flags) so the terminal shows what is being approved, not only the command (G2) | When a deployer asks; a host feature |
+| 2026-11-01 | A dynamic confirmation prompt: a `confirm_prompt` that can name the proposal (id, area, flags) so the terminal shows what is being approved, not only the command (G2). **Raised 2026-11-01 by the owner's coordinator as must do before real use**: today a person can approve without reading the change, because the prompt cannot show the diff; the dynamic prompt must carry the diff's head and the scan's flags (filtered by the approver's reader filter, sanitized) | **Must do before real use**; a host feature |
 | 2026-11-01 | A length on `IndexQuery` so the detailed form's 480-character snippet needs no second search (C11); step 6 kept 240 for both formats (F5) | Open, when a deployer asks |
 | 2026-11-01 | `knowledge-stale` scans at most 2000 documents per call and `knowledge-related` reads at most 64 tags or owners of 1000 edges each; a corpus past `team` scale needs the graph or the index to answer them (H7, H12) | When a deployer asks |
 | 2026-11-01 | `knowledge-path` copies the cached readable graph per call (H9); a backend-side traversal would avoid it | Phase 6 |
