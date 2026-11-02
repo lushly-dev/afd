@@ -125,7 +125,7 @@
   `-list` and `-changes`; output budgets on every read command; content labels; the first-class
   suggestions; the `knowledge-refresh` pipeline; the `ranking` pack and the skill. See
   [Amendments from step 6](#amendments-from-step-6). **Step 8, proposals and verification**,
-  2026-11-01, in the step 8 pull request: the proposal record (`proposal.v1`) kept as a decision
+  2026-11-01, in [673](https://github.com/lushly-dev/afd/pull/673): the proposal record (`proposal.v1`) kept as a decision
   trace; areas with approver lists and self-approval policy; `knowledge-propose` with its
   idempotency key; `knowledge-proposal-list`, `-proposal-show` and `-withdraw`; `knowledge-approve`
   (CLI only, AFD approval, `confirm = "require-human"`: terminal only, `--yes` and `--approve`
