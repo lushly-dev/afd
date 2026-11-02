@@ -162,7 +162,7 @@ should never have to scan the codebase to learn what is current.
     chords, layout classes, router seam and theme application, the web host
     over IndexedDB, the Chromium suite passing E1 to E10 locally, and the
     budget with measured values; decisions in sections 7.1, 8.1 and 11.1.
-  - 8, exit: merged in [#PRNUM](https://github.com/lushly-dev/afd/pull/PRNUM).
+  - 8, exit: merged in [#665](https://github.com/lushly-dev/afd/pull/665).
     The exit run is [run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) on `main`; the open follow-ups are filed as
     issues #655 to #664 and linked from the specification's Follow-ups table.
 
