@@ -234,6 +234,15 @@ impl CallServices {
             .map_err(host_error)
     }
 
+    pub(super) fn svc_reader_tokens(&self, space: &str) -> Result<Vec<String>> {
+        self.scoped("documents", space)?;
+        let filter = self.filter(space)?;
+        Ok(filter
+            .token_list()
+            .map(<[String]>::to_vec)
+            .unwrap_or_default())
+    }
+
     pub(super) fn svc_doc_list(&self, space: &str, query: &ListQuery) -> Result<Page<DocMeta>> {
         let (stores, filter) = self.reading("documents", space)?;
         stores

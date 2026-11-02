@@ -10,6 +10,7 @@
 //! - [`structure`]: the heading tree, blocks, links and code spans of the body, with
 //!   pulldown-cmark, in a bounded amount of work for any input;
 //! - [`links`]: how a link target resolves to a document id;
+//! - [`rewrite`]: frontmatter-only rewrites that keep every other byte of a file;
 //! - [`ingest`]: one call that turns a file's bytes into everything the plugin stores, including
 //!   the write scan's flags.
 //!
@@ -20,7 +21,9 @@
 pub mod frontmatter;
 pub mod ingest;
 pub mod links;
+pub mod rewrite;
 pub mod structure;
 
 pub use ingest::{Analysis, Ingest, Kind, PathProblem, Reserved, analyze, document_id};
+pub use rewrite::{RewriteError, rewrite_keys};
 pub use structure::{Block, BlockKind, CodeSpan, Heading, LineRange, Link, Structure, structure};

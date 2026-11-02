@@ -136,6 +136,14 @@ macro_rules! reads {
                 self.guard(space)?;
                 self.services()?.doc_changes(space, after, limit, trace)
             }
+            /// Grant `documents`: the access tokens of the caller's reader filter in the space.
+            ///
+            /// # Errors
+            /// See [`HostServices::reader_tokens`].
+            pub fn reader_tokens(&self, space: &str) -> Result<Vec<String>, HostError> {
+                self.guard(space)?;
+                self.services()?.reader_tokens(space)
+            }
             /// Grant `records`: one record of the instance's own namespace.
             ///
             /// # Errors

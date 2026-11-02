@@ -191,6 +191,7 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
         "doc-get" => cx
             .doc_get(space, text(args, "id"))
             .map(|doc| json!(doc.map(|d| d.write.id))),
+        "reader-tokens" => cx.reader_tokens(space).map(|tokens| json!(tokens)),
         "doc-envelope" => cx
             .doc_get(space, text(args, "id"))
             .map(|doc| json!(doc.map(|d| serde_json::to_value(&d.write.envelope).unwrap()))),

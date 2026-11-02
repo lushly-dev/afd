@@ -440,6 +440,10 @@ impl HostServices for CallServices {
         self.svc_doc_changes(space, after, limit, trace)
     }
 
+    fn reader_tokens(&self, space: &str) -> Result<Vec<String>, ServiceError> {
+        self.svc_reader_tokens(space)
+    }
+
     fn doc_put(
         &self,
         space: &str,

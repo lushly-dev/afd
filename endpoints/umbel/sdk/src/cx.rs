@@ -216,6 +216,16 @@ pub trait HostServices: Send + Sync {
     ) -> Result<Vec<Change>, HostError> {
         not_granted("documents")
     }
+    /// Grant `documents`: the access tokens of the caller's reader filter in the space (`space`,
+    /// `principal:<kind>:<id>` and `group:<g>` for each group that holds the caller), sorted. A
+    /// plugin uses them to ask whether the caller holds a token an area policy names, such as an
+    /// approvers list; it learns nothing about any other principal.
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_get`].
+    fn reader_tokens(&self, _space: &str) -> Result<Vec<String>, HostError> {
+        not_granted("documents")
+    }
     /// Grant `documents_write`: write a document. The host fills the envelope's identity fields
     /// from the call and refuses an envelope without an origin, access set or sensitivity.
     ///

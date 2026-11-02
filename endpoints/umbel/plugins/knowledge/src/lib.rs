@@ -17,8 +17,11 @@
 //! Content is untrusted: every part of a result that came from a document carries `trust:
 //! "content"`, and no message, warning or reasoning ever contains content.
 //!
-//! The structural graph, expansion, code symbols, proposals, verification and the eval harness
-//! are later steps of the phase.
+//! - `knowledge-propose` and its companions (`-proposal-list`, `-proposal-show`, `-withdraw`) keep
+//!   proposals as decision traces; `knowledge-approve`, `-reject` and `-verify` are for a person at a
+//!   terminal, and applying a proposal writes the file and the document with the proposal as lineage.
+//!
+//! The structural graph, expansion, code symbols and the eval harness are later steps of the phase.
 #![forbid(unsafe_code)]
 
 mod budget;
@@ -31,6 +34,7 @@ mod index;
 mod list;
 mod locator;
 mod open;
+mod proposal;
 mod search;
 mod settings;
 
@@ -67,11 +71,11 @@ impl Plugin for Knowledge {
             "knowledge-describe" => describe::run(&input, cx),
             "knowledge-list" => list::list(&input, cx),
             "knowledge-changes" => list::changes(&input, cx),
-            other => failure(
+            other => proposal::dispatch(other, &input, cx).unwrap_or_else(|| failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the knowledge plugin has no command `{other}`"),
-                "Call knowledge-search, knowledge-open, knowledge-find, knowledge-describe, knowledge-list, knowledge-changes or knowledge-index.",
-            ),
+                "Call knowledge-search, knowledge-open, knowledge-find, knowledge-describe, knowledge-list, knowledge-changes, knowledge-index or one of the proposal commands.",
+            )),
         }
     }
 }

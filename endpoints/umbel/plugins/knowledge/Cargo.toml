@@ -17,6 +17,8 @@ path = "src/bin/umbel-knowledge.rs"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 # `knowledge-find`'s patterns: linear time, no backreferences, a compiled-size limit.
 regex = "1"
+# The unified diff a proposal shows its approver.
+similar = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The ranking pack is a TOML file.
@@ -27,6 +29,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded"] }
 umbel-okf = { path = "../../okf" }
 umbel-plugin-sources-filesystem = { path = "../sources-filesystem" }
+umbel-scan = { path = "../../scan" }
 umbel-sdk = { path = "../../sdk" }
 umbel-store = { path = "../../store" }
 
