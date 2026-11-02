@@ -28,6 +28,9 @@ pub struct Cdp {
     writer: mpsc::UnboundedSender<Vec<u8>>,
     pending: Pending,
     subscribers: Subscribers,
+    /// Calls from the page to a `Runtime.addBinding` name, which a play waits on, so they must
+    /// be handled while it runs rather than collected with its console messages.
+    bindings: Subscribers,
     closed: Arc<AtomicBool>,
     next: AtomicU64,
 }
@@ -152,6 +155,7 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
     let mut receiver = pipe::Receiver::from_owned_fd(host_read)?;
     let pending: Pending = Arc::default();
     let subscribers: Subscribers = Arc::default();
+    let bindings: Subscribers = Arc::default();
     let closed = Arc::new(AtomicBool::new(false));
     let (writer, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
     tokio::spawn(async move {
@@ -162,8 +166,12 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
             }
         }
     });
-    let (reader_pending, reader_subscribers, reader_closed) =
-        (pending.clone(), subscribers.clone(), closed.clone());
+    let (reader_pending, reader_subscribers, reader_bindings, reader_closed) = (
+        pending.clone(),
+        subscribers.clone(),
+        bindings.clone(),
+        closed.clone(),
+    );
     tokio::spawn(async move {
         let mut buffer = Vec::new();
         let mut chunk = vec![0u8; 1 << 16];
@@ -199,7 +207,12 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
                     }
                 } else if let Some(method) = value.get("method").and_then(Value::as_str) {
                     let session = value.get("sessionId").and_then(Value::as_str).unwrap_or("");
-                    let subscriber = reader_subscribers.lock().unwrap().get(session).cloned();
+                    let subscribers = if method == "Runtime.bindingCalled" {
+                        &reader_bindings
+                    } else {
+                        &reader_subscribers
+                    };
+                    let subscriber = subscribers.lock().unwrap().get(session).cloned();
                     if let Some(subscriber) = subscriber {
                         let _ = subscriber.send(Event {
                             method: method.to_string(),
@@ -222,6 +235,7 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
             writer,
             pending,
             subscribers,
+            bindings,
             closed,
             next: AtomicU64::new(1),
         },
@@ -261,7 +275,18 @@ impl Cdp {
         receiver
     }
 
+    /// Calls from the page to its bindings, for one session.
+    pub fn subscribe_bindings(&self, session: &str) -> mpsc::UnboundedReceiver<Event> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.bindings
+            .lock()
+            .unwrap()
+            .insert(session.to_string(), sender);
+        receiver
+    }
+
     pub fn unsubscribe(&self, session: &str) {
+        self.bindings.lock().unwrap().remove(session);
         self.subscribers.lock().unwrap().remove(session);
     }
 }

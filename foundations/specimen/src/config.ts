@@ -31,6 +31,8 @@ export interface LoadedConfig {
 	plugins: string[];
 	/** Component schemas from the configured custom elements manifest, by tag. */
 	schemas: Record<string, ComponentSchema>;
+	/** Directories served at the page's origin, as absolute paths and URL prefixes. */
+	staticDirs: { from: string; to: string }[];
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
@@ -120,6 +122,11 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		);
 		schemas = Object.fromEntries(readManifest(JSON.parse(await readFile(manifest, 'utf8'))));
 	}
+	const staticDirs: LoadedConfig['staticDirs'] = [];
+	for (const entry of config.staticDirs ?? []) {
+		const { from, to } = typeof entry === 'string' ? { from: entry, to: '/' } : entry;
+		staticDirs.push({ from: inside(root, await realpath(resolve(dirname(file), from)), from), to });
+	}
 	return {
 		root,
 		file,
@@ -129,6 +136,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		digest: digest(text),
 		plugins,
 		schemas,
+		staticDirs,
 		...(stories ? { stories } : {}),
 	};
 }

@@ -21,6 +21,7 @@ mod cdp;
 mod console;
 mod csf;
 mod glob;
+mod keyboard;
 mod page;
 mod serve;
 
@@ -35,6 +36,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Mutex, mpsc};
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OpenRequest {
     root: PathBuf,
     runtime: String,
@@ -43,6 +45,8 @@ struct OpenRequest {
     defaults: Value,
     executable: String,
     work: PathBuf,
+    #[serde(default)]
+    static_dirs: Vec<serve::StaticDir>,
 }
 
 struct Bench {
@@ -101,7 +105,7 @@ async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
     std::fs::create_dir_all(&work)?;
     // Chromium starts while the first bundle builds.
     let browser = Browser::spawn(&request.executable, &work)?;
-    let renders = serve::Renders::default();
+    let renders = serve::Renders::new(request.static_dirs);
     let origin = match serve::start(renders.clone()).await {
         Ok(origin) => origin,
         Err(error) => {

@@ -111,6 +111,19 @@ fn guard_top_level_throws(path: &str, source: &str) -> Option<String> {
     Some(guarded)
 }
 
+/// The `vitest/browser` stand-in, beside the browser runtime and in the same form.
+fn vitest_browser(runtime: &str) -> String {
+    let runtime = Path::new(runtime);
+    let extension = runtime
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("js");
+    runtime
+        .with_file_name(format!("vitest-browser.{extension}"))
+        .display()
+        .to_string()
+}
+
 /// Files the load hook emits, such as `?url` imports and assets a stylesheet references,
 /// served as `assets/<name>-<hash>.<extension>`.
 type Assets = Arc<Mutex<BTreeMap<String, Vec<u8>>>>;
@@ -320,7 +333,7 @@ fn content_type(file: &str) -> &'static str {
     }
 }
 
-fn served(body: Vec<u8>, file: &str) -> ServedFile {
+pub fn served(body: Vec<u8>, file: &str) -> ServedFile {
     let digest = format!("{:x}", Sha256::digest(&body));
     ServedFile {
         body: Arc::new(body),
@@ -420,6 +433,11 @@ async fn bundle(
         }),
         define: Some(define),
         resolve: Some(ResolveOptions {
+            // A retained play may reach for Vitest's real keyboard; the stand-in provides it.
+            alias: Some(vec![(
+                "vitest/browser".to_string(),
+                vec![Some(vitest_browser(&source.runtime))],
+            )]),
             condition_names: Some(
                 ["development", "module", "browser", "import", "default"]
                     .map(String::from)

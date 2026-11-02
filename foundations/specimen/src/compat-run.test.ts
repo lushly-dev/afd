@@ -126,6 +126,10 @@ describe('retained stories end the same way in both runners', () => {
 			'Form Associated': 'passed',
 			'Smoke Only': 'passed',
 			'Glob Import': 'passed',
+			'Static Directory': 'passed',
+			'Real Keyboard': 'passed',
+			'Next Frame': 'passed',
+			'Undefined Element': 'passed',
 			Skipped: 'skipped',
 			'Not A Test': 'excluded',
 			Made: 'passed',
@@ -147,6 +151,12 @@ describe('retained stories end the same way in both runners', () => {
 		});
 		const theme = stories.find((story) => story.name === 'Global Theme')?.run.observation;
 		expect(theme?.manifest.context.theme).toBe('dark');
+		// Storybook does not wait for a tag nothing defines; Specimen records that it stayed so.
+		const undefinedTag = stories.find((story) => story.name === 'Undefined Element')?.run
+			.observation;
+		expect(JSON.stringify(undefinedTag?.completeness)).toContain(
+			'Custom element <never-defined-element> was still undefined'
+		);
 	}, 300_000);
 
 	it('fails the deliberately failing cases for the same reasons', async () => {

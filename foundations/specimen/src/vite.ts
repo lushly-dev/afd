@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, createServer, type Plugin, type ViteDevServer } from 'vite';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
@@ -65,6 +65,9 @@ export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite>
 		name: 'afd-specimen',
 		resolveId(id) {
 			if (id === ENTRY) return '\0specimen-entry';
+			// A retained play's real keyboard; see `browser/vitest-browser.ts`.
+			if (id === 'vitest/browser')
+				return join(dirname(runtime), `vitest-browser${extname(runtime)}`);
 		},
 		load(id) {
 			if (id === '\0specimen-entry') return entrySource(config, runtime);
@@ -74,7 +77,7 @@ export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite>
 		root,
 		runtime,
 		plugin,
-		build: (outDir) => buildStatic(root, runtime, plugin, outDir),
+		build: (outDir) => buildStatic(root, runtime, plugin, outDir, config.staticDirs),
 		dispose: () => rm(root, { recursive: true, force: true }),
 	};
 }
@@ -154,7 +157,8 @@ async function buildStatic(
 	root: string,
 	runtime: string,
 	plugin: Plugin,
-	outDir: string
+	outDir: string,
+	staticDirs: LoadedConfig['staticDirs']
 ): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
 	const directory = resolve(outDir);
 	await mkdir(directory, { recursive: true });
@@ -177,12 +181,15 @@ async function buildStatic(
 	});
 	if (Array.isArray(result) || !('output' in result))
 		throw new Error('Unexpected Vite build result');
+	for (const { from, to } of staticDirs) await cp(from, join(directory, to), { recursive: true });
 	const chunks = result.output.filter((output) => output.type === 'chunk');
 	// The proposal's categories: the shell lists and mounts a plain fixture; retained stories'
 	// runtime is interaction support and axe is the accessibility engine, each loaded only by
 	// the cases that need them and each counted against its own budget, never left out.
 	const runtimeDirectory = dirname(runtime);
-	const lazyRuntime = ['story-runtime', 'csf'].map((name) => join(runtimeDirectory, name));
+	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser'].map((name) =>
+		join(runtimeDirectory, name)
+	);
 	const packageSource = dirname(runtimeDirectory);
 	const categoryOf = (
 		chunk: (typeof chunks)[number]

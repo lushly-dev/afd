@@ -43,6 +43,14 @@ const configSchema = z
 				skip: z.array(z.string().min(1)).optional(),
 			})
 			.optional(),
+		staticDirs: z
+			.array(
+				z.union([
+					z.string().min(1),
+					z.object({ from: z.string().min(1), to: z.string().regex(/^\//) }).strict(),
+				])
+			)
+			.optional(),
 		plugins: z.array(z.string().min(1)).optional(),
 		manifest: z.string().min(1).optional(),
 	})
@@ -176,6 +184,10 @@ describe('bench validation matches the Zod schemas', () => {
 			{ stories: ['src'], test: { other: [] } },
 			{ specimens: [entry], test: {} },
 			{ specimens: [entry], plugins: ['./plugins.ts'], manifest: 'custom-elements.json' },
+			{ specimens: [entry], staticDirs: ['./public', { from: './site', to: '/site' }] },
+			{ specimens: [entry], staticDirs: './public' },
+			{ specimens: [entry], staticDirs: [{ from: './site', to: 'site' }] },
+			{ specimens: [entry], staticDirs: [{ from: './site' }] },
 			{ specimens: [entry], plugins: [] },
 			{ specimens: [entry], plugins: [''] },
 			{ specimens: [entry], plugins: './plugins.ts' },

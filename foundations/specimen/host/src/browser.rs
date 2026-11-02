@@ -7,6 +7,7 @@
 use crate::aria;
 use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
+use crate::keyboard::Keyboard;
 use crate::page::{Page, Viewport, emulate, prepare};
 use anyhow::{Result, anyhow};
 use base64::Engine;
@@ -273,6 +274,49 @@ struct Attempt {
     session: Mutex<Option<String>>,
     collector: Mutex<Option<Collector>>,
     ready: std::sync::atomic::AtomicBool,
+    /// What the attempt is doing, for the deadline's message.
+    phase: Mutex<&'static str>,
+}
+
+/// The binding `vitest/browser`'s stand-in calls, in `src/browser/vitest-browser.ts`.
+const INPUT_BINDING: &str = "__specimenInput";
+
+#[derive(serde::Deserialize)]
+struct InputCall {
+    id: u64,
+    keys: String,
+}
+
+const RUN_PHASE: &str = "running the story's play and accessibility check";
+
+impl Attempt {
+    fn enter(&self, phase: &'static str) {
+        *self.phase.lock().unwrap() = phase;
+    }
+
+    /// The phase for a deadline's message. A story's run asks the page which stage it reached;
+    /// a page that does not answer has a script blocking it.
+    async fn deadline_phase(&self, cdp: &crate::cdp::Cdp) -> &'static str {
+        let phase = *self.phase.lock().unwrap();
+        let session = self.session.lock().unwrap().clone();
+        let (RUN_PHASE, Some(session)) = (phase, session) else {
+            return phase;
+        };
+        let page = Page { cdp, session };
+        match timeout(
+            Duration::from_millis(500),
+            page.evaluate("window.__specimenStage ?? null"),
+        )
+        .await
+        {
+            Err(_) => "running the story, with a script blocking the page",
+            Ok(Ok(Value::String(stage))) if stage == "accessibility" => {
+                "running the accessibility check"
+            }
+            Ok(Ok(Value::String(stage))) if stage == "play" => "running the story's play",
+            _ => phase,
+        }
+    }
 }
 
 impl Browser {
@@ -296,8 +340,9 @@ impl Browser {
         {
             Ok(result) => result,
             Err(_) => Err(anyhow!(
-                "Specimen deadline exceeded after {}ms",
-                request.timeout_ms
+                "Specimen deadline exceeded after {}ms while {}",
+                request.timeout_ms,
+                attempt.deadline_phase(&self.cdp).await
             )),
         };
         let session = attempt.session.lock().unwrap().clone();
@@ -368,6 +413,7 @@ impl Browser {
         url: &str,
         request: &RenderRequest,
     ) -> Result<Attempted> {
+        attempt.enter("opening the page");
         let context = self
             .cdp
             .send(
@@ -408,12 +454,28 @@ impl Browser {
             session,
         };
         let viewport = prepare(&page, &request.context).await?;
+        let mut input = None;
         page.mouse("mouseMoved", -1.0, -1.0).await?;
+        // Storybook's test helpers instrument themselves only inside an iframe, as its Vitest
+        // runner has them, unless the URL asks; a retained story's play runs them the same way.
+        let retained = request.entry.get("story").is_some_and(Value::is_object);
+        if retained {
+            input = Some(self.cdp.subscribe_bindings(&page.session));
+            page.send("Runtime.addBinding", json!({ "name": INPUT_BINDING }))
+                .await?;
+        }
+        let address = format!(
+            "{url}specimen.html?automation=1{}",
+            if retained { "&instrument=true" } else { "" }
+        );
         let navigated = page
-            .send("Page.navigate", json!({ "url": format!("{url}specimen.html?automation=1"), "referrerPolicy": "unsafeUrl" }))
+            .send(
+                "Page.navigate",
+                json!({ "url": address, "referrerPolicy": "unsafeUrl" }),
+            )
             .await?;
         if let Some(error) = navigated.get("errorText").and_then(Value::as_str) {
-            return Err(anyhow!("{error} at {url}specimen.html?automation=1"));
+            return Err(anyhow!("{error} at {address}"));
         }
         // A reply from the document being replaced is retried in the navigated one.
         while page.evaluate(RUNTIME_READY).await.ok() != Some(Value::Bool(true)) {
@@ -448,7 +510,6 @@ impl Browser {
                 outcome: None,
             });
         }
-        let retained = request.entry.get("story").is_some_and(Value::is_object);
         let mut context = request.context.clone();
         let mut outcome = None;
         if retained {
@@ -459,6 +520,7 @@ impl Browser {
                 ));
             }
             // The story settles its own viewport and theme; emulate what it resolves to.
+            attempt.enter("loading the story's modules");
             let resolved = page
                 .evaluate(&format!(
                     "window.__specimen.resolve({}, {}, {})",
@@ -475,24 +537,37 @@ impl Browser {
                 .cloned()
                 .ok_or_else(|| anyhow!("The page did not resolve the story's context"))?;
             emulate(&page, &context).await?;
-            let run = request.checkpoint == "after-run";
-            page.evaluate(&format!(
-                "window.__specimen.mount({}, {}, {{ settle: {} }})",
-                request.entry, context, !run
-            ))
-            .await?;
-            if run {
-                outcome = Some(page.evaluate("window.__specimen.run()").await?);
+            if request.checkpoint == "after-run" {
+                attempt.enter(RUN_PHASE);
+                let expression = format!(
+                    "window.__specimen.mountAndRun({}, {})",
+                    request.entry, context
+                );
+                let run = page.evaluate(&expression);
+                outcome = Some(match input.as_mut() {
+                    Some(input) => run_with_input(&page, run, input).await?,
+                    None => run.await?,
+                });
+            } else {
+                attempt.enter("rendering the story");
+                page.evaluate(&format!(
+                    "window.__specimen.mount({}, {})",
+                    request.entry, context
+                ))
+                .await?;
             }
         } else {
+            attempt.enter("mounting the specimen");
             let mounted = page
                 .evaluate(&format!(
                     "window.__specimen.mount({}, {})",
                     request.entry, request.context
                 ))
                 .await?;
+            attempt.enter("running the specimen's scenario");
             page.steps(&mounted, &request.checkpoint).await?;
         }
+        attempt.enter("capturing the result");
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
         let captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
@@ -514,6 +589,33 @@ impl Browser {
             context,
             outcome,
         })
+    }
+}
+
+/// Run a retained story, answering its `userEvent.keyboard` calls while it runs.
+async fn run_with_input(
+    page: &Page<'_>,
+    run: impl std::future::Future<Output = Result<Value>>,
+    input: &mut tokio::sync::mpsc::UnboundedReceiver<crate::cdp::Event>,
+) -> Result<Value> {
+    tokio::pin!(run);
+    let mut keyboard = Keyboard::default();
+    loop {
+        tokio::select! {
+            result = &mut run => return result,
+            Some(event) = input.recv() => {
+                let call: InputCall = serde_json::from_str(
+                    event.params.get("payload").and_then(Value::as_str).unwrap_or(""),
+                )?;
+                let error = keyboard.press(page, &call.keys).await.err().map(|error| error.to_string());
+                page.evaluate(&format!(
+                    "window.__specimenInputDone({}, {})",
+                    call.id,
+                    serde_json::to_string(&error)?
+                ))
+                .await?;
+            }
+        }
     }
 }
 

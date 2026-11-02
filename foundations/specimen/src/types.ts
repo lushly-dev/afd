@@ -93,6 +93,11 @@ export interface BenchConfig {
 	/** The project annotations module (Storybook's preview), relative to the configuration. */
 	preview?: string;
 	/**
+	 * Directories served at the page's origin, as Storybook's `staticDirs`: a path served at
+	 * `/`, or `from` served at `to`. Relative to the configuration, and inside the root.
+	 */
+	staticDirs?: (string | { from: string; to: string })[];
+	/**
 	 * Which retained stories run, as the Storybook Vitest addon's `tags` option selects them:
 	 * `include` defaults to `['test']`; `skip` reports a story skipped without running it.
 	 */
@@ -285,7 +290,14 @@ export interface StoryOutcome {
 		status: 'passed' | 'warning' | 'failed' | 'not-run';
 		policy: 'error' | 'todo' | 'off' | 'disabled' | 'manual';
 		reason?: string;
-		violations: { id: string; impact: string | null; help: string; targets: string[] }[];
+		violations: {
+			id: string;
+			impact: string | null;
+			help: string;
+			targets: string[];
+			/** Axe's explanation for each target, such as the contrast it measured. */
+			details: string[];
+		}[];
 		incomplete: number;
 		engine?: string;
 	};
@@ -300,14 +312,12 @@ export interface BrowserRuntime {
 		requested: Partial<SpecimenContext>,
 		defaults: SpecimenContext
 	): Promise<{ context: SpecimenContext; limitations: string[] } | null>;
-	/** `settle: false` mounts a retained story without waiting for fonts and a frame, as its runner does. */
 	mount(
 		entry: SpecimenEntry,
-		context: SpecimenContext,
-		options?: { settle?: boolean }
+		context: SpecimenContext
 	): Promise<{ targets: Record<string, Target>; scenario: ScenarioStep[] }>;
-	/** Run the mounted retained story's play and accessibility check. */
-	run(): Promise<StoryOutcome>;
+	/** Render a retained story, then run its play and accessibility check, with no task between. */
+	mountAndRun(entry: SpecimenEntry, context: SpecimenContext): Promise<StoryOutcome>;
 	/** Resolve an entry without rendering it: args, context and the component's enriched schema. */
 	inspect(
 		entry: SpecimenEntry,
