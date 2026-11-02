@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect } from "@lushly-dev/specimen/test";
 
 import "./violet-calendar";
 import type { VioletCalendar } from "./violet-calendar";
@@ -26,10 +26,11 @@ const meta: Meta<VioletCalendar> = {
         const end = args.end ? `end="${args.end}"` : "";
         const min = args.min ? `min="${args.min}"` : "";
         const max = args.max ? `max="${args.max}"` : "";
+        const disabled = args.disabled ? "disabled" : "";
 
         return `
             <div style="max-inline-size: 20rem;">
-                <violet-calendar ${selectionMode} ${locale} ${value} ${start} ${end} ${min} ${max}></violet-calendar>
+                <violet-calendar ${selectionMode} ${locale} ${value} ${start} ${end} ${min} ${max} ${disabled}></violet-calendar>
             </div>
         `;
     },
@@ -71,5 +72,11 @@ export const Disabled: Story = {
         locale: "en-US",
         value: "2026-03-23",
         disabled: true,
+    },
+    play: async ({ canvasElement }) => {
+        const calendar = canvasElement.querySelector("violet-calendar");
+        const buttons = [...(calendar?.shadowRoot?.querySelectorAll("button") ?? [])];
+        await expect(buttons.length).toBeGreaterThan(0);
+        await expect(buttons.filter(button => !button.disabled)).toEqual([]);
     },
 };

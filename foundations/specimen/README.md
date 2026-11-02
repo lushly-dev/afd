@@ -308,7 +308,7 @@ Chromium only.
 
 It writes only with `apply: true`, and only to files unchanged since they were read.
 
-With `helpers: true` (`--helpers`) it also switches helper and type imports to [Specimen's own](#helpers-and-types), one import at a time, and only where Specimen has every name that import uses. Anything else stays, as a manual task. A preview's `setCustomElementsManifest` and `Preview` are not story files, so those two lines are yours to change.
+With `helpers: true` (`--helpers`) it instead switches helper and type imports to [Specimen's own](#helpers-and-types), one import at a time, and only where Specimen has every name that import uses. Anything else stays, as a manual task. It names no components then, since that gives a story new args and is a separate step. A preview's `setCustomElementsManifest` and `Preview` are not story files, so those two lines are yours to change.
 
 ## Helpers and types
 

@@ -272,7 +272,7 @@ export interface MigrateRequest {
 	files?: string[];
 	/** Write the proposed edits. The default is a preview that writes nothing. */
 	apply?: boolean;
-	/** Also switch helper and type imports to Specimen's own, where it has every name imported. */
+	/** Switch helper and type imports to Specimen's own, where it has every name, and name no components. */
 	helpers?: boolean;
 }
 /** The codemod's file-by-file report. */

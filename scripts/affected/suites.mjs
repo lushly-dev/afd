@@ -59,6 +59,7 @@ export const SUITES = [
 		tools: ['chromium', 'cargo'],
 		steps: [
 			{ gate: 'run', run: 'pnpm test:specimen' },
+			{ gate: 'stories', run: 'pnpm test:stories' },
 			{ gate: 'host', cwd: 'foundations/specimen/host', run: 'cargo fmt --check' },
 			{
 				gate: 'host',

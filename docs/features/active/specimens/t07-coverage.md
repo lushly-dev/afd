@@ -2,7 +2,7 @@
 
 **State, 2026-11-02:** complete. All of T07's acceptance is met, on main at `4a26cc0b`, with [what it leaves open](#what-t07-leaves-open) listed at the end. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is done and merged in [#695](https://github.com/lushly-dev/afd/pull/695). Step 3, rule replacement, is done and merged in [#696](https://github.com/lushly-dev/afd/pull/696). Step 4, `specimen-suggest` and the adapter, is done and merged in [#697](https://github.com/lushly-dev/afd/pull/697).
 
-**One decision for the owner:** a real story bug needs fixing or waiving before FAST-AF's cutover. See [the finding](#finding-a-disabled-story-that-disables-nothing).
+**The one decision this left for the owner is made:** the [story bug](#finding-a-disabled-story-that-disables-nothing) was to be fixed, and [T08 fixed it](t08-cutover.md#the-calendar-story).
 
 T07's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): distinguish represented, asserted, verified, missing and unknown obligations; add coverage, suggest and Fastbot adapters; and give each existing required rule positive and failing detection evidence and a retirement record before deletion. Unknown required obligations MUST block acceptance.
 

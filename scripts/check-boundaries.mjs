@@ -387,7 +387,7 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 			(path) =>
 				within(path, `${unit.directory}/src`) &&
 				/\.[cm]?[jt]sx?$/.test(path) &&
-				!/(?:^|\/)(?:__tests__|fixtures)(?:\/)|\.(?:test|spec)\./.test(path)
+				!/(?:^|\/)(?:__tests__|fixtures)(?:\/)|\.(?:test|spec|stories)\./.test(path)
 		)) {
 			for (const specifier of imports(read(join(root, path)), path))
 				inspectImport(unit, specifier, join(root, path), options);

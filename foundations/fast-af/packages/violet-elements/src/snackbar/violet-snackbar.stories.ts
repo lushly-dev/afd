@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import { expect, fn, userEvent } from "storybook/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { expect, fn, userEvent } from "@lushly-dev/specimen/test";
 
 import "../button/violet-button";
 import "./violet-snackbar";
