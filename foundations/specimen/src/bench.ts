@@ -182,7 +182,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 							],
 				};
 			}
-			const report = validateDiscovery(discovery, snapshot.root, target);
+			const tags = Object.keys(snapshot.schemas);
+			const report = validateDiscovery(
+				discovery,
+				snapshot.root,
+				target,
+				tags.length ? new Set(tags) : undefined
+			);
 			if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
 				return {
 					...report,

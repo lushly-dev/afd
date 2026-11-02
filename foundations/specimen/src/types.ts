@@ -2,7 +2,7 @@ import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
 export const CAPTURE_VERSION = '0.4' as const;
-export const NORMALIZATION_VERSION = '0.1' as const;
+export const NORMALIZATION_VERSION = '0.2' as const;
 
 export interface SpecimenContext {
 	viewport: { width: number; height: number };

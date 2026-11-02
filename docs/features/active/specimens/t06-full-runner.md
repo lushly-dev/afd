@@ -6,9 +6,10 @@
 - Step 2, suites with filters, worker limits and the once-only retry, is done and merged in [#676](https://github.com/lushly-dev/afd/pull/676).
 - Step 3, `specimen-a11y` and native accessibility exceptions, is done and merged in [#679](https://github.com/lushly-dev/afd/pull/679).
 - Step 4, `specimen-profile` and baselines, is done and merged in [#681](https://github.com/lushly-dev/afd/pull/681).
-- Step 5, `specimen-matrix` and declared event history, is implemented on branch `lush/specimens-t06-matrix`.
+- Step 5, `specimen-matrix` and declared event history, is done and merged in [#682](https://github.com/lushly-dev/afd/pull/682).
+- Step 6, budgets, the review page and the consumer's tooling, is implemented on branch `lush/specimens-t06-operations`.
 
-The remaining steps are listed [below](#remaining-steps).
+The remaining step is listed [below](#remaining-steps).
 
 T06's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): run, accessibility, profile, declared event history and the required context and matrix behaviour over the common lifecycle, with retained plays and helpers, axe policy and exceptions, and ready-checkpoint metrics. CEM and typechecks, scaffold output, flake identities, retry and worker limits are preserved. Exact discovered sets and pass, fail and skip categories MUST agree, and index links and budgets MUST be verified.
 
@@ -284,11 +285,118 @@ A cell the comparison refuses, because a story settled a context of its own, rep
 
 Each request parser now has a test that it agrees with its public Zod schema on the same inputs, as the configuration's already did. Those tests found two real disagreements in this step, now fixed: the matrix schema accepted any theme string that the bench then refused, and the parser ignored a non-boolean `observations`.
 
+## Step 6: budgets, the review page and the consumer's tooling
+
+The build was measured for the first time on both consumers' full story sets. Lushly's failed the total once it was counted honestly, so the design changed. Linking every story then found two bugs in the review page.
+
+### Budgets
+
+Every figure is minified UTF-8 JavaScript from a real `bench.build` of the whole retained set, read from `specimen-build.json`. Each category is its own chunk, so these are exact bytes, not shares of a mixed chunk.
+
+| Category | Ceiling | FAST-AF `24e4eb86` (407) | Lushly `0eede7f0` (873) |
+| --- | --- | --- | --- |
+| Shell, with capture code | 50,000 | 41,332 | 41,332 |
+| Interaction support | 600,000 | 492,831 | 590,228 |
+| Accessibility | 650,000 | 586,666 | 586,666 |
+| **Total** | **1,300,000** | **1,120,829** | **1,218,226** |
+| Reported only: catalog | None | 217,978 | 598,043 |
+| Reported only: incumbent | None | 167,524 | 143,391 |
+| Reported only: consumer | None | 1,981,853 | 3,772,575 |
+
+Three accounting errors had hidden the real position, each corrected here:
+
+- **The catalog was in the shell.** The generated list of stories sat in the entry chunk, so a real consumer's build failed at 254,667 bytes against 50,000. It is now its own chunk and the shell no longer grows with the story count. A test holds that.
+- **A play's helpers counted as consumer code.** [T05](t05-compatibility.md#budgets) reasoned that `storybook/test` is the consumer's own import during the overlap. The proposal names those helpers as interaction support and says built-in bench dependencies must not be relabeled consumer code, so that reasoning was wrong. They are now counted as interaction support however a story imports them.
+- **The capture normalizer sat outside the shell.** T05 gave its 154,389 bytes a category of their own and left G06 open on whether they belonged under the shell ceiling. The proposal's shell row already answers that: "reusable capture code included".
+
+Counted correctly, Lushly's total was 1,368,628, over by 68,628. The proposal says that a budget that cannot be met requires a design revision, and that excluding a dependency is not a pass. So the design changed: the normalizer no longer carries parse5.
+
+**The normalizer is now a scan of 140 lines, and parse5 is gone from the package's dependencies.** A capture's DOM is the browser's own serialization, so it does not need a tree built: `normalizeDom` finds the start tags and template scopes, sorts attributes and renames generated ids. The shell grew about 3,500 bytes in this step, the scan included. `experiments/check-normalizer.mjs` holds it to the parse5 version on every story's real capture:
+
+| | FAST-AF | Lushly |
+| --- | --- | --- |
+| Stories, each with a capture | 407 | 873 |
+| Raw DOM | 3,218,324 bytes | 29,007,115 bytes |
+| With a serialized shadow root | 393 | 872 |
+| Byte-identical to parse5 | 407 | 870 |
+| Page's value equal to Node's | 407 | 873 |
+
+The three that differ, all Lushly's, differ in one way: Chromium writes `<` and `>` in an attribute as `&lt;` and `&gt;`, the scan keeps them, and parse5's serializer did not. Those three become byte-identical once both are unescaped. Two deliberate differences follow from building no tree, each with a test:
+
+- A structure a parser would repair, such as a table row with no `tbody`, stays as the DOM had it. None of the 1,280 captures has one.
+- The parse5 version mangled a `textarea` holding a leading newline and an escaped character, cutting `\n&lt;i&gt;` to `;i&gt;`. The scan keeps it.
+
+Comparison still derives normalized DOM from raw every time, so a stored value is never trusted. `NORMALIZATION_VERSION` is now 0.2, so a capture from before this step is refused with a request to recapture.
+
+**What is still open on budgets:**
+
+- **The rest of Storybook is reported, not counted.** This is a judgment for the owner to check. `incumbent` is the framework a consumer's preview imports (`@storybook/web-components-vite`), not a dependency of Specimen, and it goes at cutover. If it were counted, interaction support would be 660,355 and 733,619, over the 600,000 ceiling, and Lushly's total would be 1,361,617, over 1,300,000. T08 has to measure this again when a native helper entry replaces `storybook/test`.
+- **Lushly's interaction support has 9,772 bytes of headroom.** A larger `storybook/test` would fail its build, which is what the ceiling is for.
+- **A retained story with no helpers still loads them during the overlap.** The preview imports the framework, which shares modules with the helpers. Few stories could avoid it: all 79 of FAST-AF's story files import helpers, and 144 of Lushly's 150. A native specimen loads none of this, and a test holds that.
+
+### The review page
+
+`experiments/check-index.mjs` opens a static build as a reviewer would, over a plain server with no Vite and no host, and follows every link in Chromium. Requests to other origins are blocked and not counted.
+
+| | FAST-AF | Lushly |
+| --- | --- | --- |
+| Entries in the manifest, links in the index | 407, 407 | 873, 873 |
+| Story modules the index loads | 0 | 0 |
+| Theme and viewport controls on the index | Present | Present |
+| Links that open, with no error shown | 407 | 873 |
+| Cases that load another story's module | 0 | 0 |
+| Cases with a page error | 0 | 0 |
+| Cases with a local URL that fails | 0 | 1, the consumer's own |
+| Every 20th, opened at another viewport | 21 of 21 | 44 of 44 |
+| Those with a dark scheme, or the page's notice that it cannot give one | 21 of 21 | 44 of 44 |
+| Those with a play, run at `checkpoint=after-run` | 9 of 9 pass | 38 of 41 pass |
+| Every 20th, reopened to the same DOM | 15 of 21 | 11 of 44 |
+
+The build now also meets three parts of the proposal it did not:
+
+- **The manifest lists the cases.** `specimen-build.json` gains `entries`, each case's identity and link, alongside `total`, `categories`, `reported` and `chunks`, so the build can be read without running it.
+- **A link can carry a checkpoint.** `checkpoint=after-run` runs a retained story's play in the preview. Any other named checkpoint needs the host's real input, so the page shows the mount and says so, naming the `specimen render` command that reaches it. A play has 15 seconds.
+- **The frame says when it is ready,** with `data-specimen-preview="ready"` on its root element.
+
+Following the links found two bugs, both fixed:
+
+- **A retained story's error was invisible.** Its mount replaces the `<main>` root with a `<div>`, and the alert went into the detached element. A failing play or render looked like a page that never finished.
+- **The static build bundled the real `vitest/browser`.** Specimen's plugin ran after Vite's resolver, so the stand-in only worked under the host. A play importing it failed with Vitest's "only inside the Browser Mode" error instead of finding `userEvent` undefined.
+
+Findings on the consumers:
+
+- **Lushly's one failed URL is its own.** Its field-notes pages reference `/field-notes/assets/context.js`, which is not in its tree at this snapshot.
+- **Lushly's canvas follows the browser's color scheme.** A dark link gives a light canvas on 43 of the 44 sampled stories, because a static page cannot emulate `prefers-color-scheme`. The page already says so in its notice, and the host's render of the same story is dark. The same links on FAST-AF show dark.
+- **Three sampled plays failed in a headless preview.** Both of Lushly's keyboard journeys assert that a real keyboard exists when `navigator.webdriver` is set, and show that message in the frame. The third, `lushly-site-pressure-facts--saved-refresh-error`, failed an assertion on this pass and passed on the one before, so it varies in the preview. Not investigated further: all three pass under the host, where every suite decision is made.
+
+**Reopening a link does not always give the same DOM,** and this matters beyond the preview. FAST writes a marker into its template comments, chosen with `Math.random` once per page load. So two host renders of an unchanged FAST story report `dom` as changed, and `specimen-diff` and `specimen-matrix` inherit that. The proposal requires a declared baseline for randomness, and [T03's record](driver-context-validation.md#provenance-fields) assigns that to T06. It was not done, so it is step 7 below.
+
+### The consumer's tooling
+
+`experiments/check-scaffold.mjs` runs Lushly's own commands on a throwaway copy-on-write clone of its snapshot:
+
+| Step | Result |
+| --- | --- |
+| `check:cem` | Passes |
+| Story typecheck (`tsc -p .storybook/tsconfig.json`, 2,315 files with 150 story files) | Passes before and after the scaffold |
+| The same typecheck with a wrong argument type added to the new story | Fails with TS2322, as it should |
+| `component:new shared/lushly-specimen-probe`, then `cem:analyze` | Writes the component, its story and the manifest entry |
+| Identity of the new story | `lushly-shared-specimen-probe--overview` under `storybook index` and Specimen |
+| `validate` on the new story | No issues |
+| The story under Storybook's Vitest and under Specimen | Passes in both; under Specimen its play ran and axe passed |
+
+Specimen edits nothing in a consumer, so its typecheck and CEM check are unaffected, and this confirms that. FAST-AF has no story typecheck script of its own. Its `tsconfig.json` covers its 79 story files with no errors in them, and reports 7 in one Playwright spec (`violet-segmented-control.spec.ts`), which predate this work.
+
+`validate` gains a manifest check: `COMPONENT_NOT_IN_MANIFEST`, a warning when a story's `component` is not in the configured manifest. FAST-AF has none. Lushly has 5, on `violet-button` and `violet-text-field`, which come from a package its manifest does not cover, so it is a warning and not an error.
+
+T08 needs this recorded: these stories' types and helpers still come from Storybook (`Meta` and `StoryObj` from `@storybook/web-components-vite`, `expect` and `fn` from `storybook/test`). Removing Storybook needs a native helper entry and types first. A Specimen-native generator is T07's `specimen-suggest`.
+
 ## Remaining steps
 
 1. ~~Exact agreement on both consumers' full suites.~~ Merged in #674.
 2. ~~`specimen-run` over a filter, with worker limits, the once-only retry and flake identities.~~ Merged in #676.
 3. ~~`specimen-a11y`: checkpoints, incomplete checks and scoped exceptions.~~ Merged in #679.
 4. ~~`specimen-profile`: browser metrics and ready-checkpoint timing, and baseline comparison.~~ Merged in #681.
-5. ~~`specimen-matrix` and declared event history.~~ Implemented on branch.
-6. **CEM and story typechecks, scaffold output,** and verified index links and budgets.
+5. ~~`specimen-matrix` and declared event history.~~ Merged in #682.
+6. ~~CEM and story typechecks, scaffold output, and verified index links and budgets.~~ Implemented on branch.
+7. **The declared baseline and the rest of the capture manifest.** Seed `Math.random` so an unchanged FAST story compares as unchanged, and record clock, randomness, storage and fixtures in `manifest.checkpoint.baseline`. [T03](driver-context-validation.md#provenance-fields) also defined fields the proposal's envelope requires and that never landed: the bench and plugin versions, driver, platform, pixel ratio, resources, action mode and readiness outcome.

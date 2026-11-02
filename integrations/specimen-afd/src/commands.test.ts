@@ -12,7 +12,7 @@ function observation(): Observation {
 	return {
 		manifest: {
 			captureVersion: '0.4',
-			normalizationVersion: '0.1',
+			normalizationVersion: '0.2',
 			specimenId: 'button',
 			checkpoint: 'mount',
 			source: { revision: null, digest: 'source', dirty: null },

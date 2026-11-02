@@ -90,19 +90,25 @@ function hostDifferences(context: SpecimenContext): string[] {
 }
 
 function showError(root: HTMLElement, error: unknown): void {
-	let alert = root.querySelector<HTMLElement>('#specimen-page-error');
+	// Mounting a retained story replaces the root, so the one the page first found may be gone.
+	const current = document.querySelector<HTMLElement>('#specimen-root') ?? root;
+	let alert = current.querySelector<HTMLElement>('#specimen-page-error');
 	if (!alert) {
 		alert = document.createElement('p');
 		alert.id = 'specimen-page-error';
 		alert.setAttribute('role', 'alert');
-		root.prepend(alert);
+		current.prepend(alert);
 	}
 	alert.textContent = error instanceof Error ? error.message : String(error);
 }
 
-function specimenUrl(id: string, context: SpecimenContext): URL {
+/** A preview has no host: a play waiting on input only the host gives would never finish. */
+const PREVIEW_PLAY_MS = 15_000;
+
+function specimenUrl(id: string, context: SpecimenContext, checkpoint?: string | null): URL {
 	const url = new URL('./specimen.html', location.href);
 	url.searchParams.set('id', id);
+	if (checkpoint) url.searchParams.set('checkpoint', checkpoint);
 	url.searchParams.set('theme', context.theme);
 	url.searchParams.set('viewport', `${context.viewport.width}x${context.viewport.height}`);
 	url.searchParams.set('locale', context.locale);
@@ -182,14 +188,34 @@ export async function installPage(
 		const id = params.get('id');
 		const entry = id ? entries.find((item) => item.id === id) : undefined;
 		if (id && !entry) throw new Error(`Unknown specimen: ${id}.`);
+		const checkpoint = params.get('checkpoint');
+		// A retained story's play can run here. A scenario step needs the host's real input.
+		const runs = checkpoint === 'after-run' && entry?.story !== undefined;
 		if (entry && params.get('frame') === '1') {
 			const frameContext = { ...context, viewport: { width: innerWidth, height: innerHeight } };
 			// A retained story settles its own context; the frame's size stays the preview's.
 			const resolved = await window.__specimen.resolve(entry, frameContext, defaults);
-			await window.__specimen.mount(
-				entry,
-				resolved ? { ...resolved.context, viewport: frameContext.viewport } : frameContext
-			);
+			const mountContext = resolved
+				? { ...resolved.context, viewport: frameContext.viewport }
+				: frameContext;
+			if (runs) {
+				const outcome = await Promise.race([
+					window.__specimen.mountAndRun(entry, mountContext),
+					new Promise<never>((_, reject) =>
+						setTimeout(
+							() =>
+								reject(
+									new Error(
+										`The play did not finish in ${PREVIEW_PLAY_MS / 1000} s here. It may need the host's real input: run specimen run ${entry.id}.`
+									)
+								),
+							PREVIEW_PLAY_MS
+						)
+					),
+				]);
+				if (outcome.status === 'failed') throw new Error(outcome.failures[0]?.message);
+			} else await window.__specimen.mount(entry, mountContext);
+			document.documentElement.dataset.specimenPreview = 'ready';
 			return;
 		}
 		root.replaceChildren();
@@ -206,10 +232,11 @@ export async function installPage(
 			const indexUrl = new URL(location.href);
 			indexUrl.searchParams.delete('id');
 			indexUrl.searchParams.delete('frame');
+			indexUrl.searchParams.delete('checkpoint');
 			back.href = indexUrl.href;
 			back.textContent = 'All specimens';
 			const frame = document.createElement('iframe');
-			const url = specimenUrl(entry.id, context);
+			const url = specimenUrl(entry.id, context, checkpoint);
 			url.searchParams.set('frame', '1');
 			frame.src = url.href;
 			frame.title = `${entry.title} specimen preview`;
@@ -222,6 +249,12 @@ export async function installPage(
 				const notice = document.createElement('p');
 				notice.id = 'specimen-page-context-notice';
 				notice.textContent = `This preview cannot emulate part of the requested context: ${differences.join('; ')}. Components that read these values show this browser's settings; the CLI render applies them.`;
+				root.append(notice);
+			}
+			if (checkpoint && checkpoint !== 'mount' && !runs) {
+				const notice = document.createElement('p');
+				notice.id = 'specimen-page-checkpoint-notice';
+				notice.textContent = `This preview stops at mount. Checkpoint '${checkpoint}' needs the host's real input: run specimen render ${entry.id} --checkpoint ${checkpoint}.`;
 				root.append(notice);
 			}
 			root.append(frame);

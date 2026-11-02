@@ -7,6 +7,7 @@ import base from './vitest.config.js';
  */
 export const browserSuites = [
 	'src/events.test.ts',
+	'src/static-build.test.ts',
 	'src/profile-bench.test.ts',
 	'src/a11y.test.ts',
 	'src/bench-worker.test.ts',
