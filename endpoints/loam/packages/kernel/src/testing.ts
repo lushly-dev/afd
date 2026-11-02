@@ -63,8 +63,9 @@ export {
 /**
  * Result paths replay leaves out: the timing, the environment-dependent results
  * (`appearance-*` `data.resolved`, `shell-info-get` `data.host` and `data.store`) and the Mock
- * session's timestamps. `MockAuthAdapter` derives the session and user ids from `Date.now()`,
- * so they are timestamps too.
+ * session's timestamps. `MockAuthAdapter` derives the session id from `Date.now()`, so it is a
+ * timestamp too. Its user id comes from the email now, but journals recorded earlier, the committed
+ * fixture among them, hold a timestamped one, so `data.user.id` stays until they are re-recorded.
  */
 export const REPLAY_IGNORE: readonly string[] = Object.freeze([
 	'metadata.executionTimeMs',
@@ -376,8 +377,9 @@ export interface DiffJournalsOptions {
 }
 
 /**
- * Result paths `diffJournals` leaves out: the duration, the per-session trace ID, and the Mock
- * session's timestamps (its ids come from `Date.now()`).
+ * Result paths `diffJournals` leaves out: the duration, the per-session trace ID, the Mock
+ * session's timestamps (its id comes from `Date.now()`) and the user id, which journals recorded
+ * before it came from the email hold as a timestamp.
  */
 export const DIFF_IGNORE: readonly string[] = Object.freeze([
 	'metadata.executionTimeMs',

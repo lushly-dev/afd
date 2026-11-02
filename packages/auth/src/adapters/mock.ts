@@ -49,7 +49,8 @@ export class MockAuthAdapter implements AuthAdapter {
 				expiresAt: new Date(Date.now() + 3600_000),
 			},
 			user: {
-				id: `mock-user-${Date.now()}`,
+				// From the email, so the same person is the same user across adapters, reloads and replays.
+				id: `mock-user-${email}`,
 				email,
 				name: email.split('@')[0],
 			},

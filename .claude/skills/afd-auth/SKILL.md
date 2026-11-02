@@ -161,6 +161,8 @@ adapter._triggerError('INVALID_CREDENTIALS');
 adapter._getListenerCount();
 ```
 
+`signIn` derives the user id from the email, `mock-user-<email>`, so the same person keeps it across adapters, reloads and replays. The session id stays time-based.
+
 ### useConvexAuthAdapter (React Hook)
 
 ```typescript
