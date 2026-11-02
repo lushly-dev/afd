@@ -539,6 +539,10 @@ impl HostServices for CallServices {
         self.svc_graph_subgraph(space)
     }
 
+    fn graph_applied(&self, space: &str) -> Result<Rev, ServiceError> {
+        self.svc_graph_applied(space)
+    }
+
     fn graph_apply(
         &self,
         space: &str,
@@ -559,6 +563,14 @@ impl HostServices for CallServices {
 
     fn derive_document(&self, space: &str, id: &str) -> Result<Option<Document>, ServiceError> {
         self.svc_derive_document(space, id)
+    }
+
+    fn derive_head(&self, space: &str) -> Result<Rev, ServiceError> {
+        self.svc_derive_head(space)
+    }
+
+    fn checkpoint(&self, space: &str) -> Result<(), ServiceError> {
+        self.svc_checkpoint(space)
     }
 
     fn as_reader(&self, principal: &str) -> Result<Reader, ServiceError> {

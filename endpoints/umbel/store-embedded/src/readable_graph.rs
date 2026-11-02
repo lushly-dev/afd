@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use petgraph::stable_graph::{NodeIndex, StableDiGraph};
+use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use umbel_store::{
     ContentHash, DocumentStore, GraphStore, Node, ReaderFilter, Rev, StoreError, Subgraph,
 };
@@ -53,6 +54,25 @@ impl ReadableGraph {
             }
         }
         Self { graph, index }
+    }
+
+    /// The graph as the serialisable [`Subgraph`] `GraphStore::subgraph` returns, in the same
+    /// order (nodes by id; edges by `(from, to, kind)`, which is how they were added).
+    #[must_use]
+    pub fn to_subgraph(&self) -> Subgraph {
+        Subgraph {
+            nodes: self.graph.node_weights().cloned().collect(),
+            edges: self
+                .graph
+                .edge_references()
+                .map(|edge| umbel_store::Edge {
+                    from: self.graph[edge.source()].id.clone(),
+                    to: self.graph[edge.target()].id.clone(),
+                    kind: edge.weight().kind.clone(),
+                    weight: edge.weight().weight,
+                })
+                .collect(),
+        }
     }
 
     /// The graph index of a node id.
