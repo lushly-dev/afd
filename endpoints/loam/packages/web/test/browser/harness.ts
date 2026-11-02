@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
@@ -73,6 +74,19 @@ async function serveDirectory(
 export const serveDist = () => serveDirectory(DIST);
 
 export const APPS = resolve(fileURLToPath(new URL('../../../../apps', import.meta.url)));
+
+/** The `loam` bin, as a person runs it: its JSON, and whether it exited 0. */
+export function loam(
+	args: string[],
+	cwd: string
+): Promise<{ ok: boolean; output: Record<string, unknown> }> {
+	const bin = fileURLToPath(new URL('../../../cli/bin/loam.mjs', import.meta.url));
+	return new Promise((done) => {
+		execFile(process.execPath, [bin, ...args], { cwd }, (error, stdout) => {
+			done({ ok: !error, output: JSON.parse(stdout) });
+		});
+	});
+}
 
 const packed = new Map<string, Promise<string>>();
 

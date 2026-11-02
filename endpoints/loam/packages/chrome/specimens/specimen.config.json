@@ -299,6 +299,54 @@
 			"title": "Loam/Apps/ViewFrameFailedCompact",
 			"module": "./apps.specimens.ts",
 			"exportName": "ViewFrameFailedCompact"
+		},
+		{
+			"id": "app-console",
+			"title": "Loam/Apps/Console",
+			"module": "./apps.specimens.ts",
+			"exportName": "Console"
+		},
+		{
+			"id": "app-console-compact",
+			"title": "Loam/Apps/ConsoleCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleCompact"
+		},
+		{
+			"id": "app-console-invalid",
+			"title": "Loam/Apps/ConsoleInvalid",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleInvalid"
+		},
+		{
+			"id": "app-console-invalid-compact",
+			"title": "Loam/Apps/ConsoleInvalidCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleInvalidCompact"
+		},
+		{
+			"id": "app-console-result",
+			"title": "Loam/Apps/ConsoleResult",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleResult"
+		},
+		{
+			"id": "app-console-result-compact",
+			"title": "Loam/Apps/ConsoleResultCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleResultCompact"
+		},
+		{
+			"id": "app-console-mounted",
+			"title": "Loam/Apps/ConsoleMounted",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleMounted"
+		},
+		{
+			"id": "app-console-mounted-compact",
+			"title": "Loam/Apps/ConsoleMountedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleMountedCompact"
 		}
 	]
 }

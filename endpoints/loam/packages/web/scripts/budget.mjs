@@ -9,7 +9,7 @@
  * dynamically loads later). It also builds `@lushly-dev/loam-kernel` alone, minified with its
  * dependencies, as Vite bundles it for the browser. What a deployment that lists an app adds has rows of
  * its own (phase 1 specification, 9.2 and 9.5): the kernel's `src/apps/` with the readers and validators,
- * the chrome's surfaces, and its view host. Hello's and tally's bundles are recorded and not limited. It fails when a
+ * the chrome's surfaces, its view host and the console. Hello's and tally's bundles are recorded and not limited. It fails when a
  * measure is over its ceiling. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -36,6 +36,7 @@ export const CEILINGS = Object.freeze({
 	appsMinified: 300_000,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
+	consoleMinified: 91_222,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -97,24 +98,29 @@ async function measurePage() {
 	if (![...chunks.keys()].some((name) => /^assets\/surfaces-/.test(name))) {
 		throw new Error('budget: the build has no `surfaces` chunk to measure');
 	}
+	if (![...chunks.keys()].some((name) => /^assets\/console-/.test(name))) {
+		throw new Error('budget: the build has no `console` chunk to measure');
+	}
 	const initialChunks = [...initial].map((name) => chunks.get(name)).filter(Boolean);
-	// With what it imports statically and first paint has not loaded, such as the listbox.
-	const surfaces = new Set();
-	const visitSurfaces = (fileName) => {
-		if (initial.has(fileName) || surfaces.has(fileName)) return;
-		surfaces.add(fileName);
-		for (const imported of chunks.get(fileName)?.imports ?? []) visitSurfaces(imported);
+	// With what it imports statically and what loaded before it has not, such as the listbox.
+	const closure = (pattern, loaded) => {
+		const found = new Set();
+		const visitChunk = (fileName) => {
+			if (loaded.has(fileName) || found.has(fileName)) return;
+			found.add(fileName);
+			for (const imported of chunks.get(fileName)?.imports ?? []) visitChunk(imported);
+		};
+		for (const name of chunks.keys()) if (pattern.test(name)) visitChunk(name);
+		return found;
 	};
-	for (const name of chunks.keys()) if (/^assets\/surfaces-/.test(name)) visitSurfaces(name);
-	// What a view app adds when one opens: the view host, and what nothing above has loaded.
-	const view = new Set();
-	const visitView = (fileName) => {
-		if (initial.has(fileName) || surfaces.has(fileName) || view.has(fileName)) return;
-		view.add(fileName);
-		for (const imported of chunks.get(fileName)?.imports ?? []) visitView(imported);
-	};
-	for (const name of chunks.keys()) if (/^assets\/view-/.test(name)) visitView(name);
+	const surfaces = closure(/^assets\/surfaces-/, initial);
+	// What a view app or a console adds when it opens: the surfaces have loaded by then.
+	const afterSurfaces = new Set([...initial, ...surfaces]);
+	const view = closure(/^assets\/view-/, afterSurfaces);
 	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
+	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
+	const sizeOf = (files) =>
+		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
@@ -126,14 +132,9 @@ async function measurePage() {
 		files: initialChunks.map((chunk) => chunk.fileName),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
-		surfacesMinified: [...surfaces].reduce(
-			(sum, name) => sum + Buffer.byteLength(chunks.get(name).code),
-			0
-		),
-		viewMinified: [...view].reduce(
-			(sum, name) => sum + Buffer.byteLength(chunks.get(name).code),
-			0
-		),
+		surfacesMinified: sizeOf(surfaces),
+		viewMinified: sizeOf(view),
+		consoleMinified: sizeOf(consoleFiles),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
 		cssMinified:
@@ -198,6 +199,7 @@ const ROWS = [
 	['appsMinified', "The kernel's `apps` chunks, minified, with the readers"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
+	['consoleMinified', 'The `console` chunk and its imports, minified'],
 ];
 
 export async function measure() {

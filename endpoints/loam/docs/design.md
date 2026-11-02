@@ -500,6 +500,7 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 | `loam-status-action` | A status item with a command: a compact button showing the same muted label and value as `loam-status-item` | Phase 1 step 4 |
 | `loam-toast-region` | `role="status"`, "Notifications", in the top layer with `popover="manual"` at the inline-end block-end corner, open while empty so it is a live region before its text arrives | Phase 1 step 4 |
 | `loam-toast` | One toast: its tone as an icon and a word (visible for warning and danger) as well as `color.state.*` over `color.surface.floating`, `shadow.floating`, a dismiss button; `role="alert"` when `danger`; its timer stops while hovered, focused or behind a modal; opacity only for motion | Phase 1 step 4 |
+| `loam-console` | Every new app's first UI and the mounted kind's renderer, in main's mount: its `h1` with the trust line, notices, a mounted instance's state and Refresh, a filter over a `violet-listbox` of commands marked "Changes data" or "Destructive", a form of `violet-*` fields from the input schema with an inline `Error:` message per field, Run with `violet-spinner`, and the `Result` region with `status` text. A result through the adapters with classes, mapped to `color.state.*` and `weight.semibold`. Its chunk loads when one renders | Phase 1 step 6 |
 | `loam-modal` | An overlay's modal: a native `<dialog>` from `showModal()`, title in `h2`, a body and two buttons as text; focus on cancel when `danger`, otherwise confirm; Escape cancels, Tab wraps, focus returns to the invoker | Phase 1 step 4 |
 
 ## Open questions
@@ -649,3 +650,13 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 - **2026-11-02. Sandboxed views (phase 1 step 5).** `loam-view-frame` joins the chrome in a chunk
   of its own, with no new token. A view reads the contract's component ids through `dev.loam/tokens`,
   and shell ids stay the shell's. The contract stays version 1.
+- **2026-11-02. The console (phase 1 step 6).** `loam-console`, from `@lushly-dev/loam-console`, under
+  the checklist, with its fixtures in `apps.specimens.ts`. Decided:
+  - The adapters' classes map to tokens: `afd-status-success`, `-failure` and `-warning` to
+    `color.state.*.text`; `-info` to `color.text.secondary`, since the contract has no `color.state.info`,
+    and `-muted` to `color.text.muted`; `afd-bold` to `weight.semibold`. So a failure has weight as well
+    as color, and forced colors keep the weight.
+  - A field's error is its supporting text, prefixed "Error:", in `color.state.danger.text`, so it does
+    not rest on color. It goes when the person changes the field.
+  - `violet-select`'s list opens under its trigger with `position: absolute`, because its `position: fixed`
+    from viewport coordinates lands in the wrong place inside the mount's `contain: content`.

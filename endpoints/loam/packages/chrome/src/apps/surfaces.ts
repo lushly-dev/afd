@@ -36,6 +36,9 @@ type Part = 'sidebar' | 'inspector' | 'panel';
 const PARTS: readonly Part[] = ['sidebar', 'inspector', 'panel'];
 const PART_HEADINGS = { sidebar: 'Sidebar', inspector: 'Inspector' } as const;
 
+/** As `@lushly-dev/loam-console` defines it. Named here so this chunk does not import that one. */
+const CONSOLE_ELEMENT = 'loam-console';
+
 /** How long an app may take to open before main says it is opening. */
 const OPENING_NOTICE_MS = 400;
 
@@ -494,6 +497,12 @@ export class AppSurfaces implements ShellApps {
 		this.#applyToggles();
 		this.#setEmptyStates(false);
 		this.#setTitle(detail.title);
+		if (detail.kind === 'mounted' && detail.state === 'failed') {
+			// Its console says why, and has the Refresh button (7.7). A failed app has no port.
+			await this.#renderConsole(detail, stale);
+			if (!stale()) this.#overlays.announce(`${detail.title} is unavailable`);
+			return;
+		}
 		if (detail.state === 'failed' || detail.state === 'refused') {
 			this.#setEmptyStates(true);
 			this.#explain(
@@ -653,12 +662,15 @@ export class AppSurfaces implements ShellApps {
 				stale
 			);
 			if (stale()) return;
+		} else if (!surfaces.main) {
+			await this.#renderConsole(detail, stale);
+			if (stale()) return;
 		} else {
 			this.#explain(
 				detail.title,
-				'This app declares no main surface. The console, its first UI, arrives in phase 1 step 6.',
+				"This app's main surface has nothing its kind can show.",
 				undefined,
-				'Run its commands from the command palette until then.'
+				'Correct `ui.surfaces.main` in its manifest.'
 			);
 		}
 		const { sidebar, inspector } = surfaces;
@@ -760,6 +772,48 @@ export class AppSurfaces implements ShellApps {
 		});
 		main.append(frame);
 		this.#mainElements.push(frame);
+	}
+
+	/**
+	 * The console in main's mount, every new app's first UI (7.7, D48). It is the chrome's and trusted, so
+	 * it has a registry of its own, and its client makes a person's calls, with no `caller`. Its chunk loads
+	 * only here, and if that fails the shell does not (D66).
+	 */
+	async #renderConsole(detail: AppDetailV1, stale: () => boolean): Promise<void> {
+		const main = this.#part<HTMLElement>('main');
+		let registry: CustomElementRegistry;
+		try {
+			// Here, as `activate` does, so the console's chunk does not share the module with first paint's.
+			await ensureScopedRegistrySupport();
+			const { consoleRegistry } = await import('./console.js');
+			registry = await consoleRegistry();
+		} catch (cause) {
+			reportError(cause);
+			if (stale()) return;
+			this.#explain(
+				detail.title,
+				'The console could not load. Reload to try again.',
+				'APP_RUNTIME_UNAVAILABLE',
+				'Reload; check that the deployment serves its assets.'
+			);
+			return;
+		}
+		if (stale()) return;
+		const kernel = this.#kernel;
+		const mount = this.#create<LoamMount>('loam-mount');
+		mount.configure({
+			registry,
+			element: CONSOLE_ELEMENT,
+			// All the console reads of a surface's context, and a client with no `caller`.
+			context: {
+				instance: detail.instance,
+				client: { call: (name, input, options) => kernel.call(name, input, options) },
+			} as AppContextV1,
+			selection: null,
+		});
+		main.append(mount);
+		this.#mainElements.push(mount);
+		main.removeAttribute('aria-busy');
 	}
 
 	#needsInput(): Map<string, boolean | undefined> {

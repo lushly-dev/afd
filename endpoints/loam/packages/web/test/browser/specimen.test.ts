@@ -130,6 +130,10 @@ const APP_CAPTURES: [string, string][] = [
 	['app-notice-embedded', 'heading "Hello"'],
 	['app-view-frame-loading', 'Opening Hello'],
 	['app-view-frame-failed', 'VIEW_READY_TIMEOUT'],
+	['app-console', 'listbox "Commands"'],
+	['app-console-invalid', 'Error: This field is required.'],
+	['app-console-result', 'PROBE_REFUSED'],
+	['app-console-mounted', 'MOUNT_UNREACHABLE'],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string],
 	[`${id}-compact`, expected] as [string, string],

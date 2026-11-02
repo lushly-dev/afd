@@ -12,7 +12,7 @@
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
   under the owner's delegation, after that review (D17). Implementation is in progress: steps 0a, 0b, 1,
-  2, 3, 4 and 5 are merged, and each step's state is one line in STATUS.md's phase 1 block.
+  2, 3, 4, 5 and 6 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -121,9 +121,11 @@
   host's deployment read, hello native and tally, E1, E5, E6, E7's browser part, E9's Chromium part and E11
   so far, with hello's own scenario and `app check` on it for E8 and E13; [9.6](#96-decided-by-step-4) records
   what it decided. Step 5 delivered the proxy, `loam-view-frame`, the broker, the handler frame, hello view and E2 with
-  its conformance fixture; [9.7](#97-decided-by-step-5) records what it decided and what the browser disproved.
-- **Not done:** the rest of the [implementation plan](#15-implementation-plan). E11's console part waits for
-  step 6, and E9's mounted part for step 7.
+  its conformance fixture; [9.7](#97-decided-by-step-5) records what it decided and what the browser disproved. Step 6
+  delivered `@lushly-dev/loam-console`, the console in main's mount, E10 and E11's console part; [9.8](#98-decided-by-step-6)
+  records what it decided.
+- **Not done:** the rest of the [implementation plan](#15-implementation-plan). E9's mounted part waits for
+  step 7.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
   [#677](https://github.com/lushly-dev/afd/pull/677). The proposal says that step "lands before Loam's phase 1
   specification is approved, or in the same pull request", which holds.
@@ -211,7 +213,7 @@ Five new TypeScript packages and two apps, all private and quarantined:
 | `endpoints/loam/packages/manifest/` | `@lushly-dev/loam-manifest` | `app-manifest.v1.json`, `deployment.v1.json`, `projection.v1.json`, generated types, standalone validators, the readers and refusals, the catalogs, and the two layout and chord constants the rules need, which the kernel re-exports. No DOM, no Node.js builtin in its root or `/validate` | `zod` and `ajv`'s `dist/runtime` helpers (`/validate` only); build-time: `ajv`, `json-schema-to-typescript`, `spec/plugin-manifest.core.v1.json` |
 | `endpoints/loam/packages/sdk/` | `@lushly-dev/loam-sdk` | The public contract: `defineApp`, the context and client types, the overlay types, the surface element contract; `/view` for sandboxed code. It depends on no kernel, and the kernel takes its types from here | `@lushly-dev/loam-manifest` (types), `@lushly-dev/afd-core` |
 | `endpoints/loam/packages/testing/` | `@lushly-dev/loam-testing` | The test kit an app's own tests use: `createAppTestKernel`. Part of the SDK contract for authors, and its own unit because it needs the kernel, which depends on the SDK | `@lushly-dev/loam-sdk`, `@lushly-dev/loam-kernel`, `@lushly-dev/afd-core`, `@lushly-dev/local-db` |
-| `endpoints/loam/packages/console/` | `@lushly-dev/loam-console` | `loam-console`: the command list, forms from input schemas, results through the adapters. It binds to the SDK's client only | `@lushly-dev/loam-sdk`, `@lushly-dev/afd-adapters`, `@lushly-dev/fast-element`, `@lushly-dev/violet-elements` (deep imports) |
+| `endpoints/loam/packages/console/` | `@lushly-dev/loam-console` | `loam-console`: the command list, forms from input schemas, results through the adapters. It binds to the SDK's client only | `@lushly-dev/loam-sdk`, `@lushly-dev/afd-adapters` with its peer `@lushly-dev/afd-core`, `@lushly-dev/fast-element`, `@lushly-dev/violet-elements` (deep imports) |
 | `endpoints/loam/packages/cli/` | `@lushly-dev/loam-cli` | The `loam` bin: `app new`, `app check`, `app pack`, `deployment check`, `deployment write`; `/deployment`, `/check`, and `/vite` (the single-file HTML plugin for views). The only unit that reads TOML | `@lushly-dev/loam-manifest`, `@lushly-dev/afd-server` (`/define`), `@lushly-dev/afd-testing`, `@lushly-dev/loam-theme` (its lint bin), `smol-toml`, `zod` |
 | `endpoints/loam/apps/hello/` | `@lushly-dev/loam-app-hello` | The reference app, in all three kinds, with one handler module | `@lushly-dev/loam-sdk`, `@lushly-dev/fast-element`; dev: `@lushly-dev/loam-cli`, `@lushly-dev/loam-testing`, `vite` |
 | `endpoints/loam/apps/tally/` | `@lushly-dev/loam-app-tally` | The second app, native: a counter on main, a panel view and a status item. It exists to land with no shell change | The same |
@@ -1568,13 +1570,15 @@ dependency.
   | `string` | `violet-text-field`; `violet-text-area` when `maxLength` exceeds 200 | The string; an empty optional is omitted |
   | `string` with `enum`, or `anyOf` of `const` strings | `violet-select` with `violet-option`s; an empty first option when optional | The value |
   | `boolean` | `violet-checkbox`; optional starts unset and is omitted unless changed | The boolean |
-  | `number`, `integer` | `violet-text-field` with `type="number"` | A number; `integer` refuses a fraction |
+  | `number`, `integer` | `violet-text-field` with `inputmode`, not `type="number"` ([9.8](#98-decided-by-step-6)) | A number; `integer` refuses a fraction |
   | `array` of `string` | `violet-text-area`, one per line | An array; empty lines dropped |
   | Anything else: `object`, other arrays, `anyOf`, `oneOf`, `$ref`, no `type` | `violet-text-area` labeled "JSON" | `JSON.parse`, refused inline when invalid |
   | No properties | No control; "No input" | `{}` |
 
   - Each control's label is the property's `title` or its name, and its description is the
-    field's helper text. Required properties are marked and set `required`. `default` pre-fills.
+    field's helper text. Required properties are marked and set `required`, but for a required boolean, which is
+    always sent, so nothing is missing and a native `required` would mean "must be checked". `default` pre-fills.
+    The helper text also says what the keywords below ask, so a person need not fail to learn it.
   - The form checks `required`, `minLength`, `maxLength`, `minimum`, `maximum`, `pattern` and
     `enum` before it calls, with `aria-invalid` and a message per field. The server remains the
     authority: its `VALIDATION_ERROR` shows with its suggestion.
@@ -1582,13 +1586,16 @@ dependency.
 - **Results through the adapters.** `WebAdapter.renderCommandResult(result, { styling: 'classes' })`
   (step 0b), set with `innerHTML` in the console's own shadow root. The adapter escapes every value.
   Nothing from a server is rendered as markup, as a link or as markdown. The console's stylesheet
-  maps the adapter's `afd-status-*` classes to `color.state.*`.
+  maps the adapter's `afd-status-*` classes to `color.state.*` and `afd-bold` to `weight.semibold`, where step
+  0b's note found this line had left the bold spans without their weight. The contract has no `color.state.info`,
+  so `afd-status-info` is `color.text.secondary`; `afd-status-muted` is `color.text.muted`.
 - **Labels on each result.**
   - `dev.loam/trust` shows "Untrusted: from *instance*";
   - `metadata["dev.loam/replay"]` shows "Recorded, not replayable", beside `metadata["dev.loam/seq"]`, which
     the kernel's `run` adds to every result it returns, after journaling, so a client needs nothing more;
   - the server's own `dev.umbel/trust` is shown as it came.
-- **Keyboard.** Filter, list, form, Run, in order. Enter in a single-line field runs. A running
+- **Keyboard.** Filter, list, form, Run, in order. Enter in a single-line field runs, but for a destructive
+  command, which waits for Run until phase 4 brings a prompt, and is flagged beside it. A running
   call disables Run and shows `violet-spinner`.
 - **Not in phase 1, seams in** [13](#13-out-of-scope-and-the-seams-reserved): the journal of
   calls and the usage view, resources and skills, a generic document editor, elicitation.
@@ -1823,7 +1830,7 @@ new commands are small and the rest is lazy:
 | `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row. Step 4 confirms the ceiling: 265,155 over three chunks, 88% of it, so it is neither raised nor lowered ([9.6](#96-decided-by-step-4)) |
 | `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays, and what it imports that first paint has not loaded, such as the listbox | When a deployment lists an app, or the first toast or modal on a shell with none | 85,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 76,622 |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
-| `console` chunk | When a console renders | 150,000 |
+| `console` chunk, with what it imports that first paint and `surfaces` have not loaded | When a console renders | 91,222. Step 6 measured 82,929, under 70% of the first ceiling, 150,000, so phase 0's rule lowered it to that plus 10% ([9.8](#98-decided-by-step-6)) |
 | `view` chunk: the view host | When a view app opens, or a view app's command is first called | 25,080. Step 5 measured 22,800, under 70% of the first ceiling of 60,000, so it is lowered by phase 0's rule ([9.7](#97-decided-by-step-5)) |
 | `kit` chunks | Per element, on `kit.define` | None |
 | Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,024 (gzip 17,897) and 79,167 (21,338), each with its own FAST |
@@ -2217,6 +2224,69 @@ unless they say otherwise.
   the first row. It now waits for `hello-greet` to be first.
 - **`web` takes dev dependencies** on `@modelcontextprotocol/ext-apps`, pinned at 2.0.4, and `@lushly-dev/loam-sdk`, for
   the fixtures in `test/browser/pages/`. No workflow, `scripts/affected/` or root manifest changed.
+
+### 9.8 Decided by step 6
+
+What the sections above left open, and what the browser showed. Step 7 builds on these.
+
+**The budget**
+
+- **Measured,** on top of step 5. The console's chunk and what it adds is 82,929 of the first ceiling, 150,000, so 9.2's row is lowered to
+  91,222. The empty shell is unchanged at 318,000 minified, and 94,055 gzip, one byte under step 5's 94,056 from a chunk's new hash.
+  `surfaces` is 78,229 of 85,000, 778 more than step 5, for the console's seam.
+- **Keeping first paint unchanged took two moves,** since a lazy module that imports what first paint holds costs first paint bytes
+  (9.6). The console first measured 134 bytes and 248 gzip bytes more of first paint with no code of its own there: importing
+  `ensureScopedRegistrySupport` and FAST's `ref` split `preload-helper` and `ref` out of a shared chunk. So `surfaces.ts` makes that call, as it does before
+  `activate`, and the console finds its elements with `querySelector`.
+
+**Results are untrusted**
+
+- **How the HTML reaches the DOM.** `WebAdapter.renderCommandResult(result, { styling: 'classes' })`, assigned once to `innerHTML` of a `div` in the
+  console's own shadow root (`console.ts`), which a package test holds to that one assignment. Read through: every value the adapter writes goes through
+  `span()` or `escapeHtml`, which covers `&`, `<`, `>`, `"` and `'`, and the class it writes is checked against `STATUS_COLORS`. So its output is only its own `<pre>`,
+  `<span class>` and `<br>`, and no field of a result reaches a tag, an attribute or a URL. `console/src/result.test.ts` holds that, by every tag and attribute, for a hostile value in each field the adapter reads,
+  and E10 holds it in Chromium: no `img`, `script` or `style` in the shadow root, only `pre`, `span` and `br` under the output, nothing requested for the image, nothing run.
+- **What is not the adapter's** is set as text: the labels, the status, a row and the form, by FAST's content binding or by property. `readCommands` reads a row's fields for what they are, because a FAST content binding treats an object with `create` as a template.
+- **A shape the adapter cannot read,** such as `warnings: [null]`, throws, because a server can send anything `parseMountedResult` admits. The element catches it and says "This result is not a CommandResult, so it cannot be shown", and the shell goes on.
+- **A schema is untrusted too.** A keyword of the wrong type is ignored, and `readForm` builds the input with `Object.fromEntries` and reads values with `Object.hasOwn`, so a property named `__proto__` is sent as data and sets no prototype. A `pattern` is run in the page, so a catastrophic one can stall the tab at Run: a follow-up, since the same holds for a package's own Zod check.
+
+**The CSP**
+
+- **Confirmed:** the adapter's output under `styling: 'classes'` raises no violation under the shell's real `style-src 'self'`, which every scenario of the console's suite asserts when it closes. A control in that suite shows the page does refuse a `style` attribute, so that silence means something. `violet-select`'s `panel.style.left` is CSSOM, which `style-src` does not refuse.
+
+**The form**
+
+- **`renderForm` returns a model,** and `readForm(model, values)` checks and builds the input, each pure. `form-view.ts` turns a field into one element by property, so a schema's text never reaches markup.
+- **A root that says what it takes some other way,** `anyOf`, `oneOf`, `allOf`, `$ref`, `not`, `if`, `patternProperties` or an `additionalProperties` schema with keywords, and no `properties`, gets one JSON field for the whole input, because 7.7's "No input" would be untrue. A root closed, or open with nothing declared (`true`, `{}`), stays "No input". A required array with no lines is refused, like any empty required field, so a person cannot send `[]` through it; the JSON row of a schema that is not `array` of `string` can.
+- **A required select** has no empty option, so it starts on its default or its first value, as a native select does. So `violet-select`'s own `required && !value` error, which would show before any interaction, never fires. An `enum` holding the empty string is the JSON row, since there the empty string means no choice.
+- **An optional boolean with a default of `true`** shows checked and stays out of the input until changed, since the server fills the same default.
+- **An integer past 2^53** is refused, since what is sent would differ from what is shown. A number's `enum` is checked as 7.7 lists it, and a string default with a line break gets a text area, which a single-line field would show without it and still send.
+- **An error goes** when the person changes that field, and Run focuses the first field in error. `status` says how many need attention, is heard again when Run is pressed again, and goes when nothing is in error.
+- **Focus comes back only if it was lost.** A disabled button loses focus, so Run and Refresh take it back when the call ends, unless the person has moved on; that is when it would be taken from somewhere.
+- **A result belongs to its command.** Choosing another clears it. A call still running then says how it ended in `status`, and shows nothing under the other command's form.
+- **Live text says all of a failure:** its code, message and suggestion, since focus does not move. Refresh has its own `status`, because a failed instance has no command and so no result section.
+
+**What the browser showed**
+
+- **`type="number"` corrupts what is typed.** 7.7 asked for it, and it cannot work on `violet-text-field`. The input reports text it cannot read yet as an empty value, and the element's `:value` binding writes that back, which clears the input: typing `-2` leaves `2`, and `1e3` leaves `3`, and that would be sent. So the field is text with `inputmode` (`decimal` when `minimum` is at least 0, since a numeric keypad has no minus), and `readForm` holds it to JSON's number syntax. A follow-up on the element, which any app using the kit's number field meets.
+- **`violet-option` replaces an empty `value` with its label,** so a select's "None" would be sent as the string `None`, and be refused. The view gives each option its position as its value and maps it back.
+- **`violet-listbox` scrolls its active row into view on focus,** so a press on a row with the active row scrolled away moves the list under the pointer, and the click lands on another row, or on neither. The console makes the pressed row active on `mousedown`, before focus. `loam-list` and the palette have the same exposure: a follow-up on the element.
+- **`violet-select` is misplaced in a mount.** Its list is `position: fixed` from viewport coordinates, and the mount's `contain: content` makes the mount its containing block. The console overrides `::part(panel)` to open under its trigger. A native app's kit `violet-select` has the same problem: a follow-up on the element.
+- **FAST's `repeat` recycles views,** so a filter that replaces one row with another changes no child, the listbox does not resync, and it marks the wrong row selected while Enter does nothing. The list renders with `recycle: false`.
+- **`violet-checkbox`'s `aria-label` overrides its wrapping label,** so its help is not in its name. The view ties it with `ariaDescribedByElements`. In a select, the active row's fill barely shows, and the option does not say which it is, so the view marks it as `loam-list` does. A second opening of a select highlights one option where Enter picks another, with no workaround from outside: a follow-up on the element.
+- **`[hidden]` needs `!important` here,** since `.group` and the rest set `display` at the same specificity. Axe caught the empty section.
+- **A view app with no main surface** renders the console too, and a person's call reaches its handler frame, which E10 holds now that steps 5 and 6 have met. It was the one interaction neither could test alone.
+- **`appPort` refuses a failed app,** which has no commands, so a failed mounted instance's console takes only its instance and a person's client, and never holds a port. Main's explanation stays for a refused app and for any other failed one.
+
+**The registry**
+
+- **One registry for every console,** in the chunk (`chrome/src/apps/console.ts`). 7.7's "that mount's registry" is that one, not an app's, because a view or a failed instance has none, and the console is the chrome's. `loam-console` and its elements are defined there and globally, and the chrome's `AppContextV1` for it carries only `instance` and a client with no `caller`.
+
+**For step 7**
+
+- The console re-reads on its own Refresh. `app-instance-refresh` from an agent or the automatic trigger leaves it stale until reopened, so step 7, where those first do something, re-reads it from `AppSurfaces`.
+- `AppCommandRowV1` has no `approval`, and 7.4 has it displayed, so step 7 adds the field and a row's flag.
+- A row's `value` is the command's name, and a mounted app's rows usually have no title, so E3 can find `work-hello-greet` as `violet-option[value="work-hello-greet"]`.
 
 ## 10. Failure modes and error codes
 
@@ -2677,3 +2747,7 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-02 | Phase 1 step 5 | With focus inside a view, the shell's chords (Mod+K, F6 and the rest) go to the frame's document and do nothing, since a cross-origin frame's keys never reach the shell. A person leaves with Tab. MCP Apps has no key-forwarding message; decide with phase 4's keybindings whether the SDK offers one | Open; phase 4 |
 | 2026-11-02 | Phase 1 step 5 | Run E2 in Firefox and WebKit, as the mount's follow-up above asks of its suite. 9.7's navigation and WebRTC results are Chromium's | Open; phase 6 |
 | 2026-11-02 | Phase 1 step 5 | Toasts and modals do not name the app that opened them, so an app's text can pass for the shell's, or for another app's: give an overlay its owner's name | Open; phase 4 |
+| 2026-11-02 | Phase 1 step 6 | `violet-listbox`'s `handleFocus` scrolls the active row into view on a press, so the row under the pointer moves and the click is lost (`foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.ts`). The console works around it; `loam-list` and the palette do not. Scroll only for keyboard focus, in the element, with the provenance entry | Open |
+| 2026-11-02 | Phase 1 step 6 | `violet-select`'s `position: fixed` list is misplaced inside `loam-mount`'s `contain: content`, for any native app using the kit's select. The console overrides `::part(panel)`; the element should use the top layer (`popover`), which containment does not reach | Open |
+| 2026-11-02 | Phase 1 step 6 | A catastrophic `pattern` in an untrusted schema can stall the tab when the form checks it at Run, and Zod's check does the same for a package's manifest. A linear regular-expression engine, or running the check off the main thread, before phase 5 widens who may mount | Open; before phase 5 |
+| 2026-11-02 | Phase 1 step 6 | `violet-text-field` with `type="number"` corrupts typing: its `:value` binding writes back the empty value an unreadable number reports, so `-2` becomes `2` (`foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.ts`). The console avoids that type; the kit's field and `violet-select`'s reopened option (`show()` does not resync its options) should be fixed in the elements, with `violet-option`'s empty value, `violet-checkbox`'s description and `violet-select`'s error color, which reads a name outside the contract | Open |

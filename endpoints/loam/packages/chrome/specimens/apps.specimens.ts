@@ -4,7 +4,9 @@
  * high-contrast contexts.
  */
 
+import type { CommandResult } from '@lushly-dev/afd-core';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
+import { consoleRegistry } from '../dist/apps/console.js';
 import {
 	defineAppElements,
 	type LoamAppEntry,
@@ -275,4 +277,152 @@ export const [ViewFrameFailed, ViewFrameFailedCompact] = both(
 		element.state = 'failed';
 	}),
 	{ inline: '640px', block: '240px' }
+);
+
+/** What the kernel answers a console, in a fixture's fixed state. */
+function fakeClient(answers: Record<string, unknown>) {
+	return {
+		call: async <T>(name: string): Promise<CommandResult<T>> =>
+			(name in answers
+				? { success: true, data: answers[name] as T }
+				: {
+						success: false,
+						error: {
+							code: 'PROBE_REFUSED',
+							message: 'It refused',
+							suggestion: 'Ask it again nicely',
+						},
+						metadata: {
+							'dev.loam/trust': 'untrusted',
+							'dev.loam/instance': 'work',
+							'dev.loam/replay': 'recorded',
+							'dev.loam/seq': 12,
+						},
+					}) as CommandResult<T>,
+	};
+}
+
+const CONSOLE_COMMANDS = [
+	{
+		name: 'demo-greet',
+		title: 'Greet someone',
+		description: 'Greets someone and remembers the name.',
+		mutation: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				name: { type: 'string', title: 'Name', description: 'Who to greet', minLength: 2 },
+				tone: { type: 'string', enum: ['warm', 'cold'] },
+				loud: { type: 'boolean', description: 'In capitals' },
+				count: { type: 'integer', minimum: 1 },
+				tags: { type: 'array', items: { type: 'string' } },
+				extra: { type: 'object' },
+			},
+			required: ['name'],
+		},
+	},
+	{ name: 'demo-ping', title: 'Ping Demo', description: 'Answers a pong.' },
+	{ name: 'demo-clear', description: 'Forgets every name.', mutation: true, destructive: true },
+];
+
+const consoleIn = async (wrapper: HTMLElement, answers: Record<string, unknown>) => {
+	const registry = await consoleRegistry();
+	const created = document.createElement('loam-mount') as LoamMount;
+	created.configure({
+		registry,
+		element: 'loam-console',
+		context: { instance: 'demo', client: fakeClient(answers) } as never,
+	});
+	wrapper.append(created);
+	const surface = () =>
+		created.shadowRoot?.querySelector('loam-console') as HTMLElement & {
+			load(): Promise<void>;
+			run(): Promise<void>;
+		};
+	await surface().load();
+	await new Promise((resolve) => requestAnimationFrame(resolve));
+	return surface();
+};
+
+const CONSOLE_APP = {
+	title: 'Demo',
+	kind: 'native',
+	state: 'ready',
+	trustLine: "Trusted, not sandboxed. Native apps share the shell's page.",
+	notices: [],
+};
+
+const CONSOLE_BOX: Box = { inline: '960px', block: '720px' };
+
+export const [Console, ConsoleCompact] = both(
+	'loam-console',
+	async (wrapper) => {
+		await consoleIn(wrapper, {
+			'app-get': CONSOLE_APP,
+			'app-command-list': { commands: CONSOLE_COMMANDS, hidden: 0 },
+		});
+	},
+	CONSOLE_BOX
+);
+export const [ConsoleInvalid, ConsoleInvalidCompact] = both(
+	'loam-console',
+	async (wrapper) => {
+		const surface = await consoleIn(wrapper, {
+			'app-get': CONSOLE_APP,
+			'app-command-list': { commands: CONSOLE_COMMANDS, hidden: 0 },
+		});
+		await surface.run();
+	},
+	CONSOLE_BOX
+);
+export const [ConsoleResult, ConsoleResultCompact] = both(
+	'loam-console',
+	async (wrapper) => {
+		const surface = await consoleIn(wrapper, {
+			'app-get': CONSOLE_APP,
+			'app-command-list': { commands: [CONSOLE_COMMANDS[1]], hidden: 0 },
+		});
+		await surface.run();
+	},
+	CONSOLE_BOX
+);
+export const [ConsoleMounted, ConsoleMountedCompact] = both(
+	'loam-console',
+	async (wrapper) => {
+		await consoleIn(wrapper, {
+			'app-get': {
+				...CONSOLE_APP,
+				title: 'Work knowledge',
+				kind: 'mounted',
+				state: 'failed',
+				trustLine: 'External: its results are labeled untrusted.',
+				notices: [
+					{
+						code: 'TEAM_INSTANCE_SINGLE_PRINCIPAL',
+						message:
+							'A team instance is mounted only where every member of its projects may read all of it.',
+					},
+				],
+			},
+			'app-command-list': { commands: [], hidden: 0 },
+			'app-instance-list': {
+				instances: [
+					{
+						instance: 'demo',
+						transport: 'http',
+						state: 'failed',
+						commands: 0,
+						hidden: 2,
+						error: {
+							code: 'MOUNT_UNREACHABLE',
+							message: 'The instance did not answer.',
+							suggestion:
+								'Is the instance running? A browser reaches it through the hosted server.',
+						},
+					},
+				],
+			},
+		});
+	},
+	CONSOLE_BOX
 );

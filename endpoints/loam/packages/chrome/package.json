@@ -39,6 +39,7 @@
 	},
 	"dependencies": {
 		"@lushly-dev/fast-element": "workspace:*",
+		"@lushly-dev/loam-console": "workspace:*",
 		"@lushly-dev/loam-kernel": "workspace:*",
 		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
