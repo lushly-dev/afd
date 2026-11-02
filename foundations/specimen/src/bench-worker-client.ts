@@ -10,12 +10,15 @@ import type {
 	Observation,
 	RunRequest,
 	StoryRun,
+	SuiteRequest,
+	SuiteRun,
 } from './types.js';
 
 type WorkerOperation =
 	| { operation: 'initialize'; config: LoadedConfig; executablePath?: string }
 	| { operation: 'render'; request: CaptureRequest }
 	| { operation: 'run'; request: RunRequest }
+	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'inspect'; request: InspectRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
@@ -213,6 +216,11 @@ export class BenchWorkerClient {
 			{ operation: 'run', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as StoryRun;
+	}
+	async runSuite(request: SuiteRequest): Promise<SuiteRun> {
+		await this.ready;
+		// Every story has its own deadline in the worker; this covers a worker that stops answering.
+		return (await this.request({ operation: 'runSuite', request }, 3_600_000)) as SuiteRun;
 	}
 	async inspect(request: InspectRequest): Promise<InspectResult> {
 		await this.ready;

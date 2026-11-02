@@ -101,7 +101,15 @@ export interface BenchConfig {
 	 * Which retained stories run, as the Storybook Vitest addon's `tags` option selects them:
 	 * `include` defaults to `['test']`; `skip` reports a story skipped without running it.
 	 */
-	test?: { include?: string[]; exclude?: string[]; skip?: string[] };
+	test?: {
+		include?: string[];
+		exclude?: string[];
+		skip?: string[];
+		/** Stories a suite runs at once, unless its request says otherwise. */
+		workers?: number;
+		/** A retained story's deadline, as Vitest's `testTimeout`. Defaults to 15,000 ms, as Vitest's. */
+		timeoutMs?: number;
+	};
 	/** Plugin modules, relative to the configuration: each default-exports a plugin or an array of them. */
 	plugins?: string[];
 	/** The custom elements manifest core reads component schemas from, relative to the configuration. */
@@ -200,6 +208,62 @@ export interface InspectResult {
 	limitations: string[];
 	/** The plugins installed, by id, with the runners and themes they register. */
 	plugins: { id: string; runners: string[]; themes: string[]; tokens: string | null }[];
+}
+/** Which stories in a suite keep their capture. A capture costs more than some stories' runs. */
+export type SuiteCapture = 'all' | 'failed' | 'none';
+/** The retained stories to run; every condition given must hold. */
+export interface SuiteFilter {
+	ids?: string[];
+	/** An import path such as `./src/button.stories.ts`, or a path relative to the root. */
+	file?: string;
+	/** Any of these index tags. */
+	tags?: string[];
+	/** Text in the story's title and name, in any case. */
+	match?: string;
+}
+export interface SuiteRequest {
+	filter?: SuiteFilter;
+	context?: Partial<SpecimenContext>;
+	timeoutMs?: number;
+	/** Stories run at once; defaults to `test.workers` in the configuration, then 2. */
+	workers?: number;
+	/** Retry failures once, one at a time, when no more than `flakeCap` stories failed. */
+	retry?: boolean;
+	flakeCap?: number;
+	/** Defaults to `failed`. */
+	capture?: SuiteCapture;
+}
+export interface SuiteStory {
+	id: string;
+	/** Relative to the root, without a leading `./`. */
+	file: string;
+	title: string;
+	name: string;
+	/** The story's key in a consumer's flake records, as the incumbent's runner writes it. */
+	flakeId: string;
+	/** `flaky`: failed, then passed on its retry. */
+	status: StoryOutcome['status'] | 'flaky';
+	/** One outcome per attempt, the first run's first. */
+	attempts: StoryOutcome[];
+	/** The last attempt's capture, as `capture` selects. */
+	observation: Observation | null;
+}
+export interface SuiteRun {
+	outcome: 'passed' | 'passed-with-flake' | 'failed' | 'failed-after-retry';
+	counts: {
+		total: number;
+		passed: number;
+		failed: number;
+		flaky: number;
+		skipped: number;
+		excluded: number;
+	};
+	retry: { ran: boolean; reason?: string };
+	stories: SuiteStory[];
+	workers: number;
+	elapsedMs: number;
+	/** A bundled source changed during the run; the stories ran against the sources at its start. */
+	sourcesChanged: boolean;
 }
 /** A retained story's run: like a capture request, always at the after-run checkpoint. */
 export type RunRequest = Omit<CaptureRequest, 'checkpoint'>;

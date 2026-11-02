@@ -222,6 +222,12 @@ pub struct RenderRequest {
     pub requested: Option<Value>,
     #[serde(default)]
     pub defaults: Option<Value>,
+    /// A suite's capture mode: `all`, `failed` or `none`. Absent, every render captures.
+    #[serde(default)]
+    pub capture: Option<String>,
+    /// Use the built bundle without checking its sources, as a suite does after checking once.
+    #[serde(default)]
+    pub reuse_bundle: bool,
     /// Inspect instead of capturing: `{ schema }`, the component's schema from the manifest.
     #[serde(default)]
     pub inspect: Option<Value>,
@@ -347,8 +353,13 @@ impl Browser {
         };
         let session = attempt.session.lock().unwrap().clone();
         let dispose_budget = request.timeout_ms.min(1000);
+        // A retained story has nothing of its own to dispose: Storybook has no such step, and the
+        // context closes next. Asking a page still busy with a heavy story would only time out.
+        let retained = request.entry.get("story").is_some_and(Value::is_object);
         let disposal = match &session {
-            Some(session) if attempt.ready.load(std::sync::atomic::Ordering::SeqCst) => {
+            Some(session)
+                if !retained && attempt.ready.load(std::sync::atomic::Ordering::SeqCst) =>
+            {
                 let page = Page {
                     cdp: &self.cdp,
                     session: session.clone(),
@@ -566,6 +577,24 @@ impl Browser {
                 .await?;
             attempt.enter("running the specimen's scenario");
             page.steps(&mounted, &request.checkpoint).await?;
+        }
+        let story_status = outcome
+            .as_ref()
+            .and_then(|outcome| outcome.get("status"))
+            .and_then(Value::as_str);
+        let keep = match request.capture.as_deref() {
+            Some("none") => false,
+            Some("failed") => story_status == Some("failed"),
+            _ => true,
+        };
+        if !keep {
+            return Ok(Attempted {
+                captured: Value::Null,
+                snapshot: String::new(),
+                screenshot: None,
+                context,
+                outcome,
+            });
         }
         attempt.enter("capturing the result");
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.

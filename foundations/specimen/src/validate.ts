@@ -1,4 +1,4 @@
-import type { BenchConfig, CaptureRequest, SpecimenContext } from './types.js';
+import type { BenchConfig, CaptureRequest, SpecimenContext, SuiteRequest } from './types.js';
 
 /**
  * Validation for the bench's own inputs: the configuration file, capture requests and
@@ -91,6 +91,54 @@ export function parseContext(
 	return context as Partial<SpecimenContext>;
 }
 
+const MAX_SUITE_WORKERS = 32;
+
+export function parseSuiteRequest(value: unknown): SuiteRequest {
+	const fields = record(value, 'suite request', [
+		'filter',
+		'context',
+		'timeoutMs',
+		'workers',
+		'retry',
+		'flakeCap',
+		'capture',
+	]);
+	const request: SuiteRequest = {};
+	if (fields.filter !== undefined) {
+		const filter = record(fields.filter, 'suite request.filter', ['ids', 'file', 'tags', 'match']);
+		request.filter = {
+			...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, 'suite request.filter.ids') }),
+			...(filter.file === undefined
+				? {}
+				: { file: text(filter.file, 'suite request.filter.file') }),
+			...(filter.tags === undefined
+				? {}
+				: { tags: tagList(filter.tags, 'suite request.filter.tags') }),
+			...(filter.match === undefined
+				? {}
+				: { match: text(filter.match, 'suite request.filter.match') }),
+		};
+	}
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, 'suite request.context', true);
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'suite request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'suite request.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.retry !== undefined) {
+		if (typeof fields.retry !== 'boolean') fail('suite request.retry', 'expected a boolean');
+		request.retry = fields.retry;
+	}
+	if (fields.flakeCap !== undefined)
+		request.flakeCap = integer(fields.flakeCap, 'suite request.flakeCap', 0, 1_000);
+	if (fields.capture !== undefined) {
+		if (fields.capture !== 'all' && fields.capture !== 'failed' && fields.capture !== 'none')
+			fail('suite request.capture', 'expected all, failed or none');
+		request.capture = fields.capture;
+	}
+	return request;
+}
+
 export function parseCaptureRequest(value: unknown): CaptureRequest {
 	const fields = record(value, 'capture request', [
 		'id',
@@ -159,10 +207,20 @@ function tagList(value: unknown, path: string): string[] {
 }
 
 function testTags(value: unknown): NonNullable<BenchConfig['test']> {
-	const fields = record(value, 'configuration.test', ['include', 'exclude', 'skip']);
+	const fields = record(value, 'configuration.test', [
+		'include',
+		'exclude',
+		'skip',
+		'workers',
+		'timeoutMs',
+	]);
 	const result: NonNullable<BenchConfig['test']> = {};
 	for (const key of ['include', 'exclude', 'skip'] as const)
 		if (fields[key] !== undefined) result[key] = tagList(fields[key], `configuration.test.${key}`);
+	if (fields.workers !== undefined)
+		result.workers = integer(fields.workers, 'configuration.test.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.timeoutMs !== undefined)
+		result.timeoutMs = integer(fields.timeoutMs, 'configuration.test.timeoutMs', 1, 60_000);
 	return result;
 }
 

@@ -60,6 +60,14 @@ struct Bench {
 
 impl Bench {
     /// The current bundle, rebuilt when any of its source files changed.
+    /// The built generation without checking its sources, for a suite that checked them once.
+    async fn current_generation(&self) -> Result<Arc<Generation>> {
+        if let Some(generation) = self.generation.lock().await.as_ref() {
+            return Ok(generation.clone());
+        }
+        self.generation().await
+    }
+
     async fn generation(&self) -> Result<Arc<Generation>> {
         let mut current = self.generation.lock().await;
         if let Some(generation) = current.as_ref()
@@ -73,7 +81,10 @@ impl Bench {
     }
 
     async fn render(&self, request: RenderRequest) -> Result<Value, RenderFailure> {
-        let generation = self.generation().await?;
+        let generation = match request.reuse_bundle {
+            true => self.current_generation().await?,
+            false => self.generation().await?,
+        };
         let token = uuid::Uuid::new_v4().to_string();
         self.renders.begin(&token, generation);
         let outcome = self
@@ -183,6 +194,35 @@ async fn main() -> Result<()> {
                     Err(error) => failure(&id, anyhow!("Invalid open request: {error}").into()),
                 };
                 let _ = replies.send(reply);
+            }
+            Some(operation @ ("prepare" | "stale")) => {
+                let Some(current) = bench.clone() else {
+                    let _ = replies.send(failure(&id, anyhow!("Specimen host is not open").into()));
+                    continue;
+                };
+                let replies = replies.clone();
+                let prepare = operation == "prepare";
+                work.spawn(async move {
+                    // Prepare rebuilds a stale bundle; stale only reports whether it is.
+                    let reply = if prepare {
+                        match current.generation().await {
+                            Ok(_) => json!({ "id": id, "ok": true, "result": {} }),
+                            Err(error) => failure(&id, error.into()),
+                        }
+                    } else {
+                        let stale = match current.generation.lock().await.as_ref() {
+                            Some(generation) => {
+                                let generation = generation.clone();
+                                tokio::task::spawn_blocking(move || generation.stale())
+                                    .await
+                                    .unwrap_or(true)
+                            }
+                            None => false,
+                        };
+                        json!({ "id": id, "ok": true, "result": { "stale": stale } })
+                    };
+                    let _ = replies.send(reply);
+                });
             }
             Some("render") => {
                 let Some(current) = bench.clone() else {

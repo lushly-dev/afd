@@ -115,31 +115,48 @@ export const buildOutputSchema = z
 	.strict();
 /** A retained story's run request: a capture request without a checkpoint, which is `after-run`. */
 export const runRequestSchema = captureRequestSchema.omit({ checkpoint: true });
+export const suiteRequestSchema = z.strictObject({
+	filter: z
+		.strictObject({
+			ids: z.array(z.string().min(1)).optional(),
+			file: z.string().min(1).optional(),
+			tags: z.array(z.string().min(1)).optional(),
+			match: z.string().min(1).optional(),
+		})
+		.optional(),
+	context: captureRequestSchema.shape.context,
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: z.number().int().min(1).max(32).optional(),
+	retry: z.boolean().optional(),
+	flakeCap: z.number().int().min(0).max(1000).optional(),
+	capture: z.enum(['all', 'failed', 'none']).optional(),
+});
+const storyOutcomeSchema = z.strictObject({
+	status: z.enum(['passed', 'failed', 'skipped', 'excluded']),
+	play: z.enum(['ran', 'none']),
+	failures: z.array(
+		z.strictObject({ category: z.enum(['render', 'play', 'a11y']), message: z.string() })
+	),
+	a11y: z.strictObject({
+		status: z.enum(['passed', 'warning', 'failed', 'not-run']),
+		policy: z.enum(['error', 'todo', 'off', 'disabled', 'manual']),
+		reason: z.string().optional(),
+		violations: z.array(
+			z.strictObject({
+				id: z.string(),
+				impact: z.string().nullable(),
+				help: z.string(),
+				targets: z.array(z.string()),
+				details: z.array(z.string()),
+			})
+		),
+		incomplete: z.number().int().nonnegative(),
+		engine: z.string().optional(),
+	}),
+});
 export const storyRunSchema = z.strictObject({
 	id: z.string(),
-	outcome: z.strictObject({
-		status: z.enum(['passed', 'failed', 'skipped', 'excluded']),
-		play: z.enum(['ran', 'none']),
-		failures: z.array(
-			z.strictObject({ category: z.enum(['render', 'play', 'a11y']), message: z.string() })
-		),
-		a11y: z.strictObject({
-			status: z.enum(['passed', 'warning', 'failed', 'not-run']),
-			policy: z.enum(['error', 'todo', 'off', 'disabled', 'manual']),
-			reason: z.string().optional(),
-			violations: z.array(
-				z.strictObject({
-					id: z.string(),
-					impact: z.string().nullable(),
-					help: z.string(),
-					targets: z.array(z.string()),
-					details: z.array(z.string()),
-				})
-			),
-			incomplete: z.number().int().nonnegative(),
-			engine: z.string().optional(),
-		}),
-	}),
+	outcome: storyOutcomeSchema,
 	observation: observationSchema.nullable(),
 });
 const schemaValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -151,6 +168,34 @@ const propertySchema = z.strictObject({
 	default: z.string().optional(),
 	description: z.string().optional(),
 });
+export const suiteRunSchema = z.strictObject({
+	outcome: z.enum(['passed', 'passed-with-flake', 'failed', 'failed-after-retry']),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		passed: z.number().int().nonnegative(),
+		failed: z.number().int().nonnegative(),
+		flaky: z.number().int().nonnegative(),
+		skipped: z.number().int().nonnegative(),
+		excluded: z.number().int().nonnegative(),
+	}),
+	retry: z.strictObject({ ran: z.boolean(), reason: z.string().optional() }),
+	stories: z.array(
+		z.strictObject({
+			id: z.string(),
+			file: z.string(),
+			title: z.string(),
+			name: z.string(),
+			flakeId: z.string(),
+			status: z.enum(['passed', 'failed', 'flaky', 'skipped', 'excluded']),
+			attempts: z.array(storyOutcomeSchema),
+			observation: observationSchema.nullable(),
+		})
+	),
+	workers: z.number().int().positive(),
+	elapsedMs: z.number().nonnegative(),
+	sourcesChanged: z.boolean(),
+});
+
 /** A component's schema from the manifest, enriched by plugins' schema sources. */
 export const componentSchemaSchema = z.strictObject({
 	tag: z.string(),

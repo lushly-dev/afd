@@ -7,7 +7,7 @@
  * recorded fonts, and Specimen runs the same stories; each must end the same way in both, for
  * the same kind of reason. `--plugin` installs the FAST-AF plugin and inspects every component
  * in the selection. `--mode identities` stops after the identity check; `--mode full` runs
- * every story instead of the selection, with `--workers` (default 2) capping the incumbent's.
+ * every story instead of the selection, through `runSuite`, with `--workers` (default 2) for both.
  *
  * The snapshot stays read-only apart from the Vite caches the incumbent writes and, with
  * `--plugin`, `.specimen-t05/`: a plugin module must be inside the bench root.
@@ -195,21 +195,7 @@ async function candidate(plugins) {
 	);
 	try {
 		const stories = [];
-		const entries = selected.list();
-		for (const [index, entry] of entries.entries()) {
-			if (index % 50 === 0) console.log(`Specimen: ${index} of ${entries.length}`);
-			let outcome;
-			try {
-				({ outcome } = await selected.run({ id: entry.id }));
-			} catch (error) {
-				// A run that throws is a finding of its own; the rest of the suite still runs.
-				outcome = {
-					status: 'error',
-					play: 'none',
-					failures: [{ category: 'host', message: String(error?.message ?? error) }],
-					a11y: { status: 'not-run', policy: 'manual', violations: [] },
-				};
-			}
+		const record = (entry, outcome) =>
 			stories.push({
 				id: entry.id,
 				file: entry.module,
@@ -225,6 +211,15 @@ async function candidate(plugins) {
 					violations: (outcome.a11y.violations ?? []).map((violation) => violation.id),
 				},
 			});
+		const entries = selected.list();
+		if (mode === 'full') {
+			// The suite API, as a consumer would run it, with the incumbent's worker cap.
+			const suite = await selected.runSuite({ workers: Number(workers) });
+			if (suite.sourcesChanged) throw new Error('A source changed during the run');
+			for (const [index, entry] of entries.entries())
+				record(entry, suite.stories[index].attempts.at(-1));
+		} else {
+			for (const entry of entries) record(entry, (await selected.run({ id: entry.id })).outcome);
 		}
 		const inspected = [];
 		if (plugins.length) {
