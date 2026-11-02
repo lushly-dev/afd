@@ -7,7 +7,7 @@ into it, dated, when they close; O10 to O17 opened and closed on 2026-10-31
 from the [landscape](landscape.md). D1 to D21, D23 and D24 were proposed in
 the design session of 2026-10-30; the owner decided D22 on 2026-10-30 and
 D25 to D49 on 2026-10-31. D50 to D53 were proposed by the phase 0
-specification and decided when the owner approved it on 2026-11-01. Three independent reviews on 2026-10-31 corrected
+specification and decided when the owner approved it on 2026-11-01. The owner decided D54 to D58 on 2026-11-01, on the [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md). Three independent reviews on 2026-10-31 corrected
 facts and wording in some entries; each correction is marked "Corrected
 2026-10-31" in its consequence, and none changes what was decided.
 
@@ -66,6 +66,11 @@ facts and wording in some entries; each correction is marked "Corrected
 | D51 | 2026-11-01 | `appearance` (theme and density) and `palette` join the shell domains in phase 0; phase 4's settings take over appearance's storage without changing its commands. Decided with the phase 0 specification | Theme and density are commands from the first build, so light, dark and high contrast are driven and replayed like layout |
 | D52 | 2026-11-01 | The desktop's store backend is IndexedDB in the webview, as in the browser; SQLite through a Tauri plugin is admitted in phase 6 only on a measurement. Decided with the phase 0 specification | One store backend for two hosts in phase 0; nothing waits on Tauri |
 | D53 | 2026-11-01 | Specimen gains a `high-contrast` theme context, emulated as Playwright's light scheme with `prefers-contrast: more`, so the chrome's captures cover the three themes; forced colors and axe stay in Loam's Chromium suite. Decided with the phase 0 specification | The exit criterion's captures and checks cover high contrast without a second capture harness |
+| D54 | 2026-11-01 | Native apps are trusted code, not sandboxed, as Umbel's compiled plugins are. Isolation is enforced for sandboxed views and mounted apps | A module in the shell's own page cannot truly be isolated, so the shell does not claim it. `app check` says "trusted, not sandboxed"; untrusted apps ship as views. The architecture's isolation text is amended |
+| D55 | 2026-11-01 | Until Umbel's phase 5, a Loam instance may mount a team Umbel instance only where every member of its projects may read all of it. Access is decided in Loam by project membership; team instances use HTTP | Umbel sees one principal until then and cannot separate Loam's members. `app check` and the console say so |
+| D56 | 2026-11-01 | A stdio instance is trusted code. Only the person who owns the workspace on the desktop, or the deployer's configuration on the hosted server, can add or change its `command`; no command, app or agent may write it, and the autonomy policy cannot grant it | The child runs as the host's OS user, and the command line is held in workspace data. The builder (D47) cannot reach it |
+| D57 | 2026-11-01 | Phase 1 proves the mounted-server app kind end to end against a real Umbel instance, shown in the console. The first-party Umbel app stays after Umbel's phase 2 and Loam's phase 5 | Umbel-specific gaps show up early; `loam.yml` gains a Rust build |
+| D58 | 2026-11-01 | The [shared plugin manifest](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md) is a host-neutral core in `spec/` with one closed profile per host; Loam's phase 1 writes Loam's profile. One or more Umbel instances join a Loam instance as headless mounted apps, with instance identity apart from app identity, a command prefix per instance, and `error` on conflicts. Umbel stays headless in Loam for now, and signing waits for W9 | Refines D10: Loam's schema does not reference Umbel's `$defs`, which are closed and host-specific. Umbel's manifest does not change; Umbel annotates its own documents |
 
 ## Open decisions
 

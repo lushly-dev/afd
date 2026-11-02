@@ -294,7 +294,8 @@ flowchart TB
 ### Host services catalog
 
 Every grant is scoped to the workspaces and projects the app is enabled for
-and the caller may read; isolation is enforced here, not by apps.
+and the caller may read. Scoping is enforced here, not by apps; for a native
+app, which is trusted code (D54), it is a contract rather than a boundary.
 
 | Grant | The shell provides | Rule |
 | --- | --- | --- |
@@ -672,9 +673,12 @@ flowchart TD
   the person on whose behalf it acted. Over MCP, approval evidence comes
   from trusted shell code, never from tool arguments.
 - **Isolation.** Each app renders under its scoped registry and a root that
-  resets inherited styles; tokens pass as custom properties; nothing else
-  crosses. An overlay belongs to its owner. The `calls` grant is the only
-  path between apps.
+  resets inherited styles; tokens pass as custom properties. An overlay
+  belongs to its owner. The `calls` grant is the only supported path between
+  apps. Isolation is enforced for sandboxed views and mounted apps. Native
+  apps share the shell's page, so they are trusted code, and the rest of this
+  bullet is a contract for them rather than a boundary (D54); `app check` says
+  "trusted, not sandboxed", and untrusted apps ship as views.
 - **Accessibility.** Every part and overlay carries its role and name; focus
   order follows the parts model; modals trap and return focus; every command
   in the palette is reachable from the keyboard; the chrome passes axe WCAG
@@ -758,7 +762,8 @@ after phase 1: the hosted lane must reach its development profile before
 phase 3's hosted criterion and phase 5's MCP criterion, while the desktop
 lane and distribution gate nothing before phase 7. `notes` is phase 2's
 reference document type; Violet and Health are part of phase 5's exit;
-Specimen attaches after phase 5 and the Umbel app after Umbel's phase 2.
+Specimen attaches after phase 5 and the Umbel app after Umbel's phase 2;
+phase 1 proves the mounted-server app kind against a real Umbel instance (D57).
 A2UI rendered from the kit (D43) follows the MCP Apps view, in phase 5 or
 later. The collaboration service, sync, presence, sharing and threads for
 every document type and run, has its own specification after phases 2 and
