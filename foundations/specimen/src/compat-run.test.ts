@@ -125,6 +125,7 @@ describe('retained stories end the same way in both runners', () => {
 			'Default Viewport': 'passed',
 			'Form Associated': 'passed',
 			'Smoke Only': 'passed',
+			'Glob Import': 'passed',
 			Skipped: 'skipped',
 			'Not A Test': 'excluded',
 			Made: 'passed',
