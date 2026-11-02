@@ -30,7 +30,6 @@
 		"@lushly-dev/loam-app-hello": "workspace:*",
 		"@lushly-dev/loam-app-tally": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
-		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-testing": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
 		"@lushly-dev/violet-runtime": "workspace:*",

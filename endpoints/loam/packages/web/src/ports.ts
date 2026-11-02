@@ -6,7 +6,6 @@
  */
 
 import type { KernelPortsV1 } from '@lushly-dev/loam-kernel';
-import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 
 async function ok(url: string): Promise<Response> {
 	const response = await fetch(url);
@@ -20,7 +19,9 @@ export function webPorts(document: Document): KernelPortsV1 {
 		fetchJson: async (url) => (await ok(url)).json(),
 		fetchText: async (url) => (await ok(url)).text(),
 		async importNative(url) {
-			const module = (await import(/* @vite-ignore */ url)) as { default: AppDefinitionV1 };
+			const module = (await import(/* @vite-ignore */ url)) as {
+				default: Awaited<ReturnType<KernelPortsV1['importNative']>>;
+			};
 			return module.default;
 		},
 		openHandlerFrame: () => Promise.reject(new Error('Handler frames arrive in phase 1 step 5')),

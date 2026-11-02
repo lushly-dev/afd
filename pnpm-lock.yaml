@@ -443,9 +443,6 @@ importers:
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
-      '@lushly-dev/loam-sdk':
-        specifier: workspace:*
-        version: link:../sdk
       '@lushly-dev/loam-testing':
         specifier: workspace:*
         version: link:../testing
