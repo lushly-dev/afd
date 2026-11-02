@@ -1,13 +1,14 @@
 # T05 retained-CSF compatibility slice
 
-**State, 2026-11-01:** in progress.
+**State, 2026-11-01:** done on branch. T05 is complete when step 5 merges.
 
 - Step 1, discovery and static validation, is done and merged in [#634](https://github.com/lushly-dev/afd/pull/634).
 - Step 2, running retained stories, is done and merged in [#642](https://github.com/lushly-dev/afd/pull/642).
 - Step 3, the plugin points, the FAST-AF plugin and inspection, is done and merged in [#647](https://github.com/lushly-dev/afd/pull/647).
-- Step 4, the preview-first codemod, is implemented on branch `lush/specimens-t05-migrate`.
+- Step 4, the preview-first codemod, is done and merged in [#654](https://github.com/lushly-dev/afd/pull/654).
+- Step 5, the consumers' stories through both runners and the refreshed Lushly inventory, is implemented on branch `lush/specimens-t05-consumers`.
 
-The remaining steps are listed [below](#remaining-steps).
+How the steps meet the acceptance is [below](#acceptance).
 
 T05 lets Specimen run the consumers' existing Storybook stories (CSF files) without rewriting them. Its acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue) and the proposal's [CSF compatibility contract](../../proposed/specimens/specimens.proposal.md#csf-compatibility-contract):
 
@@ -320,7 +321,7 @@ Lushly's preview finds its manifest's URL with `import.meta.glob('../custom-elem
 - the `eager`, `import` and `query` options, with Vite's keys and its lazy and eager forms;
 - a module never globs itself, and `node_modules` and dot-directories are skipped.
 
-Any other argument fails the module with an error naming it: a computed pattern, an alias, or another option. The `compat/` preview uses all three forms, and a `Glob Import` story checks their results in both runners in CI.
+Any other argument fails the module with an error naming it: a computed pattern, an alias, or another option. Unlike Vite's development server, the bench does not watch a globbed directory: a file added to it is seen when the bench is created again. The `compat/` preview uses all three forms, and a `Glob Import` story checks their results in both runners in CI.
 
 ### Evidence
 
@@ -358,10 +359,26 @@ These come from the installed 10.6.2 and 10.3.1 sources and decide the runtime d
 - **Teardown.** A story's canvas is cleaned up when the next story starts, not after its own test.
 - **Viewport.** The addon's `responsive` viewport resolves to its 1200×900 default, as [T03](driver-context-validation.md) measured.
 
-## Remaining steps
+## Acceptance
 
 1. ~~Discovery, identity and static validation.~~ Merged in #634.
 2. ~~Composition, rendering and runs, with the two-runner agreement in CI.~~ Merged in #642.
 3. ~~The four plugin points, the FAST-AF plugin and inspection.~~ Merged in #647.
-4. ~~The preview-first codemod.~~ Implemented on branch.
-5. **The consumers' representative stories through both runners**, and the refreshed Lushly inventory. FAST-AF's own components, with the FAST-AF plugin, are the plugin points' first consumer. Lushly's main has moved from `b8906b75` to `0eede7f0`; FAST-AF's main is unchanged.
+4. ~~The preview-first codemod.~~ Merged in #654.
+5. ~~The consumers' representative stories through both runners, and the refreshed Lushly inventory.~~ Implemented on branch.
+
+| Acceptance | Where it is met |
+| --- | --- |
+| The four plugin points, specified and exercised | [Step 3](#the-four-plugin-points) on a fixture plugin. On FAST-AF's own components, the [schema source](#fast-afs-components-with-the-fast-af-plugin) (step 5) |
+| FAST-AF's theme and schema integration | [Step 3](#the-fast-af-plugin) on a FAST element; [step 5](#fast-afs-components-with-the-fast-af-plugin) on four FAST-AF components |
+| Identity and field-specific annotation precedence | [Step 1](#the-indexer)'s identities; [step 2](#composition)'s composition, with a precedence story in both runners |
+| `validate` / `inspect` and a preview-first codemod that keeps metadata | [Step 1](#validation), [step 3](#inspection), [step 4](#step-4-the-preview-first-codemod) |
+| Both runners agree on the representative positive cases | The `compat/` slice in CI ([step 2](#agreement-1)), and each consumer's selection ([step 5](#step-5-the-consumers-stories-through-both-runners)) |
+| Both runners agree on the deliberately failing cases | Interaction, a11y, render and cleanup in CI ([step 2](#agreement-1)); identity collisions and missing exports in CI ([step 1](#agreement)); context mismatches labelled by Specimen ([step 2](#agreement-1)) |
+| Unsupported active semantics fail validation | [Step 1](#validation) |
+
+What T05 leaves to later tasks:
+
+- [T06](implementation.md#ordered-implementation-queue): full suites, profiles, event history, the context matrix and flake identities.
+- G06's open question: whether the lazy capture normalizer belongs under the shell ceiling.
+- Commands: no FAST-AF component declares one yet.

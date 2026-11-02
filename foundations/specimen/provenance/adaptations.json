@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "f0383d832f81a3d622ef1d511d73e5980aa058c6e2e8560013b6223a48a6efa7",
+      "current_import_sha256": "f66658481e5d74e07a246bb67f20475c9aca430f1564a070b3e9b5db95adbe71",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -213,11 +213,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "59233eb54fcbd300e263afe0976d67205a697dce3194106385e134299c485f00",
+      "current_import_sha256": "156147beb783779a42aa4fd7fd708da7a23ab897684cffde74d507a2116e827c",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "0a2cb9d8874eb37a99366c6c6b633c3b94075d3110641d22dfe9b47bf84a9080",
+      "current_import_sha256": "c89c1dce994903163f39cb5f380ec97751a4fab597464d33f2be0bae0c7261f6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -1017,11 +1017,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2f848f6b05c5e064b0126dc36c01b24f3be8d06fb9dc8edf2ac145b4dccded69",
+      "current_import_sha256": "f5ae79f274664b751a4b61edd05114914528ade22cd66e2e8ee95f390dcd3b32",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
@@ -1605,11 +1605,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "77ce232a1b817ca968690c3fbf1b4067ee9208bae4455e2e4472026ab3d33b48",
+      "current_import_sha256": "d53061b222b76782aa795474cd8fee3698b3122bfce0f7b4ca6d78765745d18c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/host/src/cdp.rs",
@@ -1641,11 +1641,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f679a9be8cb47df2b829c484f4434f8d2441ee019e0239ce4ba63dc514b2fa3c",
+      "current_import_sha256": "8e740dfb8867bf68a131eb241a77c6f41534a1b7568535ee9e5dbc64c2ce7a65",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/host/src/page.rs",
@@ -1761,11 +1761,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "a7befec7110be9a96ecad199a805c07727c27da785169facbe057485ba105fa5",
+      "current_import_sha256": "2a207a953726b85fddcb44252573f990a38223bd84701979ad4272cd2bafca43",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/compat/.storybook/main.ts",
@@ -1785,11 +1785,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ad04436b0951aa36053883e9c5378850b5347e6707aebdf99927ab20131a73af",
+      "current_import_sha256": "3418d020e387cd36edb1ab1eb1fbd859c7f869bb5b1c747db0f86c2b6968fd65",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged"
+      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/compat/elements/plain-button.ts",
@@ -2061,11 +2061,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f9e6d4da0ca41efc976293e81bde6f55896bbace989919a1b58bb6051dbbc7a4",
+      "current_import_sha256": "7437062b44646b256a923ea693d698e627d69bd5ccc40e9ff182f8e1bfc44569",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+      "import_reason": "T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/host/src/csf/mod.rs",
@@ -2205,11 +2205,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "545fff9d7731181350aceb4d99ae5ef921b576180ef84a39adccd18f3eb4c3fa",
+      "current_import_sha256": "cf7c9cfe8b63b600f9dfd5d97d55c504ef9396c7a42233ab87ddf1eb0398bd3e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged"
+      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/compat/vitest.config.ts",
@@ -2253,11 +2253,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "eb1d2bc3f68b4657f3f67138d78f95ed9c10de6c950f74a6ff00b325d295676d",
+      "current_import_sha256": "562b32d4879bf8553a47dc2938bf37f95a8a2537b513c7c7860853ad558c49dd",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged"
+      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     },
     {
       "path": "foundations/specimen/src/csf.test.ts",
@@ -2438,6 +2438,42 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/compat/data/one.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "30b9e19317320f4dbfb970407e0e5220f0d18782dcc77528ab778f1e1752fb33",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
+    },
+    {
+      "path": "foundations/specimen/experiments/run-retained.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "7569b8b10e5cda66011500599c27b1bb6d5644a7dc33e7b18a69d3647275d8d9",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
+    },
+    {
+      "path": "foundations/specimen/host/src/glob.rs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b9a577c92a05be932d8849bb7ed9a9aae7623bf17c0849965c386a7056211602",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record"
     }
   ]
 }
