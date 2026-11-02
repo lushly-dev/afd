@@ -422,11 +422,13 @@ describe('the native module (5.5)', () => {
 				},
 			},
 		});
-		const { kernel } = await createTestKernel({ deployment: probeDeployment(), ports });
+		const { kernel, journal } = await createTestKernel({ deployment: probeDeployment(), ports });
 		kernels.push(kernel);
 		const threw = await kernel.call('probe-list');
 		expect(threw.error?.code).toBe('HANDLER_THREW');
 		expect(JSON.stringify(threw.error)).not.toContain('Oops');
+		// So the journal's `redact` has nothing of it to remove (9.5).
+		expect(JSON.stringify(await journal.read())).not.toContain('Oops');
 		expect((await kernel.call('probe-count')).error?.code).toBe('HANDLER_RESULT_INVALID');
 	});
 

@@ -234,14 +234,27 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 	assert.deepEqual(errors, []);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/packages\/\*"$/m);
 	assert.match(read('pnpm-workspace.yaml'), /^ {2}- "endpoints\/loam\/apps\/\*"$/m);
-	const loam = ['manifest', 'sdk', 'testing', 'cli', 'theme', 'kernel', 'chrome', 'web'];
+	const loam = [
+		'manifest',
+		'sdk',
+		'testing',
+		'cli',
+		'theme',
+		'kernel',
+		'chrome',
+		'web',
+		'app-hello',
+		'app-tally',
+	];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
 		assert.equal(unit.family, 'loam');
 		assert.equal(unit.state, 'quarantined');
 		assert.deepEqual(unit.routes, []);
 		assert.deepEqual(unit.gates, ['pnpm check', 'loam.yml', 'release-approval']);
-		const manifestPath = `endpoints/loam/packages/${name}/package.json`;
+		const manifestPath = name.startsWith('app-')
+			? `endpoints/loam/apps/${name.slice('app-'.length)}/package.json`
+			: `endpoints/loam/packages/${name}/package.json`;
 		assert.deepEqual(
 			unit.distributions.map((entry) => [entry.name, entry.manifest, entry.private]),
 			[[`@lushly-dev/loam-${name}`, manifestPath, true]]
@@ -286,6 +299,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 	assert.deepEqual(dependencies['@lushly-dev/loam-chrome'], [
 		'@lushly-dev/fast-element',
 		'@lushly-dev/loam-kernel',
+		'@lushly-dev/loam-sdk',
 		'@lushly-dev/loam-theme',
 		'@lushly-dev/violet-elements',
 	]);

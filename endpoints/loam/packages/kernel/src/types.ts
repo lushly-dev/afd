@@ -179,6 +179,11 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 	deployment?: ProjectionV1;
 	/** Required when `deployment` lists an app. */
 	ports?: KernelPortsV1;
+	/**
+	 * Why the host could not load what reads a deployment. Each entry of `deployment`, which then may be
+	 * unread, is listed `failed` with this reason, and nothing else of it is used (D66).
+	 */
+	appsUnavailable?: string;
 }
 
 /** The kernel's object for one app instance, which the chrome turns into the SDK's objects (5.3). */

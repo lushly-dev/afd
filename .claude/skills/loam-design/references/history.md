@@ -152,3 +152,7 @@ The values above landed, for the theme and the components together:
 - A maximized panel collapses main to zero and makes it `inert`.
 - The shell renders its parts after the first `appearance-get`, so nothing
   paints in the wrong theme.
+- **2026-11-02. Native apps (phase 1 step 4).** `loam-mount`, `loam-list`,
+  `loam-part-header`, `loam-app-entry`, `loam-status-action`, `loam-toast-region`,
+  `loam-toast` and `loam-modal` join the chrome behind a dynamic import, with no
+  new token.

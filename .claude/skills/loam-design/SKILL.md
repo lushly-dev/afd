@@ -204,7 +204,8 @@ overlaying when main would drop below `shell.size.main.min`. `medium` 640 to
 1023px: the inspector overlays. `compact` < 640px: the tab bar replaces the
 rail, the status bar hides, drawers are modal `<dialog>`s and the panel a
 bottom sheet. Breakpoints are lengths only in `@media` conditions. Use
-logical properties (`inline-start`, `inline-end`). At most one modal.
+logical properties (`inline-start`, `inline-end`). At most one modal: the palette
+closes a compact drawer, and an app's modal closes both first.
 
 ## Changing the design
 

@@ -119,6 +119,162 @@
 			"title": "Loam/Session/SessionReplay",
 			"module": "./session.specimens.ts",
 			"exportName": "SessionReplay"
+		},
+		{
+			"id": "app-mount",
+			"title": "Loam/Apps/Mount",
+			"module": "./apps.specimens.ts",
+			"exportName": "Mount"
+		},
+		{
+			"id": "app-mount-compact",
+			"title": "Loam/Apps/MountCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountCompact"
+		},
+		{
+			"id": "app-mount-undefined",
+			"title": "Loam/Apps/MountUndefined",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountUndefined"
+		},
+		{
+			"id": "app-mount-undefined-compact",
+			"title": "Loam/Apps/MountUndefinedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "MountUndefinedCompact"
+		},
+		{
+			"id": "app-list",
+			"title": "Loam/Apps/List",
+			"module": "./apps.specimens.ts",
+			"exportName": "List"
+		},
+		{
+			"id": "app-list-compact",
+			"title": "Loam/Apps/ListCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListCompact"
+		},
+		{
+			"id": "app-list-empty",
+			"title": "Loam/Apps/ListEmpty",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListEmpty"
+		},
+		{
+			"id": "app-list-empty-compact",
+			"title": "Loam/Apps/ListEmptyCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListEmptyCompact"
+		},
+		{
+			"id": "app-list-failed",
+			"title": "Loam/Apps/ListFailed",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListFailed"
+		},
+		{
+			"id": "app-list-failed-compact",
+			"title": "Loam/Apps/ListFailedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListFailedCompact"
+		},
+		{
+			"id": "app-part-header",
+			"title": "Loam/Apps/PartHeader",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeader"
+		},
+		{
+			"id": "app-part-header-compact",
+			"title": "Loam/Apps/PartHeaderCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeaderCompact"
+		},
+		{
+			"id": "app-rail-apps",
+			"title": "Loam/Apps/RailApps",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailApps"
+		},
+		{
+			"id": "app-rail-apps-compact",
+			"title": "Loam/Apps/RailAppsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailAppsCompact"
+		},
+		{
+			"id": "app-tabbar-apps",
+			"title": "Loam/Apps/TabbarApps",
+			"module": "./apps.specimens.ts",
+			"exportName": "TabbarApps"
+		},
+		{
+			"id": "app-tabbar-apps-compact",
+			"title": "Loam/Apps/TabbarAppsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "TabbarAppsCompact"
+		},
+		{
+			"id": "app-status-action",
+			"title": "Loam/Apps/StatusAction",
+			"module": "./apps.specimens.ts",
+			"exportName": "StatusAction"
+		},
+		{
+			"id": "app-status-action-compact",
+			"title": "Loam/Apps/StatusActionCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "StatusActionCompact"
+		},
+		{
+			"id": "app-toasts",
+			"title": "Loam/Apps/Toasts",
+			"module": "./apps.specimens.ts",
+			"exportName": "Toasts"
+		},
+		{
+			"id": "app-toasts-compact",
+			"title": "Loam/Apps/ToastsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ToastsCompact"
+		},
+		{
+			"id": "app-modal",
+			"title": "Loam/Apps/Modal",
+			"module": "./apps.specimens.ts",
+			"exportName": "Modal"
+		},
+		{
+			"id": "app-modal-compact",
+			"title": "Loam/Apps/ModalCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalCompact"
+		},
+		{
+			"id": "app-modal-danger",
+			"title": "Loam/Apps/ModalDanger",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalDanger"
+		},
+		{
+			"id": "app-modal-danger-compact",
+			"title": "Loam/Apps/ModalDangerCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ModalDangerCompact"
+		},
+		{
+			"id": "app-notice-embedded",
+			"title": "Loam/Apps/NoticeEmbedded",
+			"module": "./apps.specimens.ts",
+			"exportName": "NoticeEmbedded"
+		},
+		{
+			"id": "app-notice-embedded-compact",
+			"title": "Loam/Apps/NoticeEmbeddedCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "NoticeEmbeddedCompact"
 		}
 	]
 }

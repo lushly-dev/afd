@@ -1,6 +1,6 @@
 /**
- * @fileoverview `loam-main`: `main`. With no app installed it shows the empty-shell landing, "No
- * apps yet" and the palette shortcut; any path but `/` shows "Nothing here" with a link home
+ * @fileoverview `loam-main`: `main`. With no app active it shows the landing, "No apps yet" or the
+ * app surfaces' "Choose an app", and the palette shortcut; any path but `/` shows "Nothing here" with a link home
  * (5.1, section 7).
  */
 
@@ -13,7 +13,7 @@ const template = html<LoamMain>`
 		(x) => x.route !== 'not-found',
 		html<LoamMain>`
 			<section class="landing" aria-labelledby="landing-heading">
-				<h1 id="landing-heading">No apps yet</h1>
+				<h1 id="landing-heading">${(x) => x.landing}</h1>
 				<p>
 					Press <kbd>${(x) => x.shortcut}</kbd> to open the command palette and run a shell
 					command.
@@ -102,9 +102,11 @@ export class LoamMain extends FASTElement {
 	declare route: RouteV0;
 	declare shortcut: string;
 	declare home: string;
+	declare landing: string;
 
 	constructor() {
 		super();
+		this.landing = 'No apps yet';
 		this.route = 'home';
 		this.shortcut = 'Ctrl+K';
 		this.home = './';
@@ -118,5 +120,6 @@ export class LoamMain extends FASTElement {
 attr(LoamMain.prototype, 'route');
 attr(LoamMain.prototype, 'shortcut');
 attr(LoamMain.prototype, 'home');
+attr(LoamMain.prototype, 'landing');
 
 export const mainDefinition = { name: 'loam-main', template, styles } as const;

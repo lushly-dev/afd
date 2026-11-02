@@ -1,0 +1,709 @@
+/**
+ * @fileoverview `AppSurfaces`: the shell's controller for its apps (phase 1 specification, 4.6, 5.4, 5.5,
+ * section 8 and 9.3), in a chunk of its own, so the empty shell loads none of it. It owns the mounts and
+ * parked elements, renders the nav's entries, the surfaces, status items and overlays from what the
+ * kernel says, and re-reads after the events that change them. `loam-shell` stays the only element
+ * holding the kernel: it gives this controller the kernel and its parts.
+ */
+
+import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
+import { ensureScopedRegistrySupport } from '@lushly-dev/fast-element/scoped.js';
+import type {
+	AppDetailV1,
+	AppPortV1,
+	AppSummaryV1,
+	KernelEventV1,
+	LoamKernelV1,
+} from '@lushly-dev/loam-kernel';
+import type { AppContextV1, ModalInputV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
+import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
+import { deepActiveElement } from '../elements/events.js';
+import { focusPart } from '../elements/focus.js';
+import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
+import type { LoamMount } from '../elements/mount.js';
+import type { LoamNotice } from '../elements/notice.js';
+import { type LoamPartHeader, PART_ACTION_EVENT } from '../elements/part-header.js';
+import type { LoamShell, ShellApps } from '../elements/shell.js';
+import { type LoamStatusAction, STATUS_ACTION_EVENT } from '../elements/status-action.js';
+import type { LoamStatusItem } from '../elements/status-item.js';
+import { defineAppElements } from './define-elements.js';
+import { createKit } from './kit-loader.js';
+import { OverlaySurfaces } from './overlay-surfaces.js';
+
+type Part = 'sidebar' | 'inspector' | 'panel';
+
+const PARTS: readonly Part[] = ['sidebar', 'inspector', 'panel'];
+const PART_HEADINGS = { sidebar: 'Sidebar', inspector: 'Inspector' } as const;
+
+interface AppList {
+	active: string | null;
+	apps: AppSummaryV1[];
+}
+
+/** What an element keeps of its scrollers while it is parked, through open shadow roots. */
+type ScrollOffsets = Array<[Element, number, number]>;
+
+function scrollOffsets(root: Element, found: ScrollOffsets = []): ScrollOffsets {
+	if (root.scrollTop !== 0 || root.scrollLeft !== 0) {
+		found.push([root, root.scrollTop, root.scrollLeft]);
+	}
+	for (const child of root.children) scrollOffsets(child, found);
+	if (root.shadowRoot) for (const child of root.shadowRoot.children) scrollOffsets(child, found);
+	return found;
+}
+
+/** A parked sidebar or panel: its elements, kept, and where they were scrolled to. */
+interface Parked {
+	elements: HTMLElement[];
+	scroll: ScrollOffsets;
+	body: number;
+}
+
+/** One app the chrome has given a port, once `activate` has run or failed. */
+interface HeldApp {
+	instance: string;
+	port: AppPortV1;
+	registry?: CustomElementRegistry;
+	context?: AppContextV1;
+	activation?: Promise<string | undefined>;
+	/** What the import or `activate` threw: main shows it, and the kernel's record does not hold it (9.5). */
+	failure?: string;
+	deactivate?: () => void | Promise<void>;
+	sidebar?: Parked;
+	panel?: Parked;
+	list?: LoamList;
+}
+
+/** Added to `loam-main` from this chunk, so the empty shell's styles do not grow. */
+const mainWithApp = css`
+	:host([data-app]) {
+		display: flex;
+		flex-direction: column;
+		padding: 0;
+		overflow: hidden;
+	}
+	:host([data-app]) .landing {
+		display: none;
+	}
+	::slotted(loam-mount) {
+		flex: 1 1 auto;
+		min-block-size: 0;
+	}
+`;
+
+/** Added to the rail and the tab bar: their entries scroll when they overflow (4.6). */
+const navWithApps = css`
+	.entries {
+		min-block-size: 0;
+		min-inline-size: 0;
+		max-block-size: 100%;
+		max-inline-size: 100%;
+		overflow: auto;
+	}
+	:host {
+		justify-content: safe center;
+	}
+`;
+
+export class AppSurfaces implements ShellApps {
+	readonly #shell: LoamShell;
+	readonly #kernel: LoamKernelV1;
+	readonly #cleanup: Array<() => void> = [];
+	readonly #held = new Map<string, HeldApp>();
+	readonly #entries = new Map<string, LoamAppEntry[]>();
+	#queue: Promise<void> = Promise.resolve();
+	#showing: string | null = null;
+	#token = 0;
+	#declared: ReadonlySet<string> | null = null;
+	#summaries: AppSummaryV1[] = [];
+	#started: Promise<void> | null = null;
+	#prepared: AppList | null = null;
+	#mainElements: HTMLElement[] = [];
+	#inspectorElements: HTMLElement[] = [];
+	#statusElements: HTMLElement[] = [];
+	readonly #overlays: OverlaySurfaces;
+
+	constructor(shell: LoamShell, kernel: LoamKernelV1) {
+		this.#shell = shell;
+		this.#kernel = kernel;
+		this.#overlays = new OverlaySurfaces(shell, kernel);
+		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
+		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
+			void kernel.call('app-open', { instance });
+		});
+		this.#listen(LIST_SELECT_EVENT, ({ id }) => {
+			if (this.#showing !== null) {
+				void kernel.call('app-selection-set', { instance: this.#showing, id });
+			}
+		});
+		this.#listen(PART_ACTION_EVENT, ({ command }) => this.run(String(command)));
+		this.#listen(STATUS_ACTION_EVENT, ({ command }) => this.run(String(command)));
+	}
+
+	#listen(type: string, listener: (detail: Record<string, unknown>) => void): void {
+		const handler = (event: Event) =>
+			listener((event as CustomEvent<Record<string, unknown>>).detail);
+		this.#shell.addEventListener(type, handler);
+		this.#cleanup.push(() => this.#shell.removeEventListener(type, handler));
+	}
+
+	#part<T extends Element>(name: string): T {
+		return this.#shell.shadowRoot?.querySelector(`loam-${name}`) as T;
+	}
+
+	#create<T extends HTMLElement>(tag: string): T {
+		return this.#shell.ownerDocument.createElement(tag) as T;
+	}
+
+	// ─── What `loam-shell` asks ────────────────────────────────────────────────────
+
+	get modalOpen(): boolean {
+		return this.#overlays.modalOpen;
+	}
+
+	/** A toggle or chord for a part the active app did not declare does nothing (4.5). */
+	undeclared(part: Part): boolean {
+		return this.#declared !== null && !this.#declared.has(part);
+	}
+
+	/** Run a command for a person, with no input; what it answers shows as a toast when it fails. */
+	run(command: string): void {
+		void this.#kernel.call(command, {}).then((result) => {
+			if (result.success) return;
+			const message = result.error?.message ?? `${command} failed`;
+			void this.#kernel.call('toast-show', { message: message.slice(0, 200), tone: 'danger' });
+		});
+	}
+
+	/**
+	 * What first paint needs, read before the parts render, so the frame that shows them shows the right
+	 * landing, or main busy with a persisted active app's parts ready for it.
+	 */
+	async prepare(): Promise<void> {
+		const list = await this.#kernel.call<AppList>('app-list');
+		this.#prepared = list.data ?? { active: null, apps: [] };
+		const { active, apps } = this.#prepared;
+		if (apps.length > 0) this.#shell.landing = 'Choose an app';
+		if (active !== null) this.#declared = await this.#readDeclared(active);
+	}
+
+	/** Once the parts have rendered. A persisted active app's surfaces wait for first paint (5.5). */
+	start(): Promise<void> {
+		this.#started ??= this.#start();
+		return this.#started;
+	}
+
+	async #start(): Promise<void> {
+		const shell = this.#shell;
+		for (const name of ['main', 'rail', 'tabbar']) {
+			this.#part<FASTElement>(name).$fastController.addStyles(
+				name === 'main' ? mainWithApp : navWithApps
+			);
+		}
+		this.#overlays.attach();
+		if (!this.#prepared) await this.prepare();
+		const { active, apps } = this.#prepared as AppList;
+		this.#renderNav(active, apps);
+		if (active !== null) {
+			const main = this.#part<HTMLElement>('main');
+			main.dataset.app = active;
+			main.setAttribute('aria-busy', 'true');
+			this.#showing = active;
+			this.#applyToggles();
+			this.#setEmptyStates(false);
+			const view = shell.ownerDocument.defaultView ?? window;
+			view.requestAnimationFrame(() =>
+				view.requestAnimationFrame(() => void this.#enter(active, this.#token))
+			);
+		}
+		await this.#overlays.read();
+	}
+
+	dispose(): void {
+		for (const cleanup of this.#cleanup.splice(0)) cleanup();
+		this.#overlays.dispose();
+		for (const held of this.#held.values()) {
+			try {
+				void held.deactivate?.();
+			} catch (cause) {
+				reportError(cause);
+			}
+		}
+		this.#held.clear();
+		this.#token++;
+	}
+
+	// ─── Kernel events ─────────────────────────────────────────────────────────────
+
+	#onEvent(event: KernelEventV1): void {
+		const { command } = event;
+		if (!event.success) {
+			// A first call that failed to import marks its app failed.
+			if (event.instance !== undefined) this.#enqueue(() => this.#sync());
+			return;
+		}
+		if (command === 'app-open' || command === 'app-close') this.#enqueue(() => this.#sync());
+		else if (command === 'app-instance-refresh') this.#enqueue(() => this.#sync());
+		if (
+			command === 'app-open' ||
+			command === 'app-close' ||
+			(event.mutation && /^(toast|modal|overlay)-/.test(command))
+		) {
+			this.#enqueue(() => this.#overlays.read());
+		}
+		const showing = this.#showing;
+		if (showing === null) return;
+		if (command === 'app-selection-set') this.#enqueue(() => this.#readSelection(showing));
+		else if (command === 'status-item-set' && event.caller === showing) {
+			this.#enqueue(() => this.#readStatus(showing));
+		} else if (event.mutation && event.instance === showing) {
+			const list = this.#held.get(showing)?.list;
+			if (list) this.#enqueue(() => this.#readList(showing, list));
+		}
+	}
+
+	/** One read at a time, so a later answer never renders under an earlier one. */
+	#enqueue(task: () => Promise<void>): void {
+		this.#queue = this.#queue.then(task).catch((cause) => reportError(cause));
+	}
+
+	/** Resolves once what the kernel's events asked for has rendered. */
+	get idle(): Promise<void> {
+		return this.#queue;
+	}
+
+	// ─── The nav ───────────────────────────────────────────────────────────────────
+
+	#renderNav(active: string | null, apps: AppSummaryV1[]): void {
+		this.#summaries = apps;
+		for (const app of apps) {
+			let entries = this.#entries.get(app.instance);
+			if (!entries) {
+				entries = (['rail', 'tabbar'] as const).map((variant) => {
+					const entry = this.#create<LoamAppEntry>('loam-app-entry');
+					entry.variant = variant;
+					entry.instance = app.instance;
+					return entry;
+				});
+				this.#entries.set(app.instance, entries);
+			}
+			for (const entry of entries) {
+				entry.label = app.title;
+				entry.icon = app.icon;
+				entry.state = app.state;
+				entry.current = app.instance === active;
+				// Connected once it holds its state, so it renders once.
+				if (!entry.isConnected) this.#part<HTMLElement>(entry.variant).append(entry);
+			}
+		}
+	}
+
+	// ─── Switching ─────────────────────────────────────────────────────────────────
+
+	async #sync(): Promise<void> {
+		const list = await this.#kernel.call<AppList>('app-list');
+		if (!list.success || !list.data) return;
+		const { active, apps } = list.data;
+		const wasFailed = (instance: string) =>
+			this.#summaries.find((app) => app.instance === instance)?.state === 'failed';
+		const nowFailed = apps.find((app) => app.instance === active)?.state === 'failed';
+		const changed = active !== this.#showing;
+		const newlyFailed = !changed && active !== null && nowFailed && !wasFailed(active);
+		this.#renderNav(active, apps);
+		if (!changed && !newlyFailed) return;
+		this.#leave();
+		this.#showing = active;
+		await this.#shell.readLayout();
+		if (active === null) return;
+		// Not awaited: an app whose `activate` never settles must not stop the shell or another app (D66).
+		void this.#enter(active, this.#token);
+	}
+
+	/** What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. */
+	#leave(): void {
+		this.#token++;
+		const shell = this.#shell;
+		const held = this.#showing === null ? undefined : this.#held.get(this.#showing);
+		const focus = deepActiveElement(shell.ownerDocument);
+		const leavingFocus = focus !== null && this.#insideAppSurface(focus);
+		if (held) {
+			held.sidebar = this.#park('sidebar', held.sidebar);
+			held.panel = this.#park('panel', held.panel);
+		}
+		for (const element of [
+			...this.#mainElements,
+			...this.#inspectorElements,
+			...this.#statusElements,
+		]) {
+			element.remove();
+		}
+		this.#mainElements = [];
+		this.#inspectorElements = [];
+		this.#statusElements = [];
+		const main = this.#part<HTMLElement>('main');
+		delete main.dataset.app;
+		main.removeAttribute('aria-busy');
+		for (const part of ['sidebar', 'inspector'] as const) {
+			this.#part<HTMLElement>(part).setAttribute('heading', PART_HEADINGS[part]);
+		}
+		this.#declared = null;
+		this.#applyToggles();
+		this.#setEmptyStates(true);
+		if (leavingFocus) focusPart(main);
+	}
+
+	#insideAppSurface(node: Node): boolean {
+		const surfaces = PARTS.map((part) => this.#part<Element>(part));
+		surfaces.push(this.#part<Element>('main'));
+		let current: Node | null = node;
+		while (current) {
+			if (current instanceof Element && surfaces.includes(current)) return true;
+			const root = current.getRootNode();
+			current = current.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
+		}
+		return false;
+	}
+
+	#park(name: 'sidebar' | 'panel', parked: Parked | undefined): Parked | undefined {
+		const part = this.#part<HTMLElement>(name);
+		const body = part.shadowRoot?.querySelector('.body');
+		const elements = [...part.children].filter(
+			(child) => child.getAttribute('slot') !== 'handle' && child.localName !== 'loam-empty-state'
+		) as HTMLElement[];
+		if (elements.length === 0) return parked;
+		const scroll = elements.flatMap((element) => scrollOffsets(element));
+		const offset = body?.scrollTop ?? 0;
+		for (const element of elements) element.remove();
+		return { elements, scroll, body: offset };
+	}
+
+	/** Restore a parked part where it was, after the part is shown again. */
+	async #restore(name: 'sidebar' | 'panel', parked: Parked): Promise<void> {
+		const part = this.#part<HTMLElement>(name);
+		part.prepend(...parked.elements);
+		await Updates.next();
+		const body = part.shadowRoot?.querySelector('.body');
+		if (body) body.scrollTop = parked.body;
+		for (const [element, top, left] of parked.scroll) {
+			element.scrollTop = top;
+			element.scrollLeft = left;
+		}
+	}
+
+	#setEmptyStates(shown: boolean): void {
+		for (const part of PARTS) {
+			const state = this.#part<HTMLElement>(part).querySelector('loam-empty-state');
+			if (state instanceof HTMLElement) state.hidden = !shown;
+		}
+	}
+
+	async #readDeclared(instance: string): Promise<ReadonlySet<string> | null> {
+		const detail = await this.#kernel.call<AppDetailV1>('app-get', { instance });
+		return new Set(detail.data?.surfaces ?? []);
+	}
+
+	#applyToggles(): void {
+		const titlebar = this.#part<HTMLElement>('titlebar');
+		for (const part of PARTS) {
+			const toggle = titlebar.shadowRoot?.querySelector(`[data-toggle="${part}"]`);
+			if (!toggle) continue;
+			if (this.undeclared(part)) {
+				toggle.setAttribute('aria-disabled', 'true');
+				toggle.setAttribute('title', `This app has no ${part}`);
+			} else {
+				toggle.removeAttribute('aria-disabled');
+				toggle.removeAttribute('title');
+			}
+		}
+	}
+
+	// ─── Entering an app ───────────────────────────────────────────────────────────
+
+	async #enter(instance: string, token: number): Promise<void> {
+		const main = this.#part<HTMLElement>('main');
+		const stale = () => token !== this.#token;
+		main.dataset.app = instance;
+		main.setAttribute('aria-busy', 'true');
+		const detail = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
+		if (stale() || !detail) return;
+		this.#declared = new Set(detail.surfaces);
+		this.#applyToggles();
+		this.#setEmptyStates(false);
+		if (detail.state === 'failed' || detail.state === 'refused') {
+			this.#setEmptyStates(true);
+			this.#explain(
+				detail.title,
+				this.#held.get(instance)?.failure ?? detail.error?.message,
+				detail.error?.code,
+				detail.error?.suggestion
+			);
+			return;
+		}
+		const held = this.#hold(instance);
+		const failure = await this.#activate(held);
+		if (stale()) return;
+		if (failure !== undefined) {
+			held.failure = failure;
+			const after = (await this.#kernel.call<AppDetailV1>('app-get', { instance })).data;
+			if (stale()) return;
+			this.#setEmptyStates(true);
+			this.#explain(detail.title, failure, after?.error?.code, after?.error?.suggestion);
+			if (after) {
+				// The nav follows; these surfaces already say why.
+				this.#summaries = this.#summaries.map((app) =>
+					app.instance === instance ? { ...app, state: after.state } : app
+				);
+				this.#enqueue(() => this.#sync());
+			}
+			return;
+		}
+		await this.#renderSurfaces(held, detail, stale);
+	}
+
+	#hold(instance: string): HeldApp {
+		let held = this.#held.get(instance);
+		if (!held) {
+			held = { instance, port: this.#kernel.appPort(instance) };
+			this.#held.set(instance, held);
+		}
+		return held;
+	}
+
+	/** Runs `activate` once. What it answers is the text a failure shows, in main alone (9.5). */
+	#activate(held: HeldApp): Promise<string | undefined> {
+		held.activation ??= (async () => {
+			const { port } = held;
+			let imported = false;
+			try {
+				const definition = await port.load();
+				imported = true;
+				await ensureScopedRegistrySupport();
+				const registry = new CustomElementRegistry();
+				const context = this.#contextOf(port, registry);
+				held.registry = registry;
+				held.context = context;
+				if (definition.deactivate) held.deactivate = () => definition.deactivate?.();
+				await definition.activate?.(context);
+				return undefined;
+			} catch (cause) {
+				const message = cause instanceof Error ? cause.message : String(cause);
+				if (imported) {
+					// The page's console has the thrown text; the kernel's record, which reaches the journal, does not.
+					reportError(cause);
+					port.reportActivationFailed(
+						"The app's `activate` threw; read the page's console for its message"
+					);
+				}
+				return message;
+			}
+		})();
+		return held.activation;
+	}
+
+	#contextOf(port: AppPortV1, registry: CustomElementRegistry): AppContextV1 {
+		const { manifest, instance, config } = port;
+		return {
+			instance,
+			app: manifest.plugin.id,
+			version: manifest.plugin.version,
+			config,
+			registry,
+			client: { call: (name, input, options) => port.call(name, input, options) },
+			kit: createKit(registry),
+			overlays: {
+				toast: (input: ToastInputV1) => port.call('toast-show', input),
+				async modal(input: ModalInputV1) {
+					const opened = await port.call<{ overlayId: string }>('modal-open', input);
+					if (!opened.success || !opened.data) {
+						throw Object.assign(new Error(opened.error?.message ?? 'The modal could not open'), {
+							code: opened.error?.code,
+							suggestion: opened.error?.suggestion,
+						});
+					}
+					return port.waitOverlay(opened.data.overlayId);
+				},
+			},
+		};
+	}
+
+	/** Main explains a refused or failed app, or a surface this step does not serve. */
+	#explain(title: string, message: string | undefined, code?: string, suggestion?: string): void {
+		const main = this.#part<HTMLElement>('main');
+		main.removeAttribute('aria-busy');
+		const notice = this.#create<LoamNotice>('loam-notice');
+		notice.toggleAttribute('embedded', true);
+		notice.heading = title;
+		notice.message = `${message ?? 'This app is unavailable.'}${code ? ` (${code})` : ''}`;
+		notice.suggestion = suggestion ?? '';
+		main.append(notice);
+		this.#mainElements.push(notice);
+	}
+
+	async #renderSurfaces(held: HeldApp, detail: AppDetailV1, stale: () => boolean): Promise<void> {
+		const { port } = held;
+		const { manifest } = port;
+		const surfaces = manifest.ui?.surfaces ?? {};
+		const main = this.#part<HTMLElement>('main');
+		const needsInput = new Map(
+			this.#kernel.listCommands().map(({ name, needsInput: needs }) => [name, needs])
+		);
+		if (surfaces.header) {
+			const header = this.#create<LoamPartHeader>('loam-part-header');
+			header.heading = surfaces.header.title ?? detail.title;
+			header.actions = (surfaces.header.actions ?? []).map(({ command, label }) => ({
+				command,
+				label,
+				disabled: needsInput.get(command) === true,
+			}));
+			main.append(header);
+			this.#mainElements.push(header);
+		}
+		const mainElement = surfaces.main?.element;
+		if (manifest.plugin.kind === 'native' && mainElement !== undefined) {
+			const mount = this.#mount(held, mainElement);
+			main.append(mount);
+			this.#mainElements.push(mount);
+			main.removeAttribute('aria-busy');
+		} else {
+			this.#explain(
+				detail.title,
+				manifest.plugin.kind === 'view' && surfaces.main
+					? 'A sandboxed view opens in phase 1 step 5.'
+					: 'This app declares no main surface. The console, its first UI, arrives in phase 1 step 6.',
+				undefined,
+				'Run its commands from the command palette until then.'
+			);
+		}
+		const { sidebar, inspector } = surfaces;
+		if (sidebar) {
+			this.#part<HTMLElement>('sidebar').setAttribute(
+				'heading',
+				sidebar.title ?? PART_HEADINGS.sidebar
+			);
+			if (held.sidebar) await this.#restore('sidebar', held.sidebar);
+			else if (sidebar.shape === 'list') {
+				const list = this.#create<LoamList>('loam-list');
+				list.label = sidebar.title ?? detail.title;
+				held.list = list;
+				list.busy = true;
+				this.#part<HTMLElement>('sidebar').prepend(list);
+			} else if (sidebar.element !== undefined) {
+				this.#part<HTMLElement>('sidebar').prepend(this.#mount(held, sidebar.element));
+			}
+			if (held.list) {
+				held.list.selected = null;
+				await this.#readList(port.instance, held.list);
+				if (stale()) return;
+			}
+		}
+		if (inspector) {
+			const part = this.#part<HTMLElement>('inspector');
+			part.setAttribute('heading', inspector.title ?? PART_HEADINGS.inspector);
+			const mount = this.#mount(held, inspector.element);
+			part.prepend(mount);
+			this.#inspectorElements.push(mount);
+		}
+		if (surfaces.panel) {
+			if (held.panel) await this.#restore('panel', held.panel);
+			else {
+				this.#part<HTMLElement>('panel').prepend(
+					...surfaces.panel.views.map((view) => {
+						const mount = this.#mount(held, view.element, view.title);
+						mount.setAttribute('role', 'region');
+						mount.setAttribute('aria-label', view.title);
+						mount.dataset.view = view.id;
+						return mount;
+					})
+				);
+			}
+		}
+		if (stale()) return;
+		await this.#readStatus(port.instance);
+	}
+
+	#mount(held: HeldApp, element: string, label?: string): LoamMount {
+		const mount = this.#create<LoamMount>('loam-mount');
+		mount.configure({
+			registry: held.registry as CustomElementRegistry,
+			element,
+			context: held.context as AppContextV1,
+			selection: null,
+			...(label !== undefined ? { label } : {}),
+		});
+		return mount;
+	}
+
+	// ─── Reads ─────────────────────────────────────────────────────────────────────
+
+	async #readList(instance: string, list: LoamList): Promise<void> {
+		const command = this.#held.get(instance)?.port.manifest.ui?.surfaces?.sidebar?.command;
+		if (command === undefined) return;
+		const result = await this.#kernel.call<{ items: LoamList['items'] }>(command, {});
+		list.busy = false;
+		if (result.success && Array.isArray(result.data?.items)) {
+			list.failure = null;
+			list.items = result.data.items;
+			return;
+		}
+		list.failure = {
+			message: result.error?.message ?? `${command} did not return { items }`,
+			...(result.error?.suggestion !== undefined ? { suggestion: result.error.suggestion } : {}),
+		};
+	}
+
+	async #readSelection(instance: string): Promise<void> {
+		const result = await this.#kernel.call<{ id: string | null }>('app-selection-get', {
+			instance,
+		});
+		if (this.#showing !== instance || !result.success) return;
+		const id = result.data?.id ?? null;
+		const list = this.#held.get(instance)?.list;
+		if (list) list.selected = id;
+		for (const element of [...this.#mainElements, ...this.#inspectorElements]) {
+			if (element.localName === 'loam-mount') (element as LoamMount).selection = id;
+		}
+	}
+
+	async #readStatus(instance: string): Promise<void> {
+		const declared = this.#held.get(instance)?.port.manifest.ui?.surfaces?.status?.items ?? [];
+		for (const element of this.#statusElements) element.remove();
+		this.#statusElements = [];
+		if (declared.length === 0 || this.#showing !== instance) return;
+		const detail = await this.#kernel.call<AppDetailV1>('app-get', { instance });
+		if (this.#showing !== instance) return;
+		const values = detail.data?.statusItems ?? {};
+		const bar = this.#part<HTMLElement>('statusbar');
+		const anchor = bar.querySelector('.journal-status');
+		const needsInput = new Map(
+			this.#kernel.listCommands().map(({ name, needsInput: needs }) => [name, needs])
+		);
+		const sorted = [...declared].sort(
+			(a, b) => (a.priority ?? 0) - (b.priority ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+		);
+		for (const item of sorted) {
+			const element =
+				item.command !== undefined
+					? this.#create<LoamStatusAction>('loam-status-action')
+					: this.#create<LoamStatusItem>('loam-status-item');
+			element.slot = 'end';
+			element.dataset.statusItem = item.id;
+			(element as LoamStatusItem).label = item.label;
+			element.textContent = values[item.id] ?? '';
+			if (item.command !== undefined) {
+				const action = element as LoamStatusAction;
+				action.command = item.command;
+				action.disabled = needsInput.get(item.command) === true;
+			}
+			bar.insertBefore(element, anchor);
+			this.#statusElements.push(element);
+		}
+	}
+}
+
+/** Create the controller, once the chunk's elements are defined. */
+export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV1): Promise<ShellApps> {
+	await defineAppElements();
+	const surfaces = new AppSurfaces(shell, kernel);
+	if (shell.hasApps) await surfaces.prepare();
+	return surfaces;
+}

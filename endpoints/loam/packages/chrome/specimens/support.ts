@@ -15,6 +15,7 @@ import {
 	applyAppearance,
 	applyThemeStylesheet,
 	defineChrome,
+	defineNotice,
 	definePalette,
 	type LoamShell,
 	mountShell,
@@ -45,6 +46,7 @@ export async function themePart(density: Density = 'comfortable'): Promise<void>
 	applyAppearance(document, { theme: 'system', density, resolved: mediaTheme() }, false);
 	await defineChrome();
 	await definePalette();
+	await defineNotice();
 }
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

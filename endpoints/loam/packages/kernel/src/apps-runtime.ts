@@ -8,6 +8,7 @@ import { type CommandResult, success } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
+import type { ShellState } from './shell-state.js';
 import type {
 	AppDetailV1,
 	AppInstanceV1,
@@ -106,3 +107,73 @@ export const EMPTY_APPS: AppsRuntime = Object.freeze({
 	resetSession() {},
 	dispose: () => Promise.resolve(),
 });
+
+/** One entry of a projection the readers may never have seen, so each field is checked as it is read. */
+interface UncheckedEntry {
+	instance?: unknown;
+	app?: unknown;
+	title?: unknown;
+	order?: unknown;
+}
+
+/**
+ * `apps/` or the readers could not load, so no manifest can be read (D66): the shell still runs, and
+ * each deployed app is listed `failed` with the reason until a reload. With no manifest there is no
+ * layout record for it, so an open app uses the no-app record and every part stays available. In the
+ * first-paint chunk, since nothing lazy can be relied on here.
+ */
+export function unavailableApps(
+	deployment: { apps?: unknown } | undefined,
+	state: Pick<ShellState, 'activeApp' | 'setActiveApp'>,
+	reason: string
+): AppsRuntime {
+	const error = {
+		code: 'APP_RUNTIME_UNAVAILABLE',
+		message: `The app runtime could not load: ${reason}`,
+		suggestion: 'Reload the page; if it persists, check that the deployment serves its assets',
+		retryable: true,
+	};
+	const entries = (Array.isArray(deployment?.apps) ? (deployment.apps as UncheckedEntry[]) : [])
+		.filter((entry) => typeof entry?.instance === 'string')
+		.map((entry) => ({
+			instance: entry.instance as string,
+			app: String(entry.app ?? entry.instance),
+			title: String(entry.title ?? entry.instance),
+			kind: 'native' as const,
+			icon: 'system/folder',
+			order: Number(entry.order ?? 100),
+			state: 'failed' as const,
+			error,
+		}))
+		.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1));
+	const find = (instance: string) => entries.find((entry) => entry.instance === instance);
+	const move = (active: string | null) => {
+		const previous = state.activeApp();
+		state.setActiveApp(active);
+		return { active, previous };
+	};
+	return {
+		...EMPTY_APPS,
+		summaries: () => entries,
+		detail(instance) {
+			const entry = find(instance);
+			if (!entry) return unknownApp(instance);
+			return success({
+				...entry,
+				version: '',
+				trust: 'trusted',
+				trustLine: '',
+				surfaces: ['sidebar', 'inspector', 'panel'],
+				compositions: [],
+				grants: [],
+				contexts: [],
+				skills: [],
+				warnings: [],
+				notices: [],
+				statusItems: {},
+			});
+		},
+		open: (instance) => (find(instance) ? success(move(instance)) : unknownApp(instance)),
+		close: () => success(move(null) as { active: null; previous: string | null }),
+	};
+}

@@ -40,6 +40,8 @@ import { createRouter, type RouterV0, type RouteV0 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
+import { focusPart } from './focus.js';
+import { defineNotice } from './notice-loader.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 import { definePalette, whenIdle } from './palette-loader.js';
 import type { LoamResizeHandle } from './resize-handle.js';
@@ -53,6 +55,15 @@ export interface JournalReader {
 /** The address the title bar's "Sign in" uses with the Mock adapter (6.5). */
 export const MOCK_SIGN_IN_EMAIL = 'person@example.com';
 
+/** What the shell asks of the app surfaces' chunk, once a deployment or an overlay needs it. */
+export interface ShellApps {
+	readonly modalOpen: boolean;
+	undeclared(part: 'sidebar' | 'inspector' | 'panel'): boolean;
+	run(command: string): void;
+	start(): Promise<void>;
+	dispose(): void;
+}
+
 interface SessionState {
 	status: string;
 	user?: { name?: string; email?: string };
@@ -61,24 +72,6 @@ interface SessionState {
 interface ShellFailure {
 	heading: string;
 	message: string;
-}
-
-/**
- * Focus a part's host for F6. A shadow host with a negative `tabindex` takes its whole shadow
- * tree out of the Tab order, so the part has one only while it holds focus itself: Tab, or focus
- * moving anywhere, removes it, and Tab then continues into the part.
- */
-export function focusPart(element: HTMLElement): void {
-	element.setAttribute('tabindex', '-1');
-	const clear = (event: Event) => {
-		if (event instanceof KeyboardEvent && event.key !== 'Tab') return;
-		element.removeAttribute('tabindex');
-		element.removeEventListener('keydown', clear);
-		element.removeEventListener('blur', clear);
-	};
-	element.addEventListener('keydown', clear);
-	element.addEventListener('blur', clear);
-	element.focus();
 }
 
 const sideEmpty = {
@@ -132,6 +125,7 @@ const template = html<LoamShell>`
 			</loam-sidebar>
 			<loam-main
 				data-part="main"
+				landing="${(x) => x.landing}"
 				route="${(x) => x.route}"
 				shortcut="${(x) => x.shortcut}"
 				home="${(x) => x.home}"
@@ -300,8 +294,15 @@ export class LoamShell extends FASTElement {
 	declare inspectorHandle: LoamResizeHandle;
 	declare panelHandle: LoamResizeHandle;
 
+	/** Main's landing heading: the empty shell's until the app surfaces say otherwise. */
+	declare landing: string;
+
 	/** The kernel the chrome binds to; set it before or after connecting. */
 	kernel: LoamKernelV1 | null = null;
+	/** Whether the deployment lists an app, so the app surfaces load before first paint. */
+	hasApps = false;
+	/** The app surfaces, once their chunk has loaded. */
+	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
 	readonly mac: boolean;
@@ -316,6 +317,7 @@ export class LoamShell extends FASTElement {
 	#reads = { layout: 0, appearance: 0, session: 0 };
 	#pendingQuery = '';
 	#router: RouterV0 | null = null;
+	#appsLoad: Promise<void> | null = null;
 
 	constructor() {
 		super();
@@ -329,6 +331,7 @@ export class LoamShell extends FASTElement {
 		this.panelMax = LAYOUT_DEFAULTS_V0.panel.default;
 		this.failure = null;
 		this.booted = false;
+		this.landing = 'No apps yet';
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.home = new URL('./', globalThis.document?.baseURI ?? 'http://localhost/').pathname;
 	}
@@ -364,6 +367,8 @@ export class LoamShell extends FASTElement {
 		this.#router?.dispose();
 		this.#router = null;
 		this.#started = null;
+		this.apps = null;
+		this.#appsLoad = null;
 		super.disconnectedCallback();
 	}
 
@@ -377,6 +382,7 @@ export class LoamShell extends FASTElement {
 
 	async #start(kernel: LoamKernelV1): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
+			await defineNotice();
 			this.failure = {
 				heading: 'Loam cannot start',
 				message: `The chrome needs kernel interface ${KERNEL_INTERFACE_VERSION}, and this kernel has interface ${String(kernel.version)}.`,
@@ -429,9 +435,14 @@ export class LoamShell extends FASTElement {
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
-		await Promise.all([this.#readLayout(), this.#readSession()]);
+		await Promise.all([this.readLayout(), this.#readSession()]);
+		if (this.hasApps) await this.#loadApps();
 		this.booted = true;
 		this.#present();
+		if (this.apps) {
+			await Updates.next();
+			await this.apps.start();
+		}
 		whenIdle(view, () => void this.preparePalette());
 	}
 
@@ -447,7 +458,22 @@ export class LoamShell extends FASTElement {
 	/** Layout changes run one at a time, each computed from the state the previous one left. */
 	#layoutQueue: Promise<void> = Promise.resolve();
 
-	#readLayout(): Promise<void> {
+	/** Load the app surfaces once; a chunk that fails leaves the shell running and says so. */
+	#loadApps(): Promise<void> {
+		this.#appsLoad ??= import('../apps/surfaces.js')
+			.then(async ({ attachSurfaces }) => {
+				const apps = await attachSurfaces(this, this.kernel as LoamKernelV1);
+				this.apps = apps;
+				this.#cleanup.push(() => apps.dispose());
+			})
+			.catch((cause: unknown) => {
+				reportError(cause);
+				this.landing = 'Apps could not load. Reload to try again.';
+			});
+		return this.#appsLoad;
+	}
+
+	readLayout(): Promise<void> {
 		this.#layoutRead = this.#fetchLayout();
 		return this.#layoutRead;
 	}
@@ -496,11 +522,13 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		if (!event.success || !event.mutation) return;
-		if (event.command.startsWith('layout-')) void this.#readLayout();
+		if (/^(toast|modal)-/.test(event.command)) {
+			void this.#loadApps().then(() => this.apps?.start());
+		} else if (event.command.startsWith('layout-')) void this.readLayout();
 		else if (event.command.startsWith('appearance-')) void this.#readAppearance();
 		else if (event.command.startsWith('auth-')) void this.#readSession();
 		else if (event.command === 'view-state-set') {
-			void this.#readLayout();
+			void this.readLayout();
 			void this.#readAppearance();
 		}
 	}
@@ -631,6 +659,7 @@ export class LoamShell extends FASTElement {
 	}
 
 	async toggle(part: 'sidebar' | 'inspector' | 'panel'): Promise<void> {
+		if (this.apps?.undeclared(part)) return;
 		await this.#change(() => toggleInput(part, this.layout, this.#layoutClass));
 	}
 
@@ -716,9 +745,11 @@ export class LoamShell extends FASTElement {
 
 	#onKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || !this.kernel || !this.booted) return;
-		const binding = matchKeybinding(event, this.mac);
+		const binding = matchKeybinding(event, this.mac, this.kernel.listKeybindings());
+		// A modal of an app's, like the palette, keeps the keyboard to itself (section 8).
 		const paletteOpen =
-			customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true;
+			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
+			this.apps?.modalOpen === true;
 		if (binding) {
 			event.preventDefault();
 			if (binding.focus) {
@@ -729,6 +760,7 @@ export class LoamShell extends FASTElement {
 			if (paletteOpen || event.repeat) return;
 			if (binding.command === 'palette-open') void this.openPalette();
 			else if (binding.toggle) void this.toggle(binding.toggle);
+			else if (binding.command) this.apps?.run(binding.command);
 			return;
 		}
 		if (event.key === 'Escape' && !paletteOpen && !this.#drawerOpen()) {
@@ -820,5 +852,6 @@ observable(LoamShell.prototype, 'route');
 observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
 observable(LoamShell.prototype, 'booted');
+observable(LoamShell.prototype, 'landing');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;

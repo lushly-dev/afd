@@ -45,17 +45,19 @@ export function chordMatches(chord: string, event: ChordEvent, mac: boolean): bo
 	const other = mac ? event.ctrlKey : event.metaKey;
 	if (mod !== parsed.mod || other || event.altKey !== parsed.alt) return false;
 	if (event.shiftKey !== parsed.shift) return false;
-	// Letters match by physical key, because Alt changes `key` on macOS (Alt+B is "∫").
+	// By physical key, because Alt changes `key` on macOS (Alt+B is "∫") and Shift changes a digit's.
 	if (/^[A-Z]$/.test(parsed.key)) return event.code === `Key${parsed.key}`;
+	if (/^\d$/.test(parsed.key)) return event.code === `Digit${parsed.key}`;
 	return event.key === parsed.key;
 }
 
-/** The reserved chord a key event presses, if any. */
+/** The chord a key event presses, if any: of the reserved band, then `kernel.listKeybindings()`'s. */
 export function matchKeybinding(
 	event: ChordEvent,
-	mac: boolean
+	mac: boolean,
+	bindings: readonly Readonly<ShellKeybindingV0>[] = SHELL_KEYBINDINGS_V0
 ): Readonly<ShellKeybindingV0> | undefined {
-	return SHELL_KEYBINDINGS_V0.find((binding) => chordMatches(binding.chord, event, mac));
+	return bindings.find((binding) => chordMatches(binding.chord, event, mac));
 }
 
 /**

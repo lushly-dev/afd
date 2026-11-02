@@ -7,11 +7,12 @@
  * Builds the shell with Vite in production mode and measures what the empty shell loads before
  * first paint: `index.html`'s entry and every chunk it imports statically (a chunk imported
  * dynamically loads later). It also builds `@lushly-dev/loam-kernel` alone, minified with its
- * dependencies, as Vite bundles it for the browser. The page's `apps` chunk, the kernel's `src/apps/`
- * with the readers and validators, has a row of its own (phase 1 specification, 9.2). It fails when a
+ * dependencies, as Vite bundles it for the browser. What a deployment that lists an app adds has rows of
+ * its own (phase 1 specification, 9.2 and 9.5): the kernel's `src/apps/` with the readers and validators,
+ * and the chrome's surfaces. Hello's and tally's bundles are recorded and not limited. It fails when a
  * measure is over its ceiling. `dist/` is rebuilt, so run it after `build` or in its place.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -33,6 +34,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 231_360,
 	appsMinified: 300_000,
+	surfacesMinified: 50_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -86,8 +88,16 @@ async function measurePage() {
 	const css = [];
 	for (const match of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="\.?\/?([^"]+)"/g))
 		css.push(match[1]);
-	const appsChunks = [...chunks.values()].filter((chunk) => /^assets\/apps-/.test(chunk.fileName));
-	if (appsChunks.length === 0) throw new Error('budget: the build has no `apps` chunk to measure');
+	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
+	const appsChunks = [...chunks.values()].filter((chunk) =>
+		/^assets\/(apps|validate\.generated|deployment)-/.test(chunk.fileName)
+	);
+	if (appsChunks.length < 3) throw new Error('budget: the build has no `apps` chunks to measure');
+	const surfaces = [...chunks.values()].filter((chunk) =>
+		/^assets\/surfaces-/.test(chunk.fileName)
+	);
+	if (surfaces.length === 0)
+		throw new Error('budget: the build has no `surfaces` chunk to measure');
 	const initialChunks = [...initial].map((name) => chunks.get(name)).filter(Boolean);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
@@ -100,6 +110,7 @@ async function measurePage() {
 		files: initialChunks.map((chunk) => chunk.fileName),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
+		surfacesMinified: surfaces.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
 		cssMinified:
@@ -143,12 +154,26 @@ async function measureKernel() {
 	}
 }
 
+/** An app's own bundle, as its build left it: `recorded, not limited` (9.2). */
+function appBundle(app) {
+	const dist = resolve(ROOT, `../../apps/${app}/dist`);
+	if (!existsSync(dist)) return null;
+	const files = readdirSync(dist).filter((name) => name.endsWith('.js'));
+	const sources = files.map((name) => readFileSync(join(dist, name)));
+	return {
+		app,
+		minified: sources.reduce((sum, source) => sum + source.length, 0),
+		gzip: sources.reduce((sum, source) => sum + gzipSync(source, { level: 9 }).length, 0),
+	};
+}
+
 const ROWS = [
 	['jsMinified', 'JavaScript, minified'],
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod'],
-	['appsMinified', "The kernel's `apps` chunk, minified, with the readers"],
+	['appsMinified', "The kernel's `apps` chunks, minified, with the readers"],
+	['surfacesMinified', "The chrome's `surfaces` chunk, minified"],
 ];
 
 export async function measure() {
@@ -162,13 +187,13 @@ export async function measure() {
 		ceiling: CEILINGS[key],
 		over: values[key] > CEILINGS[key],
 	}));
-	return { rows, page, kernel };
+	return { rows, page, kernel, apps: ['hello', 'tally'].map(appBundle).filter(Boolean) };
 }
 
 async function main() {
-	const { rows, page, kernel } = await measure();
+	const { rows, page, kernel, apps } = await measure();
 	if (process.argv.includes('--json')) {
-		console.log(JSON.stringify({ rows, page, kernel }, null, '\t'));
+		console.log(JSON.stringify({ rows, page, kernel, apps }, null, '\t'));
 	} else {
 		const pad = (text, width) => String(text).padEnd(width);
 		console.log(`Loaded before first paint: ${page.files.join(', ')}`);
@@ -176,6 +201,10 @@ async function main() {
 		for (const row of rows)
 			console.log(
 				`${pad(row.label, 52)} ${pad(row.bytes.toLocaleString('en-US'), 10)} of ${pad(row.ceiling.toLocaleString('en-US'), 10)} ${row.over ? 'OVER' : `${Math.round((row.bytes / row.ceiling) * 100)}%`}`
+			);
+		for (const { app, minified, gzip } of apps)
+			console.log(
+				`${pad(`${app}'s native bundle, recorded`, 52)} ${minified.toLocaleString('en-US')}, gzip ${gzip.toLocaleString('en-US')}`
 			);
 		console.log('\nThe page by package (rendered bytes, before minification of names):');
 		for (const [name, bytes] of page.packages.slice(0, 15))

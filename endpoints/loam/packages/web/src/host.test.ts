@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { createHostKernel, type HostKernelOptions } from './host.js';
+import { createHostKernel, type HostKernelOptions, isEmptyProjection } from './host.js';
 
 /** A Web Locks stand-in: one holder per name, `ifAvailable` refuses when held. */
 function fakeLocks(): NonNullable<HostKernelOptions['locks']> {
@@ -62,5 +62,16 @@ describe('the browser host kernel', () => {
 			await first.kernel.dispose();
 			await first.journal.close();
 		}
+	});
+});
+
+describe('isEmptyProjection', () => {
+	it('is what `vite build` writes, and nothing else', () => {
+		expect(isEmptyProjection({ deployment_version: 1, sandbox_origin: null, apps: [] })).toBe(true);
+		expect(isEmptyProjection({ deployment_version: 1, apps: [{ instance: 'x' }] })).toBe(false);
+		expect(isEmptyProjection({ deployment_version: 2, apps: [] })).toBe(false);
+		expect(isEmptyProjection({ apps: 'none' })).toBe(false);
+		expect(isEmptyProjection(undefined)).toBe(false);
+		expect(isEmptyProjection('not json')).toBe(false);
 	});
 });

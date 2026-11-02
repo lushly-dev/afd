@@ -14,6 +14,7 @@ export const SETTINGS_TOOLTIP = 'Settings arrive in phase 4';
 
 const template = html<LoamAppNav>`
 	<ul class="entries">
+		<slot></slot>
 		<li
 			class="entry-item"
 			@mouseleave="${(x) => x.resetTip()}"

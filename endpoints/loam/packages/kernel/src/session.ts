@@ -60,6 +60,7 @@ export interface TestKernelOptions {
 	random?: () => number;
 	deployment?: ProjectionV1;
 	ports?: KernelPortsV1;
+	appsUnavailable?: string;
 }
 
 export interface TestKernel {
@@ -85,6 +86,7 @@ export async function createTestKernel(options: TestKernelOptions = {}): Promise
 		...(options.random !== undefined ? { random: options.random } : {}),
 		...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 		...(options.ports !== undefined ? { ports: options.ports } : {}),
+		...(options.appsUnavailable !== undefined ? { appsUnavailable: options.appsUnavailable } : {}),
 	});
 	return { kernel, journal };
 }

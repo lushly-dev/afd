@@ -11,8 +11,8 @@
 
 - **State:** written 2026-11-01 and revised the same day after an independent
   review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
-  under the owner's delegation, after that review (D17). Implementation is in progress: steps 0b, 1,
-  2 and 3 are merged, and each step's state is one line in STATUS.md's phase 1 block.
+  under the owner's delegation, after that review (D17). Implementation is in progress: steps 0a, 0b, 1,
+  2, 3 and 4 are merged, and each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
@@ -117,10 +117,12 @@
   `@lushly-dev/loam-sdk` and `@lushly-dev/loam-cli`, the `rules` cases that need files and E13's CLI
   part; [11.2](#112-decided-by-step-2) records what it decided. Step 3 delivered kernel interface 1,
   `kernel/src/apps/` for native and view, `@lushly-dev/loam-testing`, E8 and the kernel unit of E9;
-  [9.5](#95-decided-by-step-3) records what it decided.
-- **Not done:** the rest of the [implementation plan](#15-implementation-plan). Of E13, the test kit and the
-  scaffold's own test run from step 3, over a fixture of hello's shape; hello's own scenario, and `app check`
-  on hello for E8, wait for hello itself in step 4.
+  [9.5](#95-decided-by-step-3) records what it decided. Step 4 delivered the chrome's app surfaces, the web
+  host's deployment read, hello native and tally, E1, E5, E6, E7's browser part, E9's Chromium part and E11
+  so far, with hello's own scenario and `app check` on it for E8 and E13; [9.6](#96-decided-by-step-4) records
+  what it decided.
+- **Not done:** the rest of the [implementation plan](#15-implementation-plan). E11's console part waits for
+  step 6, and E9's mounted part for step 7.
 - **Depends on:** step 1 of the plugin manifest proposal, merged in
   [#677](https://github.com/lushly-dev/afd/pull/677). The proposal says that step "lands before Loam's phase 1
   specification is approved, or in the same pull request", which holds.
@@ -1019,9 +1021,11 @@ export interface OverlayResultV1 {
 
 - **An app's own elements and the registry.** A surface's element is defined in `context.registry`, inside
   `activate`. For its own template to see scoped elements, an element's shadow root must also use that registry: with
-  FAST, `FASTElement.define(Class, { name, template, shadowOptions: { mode: 'open', customElementRegistry:
-  context.registry } })`, without which FAST's cloning uses the global registry and a scoped tag is never upgraded
-  (`templating/compiler.ts:203-210`). The scaffold and hello show it. A surface naming an element the app did not
+  FAST, `FASTElement.define(Class, { name, template, registry: context.registry, shadowOptions: { mode: 'open',
+  customElementRegistry: context.registry } })`, without which FAST's cloning uses the global registry and a scoped tag
+  is never upgraded (`templating/compiler.ts:203-210`). `registry` is what keeps the definition out of the global
+  registry, since a definition defaults to it (`fast-definitions.ts:505`); as first written, this sketch left it out
+  ([9.6](#96-decided-by-step-4)). Hello shows it. A surface naming an element the app did not
   define shows `APP_ELEMENT_UNDEFINED` in the mount.
 
 - **`KitElementNameV1`** is `violet-badge`, `violet-button`, `violet-checkbox`,
@@ -1808,15 +1812,16 @@ new commands are small and the rest is lazy:
 
 | Measure | Loaded | Ceiling |
 | --- | --- | --- |
-| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000. Step 3 measured 319,794 and 93,012: **206 bytes are left**, so step 4's chrome goes behind dynamic imports ([9.5](#95-decided-by-step-3)) |
+| JavaScript before first paint, the empty shell, minified and gzip | As phase 0 | 320,000 and 95,000. Step 3 measured 319,794 and 93,012: 206 bytes were left, so step 4's chrome goes behind dynamic imports. Step 4 measured 317,894 and 94,569 ([9.6](#96-decided-by-step-4)) |
 | The kernel alone | As phase 0, without `src/apps/` | 231,360. Step 3 measured 225,238 |
 | CSS | As phase 0 | 8,496 |
-| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row |
+| `apps` chunk: the kernel's `src/apps/`, the readers and validators | When a deployment lists an app. An empty projection never loads it | 300,000. Step 1 measured the readers and the page's validators alone at 227,031 minified, 32,302 gzip, without Zod, which the kernel shares: a closing profile's standalone validator under `allErrors` is mostly error objects, which minify poorly and compress well. The first estimate, 150,000, was not measured. The coordinator approved 300,000 on 2026-11-01 as an estimate: it did not yet hold the kernel's `src/apps/`. Step 3 measured the page's whole `apps-*.js` chunk at 262,730, and `budget` has the row. Step 4 confirms the ceiling: 265,153 over three chunks, 88% of it, so it is neither raised nor lowered ([9.6](#96-decided-by-step-4)) |
+| `surfaces` chunk: the chrome's `AppSurfaces` and its elements, with `loam-mount`, the nav's entries and the overlays | When a deployment lists an app, or the first toast or modal on a shell with none | 50,000. A row step 4 adds, for what 9.2 did not name. Step 4 measured 42,680 |
 | `mount` chunk: the MCP client | When a deployment lists a mounted app, after first paint | 340,000 (the measured 324,094 before Rolldown shares Zod) |
 | `console` chunk | When a console renders | 150,000 |
 | `view` chunk: the view host | When a view app opens | 60,000 |
 | `kit` chunks | Per element, on `kit.define` | None |
-| Hello's native bundle, tally's | The app's own; recorded, not limited | None |
+| Hello's native bundle, tally's | The app's own; recorded, not limited | None. Step 4 measured 65,055 (gzip 17,906) and 78,995 (21,252), each with its own FAST |
 
 `budget` gains the rows, and fails over them. Step 4 records the measured values; phase 0's rule
 applies: under 70% of a ceiling, it is lowered to the measurement plus 10%, and raising one
@@ -1919,7 +1924,7 @@ What the sections above left open, and what the code showed. Later steps build o
   does; a frame's `HANDLER_THREW` still carries it (11.2). A frame's call that rejects otherwise, as an abort does, is `CALL_ABORTED`.
 - **`deactivate` is the chrome's,** since `activate` is: a module loaded only by a command never activated, and the kernel cannot tell.
   So step 4's `AppSurfaces` runs it at disposal, for what it activated, and 5.5's row holds there.
-- **A failed `apps` chunk** rejects `createKernel`, and the host shows "Loam cannot start": no app can load, and nothing in the kernel can list them.
+- **A failed `apps` chunk** rejects `createKernel`, and the host shows "Loam cannot start": no app can load, and nothing in the kernel can list them. Superseded by [9.6](#96-decided-by-step-4): this went against D66.
 - **A path that leaves its package** (`native.entry`, `ui.resources[].path`, `view.handlers`) is refused at run time as well,
   since a manifest is untrusted input and the reader sees a path only as `app pack` left it.
 - **`load()`** on a view or mounted app rejects with `APP_NOT_READY`: only a native app has a module in the page.
@@ -1962,6 +1967,92 @@ What the sections above left open, and what the code showed. Later steps build o
   linked in and itself aliased to its `dist`. `web` takes a dev dependency on it, as on the CLI (11.2), so `pnpm -F "@lushly-dev/loam-web..." build`
   builds what that test needs and the workflow's build line does not change.
 
+### 9.6 Decided by step 4
+
+What the sections above left open, and what the browser showed. Later steps build on these. **The sandbox's
+assumptions get their test in step 5; the scoped-registry assumptions got theirs here, and they held in
+Chromium 156, natively,** with the two corrections below.
+
+**The budget**
+
+- **Measured.** The empty shell's JavaScript is 317,894 of 320,000 minified and 94,569 of 95,000 gzip, CSS 7,719
+  of 8,496, the kernel alone 226,603 of 231,360. No ceiling is raised. 431 gzip bytes are left, so **a later step
+  with any first-paint code moves something out first**.
+- **What made room.** `loam-resize-handle` now loads with the palette, after first paint: until then a part has its
+  border and nothing to drag, and no layout shifts. `loam-notice` loads when one is shown. `whenIdle` waits two frames, so idle work
+  never lands before the first frame. The kernel's first-paint chunk gained only `unavailableApps`, the shell a seam of a
+  few lines (`ShellApps`), and the host `isEmptyProjection`.
+- **Chunks.** The bundler makes a chunk per set of dynamic imports sharing a module, and each boundary costs imports,
+  exports and a compression window, so a lazy module that statically imports what first paint already holds costs first
+  paint bytes. Keep the graph narrow: `kit-loader` looks up the elements the shell has already defined with
+  `customElements.get`, for this reason. Forcing everything first paint reaches into one chunk (`manualChunks`, walking
+  the entry's static imports) was tried and was worse, 354,487 bytes: a barrel's static edge pulls in modules only a lazy
+  chunk uses once tree-shaken.
+- **`apps` chunk.** With the host also reading the projection, the bundler parts `apps-*`, `validate.generated-*` and
+  `deployment-*`. They load together, so `budget`'s row sums them: 265,153, or 88% of the ceiling.
+- **What first paint holds with an app.** `surfaces` and the `apps` chunks load before the shell's first frame in a
+  deployment that lists an app, because 5.5's boot reads manifests before it registers commands, 9.1's kernel takes them
+  before its one `hydrate()`, and the rail must be right in that frame. So the empty shell is under its ceilings and a
+  deployment with apps is about 350,000 bytes more, recorded here and limited only by those rows' ceilings. An app's own
+  module is never among them.
+- **E5 as written was wrong about one file.** 5.5's boot reads each package's `app-manifest.json`, so a second app adds
+  its manifest before first paint as well as `deployment.json`. The test holds everything else byte for byte, with and
+  without tally, and a second test holds that the empty shell requests none of what apps load.
+- **First paint, in a test,** is `first-contentful-paint`. `first-paint` fires for the theme's background on an empty
+  body, so what precedes it depends on the machine.
+
+**What the code showed**
+
+- **A failed `apps` chunk (D66).** 9.5's rejection blanked the shell. `createKernel` now catches it, reports it, and uses
+  `unavailableApps` (in `apps-runtime.ts`, since nothing lazy can be relied on then): each projection entry is listed
+  `failed` with `APP_RUNTIME_UNAVAILABLE`, its title and order from the entry, each field checked as it is read. The host
+  passes `appsUnavailable` when its own reader's chunk fails, and the raw projection then, so the kernel uses nothing of it
+  but those fields. With no manifest there is no layout record, so an open app uses the no-app record and every part
+  stays available; a persisted active app is not restored in that page, and its record is untouched for the next.
+  The chrome's own chunk failing sets main's heading to "Apps could not load. Reload to try again."
+- **FAST defines globally by default.** 5.2's sketch left out `registry`, so `hello-main` landed in the global registry.
+  See the amended 5.2.
+- **Specimen cannot wait for a scoped element.** Its `settle` calls `customElements.whenDefined` on every tag in an open
+  shadow root (`foundations/specimen/src/browser/index.ts:265`, `:534`), which never resolves for a name only a scoped
+  registry holds. The `loam-mount` fixture therefore defines the name globally as well. A follow-up.
+- **Playwright will not click `aria-disabled`.** A test of a disabled toggle clicks with `force`, or it times out.
+- **An app has no event for its own command** until phase 5's `events`, and the catalog gives a surface no callback. A
+  status item or a form that must follow a command run from the palette or an agent hears it within its own module: hello's and
+  tally's handlers call a listener their elements registered. Nothing in the contract changes, a replay has no listener, and it works only because a native app's handlers and surfaces share a page.
+
+**The chrome**
+
+- **`ShellApps`** is all `loam-shell` knows of apps: `modalOpen`, `undeclared(part)`, `run(command)`, `start()`, `dispose()`.
+  The shell loads `apps/surfaces.ts` before its first frame when `mountShell` says the deployment lists an app, or on the
+  first toast or modal otherwise, so an agent's `toast-show` on an empty shell renders.
+- **`prepare`** reads `app-list`, and `app-get` for a persisted active app, before the parts render, so the first frame has
+  the right landing and main busy. So a deployment with apps journals those reads at boot. An empty shell's journal is
+  unchanged, which phase 0's E2 holds. The persisted app's surfaces wait two frames after that, with no `app-open` entry.
+- **Styles from the chunk.** `addStyles` gives `loam-main`, the rail and the tab bar what they need with an app, so their
+  first-paint sheets did not grow. The landing's `h1` is `display: none` while an app is active, which takes it out of the accessibility tree.
+- **`loam-app-entry` and `loam-status-action`** are elements 9.3 did not list. An entry has its own tooltip and states, and
+  a status item with a command is a button, which `loam-status-item`, in first paint, should not grow to hold.
+- **A panel with several views** stacks them, each a `region` under its title, in one `loam-mount` per view. Tabs arrive when
+  an app needs them.
+- **`overlays.modal` rejects** when `modal-open` is refused, with `code` and `suggestion` on the error: 5.2 says it resolves
+  when the modal closes, and a refused one never opened.
+- **A surface's command** (a header action, a status item, a chord) runs as a person's call, with no input. If it fails, the
+  shell shows its message as a `danger` toast. One that needs input is `aria-disabled`, and its chord was refused at load.
+- **Focus.** A surface holding focus when it leaves moves focus to main, and so does a toast dismissed while focused. A modal
+  whose invoker has gone leaves focus to the browser, because the switch that removed it has moved focus already.
+- **A toast's timer** stops while it is hovered or holds focus, and restarts in full (WCAG 2.2.1).
+- **The live region stays open** while empty, since a region added with its text is not announced. So the popover is a
+  zero-size element in the top layer, and it is shown again after a modal, to stack above it.
+
+**Handler error text (D66 and section 12)**
+
+A native handler's or `activate`'s thrown message **does not go through the journal's `redact`, because it never reaches the
+journal**. A throw from a handler goes to `reportError`, as 9.5 has it; a throw from `activate` goes to `reportError` and to
+main's notice, in that page alone, and the kernel's record, which `app-get` reports and so journals, says only that it threw.
+`redact` stays what section 12 says, the removal of a known field, because it cannot recognise a secret in free text. A failure
+an app returns is its own result, and is journaled as any result is. A view frame's `HANDLER_THREW` still carries the
+handler's message into the journal (11.2): step 5 decides that one, and this says what it should weigh.
+
 ## 10. Failure modes and error codes
 
 Decides L4 (D66). **Conflicts are `error`, against the shell and across apps; one app's failure
@@ -1980,6 +2071,7 @@ to `LoamKernelErrorCode`. Each row is covered by a unit test or an exit test.
 | `INSTANCE_PREFIX_REQUIRED` | A second instance of an app without a prefix | The later instance is `refused`, and `deployment check` fails | Name a prefix |
 | `APP_HANDLER_MISSING` | The module's handlers do not match the manifest | `failed` at first load | Add the handler, or remove the command |
 | `APP_ACTIVATION_FAILED` | The import or `activate` threw | `failed` | Read the error; fix the app |
+| `APP_RUNTIME_UNAVAILABLE` | `kernel/src/apps/` or the readers could not load ([9.6](#96-decided-by-step-4)) | Each deployed app is `failed`, listed from its projection entry, until a reload | Reload; check that the deployment serves its assets |
 | `APP_ELEMENT_UNDEFINED` | A surface names an element the app did not define | Shown in the mount | Define it in `activate` |
 | `APP_GLOBAL_ELEMENT` | Importing a definition in the test kit defined a global element | The test kit fails | Define the element in `activate`, in `context.registry` |
 | `APP_NOT_FOUND` | `app-open` or `app-get` of an unknown instance | A failure result | `app-list` |
@@ -2249,7 +2341,7 @@ lists by frame and directive (E2's `fetch` from a view).
 | E2 | **Hello loads as a sandboxed view**, on the MCP Apps profile | Chromium: hello view. The frame's origin differs from the shell's, and its `sandbox` attribute is `allow-scripts allow-same-origin allow-forms`. The bound command's `tool-input` and `tool-result` arrive only after `initialized` (a fixture view records the order, and a delayed `initialized` delays them). `hello-greet` from the view works through the broker, and with the view closed through the handler frame. `parent.document` throws; `fetch` and `document.cookie` fail in the view; a `tools/call` of `tally-add`, with valid and with invalid input and for a name that does not exist, gets the same `CALL_NOT_GRANTED`, journaled with `caller`; `overlay-list` shows no other app's overlay, and `app-selection-set` on tally is refused; a `dev.loam/store` from a grantless fixture is refused, and one from a timer outside a call is `HANDLER_NO_CALL`. Changing the theme to dark changes the view's background through `host-context-changed`. A switch sends `ui/resource-teardown` and removes the frame. **Conformance:** a fixture view built on `@modelcontextprotocol/ext-apps`' `App` connects, passes that package's schema check of the `ui/initialize` result, reads its host context, calls a tool and receives teardown. Axe passes inside the frame |
 | E3 | **Hello loads mounted, and a real Umbel appears in the console** (D57) | `test:mounted`, the stock `umbel`, hello's `hello-mcp`, through the relay. Hello mounted: `hello-greet` from the console's form returns `Hello, Ada!`, equal to the native and view answers on `greeting`. The `umbel` manifest with instance `work`: discovery reads `afd-help` and `afd-detail`; the console lists `work-hello-greet` and `work-workspace-show`, and not any `afd-*`. `work-hello-greet`'s form has the two optional fields from the schema, an empty optional is omitted, and the result renders through the adapters, labeled "Untrusted: from work" and "Recorded, not replayable". The journal entry has `context: { app: 'umbel', instance: 'work', replay: 'recorded' }`. With Umbel stopped, `replayKernel` on that journal has zero differences and reports the `seq`s in `recorded`. `work-event-ack`, which reports a mutation, is hidden and refused until the entry names it |
 | E4 | **Instances** (D55, D56, D58, L6, L7) | `test:mounted`, two Umbel workspaces, instances `work` and `home`. Both load, and names stay apart. The same prefix twice refuses the second with the exact message. A shell domain as a prefix is refused. The served files, `deployment.json`, the journal and every `app-*` result hold no instance URL, token or command line, by scanning for those exact strings; the relay's log shows the page sent no `authorization`; `connect-src` is still `'self'`. No shell command's input schema has a `command`, `url` or `bearer` key (mounted tools are the server's own). A `stdio` entry loads `failed` with `MOUNT_TRANSPORT_UNAVAILABLE`, and `deployment check` reports `STDIO_TRUSTED_CODE`. A wrong token gives `MOUNT_UNAUTHORIZED`; a stopped instance gives `MOUNT_UNREACHABLE`, is listed and skipped, leaves the other working, and recovers on `app-instance-refresh`. A team instance's console shows D55's notice |
-| E5 | **A second app lands with no shell change** | Chromium: tally appears, works and renders its panel and status item, from a deployment entry alone. A unit test scans `kernel`, `chrome` and `web/src` for `tally` and fails on a match. The server's log shows the bytes requested before first paint are the same with and without it in the deployment, but for `deployment.json` |
+| E5 | **A second app lands with no shell change** | Chromium: tally appears, works and renders its panel and status item, from a deployment entry alone. A unit test scans `kernel`, `chrome` and `web/src` for `tally` and fails on a match. The server's log shows the bytes requested before first paint are the same with and without it in the deployment, but for `deployment.json` and its own `app-manifest.json`, which 5.5's boot reads ([9.6](#96-decided-by-step-4)) |
 | E6 | **A toast and a modal in hello leave nothing on screen after a switch** | Chromium: hello opens a toast and a modal; `kernel.agent` calls `app-open` on tally. `overlay-list` is empty, no `loam-toast` or open `dialog` is in the deep DOM, nothing of hello's mounts is connected, its status items and keybinding are gone, and the modal's `waitOverlay` resolves `cancel`. Returning restores hello's sidebar, the same element at its scroll offset, and main is re-created. `modal-open` from an inactive app, and a second modal, are refused and journaled |
 | E7 | **A manifest that declares an unknown surface is refused with a suggestion** | Manifest unit, and Chromium over a deployment holding a fixture package with that raw `app-manifest.json`, which `deployment write` carries ([3.2](#32-writing-the-browser-projection)): `ui.surfaces.tray` gives `MANIFEST_UNKNOWN_SURFACE` with the list of surfaces, the rail shows the app as unavailable, opening it explains why, and the rest of the shell works. The proposal's matrix, each naming the key and a suggestion: `expose = { pallete = true }` ("Did you mean `palette`?"), an unknown key at each closed depth, `kind = "compiled"`, `scopes`, `packs`, `ui.documents` (naming phase 2), a composition `board` (unavailable) and `boards` (unknown), `workspace-write`. `spec/plugin-manifest.json`'s sections pass as [2.4](#24-rules-beyond-the-schema) says, and `scripts/plugin-manifest.test.mjs` passes with Loam's profile in it. `schema:build` compiles under `strict: true`. Hello's manifest validates in all three kinds, and so does the headless `umbel` manifest |
 | E8 | **Grants** | Manifest and kernel units: an unknown grant, a required unserved one refused naming its phase, an optional one loading without the API. A native handler without `store` has no `context.store`. `app check` on hello native prints `TRUSTED_NOT_SANDBOXED`. An id `layout`, a shell domain, gives `MANIFEST_ID_RESERVED`. An id `view` declaring `view-state-get`, which the shell holds, gives `APP_COMMAND_CONFLICT`, with nothing of that app registered. A duplicate id gives `APP_DOMAIN_CONFLICT` |
@@ -2397,3 +2489,6 @@ checked at load and not by the schema, and the rules and renaming cited from `sp
 | 2026-11-01 | Phase 1 specification | A scan of mounted descriptions before they reach the agent surface, reusing `packages/testing/src/surface/injection-vectors.json` as Umbel's loader does | Open; phase 5 |
 | 2026-11-01 | Phase 1 specification | Measure the mount chunk with Rolldown once it shares Zod, and whether a small fetch-based client is worth having if 340,000 bytes proves a burden after first paint | Open |
 | 2026-11-01 | Phase 1 specification | Umbel's owner may annotate D37 and "Room for Loam", per the proposal's step 3; nothing is asked of Umbel by this phase | Open; Umbel's owner |
+| 2026-11-02 | Phase 1 step 4 | Specimen's `settle` waits on the global registry for each tag in an open shadow root, so it hangs to its deadline on an element only a scoped registry holds (`foundations/specimen/src/browser/index.ts:265`, `:534`). `chrome`'s `loam-mount` fixture defines the name globally as well to get past it; Specimen should ask the element's own registry | Open |
+| 2026-11-02 | Phase 1 step 4 | Only 431 gzip bytes are left for the empty shell (317,894 of 320,000 minified, 94,569 of 95,000 gzip). Zod is 178,000 of the page; a smaller first-paint schema layer would end this pressure, and each later step must otherwise move code out first | Open |
+| 2026-11-02 | Phase 1 step 4 | `scripts/affected/suites.mjs` still runs `pnpm -F "./endpoints/loam/packages/*" test`, without `apps/*`, because editing it selects the whole workspace; `pnpm check` covers the apps' units. Step 7 changes that entry anyway, as section 1 says | Open; step 7 |
