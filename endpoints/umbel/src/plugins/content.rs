@@ -13,7 +13,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
-use umbel_sdk::{ContentEntry, HostError as ServiceError};
+use umbel_sdk::{CollectionInfo, ContentEntry, HostError as ServiceError};
 use umbel_store::{ContentHash, Expect, Page};
 
 use super::grants::CallServices;
@@ -102,6 +102,33 @@ impl CallServices {
             .flatten();
         found.truncate(usize::try_from(limit).unwrap_or(1000));
         Ok(Page { items: found, next })
+    }
+
+    pub(super) fn svc_content_collections(&self, space: &str) -> Result<Vec<CollectionInfo>> {
+        self.content_scope("content", space)?;
+        let config = self.shared.workspace.config();
+        let declared = config
+            .spaces
+            .iter()
+            .find(|declared| declared.id.as_str() == space)
+            .ok_or_else(|| {
+                ServiceError::NotFound(format!("the space `{space}` is not declared"))
+            })?;
+        Ok(declared
+            .collections
+            .iter()
+            .map(|collection| CollectionInfo {
+                id: collection.id.clone(),
+                kind: collection.kind.as_str().to_owned(),
+                include: collection.include.clone(),
+                exclude: collection.exclude.clone(),
+                access: collection.access.clone(),
+                sensitivity: collection.sensitivity.clone(),
+                default_type: collection.default_type.clone(),
+                strict: collection.strict,
+                max_file_bytes: collection.max_file_bytes,
+            })
+            .collect())
     }
 
     pub(super) fn svc_content_read(

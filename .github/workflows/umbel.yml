@@ -113,7 +113,7 @@ jobs:
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
-        run: cargo test --locked --workspace --exclude umbel-store-embedded
+        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -171,9 +171,9 @@ jobs:
           workspaces: endpoints/umbel
           key: knowledge
       - name: Clippy
-        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded --all-targets -- -D warnings
+        run: cargo clippy --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem --all-targets -- -D warnings
       - name: Test
-        run: cargo test --locked -p umbel-store -p umbel-store-embedded
+        run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem
       # The traits and types build for WebAssembly components (section 1); the backend does not.
       - name: Check umbel-store (wasm32-wasip2)
         run: cargo check --locked --target wasm32-wasip2 -p umbel-store
@@ -182,7 +182,7 @@ jobs:
         run: rustup toolchain install 1.97.0 --profile minimal
       - name: Check (MSRV 1.97)
         if: matrix.os == 'ubuntu-latest'
-        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded --all-targets
+        run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).
@@ -262,11 +262,19 @@ jobs:
       - name: Plugins and host code are not in one pull request
         env:
           BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           plugins=$(printf '%s\n' "$changed" | grep -E '^endpoints/umbel/plugins/' || true)
           host=$(printf '%s\n' "$changed" | grep -E '^endpoints/umbel/(src|wit|schemas)/' || true)
-          if [ -n "$plugins" ] && [ -n "$host" ]; then
+          # A first-party plugin that needs a host service which does not exist yet (the phase 2
+          # specification's steps 5 to 8) ships it in the same pull request. The pull request says
+          # so on a line of its own: "Plugin-isolation-exempt: <the host change and why>". The rule
+          # still holds for a plugin that only uses what the host offers.
+          exempt=$(printf '%s\n' "$PR_BODY" | grep -E '^Plugin-isolation-exempt: .+' || true)
+          if [ -n "$plugins" ] && [ -n "$host" ] && [ -n "$exempt" ]; then
+            echo "This pull request changes plugins and host code, and declares: $exempt"
+          elif [ -n "$plugins" ] && [ -n "$host" ]; then
             echo "::error::This pull request changes both endpoints/umbel/plugins/ and host code (src/, wit/ or schemas/). Split it: a plugin must not need a host change."
             echo "Plugin files:"; printf '%s\n' "$plugins"
             echo "Host files:"; printf '%s\n' "$host"

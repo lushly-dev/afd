@@ -1,0 +1,28 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space to sync; default: the workspace's default space"
+		},
+		"collection": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 63,
+			"description": "Sync only this collection; default: every collection of the space"
+		},
+		"dry_run": {
+			"type": "boolean",
+			"default": false,
+			"description": "Report what would change and write nothing"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 100000,
+			"default": 5000,
+			"description": "The most files to read in this call; a larger first sync takes several calls, each reporting remaining until the walk is complete"
+		}
+	},
+	"additionalProperties": false
+}

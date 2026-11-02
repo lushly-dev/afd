@@ -1,0 +1,17 @@
+[package]
+name = "umbel-scan"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel scan: the injection patterns of AFD's description-injection rule and the hidden-text check, shared by the host's mounted loader and the OKF reader"
+repository = "https://github.com/lushly-dev/afd"
+
+[dependencies]
+# ASCII-only classes and linear-time matching; the same features the host used for its scan.
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+serde_json = "1"
+
+[lints]
+workspace = true
