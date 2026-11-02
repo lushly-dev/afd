@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.run.outputs.run }}
-      mounted: ${{ steps.mounted.outputs.mounted }}
+      mounted: ${{ steps.mounted.outputs.run }}
     env:
       AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
