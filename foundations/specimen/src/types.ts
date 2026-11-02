@@ -340,6 +340,35 @@ export interface CoverageWaivers {
 	version: string;
 	entries: { component: string; obligation: string; reason: string }[];
 }
+export interface SuggestRequest {
+	component: string;
+	/** Obligation ids to propose for; defaults to what a coverage run leaves unverified. */
+	gaps?: string[];
+	workers?: number;
+	timeoutMs?: number;
+}
+export interface SuggestRun {
+	component: string;
+	/** Always: a proposal is not evidence until it has been run and corrected. */
+	status: 'unverified';
+	/** Where the module could go, relative to the manifest, beside the component. */
+	file: string;
+	/** The proposed native specimens, as a TypeScript module. */
+	source: string;
+	/** Configuration entries for those specimens. */
+	entries: { id: string; title: string; module: string; exportName: string; component: string }[];
+	suggestions: {
+		obligation: string;
+		exportName: string;
+		/** What it assumes, or what to replace. */
+		note?: string;
+		/** It fails until someone replaces its expectation. */
+		placeholder?: boolean;
+	}[];
+	/** Obligations with no proposal, and why. */
+	skipped: { obligation: string; reason: string }[];
+	elapsedMs: number;
+}
 export interface ContractRequest {
 	/** One component: runs its own story file. */
 	component?: string;

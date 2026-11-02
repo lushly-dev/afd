@@ -28,6 +28,7 @@ import {
 	withBaseline,
 } from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
+import { suggestSpecimens } from './suggest.js';
 import {
 	DEFAULT_FLAKE_CAP,
 	DEFAULT_SUITE_WORKERS,
@@ -71,6 +72,8 @@ import {
 	type SpecimenEntry,
 	type StoryOutcome,
 	type StoryRun,
+	type SuggestRequest,
+	type SuggestRun,
 	type SuiteCapture,
 	type SuiteRequest,
 	type SuiteRun,
@@ -83,6 +86,7 @@ import {
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
+	parseSuggestRequest,
 	parseSuiteRequest,
 } from './validate.js';
 
@@ -823,6 +827,24 @@ export async function createInProcessBench(
 				reports,
 				counts: profileCounts(reports),
 				orphanedBaselines: [],
+				elapsedMs: performance.now() - started,
+			};
+		},
+		async suggest(rawRequest: SuggestRequest): Promise<SuggestRun> {
+			ensureOpen();
+			const started = performance.now();
+			const { component, gaps, ...limits } = parseSuggestRequest(rawRequest);
+			const known = config.schemas[component];
+			if (!known) throw new Error(`The manifest does not describe ${component}.`);
+			// Only a run can say what is unverified, unless the caller already knows.
+			const wanted =
+				gaps ??
+				(await api.coverage({ component, ...limits })).components
+					.flatMap((item) => item.obligations)
+					.filter((item) => item.level !== 'verified' && !item.waiver)
+					.map((item) => item.id);
+			return {
+				...suggestSpecimens(known, wanted),
 				elapsedMs: performance.now() - started,
 			};
 		},

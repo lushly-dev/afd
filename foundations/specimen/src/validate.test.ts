@@ -10,6 +10,7 @@ import {
 	coverageRequestSchema,
 	matrixRequestSchema,
 	profileRequestSchema,
+	suggestRequestSchema,
 	suiteRequestSchema,
 } from './schema.js';
 import {
@@ -22,6 +23,7 @@ import {
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
+	parseSuggestRequest,
 	parseSuiteRequest,
 } from './validate.js';
 
@@ -402,6 +404,25 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of values) agrees(matrixRequestSchema, parseMatrixRequest, value);
+	});
+
+	it('agrees on suggest requests', () => {
+		const values = [
+			{ component: 'x-a' },
+			{ component: '' },
+			{},
+			{ component: 'x-a', gaps: ['default'] },
+			{ component: 'x-a', gaps: [] },
+			{ component: 'x-a', gaps: [''] },
+			{ component: 'x-a', gaps: 'default' },
+			{ component: 'x-a', timeoutMs: 1 },
+			{ component: 'x-a', timeoutMs: 60_001 },
+			{ component: 'x-a', workers: 1 },
+			{ component: 'x-a', workers: 0 },
+			{ component: 'x-a', other: 1 },
+			null,
+		];
+		for (const value of values) agrees(suggestRequestSchema, parseSuggestRequest, value);
 	});
 
 	it('agrees on coverage requests', () => {

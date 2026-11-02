@@ -24,6 +24,8 @@ import type {
 	RunRequest,
 	SpecimenEntry,
 	StoryRun,
+	SuggestRequest,
+	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
 	ValidationReport,
@@ -37,6 +39,7 @@ import {
 	parseCoverageRequest,
 	parseMatrixRequest,
 	parseProfileRequest,
+	parseSuggestRequest,
 	parseSuiteRequest,
 } from './validate.js';
 
@@ -88,6 +91,11 @@ export interface SpecimenBench {
 	 */
 	contract(request?: ContractRequest): Promise<ContractRun>;
 	/**
+	 * Propose native specimens and claims for a component's gaps, always as unverified: run them
+	 * and correct them. Generating these never changes what coverage reports.
+	 */
+	suggest(request: SuggestRequest): Promise<SuggestRun>;
+	/**
 	 * Measure entries at a checkpoint over a few fresh runs, one at a time: paint and load timings,
 	 * ready and capture time, DOM size, requests, heap and console counts, flags and, when a
 	 * baseline describes the same measurement, a comparison. Neither id nor filter profiles
@@ -137,6 +145,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'a11y'
 		| 'coverage'
 		| 'contract'
+		| 'suggest'
 		| 'profile'
 		| 'matrix'
 		| 'recordBaseline'
@@ -259,6 +268,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			ensureDiscovered();
 			const request = parseBaselineRequest(rawRequest);
 			return enqueue((client) => client.recordBaseline(request));
+		},
+		async suggest(rawRequest) {
+			ensureDiscovered();
+			const request = parseSuggestRequest(rawRequest);
+			return enqueue((client) => client.suggest(request));
 		},
 		async contract(rawRequest = {}) {
 			ensureDiscovered();

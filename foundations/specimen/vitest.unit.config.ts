@@ -9,6 +9,7 @@ export const browserSuites = [
 	'src/baseline.test.ts',
 	'src/coverage.test.ts',
 	'src/contract.test.ts',
+	'src/suggest.test.ts',
 	'src/events.test.ts',
 	'src/static-build.test.ts',
 	'src/profile-bench.test.ts',

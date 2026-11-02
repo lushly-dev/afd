@@ -21,6 +21,8 @@ import type {
 	ProfileRun,
 	RunRequest,
 	StoryRun,
+	SuggestRequest,
+	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
 } from './types.js';
@@ -33,6 +35,7 @@ type WorkerOperation =
 	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'coverage'; request: CoverageRequest }
 	| { operation: 'contract'; request: ContractRequest }
+	| { operation: 'suggest'; request: SuggestRequest }
 	| { operation: 'profile'; request: ProfileRequest }
 	| { operation: 'matrix'; request: MatrixRequest }
 	| { operation: 'recordBaseline'; request: BaselineRequest }
@@ -245,6 +248,10 @@ export class BenchWorkerClient {
 	async recordBaseline(request: BaselineRequest): Promise<ProfileRun> {
 		await this.ready;
 		return (await this.request({ operation: 'recordBaseline', request }, 3_600_000)) as ProfileRun;
+	}
+	async suggest(request: SuggestRequest): Promise<SuggestRun> {
+		await this.ready;
+		return (await this.request({ operation: 'suggest', request }, 3_600_000)) as SuggestRun;
 	}
 	async contract(request: ContractRequest): Promise<ContractRun> {
 		await this.ready;

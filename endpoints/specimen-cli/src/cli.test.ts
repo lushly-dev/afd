@@ -73,6 +73,16 @@ function harness() {
 			orphanedBaselines: [],
 			elapsedMs: 1,
 		})),
+		suggest: vi.fn(async () => ({
+			component: 'x-a',
+			status: 'unverified' as const,
+			file: 'x-a.specimens.ts',
+			source: '// proposed',
+			entries: [],
+			suggestions: [],
+			skipped: [],
+			elapsedMs: 1,
+		})),
 		contract: vi.fn(async () => ({
 			rules: 'fastbot-parity@1',
 			valid: true,
@@ -353,6 +363,27 @@ describe('specimen CLI', () => {
 			workers: 2,
 		});
 		expect(await runCli(['--root', root, 'coverage', 'a', 'b'], h.io)).toBe(1);
+	});
+	it('dispatches suggest, and writes the proposal only where nothing is', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(['--root', root, 'suggest', 'x-a', '--gaps', 'default,form:validity'], h.io)
+		).toBe(0);
+		expect(h.bench.suggest).toHaveBeenLastCalledWith({
+			component: 'x-a',
+			gaps: ['default', 'form:validity'],
+		});
+		expect(
+			await runCli(['--root', root, 'suggest', 'x-a', '--out', 'x-a.specimens.ts'], h.io)
+		).toBe(0);
+		expect(await readFile(join(root, 'x-a.specimens.ts'), 'utf8')).toBe('// proposed');
+		await writeFile(join(root, 'x-a.specimens.ts'), '// corrected');
+		expect(
+			await runCli(['--root', root, 'suggest', 'x-a', '--out', 'x-a.specimens.ts'], h.io)
+		).toBe(1);
+		expect(await readFile(join(root, 'x-a.specimens.ts'), 'utf8')).toBe('// corrected');
+		expect(await runCli(['--root', root, 'suggest'], h.io)).toBe(1);
 	});
 	it('dispatches contract, and exits non-zero when it is not valid', async () => {
 		const h = harness();
