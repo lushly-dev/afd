@@ -148,9 +148,9 @@ organization.
 | Host services | The grants in the catalog below; provenance enforcement on every store write; permission filtering on every store read | Domain logic |
 | Workspace | Deployer-owned directory: configuration; spaces, each with its content roots, schema, packs, plugin settings and backend; the plugin list; the scale profile | Anything company-specific inside the binary |
 | Store traits | Document store, search index, graph, memory store, instantiated per space; a conformance suite every backend passes | Choosing a vendor for the deployer |
-| Embedded reference backend | Fielded lexical index, embedded key-value store, in-memory graph loaded from it, a memory store with its own lexical lane in SQLite FTS5 ([D70](decisions.md)), optional local embeddings | Multi-instance hosting; that is an alternative backend's job |
+| Embedded reference backend | Fielded lexical index, embedded key-value store, in-memory graph loaded from it, a memory store with its own lexical lane in SQLite FTS5 and per-record keys in a separate key file ([D70](decisions.md), [D82](decisions.md), [D83](decisions.md)), optional local embeddings | Multi-instance hosting; that is an alternative backend's job |
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations; the proposal, approve and reject commands for the knowledge base; the eval harness | Writing to the knowledge base outside a proposal |
-| memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall; invalidate, forget and sweep; import and export of harness memory | Promoting anything to the knowledge base |
+| memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall; invalidate, confirm, forget and sweep; import and export of harness memory | Promoting anything to the knowledge base |
 | context plugin | Budgeted context bundles assembled from the stores through host grants ([D78](decisions.md)) | Calling the knowledge or memory plugins; writing anything |
 | curator plugin | Settling window, deterministic candidates and conflict sets, drafting proposals with evidence, rejection feedback; runs on a schedule with an optional configured model | Running in the request path; approving its own proposals |
 | sources and connectors | Change detection, permission mirroring, indexed-copy and live modes; mounted external MCP servers as the federation path across vendor systems | Copying content the caller is not allowed to see |
@@ -172,7 +172,7 @@ may read; isolation between spaces is enforced here, not by plugins.
 | records, records_write | Read and write the plugin's own records (proposals, sync state) in the document store | Namespaced by plugin instance; phase 2 |
 | index, index_write | Query and update the search index | Queries are filtered by the caller's principal; the write side needs an `allow` list and may make derivation reads; phase 2 |
 | graph, graph_write | Query and update the graph | Traversal returns only nodes the caller may read; as the index; phase 2 |
-| memory, memory_write | Read memory records, and write, invalidate, forget, erase and sweep them | Reads are filtered by the caller's reader filter inside the query; the host fills the scope's identity and the authority, checks access and ownership, and passes the quota; the write side needs an `allow` list; compiled plugins only; phase 3 ([D74](decisions.md)) |
+| memory, memory_write | Read memory records, and write, invalidate, confirm, forget and sweep them | Reads are filtered by the caller's reader filter inside the query; the host fills the scope's identity and the authority, scans the text, checks access, ownership and authority from the grant's own policy keys, and passes the quota; the write side needs an `allow` list; compiled plugins only; phase 3 ([D74](decisions.md)) |
 | events | Read the event log by cursor | Events are appended by journaled commands, never through this grant |
 | http | Outbound HTTP to hosts the manifest declares | No caller credentials are attached |
 | secrets | Named deployer secrets | Never the caller's tokens |
@@ -321,7 +321,8 @@ sequenceDiagram
 - **Context bundle.** A budgeted, deterministic assembly for a task from the
   stores, in sections rather than fused scores, with provenance and a
   verification label on every item and a list of what was left out and why
-  ([D78](decisions.md)).
+  ([D78](decisions.md)). A session-start bundle pushes `person` authority only by
+  default; a person confirms an agent's note to admit it ([D84](decisions.md)).
 - **Capture and harness adapters.** What a harness hook sends at session end:
   episodes, decisions, artifacts, with scope and principal. Adapters share one
   JSON contract: session start returns a context bundle under the harness's
@@ -329,7 +330,9 @@ sequenceDiagram
   events capture; pre-compaction snapshots. Import and export cover the
   harness memory directories, so memory moves between harnesses. Settled as
   capture contract version 1 and the `umbel-hook` adapter, which fails open
-  and sends no tool output by default ([D79](decisions.md)).
+  and captures user and assistant text on stop, pre-compaction and session end,
+  always private, with no tool use, summaries or harness lines; a `generic`
+  caller may send artifacts on the contract ([D79](decisions.md)).
 - **Usage event.** Tool, principal, bytes and tokens served, per request, kept
   in the event log for metering. AFD telemetry records only the actor's kind,
   never its id, so metering is not telemetry.
@@ -391,7 +394,8 @@ sequenceDiagram
 | Commands, results, approvals, journal, MCP server | the `afd` crate with its `server` feature on rmcp | One contract across four languages; stateless MCP implemented | `server` needs Rust 1.88; the crate requires rmcp 3.7, which admits the current 3.8.0, and commits no lock. A phase that needs something new in 3.8 raises the floor |
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
 | Lexical index | tantivy 0.27 (features `mmap`, `stopwords`, `stemmer`, `lz4-compression`) and `tantivy-query-grammar` 0.27 | Fielded BM25 with boolean, phrase, field, boost, range and bounded prefix syntax, embedded; Umbel builds queries from the grammar's AST, because tantivy's own parser refuses a bare `term*` and sets no limits ([D58](decisions.md)) | Rust 1.88; one writer per index across processes through its lock file, which the backend waits on and which serialises indexers ([D51](decisions.md)) |
-| Embedded storage | SQLite through rusqlite 0.41 with `bundled` (SQLite 3.54.1), in WAL mode with `synchronous=FULL`, one database per space ([D51](decisions.md)), and a second per space for memory, with FTS5 and `secure_delete` ([D70](decisions.md)) | Single-directory deployments, transactions, no service | Chosen in phase 2 as [D28](decisions.md) required: several host processes open one workspace, many readers and one writer at a time, waiting up to `store.lock_timeout_ms`; no daemon; a local filesystem, as the workspace lock already requires; MSRV 1.89 |
+| Embedded storage | SQLite through rusqlite 0.41 with `bundled` (SQLite 3.54.1), in WAL mode with `synchronous=FULL`, one database per space ([D51](decisions.md)), and a second per space for memory, with FTS5 and `secure_delete` ([D70](decisions.md)), and a key file beside it ([D83](decisions.md)) | Single-directory deployments, transactions, no service | Chosen in phase 2 as [D28](decisions.md) required: several host processes open one workspace, many readers and one writer at a time, waiting up to `store.lock_timeout_ms`; no daemon; a local filesystem, as the workspace lock already requires; MSRV 1.89 |
+| Memory sealing | XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11 ([D82](decisions.md)) | Per-record keys, so a forget also reaches copies of the database; pure Rust | MSRV 1.85; one NCC Group audit recorded in its README, predating 0.11 |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
 | Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |
@@ -471,7 +475,8 @@ material, from loosest to strongest:
   one-shot hook must not wait on the index writer ([D70](decisions.md)). Only
   the space and the access set are boundaries; project, agent and session are
   labels that narrow a query, and a record is private to its principal by
-  default ([D68](decisions.md)). The curator
+  default ([D68](decisions.md)). Each record's text is sealed under its own key,
+  which a forget destroys ([D82](decisions.md)). The curator
   proposes stable semantic memory as knowledge entries and stable procedural
   memory as skills in a pack, always through proposals.
 - Every concept and chunk carries a reference to its source's access control
@@ -510,7 +515,7 @@ material, from loosest to strongest:
   redacted in the journal: from phase 3 a memory-bearing command is journaled
   as a digest, its metadata without its text or result data, so a forget can be
   true while the journal stays append-only ([D72](decisions.md),
-  [D73](decisions.md)). Such an entry is recorded and is not replayed.
+  [D73](decisions.md), [D82](decisions.md)). Such an entry is recorded and is not replayed.
 - **Scale profiles.** team, org, enterprise and beyond switch lanes and
   backends; nothing else changes.
 - **Versioning.** The plugin protocol version, the plugin manifest, the WIT
@@ -579,7 +584,7 @@ Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 (approved 2026-10-31 under the owner's delegation, after review; merged in #564);
 [phase 1, plugin contract](phases/1-plugin-contract/spec.md) (approved, merged in #583);
 [phase 2, knowledge](phases/2-knowledge/spec.md) (approved, merged in #625);
-[phase 3, memory and context](phases/3-memory-context/spec.md) (in review).
+[phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -606,6 +611,7 @@ criterion.
 | A public frontmatter reader in the `afd` crate | Phase 2 | Step 0b of the phase 2 plan; not started |
 | The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 5 (moved from phase 2 on 2026-11-01: phase 2 needs nothing the journal does not record; usage events and OpenTelemetry export wait for phase 5 and W12) | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | Partitioned BM25 statistics per access set, or coarsened scores, and no hidden counts in revisions, event sequence numbers or index-building totals, and the same for the order of memory recall under FTS5's global statistics (memory returns no score, [D70](decisions.md)); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-01: accepted for phase 2, where every local caller is one principal) | [Phase 2 specification, section 6](phases/2-knowledge/spec.md#6-access-d53), [D53](decisions.md); STATUS.md follow-ups |
+| `memory-erase`, a listed person removing anyone's memory records, on the conditions in [D85](decisions.md); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-02) | [Phase 3 specification, section 13](phases/3-memory-context/spec.md#13-out-of-scope-and-the-seams-reserved) |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
 | The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
@@ -664,9 +670,11 @@ document needs as an amendment.
 | Memory record | One agent-writable statement in a space's memory store, with a class, a scope tuple, an access set, a provenance envelope and one or more versions |
 | Scope tuple | `(space, project, principal, agent, session)`: where a memory record belongs. Only the space and the access set are boundaries; the rest are labels |
 | Valid time, recorded time | When a statement holds in the world (`validFrom`, `validUntil`), and when the store believed a version of it (`recordedAt`, `recordedUntil`) |
-| Invalidate | Close a memory record's validity by writing a new version; nothing is lost |
+| Invalidate | Close a memory record's validity by writing a new version; the earlier belief stays queryable until a purge or a forget |
 | Expire | Pass a memory record's `expiresAt`: out of every default read, still stored until a sweep purges it |
-| Forget, erase | Remove a memory record's text and metadata for good, leaving a tombstone; `memory-forget` for the caller's own, `memory-erase` for a person acting on anyone's |
+| Forget | Destroy a memory record's key and remove its text and metadata from live state, leaving a tombstone; `memory-forget`, for the caller's own records |
+| Sealed, key file | Encrypted under a memory record's own key; the keys live in the per-space key file `memory.keys`, never in a backup |
+| Confirm | A person at a terminal vouching for a memory, setting its authority to `person` on a new version |
 | Authority | What the host itself can vouch for about a record's source, as opposed to its origin, which is what the writer claims |
 | Digest journaling | A command's journal entry keeps its metadata and named input fields, and neither its text nor its result data |
 | Bundle section, omission | One part of a context bundle with its own budget share (`knowledge`, `semantic`, `procedural`, `episodic`), and an entry in its list of what was left out and why |

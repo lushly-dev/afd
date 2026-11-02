@@ -48,7 +48,7 @@ help model accuracy.
 
 | Finding | Result | Source |
 | --- | --- | --- |
-| Consolidation drops the source's constraints | 48 of 49 consolidator and model configurations; end to end, authority labels stored at write time cut unauthorised actions from 16.9% to 0.0% (50.3% was a controlled baseline) | S16 |
+| Consolidation drops the source's constraints | 48 of 49 consolidator and model configurations; end to end, authority labels stored at write time, which stop content binding a protected action argument, cut unauthorised actions from 16.9% to 0.0% (50.3% was a controlled baseline) | S16 |
 | Embedding retrieval for updated facts | unreliable, 0.30 to 0.95; agents act on a correctly retrieved value 55% of the time; update-on-write structured stores do best | S17 |
 | Environment-probing curation | pass rate 39% to 73%, cost per task halved | S18 |
 | Vendor memory benchmarks | not reproducible across vendors; one benchmark described as saturating | S04, S20 |
