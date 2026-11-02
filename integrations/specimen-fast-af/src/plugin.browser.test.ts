@@ -50,6 +50,22 @@ describe('the FAST-AF plugin', () => {
 		);
 	});
 
+	it('supplies coverage with what only its Definition Schema knows, commands included', async () => {
+		const run = await bench.coverage({
+			component: 'fixture-press',
+			filter: { ids: ['press-default', 'press-pressed'] },
+		});
+		const press = run.components[0];
+		expect(press?.sources).toEqual(['fast-af']);
+		const levels = Object.fromEntries(
+			(press?.obligations ?? []).map((item) => [item.id, item.level])
+		);
+		expect(levels['command:fixture.press']).toBe('verified');
+		expect(levels['property:disabled=true']).toBe('missing');
+		expect(levels['property:disabled=false']).toBe('represented');
+		expect(run.invalidClaims).toEqual([]);
+	});
+
 	it("applies a theme module's preset to a native specimen", async () => {
 		const light = await bench.render({ id: 'press-default' });
 		const dark = await bench.render({ id: 'press-default', context: { theme: 'dark' } });

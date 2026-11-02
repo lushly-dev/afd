@@ -1,6 +1,6 @@
 # T07 coverage and rule replacement
 
-**State, 2026-11-01:** in progress. Step 1, `specimen-coverage`, is implemented on branch `lush/specimens-t07-coverage`. The remaining steps are listed [below](#remaining-steps).
+**State, 2026-11-02:** in progress. Step 1, `specimen-coverage`, is done and merged in [#692](https://github.com/lushly-dev/afd/pull/692). Step 2, claims and waivers, is implemented on branch `lush/specimens-t07-claims`. The remaining steps are listed [below](#remaining-steps).
 
 T07's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): distinguish represented, asserted, verified, missing and unknown obligations; add coverage, suggest and Fastbot adapters; and give each existing required rule positive and failing detection evidence and a retirement record before deletion. Unknown required obligations MUST block acceptance.
 
@@ -67,9 +67,41 @@ These are measurements and not failures, and nothing gates on them yet. `verifie
 - **The `unknown` results are events, forms and a little else.** Reading properties live took property `unknown`s from 263 to 0 on FAST-AF and from 637 to 2 on Lushly. The rest are events (97 and 363), which no story declares, and FAST-AF's form obligations (28).
 - **The manifest limits this.** Types the manifest writes as an alias, such as `VioletButtonAppearance`, have no finite values, so they are open-ended here. The FAST-AF plugin's Definition Schema knows more, and is not yet consulted.
 
+## Step 2: claims and waivers
+
+`asserted` and `verified` now exist. A claim binds a target, an obligation, a checkpoint and expectation ids, and the [README](../../../../foundations/specimen/README.md#report-coverage) shows the format. The proposal's distinctions are each tested:
+
+| The proposal says | What happens |
+| --- | --- |
+| "Assertion presence elsewhere in the file is insufficient" | Evidence comes from expectations that ran in this case. One about another target leaves the obligation `asserted` |
+| "Disabled represented MUST NOT imply activation suppressed" | `represented` proves the state only. An `absent` event expectation is what proves inertness, and it fails if the event fires |
+| "Form participation MUST use actual FormData/validity evidence" | A `form` expectation builds real `FormData` from the target's form; a `validity` one calls its `checkValidity()`. A play's claim alone stays `asserted` until step 3 |
+| "Slots MUST be inspected at their targets" | From step 1: each slot's assigned nodes |
+| "Legacy plays without it retain test results but MUST report unproven coverage as unknown" | A play with no `claim` adds no claim. Its stories count as `represented` for what they show, and nothing more |
+| "No automatic waivers for migration gaps" | Waivers come only from the configuration, versioned, and appear in the report with any that match nothing |
+
+**A false claim credits nothing.** A first version let a claim about a state its target was not in raise the obligation to `asserted`, displacing real evidence. A test found that, and such a claim now goes in `invalidClaims`, along with one whose expectations did not run or that names an obligation the component does not have. Any of these keeps a run from being complete.
+
+`validateSpecimen` refuses what cannot work before anything runs: an undeclared target, an obligation a report could not name, an unknown checkpoint, and an expectation after the checkpoint it would prove.
+
+A plugin's schema now joins the obligations when a case names the component. On the FAST-AF plugin's fixture, that is how `command:fixture.press` comes to be required, and verified by a command step followed by an expectation. The T01 snapshots' figures in [step 1](#on-the-consumers) are unchanged: neither consumer has a claim, and their configurations there have no plugin.
+
+Capture 0.7 adds `channels.evidence`: the expectations that held, the claims, and the commands run. Comparison does not read it.
+
+**The budgets moved, and one is getting close.** The proposal counts scenario support as interaction support, loaded only for cases that need it, so element expectations and claim validation are a lazy chunk rather than part of the shell. They first went in the shell, which reached 47,992 of 50,000.
+
+| Category | Ceiling | FAST-AF | Lushly |
+| --- | --- | --- | --- |
+| Shell | 50,000 | 44,885 | 44,885 |
+| Interaction support | 600,000 | 496,750 | 594,147 |
+| Accessibility | 650,000 | 586,666 | 586,666 |
+| **Total** | **1,300,000** | **1,128,301** | **1,225,698** |
+
+Lushly has 5,853 bytes of interaction support left, because `storybook/test` takes 575,816 of it. Replacing that helper at T08 should free most of it, and until then a larger Storybook release could fail Lushly's build.
+
 ## Remaining steps
 
-1. ~~`specimen-coverage` from observed evidence.~~ Implemented on branch.
-2. **Claims and waivers.** A claim binds a target, a member and partition, a checkpoint and expectation ids. Declarative expectations supply those links, and an opt-in helper does for imperative plays, reaching `asserted` and `verified`. Waivers are versioned and appear in the report. The FAST-AF plugin's schema joins the obligations.
+1. ~~`specimen-coverage` from observed evidence.~~ Merged in #692.
+2. ~~Claims and waivers.~~ Implemented on branch.
 3. **Rule replacement.** Each rule above gets a replacement with equivalent executable evidence, a passing and a failing fixture, and a retirement record, run beside Fastbot on the FAST-AF snapshot. FormData and validity become runtime evidence rather than text.
 4. **`specimen-suggest` and the scaffold.** Proposed specimens and claims stay unverified until run. The scaffold emits supported specimens with meaningful assertions.

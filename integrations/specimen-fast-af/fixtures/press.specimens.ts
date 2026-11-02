@@ -9,7 +9,19 @@ export const Pressed = {
 	targets: { control: { selector: 'fixture-press' } },
 	scenario: [
 		{ id: 'press', command: { runner: 'fast-af', name: 'fixture.press', target: 'control' } },
+		{
+			id: 'counted',
+			expect: { target: 'control', state: { attribute: 'data-presses', equals: '1' } },
+		},
 		{ capture: 'pressed' },
+	],
+	coverage: [
+		{
+			target: 'control',
+			obligation: 'command:fixture.press',
+			checkpoint: 'pressed',
+			expectations: ['counted'],
+		},
 	],
 };
 

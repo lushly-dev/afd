@@ -64,6 +64,22 @@ const configSchema = z
 				timeoutMs: z.number().int().min(1).max(60_000).optional(),
 			})
 			.optional(),
+		coverage: z
+			.strictObject({
+				waivers: z
+					.strictObject({
+						version: z.string().min(1),
+						entries: z.array(
+							z.strictObject({
+								component: z.string().min(1),
+								obligation: z.string().min(1),
+								reason: z.string().min(1),
+							})
+						),
+					})
+					.optional(),
+			})
+			.optional(),
 		staticDirs: z
 			.array(
 				z.union([
@@ -212,6 +228,20 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], test: {} },
 			{ specimens: [entry], plugins: ['./plugins.ts'], manifest: 'custom-elements.json' },
 			{ specimens: [entry], staticDirs: ['./public', { from: './site', to: '/site' }] },
+			{ specimens: [entry], coverage: {} },
+			{ specimens: [entry], coverage: { waivers: { version: '1', entries: [] } } },
+			{
+				specimens: [entry],
+				coverage: {
+					waivers: { version: '1', entries: [{ component: 'a', obligation: 'b', reason: 'c' }] },
+				},
+			},
+			{
+				specimens: [entry],
+				coverage: { waivers: { version: '1', entries: [{ component: 'a' }] } },
+			},
+			{ specimens: [entry], coverage: { waivers: { entries: [] } } },
+			{ specimens: [entry], coverage: { other: 1 } },
 			{ specimens: [entry], staticDirs: './public' },
 			{ specimens: [entry], staticDirs: [{ from: './site', to: 'site' }] },
 			{ specimens: [entry], staticDirs: [{ from: './site' }] },

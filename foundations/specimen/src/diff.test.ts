@@ -71,6 +71,7 @@ function capture(): Observation {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
 			events: { declared: [], history: [] },
+			evidence: { expectations: [], claims: [], commands: [] },
 			elements: [element()],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },

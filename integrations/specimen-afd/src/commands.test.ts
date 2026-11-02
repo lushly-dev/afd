@@ -11,7 +11,7 @@ function observation(): Observation {
 	const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
 	return {
 		manifest: {
-			captureVersion: '0.6',
+			captureVersion: '0.7',
 			normalizationVersion: '0.2',
 			specimenId: 'button',
 			capturedUtc: '2026-11-01T00:00:00.000Z',
@@ -54,6 +54,7 @@ function observation(): Observation {
 			dom: { raw: '<button>Save</button>', normalized: '<button>Save</button>' },
 			a11y: { snapshot: '- button "Save"', axe: 'not-run' },
 			events: { declared: [], history: [] },
+			evidence: { expectations: [], claims: [], commands: [] },
 			elements: [],
 			console: { errors: [], warnings: [] },
 			visual: { path: null },
@@ -147,6 +148,9 @@ function bench(): SpecimenCommandBench {
 			complete: false,
 			components: [],
 			counts: { verified: 0, asserted: 0, represented: 0, missing: 0, unknown: 0 },
+			waived: 0,
+			waivers: { version: null, unused: [] },
+			invalidClaims: [],
 			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
 			workers: 2,
 			elapsedMs: 1,

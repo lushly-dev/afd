@@ -16,6 +16,16 @@ describe('declared events and the context matrix', () => {
 		await bench.close();
 	});
 
+	it('holds an event that must not happen, and fails when it does', async () => {
+		const held = await bench.render({ id: 'stays-inert', checkpoint: 'after-run' });
+		expect(held.channels.evidence.expectations).toEqual([
+			{ id: 'inert', kind: 'event', target: 'control', event: 'click' },
+		]);
+		await expect(bench.render({ id: 'not-inert', checkpoint: 'after-run' })).rejects.toThrow(
+			"Expected no event 'click' on 'control' since step 'activate'; one fired."
+		);
+	});
+
 	it('records a declared event on its target, in its interval', async () => {
 		const observation = await capture('clicked', 'after-click');
 		expect(observation.channels.events.declared).toEqual([{ type: 'click', target: 'control' }]);

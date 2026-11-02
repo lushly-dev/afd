@@ -2,7 +2,7 @@ import type { ComponentCoverage, CoverageLevel } from './coverage.js';
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.6' as const;
+export const CAPTURE_VERSION = '0.7' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export interface SpecimenContext {
@@ -37,8 +37,8 @@ export type ScenarioStep =
 	  }
 	| {
 			id?: string;
-			/** An event must have been observed in the interval that began at step `since`. */
-			expect: EventExpectation;
+			/** What must hold here. A claim names this step's id to link it to an obligation. */
+			expect: Expectation;
 	  }
 	| { capture: string };
 /** A declared event, on a declared target or, with none, anywhere its listener can see. */
@@ -53,6 +53,72 @@ export interface EventExpectation {
 	since: string;
 	/** How long to wait for it, within the render's deadline. Defaults to 1,000 ms. */
 	timeoutMs?: number;
+	/** It must not happen: the wait runs out, and the event was not seen. */
+	absent?: boolean;
+	/** The step's id, which a run records. */
+	id?: string;
+}
+/** A live property or an attribute of a declared target. Give one of the two. */
+export interface StateExpectation {
+	target: string;
+	state: { property?: string; attribute?: string; equals: string | number | boolean | null };
+	timeoutMs?: number;
+	id?: string;
+}
+/** An entry in the real `FormData` of the target's form; a `null` value means no such entry. */
+export interface FormExpectation {
+	target: string;
+	form: { name: string; value: string | null };
+	timeoutMs?: number;
+	id?: string;
+}
+/** What the target's own `checkValidity()` answers. */
+export interface ValidityExpectation {
+	target: string;
+	validity: { valid: boolean };
+	timeoutMs?: number;
+	id?: string;
+}
+export type Expectation =
+	| EventExpectation
+	| StateExpectation
+	| FormExpectation
+	| ValidityExpectation;
+/**
+ * A specimen's claim that named expectations prove an obligation, on a declared target at a
+ * checkpoint. Coverage checks it against the run: a claim asserts nothing it does not show.
+ */
+export interface CoverageClaim {
+	target: string;
+	/** As a coverage report names it, such as `property:disabled=true` or `form:validity`. */
+	obligation: string;
+	checkpoint: string;
+	/** Ids of `expect` steps at or before the checkpoint. */
+	expectations: string[];
+}
+/** An expectation that ran and held, or a play's report of one. */
+export interface ExpectationRecord {
+	id: string;
+	kind: 'event' | 'state' | 'form' | 'validity' | 'play';
+	target: string | null;
+	event?: string;
+	/** What it found: the property, form entry or validity. */
+	detail?: unknown;
+}
+export interface ClaimRecord {
+	target: string;
+	/** The target's reference in this capture; `null` when it never resolved. */
+	ref: string | null;
+	obligation: string;
+	checkpoint: string;
+	expectations: string[];
+	source: 'declared' | 'play';
+}
+export interface EvidenceChannel {
+	expectations: ExpectationRecord[];
+	claims: ClaimRecord[];
+	/** Commands the scenario ran, by name. */
+	commands: string[];
 }
 export interface EventRecord {
 	type: string;
@@ -82,6 +148,8 @@ export interface SpecimenDefinition {
 	dispose?: () => void | Promise<void>;
 	a11y?: NativeAccessibility;
 	events?: EventDeclaration[];
+	/** What this specimen's expectations prove, for coverage. */
+	coverage?: CoverageClaim[];
 }
 export interface SpecimenModule {
 	default?: {
@@ -147,6 +215,7 @@ export interface BenchConfig {
 	};
 	/** Recorded performance baselines, relative to the configuration and inside the root. */
 	profile?: { baselines?: string };
+	coverage?: { waivers?: CoverageWaivers };
 	/** Plugin modules, relative to the configuration: each default-exports a plugin or an array of them. */
 	plugins?: string[];
 	/** The custom elements manifest core reads component schemas from, relative to the configuration. */
@@ -258,6 +327,11 @@ export interface SuiteFilter {
 	/** Text in the story's title and name, in any case. */
 	match?: string;
 }
+/** Obligations deliberately not required, versioned so a report can say which set it applied. */
+export interface CoverageWaivers {
+	version: string;
+	entries: { component: string; obligation: string; reason: string }[];
+}
 export interface CoverageRequest {
 	/** One component's tag; defaults to every component the schemas describe. */
 	component?: string;
@@ -272,6 +346,15 @@ export interface CoverageRun {
 	complete: boolean;
 	components: ComponentCoverage[];
 	counts: Record<CoverageLevel, number>;
+	/** Obligations a waiver covers, whatever their level. */
+	waived: number;
+	waivers: {
+		version: string | null;
+		/** Entries matching no obligation, such as after a component changed. */
+		unused: CoverageWaivers['entries'];
+	};
+	/** Claims the run could not honor. Any of these keeps a run from being complete. */
+	invalidClaims: { specimen: string; target: string; obligation: string; reason: string }[];
 	/** What the evidence came from: only cases that passed count. */
 	cases: {
 		total: number;
@@ -369,6 +452,7 @@ export interface BrowserObservation {
 	/** The plugins installed, with the version each declares. */
 	plugins: { id: string; version: string | null }[];
 	resources: CaptureResources;
+	evidence: EvidenceChannel;
 }
 /** What the page loaded beyond the bench's own files, whose digests are in `source.digest`. */
 export interface CaptureResources {
@@ -417,6 +501,8 @@ export interface Observation {
 		dom: { raw: string; normalized: string };
 		a11y: { snapshot: string; axe: 'not-run' | AxeOutcome };
 		events: { declared: EventDeclaration[]; history: EventRecord[] };
+		/** The expectations that held, the claims made of them and the commands run. */
+		evidence: EvidenceChannel;
 		elements: ElementObservation[];
 		console: { errors: string[]; warnings: string[] };
 		visual: { path: string | null };
@@ -718,7 +804,8 @@ export interface BrowserRuntime {
 	/** A declared event target's element, once the host has resolved it. */
 	bindEventTarget(name: string, element: Element): void;
 	stepStarted(id: string | null): void;
-	expectEvent(expectation: EventExpectation): Promise<void>;
+	/** Hold an expectation; the host resolves an element expectation's target first. */
+	expect(expectation: Expectation, element?: Element): Promise<void>;
 	/** What a profile reads from the page at its checkpoint. */
 	profileMetrics(): Promise<Record<string, number | null>>;
 	/** Render a retained story, then run its play and accessibility check, with no task between. */

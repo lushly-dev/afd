@@ -15,6 +15,10 @@
 		"./schema": {
 			"types": "./dist/schema.d.ts",
 			"import": "./dist/schema.js"
+		},
+		"./evidence": {
+			"types": "./dist/evidence.d.ts",
+			"import": "./dist/evidence.js"
 		}
 	},
 	"files": [

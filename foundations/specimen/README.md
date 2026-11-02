@@ -181,12 +181,60 @@ Required of each component the manifest describes: its default state, each value
 
 | Level | Meaning |
 | --- | --- |
+| `verified` | A claim's expectations ran and held, about this target, in this state |
+| `asserted` | In that state, and a claim's expectations held, but they were not about this |
 | `represented` | A case that passed shows an element with this tag in that state |
 | `missing` | No case shows it |
 | `unknown` | The capture could not tell: nothing could read the member, or no case declares the event |
-| `asserted`, `verified` | Reserved for claims linking an expectation to the state |
 
 Only `verified` counts toward `complete`, so a run of plain captures is never complete.
+
+A native specimen says what its expectations prove with `coverage`:
+
+```ts
+export const Disabled = {
+  render: () => field({ disabled: true }),
+  targets: { control: { selector: 'x-field' } },
+  events: [{ type: 'click', target: 'control' }],
+  scenario: [
+    { id: 'focused', action: { focus: 'control' } },
+    { id: 'inert', expect: { event: 'click', target: 'control', since: 'focused', absent: true } },
+    { id: 'marked', expect: { target: 'control', state: { attribute: 'disabled', equals: '' } } },
+    { capture: 'disabled' },
+  ],
+  coverage: [
+    {
+      target: 'control',
+      obligation: 'property:disabled=true',
+      checkpoint: 'disabled',
+      expectations: ['marked', 'inert'],
+    },
+  ],
+};
+```
+
+An `expect` step can hold an event (`absent: true` for one that must not happen), a property or attribute (`state`), an entry in the real `FormData` of the target's form (`form`) or the target's `checkValidity()` (`validity`). A claim is checked against the run:
+
+- An obligation about an event needs an expectation that saw it, a command needs the scenario to have run it, and `form:participation` and `form:validity` need `form` and `validity` expectations.
+- A claim whose expectations were about something else stays `asserted`.
+- A claim that cannot be true is listed in `invalidClaims` and credits nothing: its target was not in that state, its expectations did not run, or the component has no such obligation. Any of these keeps a run from being complete.
+
+A retained story's play links an assertion with `claim`, after the assertion, so a failure never reaches it. It does nothing under Storybook. A play that says nothing keeps its test result, and what it proves stays unknown.
+
+```ts
+import { claim } from '@lushly-dev/specimen/evidence';
+
+await expect(button).toHaveAttribute('disabled');
+claim(button, 'property:disabled=true', 'disabled-attribute');
+```
+
+The configuration can waive an obligation, with a version and a reason. A waiver excuses an obligation from `complete` without raising its level, and the report lists the version and any entry that matched nothing. None is applied automatically.
+
+```json
+{ "coverage": { "waivers": { "version": "2026-11-02", "entries": [
+  { "component": "violet-button", "obligation": "property:type=reset", "reason": "Not a form button." }
+] } } }
+```
 
 - **Evidence is observed.** Each obligation names the first few cases showing it, with their checkpoint and the element's reference. Slots are read from the slots themselves, and properties live from the element, so a story's args prove nothing on their own.
 - **Any element with the tag counts,** including one inside another component.

@@ -1,10 +1,14 @@
 import type {
+	CoverageClaim,
 	EventDeclaration,
+	FormExpectation,
 	NativeAccessibility,
 	ScenarioStep,
 	SpecimenDefinition,
 	SpecimenModule,
+	StateExpectation,
 	Target,
+	ValidityExpectation,
 } from '../types.js';
 
 const specimenFields = new Set([
@@ -17,6 +21,7 @@ const specimenFields = new Set([
 	'scenario',
 	'a11y',
 	'events',
+	'coverage',
 ]);
 const metaFields = new Set(['title', 'description', 'component', 'args', 'render']);
 // Playwright 1.64's getByRole contract; abstract/unknown roles are not accepted.
@@ -105,7 +110,7 @@ const roles = new Set([
 	'treeitem',
 ]);
 
-function record(value: unknown, path: string): Record<string, unknown> {
+export function record(value: unknown, path: string): Record<string, unknown> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 		throw new Error(`${path} must be a plain object.`);
 	}
@@ -116,7 +121,7 @@ function record(value: unknown, path: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-function fields(value: Record<string, unknown>, allowed: Set<string>, path: string): void {
+export function fields(value: Record<string, unknown>, allowed: Set<string>, path: string): void {
 	for (const name of Object.keys(value)) {
 		if (!allowed.has(name)) {
 			throw new Error(
@@ -126,14 +131,14 @@ function fields(value: Record<string, unknown>, allowed: Set<string>, path: stri
 	}
 }
 
-function text(value: unknown, path: string): string {
+export function text(value: unknown, path: string): string {
 	if (typeof value !== 'string' || !value.trim()) {
 		throw new Error(`${path} must be a non-empty string.`);
 	}
 	return value;
 }
 
-function optionalText(value: unknown, path: string): string | undefined {
+export function optionalText(value: unknown, path: string): string | undefined {
 	return value === undefined ? undefined : text(value, path);
 }
 
@@ -205,7 +210,8 @@ function events(
 function scenario(
 	value: unknown,
 	availableTargets: Record<string, Target>,
-	declaredEvents: EventDeclaration[] = []
+	declaredEvents: EventDeclaration[] = [],
+	support?: ScenarioValidation
 ): ScenarioStep[] {
 	if (value === undefined) return [];
 	if (!Array.isArray(value)) throw new Error('specimen.scenario must be an array.');
@@ -229,7 +235,22 @@ function scenario(
 			const id = optionalText(step.id, `${path}.id`);
 			if (id && ids.has(id)) throw new Error(`Duplicate scenario step id '${id}'.`);
 			const expectation = record(step.expect, `${path}.expect`);
-			fields(expectation, new Set(['event', 'target', 'since', 'timeoutMs']), `${path}.expect`);
+			if (!Object.hasOwn(expectation, 'event')) {
+				if (!support) throw new Error(`${path}.expect needs scenario support, which did not load.`);
+				if (id) ids.add(id);
+				return {
+					...(id === undefined ? {} : { id }),
+					expect: {
+						...support.elementExpectation(expectation, availableTargets, `${path}.expect`),
+						...(id === undefined ? {} : { id }),
+					},
+				};
+			}
+			fields(
+				expectation,
+				new Set(['event', 'target', 'since', 'timeoutMs', 'absent']),
+				`${path}.expect`
+			);
 			const event = text(expectation.event, `${path}.expect.event`);
 			const target = optionalText(expectation.target, `${path}.expect.target`);
 			const since = optionalText(expectation.since, `${path}.expect.since`);
@@ -250,6 +271,8 @@ function scenario(
 			const timeoutMs = expectation.timeoutMs;
 			if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || timeoutMs < 0))
 				throw new Error(`${path}.expect.timeoutMs must be a number of milliseconds.`);
+			if (expectation.absent !== undefined && typeof expectation.absent !== 'boolean')
+				throw new Error(`${path}.expect.absent must be a boolean.`);
 			if (id) ids.add(id);
 			return {
 				...(id === undefined ? {} : { id }),
@@ -258,6 +281,8 @@ function scenario(
 					since,
 					...(target === undefined ? {} : { target }),
 					...(timeoutMs === undefined ? {} : { timeoutMs }),
+					...(expectation.absent === undefined ? {} : { absent: expectation.absent }),
+					...(id === undefined ? {} : { id }),
 				},
 			};
 		}
@@ -346,9 +371,38 @@ function accessibility(value: unknown): NativeAccessibility | undefined {
 	};
 }
 
+/** What only a case with element expectations or claims needs: loaded for those alone. */
+export interface ScenarioValidation {
+	elementExpectation(
+		expectation: Record<string, unknown>,
+		availableTargets: Record<string, unknown>,
+		path: string
+	): StateExpectation | FormExpectation | ValidityExpectation;
+	claims(
+		value: unknown,
+		availableTargets: Record<string, unknown>,
+		declared: ScenarioStep[] | undefined
+	): CoverageClaim[] | undefined;
+}
+
+/** Whether a specimen export needs that support, read without validating it. */
+export function needsScenarioSupport(value: unknown): boolean {
+	if (typeof value !== 'object' || value === null) return false;
+	const { coverage, scenario } = value as { coverage?: unknown; scenario?: unknown };
+	return (
+		coverage !== undefined ||
+		(Array.isArray(scenario) &&
+			scenario.some((step) => {
+				const expectation = (step as { expect?: unknown } | null)?.expect;
+				return typeof expectation === 'object' && expectation !== null && !('event' in expectation);
+			}))
+	);
+}
+
 export function validateSpecimen(
 	module: SpecimenModule,
-	exportName: string
+	exportName: string,
+	support?: ScenarioValidation
 ): { meta: NonNullable<SpecimenModule['default']>; specimen: SpecimenDefinition } {
 	const rawMeta = module.default === undefined ? {} : record(module.default, 'Specimen meta');
 	fields(rawMeta, metaFields, 'meta');
@@ -364,6 +418,7 @@ export function validateSpecimen(
 	optionalText(raw.name, 'specimen.name');
 	const availableTargets = targets(raw.targets);
 	const declaredEvents = events(raw.events, availableTargets);
+	const declaredScenario = scenario(raw.scenario, availableTargets, declaredEvents, support);
 	return {
 		meta,
 		specimen: {
@@ -372,9 +427,10 @@ export function validateSpecimen(
 			ready: hook(raw.ready, 'specimen.ready'),
 			dispose: hook(raw.dispose, 'specimen.dispose'),
 			targets: availableTargets,
-			scenario: scenario(raw.scenario, availableTargets, declaredEvents),
+			scenario: declaredScenario,
 			a11y: accessibility(raw.a11y),
 			events: declaredEvents,
+			coverage: support?.claims(raw.coverage, availableTargets, declaredScenario),
 		},
 	};
 }

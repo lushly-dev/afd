@@ -196,6 +196,34 @@ export const observationSchema = z
 					.object({ snapshot: z.string(), axe: z.union([z.literal('not-run'), axeOutcomeSchema]) })
 					.strict(),
 				events: eventsChannelSchema,
+				evidence: z
+					.object({
+						expectations: z.array(
+							z
+								.object({
+									id: z.string(),
+									kind: z.enum(['event', 'state', 'form', 'validity', 'play']),
+									target: z.string().nullable(),
+									event: z.string().optional(),
+									detail: z.unknown().optional(),
+								})
+								.strict()
+						),
+						claims: z.array(
+							z
+								.object({
+									target: z.string(),
+									ref: z.string().nullable(),
+									obligation: z.string(),
+									checkpoint: z.string(),
+									expectations: z.array(z.string()),
+									source: z.enum(['declared', 'play']),
+								})
+								.strict()
+						),
+						commands: z.array(z.string()),
+					})
+					.strict(),
 				elements: z.array(element),
 				console: z.object({ errors: z.array(z.string()), warnings: z.array(z.string()) }).strict(),
 				visual: z.object({ path: z.string().nullable() }).strict(),
@@ -468,10 +496,12 @@ export const coverageRunSchema = z.strictObject({
 							specimen: z.string(),
 							checkpoint: z.string(),
 							target: z.string(),
+							expectations: z.array(z.string()).optional(),
 						})
 					),
 					evidenceCount: z.number(),
 					reason: z.string().optional(),
+					waiver: z.string().optional(),
 				})
 			),
 			counts: coverageCountsSchema,
@@ -480,6 +510,21 @@ export const coverageRunSchema = z.strictObject({
 		})
 	),
 	counts: coverageCountsSchema,
+	waived: z.number(),
+	waivers: z.strictObject({
+		version: z.string().nullable(),
+		unused: z.array(
+			z.strictObject({ component: z.string(), obligation: z.string(), reason: z.string() })
+		),
+	}),
+	invalidClaims: z.array(
+		z.strictObject({
+			specimen: z.string(),
+			target: z.string(),
+			obligation: z.string(),
+			reason: z.string(),
+		})
+	),
 	cases: z.strictObject({
 		total: z.number(),
 		passed: z.number(),

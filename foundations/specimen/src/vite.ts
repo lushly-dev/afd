@@ -180,6 +180,9 @@ async function buildStatic(
 ): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
 	const directory = resolve(outDir);
 	await mkdir(directory, { recursive: true });
+	// A play's `claim` is Specimen's own helper, and goes with the others, whoever imports it.
+	const evidence = join(dirname(dirname(runtime)), 'evidence');
+	const isHelper = (id: string) => HELPERS.test(id) || id.startsWith(evidence);
 	if ((await readdir(directory)).length) throw new Error('Build output directory must be empty');
 	const result = await build({
 		configFile: false,
@@ -198,7 +201,7 @@ async function buildStatic(
 				output: {
 					codeSplitting: {
 						groups: [
-							{ name: 'interaction-support', test: HELPERS, priority: 2 },
+							{ name: 'interaction-support', test: isHelper, priority: 2 },
 							{ name: 'incumbent', test: INCUMBENT, priority: 1 },
 						],
 					},
@@ -214,7 +217,7 @@ async function buildStatic(
 	// runtime is interaction support and axe is the accessibility engine, each loaded only by
 	// the cases that need them and each counted against its own budget, never left out.
 	const runtimeDirectory = dirname(runtime);
-	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser'].map((name) =>
+	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser', 'expectations'].map((name) =>
 		join(runtimeDirectory, name)
 	);
 	const packageSource = dirname(runtimeDirectory);
@@ -223,7 +226,7 @@ async function buildStatic(
 	): 'shell' | 'interaction' | 'accessibility' | 'catalog' | 'incumbent' | 'consumer' => {
 		const ids = Object.keys(chunk.modules);
 		if (ids.includes(CATALOG)) return 'catalog';
-		if (ids.some((id) => HELPERS.test(id))) return 'interaction';
+		if (ids.some(isHelper)) return 'interaction';
 		if (ids.some((id) => INCUMBENT.test(id))) return 'incumbent';
 		if (ids.some((id) => id.includes('/axe-core/'))) return 'accessibility';
 		const owned = ids.filter((id) => id.startsWith(runtimeDirectory));
