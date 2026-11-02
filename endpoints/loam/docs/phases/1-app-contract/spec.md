@@ -10,8 +10,9 @@
 ## Status
 
 - **State:** written 2026-11-01 and revised the same day after an independent
-  review (see [Review](#review-2026-11-01)). Not approved yet, and nothing in it
-  is implemented.
+  review (see [Review](#review-2026-11-01)). Approved 2026-11-01 by the coordinator
+  under the owner's delegation, after that review (D17). Nothing in it is implemented;
+  each step's state is one line in STATUS.md's phase 1 block.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, and for the manifest's
   step 1 at `9be3ad12`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:

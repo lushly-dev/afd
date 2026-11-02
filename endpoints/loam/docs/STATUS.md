@@ -39,7 +39,7 @@ should never have to scan the codebase to learn what is current.
 | Design review | Done 2026-11-01 | Owner | This document set; the owner's approval in the session of 2026-11-01 | None |
 | AFD prerequisites | Phase 0 and phase 2 rows done; phase 1's resources row done; phase 1's manifest row approved 2026-11-01 ([shared plugin manifest](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md)); its `spec/` core (step 1, spec first) is done ([`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), [#677](https://github.com/lushly-dev/afd/pull/677), `9be3ad12`), and Loam's profile (step 2) is specified in the [phase 1 specification](phases/1-app-contract/spec.md) and not built, with phase 1; the phase 3 and 5 rows open | AFD sessions | [#576](https://github.com/lushly-dev/afd/pull/576) (#527), [#569](https://github.com/lushly-dev/afd/pull/569) (#528), [#581](https://github.com/lushly-dev/afd/pull/581); MCP resources specified in [#588](https://github.com/lushly-dev/afd/pull/588), Rust in [#608](https://github.com/lushly-dev/afd/pull/608), TypeScript in [#615](https://github.com/lushly-dev/afd/pull/615) | The shared plugin manifest's step 1 (`spec/`) lands before or with the phase 1 specification; see the phase detail |
 | 0. Kernel, chrome and design foundation | Exited 2026-11-01: E1 to E10 pass in `loam.yml` on `main` ([run 41367284963](https://github.com/lushly-dev/afd/actions/runs/41367284963) at `1405e3c0`) | Phase 0 agent | [Phase 0 specification](phases/0-kernel-chrome/spec.md); follow-ups filed as #655 to #664 | None; phase 1 may start |
-| 1. App contract | Specification written and reviewed 2026-11-01, awaiting the coordinator's approval; nothing implemented | Phase 1 agent | [Phase 1 specification](phases/1-app-contract/spec.md); the [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md), approved 2026-11-01 | The coordinator's approval; the proposal's step 1 merged 2026-11-01 ([#677](https://github.com/lushly-dev/afd/pull/677), `9be3ad12`) |
+| 1. App contract | Specification approved 2026-11-01; implementation in progress (see the steps below) | Phase 1 agent | [Phase 1 specification](phases/1-app-contract/spec.md); the [shared plugin manifest proposal](../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md), approved 2026-11-01 | The coordinator's approval; the proposal's step 1 merged 2026-11-01 ([#677](https://github.com/lushly-dev/afd/pull/677), `9be3ad12`) |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
 | 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
 | 4. Settings, experiments, notifications, overlays | Not started | None | None | Phase 2 exit criterion met |
@@ -175,11 +175,10 @@ should never have to scan the codebase to learn what is current.
 
 ### 1. App contract
 
-- **State:** specification written 2026-11-01 and revised after an independent
-  review; awaiting the coordinator's approval under the owner's delegation of
-  2026-11-01. Nothing implemented. Last verified 2026-11-01 against `main` at
+- **State:** specification approved 2026-11-01 by the coordinator under the owner's
+  delegation, after an independent review. Implementation in progress. Last verified 2026-11-01 against `main` at
   `9be3ad12`, which holds the proposal's step 1.
-- **Done:** the [specification](phases/1-app-contract/spec.md), proposing D59 to
+- **Done:** the [specification](phases/1-app-contract/spec.md), deciding D59 to
   D68 and deciding L1 to L10 of the shared plugin manifest proposal.
 - **Not done:** every step below. The mounted proof (D57) runs through a
   test-only relay (D64), and the exit record must say so.
@@ -261,3 +260,4 @@ starts.
 | 2026-11-01 | Owner's decisions | The owner took every recommendation on the shared plugin manifest: D54 (native apps are trusted code), D55 (team Umbel instances under a read-all rule until Umbel's phase 5), D56 (only the owner or deployer sets a stdio command), D57 (phase 1 proves the mounted-server kind against a real Umbel instance) and D58 (the core and profiles, with Umbel instances as headless mounted apps). The proposal moved to `docs/features/active/` and the architecture is amended |
 | 2026-11-01 | Plugin manifest step 1 | [`spec/plugin-manifest.md`](../../../spec/plugin-manifest.md), the core and its cases, in [#677](https://github.com/lushly-dev/afd/pull/677). Loam's profile (step 2) is checked against them; a profile needs `type` and `"domains": true` to compile under Ajv's `strict: true`, as the corrected sketch in the proposal shows |
 | 2026-11-01 | Phase 1 specification | The [phase 1 specification](phases/1-app-contract/spec.md) written and reviewed independently: the manifest profile, a deployment file with a browser projection, the surface catalog and grants, the three loader kinds with a sandbox proxy on a second origin and a handler frame, the minimal console, toast and modal, kernel interface 1 and the SDK, `app new` and `app check`, and the proof against a real Umbel through a test-only relay. D59 to D68 proposed; L1 to L10 decided; the trajectory refreshed, with W29 and W30 added. Documents only: nothing implemented |
+| 2026-11-01 | Phase 1 approval | The coordinator approved the phase 1 specification under the owner's delegation, after an independent review (35 findings, all addressed), deciding D59 to D68. Steps 0a, 0b and 1 start next |
