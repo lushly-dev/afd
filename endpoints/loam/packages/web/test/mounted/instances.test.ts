@@ -111,7 +111,13 @@ describe('E4: instances, through a test-only relay', () => {
 				work.tokenFile,
 				home.tokenFile,
 			];
-			const inText = (text: string) => secrets.filter((secret) => text.includes(secret));
+			// A bare port can match by chance inside a timestamp or an id, so a number must stand alone.
+			const inText = (text: string) =>
+				secrets.filter((secret) =>
+					/\D/.test(secret)
+						? text.includes(secret)
+						: new RegExp(`(?<![0-9A-Za-z])${secret}(?![0-9A-Za-z])`).test(text)
+				);
 			for (const file of await filesUnder(site.out)) {
 				// Numbers can match a port by chance in a bundle, so a served bundle is checked for the rest.
 				const text = await readFile(file, 'utf8').catch(() => '');
