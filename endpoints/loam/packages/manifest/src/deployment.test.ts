@@ -249,6 +249,19 @@ describe('readDeployment', () => {
 		expect(refusal?.suggestion).not.toBe('');
 	});
 
+	it.each(['https://sandbox.example.com;script-src', 'https://Sandbox.example.com', 'https://a"b'])(
+		'refuses the sandbox origin %s, which would reach the CSP',
+		(origin) => {
+			const read = readDeployment({ deployment_version: 1, sandbox: { origin }, apps: {} });
+			expect(read.ok).toBe(false);
+			if (!read.ok)
+				expect(read.refusals[0]).toMatchObject({
+					code: 'DEPLOYMENT_INVALID',
+					key: 'sandbox.origin',
+				});
+		}
+	);
+
 	it('accepts mcp and cli set false, and a loopback name', () => {
 		expect(
 			refusalsOf(

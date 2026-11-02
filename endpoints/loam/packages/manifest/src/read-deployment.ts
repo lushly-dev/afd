@@ -39,6 +39,17 @@ function urlAllowed(url: string): boolean {
 	return host === 'localhost' || host === '[::1]' || /^127(\.\d{1,3}){3}$/.test(host);
 }
 
+/** The characters a CSP source must not carry, such as `;`, are ones `URL` lets through in a host. */
+const ORIGIN = /^https?:\/\/(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(:\d+)?$/;
+
+function canonicalOrigin(value: string): boolean {
+	try {
+		return ORIGIN.test(value) && new URL(value).origin === value;
+	} catch {
+		return false;
+	}
+}
+
 function instanceRefusals(id: string, entry: Instance): DeploymentRefusal[] {
 	const refusals: DeploymentRefusal[] = [];
 	const refuse = (
@@ -129,6 +140,19 @@ function instanceRefusals(id: string, entry: Instance): DeploymentRefusal[] {
 	return refusals;
 }
 
+/** The origin reaches the shell's CSP and a frame's address, so it must be one origin and no more. */
+function sandboxRefusals({ sandbox }: DeploymentV1): DeploymentRefusal[] {
+	if (sandbox === undefined || canonicalOrigin(sandbox.origin)) return [];
+	return [
+		{
+			code: 'DEPLOYMENT_INVALID',
+			key: keyOf('/sandbox/origin'),
+			message: '`sandbox.origin` is not an origin in its canonical form.',
+			suggestion: 'Use a lowercase scheme and host, such as `https://sandbox.example.com`.',
+		},
+	];
+}
+
 export function readDeployment(json: unknown): DeploymentRead {
 	if (!validateDeployment(json)) {
 		return {
@@ -138,9 +162,10 @@ export function readDeployment(json: unknown): DeploymentRead {
 		};
 	}
 	const deployment = json as DeploymentV1;
-	const refusals = Object.entries(deployment.apps).flatMap(([id, entry]) =>
-		instanceRefusals(id, entry)
-	);
+	const refusals = [
+		...sandboxRefusals(deployment),
+		...Object.entries(deployment.apps).flatMap(([id, entry]) => instanceRefusals(id, entry)),
+	];
 	return refusals.length > 0
 		? { ok: false, refusals, warnings: [] }
 		: { ok: true, deployment, warnings: [] };

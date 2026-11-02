@@ -26,6 +26,7 @@
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {
+		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
 		"@lushly-dev/violet-runtime": "workspace:*",
 		"@types/node": "^26.6.6",

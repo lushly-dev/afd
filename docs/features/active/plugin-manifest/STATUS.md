@@ -27,7 +27,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     (L1 to L10), which it answers; see [Resolutions](#resolutions-of-l1-to-l10) and
     [Open questions](plugin-manifest.proposal.md#open-questions).
   - Step 2 is in progress with Loam's phase 1: `@lushly-dev/loam-manifest` holds Loam's profile and its
-    reader. Nothing loads an app through it yet, and steps 3 to 8 are not started.
+    reader, and `@lushly-dev/loam-cli` holds `app check`, `app pack` and the `rules` cases that need files.
+    Nothing loads an app through them yet, and steps 3 to 8 are not started.
 - **Last verified:** 2026-11-01 against `main` at `d74f1299`, with the results under
   [Step 1 verification](#step-1-verification). The proposal's state was read earlier, at `355aa994`,
   from:
@@ -73,8 +74,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `scripts/plugin-manifest.test.mjs` in the tooling tests. `spec/VERSION` stays `1.0-rc`: the core has
   its own version, and no fixture, vector, wire field or error code changes, as earlier `spec/`
   additions did. No changeset: no publishable package changes.
-- **Not done:** the rest of step 2 (`app check`, the kernel's read, the mounted loader's discovery and
-  instance entries) and steps 3 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
+- **Not done:** the rest of step 2 (the kernel's read, the mounted loader's discovery and instance
+  entries) and steps 3 to 8 ([Implementation plan](plugin-manifest.proposal.md#implementation-plan)).
   No host or package reads the core, and the Rust check of the cases is not a permanent test. The
   owner's questions are decided; U1 to U4 are not answered, and L1 to L10 are answered by Loam's phase 1
   specification ([Resolutions](#resolutions-of-l1-to-l10)).
@@ -318,3 +319,4 @@ step 2 of the plan in its steps 1, 2 and 7.
 | 2026-11-01 | Design sub-agent | Read the sources listed above. Wrote the proposal and this file. Added the feature index row. Updated Loam's status: the follow-up, the prerequisites row, the phase 1 gate and the session log. Added a pointer in Umbel's follow-ups. Ran the first independent review and fixed every finding. Added the owner's headless-app requirement: Umbel instances in Loam. Ran a second independent review of that section and fixed every finding. Checked with `node --test scripts/repository-contract.test.mjs` and the pre-push hook |
 | 2026-11-01 | Implementation sub-agent | Step 1: wrote the spec page, the core and the cases, and wired `scripts/plugin-manifest.test.mjs` into the tooling tests. Proved the three unverified claims ([Step 1 verification](#step-1-verification)), corrected the proposal where they were false, and updated the parity row, the changelog and Loam's status |
 | 2026-11-01 | Loam's phase 1, step 1 | Step 2 started: Loam's profile `app-manifest.v1.json` and `@lushly-dev/loam-manifest` conform to the core by `$ref`. `scripts/plugin-manifest.test.mjs` now checks both profiles, its comparison handling `unevaluatedProperties`. It also found a hole in that file's reference check: a mounted manifest's pipeline escaped the rule `command-domain` |
+| 2026-11-01 | Loam's phase 1, step 2 | `@lushly-dev/loam-cli`: `app check` and `app pack` apply `path-inside-root` and `files`, and that page's `rules` cases for both run in its test, over a map of files and over a real disk |
