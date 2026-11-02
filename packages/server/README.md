@@ -175,7 +175,8 @@ Point MCP clients at `/mcp`, for example `claude mcp add --transport http my-ser
 The root entry loads the MCP SDK, `node:http` and `node:tls`, so it cannot be
 bundled for the browser. Code that only defines commands (shared command
 modules, UI state packages, in-app agents) can import from the `/define`
-subpath instead. It exports `defineCommand`, the schema helpers
+subpath instead. It exports `defineCommand`, `defineCommandWithSchema` (see
+[below](#the-lean-path-definecommandwithschema)), the schema helpers
 (`zodToJsonSchema`, `getRequiredFields`, `isObjectSchema`), the result helpers
 (`success`, `failure`, `error`, `isSuccess`, `isFailure`), `defaultExpose` and
 the matching types, with no MCP SDK or Node.js builtin in its module graph:
@@ -195,6 +196,57 @@ export const panelOpen = defineCommand({
 ```
 
 The same functions are still exported from `@lushly-dev/afd-server`.
+
+### The lean path: `defineCommandWithSchema`
+
+`defineCommand` computes each command's JSON Schema with `toJSONSchema` as it
+loads, and takes classic Zod. A browser bundle pays for both. When you already
+have the JSON Schema, `defineCommandWithSchema` takes it as written, with a
+classic or a [Zod Mini](https://zod.dev/packages/mini) schema to validate. A host
+that defines every command this way and imports only `createDirectRegistry`,
+`createJournalMiddleware` and the middleware bundles `zod/v4/core` and neither
+classic Zod nor `toJSONSchema`. A test holds that, with esbuild. Import Zod Mini as
+`import * as z from 'zod/mini'`: esbuild cannot tree-shake `import { z }`, and keeps
+all of it, locales and `toJSONSchema` included. Vite 8 handles either form.
+
+```typescript
+import * as z from 'zod/mini';
+import { defineCommandWithSchema, success } from '@lushly-dev/afd-server/define';
+
+export const panelOpen = defineCommandWithSchema({
+  name: 'panel-open',
+  description: 'Open a panel',
+  input: z.object({ id: z.string() }),
+  jsonSchema: {
+    type: 'object',
+    properties: { id: { type: 'string' } },
+    required: ['id'],
+  },
+  async handler(input) {
+    return success({ id: input.id, open: true });
+  },
+});
+```
+
+- **Nothing compares the two.** `input` validates every call and `jsonSchema` is
+  what every surface shows, so hold them equal in a test, against
+  `zodToJsonSchema(schema)`. `advertisedInputSchema` still replaces it.
+- **Output is not converted either.** Pass `outputJsonSchema` beside `output` to
+  advertise it. With `output` alone, no surface shows an output schema.
+- **`createDirectToolSurface` and the MCP servers still load both**, since their
+  own tools are defined on classic Zod.
+- **Messages.** Zod Mini loads no locale, so with no classic schema built on the
+  page an issue says only `Invalid input`. `VALIDATION_ERROR` then builds its text
+  from the issue, as Zod's English does for a wrong type, a value, a size other than a
+  file's, an unknown key, a regex or a discriminator. A format keeps its own name (`Invalid
+  email` for `Invalid email address`), and a rarer code, such as `multipleOf`, says
+  `Invalid input`, with the field's path. With a locale loaded, or a message of the
+  schema's own, nothing is rebuilt.
+
+Types: `ZodCommandDefinition` with no type argument still reads as classic, so
+`command.inputSchema.safeParse(input)` works as before. A Mini command is cast to
+it for `createDirectRegistry`, as a typed classic command is, with
+`as unknown as ZodCommandDefinition`.
 
 ### In-process entry point: `@lushly-dev/afd-server/direct`
 

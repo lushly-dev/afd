@@ -165,6 +165,16 @@ export {
 	type Tracer,
 	type TracingOptions,
 } from './middleware.js';
+// Validation utilities
+export {
+	type DateRange,
+	type Pagination,
+	type PaginationInput,
+	patterns,
+	type Search,
+	type Sorting,
+	type SortingInput,
+} from './patterns.js';
 export {
 	MCP_APP_MIME_TYPE,
 	type ResourceContents,
@@ -175,6 +185,7 @@ export {
 // Schema and command definition
 export {
 	defineCommand,
+	defineCommandWithSchema,
 	getRequiredFields,
 	isObjectSchema,
 	type ZodCommandDefinition,
@@ -201,21 +212,13 @@ export {
 	type SkillCatalogOptions,
 	skillFromDirectory,
 } from './skills.js';
-// Validation utilities
 export {
-	type DateRange,
 	type EnhancedValidationResult,
 	formatEnhancedValidationError,
 	formatValidationErrors,
 	isValid,
 	optional,
-	type Pagination,
-	type PaginationInput,
-	patterns,
 	type SchemaInfo,
-	type Search,
-	type Sorting,
-	type SortingInput,
 	type ValidationError,
 	ValidationException,
 	type ValidationResult,

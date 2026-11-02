@@ -61,8 +61,8 @@ import {
 	AFD_CONTEXT_FIELDS_META_KEY,
 	type ContextField,
 	contextFieldValues,
-	describeContextFields,
 } from './context-fields.js';
+import { describeContextFields } from './context-fields-describe.js';
 import { bindContextState } from './context-scope.js';
 import {
 	ANSWER_TTL_SECONDS,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { patterns } from './patterns.js';
 import {
 	formatEnhancedValidationError,
 	formatValidationErrors,
 	isValid,
 	optional,
-	patterns,
 	ValidationException,
 	validateInput,
 	validateInputEnhanced,

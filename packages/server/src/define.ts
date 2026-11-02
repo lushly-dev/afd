@@ -12,11 +12,13 @@
  * `/direct` entry adds `createDirectRegistry`, the journal and the middleware
  * that run without Node.js.
  *
- * Module-graph rule: this file and `schema.ts` take runtime values from
- * `@lushly-dev/afd-core` only through its narrow subpaths (`/commands`,
- * `/result`), so the entry stays the smallest way to define commands.
+ * Module-graph rule: this file, `define-core.ts` and `schema.ts` take runtime
+ * values from `@lushly-dev/afd-core` only through its narrow subpaths
+ * (`/commands`, `/result`), so the entry stays the smallest way to define
+ * commands. `defineCommandWithSchema` also keeps `zod` and `toJSONSchema` out: a
+ * host on Zod Mini that uses only it loads `zod/v4/core` alone.
  * `entry-points.test.ts` bundles this entry with esbuild for the browser to
- * enforce the rule.
+ * enforce both.
  *
  * @example
  * ```typescript
@@ -52,10 +54,9 @@ export type {
 export { defaultExpose } from '@lushly-dev/afd-core/commands';
 export { error, failure, isFailure, isSuccess, success } from '@lushly-dev/afd-core/result';
 export {
-	defineCommand,
-	getRequiredFields,
-	isObjectSchema,
+	defineCommandWithSchema,
 	type ZodCommandDefinition,
 	type ZodCommandOptions,
-	zodToJsonSchema,
-} from './schema.js';
+} from './define-core.js';
+export { zodToJsonSchema } from './json-schema.js';
+export { defineCommand, getRequiredFields, isObjectSchema } from './schema.js';

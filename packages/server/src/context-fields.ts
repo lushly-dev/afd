@@ -4,10 +4,10 @@
  * `journal: true`, the journal.
  */
 
-import type { CommandContext, CommandResult, JsonSchema } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
-import type { z } from 'zod';
-import { zodToJsonSchema } from './schema.js';
+import { type $ZodType, type util as coreUtil, safeParse } from 'zod/v4/core';
+import { issueMessage } from './issue-message.js';
 
 /** A request value a host declares: where it lands in the context and how it is validated. */
 export interface ContextField<T = unknown> {
@@ -16,7 +16,7 @@ export interface ContextField<T = unknown> {
 	/** The MCP `_meta` key a caller sends the value in: a reverse-DNS prefix, `dev.example/scope`. */
 	meta: string;
 	/** Validates the value; its output is what the handler sees. */
-	schema: z.ZodType<T>;
+	schema: $ZodType<T>;
 	/** Record the value in the journal. Default `false`: only for a field that never holds a secret. */
 	journal?: boolean;
 	/** Fail a call that has no value for this field. Default `false`. */
@@ -53,26 +53,6 @@ export const JOURNALED_CONTEXT_FIELDS: unique symbol = Symbol('afd.journaledCont
 
 /** The `_meta` key under which `server/discover` lists the declared fields. */
 export const AFD_CONTEXT_FIELDS_META_KEY = 'dev.afd/context-fields';
-
-/** A declared field as discovery describes it, with its schema as JSON Schema. */
-export interface DescribedContextField {
-	name: string;
-	meta: string;
-	schema: JsonSchema;
-	required: boolean;
-	journal: boolean;
-}
-
-/** The declared fields as `server/discover` and `afd-help` list them. */
-export function describeContextFields(fields: readonly ContextField[]): DescribedContextField[] {
-	return fields.map((field) => ({
-		name: field.name,
-		meta: field.meta,
-		schema: zodToJsonSchema(field.schema),
-		required: field.required === true,
-		journal: field.journal === true,
-	}));
-}
 
 /**
  * The declared fields' values in a request's `_meta`, by field name. Undeclared keys are left out.
@@ -127,7 +107,7 @@ export function checkContextFields(
 			);
 		}
 		if (metaKeys.has(meta)) throw new TypeError(`Meta key '${meta}' is declared twice`);
-		if (!schema || typeof (schema as { safeParse?: unknown }).safeParse !== 'function') {
+		if (!schema?._zod) {
 			throw new TypeError(`Context field '${name}' needs a Zod schema`);
 		}
 		names.add(name);
@@ -167,9 +147,9 @@ export function applyContextFields(
 			}
 			continue;
 		}
-		let parsed: ReturnType<z.ZodType['safeParse']>;
+		let parsed: coreUtil.SafeParseResult<unknown>;
 		try {
-			parsed = field.schema.safeParse(value);
+			parsed = safeParse(field.schema, value, { reportInput: true });
 		} catch (error) {
 			return fieldFailure(field, `Context field '${field.name}' is not valid`, [
 				{ path: '', message: error instanceof Error ? error.message : String(error) },
@@ -181,7 +161,7 @@ export function applyContextFields(
 				`Context field '${field.name}' is not valid`,
 				parsed.error.issues.map((issue) => ({
 					path: issue.path.map(String).join('.'),
-					message: issue.message,
+					message: issueMessage(issue),
 				}))
 			);
 		}

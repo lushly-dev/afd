@@ -21,9 +21,10 @@
  * boundary against code running in the page. Keep approvals on a server when you need one.
  *
  * Module-graph rule: nothing reachable from this file may import the MCP SDK, a Node.js built-in
- * or the core subpaths that need Node.js (`/platform`, `/connectors`, `/journal-file`).
- * `entry-points.test.ts` bundles this entry with esbuild for the browser to enforce the rule, and
- * holds AFD's own code to a size budget.
+ * or the core subpaths that need Node.js (`/platform`, `/connectors`, `/journal-file`). Nothing
+ * reachable from `createDirectRegistry`, `createJournalMiddleware` or `defineCommandWithSchema` may
+ * import `zod` or `toJSONSchema` at run time, only `zod/v4/core`. `entry-points.test.ts` bundles this
+ * entry with esbuild for the browser to enforce both, and holds AFD's own code to a size budget.
  *
  * @example
  * ```typescript

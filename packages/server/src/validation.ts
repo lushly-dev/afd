@@ -2,7 +2,18 @@
  * @fileoverview Input validation utilities
  */
 
-import { type ZodError, type ZodIssue, type ZodType, type ZodTypeAny, z } from 'zod';
+import type { ZodType, z } from 'zod';
+import {
+	$ZodDefault,
+	type $ZodIssue,
+	$ZodNullable,
+	$ZodObject,
+	$ZodOptional,
+	$ZodPipe,
+	type $ZodType,
+	safeParse,
+} from 'zod/v4/core';
+import { issueMessage } from './issue-message.js';
 
 export interface ValidationError {
 	path: string;
@@ -31,24 +42,23 @@ export interface EnhancedValidationResult<T> {
 	missingFields?: string[];
 }
 
-export function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
-	const result = schema.safeParse(input);
+export function validateInput<T>(schema: $ZodType<T>, input: unknown): ValidationResult<T> {
+	const result = safeParse(schema, input, { reportInput: true });
 	if (result.success) return { success: true, data: result.data, errors: [] as never[] };
-	return { success: false, data: undefined, errors: formatZodErrors(result.error) };
+	return { success: false, data: undefined, errors: result.error.issues.map(formatZodIssue) };
 }
 
 export function validateInputEnhanced<T>(
-	schema: ZodType<T>,
+	schema: $ZodType<T>,
 	input: unknown
 ): EnhancedValidationResult<T> {
-	const result = schema.safeParse(input);
+	const result = validateInput(schema, input);
 	if (result.success) return { success: true, data: result.data, errors: [] };
 	const schemaInfo = extractSchemaInfo(schema, input);
-	const errors = formatZodErrors(result.error);
 	return {
 		success: false,
 		data: undefined,
-		errors,
+		errors: result.errors,
 		expectedFields: schemaInfo.expectedFields.length > 0 ? schemaInfo.expectedFields : undefined,
 		unexpectedFields:
 			schemaInfo.unexpectedFields.length > 0 ? schemaInfo.unexpectedFields : undefined,
@@ -56,25 +66,21 @@ export function validateInputEnhanced<T>(
 	};
 }
 
-export function validateOrThrow<T>(schema: ZodType<T>, input: unknown): T {
+export function validateOrThrow<T>(schema: $ZodType<T>, input: unknown): T {
 	const result = validateInput(schema, input);
 	if (!result.success) throw new ValidationException(result.errors);
 	return result.data;
 }
 
-export function isValid<T>(schema: ZodType<T>, input: unknown): input is T {
-	return schema.safeParse(input).success;
+export function isValid<T>(schema: $ZodType<T>, input: unknown): input is T {
+	return safeParse(schema, input).success;
 }
 
-function formatZodErrors(error: ZodError): ValidationError[] {
-	return error.issues.map(formatZodIssue);
-}
-
-function formatZodIssue(issue: ZodIssue): ValidationError {
+function formatZodIssue(issue: $ZodIssue): ValidationError {
 	const path = issue.path.join('.');
 	const error: ValidationError = {
 		path: path || '(root)',
-		message: issue.message,
+		message: issueMessage(issue),
 		code: issue.code,
 	};
 	if (issue.code === 'invalid_type') {
@@ -112,7 +118,7 @@ export function formatEnhancedValidationError(
 	return parts.join('. ');
 }
 
-function extractSchemaInfo<T>(schema: ZodType<T>, input: unknown): SchemaInfo {
+function extractSchemaInfo(schema: $ZodType, input: unknown): SchemaInfo {
 	const expectedFields: string[] = [];
 	const unexpectedFields: string[] = [];
 	const missingFields: string[] = [];
@@ -124,30 +130,33 @@ function extractSchemaInfo<T>(schema: ZodType<T>, input: unknown): SchemaInfo {
 				if (!expectedFields.includes(key)) unexpectedFields.push(key);
 			}
 			for (const key of expectedFields) {
-				if (!(key in input) && shape[key] && isRequiredField(shape[key] as ZodType))
-					missingFields.push(key);
+				const field = shape[key];
+				if (!(key in input) && field && isRequiredField(field)) missingFields.push(key);
 			}
 		}
 	}
 	return { expectedFields, unexpectedFields, missingFields };
 }
 
-function getSchemaShape<T>(schema: ZodType<T>): Record<string, ZodType> | null {
-	if (schema instanceof z.ZodObject) return schema.shape as Record<string, ZodType>;
-	if (schema instanceof z.ZodPipe) return getSchemaShape(schema._def.in as ZodTypeAny);
-	if (schema instanceof z.ZodOptional)
-		return getSchemaShape((schema as z.ZodOptional<ZodTypeAny>).unwrap());
-	if (schema instanceof z.ZodNullable)
-		return getSchemaShape((schema as z.ZodNullable<ZodTypeAny>).unwrap());
-	if (schema instanceof z.ZodDefault)
-		return getSchemaShape((schema as z.ZodDefault<ZodTypeAny>).removeDefault());
+// Read through `_zod.def` and core's classes: a Zod Mini schema has no `.shape` or `.unwrap()`, and
+// a classic one has the same def.
+function getSchemaShape(schema: $ZodType): Readonly<Record<string, $ZodType>> | null {
+	if (schema instanceof $ZodObject) return schema._zod.def.shape;
+	if (schema instanceof $ZodPipe) return getSchemaShape(schema._zod.def.in);
+	if (
+		schema instanceof $ZodOptional ||
+		schema instanceof $ZodNullable ||
+		schema instanceof $ZodDefault
+	) {
+		return getSchemaShape(schema._zod.def.innerType);
+	}
 	return null;
 }
 
-function isRequiredField(schema: ZodType): boolean {
-	if (schema instanceof z.ZodOptional) return false;
-	if (schema instanceof z.ZodDefault) return false;
-	if (schema instanceof z.ZodPipe) return isRequiredField(schema._def.in as ZodTypeAny);
+function isRequiredField(schema: $ZodType): boolean {
+	if (schema instanceof $ZodOptional) return false;
+	if (schema instanceof $ZodDefault) return false;
+	if (schema instanceof $ZodPipe) return isRequiredField(schema._zod.def.in);
 	return true;
 }
 
@@ -168,61 +177,6 @@ export class ValidationException extends Error {
 		};
 	}
 }
-
-export const patterns = {
-	uuid: z.string().uuid(),
-	email: z.string().email(),
-	url: z.string().url(),
-	nonEmpty: z.string().min(1),
-	positiveInt: z.number().int().positive(),
-	nonNegativeInt: z.number().int().nonnegative(),
-	isoDate: z.string().datetime(),
-	pagination: z.object({
-		limit: z.number().int().min(1).max(100).default(20),
-		offset: z.number().int().nonnegative().default(0),
-	}),
-	sorting: z.object({
-		sortBy: z
-			.string()
-			.min(1)
-			.regex(/^[a-zA-Z_][a-zA-Z0-9_.]*$/, 'sortBy must be a valid identifier'),
-		sortDirection: z.enum(['asc', 'desc']).default('asc'),
-	}),
-	search: z.object({
-		query: z.string().min(1),
-		fields: z.array(z.string().min(1)).optional(),
-	}),
-	dateRange: z
-		.object({
-			startDate: z.string().datetime(),
-			endDate: z.string().datetime(),
-		})
-		.refine((d) => d.startDate <= d.endDate, {
-			message: 'startDate must be before or equal to endDate',
-		}),
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// INFERRED TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Inferred input type for pagination schema (before defaults applied). */
-export type PaginationInput = z.input<typeof patterns.pagination>;
-
-/** Inferred output type for pagination schema (after defaults applied). */
-export type Pagination = z.output<typeof patterns.pagination>;
-
-/** Inferred input type for sorting schema (before defaults applied). */
-export type SortingInput = z.input<typeof patterns.sorting>;
-
-/** Inferred output type for sorting schema (after defaults applied). */
-export type Sorting = z.output<typeof patterns.sorting>;
-
-/** Inferred type for search schema. */
-export type Search = z.infer<typeof patterns.search>;
-
-/** Inferred type for date range schema. */
-export type DateRange = z.infer<typeof patterns.dateRange>;
 
 export function optional<T extends ZodType>(schema: T) {
 	return schema.optional();
