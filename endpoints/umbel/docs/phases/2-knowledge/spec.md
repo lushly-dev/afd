@@ -115,7 +115,7 @@
   its `frontmatter` pack and its skill, the host service `content_collections`
   and the `knowledge` CI job's new crates. See
   [Amendments from step 5](#amendments-from-step-5). **Step 6, the knowledge core**,
-  2026-11-01, in the step 6 pull request: the `umbel-plugin-knowledge` crate without the `code`
+  2026-11-01, in [671](https://github.com/lushly-dev/afd/pull/671): the `umbel-plugin-knowledge` crate without the `code`
   feature and the `umbel-knowledge` binary (the stock `umbel` stays empty); structure-aware
   chunking (D59); `knowledge-index` by the section 8.7 procedure (index only: the writer first,
   derivation reads, one commit that never lowers `applied`, totals plus readable ids);
