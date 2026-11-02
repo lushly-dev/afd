@@ -20,4 +20,13 @@ async function boot(): Promise<void> {
 	document.documentElement.dataset.loamHost = 'web';
 }
 
-void boot();
+boot().catch(async (error: unknown) => {
+	// A store that cannot open (blocked, out of quota, a newer version) leaves no blank page.
+	reportError(error);
+	await renderNotice(document.body, {
+		themeCss,
+		heading: 'Loam cannot start',
+		message: `Its local stores could not open: ${error instanceof Error ? error.message : String(error)}. Reload to try again.`,
+	});
+	document.documentElement.dataset.loamHost = 'failed';
+});

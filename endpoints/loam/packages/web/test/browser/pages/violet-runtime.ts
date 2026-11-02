@@ -8,14 +8,45 @@ import { VioletRuntime } from '@lushly-dev/violet-runtime';
 const nodes = (themeJson as { nodes: Record<string, { id: string; value: string | number }[]> })
 	.nodes;
 
-function read(properties: readonly string[]): Record<string, string> {
-	const style = getComputedStyle(document.documentElement);
-	return Object.fromEntries(
-		properties.map((property) => [property, style.getPropertyValue(property).trim()])
-	);
+export interface TokenProbe {
+	property: string;
+	type: string;
 }
 
-async function compare(properties: readonly string[]) {
+/** The real CSS property each token type is read through, so equal values compare equal. */
+const PROBES: Record<string, string> = {
+	color: 'color',
+	dimension: 'width',
+	duration: 'transition-duration',
+	cubicBezier: 'transition-timing-function',
+	fontWeight: 'font-weight',
+	number: 'z-index',
+	shadow: 'box-shadow',
+};
+
+/**
+ * Each token's value as the browser computes it when used: the build minifies the stylesheet
+ * (`#FFFFFF` becomes `#fff`), so the custom properties' text differs while the values do not.
+ */
+function read(tokens: readonly TokenProbe[]): Record<string, string> {
+	const probe = document.createElement('div');
+	probe.style.setProperty('position', 'absolute');
+	document.body.append(probe);
+	const root = getComputedStyle(document.documentElement);
+	const values = Object.fromEntries(
+		tokens.map(({ property, type }) => {
+			const css = PROBES[type] ?? 'content';
+			probe.style.setProperty(css, `var(${property})`);
+			const value = getComputedStyle(probe).getPropertyValue(css).trim();
+			probe.style.removeProperty(css);
+			return [property, value || root.getPropertyValue(property).trim()];
+		})
+	);
+	probe.remove();
+	return values;
+}
+
+async function compare(properties: readonly TokenProbe[]) {
 	const root = document.documentElement;
 	root.dataset.loamTheme = 'dark';
 	const stylesheet = read(properties);

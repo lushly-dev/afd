@@ -51,10 +51,10 @@ describe('E7: VioletRuntime with the preloaded source', () => {
 				createRequire(import.meta.url).resolve('@lushly-dev/loam-theme/contract.json'),
 				'utf8'
 			)
-		) as { tokens: Record<string, { property: string; kind: string }> };
+		) as { tokens: Record<string, { property: string; kind: string; type: string }> };
 		const properties = Object.values(contract.tokens)
 			.filter((token) => token.kind === 'component')
-			.map((token) => token.property);
+			.map(({ property, type }) => ({ property, type }));
 		expect(properties).toHaveLength(108);
 
 		const opened = await openShell(browser, site.origin, { colorScheme: 'light' });
@@ -63,7 +63,7 @@ describe('E7: VioletRuntime with the preloaded source', () => {
 			(list) =>
 				(
 					window as unknown as {
-						loamVioletRuntime: (list: string[]) => Promise<{
+						loamVioletRuntime: (list: { property: string; type: string }[]) => Promise<{
 							stylesheet: Record<string, string>;
 							light: Record<string, string>;
 							applied: Record<string, string>;

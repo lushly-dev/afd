@@ -86,6 +86,21 @@ function noViolations(opened: ShellPage) {
 }
 
 describe('E1: every layout change is a journaled command', () => {
+	it('toggles twice when a chord is pressed twice quickly', async () => {
+		const opened = await shellAt(1600);
+		const { page } = opened;
+		const before = (await journal(page)).length;
+		await page.keyboard.press('ControlOrMeta+B');
+		await page.keyboard.press('ControlOrMeta+B');
+		await settle(page);
+		const sets = (await journal(page))
+			.slice(before)
+			.filter((entry) => entry.command === 'layout-set')
+			.map((entry) => entry.input);
+		expect(sets).toEqual([{ sidebar: { open: false } }, { sidebar: { open: true } }]);
+		await opened.context.close();
+	});
+
 	it('records chords, title-bar toggles and part buttons, and the DOM follows', async () => {
 		const opened = await shellAt(1600);
 		const { page } = opened;
@@ -235,6 +250,26 @@ describe('E1: every layout change is a journaled command', () => {
 		await page.keyboard.press('Shift+F6');
 		expect((await focused(page)).part).toBe('main');
 		expect((await journal(page)).length).toBe(before);
+
+		// Tab continues into the part F6 focused: parts are in the Tab order.
+		await page.keyboard.press('Shift+F6');
+		expect((await focused(page)).part).toBe('sidebar');
+		await page.keyboard.press('Tab');
+		expect(await focused(page)).toMatchObject({
+			tag: 'button',
+			hosts: ['loam-shell', 'loam-sidebar'],
+		});
+
+		// A maximized panel makes main inert; F6 passes over it.
+		await agentCall(page, 'layout-set', { panel: { open: true, maximized: true } });
+		await settle(page);
+		await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+		const maximized: (string | null)[] = [];
+		for (let step = 0; step < 5; step++) {
+			await page.keyboard.press('F6');
+			maximized.push((await focused(page)).part);
+		}
+		expect(maximized).toEqual(['titlebar', 'rail', 'sidebar', 'panel', 'statusbar']);
 		await opened.context.close();
 	});
 
@@ -276,9 +311,9 @@ describe('E5: the layout classes', () => {
 		expect(dom.sidebar.modal).toBe(true);
 		expect(dom.sidebar.width).toBe(320);
 		expect((await focused(page)).hosts).toContain('loam-sidebar');
-		for (let step = 0; step < 4; step++) {
-			await page.keyboard.press('Tab');
-			expect((await focused(page)).hosts).toContain('loam-sidebar');
+		for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab']) {
+			await page.keyboard.press(key);
+			expect((await focused(page)).hosts, key).toContain('loam-sidebar');
 		}
 		const close = await change(page, 'layout-set', () => page.keyboard.press('Escape'));
 		expect(close.input).toEqual({ compact: { drawer: null } });
@@ -336,7 +371,12 @@ describe('E5: the layout classes', () => {
 		const opened = await openShell(browser, site.origin, { viewport: { width: 390, height: 844 } });
 		const { page } = opened;
 		await change(page, 'layout-set', () => page.keyboard.press('ControlOrMeta+J'));
-		await change(page, 'layout-set', () => page.setViewportSize({ width: 1280, height: 844 }));
+		await change(page, 'layout-set', () => page.keyboard.press('ControlOrMeta+B'));
+		expect(await layoutOf(page)).toMatchObject({ compact: { drawer: 'sidebar', sheet: true } });
+		const leave = await change(page, 'layout-set', () =>
+			page.setViewportSize({ width: 1280, height: 844 })
+		);
+		expect(leave.input).toEqual({ compact: { drawer: null, sheet: false } });
 		const layout = await layoutOf(page);
 		expect(layout.compact).toEqual({ drawer: null, sheet: false });
 		expect((await parts(page)).layoutClass).toBe('expanded');

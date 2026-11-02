@@ -36,6 +36,7 @@ const template = html<LoamSidePart>`
 		${ref('drawer')}
 		aria-label="${(x) => x.heading}"
 		@cancel="${(x, c) => x.handleCancel(c.event)}"
+		@close="${(x) => x.handleDrawerClosed()}"
 		@keydown="${(x, c) => x.handleDrawerKeydown(c.event as KeyboardEvent)}"
 		@click="${(x, c) => x.handleDrawerClick(c.event as MouseEvent)}"
 	></dialog>
@@ -198,8 +199,12 @@ export class LoamSidePart extends FASTElement {
 
 	modeChanged(): void {
 		// The shell sets `mode` and `hidden` in one update; open the drawer once both are in, since a
-		// dialog inside a hidden part cannot take focus.
-		queueMicrotask(() => this.#sync());
+		// dialog inside a hidden part cannot take focus. Opening waits one microtask more than
+		// closing, so when one drawer replaces the other, the old one has closed and returned focus.
+		queueMicrotask(() => {
+			if (this.mode === 'drawer') queueMicrotask(() => this.#sync());
+			else this.#sync();
+		});
 	}
 
 	headingChanged(): void {
@@ -213,6 +218,14 @@ export class LoamSidePart extends FASTElement {
 	handleDrawerKeydown(event: KeyboardEvent): boolean {
 		trapTab(event, this.drawer);
 		return true;
+	}
+
+	/**
+	 * The browser closed the drawer itself (Chromium does after a second Escape whose `cancel` it
+	 * would not let the page keep); ask the shell, so the layout state follows.
+	 */
+	handleDrawerClosed(): void {
+		if (this.mode === 'drawer') this.requestClose();
 	}
 
 	handleCancel(event: Event): void {

@@ -43,6 +43,7 @@ import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js'
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 import { definePalette, whenIdle } from './palette-loader.js';
 import type { LoamResizeHandle } from './resize-handle.js';
+import type { LoamTitlebar } from './titlebar.js';
 
 /** What the shell reads the last sequence number from at boot. */
 export interface JournalReader {
@@ -60,6 +61,24 @@ interface SessionState {
 interface ShellFailure {
 	heading: string;
 	message: string;
+}
+
+/**
+ * Focus a part's host for F6. A shadow host with a negative `tabindex` takes its whole shadow
+ * tree out of the Tab order, so the part has one only while it holds focus itself: Tab, or focus
+ * moving anywhere, removes it, and Tab then continues into the part.
+ */
+export function focusPart(element: HTMLElement): void {
+	element.setAttribute('tabindex', '-1');
+	const clear = (event: Event) => {
+		if (event instanceof KeyboardEvent && event.key !== 'Tab') return;
+		element.removeAttribute('tabindex');
+		element.removeEventListener('keydown', clear);
+		element.removeEventListener('blur', clear);
+	};
+	element.addEventListener('keydown', clear);
+	element.addEventListener('blur', clear);
+	element.focus();
 }
 
 const sideEmpty = {
@@ -81,7 +100,6 @@ const template = html<LoamShell>`
 		html<LoamShell>`
 			<loam-titlebar
 				data-part="titlebar"
-				tabindex="-1"
 				account="${(x) => x.account}"
 				shortcut="${(x) => x.shortcut}"
 				key-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
@@ -89,12 +107,10 @@ const template = html<LoamShell>`
 			></loam-titlebar>
 			<loam-rail
 				data-part="rail"
-				tabindex="-1"
 				?hidden="${(x) => x.presentation.layoutClass === 'compact'}"
 			></loam-rail>
 			<loam-sidebar
 				data-part="sidebar"
-				tabindex="-1"
 				heading="Sidebar"
 				mode="${(x) => x.presentation.sidebar}"
 				?hidden="${(x) => x.presentation.sidebar === 'closed'}"
@@ -116,7 +132,6 @@ const template = html<LoamShell>`
 			</loam-sidebar>
 			<loam-main
 				data-part="main"
-				tabindex="-1"
 				route="${(x) => x.route}"
 				shortcut="${(x) => x.shortcut}"
 				home="${(x) => x.home}"
@@ -124,7 +139,6 @@ const template = html<LoamShell>`
 			></loam-main>
 			<loam-inspector
 				data-part="inspector"
-				tabindex="-1"
 				heading="Inspector"
 				mode="${(x) => x.presentation.inspector}"
 				?hidden="${(x) => x.presentation.inspector === 'closed'}"
@@ -146,7 +160,6 @@ const template = html<LoamShell>`
 			</loam-inspector>
 			<loam-panel
 				data-part="panel"
-				tabindex="-1"
 				mode="${(x) => x.presentation.panel}"
 				?hidden="${(x) => x.presentation.panel === 'closed'}"
 			>
@@ -167,7 +180,6 @@ const template = html<LoamShell>`
 			</loam-panel>
 			<loam-statusbar
 				data-part="statusbar"
-				tabindex="-1"
 				?hidden="${(x) => x.presentation.layoutClass === 'compact'}"
 			>
 				<loam-status-item slot="start" class="actor-status"
@@ -179,7 +191,6 @@ const template = html<LoamShell>`
 			</loam-statusbar>
 			<loam-tabbar
 				data-part="tabbar"
-				tabindex="-1"
 				?hidden="${(x) => x.presentation.layoutClass !== 'compact'}"
 			></loam-tabbar>
 			<loam-palette ${ref('palette')}></loam-palette>
@@ -294,7 +305,8 @@ export class LoamShell extends FASTElement {
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
 	readonly mac: boolean;
-	readonly home: string;
+	/** Where main's "Nothing here" links home: the document's base path unless set. */
+	home: string;
 
 	#layoutClass: LayoutClass = 'expanded';
 	#width = 0;
@@ -430,7 +442,17 @@ export class LoamShell extends FASTElement {
 
 	// ─── Reading kernel state ──────────────────────────────────────────────────────
 
-	async #readLayout(): Promise<void> {
+	/** The latest `layout-get` the shell started; a queued change waits for it. */
+	#layoutRead: Promise<void> = Promise.resolve();
+	/** Layout changes run one at a time, each computed from the state the previous one left. */
+	#layoutQueue: Promise<void> = Promise.resolve();
+
+	#readLayout(): Promise<void> {
+		this.#layoutRead = this.#fetchLayout();
+		return this.#layoutRead;
+	}
+
+	async #fetchLayout(): Promise<void> {
 		const generation = ++this.#reads.layout;
 		const result = await this.kernel?.call<LayoutStateV0>('layout-get');
 		if (!result?.success || generation !== this.#reads.layout) return;
@@ -449,6 +471,8 @@ export class LoamShell extends FASTElement {
 			this.appearance,
 			view.matchMedia(APPEARANCE_QUERIES.forcedColors).matches
 		);
+		// Density changes the rail's width, which the expanded class's overlay rule reads.
+		if (this.booted) this.#present();
 	}
 
 	async #readSession(): Promise<void> {
@@ -462,6 +486,7 @@ export class LoamShell extends FASTElement {
 
 	#onEvent(event: KernelEventV0): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
+		if (!this.booted) return;
 		if (event.command === 'palette-open' && event.success) {
 			void this.#showPalette();
 			return;
@@ -528,7 +553,7 @@ export class LoamShell extends FASTElement {
 			this.#layoutClass !== 'compact' &&
 			(compact.drawer !== null || compact.sheet)
 		) {
-			void this.#set({ compact: { drawer: null, sheet: false } });
+			void this.#change(() => ({ compact: { drawer: null, sheet: false } }));
 		}
 	}
 
@@ -538,12 +563,33 @@ export class LoamShell extends FASTElement {
 		return this.kernel?.call<LayoutStateV0>('layout-set', patch);
 	}
 
+	/**
+	 * Queue a layout change. `compute` runs once the previous change and its re-read are in, so a
+	 * toggle pressed twice quickly toggles twice; it returns no patch when there is nothing to do.
+	 */
+	#change(compute: () => LayoutPatchV0 | null): Promise<void> {
+		const run = this.#layoutQueue.then(async () => {
+			const patch = compute();
+			if (!patch) return;
+			const result = await this.#set(patch);
+			if (result?.success) await this.#layoutRead;
+		});
+		this.#layoutQueue = run.catch(() => {});
+		return run;
+	}
+
+	/** Close a compact drawer, if one is open: at most one modal (5.3). */
+	#closeDrawer(): Promise<void> {
+		return this.#change(() =>
+			this.layout.compact.drawer !== null && this.#layoutClass === 'compact'
+				? { compact: { drawer: null } }
+				: null
+		);
+	}
+
 	async openPalette(query = ''): Promise<void> {
-		if (!this.kernel) return;
-		// At most one modal: a compact drawer closes before the palette opens (5.3).
-		if (this.layout.compact.drawer !== null && this.#layoutClass === 'compact') {
-			await this.#set({ compact: { drawer: null } });
-		}
+		if (!this.kernel || !this.booted) return;
+		await this.#closeDrawer();
 		this.#pendingQuery = query;
 		await this.kernel.call('palette-open', query ? { query } : {});
 	}
@@ -555,7 +601,11 @@ export class LoamShell extends FASTElement {
 		this.#palette ??= definePalette().then(() => {
 			const palette = this.palette;
 			const kernel = this.kernel;
-			if (!palette || !kernel) return null;
+			if (!palette || !kernel) {
+				// Not rendered yet: try again on the next call rather than keep the miss.
+				this.#palette = null;
+				return null;
+			}
 			palette.host = {
 				search: (query) => this.#search(query),
 				run: (name) => this.#runFromPalette(name),
@@ -567,9 +617,8 @@ export class LoamShell extends FASTElement {
 	}
 
 	async #showPalette(): Promise<void> {
-		if (this.layout.compact.drawer !== null && this.#layoutClass === 'compact') {
-			await this.#set({ compact: { drawer: null } });
-		}
+		// An agent's palette-open closes a drawer here; the chrome's own already did.
+		await this.#closeDrawer();
 		const query = this.#pendingQuery;
 		this.#pendingQuery = '';
 		const palette = await this.preparePalette();
@@ -577,10 +626,43 @@ export class LoamShell extends FASTElement {
 	}
 
 	async toggle(part: 'sidebar' | 'inspector' | 'panel'): Promise<void> {
-		await this.#set(toggleInput(part, this.layout, this.#layoutClass));
+		await this.#change(() => toggleInput(part, this.layout, this.#layoutClass));
+	}
+
+	/**
+	 * Close a part. When it held focus and was not a modal drawer (which returns focus itself),
+	 * focus moves to the part's toggle in the title bar rather than to the page.
+	 */
+	async #closePart(part: 'sidebar' | 'inspector' | 'panel'): Promise<void> {
+		const mode = this.presentation[part];
+		const element = this.shadowRoot?.querySelector(`loam-${part}`) ?? null;
+		const active = deepActiveElement(this.ownerDocument);
+		const hadFocus = element !== null && active !== null && this.#contains(element, active);
+		await this.#change(() =>
+			this.#layoutClass === 'compact'
+				? part === 'panel'
+					? { compact: { sheet: false } }
+					: { compact: { drawer: null } }
+				: { [part]: { open: false } }
+		);
+		if (hadFocus && mode !== 'drawer') {
+			(this.shadowRoot?.querySelector('loam-titlebar') as LoamTitlebar | null)?.focusToggle(part);
+		}
+	}
+
+	/** Whether `node` is `element` or inside it, through shadow roots. */
+	#contains(element: Element, node: Node): boolean {
+		let current: Node | null = node;
+		while (current) {
+			if (current === element) return true;
+			const root = current.getRootNode();
+			current = current.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
+		}
+		return false;
 	}
 
 	#onAction(detail: ChromeAction): void {
+		if (!this.booted) return;
 		switch (detail.action) {
 			case 'palette-open':
 				void this.openPalette();
@@ -589,14 +671,10 @@ export class LoamShell extends FASTElement {
 				void this.toggle(detail.part);
 				break;
 			case 'close':
-				if (this.#layoutClass === 'compact') {
-					void this.#set(
-						detail.part === 'panel' ? { compact: { sheet: false } } : { compact: { drawer: null } }
-					);
-				} else void this.#set({ [detail.part]: { open: false } });
+				void this.#closePart(detail.part);
 				break;
 			case 'maximize':
-				void this.#set({ panel: { maximized: detail.maximized } });
+				void this.#change(() => ({ panel: { maximized: detail.maximized } }));
 				break;
 			case 'sign-in':
 				void this.kernel?.call('auth-sign-in', {
@@ -626,32 +704,33 @@ export class LoamShell extends FASTElement {
 			this.#setState(property, value);
 			return;
 		}
-		void this.#set(part === 'panel' ? { panel: { height: value } } : { [part]: { width: value } });
+		void this.#change(() =>
+			part === 'panel' ? { panel: { height: value } } : { [part]: { width: value } }
+		);
 	}
 
 	#onKeydown(event: KeyboardEvent): void {
-		if (event.defaultPrevented || !this.kernel) return;
+		if (event.defaultPrevented || !this.kernel || !this.booted) return;
 		const binding = matchKeybinding(event, this.mac);
 		const paletteOpen =
 			customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true;
 		if (binding) {
+			event.preventDefault();
 			if (binding.focus) {
-				if (paletteOpen || this.#drawerOpen()) return;
-				event.preventDefault();
-				this.#moveFocus(binding.focus);
+				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.
+				if (!paletteOpen && !this.#drawerOpen()) this.#moveFocus(binding.focus);
 				return;
 			}
-			event.preventDefault();
-			if (paletteOpen) return;
+			if (paletteOpen || event.repeat) return;
 			if (binding.command === 'palette-open') void this.openPalette();
 			else if (binding.toggle) void this.toggle(binding.toggle);
 			return;
 		}
 		if (event.key === 'Escape' && !paletteOpen && !this.#drawerOpen()) {
 			const p = this.presentation;
-			if (p.inspector === 'overlay') void this.#set({ inspector: { open: false } });
-			else if (p.panel === 'sheet') void this.#set({ compact: { sheet: false } });
-			else if (p.sidebar === 'overlay') void this.#set({ sidebar: { open: false } });
+			if (p.inspector === 'overlay') void this.#closePart('inspector');
+			else if (p.panel === 'sheet') void this.#closePart('panel');
+			else if (p.sidebar === 'overlay') void this.#closePart('sidebar');
 		}
 	}
 
@@ -662,9 +741,12 @@ export class LoamShell extends FASTElement {
 	/** The parts present now, in F6's order. */
 	presentParts(): PartName[] {
 		const parts = [...(this.shadowRoot?.querySelectorAll<HTMLElement>('[data-part]') ?? [])];
-		return parts
-			.filter((part) => !part.hidden && part.dataset.part !== undefined)
-			.map((part) => part.dataset.part as PartName);
+		return (
+			parts
+				// A maximized panel makes main inert, and focus() on an inert part does nothing.
+				.filter((part) => !part.hidden && !part.inert && part.dataset.part !== undefined)
+				.map((part) => part.dataset.part as PartName)
+		);
 	}
 
 	#moveFocus(direction: 'next' | 'previous'): void {
@@ -684,7 +766,10 @@ export class LoamShell extends FASTElement {
 			if (node === root && root instanceof ShadowRoot) node = root.host;
 		}
 		const target = nextPart(this.presentParts(), current, direction);
-		if (target) this.shadowRoot?.querySelector<HTMLElement>(`[data-part="${target}"]`)?.focus();
+		const element = target
+			? this.shadowRoot?.querySelector<HTMLElement>(`[data-part="${target}"]`)
+			: null;
+		if (element) focusPart(element);
 	}
 
 	// ─── The palette ───────────────────────────────────────────────────────────────

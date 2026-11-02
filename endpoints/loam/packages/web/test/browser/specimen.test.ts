@@ -25,9 +25,19 @@ const CONTEXT: Partial<SpecimenContext> = {
 	motion: 'settled',
 };
 
-function expectClean(observation: Observation) {
-	expect(observation.channels.console.errors).toEqual([]);
-	expect(observation.channels.a11y.snapshot.trim()).not.toBe('');
+/**
+ * Specimen's ARIA snapshot is empty while a modal dialog is open (a follow-up in the
+ * specification); the palette's capture is checked through its DOM, and axe covers it open.
+ */
+const MODAL = new Set(['shell-palette']);
+
+function expectClean(observation: Observation, id = observation.manifest.specimenId) {
+	expect(observation.channels.console.errors, id).toEqual([]);
+	if (MODAL.has(id)) {
+		expect(observation.channels.dom.normalized, id).toMatch(/<dialog[^>]* open/);
+		return;
+	}
+	expect(observation.channels.a11y.snapshot.trim(), id).not.toBe('');
 	expect(
 		observation.completeness.dom.reasons
 			.concat(observation.completeness.a11y.reasons)
@@ -41,9 +51,35 @@ describe('E2: a replayed journal reproduces the layout', () => {
 		const replay = await bench.render({ id: 'session-replay', context: CONTEXT });
 		expectClean(live);
 		expectClean(replay);
+		// A replay does not journal the entries it replays, so the replayed kernel's journal holds
+		// only what ran after it: the status bar's number is the one thing that differs (7.1).
+		const journalNumber = (observation: Observation) =>
+			Number(/Journal (\d+)/.exec(observation.channels.a11y.snapshot)?.[1]);
+		expect(journalNumber(live)).toBe(50 + 2 + 3);
+		expect(journalNumber(replay)).toBe(2 + 3);
 		const diff = diffObservations(live, replay);
-		expect(diff.differences).toEqual([]);
-		expect(diff.status).toBe('no-change-observed');
+		const outsideJournal = diff.differences.filter((difference) => {
+			if (difference.target?.includes('loam-status-item:2')) return false;
+			if (difference.target?.includes('loam-statusbar:1/shadow/span:2')) return false;
+			if (difference.channel === 'a11y' || difference.channel === 'dom') {
+				const strip = (value: unknown) =>
+					String(value)
+						.replace(/Journal \d+/g, 'Journal N')
+						.replace(/>\d+</g, '>N<')
+						// FAST's template markers carry an id drawn per page.
+						.replace(/fast-[a-z0-9]+/g, 'fast-X');
+				const [left, right] = [strip(difference.left), strip(difference.right)];
+				if (left === right) return false;
+				let at = 0;
+				while (left[at] === right[at]) at++;
+				console.error(
+					`${difference.channel} differs at ${at}:\n${left.slice(at - 200, at + 200)}\n---\n${right.slice(at - 200, at + 200)}`
+				);
+				return true;
+			}
+			return true;
+		});
+		expect(outsideJournal).toEqual([]);
 		// The session ends with the inspector open at 520 and the sidebar at 300.
 		expect(live.channels.a11y.snapshot).toContain('complementary "Inspector"');
 	}, 120_000);
@@ -53,7 +89,7 @@ describe('E2: a replayed journal reproduces the layout', () => {
 const CAPTURES: [string, string][] = [
 	['shell', 'banner "Loam"'],
 	['shell-compact-density', 'contentinfo "Status"'],
-	['shell-palette', 'dialog "Command palette"'],
+	['shell-palette', 'Command palette'],
 	['titlebar', 'banner "Loam"'],
 	['titlebar-signed-in', 'button "Sign out"'],
 	['rail', 'navigation "Apps"'],
@@ -78,7 +114,10 @@ describe('E4: Specimen captures of each part and the whole shell', () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				expect(observation.manifest.context.theme).toBe(theme);
-				expect(observation.channels.a11y.snapshot, id).toContain(expected);
+				const channel = MODAL.has(id)
+					? observation.channels.dom.normalized
+					: observation.channels.a11y.snapshot;
+				expect(channel, id).toContain(expected);
 			}
 		}, 300_000);
 

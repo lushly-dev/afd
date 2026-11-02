@@ -57,7 +57,8 @@ export interface ShellFixture {
 
 /** Mount the shell over `kernel` into a container, after running `calls` on it. */
 export function shellFixture(
-	create: () => Promise<{ kernel: LoamKernelV0; calls?: readonly SessionCall[] }>
+	create: () => Promise<{ kernel: LoamKernelV0; calls?: readonly SessionCall[] }>,
+	afterMount?: (shell: LoamShell) => Promise<void>
 ): ShellFixture {
 	const element = document.createElement('div');
 	element.dataset.fixture = 'shell';
@@ -69,8 +70,10 @@ export function shellFixture(
 			const target = call.interface === 'agent' ? kernel.agent : kernel;
 			await target.call(call.name, call.input ?? {});
 		}
-		const shell: LoamShell = await mountShell(element, { kernel, themeCss });
+		// Specimen serves each render under a path of its own; a fixed home keeps renders comparable.
+		const shell: LoamShell = await mountShell(element, { kernel, themeCss, home: '/' });
 		await shell.preparePalette();
+		await afterMount?.(shell);
 		await frame();
 		await frame();
 	})();
@@ -82,6 +85,15 @@ export function shellFixture(
 			await kernel?.dispose();
 		},
 	};
+}
+
+/** Wait, a frame at a time, until `check` holds; fail after about two seconds. */
+export async function until(check: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 120; attempt++) {
+		if (check()) return;
+		await frame();
+	}
+	throw new Error('The fixture never reached its state');
 }
 
 /** A test kernel whose `system` theme follows the specimen's media. */

@@ -31,7 +31,10 @@ async function openPalette(page: Page) {
 	await page.keyboard.press('ControlOrMeta+K');
 	await page.waitForFunction(() => {
 		const palette = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-palette');
-		return palette?.shadowRoot?.querySelector('violet-option') !== null;
+		return (
+			(palette as unknown as { isOpen?: boolean } | null | undefined)?.isOpen === true &&
+			!!palette?.shadowRoot?.querySelector('violet-option')
+		);
 	});
 	await settle(page);
 }
@@ -76,11 +79,21 @@ describe('E4: axe in every theme and density', () => {
 	});
 
 	it('has no violations in the compact class with a drawer open, and on the not-found route', async () => {
-		const opened = await openShell(browser, site.origin, { viewport: { width: 390, height: 844 } });
+		const opened = await openShell(browser, site.origin, {
+			viewport: { width: 390, height: 844 },
+			reducedMotion: 'reduce',
+		});
 		const { page } = opened;
 		expect(await axe(page)).toEqual([]);
 		await page.keyboard.press('ControlOrMeta+B');
 		await settle(page);
+		expect(
+			await page
+				.locator('loam-sidebar')
+				.evaluate(
+					(element) => element.shadowRoot?.querySelector('dialog')?.matches(':modal') === true
+				)
+		).toBe(true);
 		expect(await axe(page)).toEqual([]);
 		await page.keyboard.press('Escape');
 		await page.evaluate(() =>
@@ -128,7 +141,10 @@ describe('names, roles and the palette keyboard', () => {
 			const palette = document
 				.querySelector('loam-shell')
 				?.shadowRoot?.querySelector('loam-palette');
-			return palette?.shadowRoot?.querySelector('violet-option') !== null;
+			return (
+				(palette as unknown as { isOpen?: boolean } | null | undefined)?.isOpen === true &&
+				!!palette?.shadowRoot?.querySelector('violet-option')
+			);
 		});
 		const field = page.locator('loam-palette input[role="combobox"]');
 		const active = () =>
@@ -173,6 +189,72 @@ describe('names, roles and the palette keyboard', () => {
 		await expect.poll(() => footer.textContent()).toMatch(/notes-create/);
 		expect(await page.locator('loam-palette .suggestion').textContent()).not.toBe('');
 		expect(await axe(page)).toEqual([]);
+		await opened.context.close();
+	});
+	it('keeps Tab inside the palette, both ways', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openPalette(page);
+		const inPalette = async () =>
+			(
+				await page.evaluate(() => {
+					let element: Element | null = document.activeElement;
+					const hosts: string[] = [];
+					while (element?.shadowRoot?.activeElement) {
+						hosts.push(element.tagName.toLowerCase());
+						element = element.shadowRoot.activeElement;
+					}
+					return hosts;
+				})
+			).includes('loam-palette');
+		for (const key of ['Tab', 'Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+			await page.keyboard.press(key);
+			expect(await inPalette(), key).toBe(true);
+		}
+		await opened.context.close();
+	});
+
+	it('reports the toggles as pressed, and returns focus to the toggle when a focused part closes', async () => {
+		const opened = await openShell(browser, site.origin, {
+			viewport: { width: 1600, height: 900 },
+		});
+		const { page } = opened;
+		const pressed = (part: string) =>
+			page.locator(`loam-titlebar button[data-toggle="${part}"]`).getAttribute('aria-pressed');
+		expect([await pressed('sidebar'), await pressed('inspector')]).toEqual(['true', 'false']);
+		await page.locator('loam-sidebar button.close').focus();
+		await page.keyboard.press('Enter');
+		await settle(page);
+		expect(await pressed('sidebar')).toBe('false');
+		const toggle = await page.evaluate(() => {
+			let element: Element | null = document.activeElement;
+			while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+			return element?.getAttribute('data-toggle');
+		});
+		expect(toggle).toBe('sidebar');
+		await opened.context.close();
+	});
+
+	it('shows the settings tooltip on hover and focus, keeps it under the pointer, and Escape dismisses it', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		const entry = page.locator('loam-rail button.entry');
+		const tip = page.locator('loam-rail .tip');
+		expect(await entry.getAttribute('aria-disabled')).toBe('true');
+		expect(await tip.textContent()).toBe('Settings arrive in phase 4');
+		await entry.hover();
+		await expect.poll(() => tip.isVisible()).toBe(true);
+		const box = await tip.boundingBox();
+		if (!box) throw new Error('No tooltip box');
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+		expect(await tip.isVisible()).toBe(true);
+		await page.keyboard.press('Escape');
+		await expect.poll(() => tip.isVisible()).toBe(false);
+		await page.mouse.move(600, 400);
+		await entry.focus();
+		await page.keyboard.press('Shift+Tab');
+		await page.keyboard.press('Tab');
+		await expect.poll(() => tip.isVisible()).toBe(true);
 		await opened.context.close();
 	});
 });

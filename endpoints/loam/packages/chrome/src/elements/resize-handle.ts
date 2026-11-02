@@ -157,6 +157,7 @@ export class LoamResizeHandle extends FASTElement {
 		if (!this.$fastController?.isConnected) return;
 		this.setAttribute('aria-orientation', this.orientation);
 		this.setAttribute('aria-valuenow', String(this.value));
+		this.setAttribute('aria-valuetext', `${this.value} pixels`);
 		this.setAttribute('aria-valuemin', String(this.min));
 		this.setAttribute('aria-valuemax', String(this.max));
 		this.setAttribute('aria-label', this.label);

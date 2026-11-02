@@ -1,26 +1,29 @@
 /**
  * @fileoverview `loam-rail` and `loam-tabbar`: `navigation`, "Apps". With no app installed they
  * hold only the settings entry, disabled with the tooltip "Settings arrive in phase 4" (5.1). The
- * entry stays focusable (`aria-disabled`) so the tooltip can be read; Escape dismisses it.
+ * entry stays focusable (`aria-disabled`) so the tooltip can be read. The tooltip shows on hover
+ * and focus, stays while the pointer moves onto it, and Escape dismisses it wherever focus is
+ * (WCAG 1.4.13).
  */
 
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
 import { registerChromeIcons } from './icons.js';
-import { partHost, visuallyHidden } from './styles.js';
+import { partHost } from './styles.js';
 
 export const SETTINGS_TOOLTIP = 'Settings arrive in phase 4';
 
 const template = html<LoamAppNav>`
 	<ul class="entries">
-		<li class="entry-item">
+		<li
+			class="entry-item"
+			@mouseleave="${(x) => x.resetTip()}"
+		>
 			<button
 				class="entry"
 				type="button"
 				aria-disabled="true"
 				aria-describedby="settings-tip"
-				@keydown="${(x, c) => x.handleKeydown(c.event as KeyboardEvent)}"
 				@blur="${(x) => x.resetTip()}"
-				@mouseleave="${(x) => x.resetTip()}"
 			>
 				<violet-icon icon="system/settings" decorative></violet-icon>
 				<span class="label">Settings</span>
@@ -76,18 +79,18 @@ const entryStyles = css`
 		padding-inline: var(--size-space-md);
 		border-radius: var(--radius-md);
 		background: var(--color-surface-floating);
+		background-clip: padding-box;
 		box-shadow: var(--shadow-floating);
 		color: var(--color-text-primary);
 		font-size: var(--type-label-sm-size);
 		line-height: var(--type-label-sm-line);
 		white-space: nowrap;
-		pointer-events: none;
 	}
-	.entry:hover + .tip,
+	.entry-item:hover .tip,
 	.entry:focus-visible + .tip {
 		display: block;
 	}
-	.entry[data-tip='dismissed'] + .tip {
+	.entry-item[data-tip='dismissed'] .tip {
 		display: none;
 	}
 	@media (forced-colors: active) {
@@ -112,27 +115,36 @@ export class LoamAppNav extends FASTElement {
 		registerChromeIcons();
 	}
 
+	#onKeydown = (event: KeyboardEvent) => this.dismissTip(event);
+
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'navigation');
 		this.setAttribute('aria-label', 'Apps');
+		this.ownerDocument.addEventListener('keydown', this.#onKeydown, true);
 	}
 
-	handleKeydown(event: KeyboardEvent): boolean {
-		if (event.key === 'Escape') {
-			const entry = event.currentTarget as HTMLElement;
-			if (entry.dataset.tip !== 'dismissed') {
-				entry.dataset.tip = 'dismissed';
-				event.stopPropagation();
-				return false;
-			}
-		}
-		return true;
+	override disconnectedCallback(): void {
+		this.ownerDocument.removeEventListener('keydown', this.#onKeydown, true);
+		super.disconnectedCallback();
 	}
 
+	/** Escape hides a showing tooltip, wherever focus is; the key does nothing else then. */
+	dismissTip(event: KeyboardEvent): void {
+		if (event.key !== 'Escape') return;
+		const item = this.shadowRoot?.querySelector<HTMLElement>('.entry-item');
+		const tip = item?.querySelector<HTMLElement>('.tip');
+		if (!item || !tip || getComputedStyle(tip).display === 'none') return;
+		item.dataset.tip = 'dismissed';
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	/** A dismissed tooltip shows again once the pointer and focus have both left. */
 	resetTip(): void {
+		const item = this.shadowRoot?.querySelector<HTMLElement>('.entry-item');
 		const entry = this.shadowRoot?.querySelector<HTMLElement>('.entry');
-		if (entry) delete entry.dataset.tip;
+		if (item && !item.matches(':hover') && !entry?.matches(':focus')) delete item.dataset.tip;
 	}
 }
 
@@ -144,7 +156,6 @@ export const railDefinition = {
 	template,
 	styles: [
 		partHost,
-		visuallyHidden,
 		entryStyles,
 		css`
 			:host {
@@ -171,7 +182,8 @@ export const railDefinition = {
 			}
 			.tip {
 				inset-block-start: 0;
-				inset-inline-start: calc(100% + var(--size-space-sm));
+				inset-inline-start: 100%;
+				border-inline-start: var(--size-space-sm) solid transparent;
 			}
 			@media (forced-colors: active) {
 				:host {
@@ -203,8 +215,9 @@ export const tabbarDefinition = {
 				flex-direction: column;
 			}
 			.tip {
-				inset-block-end: calc(100% + var(--size-space-sm));
+				inset-block-end: 100%;
 				inset-inline-start: 0;
+				border-block-end: var(--size-space-sm) solid transparent;
 			}
 			@media (forced-colors: active) {
 				:host {

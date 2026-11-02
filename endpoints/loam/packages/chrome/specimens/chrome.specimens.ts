@@ -5,7 +5,7 @@
  */
 
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
-import { type Density, mediaKernel, shellFixture, themePart } from './support.js';
+import { type Density, mediaKernel, shellFixture, themePart, until } from './support.js';
 
 const allOpen = [
 	{ interface: 'palette', name: 'layout-set', input: { inspector: { open: true } } },
@@ -31,13 +31,13 @@ export const ShellCompactDensity = shell('compact');
 /** The shell with the command palette open on a query. */
 export const ShellPalette = {
 	render: () =>
-		shellFixture(async () => {
-			const { kernel } = await mediaKernel();
-			return {
-				kernel,
-				calls: [{ interface: 'palette', name: 'palette-open', input: { query: 'layout' } }],
-			};
-		}),
+		shellFixture(
+			async () => ({ kernel: (await mediaKernel()).kernel }),
+			async (shell) => {
+				await shell.openPalette('layout');
+				await until(() => shell.palette.isOpen && shell.palette.results.length > 0);
+			}
+		),
 } satisfies SpecimenDefinition;
 
 /** A part on its own, in a box of the given size. */

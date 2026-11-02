@@ -33,6 +33,7 @@ export function matchRoute(url: string, base: string, Pattern?: PatternConstruct
 }
 
 interface NavigateEventLike extends Event {
+	navigationType?: string;
 	canIntercept: boolean;
 	hashChange: boolean;
 	downloadRequest: string | null;
@@ -60,6 +61,8 @@ export function createRouter(view: Window, onRoute: (route: RouteV0) => void): R
 	const listener = (event: Event) => {
 		const navigate = event as NavigateEventLike;
 		if (!navigate.canIntercept || navigate.hashChange || navigate.downloadRequest !== null) return;
+		// A reload reloads the document; intercepting it would keep the page as it is.
+		if (navigate.navigationType === 'reload') return;
 		if (new URL(navigate.destination.url).origin !== view.location.origin) return;
 		navigate.intercept({
 			handler: () => {

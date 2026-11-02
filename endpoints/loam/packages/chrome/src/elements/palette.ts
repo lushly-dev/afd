@@ -21,6 +21,7 @@ import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 import '@lushly-dev/violet-elements/dist/option/violet-option.js';
 import type { VioletDialog } from '@lushly-dev/violet-elements/dist/dialog/violet-dialog.js';
 import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
+import { trapTab } from './focus.js';
 
 export interface PaletteResult {
 	name: string;
@@ -60,6 +61,7 @@ const template = html<LoamPalette>`
 		type="modal"
 		padding="none"
 		@request-close="${(x, c) => x.handleRequestClose(c.event)}"
+		@keydown="${(x, c) => x.handleDialogKeydown(c.event as KeyboardEvent)}"
 		@open-change="${(x, c) => x.handleOpenChange(c.event as CustomEvent<{ open: boolean }>)}"
 	>
 		<span slot="title">Command palette</span>
@@ -163,7 +165,12 @@ const styles = css`
 	 * surface until the component reads one (a follow-up in the phase 0 specification).
 	 */
 	violet-option {
-		--color-surface-highlight: var(--color-surface-card);
+		--color-surface-highlight: var(--color-surface-subtle);
+	}
+	/* The active result is where Enter goes while focus stays in the field: show the focus indicator. */
+	violet-option[data-active]::part(control) {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: calc(-1 * var(--shell-size-focus));
 	}
 	.result-name {
 		font-size: var(--type-body-md-size);
@@ -208,8 +215,24 @@ const styles = css`
 			color: ButtonText;
 		}
 		violet-option[data-active] .result-name,
-		violet-option[data-active] .result-description {
+		violet-option[data-active] .result-description,
+		violet-option[selected] .result-name,
+		violet-option[selected] .result-description {
 			color: HighlightText;
+		}
+		violet-option[disabled] .result-name,
+		violet-option[disabled] .result-description {
+			color: GrayText;
+		}
+		violet-option[data-active]::part(control) {
+			outline-color: Highlight;
+		}
+		.search,
+		.footer {
+			border-color: CanvasText;
+		}
+		.field::placeholder {
+			color: GrayText;
 		}
 	}
 `;
@@ -299,6 +322,12 @@ export class LoamPalette extends FASTElement {
 		const result = this.results.find((candidate) => candidate.name === name);
 		if (!this.host || !result || result.disabled) return;
 		this.failure = await this.host.run(name);
+	}
+
+	/** Chromium lets Tab leave a modal dialog, so the palette keeps it inside, as the drawers do. */
+	handleDialogKeydown(event: KeyboardEvent): boolean {
+		trapTab(event, this.dialog);
+		return true;
 	}
 
 	/** Escape, the close button and the backdrop all ask the shell, which calls `palette-close`. */

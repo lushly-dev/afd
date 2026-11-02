@@ -68,6 +68,11 @@ export interface MountShellOptions {
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
 	journal?: JournalReader;
+	/**
+	 * The path main's "Nothing here" links home to. Default: the document's base path. Fixtures
+	 * served under a path of their own set it, so two renders compare equal.
+	 */
+	home?: string;
 }
 
 /** Apply the theme, define the chrome and mount `loam-shell` into `container`. */
@@ -80,6 +85,7 @@ export async function mountShell(
 	const shell = container.ownerDocument.createElement('loam-shell') as LoamShell;
 	shell.kernel = options.kernel;
 	shell.journal = options.journal ?? null;
+	if (options.home !== undefined) shell.home = options.home;
 	container.append(shell);
 	await shell.ready;
 	return shell;

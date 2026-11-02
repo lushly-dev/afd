@@ -155,6 +155,11 @@ export class LoamTitlebar extends FASTElement {
 		this.setAttribute('aria-label', 'Loam');
 	}
 
+	/** Move focus to a part's toggle, for when the part that held focus closes. */
+	focusToggle(part: 'sidebar' | 'inspector' | 'panel'): void {
+		this.shadowRoot?.querySelector<HTMLElement>(`[data-toggle="${part}"]`)?.focus();
+	}
+
 	shown(part: string): boolean {
 		return this.shownParts.split(' ').includes(part);
 	}

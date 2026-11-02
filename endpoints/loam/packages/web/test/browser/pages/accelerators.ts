@@ -1,4 +1,5 @@
 /** A1 to A3's page (phase 0 specification, 8.2): the operations on the reference workspace. */
+import '../../../src/zod-jitless.js';
 import { createPaletteIndex } from '@lushly-dev/loam-kernel';
 import {
 	createReferenceWorkspace,
