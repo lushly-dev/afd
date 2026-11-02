@@ -254,7 +254,7 @@ It returns a file-by-file report:
 
 - **Component.** `present` when the meta names its component. `proposed` when the file imports the module the manifest says defines a tag *and* the file is named for that tag. `manual` otherwise, with the candidate tags the imports define and the reason. It never infers a component from a render function or a wrapper. With several candidates, or none, a person decides.
 - **Retained metadata.** Every meta field, kept exactly as written: docs descriptions, `argTypes`, `autodocs` tags and parameters. The codemod removes nothing.
-- **Helper and type imports.** Each `storybook/test` and `@storybook/*` import, with why it stays. Specimen has no native play helpers or `Meta` types yet, so no import is switched.
+- **Helper and type imports.** Each `storybook/test` and `@storybook/*` import, with why it stays. Specimen had no native play helpers or `Meta` types then, so no import was switched. [T08](t08-cutover.md#native-helpers-and-types) added them, and `helpers` to switch.
 - **Manual tasks.**
 - **The change as a unified diff.** Inserting `component` in the file's own indentation and quote style.
 

@@ -1,6 +1,6 @@
 # T08 consumer cutover and distribution
 
-**State, 2026-11-02:** rehearsed, and waiting on the owner. Nothing has been cut over, no consumer's gates or Storybook configuration have changed, and nothing has been published. [What is needed](#what-is-needed-from-the-owner) is listed below.
+**State, 2026-11-02:** in progress, on [the owner's decisions](#the-owners-decisions). Native helpers and types are done. Nothing has been cut over, no consumer's gates or Storybook configuration have changed, and nothing has been published.
 
 T08's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): three consecutive qualifying full runner pairs on accepted consumer main snapshots with no migration change between them, normal consumer gates passing, review, scaffold and flake behaviour preserved, legacy Fluent exceptions accounted for, and exact rollback checkpoints. Package admission and main delivery go through their normal workflows.
 
@@ -9,10 +9,10 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 | Requirement | State | Who |
 | --- | --- | --- |
 | Three consecutive pairs agree exactly | Rehearsed on both consumers, [below](#the-rehearsal) | Must be repeated on the accepted snapshots at cutover |
-| Resource gate | **On a first measurement, full suites do not meet it.** [Below](#resources-the-decision-this-needs) | **Owner's decision** |
-| Budgets | Met on both consumers, including Lushly's upgrade | Done, re-measured each change |
+| Resource gate | **On a first measurement, full suites use more CPU than Storybook.** [The owner accepts that for now](#the-owners-decisions) | Done for now, stays open as a follow-up |
+| Budgets | Met on both consumers, including Lushly's upgrade, and [lower on native helpers](#native-helpers-and-types) | Done, re-measured each change |
 | Replacement gates | Every story rule has its evidence and retirement record ([T07](t07-coverage.md#retirement-records)) | One story needs the owner's decision |
-| Native helpers and types | Not started: stories still import from `storybook/test` and `@storybook/web-components-vite` | Specimen's, once the owner says go |
+| Native helpers and types | [Done](#native-helpers-and-types) | Done |
 | Normal consumer gates, with no root Storybook | Not started | Lushly's and FAST-AF's repositories |
 | Rollback checkpoints | Not started | At each consumer's cutover |
 | Legacy Fluent exceptions | Not started | Lushly |
@@ -33,7 +33,7 @@ Lushly's snapshot was refreshed for this, six commits past the one T06 used, and
 
 **These are not yet the qualifying runs.** They ran in AFD's harness on read-only snapshots, not through each consumer's authoritative validation path, and nobody has accepted these snapshots. Lushly's main moved six commits in a day, so the proposal's rule that relevant consumer changes invalidate evidence means qualification has to happen at cutover. This shows the work is ready for that, and is stable when repeated.
 
-## Resources: the decision this needs
+## Resources
 
 The proposal says "the primary outcome MUST be lower resource cost for equivalent verified work". T04 passed on its representative wrapper components. Its full-suite figures remained open as G03, and this is the first measurement of them. Each side ran alone, once, under `/usr/bin/time -l`.
 
@@ -50,7 +50,7 @@ The proposal says "the primary outcome MUST be lower resource cost for equivalen
 | Wall-clock | 3.46× | 1.61× | At most 1.25×, as a guardrail on startup and render |
 | Largest single process | 0.29× | 0.22× | At most 1× |
 
-**On this evidence, full suites would not meet T04's CPU criterion or its latency guardrail, while memory looks much better.**
+**On this evidence, full suites would not meet T04's CPU criterion or its latency guardrail, while memory looks much better.** [The owner accepts the extra CPU for now.](#the-owners-decisions)
 
 What this measurement is and is not:
 
@@ -58,19 +58,65 @@ What this measurement is and is not:
 - **CPU includes the descendants each side waited for,** which should cover both browsers. The memory figure is the largest single process, not the footprint of the whole tree, so it may flatter either side.
 - **The likely cause is known and not profiled.** Each story gets a fresh browser context, a page load and axe's parse, as the proposal's isolation rule asks, where Storybook shares a page across a file. T06 recorded the same gap in wall-clock.
 
-## What is needed from the owner
+## The owner's decisions
 
-1. **The resource verdict, which decides whether cutover proceeds.** The options are to accept higher CPU for much lower memory and real per-story isolation, to reduce it first, or to measure it properly first. The recommendation is to measure on `random` under T04's policy, and profile where the per-story time goes, since that work needs no consumer change and would make either of the other choices better informed.
-2. **The `violet-calendar` story.** [Its `Disabled` story never disables it.](t07-coverage.md#finding-a-disabled-story-that-disables-nothing) Fix it upstream, or say it should be waived, in which case the contract needs waivers.
-3. **Distribution.** Whether and when to lift quarantine and publish the native core, bindings and CLI. The proposal also requires the FAST-AF plugin to have a supported distribution before a consumer cuts over, and it is private today.
-4. **Consumer changes.** Lushly's migration is Lushly's, and Fastbot's adapter and rule retirement are in FAST-AF's repository. Neither has been touched.
-5. **Where AFD's FAST-AF stories run** once upstream Storybook retires (G12), which is still unassigned.
-6. **Human review** of the static index on a real consumer.
+Made on 2026-11-02, in answer to this record's first version.
 
-## What Specimen can do next, once there is a go
+| Question | Decision | What follows |
+| --- | --- | --- |
+| Full suites use more CPU than Storybook | "Extra CPU is fine for now" | Cutover is not blocked on it. The proposal's resource goal stands, so the [figures above](#resources) stay on record as a follow-up |
+| `violet-calendar`'s `Disabled` story | Fix it | In AFD's copy, since FAST-AF now lives here |
+| Distribution | Once it works end to end, the docs mark it as a preview | Lifting quarantine and publishing are still separate, and still the owner's |
+| Fastbot's adapter and rule retirement | Do it here: "FAST-AF moved into the AFD repo" | Fastbot itself was not imported, so `specimen contract` is the gate here, with no adapter to install |
+| Lushly's migration | An issue for Lushbot | Filed once there is something to migrate to |
+| Where AFD's FAST-AF stories run (G12) | The owner asked for a recommendation | Here, on Specimen, in AFD's FAST-AF gates. Upstream's Storybook configuration was never imported, and these stories are the ones AFD owns |
+| Human review of the index | The owner reviews it when ready | On AFD's own stories, once they run here |
 
-- A native helper entry and types (`expect`, `waitFor`, `userEvent`, `fn`, `within`; `Meta`, `StoryObj`), without which Storybook cannot be removed. This should also free Lushly's interaction budget, which has 4,353 bytes left.
-- Whatever the resource verdict calls for.
-- The qualifying runs themselves, at cutover, on the accepted snapshots.
+## Native helpers and types
+
+Without these, Storybook could not be removed. `@lushly-dev/specimen/test` has `expect`, `fn`, `spyOn`, `userEvent`, `waitFor` and `within`. `@lushly-dev/specimen/types` adds `Meta`, `StoryObj` and what they need, and `@lushly-dev/specimen/preview` has `setCustomElementsManifest`. `specimen migrate --helpers` switches a story file's imports. The [README](../../../../foundations/specimen/README.md#helpers-and-types) describes them.
+
+The proposal requires that "all plays and metadata MUST remain semantically equivalent". The helpers are the libraries `storybook/test` bundles, at the same versions, with its `expect` assembled the same way. Storybook's instrumentation is the one thing left out, and it was never in Specimen's runs, because it does nothing outside an iframe.
+
+Each of these held:
+
+| Check | Result |
+| --- | --- |
+| The same fixtures under both runners, in `compat/native/` | Same outcomes, passing and failing, including jest-dom matchers, spies, typing and `waitFor` timeouts. In CI |
+| Every FAST-AF story `24e4eb86` on native helpers, on a throwaway copy | 407 of 407 passed, 0 identity mismatches |
+| Every Lushly story `309f46b5` on native helpers, on a throwaway copy | 880 of 880 passed, 0 identity mismatches |
+| Lushly's own `type-check:storybook` on native types | 0 errors, the same as with Storybook's |
+| FAST-AF's 79 story files on native types | Clean. The only 2 errors are `?raw` imports, because that check had no Vite types |
+| A packed install outside the workspace, with no Storybook installed | A story passes, a failing one fails, and the build has no Storybook code. In CI |
+
+Each copy's Storybook side is the [rehearsal](#the-rehearsal) on the same snapshot, where every story passed. These were runs of the candidate alone, so they show the helpers keep every story passing. They are not qualifying pairs.
+
+### What it did to the budgets
+
+| Category | Ceiling | FAST-AF, was | FAST-AF, native | Lushly, was | Lushly, native |
+| --- | --- | --- | --- | --- | --- |
+| Shell | 50,000 | 45,329 | 45,329 | 45,329 | 45,329 |
+| Interaction support | 600,000 | 498,250 | 457,025 | 595,647 | 457,541 |
+| Accessibility | 650,000 | 586,666 | 586,666 | 586,666 | 586,666 |
+| **Total** | **1,300,000** | **1,130,245** | **1,089,020** | **1,227,642** | **1,089,536** |
+
+Lushly's 4,353 bytes of headroom are now 142,459, and the helpers now cost both consumers about the same. Storybook's code is gone from FAST-AF's build. Lushly's keeps 67,152 bytes of it, for the reason below.
+
+**A project has to switch its stories together.** One carrying both sets of helpers is over the interaction ceiling, at about 854,000 bytes on the fixtures. The codemod switches every file at once, so this only catches a partial migration.
+
+### What Lushly has beyond the codemod
+
+The codemod reads story files. On Lushly's snapshot these also need attention:
+
+- Three modules that are not stories import `storybook/test`: `lushly-scheduling-surface.story-queries.ts`, `season-narrow-story-fixture.ts` and `lushly-catalog-workbench.story-helpers.ts`.
+- `frames.story-helpers.ts` imports `instrument` from `storybook/internal/instrumenter`, which is the 67,152 bytes above.
+- `.storybook/preview.ts` calls `setCustomElementsManifest`.
+
+## What is left
+
+- AFD's FAST-AF stories running here, with the calendar story fixed and `specimen contract` as a gate.
+- The docs marking Specimen as a preview.
+- The qualifying runs, on the accepted snapshots.
+- An issue for Lushbot, and the owner's review of the index.
 
 T09 to T11 are optional additions and are not prerequisites for cutover.

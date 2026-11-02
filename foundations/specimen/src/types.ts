@@ -5,6 +5,8 @@ import type { ComponentSchema } from './plugin.js';
 export const CAPTURE_VERSION = '0.8' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
+export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
 	container?: { width: number; height?: number };
@@ -270,6 +272,8 @@ export interface MigrateRequest {
 	files?: string[];
 	/** Write the proposed edits. The default is a preview that writes nothing. */
 	apply?: boolean;
+	/** Also switch helper and type imports to Specimen's own, where it has every name imported. */
+	helpers?: boolean;
 }
 /** The codemod's file-by-file report. */
 export interface MigrationReport {
@@ -284,7 +288,14 @@ export interface MigrationReport {
 		};
 		/** Meta fields kept exactly as written. */
 		retained: string[];
-		imports: { source: string; names: string[]; typeOnly: boolean; reason: string }[];
+		imports: {
+			source: string;
+			names: string[];
+			typeOnly: boolean;
+			/** Specimen's module with every name this imports, when there is one. */
+			native?: string;
+			reason: string;
+		}[];
 		manual: string[];
 		diff?: string;
 		applied: boolean;

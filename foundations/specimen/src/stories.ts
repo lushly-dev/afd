@@ -314,6 +314,7 @@ export async function migrateStories(
 				manifest: config.manifest ?? null,
 				files: request.files ?? null,
 				apply: request.apply === true,
+				helpers: request.helpers === true,
 			},
 			INDEX_TIMEOUT
 		)) as MigrationReport;

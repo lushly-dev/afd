@@ -302,11 +302,26 @@ Chromium only.
 - whether the meta names its component;
 - the component it can name: only when the file imports the module the manifest says defines that tag, and the file is named for it;
 - the metadata it keeps, which is all of it;
-- the Storybook imports it leaves in place;
+- each Storybook import, and what would replace it;
 - the manual tasks left;
 - the change as a diff.
 
 It writes only with `apply: true`, and only to files unchanged since they were read.
+
+With `helpers: true` (`--helpers`) it also switches helper and type imports to [Specimen's own](#helpers-and-types), one import at a time, and only where Specimen has every name that import uses. Anything else stays, as a manual task. A preview's `setCustomElementsManifest` and `Preview` are not story files, so those two lines are yours to change.
+
+## Helpers and types
+
+A retained story needs no Storybook to run. `@lushly-dev/specimen/test` has the helpers a play uses, and `@lushly-dev/specimen/types` has the types the story is written against:
+
+```ts
+import { expect, fn, spyOn, userEvent, waitFor, within } from '@lushly-dev/specimen/test';
+import type { Meta, StoryObj } from '@lushly-dev/specimen/types';
+```
+
+The helpers are the libraries `storybook/test` bundles, at the versions it bundles, with its `expect` assembled the same way, jest-dom's matchers included. A story using them still runs in Storybook during an overlap, without the interactions panel's step list. A build counts them as interaction support, with everything they bring, so switch a project's stories together: one carrying both Storybook's helpers and these is over the interaction ceiling.
+
+`@lushly-dev/specimen/preview` has `setCustomElementsManifest`, for a preview. `Preview` is in `./types`.
 
 ## Plugins and inspection
 

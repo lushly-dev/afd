@@ -1,6 +1,6 @@
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, createServer, type Plugin, type ViteDevServer } from 'vite';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
@@ -180,14 +180,28 @@ async function buildStatic(
 ): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
 	const directory = resolve(outDir);
 	await mkdir(directory, { recursive: true });
-	// A play's `claim` is Specimen's own helper, and goes with the others, whoever imports it.
-	const evidence = join(dirname(dirname(runtime)), 'evidence');
-	const isHelper = (id: string) => HELPERS.test(id) || id.startsWith(evidence);
+	// Specimen's own helpers go with the others, whoever imports them, and so does all they bring.
+	const nativeHelper = /^(?:test|evidence)\.[cm]?[jt]s$/;
+	const helperCode = new Set<string>();
+	const isHelper = (id: string) => HELPERS.test(id) || helperCode.has(id);
+	const helperAccounting: Plugin = {
+		name: 'afd-specimen-helper-accounting',
+		buildEnd() {
+			const pending = [...this.getModuleIds()].filter(
+				(id) => dirname(id) === dirname(dirname(runtime)) && nativeHelper.test(basename(id))
+			);
+			for (let id = pending.pop(); id; id = pending.pop()) {
+				if (helperCode.has(id)) continue;
+				helperCode.add(id);
+				pending.push(...(this.getModuleInfo(id)?.importedIds ?? []));
+			}
+		},
+	};
 	if ((await readdir(directory)).length) throw new Error('Build output directory must be empty');
 	const result = await build({
 		configFile: false,
 		root,
-		plugins: [plugin],
+		plugins: [plugin, helperAccounting],
 		logLevel: 'silent',
 		mode: 'development',
 		build: {
@@ -221,6 +235,9 @@ async function buildStatic(
 		join(runtimeDirectory, name)
 	);
 	const packageSource = dirname(runtimeDirectory);
+	// What a consumer's preview imports is a line of the consumer's own preview, wherever it lands.
+	const isBenchCode = (id: string) =>
+		id.startsWith(packageSource) && !/^preview\.[cm]?[jt]s$/.test(basename(id));
 	const categoryOf = (
 		chunk: (typeof chunks)[number]
 	): 'shell' | 'interaction' | 'accessibility' | 'catalog' | 'incumbent' | 'consumer' => {
@@ -233,9 +250,7 @@ async function buildStatic(
 		if (owned.length && owned.every((id) => lazyRuntime.some((path) => id.startsWith(path))))
 			return 'interaction';
 		// Any other bench code is the shell's, however it loads, capture code included.
-		return chunk.isEntry ||
-			ids.includes('\0specimen-entry') ||
-			ids.some((id) => id.startsWith(packageSource))
+		return chunk.isEntry || ids.includes('\0specimen-entry') || ids.some(isBenchCode)
 			? 'shell'
 			: 'consumer';
 	};
