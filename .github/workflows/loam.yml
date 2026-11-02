@@ -73,7 +73,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
 
   loam:
     name: Build, unit and Chromium
@@ -98,7 +98,7 @@ jobs:
       - name: Theme contract against the tree
         run: pnpm -F @lushly-dev/loam-theme theme:check
       - name: Token-only lint
-        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally lint:tokens
+        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally lint:tokens
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
       # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
       - name: Install Rust toolchain

@@ -158,3 +158,10 @@ The values above landed, for the theme and the components together:
   new token.
 - **2026-11-02. Sandboxed views (phase 1 step 5).** `loam-view-frame` joins the chrome in a chunk
   of its own, with no new token. A view reads the contract's component ids through `dev.loam/tokens`.
+- **2026-11-02. The console (phase 1 step 6).** `loam-console`, from `@lushly-dev/loam-console`, joins the
+  list. The adapters' classes map to tokens: `afd-status-success`, `-failure` and `-warning` to
+  `color.state.*.text`; `-info` to `color.text.secondary`, since the contract has no `color.state.info`,
+  and `-muted` to `color.text.muted`; `afd-bold` to `weight.semibold`. A field's error is its supporting
+  text, prefixed "Error:", in `color.state.danger.text`. `violet-select`'s list opens under its trigger
+  with `position: absolute`, because its `position: fixed` lands in the wrong place inside the mount's
+  `contain: content`.

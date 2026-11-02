@@ -241,6 +241,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'cli',
 		'theme',
 		'kernel',
+		'console',
 		'chrome',
 		'web',
 		'app-hello',
@@ -298,11 +299,14 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 	);
 	assert.deepEqual(dependencies['@lushly-dev/loam-chrome'], [
 		'@lushly-dev/fast-element',
+		'@lushly-dev/loam-console',
 		'@lushly-dev/loam-kernel',
 		'@lushly-dev/loam-sdk',
 		'@lushly-dev/loam-theme',
 		'@lushly-dev/violet-elements',
 	]);
+	// The console binds to the SDK's client alone (7.7).
+	assert.ok(!dependencies['@lushly-dev/loam-console'].includes('@lushly-dev/loam-kernel'));
 	const workflow = read('.github/workflows/loam.yml');
 	assert.match(workflow, /permissions:\n {2}contents: read/);
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
