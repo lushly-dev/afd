@@ -13,7 +13,7 @@
 use crate::access::{effective_principal_of, reader_filter};
 use crate::events::CHANGES_KEY;
 use crate::plugins::{GateEntry, Ledger, PluginError, PluginKind};
-use crate::provenance::{PROVENANCE_KEY, supplied_fields};
+use crate::provenance::{AUTHORITY_KEY, PROVENANCE_KEY, supplied_fields};
 use crate::versions::EVENT_VERSION;
 use crate::workspace::Workspace;
 use afd::{
@@ -54,6 +54,19 @@ pub(crate) const INDEX_KEY: &str = "dev.umbel/index";
 pub(crate) const HUMAN_CONFIRMED_KEY: &str = "dev.umbel/human-confirmed";
 /// `result.metadata` key: a command's record, which the event projector reads (phase 0).
 pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
+/// `result.metadata` key: `true` on a successful call of a plugin holding `memory_write` that
+/// wrote no memory revision (phase 3 section 6.4). Set only by the plugin gate; the event stamp,
+/// which is outer, then leaves the result unstamped, so a no-op makes no event.
+pub(crate) const NO_CHANGE_KEY: &str = "dev.umbel/no-change";
+/// The envelope fields the host nulls in a memory writer's event (phase 3 sections 6.2 and 7.3):
+/// they stay sealed on the stored record.
+const MEMORY_SEALED_FIELDS: &[&str] = &[
+    "sources",
+    "contentHash",
+    "derivedFrom",
+    "constraints",
+    "generated",
+];
 /// The prefix of every key the host owns.
 const HOST_PREFIX: &str = "dev.umbel/";
 
@@ -92,8 +105,8 @@ fn remove(result: &mut CommandResult<Value>, key: &str) {
 }
 
 /// The event stamp: `dev.umbel/mutation = true` and `dev.umbel/event-version` on a successful
-/// result of a command declared `mutation: true` (other than [`UNPROJECTED_MUTATIONS`]), both
-/// removed from every other result. A stamped result of a command with no `space` input also
+/// result of a command declared `mutation: true` (other than [`UNPROJECTED_MUTATIONS`]) that the
+/// plugin gate did not mark [`NO_CHANGE_KEY`], both removed from every other result. A stamped result of a command with no `space` input also
 /// gets the default space.
 pub(crate) fn event_stamp(
     mutations: HashSet<String>,
@@ -112,7 +125,10 @@ pub(crate) fn event_stamp(
             let default_space = default_space.clone();
             Box::pin(async move {
                 let mut result = next().await;
-                if stamped && result.success {
+                let unchanged = result.metadata.as_ref().is_some_and(|metadata| {
+                    metadata.extra.get(NO_CHANGE_KEY) == Some(&Value::Bool(true))
+                });
+                if stamped && result.success && !unchanged {
                     set(&mut result, MUTATION_KEY, Value::Bool(true));
                     set(&mut result, EVENT_VERSION_KEY, Value::from(EVENT_VERSION));
                     if !has_space {
@@ -333,6 +349,47 @@ fn sanitize(
             CHANGES_KEY.to_owned(),
             json!({ "fromRev": record.from_rev, "toRev": record.to_rev, "count": record.count }),
         );
+    }
+    // Authority and confirmation are host-owned (phase 3 step 4, amendment 12): from what the host
+    // did in this call, never from the plugin, which `supplied_fields` and the retain above remove.
+    let authority = match &record.authority {
+        crate::plugins::Assigned::One(authority) if success => Value::String(authority.clone()),
+        _ => Value::Null,
+    };
+    let confirmation = record
+        .confirmation
+        .clone()
+        .filter(|_| success)
+        .unwrap_or(Value::Null);
+    if !authority.is_null() || !confirmation.is_null() {
+        metadata.extra.insert(
+            AUTHORITY_KEY.to_owned(),
+            json!({ "authority": authority, "confirmation": confirmation }),
+        );
+    }
+    if success && record.memory.count > 0 {
+        metadata.extra.insert(
+            CHANGES_KEY.to_owned(),
+            json!({
+                "store": "memory",
+                "fromRev": record.memory.from_rev,
+                "toRev": record.memory.to_rev,
+                "count": record.memory.count,
+            }),
+        );
+    }
+    if success && entry.memory_writer && record.memory.count == 0 {
+        // A replay, a refused capture, a forget that found nothing, an empty sweep: no event.
+        metadata
+            .extra
+            .insert(NO_CHANGE_KEY.to_owned(), Value::Bool(true));
+    }
+    if entry.memory_writer
+        && let Some(Value::Object(provenance)) = metadata.extra.get_mut(PROVENANCE_KEY)
+    {
+        for field in MEMORY_SEALED_FIELDS {
+            provenance.remove(*field);
+        }
     }
     if mounted || record.used {
         // Recorded, not replayable (architecture section 8): the journal keeps the stamp, and

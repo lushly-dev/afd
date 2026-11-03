@@ -55,7 +55,7 @@ fn allows_space(entries: &[String], space: &str) -> bool {
 
 impl CallServices {
     /// A read or write on `space` needs `grant` and a space of this call.
-    fn scoped(&self, grant: &str, space: &str) -> Result<()> {
+    pub(super) fn scoped(&self, grant: &str, space: &str) -> Result<()> {
         self.require(grant)?;
         if self
             .spaces()
@@ -76,7 +76,7 @@ impl CallServices {
     }
 
     /// Writes need a call that is not `as_reader`'s read-only view.
-    fn writable(&self) -> Result<()> {
+    pub(super) fn writable(&self) -> Result<()> {
         if self.read_only {
             Err(write_not_allowed("a Reader holds no write grant"))
         } else {
@@ -86,7 +86,7 @@ impl CallServices {
 
     /// The write grant `grant` on `space` (and `collection`), against the instance's `allow`
     /// entries: a write outside them is `STORE_WRITE_NOT_ALLOWED` (rule 1).
-    fn allowed(&self, grant: &str, space: &str, collection: Option<&str>) -> Result<()> {
+    pub(super) fn allowed(&self, grant: &str, space: &str, collection: Option<&str>) -> Result<()> {
         self.scoped(grant, space)?;
         self.writable()?;
         let entries = self.shared.allow.get(grant).map_or(&[][..], Vec::as_slice);
@@ -102,7 +102,7 @@ impl CallServices {
         }
     }
 
-    fn note_use(&self) {
+    pub(super) fn note_use(&self) {
         self.shared
             .ledger
             .note_use(self.context.trace_id.as_deref().unwrap_or_default());
@@ -116,14 +116,14 @@ impl CallServices {
 
     /// The effective principal reads are filtered for: the `as_reader` principal, else the
     /// caller's.
-    fn reading_as(&self) -> Option<String> {
+    pub(super) fn reading_as(&self) -> Option<String> {
         self.as_principal
             .clone()
             .or_else(|| effective_principal_of(&self.context))
     }
 
     /// The reader filter of the caller in `space`; `SPACE_NOT_READABLE` is `NotGranted`.
-    fn filter(&self, space: &str) -> Result<ReaderFilter> {
+    pub(super) fn filter(&self, space: &str) -> Result<ReaderFilter> {
         reader_filter(
             self.shared.workspace.config(),
             space,
@@ -156,13 +156,10 @@ impl CallServices {
         self.stores(space)
     }
 
-    /// The envelope of a write, with the identity fields the host owns filled from the call,
-    /// overwriting what the plugin sent (rule 4), and checked: version 1, an origin that is not
-    /// `unspecified`, a valid access set and a sensitivity.
-    fn seal(&self, space: &str, mut envelope: Envelope) -> Result<Envelope> {
-        envelope.space = space.to_owned();
-        envelope.plugin = Some(self.shared.instance.clone());
-        envelope.agent = self.context.actor.as_ref().and_then(|actor| {
+    /// The call's actor when its kind is `agent`, `service` or `script`: the envelope's and a
+    /// memory record's `agent`.
+    pub(super) fn agent_actor(&self) -> Option<Actor> {
+        self.context.actor.as_ref().and_then(|actor| {
             let kind = match actor.kind {
                 afd::ActorKind::Agent => ActorKind::Agent,
                 afd::ActorKind::Service => ActorKind::Service,
@@ -175,7 +172,16 @@ impl CallServices {
                 label: actor.label.clone(),
                 on_behalf_of: actor.on_behalf_of.clone(),
             })
-        });
+        })
+    }
+
+    /// The envelope of a write, with the identity fields the host owns filled from the call,
+    /// overwriting what the plugin sent (rule 4), and checked: version 1, an origin that is not
+    /// `unspecified`, a valid access set and a sensitivity.
+    fn seal(&self, space: &str, mut envelope: Envelope) -> Result<Envelope> {
+        envelope.space = space.to_owned();
+        envelope.plugin = Some(self.shared.instance.clone());
+        envelope.agent = self.agent_actor();
         envelope.principal = effective_principal_of(&self.context);
         envelope.trace_id = self.context.trace_id.clone();
         envelope.observed_at = chrono::DateTime::from_timestamp_millis(self.context.clock().now())

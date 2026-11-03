@@ -41,6 +41,7 @@ mod assets;
 #[cfg(feature = "component")]
 pub mod component;
 mod cx;
+mod memory;
 #[cfg(feature = "mounted")]
 mod mounted;
 mod outcome;
@@ -50,6 +51,7 @@ pub mod build;
 
 pub use assets::Asset;
 pub use cx::{CallContext, Cx, HostError, HostServices, Level, NoServices};
+pub use memory::{LeftOutQuery, MemoryPath, MemoryWriteRequest};
 #[cfg(feature = "mounted")]
 pub use mounted::{mounted_server, serve_mounted};
 pub use outcome::{Outcome, failure, success};

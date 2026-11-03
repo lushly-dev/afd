@@ -72,7 +72,9 @@ impl Handler {
 
 #[async_trait]
 impl CommandHandler for Handler {
-    async fn execute(&self, _input: Value, _context: CommandContext) -> CommandResult<Value> {
+    async fn execute(&self, _input: Value, context: CommandContext) -> CommandResult<Value> {
+        #[cfg(not(feature = "store-embedded"))]
+        let _ = &context;
         let workspace = Arc::clone(&self.workspace);
         let registry = self.registry.upgrade();
         let first_class_ready = self.first_class.get().is_some();
@@ -92,14 +94,16 @@ impl CommandHandler for Handler {
         {
             let stores = Arc::clone(&self.stores);
             let workspace = Arc::clone(&self.workspace);
-            let ids = ["stores.version", "stores.access", "stores.lag"];
+            let now = context.clock().now();
             let found = tokio::task::spawn_blocking(move || {
-                super::store_doctor_checks(&workspace, &stores)
+                let mut found: Vec<Check> = super::store_doctor_checks(&workspace, &stores).into();
+                found.extend(super::store_memory_checks(&workspace, &stores, now));
+                found
             })
             .await;
             if let Ok(found) = found {
-                for (id, found) in ids.into_iter().zip(found) {
-                    if let Some(check) = report.checks.iter_mut().find(|c| c.id == id) {
+                for found in found {
+                    if let Some(check) = report.checks.iter_mut().find(|c| c.id == found.id) {
                         *check = found;
                     }
                 }

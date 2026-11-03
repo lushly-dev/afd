@@ -9,7 +9,14 @@ use umbel_store::{
     Page, Record, RecordMeta, Rev, Subgraph,
 };
 
+use crate::memory::{LeftOutQuery, MemoryWriteRequest};
 use crate::store::{CollectionInfo, ContentEntry, Reader};
+use umbel_store::memory::{
+    Confirm, ForgetReceipt, Invalidate, KeyFileState, LeftOut, MemoryChange, MemoryCounts,
+    MemoryList, MemoryPage, MemoryReceipt, MemoryUsage, MemoryVersionMeta, RecallPage, RecallQuery,
+    ReindexReceipt, Retention, SweepReceipt,
+};
+use umbel_store::{AsOf, ForgetSelector, MemoryRecord, Millis, ReadFlags};
 
 /// What the command is called with (WIT `call-context`). The principal is a summary: plugins
 /// never see credentials or tokens.
@@ -38,7 +45,8 @@ pub struct CallContext {
     pub interface: String,
 }
 
-/// Why a host service refused (WIT `host-error`; world 1.1.0 adds the last four).
+/// Why a host service refused (WIT `host-error`; world 1.1.0 adds the store variants). The memory
+/// variants are phase 3's (section 5.2); each names the error code a plugin answers with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HostError {
@@ -62,6 +70,30 @@ pub enum HostError {
     Corrupt(String),
     /// The operating system or the database failed.
     Io(String),
+    /// A memory write met a limit of its quota and wrote nothing (`MEMORY_QUOTA_EXCEEDED`).
+    /// Retryable when the limit is a rate, which `retry_after_ms` then says.
+    QuotaExceeded {
+        /// Which limit.
+        limit: umbel_store::memory::QuotaLimit,
+        /// When a rate limit admits the write again; `None` for the stored limits.
+        retry_after_ms: Option<u64>,
+    },
+    /// Nothing has been written to the space's memory store yet; a read creates nothing.
+    NotProvisioned,
+    /// The memory key file does not exist (`MEMORY_KEYS_MISSING`).
+    KeysMissing,
+    /// The memory key file belongs to another database, or is not one (`MEMORY_KEYS_MISMATCH`).
+    KeysMismatch,
+    /// A readable record's key entry is absent (`MEMORY_KEY_ABSENT`).
+    KeyAbsent {
+        /// The record.
+        id: String,
+    },
+    /// A readable record's sealed blob does not open (`MEMORY_SEAL_INVALID`).
+    SealInvalid {
+        /// The record.
+        id: String,
+    },
 }
 
 impl fmt::Display for HostError {
@@ -76,6 +108,34 @@ impl fmt::Display for HostError {
             Self::Busy(message) => write!(f, "busy: {message}"),
             Self::Corrupt(message) => write!(f, "corrupt: {message}"),
             Self::Io(message) => write!(f, "i/o: {message}"),
+            Self::QuotaExceeded {
+                limit,
+                retry_after_ms: Some(ms),
+            } => write!(
+                f,
+                "MEMORY_QUOTA_EXCEEDED: the limit {} is reached; retry after {ms} ms",
+                limit.as_str()
+            ),
+            Self::QuotaExceeded { limit, .. } => write!(
+                f,
+                "MEMORY_QUOTA_EXCEEDED: the limit {} is reached",
+                limit.as_str()
+            ),
+            Self::NotProvisioned => write!(f, "not provisioned: nothing is stored in memory yet"),
+            Self::KeysMissing => write!(
+                f,
+                "MEMORY_KEYS_MISSING: the memory key file memory.keys does not exist"
+            ),
+            Self::KeysMismatch => write!(
+                f,
+                "MEMORY_KEYS_MISMATCH: the memory key file does not belong to this memory database"
+            ),
+            Self::KeyAbsent { id } => {
+                write!(f, "MEMORY_KEY_ABSENT: the record {id} has no key entry")
+            }
+            Self::SealInvalid { id } => {
+                write!(f, "MEMORY_SEAL_INVALID: the record {id} does not open")
+            }
         }
     }
 }
@@ -434,6 +494,175 @@ pub trait HostServices: Send + Sync {
     /// [`HostError::NotGranted`] (the message names `STORE_WRITE_NOT_ALLOWED`).
     fn as_reader(&self, _principal: &str) -> Result<Reader, HostError> {
         not_granted("documents")
+    }
+
+    /// Grant `memory`: one record at the version matching `as_of`, under the caller's reader
+    /// filter; `None` for absent, purged, forgotten and unreadable alike (phase 3 section 5.2).
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], [`HostError::NotProvisioned`], [`HostError::KeysMissing`],
+    /// [`HostError::KeysMismatch`], [`HostError::KeyAbsent`], [`HostError::SealInvalid`].
+    fn memory_get(
+        &self,
+        _space: &str,
+        _id: &str,
+        _as_of: AsOf,
+        _flags: ReadFlags,
+    ) -> Result<Option<MemoryRecord>, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: every version of a readable record, oldest first.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_get`].
+    fn memory_history(&self, _space: &str, _id: &str) -> Result<Vec<MemoryRecord>, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: readable records, newest recorded first.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_get`], and [`HostError::Invalid`] for a bad query.
+    fn memory_list(&self, _space: &str, _query: &MemoryList) -> Result<MemoryPage, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: ranked hits, with no score.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_list`].
+    fn memory_recall(&self, _space: &str, _query: &RecallQuery) -> Result<RecallPage, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: what a bundle's push rule leaves out, per class. Reads no key.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_list`].
+    fn memory_left_out(&self, _space: &str, _query: &LeftOutQuery) -> Result<LeftOut, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: the changes after `after` that the caller can read. No text.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_list`].
+    fn memory_changes(
+        &self,
+        _space: &str,
+        _after: Rev,
+        _limit: u32,
+        _trace: Option<&str>,
+    ) -> Result<Vec<MemoryChange>, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: counts by class and state over what the caller can read.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_list`].
+    fn memory_counts(
+        &self,
+        _space: &str,
+        _now: Millis,
+        _expiring_within_ms: Millis,
+    ) -> Result<MemoryCounts, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: the caller's own usage: its stored records and bytes, and the writes and
+    /// bytes of the caller's principal and agent since `since`.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_get`].
+    fn memory_usage(&self, _space: &str, _since: Millis) -> Result<MemoryUsage, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: the highest revision of a change the caller can read, never the store's
+    /// true head (phase 3 section 6.1).
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_get`].
+    fn memory_head(&self, _space: &str) -> Result<Rev, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory`: whether the key file is present, missing or another database's. Only the
+    /// file's state: the store-wide counts of markers and orphans stay with `store-check`.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_get`].
+    fn memory_key_file(&self, _space: &str) -> Result<KeyFileState, HostError> {
+        not_granted("memory")
+    }
+    /// Grant `memory_write`: write a batch. The host fills each entry's identity and
+    /// authority from the call, sets its access set from `share` and the grant's policy, unions
+    /// the scan's flags, caps the quota, and refuses what section 6 refuses.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`] (`STORE_WRITE_NOT_ALLOWED`, `MEMORY_SHARE_NOT_ALLOWED`,
+    /// `MEMORY_AUTHORITY_TOO_LOW`, `MEMORY_NOT_OWNED`), [`HostError::NotFound`]
+    /// (`MEMORY_NOT_FOUND`), [`HostError::Invalid`] (`MEMORY_PRINCIPAL_REQUIRED`,
+    /// `MEMORY_TTL_TOO_LONG`, a store refusal), [`HostError::QuotaExceeded`],
+    /// [`HostError::KeysMissing`], [`HostError::KeysMismatch`], [`HostError::Busy`].
+    fn memory_write(
+        &self,
+        _space: &str,
+        _request: MemoryWriteRequest,
+    ) -> Result<MemoryReceipt, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: close a record's validity with a new version. The host fills `by`,
+    /// `at` and the trace id, and checks authority and ownership (section 6.3).
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_write`], and [`HostError::Conflict`], [`HostError::KeyAbsent`].
+    fn memory_invalidate(
+        &self,
+        _space: &str,
+        _request: Invalidate,
+    ) -> Result<MemoryVersionMeta, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: a person vouching for their own record (section 8.7). Needs a
+    /// caller with authority `person`, else `MEMORY_CONFIRM_NOT_ALLOWED`.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_invalidate`].
+    fn memory_confirm(
+        &self,
+        _space: &str,
+        _request: Confirm,
+    ) -> Result<MemoryVersionMeta, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: erase the caller's own records. A selector other than `ids` needs a
+    /// caller with authority `person` (`MEMORY_FORGET_HUMAN_REQUIRED`).
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_write`].
+    fn memory_forget(
+        &self,
+        _space: &str,
+        _selector: ForgetSelector,
+    ) -> Result<ForgetReceipt, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: purge at most `limit` records past their purge date.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_write`].
+    fn memory_sweep(
+        &self,
+        _space: &str,
+        _limit: u32,
+        _retention: Retention,
+    ) -> Result<SweepReceipt, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: rebuild the lexical lane; removes orphan keys only when asked.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_write`].
+    fn memory_reindex(
+        &self,
+        _space: &str,
+        _remove_orphans: bool,
+    ) -> Result<ReindexReceipt, HostError> {
+        not_granted("memory_write")
     }
 }
 

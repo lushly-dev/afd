@@ -43,7 +43,8 @@ mounted = [
 
 # The embedded reference store (specification section 3.2): SQLite in WAL mode and tantivy. Without
 # it the host links neither, and every store grant answers `PLUGIN_GRANT_UNAVAILABLE`.
-store-embedded = ["dep:umbel-store-embedded"]
+# The host's write scan of memory records (phase 3 section 6.2) uses `umbel-scan` too.
+store-embedded = ["dep:umbel-store-embedded", "dep:umbel-scan"]
 
 [[bin]]
 name = "umbel"

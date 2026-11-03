@@ -20,6 +20,9 @@ use umbel_store::{DocumentStore, ReaderFilter};
 const RECENT_SECONDS: i64 = 60;
 /// The most trace ids a finding names.
 const NAMED: usize = 10;
+/// What to do when a space's stores do not open (phase 3 section 14, step 4): the knowledge
+/// stores can be derived again, and memory cannot.
+pub(crate) const STORE_OPEN_SUGGESTION: &str = "Restore state/spaces from a backup. To derive the knowledge stores again, move store.sqlite3 and the index aside and run sources-sync and knowledge-index rebuild=true. Keep memory.sqlite3 and memory.keys: memory cannot be derived.";
 
 struct Handler {
     workspace: Arc<Workspace>,
@@ -27,21 +30,25 @@ struct Handler {
 }
 
 /// Changes older than [`RECENT_SECONDS`] whose trace id the journal does not hold.
-fn missing_from_journal(
-    workspace: &Workspace,
-    documents: &dyn DocumentStore,
-    now_ms: i64,
-) -> Result<Vec<String>, String> {
+/// The trace ids the journal holds.
+fn journaled_traces(workspace: &Workspace) -> Result<HashSet<String>, String> {
     let text = match std::fs::read_to_string(workspace.layout().journal_file()) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(format!("the journal cannot be read: {error}")),
     };
-    let journaled: HashSet<String> = afd::parse_journal(&text)
+    Ok(afd::parse_journal(&text)
         .map_err(|error| format!("the journal cannot be read: {error}"))?
         .into_iter()
         .filter_map(|entry| entry.trace_id)
-        .collect();
+        .collect())
+}
+
+fn missing_from_journal(
+    journaled: &HashSet<String>,
+    documents: &dyn DocumentStore,
+    now_ms: i64,
+) -> Result<Vec<String>, String> {
     let mut missing = Vec::new();
     let mut after = 0;
     loop {
@@ -75,13 +82,14 @@ fn run(
     now_ms: i64,
 ) -> Result<Vec<Check>, CommandError> {
     let mut checks = Vec::new();
+    let journaled = journaled_traces(workspace);
     let opened = match stores.space(space) {
         Ok(opened) => opened,
         Err(error) => {
             checks.push(Check::fail(
                 "store.open",
                 format!("the stores of `{space}` cannot be opened: {error}"),
-                "Restore state/spaces from a backup, or move it aside and run sources-sync and knowledge-index rebuild=true to derive it again.",
+                STORE_OPEN_SUGGESTION,
             ));
             return Ok(checks);
         }
@@ -170,7 +178,10 @@ fn run(
             "Run knowledge-index rebuild=true.",
         )),
     }
-    match missing_from_journal(workspace, opened.documents.as_ref(), now_ms) {
+    match journaled
+        .clone()
+        .and_then(|journaled| missing_from_journal(&journaled, opened.documents.as_ref(), now_ms))
+    {
         Ok(missing) if missing.is_empty() => checks.push(Check::pass(
             "store.journal",
             "every store change older than a minute has a journal entry",
@@ -198,6 +209,12 @@ fn run(
             "Retry store-check later.",
         ));
     }
+    // The memory store (phase 3 section 5.4), whose checkpoint settles finished erasures.
+    checks.extend(super::store_memory::checks(
+        &opened.sqlite_memory,
+        &journaled.unwrap_or_default(),
+        now_ms,
+    ));
     Ok(checks)
 }
 
@@ -262,7 +279,7 @@ impl CommandHandler for Handler {
 pub(crate) fn store_check(workspace: Arc<Workspace>, stores: Hub) -> Builtin {
     let definition = CommandDefinition::new(
         "store-check",
-        "Check a space's stores: SQLite's integrity, the index's checksums, the access tables, the revisions, and the journal cross-check",
+        "Check a space's stores: SQLite's integrity, the index's checksums, the access tables, the revisions, the journal cross-check, and the memory store with its key file",
         vec![],
         Handler { workspace, stores },
     )

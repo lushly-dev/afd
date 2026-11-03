@@ -62,9 +62,10 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 4 to 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s steps 5 to 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
-  [#736](https://github.com/lushly-dev/afd/pull/736); step 3b is in its pull request, 2026-11-03.
+  [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
+  [#737](https://github.com/lushly-dev/afd/pull/737); step 4 is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2305,6 +2306,94 @@ forget** of one record on 3000 records, of which the index rebuild is about 9 ms
 item 7 were 20 to 23 ms, before the two key-file commits of steps 2 and 5). The split between the fsyncs and
 the cipher was not measured. `cost_per_write_and_per_recall` in `memory_seal.rs` and
 `forget_cost_on_a_few_thousand_records` print these (`cargo test --release ... -- --nocapture cost`).
+
+### Amendments from step 4
+
+Step 4 settled these details of sections 2.1, 3.3, 5.3, 6, 7.1 and 10.6 that the text left open. None
+weakens access or authority, lets an agent obtain `person`, or otherwise changes the trust model; items 3, 4
+and 12 are narrower than the text.
+
+1. **The SDK's shapes.** `memory_write` takes a `MemoryWriteRequest { path: MemoryPath, share:
+   Option<String>, batch: MemoryBatch }`: `share` is the input's, and the host turns it into every entry's
+   access set; it overwrites each entry's `scope.space`, `scope.principal`, `scope.agent`, `access`, the
+   envelope's identity fields, `authority` and `confirmation`, and the batch's `at` (the command context's
+   clock); it unions its scan's findings into `flags` and caps `quota`. `memory_invalidate` and
+   `memory_confirm` take the store's requests with `at`, `by` and the trace id overwritten;
+   `memory_forget` takes a `ForgetSelector`, the owner being the caller's effective principal;
+   `memory_sweep` takes a limit and the pack's `Retention`; `memory_left_out` takes a `LeftOutQuery`; and
+   `memory_usage` takes only `since`, since a caller's usage is its own (owner and agent from the call).
+   A refusal keeps the existing `HostError` kinds with the code leading its message, as
+   `STORE_WRITE_NOT_ALLOWED` does: `NotGranted` for `MEMORY_SHARE_NOT_ALLOWED`, `MEMORY_AUTHORITY_TOO_LOW`,
+   `MEMORY_NOT_OWNED`, `MEMORY_CONFIRM_NOT_ALLOWED` and `MEMORY_FORGET_HUMAN_REQUIRED`; `NotFound` for
+   `MEMORY_NOT_FOUND`; `Invalid` for `MEMORY_PRINCIPAL_REQUIRED`, `MEMORY_TTL_TOO_LONG` and `MEMORY_INVALID`.
+   5.2's six variants are new `HostError` variants.
+2. **`memory_key_file`, under the `memory` grant.** `memory-status` reports key-file status (8.8) and no
+   service in 6.1 gave it. The host answers only the file's state, `Present`, `Missing` or `Mismatch`:
+   `key_status`'s counts of markers, orphans and absent entries span every owner, the hidden-count side
+   channel 6.1 keeps from plugins, so they stay with `store-check` and `store-show`'s CLI person.
+3. **The marks name the command.** The CLI sets `dev.umbel/human-present` and, after an
+   `authority_prompt` or a `require-human` prompt answered yes, `dev.umbel/human-confirmed`, each to the
+   name of the command it ran. The host reads a mark only on a call whose interface is the CLI and whose
+   principal is a human with transport `cli` and authentication `process`. A mark covers the command it
+   names and, for a pipeline, its steps, which run under the context the CLI built: so a pipeline's
+   inherited prompt (2.3) gives its `memory-remember` step `person`. A caller has authority `person` when
+   the human-present mark covers its command (or through the library, as 3.3 says); a remember gets
+   `person` when both marks name the same command, that command carries an `authority_prompt`, and it
+   covers the remember.
+4. **A forget by id from a caller without `person` reads each record's authority first** (6.3's
+   "authority first"), through the caller's reader filter. A record whose body does not open
+   (`MEMORY_KEY_ABSENT`, `MEMORY_SEAL_INVALID`) answers that error, because its authority cannot be read;
+   a person at a terminal can still forget it, and a record the caller cannot read counts in `notFound` as
+   before. 8.2's `MEMORY_SCOPE_MISMATCH` for a supersede stays the plugin's; the host checks 6.3 for every
+   `supersedes` target.
+5. **An event's range for a forget or a sweep.** `ForgetReceipt` and `SweepReceipt` carry no revisions, so
+   the host records the store's head before and after the call, `count` being the records erased or
+   purged. Another process's revisions between them can widen the range, as 2.2 allows. A write's range is
+   its receipt's, and a replayed or refused write records none, so it makes no event (6.4).
+6. **The ceilings of 8.11.** The host refuses an entry expiring more than 3650 days after the call's clock,
+   or a renewal whose maximum passes that, with `MEMORY_TTL_TOO_LONG`, and caps `writes_per_hour` at
+   100 000 and `stored_bytes` at 32 GiB. 8.11 names no ceiling for `bytes_per_hour` or `stored_records`.
+7. **The digest's last details.** An error also loses `cause`, and keeps `retryable`; `confidence` stays;
+   `metadata` keeps only `actorKind` and the `dev.umbel/` keys (its `traceId`, `timestamp`,
+   `executionTimeMs` and `commandVersion` go; the entry's own `traceId` stays). The redact step reads the
+   set of digest commands fixed at seal: each command declared `digest`, and each pipeline with a digest
+   step. A step that is not digest may not take a digest step's output through `$prev` (the step before),
+   `$first`, `$steps[N]` or `$steps.<alias>`; `$input` and a literal `$$...` are allowed.
+8. **A memory read opens only the memory store.** The host opens a space's memory store apart from its
+   documents and index, so a memory read creates neither `store.sqlite3` nor the index, as 5.2 asks of
+   `memory.sqlite3`.
+9. **`@-` and the environment.** `@-` is the input only when it is the one word after the command; beside
+   other words it is an ordinary argument. An agent variable counts when present, whatever its value, even
+   empty. The CLI's `Environment` gains `vars` and `clock`, and `Console` a `read_stdin`, so tests drive
+   both. Under `testkit` only, `UMBEL_TEST_HUMAN_PRESENT=1` replaces the console with a person at a
+   terminal who answers yes (the other conditions, `@-`, `--yes`, `--approve` and the agent variables,
+   still withhold the mark) and `UMBEL_TEST_CLOCK` fixes the clock; both live in `src/cli/test_env.rs`,
+   declared under `#[cfg(feature = "testkit")]`, which `cli_stdin_input.rs` checks.
+10. **`store-check`, `store-show`, `store-backup` and the doctor.** `store-check` runs the memory store's
+    checkpoint first, which settles finished erasures, then reports `store.memory` (integrity),
+    `store.memory_keys`, `store.memory_index` (FTS5's `integrity-check`, and indexed, derived and index rows
+    equal), `store.memory_access`, `store.memory_rows` (rows that do not open and rows with `indexed = 0`
+    fail; rows with a marker and unsettled markers warn), `store.memory_journal` (D66) and, on failure,
+    `store.memory_checkpoint`. `store-show`'s `memory` is `{ provisioned: false }` before the first write,
+    else counts by class and state over what the caller reads, `keyFile`, file sizes and, for the CLI's
+    person, `head`. `store-backup` reports `memory: true` when it copied the memory store. The doctor's
+    `stores.sweep` measures with the pack's default retention, since the host reads no plugin's pack;
+    `stores.principals` reads the configuration (an instance with a non-empty `memory_write` allow list that
+    does not deny it); `stores.capture` reads `$XDG_STATE_HOME/umbel-hook/last-error.json`, else
+    `~/.local/state/umbel-hook/last-error.json`.
+11. **The CLI's prompt** reads `'<command>' records this with authority person: <prompt>` then `Proceed?
+    [y/N]`, sanitized as every prompt; the manifest already refuses a control character in it.
+12. **`authority` and `confirmation` are host-owned in every event envelope of version 2.** The gate never
+    takes either from a plugin's result: `supplied_fields` no longer admits `authority` in version 2
+    (2.1 admitted it from the closed set), and the event reads both only from the host-owned result key
+    `dev.umbel/authority`, which the gate sets from what the host itself did in the call. A call that
+    wrote memory records carries the authority the host assigned under 3.3, or `null` when it wrote
+    records with different authorities or assigned none (an invalidate, a forget, a sweep).
+    `confirmation` is set only from a `memory-confirm` the host performed, `{ by, at, priorAuthority }`
+    as the stored version holds it, with authority `person`. Every other event has both `null`, as a
+    document's lifted version 1 envelope already has them. A version 1 entry is still read by its own
+    rules. This narrows what a plugin can assert and changes no record: the stored authority was always
+    the host's.
 
 ## 15. For the owner
 

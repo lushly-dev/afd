@@ -285,6 +285,29 @@ or `*` for the rest). A compiled plugin's store grants are trusted code, not a s
 command marked `confirm = "require-human"` runs only when a person answers its prompt at a
 terminal: `--yes` and `--approve` do not count, and MCP and agents never reach it.
 
+**Memory (phase 3) follows the same rules, and its own.** The `memory` grant reads a space's memory
+store under the caller's reader filter; `memory_write` needs an allow list, and its table also takes
+`default_access` (`private` unless you set `space`), `writers` and `agents_may_share`. Every record is
+private to its principal unless a person, or a listed writer, shares it, and a captured transcript is
+always private. The host, not the plugin, fills a record's owner, agent and **authority**: `person`
+only for a human through the library, or for a person at a terminal who answered the command's
+`authority_prompt` yes; `tool` for the CLI without that answer (a script, `--yes`, `--approve`, input
+read with `@-`, or an agent variable such as `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `AI_AGENT` or one
+you list in `principal.agent_env`); `agent` for every other caller. **That is a terminal check, not an
+attestation**: a process that runs the CLI in a pseudo-terminal with those variables removed passes
+it, and phase 5 replaces it. Session start pushes only `person` records by default, and that default
+rests on this check. A stdio agent and its person are one principal only when `on_behalf_of` equals
+`local_id`; streamable HTTP is `agent:loopback`, so a person mixing HTTP with the CLI shares
+remembered facts with `default_access = "space"`, and captured episodes stay readable only from the
+principal that captured them. Memory commands are journaled as digests (no text, no result data), so
+the journal never holds what a forget removes; text an agent copies into another command is
+journaled as it is. Each record is sealed under its own key in `memory.keys`: losing that file loses
+all memory, `store-backup` never copies it (back it up yourself, after the database copy), a copy of
+it taken before a forget brings the record back, and a file-level copy of `memory.sqlite3` holds
+every live record's text in clear in its index. On macOS both files are kept out of Time Machine
+unless `store.exclude_memory_from_machine_backup = false`. Before phase 5 all of this, like access
+above, is exact only for embedders and tests, and local same-user processes can read everything.
+
 ## Documents
 
 Read [STATUS.md](docs/STATUS.md) first: it says exactly what is done, what

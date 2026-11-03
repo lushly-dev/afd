@@ -56,10 +56,10 @@ fn memory_and_memory_write_are_grants_a_deployer_may_deny() {
     assert!(umbel::plugins::GRANTS.contains(&"memory_write"));
     assert!(umbel::plugins::needs_allow_list("memory_write"));
     assert!(!umbel::plugins::needs_allow_list("memory"));
-    // Both are in the catalog and still unavailable until their services exist (step 4).
+    // Both are in the catalog and available since their services exist (phase 3 step 4).
     for grant in ["memory", "memory_write"] {
         assert!(
-            umbel::plugins::PENDING_GRANTS
+            !umbel::plugins::PENDING_GRANTS
                 .iter()
                 .any(|(name, _)| *name == grant),
             "{grant}"

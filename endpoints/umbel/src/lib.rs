@@ -10,6 +10,7 @@
 #![allow(clippy::result_large_err)]
 
 pub mod access;
+pub mod authority;
 pub mod doctor;
 pub mod events;
 pub mod plugins;

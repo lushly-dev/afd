@@ -201,7 +201,7 @@ pub struct StoreConfig {
     /// SQLite's busy timeout and the wait for tantivy's writer.
     pub lock_timeout_ms: u64,
     /// Version 4: whether the memory files are excluded from the machine's backup (Time Machine
-    /// on macOS, D87); `true` by default. The memory store applies it from phase 3 step 3b.
+    /// on macOS, D87); `true` by default. Every writer's open of the memory store applies it.
     pub exclude_memory_from_machine_backup: bool,
 }
 
@@ -274,7 +274,7 @@ pub struct PrincipalConfig {
     pub on_behalf_of: Option<String>,
     /// Version 4: environment variable names that, when set, mark the CLI's caller as an agent,
     /// beside the built-in `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT` (phase 3 section
-    /// 3.3). The CLI reads them from phase 3 step 4.
+    /// 3.3). The CLI reads them before it sets `dev.umbel/human-present`.
     pub agent_env: Vec<String>,
 }
 

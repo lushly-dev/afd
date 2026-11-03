@@ -9,7 +9,7 @@ use crate::store::{Hub, codes, command_error};
 use crate::workspace::Workspace;
 use afd::{
     CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult, ExposeOptions,
-    failure, success,
+    ResultOptions, Warning, failure, success, success_with,
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
-use umbel_store::StoreError;
+use umbel_store::{MemoryStore, StoreError};
 
 struct Handler {
     workspace: Arc<Workspace>,
@@ -133,6 +133,16 @@ fn run(
             .backup_to(&database)
             .map_err(|e| command_error(&e))?;
         files.push(("store.sqlite3".to_owned(), database));
+        // The memory store's stripped copy (phase 3 section 5.4): sealed blobs, no index and
+        // never the key file. Nothing to copy before the first memory write.
+        let memory = match opened.sqlite_memory.backup(&target) {
+            Ok(receipt) => {
+                files.push((umbel_store_embedded::MEMORY_FILE.to_owned(), receipt.file));
+                true
+            }
+            Err(StoreError::NotProvisioned) => false,
+            Err(error) => return Err(command_error(&error)),
+        };
         let index_dir = target.join("index").join("v1");
         fs::create_dir_all(&index_dir).map_err(|e| io(&index_dir, e))?;
         for name in opened.tantivy.live_files().map_err(|e| command_error(&e))? {
@@ -153,12 +163,16 @@ fn run(
             bytes += size;
             listed.push(json!({ "path": name, "bytes": size, "sha256": sha256 }));
         }
-        let manifest = json!({
+        let mut manifest = json!({
             "version": 1,
             "space": space,
             "createdAt": now,
             "files": listed,
         });
+        if memory {
+            manifest["memoryKeys"] = json!("excluded");
+            manifest["memoryFts"] = json!("excluded");
+        }
         let manifest_path = target.join("manifest.json");
         fs::write(
             &manifest_path,
@@ -171,6 +185,7 @@ fn run(
             "files": files.len(),
             "bytes": bytes,
             "manifest": "manifest.json",
+            "memory": memory,
         }))
     })();
     writer.abort();
@@ -202,6 +217,17 @@ impl CommandHandler for Handler {
             .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
             .unwrap_or_default();
         match blocking(move || run(&workspace, &stores, &space, &path, &now)).await {
+            Ok(data) if data["memory"] == json!(true) => {
+                let warning = Warning::new(
+                    codes::MEMORY_KEYS_NOT_BACKED_UP,
+                    "The copy holds memory.sqlite3 without memory.keys, which no store-backup copies: back the key file up yourself, after this copy, or the memory in it cannot be read.",
+                );
+                let options = ResultOptions {
+                    warnings: Some(vec![warning]),
+                    ..ResultOptions::default()
+                };
+                success_with(data, options)
+            }
             Ok(data) => success(data),
             Err(error) => failure(error),
         }
@@ -212,7 +238,7 @@ impl CommandHandler for Handler {
 pub(crate) fn store_backup(workspace: Arc<Workspace>, stores: Hub) -> Builtin {
     let definition = CommandDefinition::new(
         "store-backup",
-        "Copy a space's stores into a new directory inside the workspace, with a manifest of SHA-256 digests",
+        "Copy a space's stores into a new directory inside the workspace, with a manifest of SHA-256 digests; memory is copied without its key file and index",
         vec![],
         Handler { workspace, stores },
     )

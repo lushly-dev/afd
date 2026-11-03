@@ -24,8 +24,8 @@ pub use connection::StoreOptions;
 pub use index::{IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
 pub use memory::{
-    KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryInfo, MemoryKeysInfo, SqliteMemoryStore,
-    is_excluded_from_machine_backup,
+    KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryCheck, MemoryInfo, MemoryKeysInfo,
+    MemoryMaintenance, SqliteMemoryStore, is_excluded_from_machine_backup,
 };
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 

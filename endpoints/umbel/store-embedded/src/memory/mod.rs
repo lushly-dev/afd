@@ -21,6 +21,7 @@ mod change;
 mod erase;
 mod exclusion;
 mod filters;
+mod inspect;
 mod keys;
 mod points;
 mod pool;
@@ -46,6 +47,7 @@ use umbel_store::{
 use crate::StoreOptions;
 
 pub use exclusion::is_excluded as is_excluded_from_machine_backup;
+pub use inspect::{MemoryCheck, MemoryMaintenance};
 pub use keys::{KEYS_FILE, MemoryKeysInfo};
 pub use schema::MEMORY_SCHEMA_VERSION;
 

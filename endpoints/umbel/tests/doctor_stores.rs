@@ -172,3 +172,145 @@ async fn a_store_newer_than_this_build_fails_stores_version() {
         "{message}"
     );
 }
+
+// ── The memory checks (phase 3 section 5.3) ────────────────────────────────────────────────────
+
+mod memory {
+    use super::*;
+    use support::memory::{MemoryProbe, NOW, config as memory_config};
+
+    fn memory_host(dir: &Path) -> Host {
+        seal(dir, |b| {
+            b.with_compiled(sdk(MemoryProbe::new()))
+                .with_clock(afd::fixed_clock(NOW))
+        })
+        .unwrap()
+    }
+
+    const IDS: [&str; 7] = [
+        "stores.memory",
+        "stores.memory_keys",
+        "stores.memory_modes",
+        "stores.memory_backup",
+        "stores.principals",
+        "stores.sweep",
+        "stores.capture",
+    ];
+
+    async fn statuses(host: &Host) -> Vec<(String, String, String)> {
+        let (_, data) = doctor(host).await;
+        IDS.iter()
+            .map(|id| {
+                let check = data["checks"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|check| check["id"] == *id)
+                    .unwrap_or_else(|| panic!("no {id}"))
+                    .clone();
+                (
+                    (*id).to_owned(),
+                    check["status"].as_str().unwrap().to_owned(),
+                    check["message"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    fn status_of(found: &[(String, String, String)], id: &str) -> (String, String) {
+        let (_, status, message) = found.iter().find(|(check, ..)| check == id).unwrap();
+        (status.clone(), message.clone())
+    }
+
+    #[tokio::test]
+    async fn the_seven_memory_checks_on_an_unwritten_and_a_written_store() {
+        let dir = support::workspace(&memory_config("", "on_behalf_of = \"ada\""));
+        let host = memory_host(dir.path());
+        let found = statuses(&host).await;
+        for (id, status, message) in &found {
+            if id != "stores.capture" {
+                assert_eq!(status, "pass", "{id}: {message}");
+            }
+        }
+        assert!(
+            !dir.path()
+                .join("state/spaces/main/store/memory.sqlite3")
+                .exists()
+        );
+        let outcome = call(
+            &host,
+            afd::Actor::new(afd::ActorKind::Human).with_id("ada"),
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": 1 } }),
+        )
+        .await;
+        assert!(outcome.success, "{outcome:?}");
+        let found = statuses(&host).await;
+        for id in [
+            "stores.memory",
+            "stores.memory_keys",
+            "stores.memory_modes",
+            "stores.memory_backup",
+            "stores.principals",
+            "stores.sweep",
+        ] {
+            let (status, message) = status_of(&found, id);
+            assert_eq!(status, "pass", "{id}: {message}");
+        }
+        assert!(
+            status_of(&found, "stores.memory_backup")
+                .1
+                .contains("store-backup")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_missing_key_file_is_a_failure_naming_its_error() {
+        let dir = support::workspace(&memory_config("", "on_behalf_of = \"ada\""));
+        let host = memory_host(dir.path());
+        let outcome = call(
+            &host,
+            afd::Actor::new(afd::ActorKind::Human).with_id("ada"),
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": 1 } }),
+        )
+        .await;
+        assert!(outcome.success);
+        drop(host);
+        std::fs::remove_file(dir.path().join("state/spaces/main/store/memory.keys")).unwrap();
+        let host = memory_host(dir.path());
+        let found = statuses(&host).await;
+        let (status, message) = status_of(&found, "stores.memory_keys");
+        assert_eq!(status, "fail", "{message}");
+        assert!(message.contains("MEMORY_KEYS_MISSING"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn principals_warns_when_on_behalf_of_is_not_local_id() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let (status, message) = status_of(&statuses(&host).await, "stores.principals");
+        assert_eq!(status, "warn", "{message}");
+        assert!(message.contains("mem"), "{message}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn modes_fail_when_a_memory_file_is_readable_by_others() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = support::workspace(&memory_config("", "on_behalf_of = \"ada\""));
+        let host = memory_host(dir.path());
+        let outcome = call(
+            &host,
+            afd::Actor::new(afd::ActorKind::Human).with_id("ada"),
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": 1 } }),
+        )
+        .await;
+        assert!(outcome.success);
+        let file = dir.path().join("state/spaces/main/store/memory.keys");
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let (status, message) = status_of(&statuses(&host).await, "stores.memory_modes");
+        assert_eq!(status, "fail", "{message}");
+    }
+}
