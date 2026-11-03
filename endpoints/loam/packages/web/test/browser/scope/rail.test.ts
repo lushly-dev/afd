@@ -388,6 +388,44 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
+	it("P2-E3: a press on the list's own padding keeps focus in it, and the arrow keys still move (R3)", async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.click();
+		const list = page.locator('loam-rail loam-project-list');
+		await expect.poll(() => texts(list.locator('violet-option'))).toContain('Beacon');
+		// A point of the popover's surface below the listbox: neither it nor the failure line. Sizes, not
+		// positions, so Playwright's click, which waits for the surface to stop moving, finds the same spot.
+		const surface = list.locator('violet-popover .surface');
+		const size = await list.evaluate((element) => {
+			const root = element.shadowRoot as ShadowRoot;
+			const popover = root.querySelector('violet-popover') as HTMLElement;
+			const outer = (
+				(popover.shadowRoot as ShadowRoot).querySelector('.surface') as HTMLElement
+			).getBoundingClientRect();
+			const inner = (root.querySelector('violet-listbox') as HTMLElement).getBoundingClientRect();
+			return { width: outer.width, height: outer.height, gap: outer.bottom - inner.bottom };
+		});
+		expect(size.gap).toBeGreaterThan(2);
+		const before = await list.evaluate(
+			(element) => (element as unknown as { listbox: { activeValue: string } }).listbox.activeValue
+		);
+		await surface.click({ position: { x: size.width / 2, y: size.height - size.gap / 2 } });
+		expect(await switcher.getAttribute('aria-expanded')).toBe('true');
+		expect((await focused(page)).tag).not.toBe('body');
+		await page.keyboard.press('ArrowDown');
+		await expect
+			.poll(() =>
+				list.evaluate(
+					(element) =>
+						(element as unknown as { listbox: { activeValue: string } }).listbox.activeValue
+				)
+			)
+			.not.toBe(before);
+		await opened.context.close();
+	});
+
 	it('P2-E3: a choice refused after an expired session moved the scope reads its rows again (N6)', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
@@ -416,44 +454,88 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	it("P2-E3: the project item's text keeps 4.5:1 when hovered, and leaving an app it focuses main's h1 (A4, N5a)", async () => {
+	it("P2-E3: the project item keeps 4.5:1 in every theme and state, and leaving an app it focuses main's h1 (A4, N5a, R4)", async () => {
 		const opened = await withProjects();
 		const { page } = opened;
 		await scopeTo(page, 'atlas');
 		await openApp(page, 'hello');
 		const home = page.locator('loam-statusbar .project-home');
-		await home.hover();
-		const ratios = await home.evaluate((button) => {
-			const rgb = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
-			const luminance = ([r = 0, g = 0, b = 0]: number[]) => {
-				const channel = (c: number) => {
-					const v = c / 255;
-					return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-				};
-				return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+		const away = async () => page.mouse.move(2, 2);
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			await kernelCall(page, 'appearance-set', { theme });
+			await settle(page);
+			const states: Record<string, () => Promise<unknown>> = {
+				rest: away,
+				hover: () => home.hover(),
+				'active, hovered': async () => {
+					await home.hover();
+					await page.mouse.down();
+				},
+				// Pressed, then the pointer moved off: `:active` stays, `:hover` goes.
+				'active, not hovered': async () => {
+					await home.hover();
+					await page.mouse.down();
+					await away();
+				},
 			};
-			const over = (top: number[], under: number[]) => {
-				const alpha = top[3] ?? 1;
-				return [0, 1, 2].map((i) => (top[i] ?? 0) * alpha + (under[i] ?? 0) * (1 - alpha));
-			};
-			const ratio = (a: number[], b: number[]) => {
-				const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-				return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
-			};
-			const item = button.parentElement as HTMLElement;
-			const bar = getComputedStyle(item.closest('loam-statusbar') as Element).backgroundColor;
-			const background = over(rgb(getComputedStyle(button).backgroundColor), rgb(bar));
-			const label = item.shadowRoot?.querySelector('.label') as Element;
-			return {
-				value: ratio(rgb(getComputedStyle(button).color), background),
-				label: ratio(rgb(getComputedStyle(label).color), rgb(bar)),
-			};
-		});
-		expect(ratios.value).toBeGreaterThanOrEqual(4.5);
-		expect(ratios.label).toBeGreaterThanOrEqual(4.5);
+			for (const [state, enter] of Object.entries(states)) {
+				await enter();
+				const measured = await measureHome(home);
+				const where = `${theme}, ${state}`;
+				if (state.startsWith('active')) {
+					expect(measured.active, where).toBe(true);
+					expect(measured.hover, where).toBe(!state.includes('not'));
+				}
+				expect(measured.value, where).toBeGreaterThanOrEqual(4.5);
+				expect(measured.label, where).toBeGreaterThanOrEqual(4.5);
+				if (state.startsWith('active')) {
+					// Released away from it, so no click lands.
+					await away();
+					await page.mouse.up();
+				}
+			}
+		}
+		await kernelCall(page, 'appearance-set', { theme: 'light' });
+		await settle(page);
+		await away();
 		await home.click();
 		await expect.poll(async () => (await stateOf(page)).active).toBeNull();
 		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
+		await opened.context.close();
+	});
+
+	it('P2-E3: under forced colours the project item keeps its text and a visible ring, focused and hovered (R2, R4)', async () => {
+		const opened = await openShell(browser, site.root, { forcedColors: 'active' });
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		await scopeTo(page, 'atlas');
+		const home = page.locator('loam-statusbar .project-home');
+		await page.mouse.move(2, 2);
+		await home.focus();
+		for (const state of ['focused', 'focused, hovered', 'focused, hovered, active'] as const) {
+			if (state !== 'focused') await home.hover();
+			if (state.endsWith('active')) await page.mouse.down();
+			const measured = await measureHome(home);
+			expect(measured.focusVisible, state).toBe(true);
+			expect(measured.value, state).toBeGreaterThanOrEqual(4.5);
+			// The ring against what it is drawn over, inside the button: 3:1 for a non-text indicator.
+			expect(measured.outline, state).toBeGreaterThanOrEqual(3);
+		}
+		await page.mouse.move(2, 2);
+		await page.mouse.up();
+		await opened.context.close();
+	});
+
+	it('P2-E3: a one-letter project keeps the project item at 24 × 24, its name centred (R1, R4)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Q' });
+		await scopeTo(page, 'q');
+		const measured = await measureHome(page.locator('loam-statusbar .project-home'));
+		expect(measured.width).toBeGreaterThanOrEqual(24);
+		expect(measured.height).toBeGreaterThanOrEqual(24);
+		expect(Math.abs(measured.offsetX)).toBeLessThanOrEqual(1);
+		expect(Math.abs(measured.offsetY)).toBeLessThanOrEqual(1);
 		await opened.context.close();
 	});
 
@@ -518,6 +600,52 @@ describe('P2-E3: nothing of one project stays under another (7.6)', () => {
 		await opened.context.close();
 	});
 });
+
+/**
+ * The status bar's project button, measured: its text and its label against what they sit on, its ring
+ * against its own background, its size, how far its text's centre is from its own, and its states.
+ */
+function measureHome(home: ReturnType<Page['locator']>) {
+	return home.evaluate((button) => {
+		const rgb = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
+		const luminance = ([r = 0, g = 0, b = 0]: number[]) => {
+			const channel = (c: number) => {
+				const v = c / 255;
+				return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+			};
+			return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+		};
+		const over = (top: number[], under: number[]) => {
+			const alpha = top[3] ?? 1;
+			return [0, 1, 2].map((i) => (top[i] ?? 0) * alpha + (under[i] ?? 0) * (1 - alpha));
+		};
+		const ratio = (a: number[], b: number[]) => {
+			const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+			return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+		};
+		const item = button.parentElement as HTMLElement;
+		const bar = rgb(getComputedStyle(item.closest('loam-statusbar') as Element).backgroundColor);
+		const style = getComputedStyle(button);
+		const background = over(rgb(style.backgroundColor), bar);
+		const label = item.shadowRoot?.querySelector('.label') as Element;
+		const range = document.createRange();
+		range.selectNodeContents(button);
+		const text = range.getBoundingClientRect();
+		const own = button.getBoundingClientRect();
+		return {
+			value: ratio(rgb(style.color), background),
+			label: ratio(rgb(getComputedStyle(label).color), bar),
+			outline: ratio(rgb(style.outlineColor), background),
+			width: own.width,
+			height: own.height,
+			offsetX: text.x + text.width / 2 - (own.x + own.width / 2),
+			offsetY: text.y + text.height / 2 - (own.y + own.height / 2),
+			hover: button.matches(':hover'),
+			active: button.matches(':active'),
+			focusVisible: button.matches(':focus-visible'),
+		};
+	});
+}
 
 /** Signed in, Atlas restricted to the person, entered, with `apps` opened in it in turn. */
 async function restrictedAtlas(page: Page, ...apps: string[]): Promise<void> {

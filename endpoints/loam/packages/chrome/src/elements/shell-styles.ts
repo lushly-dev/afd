@@ -99,6 +99,7 @@ export const styles = css`
 		white-space: nowrap;
 	}
 	.project-home {
+		min-inline-size: var(--size-target-compact);
 		min-block-size: var(--size-target-compact);
 		padding-inline: var(--size-space-xs);
 		border: 1px solid transparent;
@@ -135,6 +136,10 @@ export const styles = css`
 		}
 		.project-home:focus-visible {
 			outline-color: Highlight;
+		}
+		.project-home:hover:focus-visible,
+		.project-home:active:focus-visible {
+			outline-color: HighlightText;
 		}
 	}
 `;

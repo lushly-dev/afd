@@ -47,12 +47,6 @@ const STAGE_B =
 const STAGE_B_CHUNK =
 	/\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip)-/;
 /**
- * The palette and the resize handle load when the page is idle, which on a busy machine can come early,
- * and no app decides it (#718).
- */
-const IDLE = /^\/assets\/(?:palette|resize-handle)-/;
-
-/**
  * The first-paint row of `budget`: `index.html`'s entry and every chunk it imports statically, followed
  * through each chunk's own static `import` statements. A dynamic `import(...)` loads later.
  */
@@ -88,7 +82,9 @@ async function firstPaint(
 	await then?.(opened.page);
 	const bytes = Object.fromEntries(
 		site.log
-			.filter(({ path }) => !IDLE.test(path) && paths.includes(path))
+			// The palette's idle load is scheduled after the mark, so it is never in this list (#718's filter
+			// went with step 6, which found `openShell` loading it early).
+			.filter(({ path }) => paths.includes(path))
 			.map(({ path, bytes }) => [path, bytes])
 	);
 	expect(opened.errors).toEqual([]);

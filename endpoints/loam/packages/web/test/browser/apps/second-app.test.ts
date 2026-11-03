@@ -90,9 +90,8 @@ describe('E5: a second app lands with no shell change', () => {
 			await opened.context.close();
 			return Object.fromEntries(
 				site.log
-					// The palette loads when the page is idle, which on a busy machine can fall before the first
-					// contentful paint in either deployment, and no app decides it.
-					.filter(({ path }) => !/^\/assets\/(?:palette|resize-handle)-/.test(path))
+					// Everything requested before stage B's mark, the palette's idle load never among it, as
+					// `openShell` loads the palette only after the mark (E5's CI failure on step 6).
 					.filter(({ path }) => paths.includes(path === '/' ? '/' : path))
 					.map(({ path, bytes }) => [path, bytes])
 			);
@@ -114,6 +113,16 @@ describe('E5: a second app lands with no shell change', () => {
 		expect(_b).toBeGreaterThan(_a as number);
 		// Phase 2's one first paint: no manifest is read before the frame (2.2, E1).
 		expect(Object.keys(restB).some((path) => path.endsWith('app-manifest.json'))).toBe(false);
+		// Nothing the palette loads: not its chunks, nor the kit's that its closure shares with the switcher.
+		for (const rest of [restA, restB]) {
+			expect(
+				Object.keys(rest).filter((path) =>
+					/\/assets\/(?:palette|resize-handle|violet-(?:listbox|option|selection-helpers))-/.test(
+						path
+					)
+				)
+			).toEqual([]);
+		}
 		expect(restB).toEqual(restA);
 		expect(Object.keys(restA).some((path) => /dist\/native/.test(path))).toBe(false);
 		await without.close();

@@ -40,7 +40,6 @@ const rows = html<LoamProjectList>`
 		${ref('listbox')}
 		label="Projects"
 		value="${(x) => x.active}"
-		@mousedown="${(x, c) => x.press(c.event)}"
 		@change="${(x, c) => x.choose(c.event as CustomEvent<{ value: string }>)}"
 	>
 		<violet-option value="${() => NONE}">No project</violet-option>
@@ -83,19 +82,17 @@ const styles = css`
 		inset: 0;
 		pointer-events: none;
 	}
-	violet-popover {
-		display: block;
-		inline-size: 100%;
-		block-size: 100%;
-		--violet-popover-min-inline-size: var(--shell-size-sidebar-min);
-		--violet-popover-background: var(--color-surface-floating);
-		--violet-popover-shadow: var(--shadow-floating);
-		--violet-popover-border: var(--color-border-subtle);
-	}
+	violet-popover,
 	violet-popover::part(anchor) {
 		display: block;
 		inline-size: 100%;
 		block-size: 100%;
+	}
+	violet-popover {
+		--violet-popover-min-inline-size: var(--shell-size-sidebar-min);
+		--violet-popover-background: var(--color-surface-floating);
+		--violet-popover-shadow: var(--shadow-floating);
+		--violet-popover-border: var(--color-border-subtle);
 	}
 	violet-popover::part(surface),
 	dialog {
@@ -121,9 +118,6 @@ const styles = css`
 		color: var(--color-state-danger-text);
 		font-size: var(--type-label-sm-size);
 		line-height: var(--type-label-sm-line);
-	}
-	.failure[hidden] {
-		display: none;
 	}
 	violet-listbox::part(control):focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
@@ -199,6 +193,7 @@ export class LoamProjectList extends FASTElement {
 			},
 			true
 		);
+		this.addEventListener('mousedown', (event) => this.press(event));
 		// Tab out of it to an element outside closes it, and focus stays where it went. With no such element,
 		// as a press on its own text, an outside press is light dismiss's to close (N2a).
 		this.addEventListener('focusout', (event) => {
@@ -281,15 +276,19 @@ export class LoamProjectList extends FASTElement {
 		if (!open && this.#returnFocus) this.switcher?.shadowRoot?.querySelector('button')?.focus();
 	}
 
-	/** As the console does: the pressed row is the active one before `handleFocus` moves it (#712). */
-	press(event: Event): boolean {
-		const row = event
-			.composedPath()
-			.find((node) => (node as Element).localName === 'violet-option') as
+	/**
+	 * As the console does: the pressed row is the active one before `handleFocus` moves it (#712). A press on
+	 * what takes no focus, as the popover's padding, leaves focus in the list, not on `body` (R3).
+	 */
+	press(event: Event): void {
+		const path = event.composedPath() as HTMLElement[];
+		const row = path.find((node) => node.localName === 'violet-option') as
 			| (HTMLElement & { value: string })
 			| undefined;
 		if (row) this.listbox.activeValue = row.value;
-		return true;
+		else if (!path.some((node) => node === this.listbox || node.localName === 'p')) {
+			event.preventDefault();
+		}
 	}
 
 	#markActive(): void {
