@@ -4,9 +4,9 @@
  */
 
 import type { DirectRegistryOptions } from '@lushly-dev/afd-server/direct';
-import { z } from 'zod';
+import * as z from 'zod/mini';
 
-const id = z.string().min(1).max(128);
+const id = z.string().check(z.minLength(1), z.maxLength(128));
 
 export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFields']> =
 	Object.freeze([

@@ -106,6 +106,8 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		auth: new MockAuthAdapter(),
 		environment: options.environment,
 		host: 'browser',
+		// The late commands load after the first frame; with an app to load, they come first.
+		deferLate: options.apps === undefined,
 		...options.apps,
 	});
 	return { kind: 'ready', kernel, journal };

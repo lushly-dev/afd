@@ -1,4 +1,8 @@
-import { createDirectRegistry, type ZodCommandDefinition } from '@lushly-dev/afd-server';
+import {
+	createDirectRegistry,
+	type ZodCommandDefinition,
+	zodToJsonSchema,
+} from '@lushly-dev/afd-server';
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 import {
 	createViewStateCommands,
@@ -32,6 +36,21 @@ function commandNamed(commands: ZodCommandDefinition[], name: string): ZodComman
 	if (!command) throw new Error(`Command ${name} not found`);
 	return command;
 }
+
+describe('the written JSON Schemas', () => {
+	it('hold equal to the schemas they stand for', () => {
+		const commands = createViewStateCommands(new ViewStateRegistry());
+		for (const command of commands as ZodCommandDefinition[]) {
+			expect(command.jsonSchema, command.name).toEqual(zodToJsonSchema(command.inputSchema));
+			expect(command.outputSchema, command.name).toBeDefined();
+			expect(command.outputJsonSchema, command.name).toEqual(
+				zodToJsonSchema(command.outputSchema as NonNullable<typeof command.outputSchema>, {
+					io: 'output',
+				})
+			);
+		}
+	});
+});
 
 describe('createViewStateCommands', () => {
 	let registry: ViewStateRegistry;

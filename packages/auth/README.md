@@ -13,6 +13,11 @@ import { createAuthCommands } from '@lushly-dev/afd-auth/commands';
 const authCommands = createAuthCommands(adapter, { signInTimeoutMs: 10_000 });
 ```
 
+They are defined on Zod Mini, with their JSON Schemas written out, so a browser host bundles neither
+classic Zod nor `toJSONSchema` for them. A host that loads code in stages can take
+`createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)`, the two
+parts `createAuthCommands` returns together, from the same subpath.
+
 React hooks are available from the optional `@lushly-dev/afd-auth/react`
 subpath:
 

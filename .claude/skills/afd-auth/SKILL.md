@@ -102,7 +102,10 @@ const middleware = createAuthMiddleware(adapter, {
 | `auth-sign-out` | true | true | palette/agent/cli (NOT mcp) |
 | `auth-session-get` | false | false | palette/agent/cli/mcp |
 
-Requires `@lushly-dev/afd-server` + `zod` as peer dependencies.
+Requires `@lushly-dev/afd-server` + `zod` as peer dependencies. They are defined on Zod Mini with
+`defineCommandWithSchema`, so a browser host bundles no classic Zod for them. For a host that loads in
+stages, `createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)` are
+the two parts `createAuthCommands` returns together.
 
 `auth-sign-in` never reports a stale state as "Signed in":
 

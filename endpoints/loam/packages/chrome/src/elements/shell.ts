@@ -21,6 +21,7 @@ import {
 	type LoamKernelV1,
 	type PaletteItem,
 } from '@lushly-dev/loam-kernel';
+import { afterFirstFrame } from '../first-frame.js';
 import {
 	isMacPlatform,
 	matchKeybinding,
@@ -391,6 +392,8 @@ export class LoamShell extends FASTElement {
 		}
 		const view = this.ownerDocument.defaultView ?? window;
 		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
+		// Before a call that waited on stage B goes on, so a palette result finds its row.
+		void kernel.appsReady.then(() => this.#stageBEnded(kernel));
 
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(view, 'keydown', (event) => this.#onKeydown(event as KeyboardEvent));
@@ -443,7 +446,16 @@ export class LoamShell extends FASTElement {
 			await Updates.next();
 			await this.apps.start();
 		}
-		whenIdle(view, () => void this.preparePalette());
+		void afterFirstFrame(view).then(() => {
+			void kernel.startApps();
+			whenIdle(view, () => void this.preparePalette());
+		});
+	}
+
+	/** The commands stage B added, for the palette's rows; a chunk that failed says so in main. */
+	#stageBEnded(kernel: LoamKernelV1): void {
+		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
+		if (kernel.lateFailure) this.landing = 'Could not load. Reload to try again.';
 	}
 
 	#listen(target: EventTarget, type: string, listener: (event: Event) => void): void {

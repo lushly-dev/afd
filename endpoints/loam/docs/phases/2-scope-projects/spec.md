@@ -10,7 +10,7 @@
 ## Status
 
 - **State:** written 2026-11-02 and revised the same day after two independent reviews (see
-  [Review](#review-2026-11-02)). Approved 2026-11-02 by the coordinator under the owner's delegation, with the condition that the step building 3.6's surface port gets a review focused on that boundary. Nothing is implemented; each step's state is one line in STATUS.md's phase 2 block.
+  [Review](#review-2026-11-02)). Approved 2026-11-02 by the coordinator under the owner's delegation, with the condition that the step building 3.6's surface port gets a review focused on that boundary. Each step's state is one line in STATUS.md's phase 2 block.
 - **Last verified:** 2026-11-02 against `main` at `980cc1aa`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `kernel.ts:231-234` (one journal middleware), `:240-258` (`setAppCommands` rebuilds both registries),
@@ -53,7 +53,7 @@
   - **Measured 2026-11-02 at `980cc1aa`,** with a build of `main` and throwaway scripts, none committed. See [section 2.1](#21-what-was-measured).
   - **Outside the repository:** see [Trajectory refresh](#trajectory-refresh).
 - **Done:** this specification and the [documents specification](../2-documents/spec.md).
-- **Not done:** every step of the [implementation plan](#16-implementation-plan).
+- **Not done:** every step of the [implementation plan](#16-implementation-plan) that STATUS.md's phase 2 block does not mark merged.
 - **Depends on:** phase 1's exit (2026-11-02). AFD's declared context fields (#528, #569) and the browser-safe registry (#527, #576) are merged. Two AFD
   changes are steps of this plan: [0a](#16-implementation-plan) and [0b](#16-implementation-plan).
 - **Follow-ups:** see [Follow-ups](#follow-ups).
@@ -286,7 +286,7 @@ With no `boot`, as in every test and the test kit, `createKernelParts` runs stag
 5. **Boot's journaled work,** unless `internals.replaying` ([10](#10-journal-and-replay-with-scope)), through `run` with `BOOT_FIELDS`: `workspace-deployment-apply` when the generation differs ([4.1](#41-the-workspace-store-d73)), and `document-trash-expire` when anything has expired.
 6. Resolve.
 
-**A call before stage B ends.** `run` waits rather than failing: if `name` is not a registered command, or is in `NEEDS_STAGE_B` (`app-get`, `app-command-list`, `app-instance-list`, `app-instance-refresh`, `app-selection-get`, `app-selection-set`, `status-item-set`), it awaits `startApps()` first. So a chord before stage B ends runs a moment later, an agent's first call works, and a real unknown name still answers `COMMAND_NOT_FOUND`. `listCommands()` lists what is registered, and the chrome and the palette re-read it on `appsReady`, since `setAppCommands` drops the palette's index anyway.
+**A call before stage B ends.** `run` waits rather than failing: if `name` is not a registered command, or is in `NEEDS_STAGE_B` (`app-get`, `app-command-list`, `app-instance-list`, `app-instance-refresh`, `app-selection-get`, `app-selection-set`, `status-item-set`), it awaits `startApps()` first. **A call made while another waits, waits too, so calls run and are journaled in the order they were made** (added by step 1). So a chord before stage B ends runs a moment later, an agent's first call works, and a real unknown name still answers `COMMAND_NOT_FOUND`. `listCommands()` lists what is registered, and the chrome and the palette re-read it on `appsReady`, since `setAppCommands` drops the palette's index anyway.
 
 **Boot-only commands** (`workspace-deployment-apply`, `document-trash-expire`) are in `BOOT_ONLY`. `run` answers `COMMAND_NOT_FOUND` for those names unless `fields === BOOT_FIELDS`, an object in the kernel's closure that no caller can name, so no person, app or agent reaches them, on either interface. `INTERNAL_COMMANDS` filtering a list would not be enough, as `kernel.agent.call` would still run it. A replay reaches them through `replayJournal`'s target, which calls the registry directly. **That guard is in `run`, and a server does not call `run`:** `createMcpHandler` executes from its own command map, so `mcpOptions().commands` leaves out `BOOT_ONLY` and `INTERNAL_COMMANDS` ([3.3](#33-over-mcp)).
 
@@ -341,6 +341,32 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 
 **The acceptance.** Step 1 must reach **at most 272,000 bytes and 82,000 gzip** for first paint, what the ceilings less the ledger below leave. The shim's 276,547 and 83,146 held no literals, about 1,000 and 200 for six commands, and did not move any definitions out, an estimated 15,000 to 20,000 and 4,000 to 5,000, unmeasured. So the expected result is about 258,000 to 265,000. **If it misses, the agent stops.** A ceiling rises only by a pull request with the measurement and the coordinator's approval. The named fallback comes first: `ICONS_V1` and `loam-tooltip` move after the first frame, leaving a blank icon slot for that frame, in a rail of fixed width so nothing shifts; estimated 3,000 to 4,000 bytes and 1,000 to 1,400 gzip, unmeasured.
 
+**What step 1 measured and decided, correcting the above.**
+
+- **It passed, and the real figures are the running base:** first paint is **264,350 bytes and 80,341 gzip**, against the acceptance of 272,000 and 82,000 and the 319,298 and 94,941 it started from, with step 0b in it. So the expected range of 258,000 to 265,000 held, at its top end. Nothing raised a ceiling, and the fallback in the acceptance above was not needed.
+
+  | Chunk | Holds | Bytes | Gzip |
+  | --- | --- | --- | --- |
+  | `index-*` | The chrome, the kernel, the registry, the stores | 117,552 | 35,661 |
+  | `api-*` | `zod/v4/core`, what `schemas-*` was | 61,812 | 17,301 |
+  | `template-*` | FAST-AF | 46,969 | 14,103 |
+  | `violet-token-defaults-*` | The token defaults | 10,325 | 1,495 |
+  | `layout-*` | `layout.ts`, `validation.ts`, `define-core.ts` | 9,726 | 3,713 |
+  | `shell-state-*` | `boot-commands.ts`, Zod Mini's constructors, `auth-session-get` | 9,216 | 3,620 |
+  | `types-*` | `apps-runtime.ts`, `keybindings.ts` | 2,875 | 1,373 |
+  | `events-*`, `violet-icon-*`, `focus-*`, `system-close-*`, `when-*`, `icon-registry-*` | Six small shared chunks | 5,875 | 3,075 |
+
+- **The moves, in the order they were tried:** the real split with every definition on Mini gave 267,423 and 81,691. `"sideEffects": false` on the kernel's package gave 265,166 and 80,709: without it the root's barrel kept `palette-index.ts` reachable from the entry, so the bundler placed it in first paint for a command only `late` holds. The overlay store moving to `late` gave 264,084 and 80,250, the independent review's fixes to `run` and the chrome added 86 and 33, and rebasing over step 0b added 180 and 58, its 180 and 50 as measured alone. The first two are not in the plan above. So what the bundler does with a barrel can cost as much as a whole move, and **a module whose exports only `late` uses still has to be out of first paint's static graph, not just unused there.**
+- **Classic is out, and a check holds it:** `budget.mjs` fails if a first-paint chunk holds `zod/v4/classic` or `to-json-schema`, and classic's `iso-*`, 44,874, is charged to `apps`. **The core stays wide, as predicted:** Zod is 118,392 rendered bytes of the page, 32,881 of the kernel alone without `late`, and 61,709 with it. So `late`'s own Mini shapes hold 28,828 in first paint, since a bundler keeps them in the shared core, and classic and the MCP client hold 56,683. Those are rendered bytes, before minification, so they do not contradict 2.3's "about 40 KB", and the second is what removing classic could still recover. **The kernel alone,** at 103,092, is well under its old ceiling.
+- **`narrow-zod.mjs` keeps both plugins.** Without `narrowZodFromJsonSchema`, first paint is 280,521 and 85,070, which is 16,437 and 4,820 more and over the acceptance. `zodJitlessByDefault` still has its reason, as Mini shares the probe in `zod/v4/core`.
+- **Four boot commands, not six, until step 4:** `scope-get` and `section-get` are step 4's. `SHELL_COMMAND_NAMES` keeps its order, so a person or an agent sees the same list.
+- **`deferLate`, an option this plan did not name,** is what lets a host resolve at stage A before step 2 adds `boot`. The web host sets it when the projection lists no app, and step 2 removes it. **A deployment that lists an app still loads `late` and `apps` before first paint until step 2,** which `run`'s wait does not change: 264,350, 22,173, 325,352 and 78,554 by the rows below, 690,429 in all, about 10,500 more than phase 1's 679,123 with step 0a's 621 and step 0b's 180. That is summed from the budget's rows, not measured in Chromium, and step 2 removes it.
+- **What this step adds to the interface, still version 1:** `startApps`, `appsReady` and `lateFailure` on `LoamKernelV1`, and `afterFirstFrame` in `chrome/src/first-frame.ts`, with no mark. So step 2 does not add these, and needs to add the mark, the version and the `boot` path. Main says "Could not load. Reload to try again." when `late` fails, through its landing, since `busy` is step 2's.
+- **The messages, as 2.3 says:** the boot commands now validate only an empty object. `late/messages.test.ts` holds 38 bad inputs, across the schema of every command that takes input, equal with no locale and with Zod's English, and `auth-sign-in`'s email as the one that differs until classic loads. On an empty shell, which never loads classic, it stays `Invalid email`. The independent review ran about 25,000 refusals against classic itself and found the same one. One more differs and is not worth a table row: with no locale, an in-process `NaN` or `Infinity` is described as `nan` or `number`, which JSON cannot carry.
+- **Order across the boundary, which `run`'s wait as 2.2 describes it did not keep:** a set that waits and a get behind it, which stage A holds, ran in the wrong order, so the get read the old value and the journal recorded them reversed. Found by the independent review. **So a call made while another waits, waits too,** and a boot read made while none waits does not, so a lone read stays quick during stage B. The rule is in `run`, and 2.2's paragraph now says so.
+- **Literals against today:** the advertised input and output schemas of all 29 shell commands are byte-identical to what `defineCommand` produced on `main`, compared by a throwaway dump before and after, and held equal to `zodToJsonSchema` by `late/literals.test.ts` and each package's test.
+- **`/direct`'s entry budget:** unchanged, since nothing here is in its graph.
+
 ### 2.4 The budget, and the rule
 
 `scripts/budget.mjs`'s rows at the end of phase 2. **Budgets are real: a step that adds first-paint code first moves something out, and says so in its pull request with the two measurements.** Phase 0's rule still applies: under 70% of a ceiling, it is lowered to the measurement plus 10%, and raising one needs an amendment.
@@ -349,13 +375,13 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 
 | Row | Measures | Now | Ceiling | Set by |
 | --- | --- | --- | --- | --- |
-| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** | 318,497, 94,561 | 300,000, 91,000 | Step 1 sets them. Lowered from 320,000 and 95,000 |
+| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** once step 2 lands | 264,350, 80,341 | 300,000, 91,000 | Set by step 1. Lowered from 320,000 and 95,000 |
 | `cssMinified` | As phase 0 | 7,719 | 8,496 | Unchanged |
-| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 226,747 | 231,360 until step 1, then the measurement plus 10% | Step 1 |
-| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | None | 75,000, a first estimate from the ledger below | Step 1 |
-| `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 279,342 | At most 400,000: step 1 sets it to its measurement plus 5%. The one raise, for bytes that left first paint | Step 1 |
+| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 103,092 | 113,401, the measurement plus 10% | Step 1 |
+| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | 22,173 | 75,000, a first estimate from the ledger below | Step 1 |
+| `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 325,352 | 341,619, the measurement plus 5%. The one raise, for bytes that left first paint | Step 1 |
 | `surfacesMinified` | As phase 1, and it loads after first paint | 78,554 | 85,000 | Unchanged |
-| `viewMinified`, `consoleMinified`, `mountMinified` | As phase 1, with `apps` counted as loaded | 22,800, 83,325, 217,081 | 25,080, 91,222, 238,268 | Unchanged. `view` holds the editor's frame host unless step 12 amends it |
+| `viewMinified`, `consoleMinified`, `mountMinified` | As phase 1, with `apps` counted as loaded | 22,800, 83,325, 215,923 | 25,080, 91,222, 238,268 | Unchanged. `view` holds the editor's frame host unless step 12 amends it |
 | `switcherMinified` | `switcher-*`: the project list | None | 30,000, a first estimate | Step 6 |
 | `sectionsMinified` | `sections-*`, the projects section | None | 45,000, a first estimate | Step 7 |
 | `documentsMinified`, `editorMinified`, `newMinified` | The [documents specification's chunks](../2-documents/spec.md#12-budgets) | None | 45,000, 40,000, 12,000, first estimates | Steps 10 and 11 |
@@ -367,29 +393,29 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 | Step | Adds to first paint | Allowance | Running |
 | --- | --- | --- | --- |
 | 0a | Planned as nothing. Measured: the message builder and the moved modules, which the registry and `defineCommand` reach ([2.3](#23-the-lean-schema-layer-d70)) | 621, 330 | 319,118, 94,891 |
-| 1 | The acceptance above: what is left after moving out classic's schemas, `toJSONSchema` and the non-boot definitions | | 272,000, 82,000 |
-| 0b | `hydrateOne`, a method on a class first paint holds. Measured with 0a, before step 1: 180 and 50, so 319,298 and 94,941, leaving 702 and 59 for what lands before step 1. Step 1 re-bases this column, so it stays on the allowance until then | 200, 100 | 272,200, 82,100 |
-| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 282,000, 85,600 |
-| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 286,600, 87,400 |
-| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 288,600, 88,200 |
-| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 294,200, 90,300 |
-| 7 | The `sections` boundary | 150, 100 | 294,350, 90,400 |
-| 10 | The `editor` boundary | 150, 100 | 294,500, 90,500 |
-| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 295,100, 90,750 |
+| 0b | `hydrateOne`, a method on a class first paint holds. Measured before step 1, as it landed first | 180, 50 | 319,298, 94,941 |
+| 1 | Measured against the acceptance of 272,000 and 82,000: what is left after moving out classic's schemas, `toJSONSchema`, the non-boot definitions and, as it turned out, `palette-index.ts` and the overlay store, with 0b in it | | 264,350, 80,341 |
+| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 274,150, 83,841 |
+| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 278,750, 85,641 |
+| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 280,750, 86,441 |
+| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 286,350, 88,541 |
+| 7 | The `sections` boundary | 150, 100 | 286,500, 88,641 |
+| 10 | The `editor` boundary | 150, 100 | 286,650, 88,741 |
+| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 287,250, 88,991 |
 
-That total leaves 4,900 and **250 gzip** under the ceilings. **Gzip is the binding margin,** and if step 1 lands where it is expected to, it gains about 2,000 to 4,000 more. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
+That total leaves 12,750 and **2,009 gzip** under the ceilings, on step 1's real figures. **Gzip is the binding margin,** though no longer by as little as the plan feared. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
 
 **The `late` chunk's ledger,** a rough count for about 70 commands, each a schema, a literal and a handler. Each step records its real figure, and a step that would pass the ceiling moves logic to a chunk of its own first.
 
 | Step | Adds | Allowance | Running |
 | --- | --- | --- | --- |
-| 1 | The non-boot shell, view-state, auth, overlay and app commands, about 25 | 20,000 | 20,000 |
-| 4 | `project-*`, `workspace-*`, `scope-set`, `section-open`, `app-route-set`, `applyScopeChange` | 14,000 | 34,000 |
-| 7 | `project-summary-get`, `resourceLinkUrl` | 2,000 | 36,000 |
-| 9 | The registry, the `document-*` commands, the check | 16,000 | 52,000 |
-| 10 | `editor-*`, `validateEditorState` | 6,000 | 58,000 |
-| 11 | `new-list`, the palette's document rows | 3,000 | 61,000 |
-| 12 | `document-link-*`, `createDocumentIndex` | 5,000 | 66,000 |
+| 1 | The non-boot shell, view-state, auth, overlay and app commands, 25, and the overlay store. Measured, over its 20,000 by 2,173 | 22,173 | 22,173 |
+| 4 | `project-*`, `workspace-*`, `scope-set`, `section-open`, `app-route-set`, `applyScopeChange` | 14,000 | 36,173 |
+| 7 | `project-summary-get`, `resourceLinkUrl` | 2,000 | 38,173 |
+| 9 | The registry, the `document-*` commands, the check | 16,000 | 54,173 |
+| 10 | `editor-*`, `validateEditorState` | 6,000 | 60,173 |
+| 11 | `new-list`, the palette's document rows | 3,000 | 63,173 |
+| 12 | `document-link-*`, `createDocumentIndex` | 5,000 | 68,173 |
 
 ## 3. Scope
 
@@ -1232,8 +1258,8 @@ Each step is one pull request, merged on green. It updates its specification's s
 | --- | --- | --- | --- |
 | 0a | AFD: a lean schema path in `/define` and `/direct` | [2.3](#23-the-lean-schema-layer-d70): `defineCommandWithSchema`, the bound on `$ZodType`, the graph, the messages, the entry-point test, the skill, a changeset. **No package moves to Mini here,** so first paint gains only the 621 bytes and 330 gzip 2.3 records | `pnpm check`, `pnpm verify` |
 | 0b | AFD: `ViewStateRegistry.hydrateOne`, and a stable Mock id | [7.6](#76-surfaces-on-a-scope-change); `MockAuthAdapter`'s user id from the email ([3.4](#34-the-order-of-a-call-d72)); tests, a changeset | `pnpm check` |
-| 1 | Kernel on the lean layer | **Moves out.** [2.3](#23-the-lean-schema-layer-d70): view-state, auth, with `createAuthSessionGetCommand` and `createAuthMutationCommands`, and the kernel on Mini, in one pull request; classic in the `apps` closure; the literals' tests; the six boot commands in first paint and `kernel/src/late/`, with `startApps` holding only the late commands so far; `budget.mjs`'s closures and new ceilings; the acceptance of 2.3, or an amendment. #658 closed with the measurement | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
-| 2 | Two-stage boot | **Moves out.** [2.2](#22-two-stages-d69): `deployment.v2.json`, `projection.v2.json`, boot records, generation, `base_path`'s schema; `readBoot`; `bootApps`; stages A and B; `KernelOptionsV2`, `KERNEL_INTERFACE_VERSION = 2` and `session-50` regenerated; `afterFirstFrame`; `loam-app-entry` to first paint; `measureFirstPaint`; E1 so far. #701 and #709's second half closed | `pnpm check`, `loam.yml`, `budget` |
+| 1 | Kernel on the lean layer | **Moves out.** [2.3](#23-the-lean-schema-layer-d70): view-state, auth, with `createAuthSessionGetCommand` and `createAuthMutationCommands`, and the kernel on Mini, in one pull request; classic in the `apps` closure; the literals' tests; the boot commands in first paint, four until step 4 adds two, and `kernel/src/late/`, with `startApps` holding only the late commands so far and `deferLate` until step 2; `afterFirstFrame`; `budget.mjs`'s closures and new ceilings; the acceptance of 2.3, or an amendment. #658 closed with the measurement | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
+| 2 | Two-stage boot | **Moves out.** [2.2](#22-two-stages-d69): `deployment.v2.json`, `projection.v2.json`, boot records, generation, `base_path`'s schema; `readBoot`; `bootApps`; stages A and B; `KernelOptionsV2` in place of step 1's `deferLate`, `KERNEL_INTERFACE_VERSION = 2` and `session-50` regenerated; the `loam-stage-b` mark in step 1's `afterFirstFrame`; `loam-app-entry` to first paint; `measureFirstPaint`; E1 so far. #701 and #709's second half closed | `pnpm check`, `loam.yml`, `budget` |
 | 3 | Manifest version 2 | [Section 8](#8-the-manifest-version-2-d76): the schema, the rule, the v1 test, the cases, `scripts/plugin-manifest.test.mjs`, the keys of this specification and the documents specification's, each refused by a rule in `loam-rules.ts` until its step removes that line: `tree`, `resource_keys` in step 4 and 6, `ui.project_summary` in 7, `ui.documents` and `ui.new` in 9 and 11; E11 | `pnpm check`, `loam.yml` |
 | 4 | Scope and stores | Sections [3](#3-scope), [4](#4-the-stores), [5](#5-the-store-grant-d77), [10](#10-journal-and-replay-with-scope), [11](#11-the-kernel-and-the-sdk): the field, `scopeMiddleware`, `decideAccess`, `ProjectCache`, `src/late/`, the tables, `workspace-deployment-apply`, store scoping, `resource_keys`, `mcpOptions()`, `applyScopeChange` with its middleware callers, `scopeChanged` and `mainChanged`, `AppPortV2` and `SurfacePortV2`, `STORE_WRITE_IN_QUERY`, `resetSession`'s sign-out and `actorOf`, `diffJournals`' `context`, the SDK's additions, `createAppTestKernel`'s `scope`; E4's, E7's and E10's units, and E5; the domains. Its Chromium parts wait for step 7 | `pnpm check`, `loam.yml`, `budget` |
 | 5 | The URL scheme | [Section 6](#6-the-url-scheme-d74): `parseRoute`, `formatRoute`, the router, the base, `index.html`'s rewrite and `404.html`, `loam.scope`, the scope's and the URL's rules, the harness's fallback; E8 so far: workspace, project and app shapes. Step 7 adds the projects section's, and step 11 the documents section's and a document's, which closes it | `pnpm check`, `loam.yml`, `budget` |
@@ -1300,5 +1326,5 @@ See the [Review](../2-documents/spec.md#review-2026-11-02) of the documents spec
 | 2026-11-02 | Phase 2 specification | A project's slug cannot change. With redirects, if a consumer asks | Open |
 | 2026-11-02 | Phase 2 specification | Deleting a project, with a retention rule for what apps stored under it | Open |
 | 2026-11-02 | Phase 2 specification | Keep Mod+P, or another chord, for the project switcher, with phase 4's keybindings | Open; phase 4 |
-| 2026-11-02 | Step 0b | Drop `data.user.id` from `REPLAY_IGNORE` and `DIFF_IGNORE` (`kernel/src/testing.ts`) at step 1 or the next `session:record`, whichever comes first, and re-record `session-50.journal.json`, which still holds `mock-user-1793608037914`. Until then a replay cannot catch a regression in the stable id [3.4](#34-the-order-of-a-call-d72) requires. A journal recorded before step 0b would then diverge at that path. The `data.session.*` paths stay, since the session's id and expiry are still time-based | Open; step 1 or the next `session:record` |
+| 2026-11-02 | Step 0b | Drop `data.user.id` from `REPLAY_IGNORE` and `DIFF_IGNORE` (`kernel/src/testing.ts`) at the next `session:record`, which step 2's regenerated `session-50` is, since step 1 did not re-record, and re-record `session-50.journal.json`, which still holds `mock-user-1793608037914`. Until then a replay cannot catch a regression in the stable id [3.4](#34-the-order-of-a-call-d72) requires. A journal recorded before step 0b would then diverge at that path. The `data.session.*` paths stay, since the session's id and expiry are still time-based | Open; the next `session:record` |
 | 2026-11-02 | Phase 2 specification | Run E1's first-paint measurement on a real low-end device, not just throttled CPU. The ratios of 2.1 are from a fast machine | Open; phase 6 |

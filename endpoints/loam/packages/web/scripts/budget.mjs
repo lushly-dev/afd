@@ -7,10 +7,12 @@
  * Builds the shell with Vite in production mode and measures what the empty shell loads before
  * first paint: `index.html`'s entry and every chunk it imports statically (a chunk imported
  * dynamically loads later). It also builds `@lushly-dev/loam-kernel` alone, minified with its
- * dependencies, as Vite bundles it for the browser. What a deployment that lists an app adds has rows of
- * its own (phase 1 specification, 9.2 and 9.5): the kernel's `src/apps/` with the readers and validators,
- * the chrome's surfaces, its view host and the console. Hello's and tally's bundles are recorded and not limited. It fails when a
- * measure is over its ceiling. `dist/` is rebuilt, so run it after `build` or in its place.
+ * dependencies, as Vite bundles it for the browser. What loads later has rows of its own (phase 2
+ * specification, 2.4): the kernel's late commands, its `src/apps/` with the readers and validators and
+ * classic Zod, the chrome's surfaces, its view host and the console. Each is a static closure, charged
+ * what a page has not loaded by then. Hello's and tally's bundles are recorded and not limited. It fails
+ * when a measure is over its ceiling, or when first paint holds classic Zod or `toJSONSchema`. `dist/` is
+ * rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -24,16 +26,17 @@ import { narrowZodFromJsonSchema, zodJitlessByDefault } from './narrow-zod.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * The ceilings of 8.1, in bytes, as amended by step 7 (2026-11-01): the CSS ceiling lowered to its
- * measured value plus 10%, being under 70% of the old one, and the kernel's raised to its measured
- * value plus 10%, because Zod's classic API is most of it (see 8.1 and its follow-up).
+ * The ceilings, in bytes, as phase 2's step 1 sets them (2.4): first paint lowered, the kernel's its
+ * measured value plus 10% now that Zod's classic API has left it, `late` added, and `apps` its measured
+ * value plus 5%, the one raise, for the bytes that left first paint.
  */
 export const CEILINGS = Object.freeze({
-	jsMinified: 320_000,
-	jsGzip: 95_000,
+	jsMinified: 300_000,
+	jsGzip: 91_000,
 	cssMinified: 8_496,
-	kernelMinified: 231_360,
-	appsMinified: 300_000,
+	kernelMinified: 113_401,
+	lateMinified: 75_000,
+	appsMinified: 341_619,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,
@@ -91,11 +94,6 @@ async function measurePage() {
 	const css = [];
 	for (const match of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="\.?\/?([^"]+)"/g))
 		css.push(match[1]);
-	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
-	const appsChunks = [...chunks.values()].filter((chunk) =>
-		/^assets\/(apps|validate\.generated|deployment)-/.test(chunk.fileName)
-	);
-	if (appsChunks.length < 3) throw new Error('budget: the build has no `apps` chunks to measure');
 	if (![...chunks.keys()].some((name) => /^assets\/surfaces-/.test(name))) {
 		throw new Error('budget: the build has no `surfaces` chunk to measure');
 	}
@@ -103,6 +101,12 @@ async function measurePage() {
 		throw new Error('budget: the build has no `console` chunk to measure');
 	}
 	const initialChunks = [...initial].map((name) => chunks.get(name)).filter(Boolean);
+	const classic = initialChunks
+		.flatMap((chunk) => Object.keys(chunk.modules ?? {}))
+		.filter((id) => /zod[\\/]v4[\\/](classic[\\/]|core[\\/]to-json-schema)/.test(id));
+	if (classic.length > 0) {
+		throw new Error(`budget: first paint holds what belongs to \`apps\`: ${classic.join(', ')}`);
+	}
 	// With what it imports statically and what loaded before it has not, such as the listbox.
 	const closure = (pattern, loaded) => {
 		const found = new Set();
@@ -114,9 +118,17 @@ async function measurePage() {
 		for (const name of chunks.keys()) if (pattern.test(name)) visitChunk(name);
 		return found;
 	};
-	const surfaces = closure(/^assets\/surfaces-/, initial);
+	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
+	const late = closure(/^assets\/late-/, initial);
+	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
+	const afterLate = new Set([...initial, ...late]);
+	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
+	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
+	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
+	const afterApps = new Set([...afterLate, ...apps]);
+	const surfaces = closure(/^assets\/surfaces-/, afterApps);
 	// What a view app or a console adds when it opens: the surfaces have loaded by then.
-	const afterSurfaces = new Set([...initial, ...surfaces]);
+	const afterSurfaces = new Set([...afterApps, ...surfaces]);
 	const view = closure(/^assets\/view-/, afterSurfaces);
 	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
@@ -125,6 +137,7 @@ async function measurePage() {
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
+	const gzipOf = (code) => gzipSync(code, { level: 9 }).length;
 	const cssAssets = output.filter((item) => item.type === 'asset' && css.includes(item.fileName));
 	// loam-theme.css is adopted through a constructable stylesheet, so it ships inside the entry.
 	let inlineCss = 0;
@@ -132,15 +145,20 @@ async function measurePage() {
 		for (const [id, info] of Object.entries(chunk.modules ?? {}))
 			if (/\.css\?inline$/.test(id)) inlineCss += info.renderedLength;
 	return {
-		files: initialChunks.map((chunk) => chunk.fileName),
+		files: initialChunks.map((chunk) => ({
+			file: chunk.fileName,
+			bytes: Buffer.byteLength(chunk.code),
+			gzip: gzipOf(Buffer.from(chunk.code)),
+		})),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
-		appsMinified: appsChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
+		lateMinified: sizeOf(late),
+		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
 		viewMinified: sizeOf(view),
 		consoleMinified: sizeOf(consoleFiles),
 		mountMinified: sizeOf(mount),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
-		jsGzip: js.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0),
+		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
 			cssAssets.reduce((sum, asset) => sum + Buffer.byteLength(asset.source), 0) + inlineCss,
 		packages: breakdown(initialChunks),
@@ -163,10 +181,10 @@ async function measureKernel() {
 				target: 'es2022',
 				minify: true,
 				lib: { entry, formats: ['es'], fileName: 'kernel' },
-				// As phase 0 measured it, without `src/apps/`, which the empty shell never loads. What
-				// that chunk widens in the shared Zod is counted on the page's row (9.5).
+				// Without `src/apps/` and `src/late/`, which load after first paint. What they widen in the
+				// shared Zod is counted on the page's row (9.5).
 				rolldownOptions: {
-					external: (id) => /[\\/]apps[\\/]index\.js$/.test(id),
+					external: (id) => /[\\/](apps|late)[\\/]index\.js$/.test(id),
 					output: { codeSplitting: false },
 				},
 			},
@@ -199,8 +217,9 @@ const ROWS = [
 	['jsMinified', 'JavaScript, minified'],
 	['jsGzip', 'JavaScript, gzip'],
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
-	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod'],
-	['appsMinified', "The kernel's `apps` chunks, minified, with the readers"],
+	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
+	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
+	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
 	['consoleMinified', 'The `console` chunk and its imports, minified'],
@@ -227,7 +246,11 @@ async function main() {
 		console.log(JSON.stringify({ rows, page, kernel, apps }, null, '\t'));
 	} else {
 		const pad = (text, width) => String(text).padEnd(width);
-		console.log(`Loaded before first paint: ${page.files.join(', ')}`);
+		console.log('Loaded before first paint:');
+		for (const { file, bytes, gzip } of page.files)
+			console.log(
+				`  ${pad(file, 44)} ${pad(bytes.toLocaleString('en-US'), 8)} gzip ${gzip.toLocaleString('en-US')}`
+			);
 		if (page.lazy.length) console.log(`Loaded later: ${page.lazy.join(', ')}`);
 		for (const row of rows)
 			console.log(

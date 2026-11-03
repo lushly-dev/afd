@@ -1,7 +1,13 @@
+import { zodToJsonSchema } from '@lushly-dev/afd-server/define';
 import { describe, expect, it, vi } from 'vitest';
 import { BetterAuthAdapter } from './adapters/better-auth.js';
 import { MockAuthAdapter } from './adapters/mock.js';
-import { type AuthCommandsOptions, createAuthCommands } from './commands.js';
+import {
+	type AuthCommandsOptions,
+	createAuthCommands,
+	createAuthMutationCommands,
+	createAuthSessionGetCommand,
+} from './commands.js';
 import { AuthAdapterError } from './errors.js';
 import type { AuthAdapter, AuthSessionState, SignInOutcome } from './types.js';
 import { LOADING, UNAUTHENTICATED } from './types.js';
@@ -103,6 +109,26 @@ function createAsyncBetterAuthClient() {
 }
 
 describe('createAuthCommands', () => {
+	it('holds each written JSON Schema equal to its schema', () => {
+		for (const command of createAuthCommands(new MockAuthAdapter())) {
+			expect(command.jsonSchema, command.name).toEqual(zodToJsonSchema(command.inputSchema));
+		}
+	});
+
+	it('is the mutation commands and auth-session-get, each available alone', () => {
+		const adapter = new MockAuthAdapter();
+		expect(createAuthCommands(adapter).map((command) => command.name)).toEqual([
+			'auth-sign-in',
+			'auth-sign-out',
+			'auth-session-get',
+		]);
+		expect(createAuthMutationCommands(adapter).map((command) => command.name)).toEqual([
+			'auth-sign-in',
+			'auth-sign-out',
+		]);
+		expect(createAuthSessionGetCommand(adapter).name).toBe('auth-session-get');
+	});
+
 	it('returns three command definitions', () => {
 		const adapter = new MockAuthAdapter();
 		const commands = createAuthCommands(adapter);
