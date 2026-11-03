@@ -412,6 +412,26 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		await opened.context.close();
 	});
 
+	it('P2-E8: a reload with a disabled active app journals app-settle, and the app does not open (F3)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await openApp(page, 'hello');
+		await showsApp(page, 'hello');
+		await kernelCall(page, 'workspace-app-set', { instance: 'hello', enabled: false });
+		await settle(page);
+		await flush(page);
+		const count = (await journal(page)).length;
+		await page.reload();
+		await ready(page);
+		const settled = (await since(page, count)).filter((entry) => entry.command === 'app-settle');
+		expect(settled).toMatchObject([{ success: true, input: {} }]);
+		expect(await stateOf(page)).toMatchObject({ active: null });
+		// Its URL names it, so main says "Nothing here", as for any app that cannot open (6.3).
+		expect(await heading(page)).toBe('Nothing here');
+		expect((await mainShows(page)).app).toBe(false);
+		await opened.context.close();
+	});
+
 	it('P2-E8: a reload inside a restricted project leaves it by a journaled scope-set { project: null }', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;

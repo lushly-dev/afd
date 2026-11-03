@@ -125,7 +125,10 @@ const listInput = z.strictObject({
 	limit: z.optional(z.number().check(z.int(), z.minimum(1), z.maximum(200))),
 	offset: z.optional(z.number().check(z.int(), z.minimum(0))),
 });
-const scopeSetInput = z.strictObject({ project: z.nullable(ref), app: z.optional(ref) });
+const scopeSetInput = z.strictObject({
+	project: z.nullable(ref),
+	app: z.optional(z.nullable(ref)),
+});
 const sectionInput = z.strictObject({
 	section: z.enum(['projects', 'documents']),
 	path: z.optional(z.string()),
@@ -520,7 +523,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			type: 'object',
 			properties: {
 				project: { anyOf: [REF_JSON, { type: 'null' }] } as JsonSchema,
-				app: REF_JSON,
+				app: { anyOf: [REF_JSON, { type: 'null' }] } as JsonSchema,
 			},
 			required: ['project'],
 			additionalProperties: false,
@@ -537,11 +540,14 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			const before = state.activeApp();
 			// Asked first, so a refusal leaves the scope where it was: the switch and the open are one (N3).
 			const cannot =
-				input.app === undefined ? undefined : canOpen(deps.apps(), scope, input.app, to.project);
+				typeof input.app === 'string'
+					? canOpen(deps.apps(), scope, input.app, to.project)
+					: undefined;
 			if (cannot) return cannot;
+			// A change of scope checks a shell modal first; with none, closing the app below refuses it.
 			const refused = lateScope.applyScopeChange(to, 'scope-set', context);
 			if (refused) return refused;
-			if (input.app !== undefined) {
+			if (typeof input.app === 'string') {
 				const opened = deps.apps().open(input.app);
 				if (!opened.success) return opened as CommandResult<never>;
 				// As `app-open`: main shows the app, with no section and no path (4.3).
@@ -549,14 +555,26 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 					setMain(deps.viewState, { section: null, path: '' });
 				}
 				scope.note(context.traceId, { mainChanged: 'push' });
+			} else if (input.app === null) {
+				// The app closes, and main lands as `app-close` lands it in the new scope: the landing, or the
+				// project's home (F4).
+				const closed = deps.apps().close();
+				if (!closed.success) return closed as CommandResult<never>;
+				setMain(deps.viewState, {
+					section: to.project === undefined ? null : 'projects',
+					path: '',
+				});
+				scope.note(context.traceId, { mainChanged: 'push' });
 			}
 			const active = state.activeApp();
 			const left = before !== null && active !== before;
+			// The undo puts back what was open: the app it left, or none where an app opened from none (F4).
+			const app = left ? before : before === null && active !== null ? null : undefined;
 			return success(
 				{ scope: scope.active(), previous, active, app: left ? 'left' : 'kept' },
 				{
 					undoCommand: 'scope-set',
-					undoArgs: { project: previous, ...(left ? { app: before } : {}) },
+					undoArgs: { project: previous, ...(app !== undefined ? { app } : {}) },
 				}
 			);
 		},
@@ -812,6 +830,28 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		},
 	});
 
+	/**
+	 * Boot's own, after the apply (F3): a persisted active app that cannot open in the recorded scope, as a
+	 * disabled one or an instance that no longer lists the project, is no app. Journaled, so a replay
+	 * reproduces it; run only when there is one, so most boots journal nothing.
+	 */
+	const appSettle = defineCommandWithSchema<
+		typeof emptyInput,
+		{ left: string | null; code: string | null }
+	>({
+		name: 'app-settle',
+		description: "Boot's own: an active app that cannot open in the recorded scope is none",
+		category: 'app',
+		mutation: true,
+		executionTime: 'instant',
+		input: emptyInput,
+		jsonSchema: EMPTY_INPUT_JSON,
+		async handler() {
+			const settled = lateScope.settleActive();
+			return success({ left: settled?.left ?? null, code: settled?.code ?? null });
+		},
+	});
+
 	return [
 		scopeSet,
 		sectionOpen,
@@ -826,5 +866,6 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		workspaceAppList,
 		workspaceAppSet,
 		deploymentApply,
+		appSettle,
 	] as unknown as ZodCommandDefinition[];
 }

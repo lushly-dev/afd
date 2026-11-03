@@ -298,6 +298,8 @@ export class AppSurfaces implements ShellApps {
 		if (command === 'app-instance-refresh') {
 			this.#enqueue(() => this.#sync());
 			if (event.instance === this.#showing) this.#enqueue(() => this.#reloadConsole());
+			// The automatic one, after an expired session, moves the scope and cancels a shell modal (F1).
+			if (rescoped) this.#enqueue(() => this.#overlays.read());
 			return;
 		}
 		if (!event.success && !rescoped) {

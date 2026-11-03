@@ -1077,4 +1077,120 @@ describe('P2-E3 (kernel unit): an app that cannot open here, through app-open or
 		expect(set.undoArgs).toEqual({ instance: 'tasks', id: null, level: 'project' });
 		expect((await kernel.call(set.undoCommand as string, set.undoArgs)).success).toBe(true);
 	});
+
+	it('refuses an unknown app in scope-set { app } before any switch, loam.scope unwritten (F2)', async () => {
+		const { kernel } = await scoped();
+		const refused = await kernel.call('scope-set', { project: 'atlas', app: 'ghost' });
+		expect(refused.error?.code).toBe('APP_NOT_FOUND');
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+		expect((await kernel.call('view-state-get', { id: 'loam.scope' })).data).toMatchObject({
+			state: { project: null },
+		});
+	});
+
+	it('undoes a scope-set that opened an app from none by closing it, as app-close lands (F4)', async () => {
+		const { kernel } = await scoped();
+		const opened = await kernel.call('scope-set', { project: 'atlas', app: 'tasks' });
+		expect(opened.undoArgs).toEqual({ project: null, app: null });
+		const undone = await kernel.call(opened.undoCommand as string, opened.undoArgs);
+		expect(undone.success).toBe(true);
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: null,
+			path: '',
+			active: null,
+		});
+		// Its own undo opens the app in Atlas again.
+		expect(undone.undoArgs).toEqual({ project: ATLAS.project, app: 'tasks' });
+		// In a project, `app: null` lands on the project's home, as app-close does there.
+		await kernel.call('scope-set', { project: 'beacon', app: 'dual' });
+		await kernel.call('scope-set', { project: 'atlas', app: null });
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+	});
+});
+
+describe('P2-E3 (kernel unit): a persisted active app that cannot open in the recorded scope is none at boot (F3)', () => {
+	/** `dual` listing `projects`, at `generation`. */
+	const deployment = (generation: string, projects?: string[]) => {
+		const projection = scopedDeployment();
+		return {
+			...projection,
+			generation,
+			apps: projection.apps.map((entry) =>
+				entry.instance === 'dual' && projects ? { ...entry, projects } : entry
+			),
+		};
+	};
+
+	async function reloadWith(
+		setup: (workspace: ScopedWorkspace) => Promise<unknown>,
+		first = deployment('scoped'),
+		second = first
+	) {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const before = await scoped({ store, journal, deployment: first });
+		await setup(before);
+		await before.kernel.flush();
+		await before.kernel.dispose();
+		const after = await scoped({
+			store,
+			journal,
+			deployment: second,
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+		});
+		return { after, journal };
+	}
+
+	it('closes an instance a redeploy stopped listing the recorded project in, journaled, and replays', async () => {
+		const { after, journal } = await reloadWith(
+			async ({ kernel }) => {
+				await kernel.call('scope-set', { project: 'atlas' });
+				await kernel.call('app-open', { instance: 'dual' });
+			},
+			deployment('scoped', ['atlas', 'beacon']),
+			deployment('scoped-2', ['beacon'])
+		);
+		const { kernel } = after;
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(ATLAS);
+		// Landed as a change of scope lands a left app: the project's home.
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+		const recorded = await journal.read();
+		const settled = recorded.filter((entry) => entry.command === 'app-settle');
+		expect(settled).toHaveLength(1);
+		expect(settled[0]?.result.data).toEqual({ left: 'dual', code: 'SCOPE_PROJECT_REQUIRED' });
+		// Right after the apply that dropped the project from the list.
+		const commands = recorded.map((entry) => entry.command);
+		expect(commands[commands.indexOf('app-settle') - 1]).toBe('workspace-deployment-apply');
+		expect((await replayOf(recorded)).report.diverged).toBe(false);
+	});
+
+	it('closes a disabled active app at a reload, and journals nothing when the app can open', async () => {
+		const disabled = await reloadWith(async ({ kernel }) => {
+			await kernel.call('app-open', { instance: 'dual' });
+			await kernel.call('workspace-app-set', { instance: 'dual', enabled: false });
+		});
+		expect((await disabled.after.kernel.call('section-get')).data).toMatchObject({
+			active: null,
+			section: 'projects',
+		});
+		const recorded = await disabled.journal.read();
+		expect(recorded.find((entry) => entry.command === 'app-settle')?.result.data).toEqual({
+			left: 'dual',
+			code: 'APP_DISABLED',
+		});
+		expect((await replayOf(recorded)).report.diverged).toBe(false);
+
+		const kept = await reloadWith(({ kernel }) => kernel.call('app-open', { instance: 'dual' }));
+		expect((await kept.after.kernel.call('section-get')).data).toMatchObject({ active: 'dual' });
+		expect((await kept.journal.read()).some((entry) => entry.command === 'app-settle')).toBe(false);
+	});
 });

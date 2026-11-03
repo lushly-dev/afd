@@ -234,8 +234,8 @@ export class LoamProjectList extends FASTElement {
 		return false;
 	}
 
-	/** Read the projects, show the list, and put focus on the active row. */
-	async show(): Promise<void> {
+	/** The projects the actor may enter, and the active one. */
+	async #read(): Promise<void> {
 		const kernel = this.kernel as LoamKernelV2;
 		const [listed, scoped] = await Promise.all([
 			kernel.call<{ projects: ProjectV1[] }>('project-list'),
@@ -243,6 +243,11 @@ export class LoamProjectList extends FASTElement {
 		]);
 		this.projects = listed.data?.projects ?? [];
 		this.active = scoped.data?.scope.project ?? NONE;
+	}
+
+	/** Read the projects, show the list, and put focus on the active row. */
+	async show(): Promise<void> {
+		await this.#read();
 		this.failure = '';
 		this.#returnFocus = true;
 		await Updates.next();
@@ -322,6 +327,9 @@ export class LoamProjectList extends FASTElement {
 			project: value === NONE ? null : value,
 		});
 		if (!result.success) {
+			// Its rows were stale, or the call moved the scope before it was refused, as an expired session's
+			// does: read again.
+			await this.#read();
 			// It stays open, and says why, as the row it chose stays selected nowhere.
 			const message = result.error?.message ?? 'The project could not open';
 			const suggestion = result.error?.suggestion;

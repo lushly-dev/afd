@@ -388,6 +388,34 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
+	it('P2-E3: a choice refused after an expired session moved the scope reads its rows again (N6)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await restrictedAtlas(page);
+		await kernelCall(page, 'project-create', {
+			name: 'Citadel',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.click();
+		const list = page.locator('loam-rail loam-project-list');
+		await expect.poll(() => texts(list.locator('violet-option'))).toContain('Citadel');
+		// The session expires while it is open: the choice's own call leaves Atlas, then is refused.
+		await expire(page);
+		await list.locator('violet-option', { hasText: 'Citadel' }).click();
+		await expect
+			.poll(() => list.locator('p.failure').textContent())
+			.toContain('No project with that name');
+		expect(await switcher.getAttribute('aria-expanded')).toBe('true');
+		// Its rows are the workspace's now: neither restricted project, and no project the active one.
+		await expect.poll(() => texts(list.locator('violet-option'))).not.toContain('Citadel');
+		expect(await texts(list.locator('violet-option'))).not.toContain('Atlas');
+		expect(
+			await list.evaluate((element) => (element as unknown as { active: string }).active)
+		).toBe('~none');
+		await opened.context.close();
+	});
+
 	it("P2-E3: the project item's text keeps 4.5:1 when hovered, and leaving an app it focuses main's h1 (A4, N5a)", async () => {
 		const opened = await withProjects();
 		const { page } = opened;
@@ -529,16 +557,23 @@ describe('P2-E3: a change of scope a call did not ask for (7.6, 3.4)', () => {
 		await opened.context.close();
 	});
 
-	it('P2-E3: makes a kept app again when that call is an app-instance-refresh (N1)', async () => {
+	it('P2-E3: makes a kept app again when that call is an app-instance-refresh, and its cancelled modal goes (N1, F1)', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await restrictedAtlas(page, 'hello');
 		await mark(page, 'hello-main');
+		void kernelCall(page, 'modal-open', { title: 'Sure?', body: 'Say so.' });
+		const dialog = page.locator('loam-modal dialog');
+		await expect
+			.poll(() => dialog.evaluate((element) => (element as HTMLDialogElement).open))
+			.toBe(true);
 		await expire(page);
+		// The refresh moves the scope, which cancels the shell's modal: it must go as the app is made again.
 		await kernelCall(page, 'app-instance-refresh', { instance: 'hello' });
 		await surfacesIdle(page);
 		await page.locator('hello-main').waitFor();
 		expect(await marked(page, 'hello-main')).toBe(false);
+		await expect.poll(() => page.locator('loam-modal dialog[open]').count()).toBe(0);
 		await opened.context.close();
 	});
 

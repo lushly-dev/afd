@@ -20,7 +20,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { disabled, setMain, setScopeProject } from './main-state.js';
+import { canOpen, disabled, setMain, setScopeProject } from './main-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -45,6 +45,22 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			.apps()
 			.summaries()
 			.find((app) => app.instance === instance)?.scopeLevels ?? ['workspace'];
+
+	/**
+	 * An app that leaves main with no command of its own: a project-only app leaving for no project, or a
+	 * workspace app leaving for a project, lands in the projects section, the list or the project's home.
+	 */
+	function land(left: string): void {
+		overlays.closeForSwitch(left);
+		setMain(deps.viewState, { active: null, section: 'projects', path: '' });
+	}
+
+	/** From the persisted record, as stage A reads it, so a replay's reload reads the same (10). */
+	function activeRefusal(): CommandResult<never> | undefined {
+		const active = state.activeApp();
+		if (active === null) return undefined;
+		return canOpen(deps.apps(), scope, active, state.scopeProject() ?? undefined);
+	}
 
 	/**
 	 * 4.3's switch rules, atomically: `loam.scope` and `loam.apps` written, selections cleared, a left app's
@@ -94,12 +110,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				(to.project === undefined || levels.includes('project'));
 			if (!kept) left = active;
 		}
-		if (left !== undefined) {
-			overlays.closeForSwitch(left);
-			// A project-only app leaving for no project, or a workspace app leaving for a project, lands in
-			// the projects section: the list, or the project's home.
-			setMain(deps.viewState, { active: null, section: 'projects', path: '' });
-		} else setMain(deps.viewState, { path: '' });
+		if (left !== undefined) land(left);
+		else setMain(deps.viewState, { path: '' });
 		deps.apps().clearSelections();
 		setScopeProject(deps.viewState, to.project ?? null);
 		scope.setActive(to);
@@ -184,6 +196,14 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 
 	return {
 		applyScopeChange,
+		activeRefusal,
+		settleActive() {
+			const left = state.activeApp();
+			const refused = activeRefusal();
+			if (left === null || !refused) return undefined;
+			land(left);
+			return { left, code: refused.error?.code as string };
+		},
 		/**
 		 * A session that ends with no command, as an expiry, takes effect at the next call (3.4). That call
 		 * asked for the active scope it was made in, so when this leaves it, it runs where it lands, and a

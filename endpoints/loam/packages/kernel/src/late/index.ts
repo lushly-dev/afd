@@ -110,6 +110,15 @@ export interface LateParts {
 		replaying: boolean,
 		run: (name: string, input: unknown) => Promise<{ success: boolean }>
 	): Promise<void>;
+	/**
+	 * Boot's `app-settle`, once the persisted state is read and after the apply, which may drop the recorded
+	 * project from an instance's list: only when the active app cannot open in the recorded scope, and never
+	 * in a replay, whose entries are what ran (F3).
+	 */
+	settle(
+		replaying: boolean,
+		run: (name: string, input: unknown) => Promise<{ success: boolean }>
+	): Promise<void>;
 	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
 }
@@ -168,6 +177,9 @@ export function createLateParts(
 			} catch (cause) {
 				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 			}
+		},
+		async settle(replaying, run) {
+			if (!replaying && lateScope.activeRefusal()) await run('app-settle', {});
 		},
 		async reload() {
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.

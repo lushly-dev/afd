@@ -6,7 +6,7 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import type { AppsRuntime } from '../apps-runtime.js';
+import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from '../shell-state.js';
@@ -27,8 +27,8 @@ export const disabled = (scope: ScopeRuntime, instance: string): boolean =>
 
 /**
  * Why `instance` cannot open in a scope with `project`, or none: disabled (4.1), or not open there by
- * `opensIn` (7.1, 9.1). `app-open` and `scope-set { app }` both ask it first, so a refusal changes nothing.
- * An instance no deployment lists is left to `open`, which names it.
+ * `opensIn` (7.1, 9.1), or an instance no deployment lists. `app-open` and `scope-set { app }` both ask it
+ * first, so a refusal changes nothing (N3, F2).
  */
 export function canOpen(
 	apps: AppsRuntime,
@@ -37,7 +37,7 @@ export function canOpen(
 	project: string | undefined
 ): CommandResult<never> | undefined {
 	const app = apps.summaries().find((candidate) => candidate.instance === instance);
-	if (!app) return undefined;
+	if (!app) return unknownApp(instance);
 	if (disabled(scope, instance)) {
 		return kernelFailure(
 			'APP_DISABLED',
