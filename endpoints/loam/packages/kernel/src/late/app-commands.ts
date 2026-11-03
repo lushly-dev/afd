@@ -49,15 +49,20 @@ export interface AppCommandDeps {
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
 	const { apps, scope } = deps;
-	/** A change of what main shows moves the URL (phase 2 specification, 6.3). */
+	/**
+	 * A change of what main shows moves the URL (phase 2 specification, 6.3). `app-close` also closes an open
+	 * section, so main shows the landing, as Back to `/` asks. Every success reports `mainChanged`, so an
+	 * app reopened from "Nothing here" brings the URL back to it; one that names the same place moves nothing.
+	 */
 	const moved = (
 		result: CommandResult<{ active: string | null; previous: string | null }>,
 		context: CommandContext
 	) => {
-		if (result.success && result.data?.active !== result.data?.previous) {
+		if (!result.success) return result;
+		if (result.data?.active !== result.data?.previous || deps.state.main().section !== null) {
 			setMain(deps.viewState, { section: null, path: '' });
-			scope.note(context.traceId, { mainChanged: 'push' });
 		}
+		scope.note(context.traceId, { mainChanged: 'push' });
 		return result;
 	};
 

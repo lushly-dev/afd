@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
-import { type Browser, chromium, type Page } from 'playwright';
+import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	type DeploymentSite,
@@ -42,8 +42,8 @@ afterAll(async () => {
 
 /** What stage B reads: every package's manifest and each of its chunks. */
 const STAGE_B =
-	/\/apps\/[^/]+\/app-manifest\.json$|\/assets\/(?:apps|validate\.generated|deployment|surfaces|late)-[^/]*\.js$/;
-const STAGE_B_CHUNK = /\/assets\/(?:apps|validate\.generated|deployment|surfaces|late)-/;
+	/\/apps\/[^/]+\/app-manifest\.json$|\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync)-[^/]*\.js$/;
+const STAGE_B_CHUNK = /\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync)-/;
 /**
  * The palette and the resize handle load when the page is idle, which on a busy machine can come early,
  * and no app decides it (#718).
@@ -71,10 +71,19 @@ function budgetRow(): number {
 	return [...files].reduce((sum, file) => sum + readFileSync(join(DIST, file)).length, 0);
 }
 
-/** What a page requested before the mark, by path, with the bytes the server sent. */
-async function firstPaint(site: { origin: string; log: LoggedRequest[] }, path = '/') {
-	const opened = await openPage(browser, `${site.origin}${path}`);
+/**
+ * What a page requested before the mark, by path, with the bytes the server sent. `then` runs on the page
+ * before its context closes; with `context`, the page opens in one a test has prepared.
+ */
+async function firstPaint(
+	site: { origin: string; log: LoggedRequest[] },
+	path = '/',
+	context?: BrowserContext,
+	then?: (page: Page) => Promise<void>
+) {
+	const opened = await openPage(browser, `${site.origin}${path}`, {}, context);
 	const paths = await measureFirstPaint(opened.page);
+	await then?.(opened.page);
 	const bytes = Object.fromEntries(
 		site.log
 			.filter(({ path }) => !IDLE.test(path) && paths.includes(path))
@@ -108,8 +117,32 @@ describe('P2-E1: one first paint', () => {
 		];
 		const measured = [];
 		for (const site of sites) measured.push(await firstPaint(site));
-		// Step 5's deep link: an app's URL in a project that does not exist loads the same chunks (6.2).
-		measured.push(await firstPaint(sites[1] as DeploymentSite, '/personal/p/atlas/hello/items'));
+		// Step 5's deep link, into a project that exists, with all of stage B held: the same chunks, and stage
+		// A has entered the project for the first frame (6.2, 6.3).
+		const deep = sites[1] as DeploymentSite;
+		const setup = await openShell(browser, deep.origin);
+		expect(await kernelCall(setup.page, 'project-create', { name: 'Atlas' })).toMatchObject({
+			success: true,
+		});
+		await setup.page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { flush(): Promise<void> };
+			};
+			await shell.kernel.flush();
+		});
+		await setup.page.close();
+		deep.hold(STAGE_B);
+		measured.push(
+			await firstPaint(deep, '/personal/p/atlas/hello/items', setup.context, async (page) => {
+				const scoped = (await kernelCall(page, 'scope-get')) as {
+					data: { scope: { project?: string }; project: { slug: string } | null };
+				};
+				expect(scoped.data.project?.slug).toBe('atlas');
+				expect(scoped.data.scope.project).toMatch(/^prj_/);
+				expect(deep.held.some((path) => STAGE_B.test(path))).toBe(true);
+			})
+		);
+		deep.release();
 		const assets = measured.map(({ bytes }) =>
 			Object.fromEntries(Object.entries(bytes).filter(([path]) => path.startsWith('/assets/')))
 		);

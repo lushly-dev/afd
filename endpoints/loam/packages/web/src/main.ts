@@ -61,7 +61,9 @@ async function boot(): Promise<void> {
 		environment: mediaEnvironment(window),
 		boot: read,
 		appsLoader: () => loadApps(raw),
-		...(project && workspace === read.workspace.id ? { initialScope: { project } } : {}),
+		// Any shape at this workspace names the scope: a project's slug, or `null` for workspace level, so
+		// `/personal/hello` paints the workspace whatever `loam.scope` records (6.3, as amended by step 5).
+		...(workspace === read.workspace.id ? { initialScope: { project: project ?? null } } : {}),
 	});
 	if (host.kind === 'locked') {
 		await renderNotice(document.body, { themeCss, ...OTHER_TAB_NOTICE });

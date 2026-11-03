@@ -600,7 +600,10 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			}
 			const previous = state.main().path;
 			setMain(deps.viewState, { path });
-			scope.note(context.traceId, { mainChanged: 'push' });
+			// An app's own call replaces the history entry, so a view calling this in a loop cannot flood
+			// history; a person's pushes one (6.3).
+			const caller = (context as KernelFieldContext).caller;
+			scope.note(context.traceId, { mainChanged: caller === undefined ? 'push' : 'replace' });
 			return success(
 				{ path },
 				{ undoCommand: 'app-route-set', undoArgs: { instance: input.instance, path: previous } }

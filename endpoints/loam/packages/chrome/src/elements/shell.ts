@@ -389,7 +389,7 @@ export class LoamShell extends FASTElement {
 		this.#width = this.getBoundingClientRect().width || view.innerWidth;
 		// A person's navigation runs commands, after the boot's own route (6.3).
 		const router = createRouter(view, this.base, (route) =>
-			this.#url().then((url) => url.navigated(route))
+			this.#url((url) => url.navigated(route))
 		);
 		this.router = router;
 
@@ -503,7 +503,7 @@ export class LoamShell extends FASTElement {
 		const listed = this.listsApps || this.appCount > 0;
 		if (listed) await this.#readAppList();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
-		await (await this.#url()).boot();
+		await this.#url((url) => url.boot());
 		// An app the route named that stage B does not hold: main shows "Nothing here" at once.
 		if (this.route === 'not-found') this.releaseMain();
 		if (!listed) return;
@@ -528,9 +528,16 @@ export class LoamShell extends FASTElement {
 	// ─── The URL (phase 2 specification, 6.3) ──────────────────────────────────────
 
 	/** Load the URL's chunk once. Only what stage B has made callable needs it. */
-	#url(): Promise<UrlSyncV1> {
+	/**
+	 * Run `task` with the URL's chunk, loaded once. A chunk that fails is reported and forgotten, so the next
+	 * call tries again, and nothing else of stage B waits on it: the app surfaces still start.
+	 */
+	#url(task: (url: UrlSyncV1) => unknown): Promise<unknown> {
 		this.#urlSync ??= import('../url-sync.js').then(({ createUrlSync }) => createUrlSync(this));
-		return this.#urlSync;
+		return this.#urlSync.then(task).catch((cause: unknown) => {
+			this.#urlSync = null;
+			reportError(cause);
+		});
 	}
 
 	/** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
@@ -625,7 +632,7 @@ export class LoamShell extends FASTElement {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
-		if (event.scopeChanged || event.mainChanged) void this.#url().then((url) => url.changed(event));
+		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
 		if (event.command === 'palette-open' && event.success) {
 			void this.#showPalette();
 			return;

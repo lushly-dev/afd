@@ -59,7 +59,7 @@ export interface HostKernelOptions {
 	 */
 	boot?: KernelOptionsV2['boot'];
 	appsLoader?: KernelOptionsV2['appsLoader'];
-	/** The URL's project, by slug (phase 2 specification, 6.3). */
+	/** The URL's project, by slug, or `null` for workspace level (phase 2 specification, 6.3). */
 	initialScope?: KernelOptionsV2['initialScope'];
 }
 

@@ -667,6 +667,11 @@ describe('deployment write, version 2 (phase 2 specification, 2.2 and 4.2)', () 
 			'/a b/',
 			'/%2e%2e/',
 			'/a"/',
+			'/a\\b/',
+			'\\\\evil.example\\',
+			'javascript:alert(1)//',
+			'/a//b/',
+			'/loam//',
 		]) {
 			const paths = await layout(
 				`${HELLO}\n[site]\nbase_path = ${JSON.stringify(base)}\n`,

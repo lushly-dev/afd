@@ -608,9 +608,17 @@ describe('E2: what a hostile view can reach', () => {
 		expect(path()).toBe('/personal/fixture');
 		// Another app's route is not this view's to set.
 		expect((await route('tally', 'x')).result?.isError).toBe(true);
-		// Its own route without one moves the URL, under its own segment.
+		// Its own route without one moves the URL, under its own segment, by replacing the entry: a view
+		// calling it in a loop adds nothing to history.
+		const length = () => page.evaluate(() => history.length);
+		const before = await length();
 		expect((await route('fixture', 'items/a b')).result?.isError).not.toBe(true);
 		await expect.poll(path).toBe('/personal/fixture/items/a%20b');
+		for (let step = 0; step < 10; step++) {
+			expect((await route('fixture', `items/${step}`)).result?.isError).not.toBe(true);
+		}
+		await expect.poll(path).toBe('/personal/fixture/items/9');
+		expect(await length()).toBe(before);
 		expect(opened.violations).toEqual([]);
 		await opened.context.close();
 	});

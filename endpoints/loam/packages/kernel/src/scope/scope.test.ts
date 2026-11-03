@@ -676,6 +676,128 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		});
 	});
 
+	/** A session that `setup` left, then a reload whose URL names `initialScope`, on one journal. */
+	async function reloadAfter(
+		setup: (kernel: LoamKernelV2) => Promise<unknown>,
+		initialScope: { project: string | null }
+	) {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const first = await scoped({ store, journal });
+		await setup(first.kernel);
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		const second = await scoped({
+			store,
+			journal,
+			auth: new MockAuthAdapter(),
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			initialScope,
+		});
+		return { second, journal };
+	}
+
+	it("P2-E8: stage B's scope-set after a URL-driven stage A switches from the record, and replays the same", async () => {
+		// A workspace-only app active, and the URL naming Atlas: it leaves, as it does in a replay.
+		const solo = await reloadAfter((kernel) => kernel.call('app-open', { instance: 'solo' }), {
+			project: 'atlas',
+		});
+		expect(await scopeOf(solo.second)).toMatchObject({
+			scope: solo.second.scopes.atlas,
+			pending: true,
+		});
+		const left = await solo.second.kernel.call('scope-set', {
+			project: solo.second.scopes.atlas.project as string,
+		});
+		expect(left.data).toMatchObject({ app: 'left', active: null, previous: null });
+		expect((await solo.second.kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+		expect((await replayOf(await solo.journal.read())).report.diverged).toBe(false);
+
+		// A dual app with a path, and a selection made before stage B's scope-set: both cleared alike.
+		const dual = await reloadAfter(
+			async (kernel) => {
+				await kernel.call('app-open', { instance: 'dual' });
+				await kernel.call('app-route-set', { instance: 'dual', path: 'items/1' });
+			},
+			{ project: 'atlas' }
+		);
+		const { kernel } = dual.second;
+		await kernel.call('app-selection-set', { instance: 'dual', id: 'row-1' });
+		const kept = await kernel.call('scope-set', {
+			project: dual.second.scopes.atlas.project as string,
+		});
+		expect(kept.data).toMatchObject({ app: 'kept', active: 'dual' });
+		expect((await kernel.call('section-get')).data).toMatchObject({ path: '', active: 'dual' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: null,
+		});
+		expect(await scopeOf(dual.second)).toMatchObject({ pending: false });
+		expect((await replayOf(await dual.journal.read())).report.diverged).toBe(false);
+	});
+
+	it('P2-E8: a workspace-level URL keeps stage A at the workspace, whatever loam.scope records', async () => {
+		const { second } = await reloadAfter(
+			(kernel) => kernel.call('scope-set', { project: 'atlas' }),
+			{
+				project: null,
+			}
+		);
+		expect(await scopeOf(second)).toMatchObject({ scope: WORKSPACE, project: null, pending: true });
+		const set = await second.kernel.call('scope-set', { project: null });
+		expect(set.data).toMatchObject({ previous: second.scopes.atlas.project });
+		expect(await scopeOf(second)).toMatchObject({ pending: false });
+	});
+
+	it("P2-E8: an app's own app-route-set replaces the URL's entry, and a person's pushes one", async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('app-open', { instance: 'dual' });
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		await kernel.call('app-route-set', { instance: 'dual', path: 'a' });
+		for (let step = 0; step < 3; step++) {
+			const port = await kernel
+				.appPort('dual')
+				.call('app-route-set', { instance: 'dual', path: `b${step}` });
+			expect(port.success).toBe(true);
+		}
+		expect(events.filter((e) => e.command === 'app-route-set').map((e) => e.mainChanged)).toEqual([
+			'push',
+			'replace',
+			'replace',
+			'replace',
+		]);
+	});
+
+	it('P2-E8: app-close closes a section too, and an app reopened still reports mainChanged', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		await kernel.call('section-open', { section: 'projects' });
+		expect((await kernel.call('app-close')).success).toBe(true);
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: null,
+			path: '',
+			active: null,
+		});
+		await kernel.call('app-open', { instance: 'dual' });
+		await kernel.call('app-open', { instance: 'dual' });
+		expect(
+			events.filter((e) => e.command.startsWith('app-')).map((e) => [e.command, e.mainChanged])
+		).toEqual([
+			['app-close', 'push'],
+			['app-open', 'push'],
+			['app-open', 'push'],
+		]);
+		const { report } = await replayOf(await entries(workspace));
+		expect(report.diverged).toBe(false);
+	});
+
 	it("P2-E8: section-get holds main's section, path and active app, unjournaled", async () => {
 		const workspace = await scoped();
 		await workspace.kernel.call('app-open', { instance: 'dual' });

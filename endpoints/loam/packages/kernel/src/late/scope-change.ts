@@ -56,16 +56,19 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		reason: ScopeChangeV2['reason'],
 		context: CommandContext
 	): CommandResult<never> | undefined {
-		const from = scope.active();
 		// A server's call (no mark) holds no active scope, so it moves none: `project-archive` over MCP
 		// archives, and a person's scope stays where they put it (3.3).
 		if (!(context as { [CALL_MARK]?: string })[CALL_MARK]) return undefined;
+		// From the persisted record, not memory: stage A may hold the URL's project, or the workspace in place
+		// of a project it refused, in memory alone (6.3). A replay has no URL and starts from the record, so
+		// the switch is computed from what both hold, and stage B's `scope-set` replays the same (10).
+		const recorded = state.scopeProject();
+		const from: ScopeV1 =
+			recorded === null
+				? { workspace: scope.active().workspace }
+				: { workspace: scope.active().workspace, project: recorded };
 		if (sameScope(from, to)) {
-			// Stage A may hold the workspace in memory while `loam.scope` still names the project it refused
-			// (6.3): the record follows, so a reload lands where this call says.
-			if (state.scopeProject() !== (to.project ?? null)) {
-				setScopeProject(deps.viewState, to.project ?? null);
-			}
+			scope.setActive(to);
 			return undefined;
 		}
 		const modal = overlays.modalOpen();

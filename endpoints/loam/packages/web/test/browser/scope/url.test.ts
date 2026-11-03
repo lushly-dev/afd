@@ -165,16 +165,41 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 			success: true,
 		});
 
+		/** Load `path` as a deep link, and what its route ran, as the person, in the boot's journal. */
+		const visit = async (path: string) => {
+			await flush(page);
+			const count = (await journal(page)).length;
+			await page.goto(at(path));
+			await ready(page);
+			return (await since(page, count))
+				.filter((entry) =>
+					['scope-set', 'app-open', 'app-close', 'app-route-set', 'section-open'].includes(
+						entry.command
+					)
+				)
+				.map(({ command, input, success, interface: iface }) => ({
+					command,
+					input,
+					success,
+					iface,
+				}));
+		};
+		const ran = (command: string, input: unknown) => ({
+			command,
+			input,
+			success: true,
+			iface: 'palette',
+		});
+		const atlasId = expect.stringMatching(/^prj_/);
+
 		// The workspace: what `/` shows, and the URL stays.
-		await page.goto(at('personal'));
-		await ready(page);
+		expect(await visit('personal')).toEqual([]);
 		expect(await heading(page)).not.toBe('Nothing here');
 		expect(await stateOf(page)).toMatchObject({ scope: { workspace: 'personal' }, active: null });
 		expect(pathOf(page)).toBe(`${basePath}personal`);
 
 		// An app at workspace level.
-		await page.goto(at('personal/hello'));
-		await ready(page);
+		expect(await visit('personal/hello')).toEqual([ran('app-open', { instance: 'hello' })]);
 		await showsApp(page, 'hello');
 		expect(await stateOf(page)).toMatchObject({
 			scope: { workspace: 'personal' },
@@ -182,9 +207,12 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		});
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 
-		// An app in a project, with its route: the first frame is already in the project (stage A).
-		await page.goto(at('personal/p/atlas/hello/items/a%20b'));
-		await ready(page);
+		// An app in a project, with its route: the first frame is already in the project (stage A), and stage
+		// B journals the switch from the record, then the route.
+		expect(await visit('personal/p/atlas/hello/items/a%20b')).toEqual([
+			ran('scope-set', { project: atlasId }),
+			ran('app-route-set', { instance: 'hello', path: 'items/a b' }),
+		]);
 		await showsApp(page, 'hello');
 		const inAtlas = await stateOf(page);
 		expect(inAtlas).toMatchObject({
@@ -196,8 +224,9 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(pathOf(page)).toBe(`${basePath}personal/p/atlas/hello/items/a%20b`);
 
 		// A project's home: the projects section in it.
-		await page.goto(at('personal/p/atlas'));
-		await ready(page);
+		expect(await visit('personal/p/atlas')).toEqual([
+			ran('section-open', { section: 'projects', path: '' }),
+		]);
 		expect(await heading(page)).not.toBe('Nothing here');
 		expect(await stateOf(page)).toMatchObject({
 			project: { slug: 'atlas' },
@@ -206,15 +235,17 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		});
 		expect(pathOf(page)).toBe(`${basePath}personal/p/atlas`);
 
-		// Each loaded the same way: the reload's journal holds the commands the route ran, by the person.
-		const commands = (await journal(page))
-			.filter((entry) =>
-				['scope-set', 'app-open', 'app-route-set', 'section-open'].includes(entry.command)
-			)
-			.map((entry) => [entry.command, entry.success, entry.interface]);
-		expect(commands.every(([, success, iface]) => success === true && iface === 'palette')).toBe(
-			true
-		);
+		// A workspace-level link with `loam.scope` in Atlas: stage A paints the workspace, and stage B
+		// journals the move from the record (6.3, as step 5 amends it).
+		await flush(page);
+		site.hold(/\/assets\/(?:late|apps|surfaces|url-sync)-[^/]*\.js$/);
+		await page.goto(at('personal/hello'));
+		await page.waitForFunction(() => performance.getEntriesByName('loam-stage-b').length > 0);
+		expect((await stateOf(page)).scope).toEqual({ workspace: 'personal' });
+		site.release();
+		await ready(page);
+		await showsApp(page, 'hello');
+		expect((await stateOf(page)).scope).toEqual({ workspace: 'personal' });
 		noFailures(opened);
 		await opened.context.close();
 	});
@@ -372,6 +403,88 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(pathOf(page)).toBe(basePath);
 		noFailures(opened);
 		await opened.context.close();
+	});
+
+	it('P2-E8: Back to the first entry, /, closes the app, and Forward opens it again', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await ready(page);
+		await openApp(page, 'hello');
+		await expect.poll(() => pathOf(page)).toBe(`${basePath}personal/hello`);
+		const count = (await journal(page)).length;
+		await traverse(page, 'back');
+		await settle(page);
+		expect(pathOf(page)).toBe(basePath);
+		// The route's own commands; the surfaces then re-read what they show.
+		expect(
+			(await since(page, count))
+				.map(({ command }) => command)
+				.filter((command) => /^(scope-set|app-(open|close|route-set)|section-open)$/.test(command))
+		).toEqual(['app-close']);
+		expect(await stateOf(page)).toMatchObject({ active: null, section: null });
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						(
+							document
+								.querySelector('loam-shell')
+								?.shadowRoot?.querySelector('loam-main') as HTMLElement | null
+						)?.dataset.app
+				)
+			)
+			.toBeUndefined();
+		expect(await heading(page)).toBe('Choose an app');
+		await traverse(page, 'forward');
+		await settle(page);
+		await showsApp(page, 'hello');
+		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
+		noFailures(opened);
+		await opened.context.close();
+	});
+
+	it('P2-E8: an app route that cannot open shows "Nothing here", and leaves the scope as recorded', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		await flush(page);
+		for (const path of ['personal/p/atlas/bogus', 'personal/p/atlas/tally']) {
+			await page.goto(at(path));
+			await ready(page);
+			expect(await heading(page)).toBe('Nothing here');
+			expect(pathOf(page)).toBe(`${basePath}${path}`);
+			// Stage A painted Atlas in memory; stage B put the scope back to the record's, the workspace.
+			expect(await stateOf(page)).toMatchObject({
+				scope: { workspace: 'personal' },
+				project: null,
+				pending: false,
+			});
+		}
+		noFailures(opened);
+		await opened.context.close();
+	});
+
+	it('P2-E8: with the URL chunk refused, the apps still open, and the shell keeps working', async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		await context.route(/\/assets\/url-sync-[^/]*\.js$/, (route) => route.abort());
+		const opened = await openShell(browser, site.root, {}, context);
+		const { page } = opened;
+		await ready(page);
+		await openApp(page, 'hello');
+		await openApp(page, 'tally');
+		expect(opened.violations).toEqual([]);
+		// Each try to load it is reported, and none is left unhandled.
+		expect(opened.errors.length).toBeGreaterThan(0);
+		// Only the request and the import that failed, each reported; nothing unhandled.
+		expect(
+			opened.errors.every((error) =>
+				/^Failed to (load resource: net::ERR_FAILED|fetch dynamically imported module: .*\/assets\/url-sync-)/.test(
+					error
+				)
+			)
+		).toBe(true);
+		expect(opened.errors.some((error) => /uncaught|unhandled/i.test(error))).toBe(false);
+		await context.close();
 	});
 
 	it('P2-E8: / is replaced for a persisted app, and stays while nothing is persisted', async () => {

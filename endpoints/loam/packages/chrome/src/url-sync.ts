@@ -52,15 +52,21 @@ export interface UrlSyncV1 {
 	changed(event: KernelEventV2): void;
 }
 
-/** Whether `instance` is an app here that supports the level the route names. */
-export const supports = (
+/**
+ * Whether `instance` is an app here that can open, and supports the level the route names: a disabled,
+ * failed or refused one fails before any command runs.
+ */
+export function supports(
 	apps: readonly AppSummaryV2[],
 	instance: string,
 	project: string | undefined
-): boolean =>
-	apps
-		.find((app) => app.instance === instance)
-		?.scopeLevels.includes(project === undefined ? 'workspace' : 'project') === true;
+): boolean {
+	const app = apps.find((row) => row.instance === instance);
+	return (
+		(app?.state === 'ready' || app?.state === 'loading') &&
+		app.scopeLevels.includes(project === undefined ? 'workspace' : 'project')
+	);
+}
 
 /** The route that shows `state`, or none while its project is not one the actor may see. */
 export function routeOf(state: MainStateV1): RouteV1 | undefined {
@@ -91,20 +97,24 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 
 	/**
 	 * The journaled commands that make state what `route` names, each only where it differs: `scope-set`,
-	 * then `app-open` and `app-route-set`, or `section-open`. False when the route names nothing here, or
-	 * the kernel refuses it: a slug that is missing and one the actor may not enter fail alike.
+	 * then `app-open` and `app-route-set`, or `section-open`. A person's navigation to `/` or `/<workspace>`
+	 * closes main, by `app-close`, so Back to the session's first entry shows the landing; at boot, `/` shows
+	 * what is persisted. False when the route names nothing here, or the kernel refuses it: a slug that is
+	 * missing and one the actor may not enter fail alike.
 	 */
-	async function apply(route: RouteV1, state: MainStateV1): Promise<boolean> {
-		if (route.kind === 'root') return true;
-		if (route.kind === 'not-found' || route.workspace !== state.workspace.id) return false;
-		if (route.kind === 'app' && !supports(host.appList, route.instance, route.project)) {
-			return false;
-		}
-		const project = route.kind === 'workspace' ? undefined : route.project;
-		const here = state.scope.project === undefined ? undefined : (state.project?.slug ?? '');
-		if (project !== here) {
-			if (!(await kernel.call('scope-set', { project: project ?? null })).success) return false;
-			state = await host.readState();
+	async function apply(route: RouteV1, state: MainStateV1, navigated: boolean): Promise<boolean> {
+		if (route.kind === 'not-found') return false;
+		if (route.kind !== 'root') {
+			if (route.workspace !== state.workspace.id) return false;
+			if (route.kind === 'app' && !supports(host.appList, route.instance, route.project)) {
+				return false;
+			}
+			const project = route.kind === 'workspace' ? undefined : route.project;
+			const here = state.scope.project === undefined ? undefined : (state.project?.slug ?? '');
+			if (project !== here) {
+				if (!(await kernel.call('scope-set', { project: project ?? null })).success) return false;
+				state = await host.readState();
+			}
 		}
 		if (route.kind === 'app') {
 			let { path } = state;
@@ -118,7 +128,13 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				(await kernel.call('app-route-set', { instance: route.instance, path: rest })).success
 			);
 		}
-		if (route.kind === 'workspace') return true;
+		if (route.kind === 'root' || route.kind === 'workspace') {
+			return (
+				!navigated ||
+				(state.active === null && state.section === null) ||
+				(await kernel.call('app-close')).success
+			);
+		}
 		const section = route.kind === 'project' ? 'projects' : route.section;
 		const rest = route.kind === 'project' ? '' : route.rest.join('/');
 		return (
@@ -127,22 +143,55 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		);
 	}
 
-	/** Run what a route needs with state to URL suspended, and show "Nothing here" when it names nothing. */
-	async function under(
-		route: RouteV1,
-		state: MainStateV1,
-		before?: () => Promise<unknown>
-	): Promise<boolean> {
+	/**
+	 * Run `task` with state to URL suspended, and show "Nothing here" when it found nothing. `undefined`
+	 * leaves what main shows as it was.
+	 */
+	async function under(task: () => Promise<boolean | undefined>): Promise<boolean | undefined> {
 		applying++;
-		let found = false;
+		let found: boolean | undefined = false;
 		try {
-			await before?.();
-			found = await apply(route, state);
+			found = await task();
 		} finally {
 			applying--;
-			host.route = found ? 'home' : 'not-found';
+			if (found !== undefined) host.route = found ? 'home' : 'not-found';
 		}
 		return found;
+	}
+
+	/** Stage B's half of the boot (6.3). */
+	async function boot(): Promise<void> {
+		let state = await host.readState();
+		// A route stage A found nothing for applies nothing, so a refused project journals no refusal.
+		const route: RouteV1 = host.route === 'home' ? router.route : { kind: 'not-found' };
+		// An app here that cannot open, or not at this level: as 6.3's `not-found`, the scope goes back to the
+		// record's rather than stage A's choice being journaled, as an in-page navigation checks first.
+		const refused = route.kind === 'app' && !supports(host.appList, route.instance, route.project);
+		const found = await under(async () => {
+			if (state.pending) {
+				// What stage A chose in memory is journaled, with the persisted record as its `previous` (10).
+				let to = state.scope.project ?? null;
+				if (refused) {
+					const record = await kernel.call<{ state: { project: string | null } }>(
+						'view-state-get',
+						{
+							id: 'loam.scope',
+						}
+					);
+					to = record.data?.state.project ?? null;
+				}
+				let set = await kernel.call('scope-set', { project: to });
+				// The record's project, refused to this actor now: the workspace, as stage A would have chosen.
+				if (!set.success && refused && to !== null) {
+					set = await kernel.call('scope-set', { project: null });
+				}
+				// Never apply a route against a state the kernel did not take.
+				if (!set.success) return undefined;
+				state = await host.readState();
+			}
+			return !refused && apply(route, state, false);
+		});
+		if (found) await follow('replace');
 	}
 
 	/**
@@ -163,10 +212,13 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			return;
 		}
 		const workspace = formatRoute({ kind: 'workspace', workspace: state.workspace.id }, base);
+		// The URL already names the state: main shows it, so not "Nothing here", as after an app reopened
+		// from there.
 		if (
 			url === here ||
 			(wanted.kind === 'root' && [`${url}index.html`, workspace].includes(here))
 		) {
+			host.route = 'home';
 			return;
 		}
 		const navigation = (view as unknown as { navigation?: NavigationLike }).navigation;
@@ -177,30 +229,34 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		host.route = 'home';
 	}
 
+	// A person's navigation and an event wait for the boot's own route, which stage B starts (6.3).
+	let booted: () => void = () => {};
+	const bootStarted = new Promise<void>((resolve) => {
+		booted = resolve;
+	});
+
 	return {
-		boot: () =>
-			queued(async () => {
-				const state = await host.readState();
-				// What stage A chose in memory, the URL's project or the workspace in place of a project the actor
-				// may no longer enter, is journaled, with the persisted record as its `previous` (6.3, 10).
-				const pending = state.pending
-					? () => kernel.call('scope-set', { project: state.scope.project ?? null })
-					: undefined;
-				// A route stage A found nothing for applies nothing, so a refused project journals no refusal.
-				const route: RouteV1 = host.route === 'home' ? router.route : { kind: 'not-found' };
-				if (await under(route, state, pending)) await follow('replace');
-			}),
-		navigated: (route) =>
-			queued(async () => {
+		boot() {
+			const done = queued(boot);
+			booted();
+			return done;
+		},
+		async navigated(route) {
+			await kernel.appsReady;
+			// "Could not load" stays: without the late commands, no route can be applied.
+			if (kernel.lateFailure) return;
+			await bootStarted;
+			return queued(async () => {
 				// Once this navigation has finished, so the write does not abort it: the URL follows the state.
-				if (await under(route, await host.readState())) {
+				if (await under(async () => apply(route, await host.readState(), true))) {
 					setTimeout(() => void queued(() => follow('replace')));
 				}
-			}),
+			});
+		},
 		changed(event) {
 			if (!event.success || !(event.scopeChanged || event.mainChanged) || applying > 0) return;
 			const history = event.mainChanged ?? 'push';
-			void queued(() => follow(history));
+			void bootStarted.then(() => queued(() => follow(history)));
 		},
 	};
 }

@@ -7,7 +7,7 @@ import type { RouteV1 } from './router.js';
 
 /** As the router's: a dot segment, or one holding a slash. Repeated so this chunk imports no router. */
 const unsafe = (segment: string): boolean =>
-	segment === '.' || segment === '..' || segment.includes('/');
+	!segment || segment === '.' || segment === '..' || segment.includes('/');
 
 /**
  * The absolute URL of `route` under `base`, each segment percent-encoded. It refuses a `.` or `..`

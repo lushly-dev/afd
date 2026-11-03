@@ -668,11 +668,12 @@ export async function createKernelParts(
 	 * enter it, otherwise the persisted record's on the same two tests, otherwise the workspace. In memory:
 	 * a change is journaled in stage B, by `scope-set`.
 	 */
-	function chooseScope(slug?: string): void {
+	function chooseScope(slug?: string | null): void {
 		const actor = sessionActor(options.auth);
-		const project = [slug && scope.project(slug)?.id, state.scopeProject()].find(
-			(id) => id && scope.allows(actor, { workspace: workspace.id, project: id })
-		);
+		// `null`: the URL names the workspace itself, so the persisted project is not entered (6.3).
+		const project = (
+			slug === null ? [] : [slug && scope.project(slug)?.id, state.scopeProject()]
+		).find((id) => id && scope.allows(actor, { workspace: workspace.id, project: id }));
 		scope.setActive(project ? { workspace: workspace.id, project } : { workspace: workspace.id });
 	}
 

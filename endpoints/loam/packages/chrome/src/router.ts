@@ -27,9 +27,12 @@ const INSTANCE = /^(?!p$)[a-z][a-z0-9]{0,31}$/;
 const SECTION = /^(projects|documents)$/;
 const NOT_FOUND: RouteV1 = { kind: 'not-found' };
 
-/** A segment no route holds: a dot segment, which `new URL` would walk, or one that decoded to a slash. */
+/**
+ * A segment no route holds: an empty one, so a trailing slash is `not-found` in every shape; a dot
+ * segment, which `new URL` would walk; or one that decoded to a slash.
+ */
 const unsafe = (segment: string): boolean =>
-	segment === '.' || segment === '..' || segment.includes('/');
+	!segment || segment === '.' || segment === '..' || segment.includes('/');
 
 /**
  * The route of `url` against `base`, the deployment's root with its trailing slash. Naming segments
@@ -87,6 +90,7 @@ interface NavigateEventLike extends Event {
 	hashChange: boolean;
 	downloadRequest: string | null;
 	destination: { url: string };
+	formData: unknown;
 	info?: unknown;
 	intercept(options: { handler: () => Promise<void> | void; focusReset?: 'manual' }): void;
 }
@@ -108,24 +112,33 @@ export interface RouterV1 {
 export function createRouter(
 	view: Window,
 	base: string,
-	onRoute: (route: RouteV1) => Promise<void> | void
+	onRoute: (route: RouteV1) => unknown
 ): RouterV1 {
 	let route = parseRoute(view.location.href, base);
 	const navigation = (view as unknown as { navigation?: EventTarget }).navigation;
 	const listener = (event: Event) => {
 		const navigate = event as NavigateEventLike;
-		if (!navigate.canIntercept || navigate.hashChange || navigate.downloadRequest !== null) return;
-		// A reload reloads the document; intercepting it would keep the page as it is.
-		if (navigate.navigationType === 'reload') return;
-		if (new URL(navigate.destination.url).origin !== view.location.origin) return;
+		const next = parseRoute(navigate.destination.url, base);
+		// Another origin, outside the base or a deployment's own file is `not-found`, and the browser loads
+		// it, as it does a form's submission. A reload reloads the document.
+		if (
+			!navigate.canIntercept ||
+			navigate.hashChange ||
+			navigate.downloadRequest !== null ||
+			navigate.formData ||
+			navigate.navigationType === 'reload' ||
+			next.kind === 'not-found'
+		) {
+			return;
+		}
 		// The shell's own write follows a command, so focus stays where the person has it; a person's
 		// navigation resets it, as the platform does. The document does not scroll: main does.
 		const own = navigate.info === STATE_INFO;
 		navigate.intercept({
 			...(own ? { focusReset: 'manual' } : {}),
 			handler: () => {
-				route = parseRoute(navigate.destination.url, base);
-				if (!own) return onRoute(route);
+				route = next;
+				if (!own) return onRoute(route) as Promise<void>;
 			},
 		});
 	};

@@ -12,7 +12,7 @@
  * classic Zod, the chrome's surfaces, its view host and the console. Each is a static closure, charged
  * what a page has not loaded by then. Hello's and tally's bundles are recorded and not limited. It fails
  * when a measure is over its ceiling, when first paint holds classic Zod or `toJSONSchema`, or when it holds
- * a chunk of stage B: `late`, `apps`, the readers, `surfaces` (phase 2 specification, 2.2). That first
+ * a chunk of stage B: `late`, `apps`, the readers, `surfaces`, `url-sync` (phase 2 specification, 2.2). That first
  * paint is the same for every deployment. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -34,8 +34,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 2 changed no ceiling: first paint 273,179 and 83,564 gzip, `apps` 377,811 (2.4's table).
  * Step 4 changed none either: first paint 277,772 and 85,346 gzip, the kernel alone 110,680, `late`
  * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 5 changed
- * none: first paint 279,697 and 86,072 gzip, with the URL's commands and writes in a `url-sync` chunk
- * loaded when stage B ends (2,931 bytes, no row of its own), and the kernel alone 110,770. Step 9 leaves
+ * none and added `urlMinified`: the URL's commands and writes are a `url-sync` chunk loaded when stage B
+ * ends, 3,540, under 5,000, its measurement plus 10% and 1,000 for steps 7 and 11's shapes (approved by
+ * the coordinator); first paint 279,733 and 86,087 gzip, the kernel alone 110,790, `late` 47,975. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -44,6 +45,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
+	urlMinified: 5_000,
 	appsMinified: 378_993,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
@@ -117,7 +119,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late)-/.test(name)
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync)-/.test(name)
 	);
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
@@ -137,6 +139,9 @@ async function measurePage() {
 	const late = closure(/^assets\/late-/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	const afterLate = new Set([...initial, ...late]);
+	// The URL's chunk loads when stage B ends, beside `apps`, so it is charged after `late` (6.3).
+	const url = closure(/^assets\/url-sync-/, afterLate);
+	if (url.size === 0) throw new Error('budget: the build has no `url-sync` chunk to measure');
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -167,6 +172,7 @@ async function measurePage() {
 		})),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		lateMinified: sizeOf(late),
+		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
 		viewMinified: sizeOf(view),
@@ -234,6 +240,7 @@ const ROWS = [
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
+	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],

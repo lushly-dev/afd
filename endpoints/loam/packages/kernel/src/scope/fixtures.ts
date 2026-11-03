@@ -262,7 +262,7 @@ export interface ScopedWorkspaceOptions {
 	/** Default: a stepping clock from 2026-01-01. A reload's starts later, so its trace IDs differ. */
 	clock?: () => number;
 	/** The URL's project, by slug, as the web host passes it (6.3). */
-	initialScope?: { project: string };
+	initialScope?: { project: string | null };
 }
 
 /**
