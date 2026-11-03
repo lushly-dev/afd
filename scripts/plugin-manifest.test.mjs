@@ -712,12 +712,18 @@ for (const path of umbelVersions) {
 		assert.deepEqual(top.sort(), ['component', 'packs']);
 		assert.deepEqual(added('mount').sort(), ['bearer', 'command', 'cwd', 'env']);
 		assert.deepEqual(added('mountTool'), ['bind_space']);
-		for (const definition of ['plugin', 'grant', 'context', 'pipeline', 'skill', 'config']) {
+		// Manifest version 3 adds `journal` to commands and pipelines and `authority_prompt` to
+		// commands (spec/plugin-manifest.md, P3).
+		const v3 = Number(path.match(/\.v(\d+)\.json$/)[1]) >= 3;
+		for (const definition of ['plugin', 'grant', 'context', 'skill', 'config']) {
 			assert.deepEqual(added(definition), [], definition);
 		}
+		assert.deepEqual(added('pipeline'), v3 ? ['journal'] : [], 'pipeline');
 		assert.deepEqual(
-			added('command').filter((key) => key !== 'confirm'),
-			[]
+			added('command')
+				.filter((key) => key !== 'confirm')
+				.sort(),
+			v3 ? ['authority_prompt', 'journal'] : []
 		);
 		const { expose } = profile.$defs.command.properties;
 		assert.deepEqual(Object.keys(expose.properties).sort(), ['agent', 'cli', 'mcp', 'palette']);

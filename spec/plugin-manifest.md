@@ -83,6 +83,7 @@ no two hosts claim one name:
 | --- | --- | --- |
 | `component`, `packs` | Top level | Umbel |
 | `confirm` | A command | Umbel |
+| `journal`, `authority_prompt` | A command; `journal` also a pipeline | Umbel, from its manifest version 3 |
 | `command`, `cwd`, `env`, `bearer` | `mount` | Umbel |
 | `bind_space` | A mount tool | Umbel |
 | `ui` | Top level, in the core as an object | Loam, which defines its contents |
@@ -111,7 +112,7 @@ does, and this page names its core version.
 
 ### Umbel's profile
 
-Umbel's `endpoints/umbel/schemas/plugin-manifest.v1.json` and `v2.json` are the first profile. They
+Umbel's `endpoints/umbel/schemas/plugin-manifest.v1.json`, `v2.json` and `v3.json` are the first profile. They
 conform to core version 1 unchanged, written before it and closed with `additionalProperties`, not by
 `$ref`: they refuse the core's optional additions, close `kind`, the domain rule and the grant catalog,
 own the keys in P3, and name the grants that `store-write` and `workspace-write` need. One check sits
