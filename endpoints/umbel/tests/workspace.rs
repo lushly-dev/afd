@@ -613,8 +613,8 @@ fn version_1_opens_with_no_plugins_and_version_2_with_its_instances() {
     assert!(one.config().plugins.instances.is_empty());
     let two = open(V2).unwrap();
     assert_eq!(two.config().version, 2);
-    // The version this build writes; it reads 1 and 2 as 3 with no collections.
-    assert_eq!(umbel::CONFIG_VERSION, 3);
+    // The version this build writes; it reads 1 to 3 as 4 with no collections.
+    assert_eq!(umbel::CONFIG_VERSION, 4);
     // Version 1 has no plugins: the phase 0 rule stays for it.
     invalid(
         "config_version = 1\n[plugins]\nenabled = [\"x\"]\n",
