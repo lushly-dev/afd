@@ -322,7 +322,9 @@ sequenceDiagram
   stores, in sections rather than fused scores, with provenance and a
   verification label on every item and a list of what was left out and why
   ([D78](decisions.md)). A session-start bundle pushes `person` authority only by
-  default; a person confirms an agent's note to admit it ([D84](decisions.md)).
+  default; a person confirms an agent's note to admit it ([D84](decisions.md)), and
+  at the CLI a person's own fact reaches `person` only through a terminal prompt
+  ([D86](decisions.md)).
 - **Capture and harness adapters.** What a harness hook sends at session end:
   episodes, decisions, artifacts, with scope and principal. Adapters share one
   JSON contract: session start returns a context bundle under the harness's
@@ -395,7 +397,7 @@ sequenceDiagram
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
 | Lexical index | tantivy 0.27 (features `mmap`, `stopwords`, `stemmer`, `lz4-compression`) and `tantivy-query-grammar` 0.27 | Fielded BM25 with boolean, phrase, field, boost, range and bounded prefix syntax, embedded; Umbel builds queries from the grammar's AST, because tantivy's own parser refuses a bare `term*` and sets no limits ([D58](decisions.md)) | Rust 1.88; one writer per index across processes through its lock file, which the backend waits on and which serialises indexers ([D51](decisions.md)) |
 | Embedded storage | SQLite through rusqlite 0.41 with `bundled` (SQLite 3.54.1), in WAL mode with `synchronous=FULL`, one database per space ([D51](decisions.md)), and a second per space for memory, with FTS5 and `secure_delete` ([D70](decisions.md)), and a key file beside it ([D83](decisions.md)) | Single-directory deployments, transactions, no service | Chosen in phase 2 as [D28](decisions.md) required: several host processes open one workspace, many readers and one writer at a time, waiting up to `store.lock_timeout_ms`; no daemon; a local filesystem, as the workspace lock already requires; MSRV 1.89 |
-| Memory sealing | XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11 ([D82](decisions.md)) | Per-record keys, so a forget also reaches `store-backup` copies of the database, though not file-level copies, which hold live text in clear; pure Rust | MSRV 1.85; one NCC Group audit recorded in its README, predating 0.11 |
+| Memory sealing | XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11 ([D82](decisions.md)) | Per-record keys, so a forget also reaches `store-backup` copies of the database, though not file-level copies, which hold live text in clear; on macOS memory is excluded from Time Machine by default and backed up by `store-backup` ([D87](decisions.md)); pure Rust | MSRV 1.85; one NCC Group audit recorded in its README, predating 0.11 |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
 | Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |

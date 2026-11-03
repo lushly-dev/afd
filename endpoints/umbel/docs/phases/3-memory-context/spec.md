@@ -12,7 +12,7 @@
 - **State:** **approved 2026-11-02**, under the owner's 2026-10-31 delegation, with the
   owner's answers of 2026-11-02 (D24). Written 2026-11-01 by the phase 3 owning agent, then
   revised 2026-11-02 after an independent review ("approve after must-fixes"). It adds
-  decisions [D68 to D85](../../decisions.md) and the architecture amendments they need, in
+  decisions [D68 to D89](../../decisions.md) and the architecture amendments they need, in
   [#685](https://github.com/lushly-dev/afd/pull/685). Section [15](#15-for-the-owner) records
   the owner's decisions. No implementation has started. Phase 2 closed in
   [#687](https://github.com/lushly-dev/afd/pull/687).
@@ -54,6 +54,10 @@
   the token prefix cleared by recreating the table were re-run on Python's SQLite 3.53.4 while applying
   it. Not run: a real power loss, the full two-file sequence across processes, Windows, Linux, and
   filesystem or SSD behaviour.
+- **The owner's last answers, 2026-11-02**, given after the key design's review, are written in as
+  [D86 to D89](../../decisions.md): the remember prompt for `person` (3.3), Time Machine exclusion with the
+  file-copy limit stated (5.4), own records only for `memory-confirm` (8.7), and opt-in orphan removal
+  (5.4, 8.8). The exclusion attribute was checked with `tmutil` on the owner's Mac; nothing was built.
 - **Done:** this specification.
 - **Not done:** everything in section [14](#14-implementation-plan), starting at step 1.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
@@ -93,7 +97,7 @@ second half, phase 4.
 
 Decisions served: D3, D7, D9, D10, D13, D14, D15, D17, D19, D22, D25, D26, D27,
 D28, D29, D36, D42, D44, D45, D46, D48, D51, D53, D54, D55, D57, D62, D64, D66
-and D67, and the new D68 to D85 made here. Open decisions O1, O4 and O5 are
+and D67, and the new D68 to D89 made here. Open decisions O1, O4 and O5 are
 untouched: no connector, no embedding lane, no tenancy.
 
 **Prior art.** Botcore's `botcore-memory` is a scoped key-value store: one
@@ -240,14 +244,21 @@ exactly as version 1. Cursors stay version 0.
 
 ### 2.3 Plugin manifest, version 3
 
-Version 2 with one command and pipeline key, `journal`, and the grants of
-section 6 in the catalog:
+Version 2 with two command keys, `journal` (also a pipeline key) and `authority_prompt`, and the
+grants of section 6 in the catalog:
 
 ```toml
 [[commands]]
 name = "memory-remember"
 journal = { mode = "digest", keep = ["space", "project", "class"] }
+authority_prompt = "You are recording this as your own word, authority person, which session start pushes. A record with no project reaches every repository. To record it as an unconfirmed note, answer n and run it again with --yes."
 ```
+
+`authority_prompt` is a static prompt, at most 500 characters, that the CLI shows before a call whose
+memory write would get authority `person` (3.3, D86). A pipeline with a step that declares it inherits the
+steps' prompts in step order, as it inherits `confirm_prompt` (`src/plugins/pipelines.rs`). It is
+`PLUGIN_MANIFEST_INVALID` on a command of a plugin without `memory_write`, and on a mounted tool or a
+component command.
 
 `mode` is `digest` (section 7.1) or `plain`, which journals as today. `keep`, with `digest` only, lists top-level
 input keys whose value, when it is a string, a number, a boolean or a list of at most 100 strings, stays in the
@@ -273,7 +284,8 @@ no first-party plugin needs both (follow-up for phase 4).
 
 Version 3 with `memory` and `memory_write` added to `plugins.<id>.deny` and `memory_write` to `plugins.<id>.grants`.
 That grant's table also takes `default_access`, `writers` and `agents_may_share` (3.2), and `[principal]` takes
-`agent_env` (3.3). Versions 1 to 3 read as 4 with no change of meaning; `umbel init` writes 4 and also writes
+`agent_env` (3.3), and `[store]` takes `exclude_memory_from_machine_backup`, a boolean, default `true` (5.4,
+D87). Versions 1 to 3 read as 4 with no change of meaning; `umbel init` writes 4 and also writes
 `on_behalf_of = "<local_id>"` under `[principal]` (section 3.2).
 
 ## 3. The scope tuple and access (D68)
@@ -349,27 +361,55 @@ The host fills `authority` from what it can see, whatever the command says:
 
 | Path | Condition | `authority` |
 | --- | --- | --- |
-| Remember | Actor kind `human`, CLI, `dev.umbel/human-present` set | `person` |
+| Remember | Actor kind `human`, CLI, `dev.umbel/human-present` set, and the person answered the command's `authority_prompt` (below) | `person` |
 | Remember | Actor kind `human` through the library, `Authentication::Embedder` | `person` |
-| Remember | Actor kind `human`, CLI, `dev.umbel/human-present` not set (a script, a hook, or a harness shell) | `tool` |
+| Remember | Actor kind `human`, CLI, either condition of the first row not met (a script, a hook, a harness shell, `--yes`, or a command with no `authority_prompt`) | `tool` |
 | Remember | Any other actor | `agent` |
 | Capture | Actor kind `human` at the CLI, or through the library with `Authentication::Embedder` | `transcript` |
 | Capture | Any other actor | `agent` |
 | Import | Any | `import` |
 | Confirm (8.7) | Only `person` may run it | `person`, on a new version |
 
-The same table decides a **caller's authority** for the checks of 6.3: a caller "has authority
-`person`" when the Remember rows above would give it `person`.
+A **caller's authority**, for the checks of 6.3 and 8.7, is the terminal check alone: a caller "has
+authority `person`" when it is a `human` actor through the library with `Authentication::Embedder`, or at
+the CLI with `dev.umbel/human-present` set. The prompt below guards what a record is given, not what a
+caller may remove.
+
+**One bar for every route to a `person` record (owner decision of 2026-11-02, D86).** At the CLI a record
+reaches `person` only after the person answers a prompt at the terminal: `memory-confirm`'s, through
+`require-human` (8.7), or a remember command's `authority_prompt` (2.3). A `confirm = "require-human"` on
+`memory-remember` cannot do this, because it refuses every caller without a terminal, and agents must still
+write with authority `agent`. So the prompt applies only on the path that would give `person`:
+
+1. In the single-command path, after any `confirm_prompt`, the CLI checks the command's `authority_prompt`.
+   If the command declares one and `dev.umbel/human-present` would be set, it shows the prompt on stderr,
+   sanitized as `src/cli/prompt.rs` does, and asks `Proceed? [y/N]`. `mcp.confirmations` does not change this,
+   as it does not change `require-human`.
+2. **Yes:** the CLI sets `dev.umbel/human-present` and `dev.umbel/human-confirmed`, naming the command, in the
+   context it builds. The host gives `person` only when both are there and the mark names the command the CLI
+   ran. A mark is a host-owned key that no batch, MCP call or library caller can set (#688).
+3. **No**, or no answer: `CONFIRMATION_DECLINED`, and **nothing is written** or journaled, as for a declined
+   `confirm_prompt`. Its suggestion: answer `y` to record it as your own word, or run it again with `--yes` to
+   record it with authority `tool`. A silent downgrade to `tool` was rejected, because the person said no to
+   the write they were shown.
+4. **Nothing is asked** when `dev.umbel/human-present` would not be set: no terminal, `--yes` or `--approve`,
+   an agent environment variable, or `@-` (10.6). The write goes ahead with `tool` or `agent`, as the table
+   says, so agents and scripts write as before.
+
+The library row needs no prompt: there is no terminal, and the embedder already asserts the person behind
+every call (phase 2 owner decision 1). **This is still not an attestation**, as the last paragraph of this
+section says; it makes the ordinary case, a person at a terminal, a deliberate act.
 
 `dev.umbel/human-present` is set only by the CLI's single-command path, in the context it
-builds, when all of these hold: stdin and stderr are terminals; neither `--yes` nor `--approve`
-was given; and none of the **agent environment variables** is set. Those are `CLAUDECODE`,
-`CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT` (seen in a harness child on 2026-11-02), plus any the
-workspace lists in `principal.agent_env`. `umbel batch` never sets it and drops caller context
+builds, when all of these hold: stdin and stderr are terminals; the input is not `@-`; neither
+`--yes` nor `--approve` was given; none of the **agent environment variables** is set; and, for a
+command that declares `authority_prompt`, the person answered yes. The agent environment variables
+are `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT` (seen in a harness child on 2026-11-02),
+plus any the workspace lists in `principal.agent_env`. `umbel batch` never sets it and drops caller context
 (#688); MCP ignores caller context.
 
 `person` **is not an attestation.** A harness that runs commands in a pseudo-terminal with its
-variables removed passes this check, and so does any local process that tries. It stops the
+variables removed passes this check and can answer the prompt, and so can any local process that tries. It stops the
 ordinary case, an agent shelling out to the CLI or a hook being recorded as a person's word. It
 is weak against a determined local process, and phase 5 replaces it (W5). The default push rests
 on this check (9.3), and the README says so.
@@ -531,7 +571,7 @@ object-safe, and `STORE_TRAITS_VERSION` becomes 2. Every read takes a
 | `left_out(scope, classes, push, as_of, reader) -> Result<LeftOut>` | Counts per class of readable, current records that `push` or the flag rule keeps out of a bundle: `{ authority, flagged }`. A separate query, so omission reporting never takes a candidate's place. Reads no key |
 | `forget(req: Forget) -> Result<ForgetReceipt>` | Erases by `ids`, or by `owner` with `session`, `project`, or `before`, in the order of 5.4. `ForgetReceipt { erased, ids (at most 100), not_found, wal: Clean \| Pending }`. `Pending` means the keys are destroyed and steps 3 to 5 have not all finished. Idempotent |
 | `sweep(req: Sweep) -> Result<SweepReceipt>` | Section 8.8. At most `limit` records per call, reports `remaining` |
-| `reindex() -> Result<ReindexReceipt>` | Section 5.4. `{ reindexed, unreadable, orphans_removed }` |
+| `reindex(remove_orphans: bool) -> Result<ReindexReceipt>` | Section 5.4. `{ reindexed, unreadable, orphans, orphans_removed }`; `orphans_removed` is 0 unless `remove_orphans` |
 | `backup(dest) -> Result<BackupReceipt>` | Section 5.4. Writes the stripped copy to `<dest>/memory.sqlite3`, never the key file |
 | `key_status() -> Result<KeyStatus>` | `{ file: Present \| Missing \| Mismatch, unsettled, destroyed, orphans, absent }` |
 | `changes(after, limit ≤ 1000, reader, trace) -> Result<Vec<MemoryChange>>` | `{ rev, kind: Created \| Observed \| Invalidated \| Confirmed \| Erased \| Purged, id, recordVersion, trace_id, at }`, filtered by the access the record had at that change. No text |
@@ -639,6 +679,7 @@ doctor adds these checks:
 | `stores.memory` | `memory.sqlite3` opens at a served version |
 | `stores.memory_keys` | The key file is present, matches `store_id` and passes `integrity_check`. Missing or mismatched is a **failure** naming the error of 5.4. A store not yet provisioned passes |
 | `stores.memory_modes` | `memory.sqlite3` and `memory.keys` have no group or other bits, on Unix |
+| `stores.memory_backup` | Says, as information, that memory is not in machine backups and that `store-backup` plus a separate copy of `memory.keys` is the way to back it up. On macOS it warns when `store.exclude_memory_from_machine_backup` is `true` and a file of 5.4's list lacks the exclusion, or is `false` and one still has it. On Linux and Windows it says that no exclusion is set, so their backup tools copy the files, under 5.4's file-copy limit |
 | `stores.principals` | Section 3.2 |
 | `stores.sweep` | Section 8.8 |
 | `stores.capture` | A hook's last unresolved failure (10.3), if its state file exists |
@@ -651,6 +692,33 @@ key file. A forget destroys the key **and** does the byte-level deletion. So a c
 current key file. The guarantee covers those copies only. A file-level copy (`cp`, rsync, Time
 Machine, a filesystem snapshot) also holds `records_fts`, so it holds every live record's text in
 clear, with no key needed, for as long as the copy exists.
+
+**Machine backups (owner decision of 2026-11-02, D87).** Per-record keys stay, and the file-copy limit
+is accepted and stated. On macOS the store keeps memory out of Time Machine, unless
+`store.exclude_memory_from_machine_backup = false` (2.4):
+
+- The mark is the extended attribute `com.apple.metadata:com_apple_backup_excludeItem`, a binary property
+  list holding the string `com.apple.backupd`, which is what `tmutil addexclusion` writes. It is sticky: on
+  2026-11-02, on the owner's Mac, it survived a rename and a `cp`, and `tmutil isexcluded` reported each
+  file excluded. The store sets it with `setxattr` through `libc`, already in the lock at 0.2.191, added as a
+  macOS-only dependency of `umbel-store-embedded`. No process is spawned.
+- Provisioning sets it on `memory.sqlite3` in step 1 and on the temporary key file in step 3, before the
+  rename, so neither file is ever unmarked. SQLite creates and deletes `memory.sqlite3-wal` and
+  `memory.sqlite3-shm` itself, and a database restored by hand arrives unmarked, so **every writer's open**
+  sets the attribute on `memory.sqlite3`, `memory.keys` and the WAL and shared-memory files where it is
+  missing. `memory.keys-journal` lives for one commit and is not marked.
+- With the setting `false`, a writer's open removes the attribute from those files instead, so the change
+  takes effect at the next write. The doctor's `stores.memory_backup` reports the state (5.3).
+- Nothing else is excluded: `store.sqlite3`, the index and the journal stay in Time Machine as before.
+
+**The cost, which the owner accepts:** if the disk fails, only what the person backed up by hand remains,
+that is `store-backup` copies of the database and a separate copy of `memory.keys`, which `store-backup`
+leaves out (below). **What the exclusion does not cover:** `cp`, rsync and other copies made by hand;
+filesystem snapshots, including APFS local snapshots, which capture the volume as it is; macOS backup tools
+other than Time Machine, which may ignore the attribute; a key file's journal caught mid-commit; and every
+backup tool on Linux and Windows, where Umbel sets nothing. Each of those holds live text in clear, as the
+paragraph above says. **Whole-file encryption was rejected** in its place: an old copy of the database,
+opened with the same file key, would still show text forgotten since, which per-record keys prevent.
 
 **The cipher.** XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11.0 (`cargo info`,
 2026-11-02; Apache-2.0 OR MIT; MSRV 1.85), with `default-features = false` and features `alloc`,
@@ -740,9 +808,9 @@ and the warning `MEMORY_ERASURE_PENDING`, because the key is gone and roll-forwa
 
 **Writing.** Inside the memory transaction: generate the keys, commit them to the key file, seal,
 insert, commit memory. A crash or a failed commit between the two commits leaves orphan keys, so no
-live row ever lacks a key. Orphans are harmless. **Only an explicit `memory-reindex` removes them**,
-never a sweep, a write or a restore's rebuild, because an orphan of this database may be the key of
-a live record in a database about to be put back.
+live row ever lacks a key. Orphans are harmless. **Only `memory-reindex` with `removeOrphans = true`
+removes them** (D89), never a sweep, a write, a restore's rebuild or a default reindex, because an orphan
+of this database may be the key of a live record in a database about to be put back.
 
 **Forgetting, in order:**
 
@@ -800,7 +868,7 @@ still be forgotten.
 | `memory-sweep` | Purges in the order above: keys, then rows, leaving markers and no tombstone. Also runs before writes, at most 16 records per call (8.8). Never removes orphan keys |
 | `memory-invalidate`, `memory-confirm` | Seal their version blob under the record's key, under the table above: `MEMORY_KEY_ABSENT` for an absent entry, `MEMORY_NOT_FOUND` for a marker |
 | `store-check` | Reports, and changes nothing except that it runs a `TRUNCATE` checkpoint, now on `memory.sqlite3` too, and after one that succeeds settles markers whose rows are gone: `PRAGMA integrity_check` on both files; `INSERT INTO records_fts(records_fts) VALUES('integrity-check')`; access-table consistency; the journal cross-check of D66; `records` with `indexed = 1`, `record_derived` and `records_fts` row counts equal; **every readable row opens** (absent keys, failed seals, each a finding whose answer is to restore the key file or forget the record); rows with a marker; orphan keys; unsettled markers |
-| `memory-reindex` | CLI only. Roll forward, then one `BEGIN IMMEDIATE`: delete rows with a marker, as the rebuild below does; drop and create `records_fts`, setting `secure-delete` again; empty `record_derived`; open each remaining record and insert it, with `indexed = 1`; a row that does not open gets `indexed = 0` and is reported, never deleted; remove orphan keys. After the commit, `wal_checkpoint(TRUNCATE)`. It is the answer to any FTS finding from `store-check`, and it clears token prefixes (limits, below). **Run it only on the database you mean to keep:** orphans are judged against this database, so on a restored older copy it deletes the keys of every later record |
+| `memory-reindex` | CLI only. Roll forward, then one `BEGIN IMMEDIATE`: delete rows with a marker, as the rebuild below does; drop and create `records_fts`, setting `secure-delete` again; empty `record_derived`; open each remaining record and insert it, with `indexed = 1`; a row that does not open gets `indexed = 0` and is reported, never deleted. It counts orphan keys and, **only when its input `removeOrphans` is `true`** (default `false`, D89), removes them, in a second transaction on the key file after the memory commit, under the lock order above. After the commit, `wal_checkpoint(TRUNCATE)`. It is the answer to any FTS finding from `store-check`, and it clears token prefixes (limits, below). **Removal is opt-in because orphans are judged against this database:** on a restored older copy it would delete the keys of every later record, and putting the newer database back would then leave each of them `MEMORY_KEY_ABSENT`. Pass `removeOrphans` only on the database you mean to keep |
 | `store-backup` | Below |
 
 **Backups.** `store-backup` writes the memory store with no temporary copy, so plaintext never reaches
@@ -1122,7 +1190,7 @@ These tests are what speak for section 7.2's promise.
 
 | Command | Effects | First-class | Exposure | Output budget (default, max) | Journal |
 | --- | --- | --- | --- | --- | --- |
-| `memory-remember` | `store-write` | **yes** | all | — | digest: `space`, `project`, `class` |
+| `memory-remember` | `store-write`, `authority_prompt` (3.3) | **yes** | all | — | digest: `space`, `project`, `class` |
 | `memory-capture` | `store-write` | no | all | — | digest: `space`, `project`, `session`, `event` |
 | `memory-recall` | `inspect` | no | all | 16 000, 64 000 | digest: `space`, `project`, `classes` |
 | `memory-list` | `inspect` | no | all | 16 000, 64 000 | digest: `space`, `project`, `classes` |
@@ -1195,6 +1263,10 @@ uses `agent-inferred` for episodes and artifacts, and a decision's own `origin`,
 `supersedes` names at most 16 ids the caller may invalidate (6.3), each in the same project
 with an equal access set, else `MEMORY_SCOPE_MISMATCH`: a supersede cannot quietly widen who
 sees the replacement.
+
+**Reaching `person`.** At the CLI, `memory-remember` gives `person` only after its `authority_prompt` is answered
+yes (3.3, D86). A declined prompt is `CONFIRMATION_DECLINED` and writes nothing. With `--yes`, from a script or
+an agent, nothing is asked and the record is `tool` or `agent`, so `origin` defaults to `agent-inferred`.
 
 The result never repeats the text: `{ id, recordVersion, state: "created" | "observed" |
 "replayed", class, expiresAt, flags, redactions, verification: "unverified" }`, plus the warnings
@@ -1293,16 +1365,19 @@ record.
 `memory-confirm`: `{ space?, id, contentHash }`. **Owner decision 2.** A person vouches for a memory at a
 terminal, which is what puts an agent's note on the default push path. `confirm = "require-human"` shows
 the fixed prompt ("You are vouching for this record's text as your own; read it with memory-show
-first") and refuses `--yes` and `--approve`, as `src/cli/mod.rs` does already. The host then also requires
+first. A record with no project reaches session start in every repository.") and refuses `--yes` and `--approve`, as `src/cli/mod.rs` does already. The host then also requires
 authority `person`, so an agent environment variable (3.3) refuses it too, with `MEMORY_CONFIRM_NOT_ALLOWED`.
 Prompts are static until phase 5, so `contentHash` is **the value `memory-show` printed, at least its first
 16 hex digits**. That ties the confirmation to the text shown, so a record that changed cannot be confirmed
 from an old command. It does not prove anyone read it: an agent can hand a person the whole command, hash
 included. A mismatch is `MEMORY_CONFIRM_MISMATCH`. The journal keeps `space` and `id`, never the hash.
 
-- The caller's effective principal must be the record's `principal`, or the caller a sharing writer who
-  can read it.
-- `MEMORY_CONFIRM_NOT_ALLOWED`, naming the reason, when the caller lacks authority `person`, or the record is flagged (a flagged record is never
+- **Own records only, until phase 5** (owner decision of 2026-11-02, D88). The caller's effective principal must
+  be the record's `principal`. A sharing writer who can read another person's record may not confirm it. An agent
+  acting for its person shares that principal (3.1), so a person still confirms their own agent's notes. Confirming
+  another person's record waits for phase 5's verified identity (section 13).
+- `MEMORY_CONFIRM_NOT_ALLOWED`, naming the reason, when the record is readable and another principal's, or the
+  caller lacks authority `person`, or the record is flagged (a flagged record is never
   pushed, so a person re-remembers it in their own words), or its authority is `transcript` (a whole
   window is not a statement), or it is already `person`.
 - It writes version n+1 as 4.1 says: the same text, the same valid interval, `authority: "person"`, and
@@ -1341,7 +1416,9 @@ The doctor's `stores.sweep` warns when a space has records past their purge date
 status, and `pushable` (how many of the caller's records the instance's push settings admit, 9.3), so an
 empty bundle explains itself.
 
-`memory-reindex`: `{ space? }`, section 5.4. Result `{ reindexed, unreadable, orphansRemoved }`.
+`memory-reindex`: `{ space?, removeOrphans? (default `false`) }`, section 5.4. Result `{ reindexed, unreadable,
+orphans, orphansRemoved }`. Without `removeOrphans` it reports the orphan count and removes nothing from the key
+file, and its `suggestion` says to pass `removeOrphans = true` only on the database you mean to keep (D89).
 
 ### 8.9 `memory-import`, `memory-export`
 
@@ -1844,7 +1921,8 @@ export` will not edit a person's `MEMORY.md`: it prints the one line to add, a l
 The CLI takes a command's input only from its arguments (`src/cli/args.rs`), and a transcript window does not fit in one: Linux caps
 a single argument at 128 KiB. So one word, `@-`, as a command's whole input reads one JSON object from stdin, up to 16 MiB, else
 `INPUT_TOO_LARGE`. A `require-human` command refuses `@-` with `CONFIRMATION_REQUIRED`, because its stdin is the prompt's. Since `@-` means
-stdin is not a terminal, it also never sets `dev.umbel/human-present`.
+stdin is not a terminal, it also never sets `dev.umbel/human-present`, so it asks no `authority_prompt` and a
+`memory-remember` from `@-` is `tool` or `agent` (3.3).
 
 ## 11. Security
 
@@ -1866,7 +1944,7 @@ stdin is not a terminal, it also never sets `dev.umbel/human-present`.
 | Threat | Control | Test |
 | --- | --- | --- |
 | **Query-only poisoning** (S14): an attacker's ordinary input leads an agent to write a malicious record that another user's agent later recalls | Private by default, so a record reaches only its own principal; an agent cannot widen access (3.2); foreign records are pushed only at `person` (9.3); frequency buys nothing (8.2). Exact only for embedders before phase 5 | `first-party/tests/poisoning.rs` |
-| **The single-user route**: a repository or page leads an agent to write a note that its own next session receives | The default push admits only `person`, and an agent's note needs `memory-confirm`; a project-less record reaches other repositories only at `person`; the scan flags what it recognises. Weak against a pseudo-terminal (3.3) and against a person confirming without reading | `poisoning.rs`, `context/tests/selection.rs` |
+| **The single-user route**: a repository or page leads an agent to write a note that its own next session receives | The default push admits only `person`; an agent's note needs `memory-confirm`, and a person's own fact needs the remember prompt (3.3); a project-less record reaches other repositories only at `person`; the scan flags what it recognises. Weak against a pseudo-terminal (3.3) and against a person answering a prompt without reading | `poisoning.rs`, `context/tests/selection.rs`, `tests/cli_authority_prompt.rs` |
 | **Displacement**: a flood of fresh or flagged writes pushes out honest records | Tier order and `per_authority_cap`; candidates exclude flagged; left-out counts are a separate query; the write quota (9.3, 8.11) | `poisoning.rs` |
 | **Instruction injection through recalled memory** (S15, S19): retrieved text bypasses input filters | Flagged records never pushed, and labeled on recall; `trust` labels; `UNVERIFIED_CONTENT`; no content in messages; quoted rendering; `transcript` and `import` not pushed; `verified_only`. **Unmeasured, and pull remains exploitable** | `context/tests/render.rs`, `poisoning.rs` |
 | **Summarisation attack** (S19): a page's text reaches persistent memory through a summary | Tool output and compaction summaries never captured (10.2, 10.3); no model in the path, so nothing is rewritten; a summary an agent writes is `agent`, flagged by the scan when it matches | `memory/tests/capture.rs`, `adapters/hook/tests/claude_code.rs` |
@@ -1931,12 +2009,13 @@ checks locally first, so a step may run the macOS leg locally and record it, and
 | Test file | Crate | Covers |
 | --- | --- | --- |
 | `tests/schemas.rs` (extended) | host | Every new schema and example; events and envelopes of versions 0, 1 and 2 side by side; `verification` const; reserved fields refused; `share` refused in the capture contract |
-| `tests/config_v4.rs` | host | Grants, `deny`, the policy keys on `memory_write` only, `principal.agent_env`, versions 1 to 3 read as 4, `init`'s `on_behalf_of` |
-| `tests/manifest_v3.rs` | host | `journal` key, both modes, `keep` limits, an explicit mode required of a plugin holding `memory`, pipeline inheritance, a digest step feeding a plain step refused at seal, mounted and component refused, `memory_write` with a document write grant refused, versions 1 and 2 still load |
+| `tests/config_v4.rs` | host | Grants, `deny`, the policy keys on `memory_write` only, `principal.agent_env`, `store.exclude_memory_from_machine_backup` and its default, versions 1 to 3 read as 4, `init`'s `on_behalf_of` |
+| `tests/manifest_v3.rs` | host | `journal` key, both modes, `keep` limits, an explicit mode required of a plugin holding `memory`, pipeline inheritance, a digest step feeding a plain step refused at seal, mounted and component refused, `memory_write` with a document write grant refused; `authority_prompt` over 500 characters, without `memory_write`, or on a mounted tool or component refused, and inherited by a pipeline in step order; versions 1 and 2 still load |
 | `tests/memory_grants.rs` | host | Each grant granted, denied, withheld; `allow`; components and mounts refused; identity overwritten; authority table of 3.3; access rule of 3.2, capture private whatever is sent; the host's scan; ownership and authority of 6.3; event `sources`, hash and `generated` nulled; `changes.store`; `replay`; no event on a no-op; a read creates no file |
 | `tests/journal_digest.rs` | host | A canary through a direct call, `afd-call`, `afd-batch`, `afd-pipe`, a plugin pipeline, the CLI, a failing call and a call that fails before any store: never in the journal, while `parse_journal` reads every line, events still project and `event-rebuild` gives the same lines. Asserts the stated limit: a plain `afd-pipe` step does journal what it was passed |
+| `tests/cli_authority_prompt.rs` | host | Section 3.3's prompt, with the fake console of `src/cli/prompt.rs`: asked only when `dev.umbel/human-present` would be set; yes gives `person` with both keys set; no and an empty answer are `CONFIRMATION_DECLINED`, with nothing written or journaled; `--yes`, `--approve`, an agent variable, `@-` and no terminal ask nothing and write `tool`; an agent through MCP writes `agent`; `mcp.confirmations = "off"` still asks; the prompt sanitized; a mark naming another command, and a command with no `authority_prompt`, give `tool`; a batch's `context` sets neither key; a caller's authority for forget and invalidate is unchanged by the prompt |
 | `tests/cli_stdin_input.rs` | host | `@-`: object, not an object, too large, refused by `require-human`; `dev.umbel/human-present` only at a terminal, without `--yes`, without an agent variable, never from a batch's `context` |
-| `tests/store_commands.rs`, `tests/doctor_stores.rs` (extended) | host | `store-show`'s `memory`; `store-check` on a damaged FTS table, a missing key entry and a failed seal; `store-backup`'s stripped copy and warning; row counts that pass after `memory-reindex` skipped a row, with the row still a finding; a `store.open` failure's suggestion that tells the deployer to keep `memory.sqlite3` and `memory.keys`; the six doctor checks of 5.3 |
+| `tests/store_commands.rs`, `tests/doctor_stores.rs` (extended) | host | `store-show`'s `memory`; `store-check` on a damaged FTS table, a missing key entry and a failed seal; `store-backup`'s stripped copy and warning; row counts that pass after `memory-reindex` skipped a row, with the row still a finding; a `store.open` failure's suggestion that tells the deployer to keep `memory.sqlite3` and `memory.keys`; the seven doctor checks of 5.3 |
 | `tests/default_tools.rs` | host | The default `tools/list` set and its measured size with all four plugins (principle 12, 9.7) |
 | `store/tests/memory_suite_detects.rs` | `umbel-store` | Section 5.5 |
 | `store/tests/memory_query.rs` | `umbel-store` | Parser forms, limits, positions; `+a b` compiled as 5.2 says |
@@ -1944,14 +2023,15 @@ checks locally first, so a step may run the macOS leg locally and record it, and
 | `store-embedded/tests/memory_multiprocess.rs` | embedded | Two writer processes and a reader; lock timeout `Busy`; a killed writer loses no committed record; a memory write does not move `store.sqlite3`'s head; file modes on the database, its WAL and the key file; the pragmas read back on each new connection to `memory.sqlite3`; two concurrent first writes end with one `store_id` |
 | `store-embedded/tests/memory_erasure_bytes.rs` | embedded | Raw-byte canaries of 7.4 over every file in the store directory, FTS `secure-delete` set by the `INSERT` form, the control with it off, WAL pending and retried until clean, a marker unsettled until then, destroyed key bytes absent; token prefixes cleared by `memory-reindex`; no `sqlite_stat4` table |
 | `store-embedded/tests/memory_seal.rs` | embedded | Round trip; a blob moved to another id, owner, space, part or version does not open; a flipped bit does not open; nonces differ; nothing sealed appears in `records` or `versions` in clear |
-| `store-embedded/tests/memory_keyfile.rs` | embedded | Section 5.4's table of missing and mismatched files, one case each; provisioning, with a database and no `meta`, adoption, and the temporary file; the crash at every point of 7.4, reopened; `UMBEL_TEST_FAIL_AT`; a marker and an absent entry through `get`, `invalidate` and `confirm`; a forget of an absent entry leaving a marker; roll-forward from each write path, a read writing nothing, one tombstone when two writers meet a marker, none for a purge, the `session` prefix surviving a crash; two processes writing keys and a third forgetting; orphans removed only by `memory-reindex` and never a marker; the pragmas read back on each new connection to the key file |
+| `store-embedded/tests/memory_keyfile.rs` | embedded | Section 5.4's table of missing and mismatched files, one case each; provisioning, with a database and no `meta`, adoption, and the temporary file; the crash at every point of 7.4, reopened; `UMBEL_TEST_FAIL_AT`; a marker and an absent entry through `get`, `invalidate` and `confirm`; a forget of an absent entry leaving a marker; roll-forward from each write path, a read writing nothing, one tombstone when two writers meet a marker, none for a purge, the `session` prefix surviving a crash; two processes writing keys and a third forgetting; orphans counted and kept by a default `memory-reindex`, removed only with `removeOrphans = true`, and never a marker; on a restored older copy a default reindex keeps the later records' keys, so putting the newer database back opens every one; the pragmas read back on each new connection to the key file |
+| `store-embedded/tests/memory_machine_backup.rs` | embedded | macOS only, so it runs on the `knowledge` job's daily macOS leg, and locally on the owner's Mac before each push (`pnpm verify` covers macOS): the attribute of 5.4 on `memory.sqlite3` at provisioning and on the temporary key file before its rename; still there after the rename; set by a writer's open on the WAL and shared-memory files and on a database copied into place unmarked; removed by a writer's open with the setting `false`; `tmutil isexcluded` agrees when `tmutil` exists. On other systems, no attribute and no error |
 | `store-embedded/tests/memory_backup.rs` | embedded | Backup bytes hold no canary, no `records_fts`, no `record_derived` and no key; rowids, mode `0600` and `user_version` kept; **a record forgotten after the backup cannot be read from it with the current key file**; restore rebuilds the index and drops marked rows, with a prefix written for a forget and none for a purge; a forget after the restore leaves no canary; restore, open, put the newer database back by the same procedure, and every record still opens; a file-level copy put back, reported by `store-check`; a crash in the backup leaves no plaintext and no temporary file; a read that opens a restored copy rebuilds it |
 | `plugins/memory/tests/remember.rs` | memory | Input shapes; pipeline order; observe, with authority in the key; renewal by `person` only and its cap; supersede, its one-millisecond and future cases, and `MEMORY_SCOPE_MISMATCH`; TTL caps; origin defaults; no text in results; `constraints` kept; labels refused when they match the pack |
 | `plugins/memory/tests/capture.rs` | memory | Contract validation, the field map of 10.1, classes, caps, whole-call refusal, idempotency, authority `transcript` from the CLI and `agent` from MCP, always private, a pre-empting key from another authority or owner has no effect, artifacts without bytes |
 | `plugins/memory/tests/recall_scope.rs` | memory | Every filter and project rule; flagged returned with its label; concise and detailed; sources; warnings including `MEMORY_UNREADABLE`, counting a row with `indexed = 0`; budget fitting against AFD's own check |
 | `plugins/memory/tests/bitemporal.rs` | memory | The four questions over commands, boundaries, backdating, expiry against `now`, correction of a correction, `recordedAt` clamped under a stale clock, `MEMORY_HISTORY_PURGED` |
 | `plugins/memory/tests/invalidate.rs` | memory | Ownership, authority, conflict, one answer for absent and unreadable; `MEMORY_NOT_FOUND` for a marker and `MEMORY_KEY_ABSENT` for an absent entry |
-| `plugins/memory/tests/confirm.rs` | memory | `require-human`, `--yes` and `--approve` refused; an agent variable refused with `MEMORY_CONFIRM_NOT_ALLOWED`; MCP not offered; a marker is `MEMORY_NOT_FOUND`; hash mismatch; flagged, `transcript` and `person` refused; the new version, `confirmation` and history; `verification` unchanged; journaled without the hash |
+| `plugins/memory/tests/confirm.rs` | memory | `require-human`, `--yes` and `--approve` refused; another principal's readable record refused with `MEMORY_CONFIRM_NOT_ALLOWED`, even for a sharing writer; an agent's note confirmed by its own person; the prompt's project-less warning; an agent variable refused with `MEMORY_CONFIRM_NOT_ALLOWED`; MCP not offered; a marker is `MEMORY_NOT_FOUND`; hash mismatch; flagged, `transcript` and `person` refused; the new version, `confirmation` and history; `verification` unchanged; journaled without the hash |
 | `plugins/memory/tests/forget.rs` | memory | Selectors, `MEMORY_FORGET_HUMAN_REQUIRED`, `--yes` refused, others' records in `notFound`, a `person` record refused below `person`, erased prefixes refuse a later tail, closed window and session, idempotency key not recreating |
 | `plugins/memory/tests/hygiene.rs` | memory | Each secret kind masked, an unterminated PEM, `redactions`, pack override, a bad pack refuses the write, flags |
 | `plugins/memory/tests/quota.rs`, `retention.rs` | memory | Limits and `retry_after_ms`, pack ceilings, stored bytes; class defaults, sweep, `remaining`, no tombstone on purge, keys destroyed on purge, purge before writes, kept when the quota refuses the write, orphan keys left by a sweep, a past `validUntil` kept until `expiresAt`, `expiringSoon` |
@@ -1988,6 +2068,7 @@ at once; a transcript captured with `default_access = "space"` stays private.
 | Out of scope | When | Seam left in phase 3 |
 | --- | --- | --- |
 | **`memory-erase`: a listed person removing anyone's records** | **Phase 5** (owner decision 4, D85) | `forget` works by owner already. **Conditions it must meet:** `confirm = "require-human"`; an `erasers` list empty by default; a dry-run count before it acts; **disclosed residue**: the journal's ids, the erased person's id in `changes` and in the command's own kept input, and the hash in a proposal's `derivedFrom`. It needs phase 5's verified person, since the terminal check can be passed by a pseudo-terminal and an eraser could remove evidence about themselves |
+| `memory-confirm` on another person's record (D88) | Phase 5, with verified identity | `confirm` checks the record's `principal` in the store, so a wider rule is one condition. Before phase 5 a terminal check cannot tell one local person from another, so vouching for someone else's text would be unattributable |
 | **Curator: settling window, candidates, conflict sets, promotion** (D81) | Phase 4 | **Settling inputs:** `validFrom`, `recordedAt`, and the current version's `recordedAt` as "stable since"; `observations.{first,last,count,sessions}`; `confidence` as asserted (never computed here); `invalidation`; `class`, `authority` and `confirmation`. **Reading:** `memory_changes` as a feed, and `ReaderFilter::Derivation`, refused by the memory store now, for the curator's own derivation under a new grant rule. **Writing:** reserved record fields `promotedTo`, `candidate`, `settledAt`. **Bound on phase 4:** a proposal derived from memory copies `authority`, `origin`, `constraints` and `access` into its evidence, cites records in `derivedFrom`, and counts distinct sessions and principals, never writes. `derivedFrom` requires a `contentHash` (`store/src/envelope.rs`), which keeps a hash of forgotten text in the proposal (7.2). A forget does not retract a proposal, and phase 4 must decide what an open proposal does when its evidence is forgotten, and whether the hash stays |
 | `KB -. invalidates .-> M`, knowledge invalidating memory | Phase 4 | `memory_invalidate`, reason `outdated` |
 | Vector or rerank lane on memory (O4) | Opt-in, gated as D65 | `lanes` config reserved; S17's finding on embedding retrieval of updated facts argues for caution |
@@ -2018,13 +2099,13 @@ code carries the `Plugin-isolation-exempt:` line.
 
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
-| 1 | Shapes and configuration | The schemas of section 2 with examples; envelope version 2 in `umbel-store` and `src/provenance.rs`; event version 2; manifest version 3 parsing (key stored); configuration version 4, with the policy keys and `principal.agent_env`; `init`'s `on_behalf_of`; version constants; `memory`, `memory_write` in the grant lists (still unavailable) | `schemas.rs`, `config_v4.rs`, `manifest_v3.rs` (parsing) | M |
+| 1 | Shapes and configuration | The schemas of section 2 with examples; envelope version 2 in `umbel-store` and `src/provenance.rs`; event version 2; manifest version 3 parsing (keys stored, `authority_prompt` included); configuration version 4, with the policy keys, `principal.agent_env` and `store.exclude_memory_from_machine_backup`; `init`'s `on_behalf_of`; version constants; `memory`, `memory_write` in the grant lists (still unavailable) | `schemas.rs`, `config_v4.rs`, `manifest_v3.rs` (parsing) | M |
 | 2 | Memory trait and suite | `store/src/memory.rs`, query parser with `+a b`, conformance groups with fixture and `MemoryRestore`, the in-memory fake | `memory_suite_detects.rs`, `memory_query.rs` | M |
 | 3a | Embedded memory store | `store-embedded/src/memory/`: schema, modes, FTS5, statements, erased prefixes, sweep, quota, a write's purge in transactions of its own before the write's, checkpoints outside them, per-connection pragmas and their read-back test; `Stores.memory`, with `memory_restore: None` so `memory_erasure`'s copy case reports `Skipped`; the `knowledge` job gains the groups. Text unsealed behind one function, for 3b. Repeats the status's SQLite experiments on the bundled 3.54.1 | `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` | L |
-| 3b | Sealing and the key file | `chacha20poly1305`; provisioning; `memory.keys`; the sealed fields and `record_derived`; forget's order with markers and their kinds, roll-forward, every crash point of 7.4 and `UMBEL_TEST_FAIL_AT`; every missing-key error; `reindex`, `backup` through `ATTACH`, the rebuild on open, `key_status`; `memory_restore`, so `memory_erasure`'s copy case runs; `release`-profile cost per write and per recall recorded in the pull request. Checks that 3a's `write` and `forget` are not left with an unsealed path | `memory_seal.rs`, `memory_keyfile.rs`, `memory_backup.rs`, `memory_erasure_bytes.rs` (markers, retries and `memory-reindex`), conformance re-run | L |
-| 4 | Host services and digest | The grants, section 6's rules, the host's scan, `Ledger`, `dev.umbel/no-change`, SDK methods, `HostError`; digest journaling, the redact step's replay stamp and warning shape, pipeline inheritance and the seal refusal; `dev.umbel/human-present` with its variables; `UMBEL_TEST_CLOCK` and `UMBEL_TEST_HUMAN_PRESENT` under `testkit`; CLI `@-`; `store-show`, `store-check`, `store-backup`; in `src/commands/store_check.rs`, `store.open`'s suggestion, which today says to move `state/spaces` aside and derive it again, becomes "Restore state/spaces from a backup. To derive the knowledge stores again, move store.sqlite3 and the index aside and run sources-sync and knowledge-index rebuild=true. Keep memory.sqlite3 and memory.keys: memory cannot be derived."; the six doctor checks; README paragraph | `memory_grants.rs`, `journal_digest.rs`, `cli_stdin_input.rs`, `manifest_v3.rs` (rest), store and doctor extensions | L |
+| 3b | Sealing and the key file | `chacha20poly1305`; provisioning; `memory.keys`; the machine-backup exclusion of 5.4 on both files and the WAL and shared-memory files, through `libc` on macOS; the sealed fields and `record_derived`; forget's order with markers and their kinds, roll-forward, every crash point of 7.4 and `UMBEL_TEST_FAIL_AT`; every missing-key error; `reindex`, `backup` through `ATTACH`, the rebuild on open, `key_status`; `memory_restore`, so `memory_erasure`'s copy case runs; `release`-profile cost per write and per recall recorded in the pull request. Checks that 3a's `write` and `forget` are not left with an unsealed path | `memory_seal.rs`, `memory_keyfile.rs`, `memory_backup.rs`, `memory_machine_backup.rs`, `memory_erasure_bytes.rs` (markers, retries and `memory-reindex`), conformance re-run | L |
+| 4 | Host services and digest | The grants, section 6's rules, the host's scan, `Ledger`, `dev.umbel/no-change`, SDK methods, `HostError`; digest journaling, the redact step's replay stamp and warning shape, pipeline inheritance and the seal refusal; `dev.umbel/human-present` with its variables; the CLI's `authority_prompt` and the host's check of 3.3 (D86); `UMBEL_TEST_CLOCK` and `UMBEL_TEST_HUMAN_PRESENT` under `testkit`; CLI `@-`; `store-show`, `store-check`, `store-backup`; in `src/commands/store_check.rs`, `store.open`'s suggestion, which today says to move `state/spaces` aside and derive it again, becomes "Restore state/spaces from a backup. To derive the knowledge stores again, move store.sqlite3 and the index aside and run sources-sync and knowledge-index rebuild=true. Keep memory.sqlite3 and memory.keys: memory cannot be derived."; the seven doctor checks; README paragraph | `memory_grants.rs`, `journal_digest.rs`, `cli_authority_prompt.rs`, `cli_stdin_input.rs`, `manifest_v3.rs` (rest), store and doctor extensions | L |
 | 5 | Memory: writing | The plugin crate, packs, skill; the write pipeline; `memory-remember`, `memory-capture`, `memory-show`, `memory-status`; first-class suggestion; the `memory` CI job | `remember.rs`, `capture.rs`, `hygiene.rs`, `quota.rs`, `process.rs`, `events.rs` (write) | L |
-| 6 | Memory: reading and lifecycle | `memory-recall`, `-list`, `-invalidate`, `-confirm`, `-forget`, `-sweep`, `-reindex` | `recall_scope.rs`, `bitemporal.rs`, `invalidate.rs`, `confirm.rs`, `forget.rs`, `retention.rs`, `security.rs`, `events.rs` (rest) | L |
+| 6 | Memory: reading and lifecycle | `memory-recall`, `-list`, `-invalidate`, `-confirm`, `-forget`, `-sweep`, `-reindex` with `removeOrphans` | `recall_scope.rs`, `bitemporal.rs`, `invalidate.rs`, `confirm.rs`, `forget.rs`, `retention.rs`, `security.rs`, `events.rs` (rest) | L |
 | 7a | Shared helpers | Move the locator string and `is_stale` (`plugins/knowledge/src/search.rs`) from `plugins/knowledge/src/` to `umbel-okf`, which already derives the tier (`okf/src/frontmatter.rs`); knowledge unchanged in behaviour, its eval baseline untouched | Existing knowledge suite and `eval_gate.rs` | S |
 | 7b | Context | The plugin crate, pack, skill; selection with `PushFilter`, tiers and `left_out`; budget, rendering, determinism; the keys-failed lane of 9.4; first-class suggestion; the `tools/list` size test | `selection.rs`, `budget.rs`, `labels.rs`, `render.rs`, `deterministic.rs`, `lanes_absent.rs`, `no_plugin_dependency.rs`, `default_tools.rs` | L |
 | 8 | Binary and adapters | `umbel-first-party`; `umbel-hook` with `claude-code` and `generic`, the transcript reader of 10.3, windows, state, `print-settings`, `status`, fail-open; the fixture; re-checks the reader's rules against the structure of an interactive CLI transcript and amends 10.3 if it differs; measures one-shot time and the job's timeout | `claude_code.rs`, `generic.rs`, `fail_open.rs` | M |
@@ -2034,7 +2115,7 @@ code carries the `Plugin-isolation-exempt:` line.
 **Order and parallelism.** 1, 2, 3a, 3b, 4 in order. 5 needs 4. 6 needs 5. 7a needs nothing after 4 and may run beside 5. 7b needs 6 and 7a. 8 needs 5
 and 7b. 9 needs 6 and 8. 10 needs all. Split step 4 if the digest and grants work grows.
 
-**Build and disk cost.** **One new dependency family**, `chacha20poly1305` and its RustCrypto parts, all pure Rust and small; FTS5 is in the SQLite already built. Baseline from
+**Build and disk cost.** **One new dependency family**, `chacha20poly1305` and its RustCrypto parts, all pure Rust and small, and `libc` as a direct macOS-only dependency, already in the lock; FTS5 is in the SQLite already built. Baseline from
 phase 2's C14: a cold `umbel-store-embedded` build about 640 MB, and 1.1 GB for the `knowledge` job's steps. Plugin tests build with no wasmtime.
 `umbel-hook` builds in seconds on serde alone. Steps 3a to 6 and 8 each rebuild SQLite and tantivy once when cold, so share `CARGO_TARGET_DIR`, run them
 one at a time, use `-p <crate>`, keep the full `--workspace` for each step's final check, and start only under load 20 with `-j4`.
@@ -2061,13 +2142,17 @@ one at a time, use `-p <crate>`, keep the full `--workspace` for each step's fin
 
 ### Owner decisions after the key design's review, 2026-11-02
 
-Final, but **not yet carried into the sections they change**; [STATUS](../../STATUS.md) lists the edits.
-Where these differ from the text above or below, these win.
+Final, and written into the sections they change on 2026-11-02, as D86 to D89.
 
-- **`memory-remember` prompts for `person`,** as `memory-confirm` does, so one bar guards every route to it.
-- **Keys stay, with the file-copy limit stated.** On macOS, `memory.sqlite3` and `memory.keys` are excluded from Time Machine by default, with a setting to turn that off, and `store-backup` is the way to back up memory.
-- **`memory-confirm` takes the caller's own records only,** until phase 5.
-- **`memory-reindex` removes orphan keys only when asked,** through a default-off `removeOrphans`. This one is the phase 3 agent's safety change, announced to the owner.
+- **`memory-remember` prompts for `person`** (D86; sections 2.3, 3.3, 8.2), as `memory-confirm` does, so one bar guards every route to it
+  at the CLI. The prompt applies only on the path that would give `person`, so agents and scripts still write as `agent` or `tool`.
+  Declining writes nothing. It is still not an attestation.
+- **Keys stay, with the file-copy limit stated** (D87; sections 2.4, 5.3, 5.4). On macOS, `memory.sqlite3` and `memory.keys` are excluded
+  from Time Machine by default, with a setting to turn that off, and `store-backup` plus a separate copy of the key file is the way to back up
+  memory. If the disk fails, only those remain. The exclusion does not cover hand copies, snapshots, other tools, or Linux and Windows.
+- **`memory-confirm` takes the caller's own records only,** until phase 5 (D88; sections 8.7, 13).
+- **`memory-reindex` removes orphan keys only when asked,** through a default-off `removeOrphans` (D89; sections 5.4, 8.8). This one is
+  the phase 3 agent's safety change, announced to the owner.
 
 ### Decisions the architecture left open, made here
 
@@ -2094,6 +2179,7 @@ Nothing here touches O1, O4 or O5.
 | 2026-11-01 | Gemini, Codex and Copilot adapter profiles, after reading their stdin references and transcript formats | When asked |
 | 2026-11-01 | A recency signal in bundle ordering beyond a tier, gated by an eval of memory retrieval. No memory eval exists in phase 3; vendor memory benchmarks are not reproducible (S20) | After phase 4 |
 | 2026-11-02 | `memory-erase`, on the conditions of section 13 (D85) | Phase 5 |
+| 2026-11-02 | `memory-confirm` on another person's record, with verified identity (D88, section 13) | Phase 5 |
 | 2026-11-02 | A `cursor` profile: read its transcript format; decide whether to push at all, since its docs put `additional_context` in the "initial system context" and `sessionStart` is fire-and-forget; never read `user_email` from its stdin | When asked |
 | 2026-11-02 | How a component's memory writes are masked, before world 1.1.0 may hold `memory_write` (6.2) | World 1.1.0 |
 | 2026-11-02 | Re-check the transcript reader on an interactive CLI session (10.3) | Step 8 |
