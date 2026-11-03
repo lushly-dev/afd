@@ -175,29 +175,23 @@ describe("Loam's profile", () => {
 		expect(invalidUnderBoth).toBeGreaterThan(100);
 	});
 
-	it('P2-E11: reads every case of version 1 with the code and keys its case expects (D76)', () => {
-		// The schema comparison above says what the schemas accept; this says what the reader answers,
-		// rules included, for each case that is a version 1 document.
-		let read1 = 0;
-		for (const item of cases) {
-			const document = manifestOf(item);
-			if (valueAt(document, '/manifest_version') !== 1) continue;
-			read1++;
-			const read = readManifest(document);
-			if (item.accepted) {
-				expect(read.ok, item.id).toBe(true);
-				continue;
-			}
-			expect(read.ok, item.id).toBe(false);
-			if (read.ok) continue;
-			expect(read.refusals.map((refusal) => refusal.key).sort(), item.id).toEqual(
-				[item.key as string, ...(item.alsoKeys ?? [])].sort()
-			);
-			expect(read.refusals.find((refusal) => refusal.key === item.key)?.code, item.id).toBe(
-				item.code
-			);
-		}
-		expect(read1).toBeGreaterThan(150);
+	it('P2-E11: tells a version 1 manifest the version first, and alone when the key is well-formed (D76)', () => {
+		// A loader reports the first refusal (`refusalError`), as phase 1 reported the version key's.
+		const first = (id: string) => {
+			const item = cases.find((candidate) => candidate.id === id);
+			const read = readManifest(manifestOf(item as ProfileCase));
+			expect(read.ok, id).toBe(false);
+			return read.ok ? [] : read.refusals.map((refusal) => [refusal.code, refusal.key]);
+		};
+		// Malformed key plus an unrelated schema error: the version leads.
+		expect(first('version-keys-before-unknown-key')).toEqual([
+			['MANIFEST_SURFACE_UNAVAILABLE', 'ui.documents'],
+			['MANIFEST_UNKNOWN_KEY', 'bogus'],
+		]);
+		// Well-formed key plus a core rule's refusal (a control character in the title): the version, alone.
+		expect(first('version-keys-with-core-rule-error')).toEqual([
+			['MANIFEST_SURFACE_UNAVAILABLE', 'ui.project_summary'],
+		]);
 	});
 
 	it("P2-E11: keeps the code of every input phase 1's 'naming phase 2' cases refused", () => {

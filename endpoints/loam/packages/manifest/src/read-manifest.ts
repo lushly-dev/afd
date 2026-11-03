@@ -32,10 +32,14 @@ export function readManifest(json: unknown): ManifestRead {
 		});
 		return {
 			ok: false,
-			refusals: [...refusalsFrom(errors, json), ...told.map(toRefusal)],
+			refusals: [...told.map(toRefusal), ...refusalsFrom(errors, json)],
 			warnings: [],
 		};
 	}
+	// A well-formed version 2 key under version 1 is told the version, and nothing else: the core's
+	// rules would otherwise lead, and a loader reports the first refusal.
+	const told = versionKeyFindings(json);
+	if (told.length > 0) return { ok: false, refusals: told.map(toRefusal), warnings: [] };
 	const manifest = json as ManifestV2;
 	const core = coreRules(json as Parameters<typeof coreRules>[0]);
 	const loam = loamRules(manifest);

@@ -1338,6 +1338,33 @@
 			"alsoKeys": ["app.bogus"]
 		},
 		{
+			"id": "version-keys-before-unknown-key",
+			"base": "native",
+			"set": {
+				"/ui/documents": {},
+				"/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents",
+			"alsoKeys": ["bogus"],
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-with-core-rule-error",
+			"base": "native",
+			"set": {
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/plugin/title": "Hello\u0001"
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.project_summary",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
 			"id": "documents-without-instance-commands",
 			"base": "native",
 			"set": {
