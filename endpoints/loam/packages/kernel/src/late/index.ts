@@ -8,7 +8,7 @@ import { createAuthMutationCommands } from '@lushly-dev/afd-auth/commands';
 import type { Actor, CommandMiddleware } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
-import { INTERNAL_COMMANDS } from '../commands.js';
+import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import type { LateScope } from '../scope/middleware.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
@@ -116,7 +116,8 @@ export function createLateParts(
 	return {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: createPortRefusals(),
-		bootOnly: [byName.get('workspace-deployment-apply') as ZodCommandDefinition],
+		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
+		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
 		mcpOptions: (commands, middleware) => ({
 			commands: commands.filter((command) => !INTERNAL_COMMANDS.includes(command.name)),

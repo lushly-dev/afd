@@ -32,8 +32,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * value plus 5%, the one raise, for the bytes that left first paint. Step 3 raised `apps` once more, to
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
  * Step 2 changed no ceiling: first paint 273,179 and 83,564 gzip, `apps` 377,811 (2.4's table).
- * Step 4 changed none either: first paint 277,775 and 85,293 gzip, the kernel alone 110,727, `late`
- * 48,444 with the `store` chunk it now shares with `apps`, and `apps` 375,852 (2.4's table).
+ * Step 4 changed none either: first paint 277,750 and 85,281 gzip, the kernel alone 110,709, `late`
+ * 48,441 with the `store` chunk it now shares with `apps`, and `apps` 375,852 (2.4's table).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,

@@ -428,6 +428,26 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		expect((refused.structuredContent as CommandResult).error?.code).toBe('SCOPE_NOT_GRANTED');
 	});
 
+	it("7. refuses a view's modal within the cooldown, journaled", async () => {
+		const { kernel, journal } = await viewKernel();
+		await kernel.call('app-open', { instance: 'probev' });
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
+		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
+			overlayId: string;
+		}>;
+		expect(opened.success).toBe(true);
+		// A person closes it, so the view gets time before the next (phase 1 specification, 9.7).
+		await kernel.call('overlay-dismiss', {
+			overlayId: opened.data?.overlayId,
+			result: 'cancel',
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const again = (await view.toolsCall(modal)).structuredContent as CommandResult;
+		expect(again.error?.code).toBe('OVERLAY_COOLDOWN');
+		expect((await journal.read()).at(-1)?.command).toBe('app-modal-refuse');
+	});
+
 	it("refuses a frame's store write under a query as STORE_WRITE_IN_QUERY, -32601", async () => {
 		const { kernel, store } = await viewKernel();
 		const listed = await kernel.call<{ refused: string; rpc: number }>('probev-list');

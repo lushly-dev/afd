@@ -66,7 +66,7 @@
   - **`AppPortV2` replaces two members of `AppPortV1` rather than extending it:** `manifest` is a `ManifestV2`, since interface 2 holds what the reader returns, and `call` takes `level`. `forInterfaceOne` and its test went with the narrowing, as step 3 said they would, so a manifest's version 2 keys reach the kernel as `NOT_YET_SERVED` lets them.
   - **The middleware is split at the late boundary,** so first paint met the ledger. First paint (`kernel/src/scope/middleware.ts`) holds the default scope, line 1 and the `layout-*` check; lines 2 to 6 of an owned command, a change of actor, the resource check and a replay's `actorOf` are `LateScope`, in `late/scope-change.ts`. No owned command and no `auth-*` command exists before that chunk has loaded, and a replay loads it before its first entry, so nothing runs unchecked. 3.4 placed lines 2 to 4 and 6 in first paint; this placement is the one that fits. The resource check reads `AppsRuntime.resourceKeyOf(name)` rather than an `apps.checkResource`, so `apps` stays within its 1,182 bytes.
   - **The call that notices a change of actor,** as an expiry, runs at the scope it lands in when it asked for the active scope it was made in, so a person's `layout-get` keeps working through an expiry.
-  - **`BOOT_ONLY` has a registry of its own.** `workspace-deployment-apply` is in neither the palette's nor the agent's registry; `run` sends a `BOOT_ONLY` name to the boot registry only with `BOOT_FIELDS`, so otherwise the palette's or the agent's registry answers its own `COMMAND_NOT_FOUND`, byte for byte that of a name it does not hold. A replay reaches the boot registry by name. Through a port a `BOOT_ONLY` name skips the grant check and answers the same `COMMAND_NOT_FOUND`, as E10 has it, rather than `CALL_NOT_GRANTED`. `document-trash-expire` is on the list now; step 9 adds its command.
+  - **`BOOT_ONLY` has a registry of its own.** `workspace-deployment-apply` is in neither the palette's nor the agent's registry. `run` sends a call with `BOOT_FIELDS` to the boot registry, which holds `BOOT_ONLY`'s names and nothing else, and every other call to the palette's or the agent's: so a caller gets that registry's own `COMMAND_NOT_FOUND`, byte for byte that of a name it does not hold, and `runBoot`, which step 2 left able to run any name past the queue, reaches only a boot-only command. A replay reaches the boot registry by name. Through a port a `BOOT_ONLY` name skips the grant check and answers the same `COMMAND_NOT_FOUND`, as E10 has it, rather than `CALL_NOT_GRANTED`. `document-trash-expire` is on the list now; step 9 adds its command.
   - **The `projects` grant is served,** in `SERVED_GRANTS_V2` (the manifest's catalogs), which the kernel and the rules share; `documents` waits for step 9, and the cases that used `projects` as the unserved example use `documents`.
   - **`app.resource_keys` is served,** with `MANIFEST_RESOURCE_KEY_INVALID` (a declared command, a property of its input schema, the `store` grant, not `mounted`), and the domains `workspace`, `section`, `editor` and `new` join `SHELL_DOMAINS_V1`, with `p` and `workspace` refused as ids.
   - **Stage A registers the active app's project layout,** not every project-taking app's, since only the active app's paints in the first frame; the others register on first entry. A record read on first use is read under `hydrate`'s flag, so an invalid one is ignored silently, and a call on that id waits for the read (step 0b's notes).
@@ -420,10 +420,10 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 
 | Row | Measures | Now | Ceiling | Set by |
 | --- | --- | --- | --- | --- |
-| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** from step 2 | 277,775, 85,293 | 300,000, 91,000 | Set by step 1. Lowered from 320,000 and 95,000. Measured by step 4 |
+| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** from step 2 | 277,750, 85,281 | 300,000, 91,000 | Set by step 1. Lowered from 320,000 and 95,000. Measured by step 4 |
 | `cssMinified` | As phase 0 | 7,719 | 8,496 | Unchanged |
-| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 110,727 | 113,401, the measurement plus 10% | Step 1. Measured by step 4, with the palette index's values moved to `@lushly-dev/loam-kernel/palette` |
-| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | 48,444 | 75,000, a first estimate from the ledger below | Step 1. Measured by step 4, with the shared `store-*` chunk (5,792) |
+| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 110,709 | 113,401, the measurement plus 10% | Step 1. Measured by step 4, with the palette index's values moved to `@lushly-dev/loam-kernel/palette` |
+| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | 48,441 | 75,000, a first estimate from the ledger below | Step 1. Measured by step 4, with the shared `store-*` chunk (5,792) |
 | `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 375,852, measured by step 4: the store and the manifest's catalogs moved to the `store-*` chunk `late` loads first | 378,993, the measurement plus 5%. Raised from 341,619 by step 3: version 2's validator is 39,969 bytes of generated code larger than version 1's (of which the documents subtree 28,831, `ui.new` 4,996, `ui.project_summary` 2,384 and `app.resource_keys` 2,167; the remaining 1,591 are the sidebar's `if` and the shared `$def`s), and the closure grew by 35,594. The step-1 raise was for bytes that left first paint | Step 1; raised by step 3 |
 | `surfacesMinified` | As phase 1, and it loads after first paint | 74,250 | 85,000 | Unchanged. Measured by step 4, with a port per surface |
 | `viewMinified`, `consoleMinified`, `mountMinified` | As phase 1, with `apps` counted as loaded | 22,798, 83,325, 215,923 | 25,080, 91,222, 238,268 | Unchanged. `view` holds the editor's frame host unless step 12 amends it |
@@ -441,26 +441,26 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 | 0b | `hydrateOne`, a method on a class first paint holds. Measured before step 1, as it landed first | 180, 50 | 319,298, 94,941 |
 | 1 | Measured against the acceptance of 272,000 and 82,000: what is left after moving out classic's schemas, `toJSONSchema`, the non-boot definitions and, as it turned out, `palette-index.ts` and the overlay store, with 0b in it | | 264,350, 80,341 |
 | 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest). Measured: 8,829 and 3,223, with `ICONS_V1` after the first frame ([2.2](#what-step-2-measured-and-decided)) | 9,800, 3,500 | 273,179, 83,564 |
-| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary. Measured: 4,596 and 1,729. As first built it was 7,317 and 2,638, and these moved out, in order: the middleware's lines for owned commands, its change of actor and a replay's actor to `late/` (279,043 and 85,658); `SHELL_COMMAND_NAMES` to a module only `late/` and the root import (278,420 and 85,434); the writes of `loam.apps` and `loam.scope`, the disabled gate, `mcpOptions` and a replay's reset to `late/`, and smaller code (277,775 and 85,293) | 4,600, 1,800 | 277,775, 85,293 |
-| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 279,775, 86,093 |
-| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 285,375, 88,193 |
-| 7 | The `sections` boundary | 150, 100 | 285,525, 88,293 |
-| 10 | The `editor` boundary | 150, 100 | 285,675, 88,393 |
-| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 286,275, 88,643 |
+| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary. Measured: 4,571 and 1,717. As first built it was 7,317 and 2,638, and these moved out, in order: the middleware's lines for owned commands, its change of actor and a replay's actor to `late/` (279,043 and 85,658); `SHELL_COMMAND_NAMES` to a module only `late/` and the root import (278,420 and 85,434); the writes of `loam.apps` and `loam.scope`, the disabled gate, `mcpOptions` and a replay's reset to `late/`, and smaller code, and the boot-only list built in `late/` (277,750 and 85,281) | 4,600, 1,800 | 277,750, 85,281 |
+| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 279,750, 86,081 |
+| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 285,350, 88,181 |
+| 7 | The `sections` boundary | 150, 100 | 285,500, 88,281 |
+| 10 | The `editor` boundary | 150, 100 | 285,650, 88,381 |
+| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 286,250, 88,631 |
 
-That total leaves 13,725 and **2,357 gzip** under the ceilings, on step 4's real figures. **Gzip is the binding margin,** though no longer by as little as the plan feared. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
+That total leaves 13,750 and **2,369 gzip** under the ceilings, on step 4's real figures. **Gzip is the binding margin,** though no longer by as little as the plan feared. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
 
 **The `late` chunk's ledger,** a rough count for about 70 commands, each a schema, a literal and a handler. Each step records its real figure, and a step that would pass the ceiling moves logic to a chunk of its own first.
 
 | Step | Adds | Allowance | Running |
 | --- | --- | --- | --- |
 | 1 | The non-boot shell, view-state, auth, overlay and app commands, 25, and the overlay store. Measured, over its 20,000 by 2,173 | 22,173 | 22,173 |
-| 4 | `project-*`, `workspace-*`, `scope-set`, `section-open`, `app-route-set`, `applyScopeChange`. Measured: 25,454 from step 2's 22,990, **over the allowance by 11,454 and under the ceiling.** Of it, about 3,000 is the middleware's lines moved out of first paint to meet that ledger, and 5,792 the `store-*` chunk the bundler now shares with `apps` and charges here (`apps` fell by 1,959); the rest is thirteen commands, each a Mini schema, a literal and a handler, and the stores' writers | 14,000 | 48,444 |
-| 7 | `project-summary-get`, `resourceLinkUrl` | 2,000 | 50,444 |
-| 9 | The registry, the `document-*` commands, the check | 16,000 | 66,444 |
-| 10 | `editor-*`, `validateEditorState` | 6,000 | 72,444 |
-| 11 | `new-list`, the palette's document rows | 3,000 | 75,444, **over the ceiling of 75,000:** step 9, 10 or 11 moves logic to a chunk of its own first, as the rule below has it |
-| 12 | `document-link-*`, `createDocumentIndex` | 5,000 | 80,444 |
+| 4 | `project-*`, `workspace-*`, `scope-set`, `section-open`, `app-route-set`, `applyScopeChange`. Measured: 25,451 from step 2's 22,990, **over the allowance by 11,451 and under the ceiling.** Of it, about 3,000 is the middleware's lines moved out of first paint to meet that ledger, and 5,792 the `store-*` chunk the bundler now shares with `apps` and charges here (`apps` fell by 1,959); the rest is thirteen commands, each a Mini schema, a literal and a handler, and the stores' writers | 14,000 | 48,441 |
+| 7 | `project-summary-get`, `resourceLinkUrl` | 2,000 | 50,441 |
+| 9 | The registry, the `document-*` commands, the check | 16,000 | 66,441 |
+| 10 | `editor-*`, `validateEditorState` | 6,000 | 72,441 |
+| 11 | `new-list`, the palette's document rows | 3,000 | 75,441, **over the ceiling of 75,000:** step 9, 10 or 11 moves logic to a chunk of its own first, as the rule below has it |
+| 12 | `document-link-*`, `createDocumentIndex` | 5,000 | 80,441 |
 
 ## 3. Scope
 

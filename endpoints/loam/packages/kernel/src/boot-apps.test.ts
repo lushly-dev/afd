@@ -138,15 +138,31 @@ describe('stage A: the apps from their boot records', () => {
 		expect(answered).toBe(false);
 	});
 
-	it("runs boot's own work with BOOT_FIELDS past a queue that has not drained", async () => {
+	it("runs boot's own work with BOOT_FIELDS past a queue that has not drained, and nothing but it", async () => {
 		// Stage B never ends here, so anything that joined the queue would never run.
 		const parts = await partsOf([record('hello')], () => new Promise(() => {}));
 		let queued = false;
 		void parts.kernel.call('app-get', { instance: 'hello' }).then(() => {
 			queued = true;
 		});
-		expect(await parts.runBoot('layout-get', {})).toMatchObject({ success: true });
+		// Answered at once, and only a `BOOT_ONLY` command can be: any other name is not found (2.2).
+		expect(await parts.runBoot('layout-get', {})).toMatchObject({
+			success: false,
+			error: { code: 'COMMAND_NOT_FOUND' },
+		});
 		expect(queued).toBe(false);
+	});
+
+	it('runs a BOOT_ONLY command with BOOT_FIELDS once stage B has loaded it', async () => {
+		const parts = await partsOf([], () => new Promise(() => {}));
+		await parts.kernel.startApps();
+		const applied = await parts.runBoot('workspace-deployment-apply', {
+			generation: 'g-2',
+			workspace: { id: 'personal', name: 'Personal' },
+			entries: [],
+		});
+		expect(applied).toMatchObject({ success: true, data: { added: 0, changed: 0, unlisted: 0 } });
+		expect((await parts.kernel.call('workspace-get')).data).toMatchObject({ generation: 'g-2' });
 	});
 
 	it("gives a persisted active app its boot record's first layout before stage B", async () => {

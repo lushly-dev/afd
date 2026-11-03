@@ -34,7 +34,7 @@ import {
 	runtimeUnavailable,
 } from './apps-runtime.js';
 import { createBootCommands, takesProject } from './boot-commands.js';
-import { BOOT_ONLY, INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
+import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { LoamKernelError } from './errors.js';
 import {
@@ -190,7 +190,10 @@ export interface KernelParts {
 	resetSession(): Promise<void>;
 	/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
 	mcpOptions(): KernelMcpOptions;
-	/** Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B (step 4 calls it). */
+	/**
+	 * Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B, and only a `BOOT_ONLY`
+	 * command, from the boot registry; any other name answers `COMMAND_NOT_FOUND` (2.2).
+	 */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 }
 
@@ -380,6 +383,7 @@ export async function createKernelParts(
 			applyLate = late.applyDeployment;
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
+			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
 			bootOnly = parts.bootOnly;
 			lateScope = parts.lateScope;
 		} catch (cause) {
@@ -615,10 +619,10 @@ export async function createKernelParts(
 				(asked === 'workspace' ? { workspace: workspace.id } : asked) ??
 				scope.active(),
 		};
-		// `BOOT_ONLY`'s names are in no registry a caller reaches: without `BOOT_FIELDS`, the palette's or the
-		// agent's registry answers `COMMAND_NOT_FOUND`, as for any name it does not hold (2.2).
-		const registry =
-			fields === BOOT_FIELDS && BOOT_ONLY.includes(name) ? registries.boot : registries[iface];
+		// `BOOT_ONLY`, both ways (2.2): its names are in the boot registry alone, which `BOOT_FIELDS` reach and
+		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
+		// fields reach no other command.
+		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
 		const result = await registry.execute<T>(name, input ?? {}, context);
 		const seq = seqs.get(traceId);
 		seqs.delete(traceId);
