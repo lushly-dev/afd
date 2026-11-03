@@ -2309,9 +2309,9 @@ the cipher was not measured. `cost_per_write_and_per_recall` in `memory_seal.rs`
 
 ### Amendments from step 4
 
-Step 4 settled these details of sections 3.3, 5.3, 6, 7.1 and 10.6 that the text left open. None weakens
-access or authority, lets an agent obtain `person`, or otherwise changes the trust model; items 3 and 4 are
-narrower than the text.
+Step 4 settled these details of sections 2.1, 3.3, 5.3, 6, 7.1 and 10.6 that the text left open. None
+weakens access or authority, lets an agent obtain `person`, or otherwise changes the trust model; items 3, 4
+and 12 are narrower than the text.
 
 1. **The SDK's shapes.** `memory_write` takes a `MemoryWriteRequest { path: MemoryPath, share:
    Option<String>, batch: MemoryBatch }`: `share` is the input's, and the host turns it into every entry's
@@ -2383,6 +2383,17 @@ narrower than the text.
     `~/.local/state/umbel-hook/last-error.json`.
 11. **The CLI's prompt** reads `'<command>' records this with authority person: <prompt>` then `Proceed?
     [y/N]`, sanitized as every prompt; the manifest already refuses a control character in it.
+12. **`authority` and `confirmation` are host-owned in every event envelope of version 2.** The gate never
+    takes either from a plugin's result: `supplied_fields` no longer admits `authority` in version 2
+    (2.1 admitted it from the closed set), and the event reads both only from the host-owned result key
+    `dev.umbel/authority`, which the gate sets from what the host itself did in the call. A call that
+    wrote memory records carries the authority the host assigned under 3.3, or `null` when it wrote
+    records with different authorities or assigned none (an invalidate, a forget, a sweep).
+    `confirmation` is set only from a `memory-confirm` the host performed, `{ by, at, priorAuthority }`
+    as the stored version holds it, with authority `person`. Every other event has both `null`, as a
+    document's lifted version 1 envelope already has them. A version 1 entry is still read by its own
+    rules. This narrows what a plugin can assert and changes no record: the stored authority was always
+    the host's.
 
 ## 15. For the owner
 

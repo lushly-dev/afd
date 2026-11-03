@@ -9,10 +9,11 @@
 //! the documented shape reads as absent; the store writes of phase 2 refuse what the envelope
 //! must hold (`STORE_PROVENANCE_REQUIRED`).
 //!
-//! Version 2 (phase 3 specification section 2.1) closes `authority` to [`AUTHORITIES`]: a value
-//! outside it reads as absent. `confirmation` is filled only by the host, for `memory-confirm`
-//! (phase 3 step 6); nothing a command supplies reaches it. An entry is read in the version it was
-//! journaled in, so a version 1 entry keeps its open `authority`.
+//! Version 2 (phase 3 specification section 2.1, amendment 12 of step 4) makes `authority` and
+//! `confirmation` **host-owned**: a command supplies neither, and an event of version 2 reads them
+//! only from [`AUTHORITY_KEY`], which the plugin gate sets from what the host itself did (the
+//! authority it assigned to a memory write, the confirmation it performed), else `null`. An entry
+//! is read in the version it was journaled in, so a version 1 entry keeps its open `authority`.
 
 use afd::{Actor, ActorKind, JournalEntry};
 use serde::ser::SerializeMap;
@@ -24,6 +25,11 @@ use crate::workspace::{AccessToken, parse_principal};
 
 /// The `result.metadata` key a command sets to supply provenance.
 pub const PROVENANCE_KEY: &str = "dev.umbel/provenance";
+
+/// The `result.metadata` key holding `{ authority, confirmation }` for an event of version 2, set
+/// only by the plugin gate from what the host did; a plugin's own value is removed with every
+/// other `dev.umbel/` key it may not set.
+pub(crate) const AUTHORITY_KEY: &str = "dev.umbel/authority";
 
 /// The most `sources` or `derivedFrom` entries an envelope holds.
 const MAX_LISTED: usize = 64;
@@ -63,14 +69,13 @@ const SUPPLIED_FIELDS_V1: &[(&str, FieldType)] = &[
     ("sensitivity", FieldType::Sensitivity),
 ];
 
-/// Version 2's: `authority` only from the closed set, and `redactions` and `constraints`.
+/// Version 2's: no `authority` (host-owned), and `redactions` and `constraints`.
 const SUPPLIED_FIELDS_V2: &[(&str, FieldType)] = &[
     ("origin", FieldType::Text),
     ("session", FieldType::Text),
     ("validFrom", FieldType::Text),
     ("validUntil", FieldType::Text),
     ("confidence", FieldType::Number),
-    ("authority", FieldType::Authority),
     ("sources", FieldType::Sources),
     ("generated", FieldType::Generated),
     ("contentHash", FieldType::Hash),
@@ -84,7 +89,6 @@ const SUPPLIED_FIELDS_V2: &[(&str, FieldType)] = &[
 #[derive(Clone, Copy)]
 enum FieldType {
     Text,
-    Authority,
     Redactions,
     Constraints,
     Number,
@@ -100,9 +104,6 @@ impl FieldType {
     fn accepts(self, field: &Value) -> bool {
         match self {
             Self::Text => field.is_string(),
-            Self::Authority => field
-                .as_str()
-                .is_some_and(|text| AUTHORITIES.contains(&text)),
             Self::Redactions => field.as_array().is_some_and(|entries| {
                 entries.len() <= MAX_REDACTIONS
                     && entries.iter().all(|entry| {
@@ -360,8 +361,8 @@ pub struct Envelope {
     /// Version 2: limits the source stated on use.
     #[serde(default)]
     pub constraints: Option<Vec<String>>,
-    /// Version 2: `{ by, at, priorAuthority }`, filled only by the host for `memory-confirm`
-    /// (phase 3 step 6); `null` until then.
+    /// Version 2: `{ by, at, priorAuthority }`, filled only by the host, from a `memory-confirm`
+    /// it performed; `null` everywhere else.
     #[serde(default)]
     pub confirmation: Option<Value>,
 }
@@ -419,6 +420,9 @@ impl Envelope {
             .and_then(|metadata| metadata.extra.get(PROVENANCE_KEY))
             .and_then(|value| supplied_fields_of(value, version));
         let supplied: Option<&Map<String, Value>> = reduced.as_ref().and_then(Value::as_object);
+        let host_owned = metadata
+            .and_then(|metadata| metadata.extra.get(AUTHORITY_KEY))
+            .and_then(Value::as_object);
         let field = |name: &str| supplied.and_then(|map| map.get(name));
         let text = |name: &str| field(name).and_then(Value::as_str).map(str::to_owned);
         let instant = |name: &str| {
@@ -477,7 +481,15 @@ impl Envelope {
             valid_from: instant("validFrom"),
             valid_until: instant("validUntil"),
             confidence,
-            authority: text("authority"),
+            authority: if v2 {
+                host_owned
+                    .and_then(|host| host.get("authority"))
+                    .and_then(Value::as_str)
+                    .filter(|authority| AUTHORITIES.contains(authority))
+                    .map(str::to_owned)
+            } else {
+                text("authority")
+            },
             sources: if v1 { list("sources") } else { None },
             generated: if v1 {
                 field("generated").cloned()
@@ -503,9 +515,29 @@ impl Envelope {
             } else {
                 None
             },
-            confirmation: None,
+            confirmation: if v2 {
+                host_owned
+                    .and_then(|host| host.get("confirmation"))
+                    .filter(|value| is_confirmation(value))
+                    .cloned()
+            } else {
+                None
+            },
         }
     }
+}
+
+/// `{ by, at, priorAuthority }`, each a string, the prior authority of the closed set.
+fn is_confirmation(value: &Value) -> bool {
+    value.as_object().is_some_and(|map| {
+        map.len() == 3
+            && map.get("by").is_some_and(Value::is_string)
+            && map.get("at").is_some_and(Value::is_string)
+            && map
+                .get("priorAuthority")
+                .and_then(Value::as_str)
+                .is_some_and(|prior| AUTHORITIES.contains(&prior))
+    })
 }
 
 /// The plugin instance the gate stamped on the entry's result.
@@ -583,9 +615,10 @@ mod tests {
     }
 
     #[test]
-    fn version_2_closes_authority_and_admits_redactions_and_constraints() {
+    fn version_2_takes_no_authority_and_admits_redactions_and_constraints() {
+        // Authority is host-owned in version 2: a supplied one is dropped.
+        assert_eq!(supplied_fields(&json!({ "authority": "person" })), None);
         let good = json!({
-            "authority": "person",
             "redactions": [{"kind": "aws-key", "count": 1}, {"kind": "pem", "count": 2}],
             "constraints": ["staging only", ""],
         });

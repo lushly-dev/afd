@@ -11,8 +11,20 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+/// The authorities the host assigned to the memory records one call wrote.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) enum Assigned {
+    /// None yet.
+    #[default]
+    Nothing,
+    /// One authority, for every record.
+    One(String),
+    /// Several: the event's authority is `null`.
+    Mixed,
+}
+
 /// What one call did.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct CallRecord {
     /// Whether the call used a store, the content grant or `as_reader`: replay returns the
     /// journaled result and never re-runs the handler against a different store.
@@ -25,6 +37,10 @@ pub(crate) struct CallRecord {
     pub(crate) count: u64,
     /// The memory revisions it wrote (phase 3 section 6.4): their own sequence, recorded apart.
     pub(crate) memory: RevRange,
+    /// The authorities the host assigned to the memory records the call wrote (section 3.3).
+    pub(crate) authority: Assigned,
+    /// `{ by, at, priorAuthority }` of a `memory-confirm` the host performed.
+    pub(crate) confirmation: Option<serde_json::Value>,
 }
 
 /// A range of revisions of one sequence.
@@ -95,6 +111,24 @@ impl Ledger {
         });
     }
 
+    /// The host assigned `authority` to the memory records the call wrote.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) fn note_authority(&self, trace: &str, authority: &str) {
+        self.with(trace, |record| {
+            record.authority = match std::mem::take(&mut record.authority) {
+                Assigned::Nothing => Assigned::One(authority.to_owned()),
+                Assigned::One(seen) if seen == authority => Assigned::One(seen),
+                _ => Assigned::Mixed,
+            };
+        });
+    }
+
+    /// The host performed a confirmation, `{ by, at, priorAuthority }`.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) fn note_confirmation(&self, trace: &str, confirmation: serde_json::Value) {
+        self.with(trace, |record| record.confirmation = Some(confirmation));
+    }
+
     /// Take (and forget) the record of the call `trace`.
     pub(crate) fn take(&self, trace: &str) -> CallRecord {
         self.calls
@@ -108,6 +142,19 @@ impl Ledger {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_authority_is_kept_and_several_are_mixed() {
+        let ledger = Ledger::default();
+        ledger.note_authority("a", "agent");
+        ledger.note_authority("a", "agent");
+        assert_eq!(ledger.take("a").authority, Assigned::One("agent".into()));
+        ledger.note_authority("b", "agent");
+        ledger.note_authority("b", "person");
+        ledger.note_authority("b", "agent");
+        assert_eq!(ledger.take("b").authority, Assigned::Mixed);
+        assert_eq!(ledger.take("c").authority, Assigned::Nothing);
+    }
 
     #[test]
     fn writes_make_a_range_and_a_count_and_take_forgets() {
@@ -124,7 +171,7 @@ mod tests {
                 from_rev: 5,
                 to_rev: 9,
                 count: 3,
-                memory: RevRange::default(),
+                ..CallRecord::default()
             }
         );
         assert_eq!(ledger.take("t"), CallRecord::default());

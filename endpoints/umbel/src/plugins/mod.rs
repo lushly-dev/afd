@@ -39,7 +39,7 @@ pub(crate) use doctor::{
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
 pub use grants::{CallServices, MAX_LOG_BYTES, MAX_PACK_READ_BYTES, Services};
-pub(crate) use ledger::{CallRecord, Ledger};
+pub(crate) use ledger::{Assigned, CallRecord, Ledger};
 #[cfg(feature = "testkit")]
 pub(crate) use loader::embedded_id;
 pub(crate) use loader::{

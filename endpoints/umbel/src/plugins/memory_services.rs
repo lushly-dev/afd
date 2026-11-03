@@ -421,6 +421,10 @@ impl CallServices {
         {
             let count = (receipt.entries.len() + receipt.superseded.len()) as u64;
             self.note_memory(from, to, count);
+            self.shared.ledger.note_authority(
+                self.context.trace_id.as_deref().unwrap_or_default(),
+                authority.as_str(),
+            );
         }
         Ok(receipt)
     }
@@ -463,6 +467,20 @@ impl CallServices {
         request.trace_id = self.trace();
         let meta = store.confirm(request, &filter).map_err(host_error)?;
         self.note_memory(meta.rev, meta.rev, 1);
+        // The event carries the confirmation the host performed and the authority it gave.
+        let trace = self.context.trace_id.clone().unwrap_or_default();
+        self.shared
+            .ledger
+            .note_authority(&trace, Authority::Person.as_str());
+        let confirmed = store
+            .history(&meta.id, &filter)
+            .ok()
+            .and_then(|history| history.into_iter().last())
+            .and_then(|record| record.provenance.confirmation)
+            .and_then(|confirmation| serde_json::to_value(confirmation).ok());
+        if let Some(confirmation) = confirmed {
+            self.shared.ledger.note_confirmation(&trace, confirmation);
+        }
         Ok(meta)
     }
 

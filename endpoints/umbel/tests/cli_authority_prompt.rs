@@ -296,6 +296,24 @@ async fn a_callers_authority_for_forget_and_confirm_is_the_terminal_check() {
     )
     .await;
     assert_eq!(run.code, 0, "{}", run.stdout);
+    // The event carries the host's confirmation and authority; the remember before it was
+    // `tool`, from --yes, whatever the probe claimed.
+    let events = support::events(dir.path(), "main");
+    let confirmed = events.last().unwrap();
+    assert_eq!(confirmed["command"], "mem-confirm");
+    assert_eq!(
+        confirmed["provenance"]["authority"], "person",
+        "{confirmed}"
+    );
+    assert_eq!(
+        confirmed["provenance"]["confirmation"]["by"], "human:ada",
+        "{confirmed}"
+    );
+    assert_eq!(
+        confirmed["provenance"]["confirmation"]["priorAuthority"],
+        "tool"
+    );
+    assert_eq!(events[0]["provenance"]["authority"], "tool");
     // A forget by session needs a person: present at a terminal, refused with --yes.
     let session =
         json!({ "space": "main", "args": { "op": "forget", "session": "s1" } }).to_string();

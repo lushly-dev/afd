@@ -13,7 +13,7 @@
 use crate::access::{effective_principal_of, reader_filter};
 use crate::events::CHANGES_KEY;
 use crate::plugins::{GateEntry, Ledger, PluginError, PluginKind};
-use crate::provenance::{PROVENANCE_KEY, supplied_fields};
+use crate::provenance::{AUTHORITY_KEY, PROVENANCE_KEY, supplied_fields};
 use crate::versions::EVENT_VERSION;
 use crate::workspace::Workspace;
 use afd::{
@@ -348,6 +348,23 @@ fn sanitize(
         metadata.extra.insert(
             CHANGES_KEY.to_owned(),
             json!({ "fromRev": record.from_rev, "toRev": record.to_rev, "count": record.count }),
+        );
+    }
+    // Authority and confirmation are host-owned (phase 3 step 4, amendment 12): from what the host
+    // did in this call, never from the plugin, which `supplied_fields` and the retain above remove.
+    let authority = match &record.authority {
+        crate::plugins::Assigned::One(authority) if success => Value::String(authority.clone()),
+        _ => Value::Null,
+    };
+    let confirmation = record
+        .confirmation
+        .clone()
+        .filter(|_| success)
+        .unwrap_or(Value::Null);
+    if !authority.is_null() || !confirmation.is_null() {
+        metadata.extra.insert(
+            AUTHORITY_KEY.to_owned(),
+            json!({ "authority": authority, "confirmation": confirmation }),
         );
     }
     if success && record.memory.count > 0 {
