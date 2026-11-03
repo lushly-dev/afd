@@ -282,13 +282,23 @@ describe('P2-E1: one first paint', () => {
 		await site.close();
 	});
 
-	it('P2-E1: a record that lies about title, levels and parts is corrected by stage B', async () => {
+	it('P2-E1: a record that lies about title, order, levels and parts is corrected by stage B', async () => {
 		const site = await serveDeployment({
-			config: deploymentFile(deploymentEntry('hello', await packApp('hello'))),
+			config: deploymentFile(
+				deploymentEntry('hello', await packApp('hello')),
+				deploymentEntry('tally', await packApp('tally'))
+			),
 			rewrite(projection: ProjectionV2) {
 				const [hello] = projection.apps;
 				if (!hello?.boot) throw new Error('expected a boot record');
-				hello.boot = { ...hello.boot, title: 'Liar', scope_levels: ['project'], parts: ['panel'] };
+				// Hello's manifest says order 10 and tally's 20: the lie puts hello after tally.
+				hello.boot = {
+					...hello.boot,
+					title: 'Liar',
+					order: 99,
+					scope_levels: ['project'],
+					parts: ['panel'],
+				};
 				return projection;
 			},
 		});
@@ -297,11 +307,14 @@ describe('P2-E1: one first paint', () => {
 		const { page } = opened;
 		await measureFirstPaint(page);
 		expect(await entryOf(page, 'hello').getAttribute('aria-label')).toBe('Liar (loading)');
+		expect(await railOrder(page)).toEqual(['tally', 'hello']);
 		site.release();
 		await expect.poll(() => entryOf(page, 'hello').getAttribute('aria-label')).toBe('Hello');
+		await expect.poll(() => railOrder(page)).toEqual(['hello', 'tally']);
 		const list = (await kernelCall(page, 'app-list')) as {
 			data: { apps: Array<{ instance: string; title: string; scopeLevels: string[] }> };
 		};
+		expect(list.data.apps.map((app) => app.instance)).toEqual(['hello', 'tally']);
 		expect(list.data.apps[0]).toMatchObject({
 			instance: 'hello',
 			title: 'Hello',

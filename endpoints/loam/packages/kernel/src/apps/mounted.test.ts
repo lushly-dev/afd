@@ -120,7 +120,7 @@ const work = (extra: Record<string, unknown> = {}) => ({
 async function boot(
 	transports: Record<string, (url: string) => Promise<MountTransportV1> | MountTransportV1>,
 	entries: Array<Record<string, unknown>> = [work()],
-	options: { manifest?: ManifestV1; clock?: () => number } = {}
+	options: { manifest?: ManifestV1; clock?: () => number; held?: Promise<void> } = {}
 ) {
 	const packages = Object.fromEntries(
 		entries.map(({ instance }) => [
@@ -153,8 +153,32 @@ async function boot(
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
-		deployment,
-		ports,
+		// With `held`, a boot kernel whose stage B waits for it, so calls queue behind it (2.2).
+		...(options.held
+			? {
+					boot: {
+						generation: 'test',
+						workspace: { id: 'personal', name: 'Personal' },
+						apps: entries.map(({ instance }) => ({
+							instance: String(instance),
+							app: 'umbel',
+							title: String(instance),
+							kind: 'mounted' as const,
+							icon: 'system/folder',
+							order: 100,
+							scopeLevels: ['workspace' as const],
+							rail: true,
+							parts: [],
+							layout: {},
+							refusal: null,
+						})),
+					},
+					appsLoader: async () => {
+						await options.held;
+						return { deployment, ports };
+					},
+				}
+			: { deployment, ports }),
 		...(options.clock ? { clock: options.clock } : {}),
 	});
 	return { ...parts, journal, deployment, packages, asked };
@@ -555,6 +579,34 @@ describe('a mounted call', () => {
 		await kernel.call('work-a-read', {});
 		expect(await refreshes()).toBe(3);
 	});
+
+	it('takes its own refresh past the queue when the call it answers is queued behind stage B', async () => {
+		const notFound: McpToolCallResult = {
+			structuredContent: {
+				success: false,
+				error: { code: 'COMMAND_NOT_FOUND', message: 'Gone', suggestion: 'afd-discover' },
+			},
+		};
+		const transport = fakeTransport({ 'a-read': { mutation: false } }, { answer: () => notFound });
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const { kernel, journal } = await boot({ work: () => transport }, [work()], {
+			clock: () => 1_000_000,
+			held,
+		});
+		// Both queue behind stage B: discovery first, then the call, whose answer asks for a refresh.
+		const discovered = kernel.call('app-instance-refresh', { instance: 'work' });
+		const read = kernel.call('work-a-read', {});
+		release();
+		expect((await discovered).success).toBe(true);
+		// The handler's own refresh is unqueued: queued, it would wait behind this call for ever.
+		expect((await read).error?.code).toBe('COMMAND_NOT_FOUND');
+		expect(
+			(await journal.read()).filter(({ command }) => command === 'app-instance-refresh')
+		).toHaveLength(2);
+	}, 5_000);
 
 	it('bounds a recorded result in the journal, and returns it whole', async () => {
 		const big = 'x'.repeat(RECORDED_RESULT_MAX_BYTES + 10);

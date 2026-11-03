@@ -206,6 +206,13 @@ describe('stage B corrects a boot record', () => {
 		}
 	});
 
+	it("runs a queued call's nested call past the queue, which would otherwise never drain", async () => {
+		// Made before stage B ends, so it queues; its handler's nested call names it as its parent.
+		const { kernel } = await boot([LIAR]);
+		const counted = await kernel.call<{ count: number }>('probe-count', {});
+		expect(counted).toMatchObject({ success: true, data: { count: 0 } });
+	}, 5_000);
+
 	it('runs a call that needs stage B after it, in the order calls were made', async () => {
 		const { kernel, journal } = await boot([LIAR]);
 		const detail = kernel.call<{ title: string }>('app-get', { instance: 'probe' });

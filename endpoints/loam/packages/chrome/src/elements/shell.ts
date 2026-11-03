@@ -549,6 +549,10 @@ export class LoamShell extends FASTElement {
 		if (kernel.lateFailure) {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
+			// Stage B lists each app `failed`, so the first frame's entries say "(unavailable)" from it.
+			for (const app of (await this.#readAppList())?.apps ?? []) {
+				for (const entry of this.bootEntries.get(app.instance) ?? []) entry.state = app.state;
+			}
 			return;
 		}
 		if (!this.listsApps && this.appCount === 0) return;

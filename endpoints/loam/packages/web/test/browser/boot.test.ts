@@ -1,6 +1,15 @@
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentCall, openPage, openShell, serveDist } from './harness';
+import {
+	agentCall,
+	deploymentEntry,
+	deploymentFile,
+	openPage,
+	openShell,
+	packApp,
+	serveDeployment,
+	serveDist,
+} from './harness';
 
 let browser: Browser;
 let site: Awaited<ReturnType<typeof serveDist>>;
@@ -115,5 +124,36 @@ describe('the built shell', () => {
 			error: { code: 'LATE_COMMANDS_UNAVAILABLE', retryable: true },
 		});
 		await context.close();
+	});
+
+	it('says so in main and the rail when the late chunk does not load and apps are listed', async () => {
+		const hello = await serveDeployment({
+			config: deploymentFile(deploymentEntry('hello', await packApp('hello'))),
+		});
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		await context.route('**/assets/late-*', (route) => route.abort());
+		const { page } = await openPage(browser, hello.origin, {}, context);
+		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+		const entry = page.locator('loam-rail loam-app-entry[instance="hello"] button');
+		await expect.poll(() => entry.getAttribute('aria-label')).toBe('Hello (unavailable)');
+		expect(await entry.getAttribute('aria-busy')).toBeNull();
+		const main = () =>
+			page.evaluate(() => {
+				const element = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-main');
+				return {
+					heading: element?.shadowRoot?.querySelector('h1')?.textContent,
+					busy: element?.getAttribute('aria-busy') ?? null,
+				};
+			});
+		await expect
+			.poll(main)
+			.toEqual({ heading: 'Could not load. Reload to try again.', busy: null });
+		// What the surfaces chunk would set never replaces it.
+		await page.waitForTimeout(300);
+		expect(await main()).toEqual({ heading: 'Could not load. Reload to try again.', busy: null });
+		await context.close();
+		await hello.close();
 	});
 });

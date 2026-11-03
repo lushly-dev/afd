@@ -210,7 +210,8 @@ export class AppSurfaces implements ShellApps {
 		const list = await this.#kernel.call<AppList>('app-list');
 		this.#prepared = list.data ?? { active: null, apps: [] };
 		const { active, apps } = this.#prepared;
-		if (apps.length > 0) this.#shell.landing = 'Choose an app';
+		// With the late commands missing, the shell's "Could not load" is main's heading (2.2).
+		if (apps.length > 0 && !this.#kernel.lateFailure) this.#shell.landing = 'Choose an app';
 		if (active !== null) this.#declared = await this.#readDeclared(active);
 	}
 
@@ -362,6 +363,13 @@ export class AppSurfaces implements ShellApps {
 				// Connected once it holds its state, so it renders once.
 				if (!entry.isConnected) this.#part<HTMLElement>(entry.variant).append(entry);
 			}
+		}
+		// In the list's order, which stage B may have corrected from a boot record's (2.2).
+		for (const [index, variant] of (['rail', 'tabbar'] as const).entries()) {
+			const part = this.#part<HTMLElement>(variant);
+			const wanted = apps.flatMap((app) => this.#entries.get(app.instance)?.[index] ?? []);
+			const shown = [...part.children].filter((child) => child.localName === 'loam-app-entry');
+			if (wanted.some((entry, at) => shown[at] !== entry)) part.append(...wanted);
 		}
 	}
 

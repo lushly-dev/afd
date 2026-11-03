@@ -455,7 +455,8 @@ export async function createKernelParts(
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
 		if (
 			disposed ||
-			fields.parent ||
+			// Not truthiness: a frame's call may name its parent with an empty trace ID.
+			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
 			!(queue || (!stageBEnded && !mutations.has(name)))
 		)
