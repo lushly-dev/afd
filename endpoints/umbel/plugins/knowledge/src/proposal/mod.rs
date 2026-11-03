@@ -1,7 +1,9 @@
 //! Proposals and the verification lifecycle (specification section 9, decisions D62, D63 and
 //! D17): the knowledge base changes only by proposal. A proposal is a decision trace kept as a
 //! record; a person at a terminal approves or rejects it; applying one writes the file through
-//! the `content_write` grant and puts the document with the proposal as its lineage.
+//! the `content_write` grant and puts the document with the proposal as its lineage. Before
+//! approve's and reject's prompts the command line shows `knowledge-proposal-preview` (phase 4
+//! section 8.1).
 
 mod apply;
 mod area;
@@ -9,6 +11,7 @@ mod common;
 mod diff;
 mod document;
 mod model;
+mod preview;
 mod propose;
 mod review;
 mod verify;
@@ -22,6 +25,7 @@ pub(crate) fn dispatch(name: &str, input: &Value, cx: &mut Cx) -> Option<Outcome
         "knowledge-propose" => propose::run(input, cx),
         "knowledge-proposal-list" => review::list(input, cx),
         "knowledge-proposal-show" => review::show(input, cx),
+        "knowledge-proposal-preview" => preview::run(input, cx),
         "knowledge-withdraw" => review::withdraw(input, cx),
         "knowledge-approve" => apply::approve(input, cx),
         "knowledge-reject" => apply::reject(input, cx),

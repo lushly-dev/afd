@@ -244,6 +244,12 @@ fn what_a_drafter_attests_needs_a_drafter() {
     let validator = validator("proposal.v2");
     let plain = example("proposal.v2", "withdrawn");
     assert!(validator.is_valid(&plain));
+    // A pending proposal nobody drafted: no withdrawal is not a drafter's withdrawal.
+    let pending = edited(&plain, |p| {
+        p["state"] = json!("pending");
+        p["withdrawal"] = Value::Null;
+    });
+    assert!(validator.is_valid(&pending), "{pending}");
     let drafted = example("proposal.v2", "");
     let with = |edit: &dyn Fn(&mut Value)| edited(&plain, |p| edit(p));
     assert_refuses(

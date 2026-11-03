@@ -1,5 +1,10 @@
-//! The proposal record, version 1 (specification section 9.1, `schemas/proposal.v1.json`): a
+//! The proposal record (phase 2 specification section 9.1, phase 4 section 2.1; D62, D92): a
 //! decision trace kept as a record of kind `proposal` in the knowledge instance's namespace.
+//!
+//! New proposals are version 2 (`schemas/proposal.v2.json`), which adds `drafter`, `conflictSet`,
+//! `withdrawal`, `redacted` and `decision.channel` and nests envelope version 2. A version 1
+//! record (`schemas/proposal.v1.json`) is read and stays version 1 when it is decided, withdrawn
+//! or applied: it is written back without any of version 2's fields.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -7,6 +12,14 @@ use umbel_store::{ContentHash, canonical_json};
 
 /// The record kind.
 pub(crate) const KIND: &str = "proposal";
+/// The version a new proposal is written in.
+pub(crate) const VERSION: u32 = 2;
+/// The versions this plugin reads; each is written back in its own version.
+pub(crate) const VERSIONS: [u32; 2] = [1, VERSION];
+/// The top-level keys version 2 adds; a version 1 record never holds them.
+const VERSION_2_KEYS: [&str; 4] = ["drafter", "conflictSet", "withdrawal", "redacted"];
+/// `decision.channel` of a person's decision at a terminal.
+pub(crate) const CHANNEL_TERMINAL: &str = "terminal";
 
 /// Where a proposal is in its life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,6 +157,65 @@ pub(crate) struct Decision {
     pub(crate) reason: Option<String>,
     pub(crate) trace_id: String,
     pub(crate) proposer_kind: String,
+    /// Version 2: `terminal` or `policy`. A version 1 decision has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) channel: Option<String>,
+}
+
+/// The curator instance a drafted proposal came from (version 2). `plugin`, `instance`,
+/// `pipeline` and `run` are attested by the host; `mode`, `candidate` and `promoted_by` are
+/// verified by this plugin against the memory store (phase 4 section 3.2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Drafter {
+    pub(crate) plugin: String,
+    pub(crate) instance: String,
+    pub(crate) pipeline: String,
+    pub(crate) run: String,
+    /// `scheduled` or `promoted`.
+    pub(crate) mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) candidate: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) promoted_by: Option<String>,
+}
+
+impl Drafter {
+    /// Whether the draft widens its sources' readers (phase 4 section 5.1): only a promotion may.
+    pub(crate) fn widens(&self) -> bool {
+        self.mode == "promoted"
+    }
+}
+
+/// Who withdrew a proposal, why and when (version 2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Withdrawal {
+    /// `drafter` or `proposer`.
+    pub(crate) by: String,
+    /// `source-erased`, `source-changed`, `superseded-alternative` or `retracted`.
+    pub(crate) reason: String,
+    pub(crate) at: String,
+}
+
+impl Withdrawal {
+    /// A proposer taking their own proposal back: always `retracted` (phase 4 step 1, amendment 7).
+    pub(crate) fn retracted(at: &str) -> Self {
+        Self {
+            by: "proposer".to_owned(),
+            reason: "retracted".to_owned(),
+            at: at.to_owned(),
+        }
+    }
+}
+
+/// When a forgotten source's text was removed (version 2, phase 4 section 9.1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Redacted {
+    pub(crate) at: String,
+    /// `source-erased`.
+    pub(crate) reason: String,
 }
 
 /// The proposal record.
@@ -171,15 +243,52 @@ pub(crate) struct Proposal {
     pub(crate) flags: Vec<String>,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
+    /// Version 2: the drafting curator instance, or `None`.
+    #[serde(default)]
+    pub(crate) drafter: Option<Drafter>,
+    /// Version 2: the conflict set a drafted alternative belongs to, or `None`.
+    #[serde(default)]
+    pub(crate) conflict_set: Option<String>,
+    /// Version 2: set exactly when the state is `withdrawn`.
+    #[serde(default)]
+    pub(crate) withdrawal: Option<Withdrawal>,
+    /// Version 2: set when a forgotten source's text was removed.
+    #[serde(default)]
+    pub(crate) redacted: Option<Redacted>,
 }
 
 impl Proposal {
+    /// A proposal record of a version this plugin reads, or `None`.
     pub(crate) fn from_value(value: &Value) -> Option<Self> {
-        serde_json::from_value(value.clone()).ok()
+        let proposal: Self = serde_json::from_value(value.clone()).ok()?;
+        VERSIONS.contains(&proposal.version).then_some(proposal)
     }
 
+    /// The record body in the proposal's own version: version 2 holds its four keys, `null` when
+    /// unset; version 1 holds none of them, and no `decision.channel`.
     pub(crate) fn to_value(&self) -> Value {
-        serde_json::to_value(self).unwrap_or(Value::Null)
+        let mut value = serde_json::to_value(self).unwrap_or(Value::Null);
+        if self.version < 2
+            && let Some(map) = value.as_object_mut()
+        {
+            for key in VERSION_2_KEYS {
+                map.remove(key);
+            }
+            if let Some(decision) = map.get_mut("decision").and_then(Value::as_object_mut) {
+                decision.remove("channel");
+            }
+        }
+        value
+    }
+
+    /// Whether the proposal is version 2 or later, so holds version 2's fields.
+    pub(crate) fn is_v2(&self) -> bool {
+        self.version >= 2
+    }
+
+    /// `decision.channel` for a person's decision at a terminal, in this proposal's version.
+    pub(crate) fn terminal_channel(&self) -> Option<String> {
+        self.is_v2().then(|| CHANNEL_TERMINAL.to_owned())
     }
 
     /// The document's collection and the path inside it.

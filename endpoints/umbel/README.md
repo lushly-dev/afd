@@ -251,15 +251,18 @@ umbel-knowledge call knowledge-open '{"doc": "handbook/deploy"}'
 umbel-knowledge call knowledge-propose '{"idempotency_key": "k1", "rationale": "why",
   "evidence": [{"kind": "text", "ref": "where it came from"}],
   "change": {"op": "create", "doc": "handbook/monitoring", "content": "# Monitoring\n..."}}'
-umbel-knowledge call knowledge-proposal-show '{"proposal": "p-..."}'   # read the diff and the flags
-umbel-knowledge call knowledge-approve '{"proposal": "p-..."}'         # a terminal: two prompts
+umbel-knowledge call knowledge-proposal-show '{"proposal": "p-..."}'   # the whole diff and the flags
+umbel-knowledge call knowledge-approve '{"proposal": "p-..."}'         # a terminal: a preview, two prompts
 umbel-knowledge call knowledge-refresh '{}'            # the approved file is searchable again
 umbel-knowledge serve --stdio                          # the same commands to a harness over MCP
 ```
 
-`knowledge-approve` asks twice at a terminal (the plugin's confirmation, then AFD's approval) and
-neither prompt shows the change: **read `knowledge-proposal-show` first.** It refuses without a
-terminal and to `--yes` or `--approve`.
+`knowledge-approve` asks twice at a terminal (the plugin's confirmation, then AFD's approval). Before
+the first prompt it shows `knowledge-proposal-preview`: the proposal's id, op, document, area, change
+hash, flags and evidence, and the first 80 lines of its diff, each line prefixed `> `
+(`knowledge-reject` shows it too). `knowledge-proposal-show` has the whole diff. It refuses without a
+terminal and to `--yes` or `--approve`, and refuses with `CONFIRMATION_PREVIEW_FAILED` when the
+preview cannot be shown, such as for a proposal you may not read.
 
 ## Access is not a security boundary yet
 

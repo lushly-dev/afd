@@ -544,6 +544,7 @@
 			"if": {
 				"properties": {
 					"withdrawal": {
+						"type": "object",
 						"properties": {
 							"by": {
 								"const": "drafter"

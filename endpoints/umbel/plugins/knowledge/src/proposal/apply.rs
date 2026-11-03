@@ -120,37 +120,22 @@ fn not_approver(why: &str) -> Outcome {
     )
 }
 
-/// The checks every decision shares: a person, the proposal readable by that person (so the
-/// decision never shows what they may not read), the area's approvers.
-fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
-    if !caller.is_human() || caller.actor.id.is_none() {
-        return Err(not_approver(
-            "only a person at a terminal decides a proposal",
-        ));
-    }
+/// Approve's reader rules, which the confirmation preview applies too (phase 4 section 8.1): the
+/// proposal readable by the caller, and its target too, as the document may have changed since.
+/// Absent and unreadable are one answer, so the decision never shows what they may not read.
+pub(crate) fn readable(caller: &Caller<'_>, id: &str) -> Result<(Proposal, Record), Outcome> {
     let Some((proposal, record)) = common::get(caller, id).map_err(|e| host(&e))? else {
         return Err(common::not_found());
     };
-    let areas = area::load(caller.cx)?;
-    let area = area::by_id(&areas, &proposal.area)
-        .or_else(|| area::governing(&areas, &proposal.space, &proposal.change.doc))
-        .cloned()
-        .ok_or_else(|| {
-            failure(
-                "PROPOSAL_NO_AREA",
-                "no area governs that document any more",
-                "Declare an area for its collection in [plugins.knowledge.config.areas] in umbel.toml.",
-            )
-        })?;
-    let tokens = caller.tokens().map_err(|e| host(&e))?;
-    // The proposal record carries its target's access set, so reading it proved the approver may
-    // read the target; check the target itself too, as the document may have changed since.
+    // The proposal record carries its target's access set, so reading it proved the caller may
+    // read the target; check the target itself too.
     match proposal.change.op {
         Op::Create => {
             let (collection, _) = proposal.split_doc().unwrap_or_default();
             let Some(info) = propose::collection_info(caller.cx, &caller.space, collection) else {
                 return Err(unavailable());
             };
+            let tokens = caller.tokens().map_err(|e| host(&e))?;
             if !info.access.iter().any(|token| tokens.contains(token)) {
                 return Err(common::not_found());
             }
@@ -165,6 +150,30 @@ fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
             }
         }
     }
+    Ok((proposal, record))
+}
+
+/// The checks every decision shares: a person, approve's reader rules ([`readable`]), the area's
+/// approvers.
+fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
+    if !caller.is_human() || caller.actor.id.is_none() {
+        return Err(not_approver(
+            "only a person at a terminal decides a proposal",
+        ));
+    }
+    let (proposal, record) = readable(caller, id)?;
+    let areas = area::load(caller.cx)?;
+    let area = area::by_id(&areas, &proposal.area)
+        .or_else(|| area::governing(&areas, &proposal.space, &proposal.change.doc))
+        .cloned()
+        .ok_or_else(|| {
+            failure(
+                "PROPOSAL_NO_AREA",
+                "no area governs that document any more",
+                "Declare an area for its collection in [plugins.knowledge.config.areas] in umbel.toml.",
+            )
+        })?;
+    let tokens = caller.tokens().map_err(|e| host(&e))?;
     if !area.admits(&tokens) {
         return Err(not_approver("it is not among the area's approvers"));
     }
@@ -305,6 +314,7 @@ fn apply(
             reason: None,
             trace_id: caller.cx.call().trace_id.clone(),
             proposer_kind: proposal.proposer.actor.kind.clone(),
+            channel: proposal.terminal_channel(),
         });
         proposal.exception = exception;
         proposal.policy = propose::policy_of(area);
@@ -553,6 +563,7 @@ fn reject_inner(caller: &Caller<'_>, id: &str, reason: &str) -> Result<Outcome, 
         reason: Some(reason.to_owned()),
         trace_id: caller.cx.call().trace_id.clone(),
         proposer_kind: proposal.proposer.actor.kind.clone(),
+        channel: proposal.terminal_channel(),
     });
     proposal.policy = propose::policy_of(&area);
     proposal.updated_at.clone_from(&caller.now);

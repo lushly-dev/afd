@@ -23,8 +23,10 @@
 //! "content"`, and no message, warning or reasoning ever contains content.
 //!
 //! - `knowledge-propose` and its companions (`-proposal-list`, `-proposal-show`, `-withdraw`) keep
-//!   proposals as decision traces; `knowledge-approve`, `-reject` and `-verify` are for a person at a
-//!   terminal, and applying a proposal writes the file and the document with the proposal as lineage.
+//!   proposals as decision traces, version 2 records from phase 4 on; `knowledge-approve`, `-reject`
+//!   and `-verify` are for a person at a terminal, approve and reject after the command line shows
+//!   `knowledge-proposal-preview`, and applying a proposal writes the file and the document with the
+//!   proposal as lineage. The commands that can carry a drafted proposal are digest-journaled.
 //!
 //! - `knowledge-eval` (CLI only) runs a seeded query set through the same ranking code as
 //!   `knowledge-search`, as the principals the queries name, and returns the report; [`eval`] also
