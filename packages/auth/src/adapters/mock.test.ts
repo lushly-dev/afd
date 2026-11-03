@@ -36,6 +36,50 @@ describe('MockAuthAdapter', () => {
 		}
 	});
 
+	it('derives the user id from the email, so the same person keeps it', async () => {
+		vi.spyOn(Date, 'now').mockReturnValue(1_000);
+		const adapter = new MockAuthAdapter();
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		const first = adapter.getSession();
+		expect(first.user?.id).toBe('mock-user-test@example.com');
+
+		await adapter.signOut();
+		vi.spyOn(Date, 'now').mockReturnValue(2_000);
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		expect(adapter.getSession().user?.id).toBe(first.user?.id);
+
+		const reloaded = new MockAuthAdapter();
+		await reloaded.signIn({ method: 'credentials', email: 'test@example.com' });
+		expect(reloaded.getSession().user?.id).toBe(first.user?.id);
+	});
+
+	it('gives another email another user id', async () => {
+		const adapter = new MockAuthAdapter();
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		const first = adapter.getSession().user?.id;
+
+		await adapter.signIn({ method: 'credentials', email: 'other@example.com' });
+		expect(adapter.getSession().user?.id).toBe('mock-user-other@example.com');
+		expect(adapter.getSession().user?.id).not.toBe(first);
+	});
+
+	it('derives an oauth user id from the provider email', async () => {
+		const adapter = new MockAuthAdapter();
+		await adapter.signIn({ method: 'oauth', provider: 'github' });
+		expect(adapter.getSession().user?.id).toBe('mock-user-user@github.com');
+	});
+
+	it('still gives each sign-in its own session id', async () => {
+		const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+		const adapter = new MockAuthAdapter();
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		const first = adapter.getSession().session?.id;
+
+		now.mockReturnValue(2_000);
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		expect(adapter.getSession().session?.id).not.toBe(first);
+	});
+
 	it('signs out', async () => {
 		const adapter = new MockAuthAdapter();
 		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
