@@ -70,8 +70,10 @@
   - In the repository: `spec/command-metadata.md` ("Asking the human over MCP", lines 236-294) and
     `docs/language-parity.md` (line 136: the MCP approval relay is TypeScript only).
 - **No Rust was built** for this document.
-- **Done:** this specification, approved 2026-11-03.
-- **Not done:** everything in section [15](#15-implementation-plan); step 1 is next.
+- **Done:** this specification, approved 2026-11-03. Step 1 (shapes) on 2026-11-03, in its pull request: the four
+  schemas with examples, manifest version 4 parsed, validated and stored (nothing acts on it yet), and the version
+  constants; its [amendments](#amendments-from-step-1) settle fourteen details and change no trust-model point.
+- **Not done:** steps 2 to 7 of section [15](#15-implementation-plan), with 3a, 3b and 3c; step 2 (host) is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -984,6 +986,64 @@ Steps that change host code carry the `Plugin-isolation-exempt:` line.
 
 **Build cost:** no new dependency family. Share `CARGO_TARGET_DIR`, use `-p <crate>`, `-j4`, and build only
 under load 20.
+
+### Amendments from step 1
+
+Step 1 settled these details of sections 2, 2.1 to 2.3, 7.2 and 9.1 that the text left open. None changes who may
+draft, verify, approve or read anything, or what the knowledge plugin trusts; three of them (5, 11 and 12) keep
+less memory-derived residue than the text alone would.
+
+1. **A preview's `returns`.** "Return `{ "preview": <string> }`" is checked at load on the named command's declared
+   `returns`, inline or in a file, which must be exactly `{ type = "object", properties = { preview = { type =
+   "string" } }, required = ["preview"], additionalProperties = false }`. The result itself is the CLI's to check
+   (step 2, `CONFIRMATION_PREVIEW_FAILED`).
+2. **A preview asks for nothing.** The named command declares no `confirm_prompt` (so neither `confirm` nor a
+   `confirm_preview` of its own) and no `approval = "required"`, since the CLI calls it before the gated prompt
+   without the marks (8.1). This also refuses a command previewing itself and chains of previews. A pipeline's
+   name is refused, as a preview is a `[[commands]]` entry. Either journal mode satisfies "declare a `journal`".
+3. **Where the version 4 keys are checked.** At parse: the named command's existence, effect, CLI exposure,
+   journal, `returns` and input properties, for inline schemas; at load, with the plugin's files, the same for
+   schemas given as files. The seal rule "a pipeline exposed no wider than its narrowest step" stays step 2's
+   (10.1), and a version 4 plugin with a wider pipeline still seals in step 1.
+4. **A pipeline's `expose` keys** are `mcp`, `agent` and `cli`; `palette` is refused, since no pipeline was ever
+   offered in the palette (`pipelines.rs`). `spec/plugin-manifest.md`'s P3 lists `confirm_preview` and a
+   pipeline's `expose` and `result` as Umbel's from manifest version 4.
+5. **What a redaction leaves (9.1).** `change.content` is removed (a redacted create keeps no content), `diff`
+   becomes the empty string, and the envelope's `contentHash`, which equals `changeHash` (`propose.rs`), takes the
+   same redacted hash. Otherwise the envelope would keep the hash of memory-derived content. The title is the
+   content's frontmatter, so it goes with the content.
+6. **`derivedFrom`'s memory id** is the record's id, `mem-<24 hex>`, without its version, as phase 3's
+   "by id in `derivedFrom`" says; the version is in the evidence entry's `ref`, `<mem id>@<recordVersion>`.
+7. **Who withdrew.** `knowledge-withdraw` records `withdrawal = { by: "proposer", reason: "retracted" }`;
+   `retracted` is a proposer's only reason. A withdrawn version 2 record always has a `withdrawal`, and no other
+   state has one or a `redacted`.
+8. **Decisions.** A `terminal` decision is a `human` actor's (D62). A `policy` decision's `by` is `{ kind:
+   "service", id: "policy:<area>" }`, and its `principal` is the effective principal of the
+   `knowledge-auto-approve` call that applied it. `policy.rule` `auto:<rule>` goes with `channel = "policy"` and
+   `person` with `terminal`.
+9. **Memory evidence's vocabularies.** `class` is `semantic` or `procedural`; `authority` is `person`, `agent`,
+   `tool` or `import` (`transcript` never settles, owner decision 9, and `document` and `external` are not memory
+   authorities); `origin` excludes `unspecified`, which the store refuses. An erased entry is exactly `{ kind,
+   ref, erased: true }`, and only a redacted proposal holds one. Memory evidence, a memory `derivedFrom`, a
+   `conflictSet` and a drafter's withdrawal each need a non-null `drafter`; `mode = "promoted"` needs `candidate`
+   and `promotedBy`, and `scheduled` has no `promotedBy`.
+10. **Curator records' common fields.** Every record carries `version` (1), `kind`, `id`, `space`, `principal` and
+    `access`, and each kind admits only its own fields. A run's, a consent's and the state's `access` is exactly
+    `principal:<caller>`.
+11. **`subjectKey` is a digest.** A candidate keeps `sha256:` of 4.4's normalised key, not the key: a normalised
+    subject is memory text, which 2.3 says no curator record holds. Comparing keys, all the curator does with
+    them across runs, still works. The knowledge plugin's conflict-set check (3.2) computes
+    `umbel_okf::draft::subject_key` over the sources themselves.
+12. **Consent after a forget.** When a source is erased, the candidate's `consent` record is removed with its
+    content hashes, as 9.1 drops the candidate's.
+13. **A candidate's status rules.** `reason` is a code when `skipped` (`too-many-sources`, `conflict-too-large`,
+    `target-exists`, `sensitivity-higher`), the approver's reason when `rejected` (with `quietUntil` set), and
+    `null` otherwise; `applied` has `promotedTo`; `snapshot` is set from `ready` on.
+14. **The state and the report.** `feedAfter` and `memoryAfter` are integer revisions (the record store's
+    change revision, `memory_changes`' `Rev`); `scanAfter` is `null` or `memory_list`'s cursor `{ recordedAt, id
+    }`; `lock.trace` is the run's trace id. The report carries `version: 1`; its `run` is the pipeline call's
+    trace id, as `drafter.run`; a `check-failed` inconsistency names its `check` (6.2, "and the check");
+    `proposals` holds at most 50 ids, the batch's cap.
 
 ## 16. For the owner
 
