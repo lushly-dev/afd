@@ -57,6 +57,8 @@ export const SUITES = [
 	{
 		workflow: 'specimen.yml',
 		tools: ['chromium', 'cargo'],
+		remote:
+			"the prebuilt hosts of the other platforms (host-packages); pnpm test:specimen packs this one's",
 		steps: [
 			{ gate: 'run', run: 'pnpm test:specimen' },
 			{ gate: 'stories', run: 'pnpm test:stories' },
@@ -67,6 +69,11 @@ export const SUITES = [
 				run: 'cargo clippy --locked --all-targets -- -D warnings',
 			},
 			{ gate: 'host', cwd: 'foundations/specimen/host', run: 'cargo test --locked' },
+			// The consumers on this platform's host package run in test:specimen ('run').
+			{
+				gate: 'hosts',
+				run: 'pnpm -F @lushly-dev/specimen build:host && pnpm -F @lushly-dev/specimen stage:host',
+			},
 		],
 	},
 	{

@@ -72,3 +72,4 @@ api-alignment-report.md
 # Vitest browser-mode failure artifacts; untracked Specimen files would fail its provenance test.
 foundations/specimen/.vitest-attachments/
 foundations/specimen/reference/__screenshots__/
+foundations/specimen/packages/*/bin/

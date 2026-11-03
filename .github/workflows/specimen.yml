@@ -49,6 +49,7 @@ jobs:
     outputs:
       run: ${{ steps.run.outputs.run }}
       host: ${{ steps.host.outputs.run }}
+      hosts: ${{ steps.hosts.outputs.run }}
       stories: ${{ steps.stories.outputs.run }}
     env:
       AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -62,6 +63,8 @@ jobs:
         run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
       - id: host
         run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .github/workflows/specimen.yml
+      - id: hosts
+        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
       - id: stories
         run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path .github/workflows/specimen.yml
 
@@ -90,6 +93,65 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Test
         run: cargo test --locked
+
+  host-packages:
+    # The prebuilt hosts @lushly-dev/specimen installs as optional dependencies. Each is built on
+    # the oldest image Playwright supports for its platform (Linux links glibc 2.35), packed
+    # through its package's prepack check and installed by every packed consumer, with no
+    # SPECIMEN_HOST_BINARY. The tarballs are the candidates a release route would publish; this
+    # job publishes nothing.
+    name: Prebuilt host (${{ matrix.platform }})
+    needs: scope
+    if: needs.scope.outputs.hosts == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64-gnu
+            os: ubuntu-22.04
+          - platform: linux-arm64-gnu
+            os: ubuntu-22.04-arm
+          - platform: darwin-arm64
+            os: macos-15
+          - platform: darwin-x64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F "@lushly-dev/specimen-cli..." build
+      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - name: Install Rust toolchain
+        working-directory: foundations/specimen/host
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: foundations/specimen/host
+      - name: Native host release build
+        run: pnpm -F @lushly-dev/specimen build:host
+      - name: Packed consumers on this platform's host package
+        run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
+      - name: Pack the host package
+        run: |
+          node foundations/specimen/host/stage.mjs ${{ matrix.platform }}
+          pnpm -F @lushly-dev/specimen-host-${{ matrix.platform }} pack --pack-destination "$RUNNER_TEMP/specimen-host"
+      - name: Upload the host package and consumer receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: specimen-host-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/specimen-host/
+            ${{ runner.temp }}/specimen-receipt/
+          retention-days: 7
 
   stories:
     # AFD's FAST-AF stories: upstream's Storybook and Fastbot were not imported, so this is their

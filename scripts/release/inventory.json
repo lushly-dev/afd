@@ -299,12 +299,40 @@
 				"isolated-install",
 				"release-approval"
 			],
-			"fixed": false,
+			"fixed": true,
 			"distributions": [
 				{
 					"name": "@lushly-dev/specimen",
 					"registry": "npm",
 					"manifest": "foundations/specimen/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/specimen-host-darwin-arm64",
+					"registry": "npm",
+					"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/specimen-host-darwin-x64",
+					"registry": "npm",
+					"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
+					"registry": "npm",
+					"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/specimen-host-linux-x64-gnu",
+					"registry": "npm",
+					"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
 					"format": "npm",
 					"initialVersion": "2.2.0"
 				}

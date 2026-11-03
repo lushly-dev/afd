@@ -1,0 +1,30 @@
+{
+	"name": "@lushly-dev/specimen-host-darwin-x64",
+	"version": "2.2.0",
+	"description": "Specimen's prebuilt native host for darwin-x64",
+	"os": [
+		"darwin"
+	],
+	"cpu": [
+		"x64"
+	],
+	"bin": {
+		"specimen-host": "bin/specimen-host"
+	},
+	"files": [
+		"bin/specimen-host",
+		"README.md"
+	],
+	"scripts": {
+		"prepack": "node ../../host/stage.mjs --check darwin-x64"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "foundations/specimen/packages/host-darwin-x64"
+	},
+	"license": "MIT"
+}
