@@ -120,6 +120,8 @@ pub(crate) fn factory(fault: Fault) -> impl Fn(&Path, &str) -> Result<Stores, St
             documents: fake.clone(),
             graph: fake,
             index: None,
+            memory: None,
+            memory_restore: None,
         })
     }
 }

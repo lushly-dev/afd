@@ -34,7 +34,8 @@
   Trajectory rows re-checked on 2026-11-01 and 2026-11-02
   ([Trajectory refresh](#trajectory-refresh)). No Rust was built for this document. **Scratch
   experiments on 2026-11-02**, Python's SQLite 3.53.4, not the bundled 3.54.1, so step 3a
-  repeats them as tests:
+  repeated them as tests on the bundled 3.54.1 (`store-embedded/tests/memory_sqlite.rs`), and all five
+  held there ([Amendments from step 3a](#amendments-from-step-3a)):
   - An ordinary FTS5 table with `secure-delete`, `secure_delete=ON` and
     `wal_checkpoint(TRUNCATE)` left no canary in the file after a delete.
   - **A `contentless_delete=1` table kept the canary in the file** after the same steps, which
@@ -61,7 +62,8 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 2 to 10.
+- **Not done:** section [14](#14-implementation-plan)'s steps 3b to 10. Step 2 merged in
+  [#733](https://github.com/lushly-dev/afd/pull/733); step 3a is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2139,6 +2141,94 @@ Step 2 settled four details of 5.2 and 5.5 that the text left open. None changes
    plugin maps them to `MEMORY_CONFIRM_MISMATCH` and `MEMORY_CONFIRM_NOT_ALLOWED` (8.7).
 4. `get` filters by both instants of `as_of`, so a record invalidated or not yet valid at `as_of.valid` is `None`; `memory-show`
    reads such a record through `history` (8.1).
+
+### Amendments from step 3a
+
+Step 3a settled these details of 5.3 to 5.5 and 7.2 for a store that has no key file yet. Items 1 to 4 are
+interim and end with step 3b; the host reaches the memory store only at step 4, after 3b. Item 7 adds a
+step to every erasure, so that forget keeps the guarantee 5.4 and 7.2 state.
+
+1. **Forget before 3b.** With no key to destroy, a forget is 5.4's steps 1 and 3 in one `BEGIN IMMEDIATE`
+   transaction (erased prefixes, then rows, tombstones and `Erased` changes), then the index rebuild of
+   item 7 in a transaction of its own, then step 4, `wal_checkpoint(TRUNCATE)` outside them, each with the
+   store's lock timeout. A busy rebuild or checkpoint answers `wal: Pending`. There is no marker, so no
+   later writer retries it: a later forget or purge that erases something, or `reindex`, rebuilds the
+   index, and they, a sweep or `checkpoint()` truncate the WAL. Step 3b splits the transaction around the key destruction and
+   adds the markers and roll-forward of 5.4.
+2. **The seal seam.** Every `sealed` column is written by one function and read by one function
+   (`store-embedded/src/memory/seal.rs`). In 3a a blob is the byte `0x00`, the length of the associated
+   data as four big-endian bytes, the associated data of 5.4 (the canonical JSON array) and the plaintext,
+   so the text is stored in clear. Opening checks the binding, so a blob moved to another record, owner,
+   space, part or version already answers `SealInvalid`. Step 3b replaces both functions with
+   XChaCha20-Poly1305 (seal version `0x01`) and removes the `0x00` form. `versions.sealed` already holds
+   exactly 5.4's sealed fields and `invalidation.note`, null when all are null, and the envelope in clear
+   has them nulled.
+3. **`key_status`, `backup` and `reindex` before 3b.** `key_status` answers `Present` with every count 0:
+   nothing is sealed, so every row opens, which is what a matching key file means. `backup` refuses with
+   `Invalid` and copies nothing, since a copy would hold the text in clear; the erasure group's copy case is
+   `Skipped` because `memory_restore` is `None`. `reindex` already does 5.4's table rebuild (drop and create
+   `records_fts`, set `secure-delete` again, empty and refill `record_derived`, `indexed = 0` for a row that
+   does not open, then a `TRUNCATE` checkpoint); it counts no orphans until there is a key file.
+4. **`store_id`.** 128 bits from SQLite's `randomblob(16)`, whose generator SQLite seeds from the operating
+   system, because the store crate has no random source of its own until 3b adds `chacha20poly1305` with
+   `getrandom`; 3b may draw it from `getrandom` instead. It is an identity matched against the key file,
+   not a secret. It is written last in provisioning's transaction, and two processes provisioning at once
+   end with one (`memory_multiprocess.rs`).
+5. **Columns 5.3 left implicit**, each a value 7.2 lists as surviving in clear: `records` holds the agent's
+   id (for `ScopeQuery::agent` and the quota's pair) and its actor JSON, `sensitivity`, the access set as
+   its sorted tokens in JSON (so the observation key compares it as text), the `supersedes` ids, and the
+   whole capture key, which is the prefix a forget erases. `versions` holds `authority` for the filters, and
+   the envelope in clear with `confirmation` inside it. The quota is checked over the state the batch
+   leaves, inside the same transaction, which equals checking it before the entries and refuses the same
+   writes. The purge before a write takes at most 16 records in one transaction of its own, then item 7's
+   rebuild and a `TRUNCATE` checkpoint with no wait; a `Busy` at any point is left for the next writer.
+6. **The suite.** `Stores` gains `memory: Option<Arc<dyn MemoryStore>>` and
+   `memory_restore: Option<MemoryRestore>`, and `run_all` and `run_groups` run the memory groups after the
+   others, on the stores' `memory`, reporting every memory case `Skipped` when it is `None`. The writer child
+   writes memory records when `UMBEL_STORE_WRITER_KIND=memory` (`ENV_KIND`), so one `spawn_writer` serves
+   both kinds. `run_memory` and `run_memory_groups` stay, and `memory_conformance.rs` uses them on the
+   memory store alone; `conformance.rs` runs `run_all`, the memory groups included. The `knowledge` job's
+   `cargo test -p umbel-store -p umbel-store-embedded` already runs the new test binaries, so its commands
+   are unchanged.
+7. **The experiments, repeated on the bundled SQLite 3.54.1** (`store-embedded/tests/memory_sqlite.rs`).
+   The five of the Status section held: an ordinary FTS5 table with `secure-delete`, `secure_delete=ON`
+   and `wal_checkpoint(TRUNCATE)` leaves no canary in the file, and the control without `secure-delete`
+   does; a `contentless_delete=1` table keeps it; `"a" AND ("a" OR "b")` returns only rows with `a`, the
+   one with `b` first; the `ATTACH` copy into an empty `0600` file keeps rowids and mode, holds no index
+   text, leaves no journal or temporary file, and copies no `user_version`; a rollback-journal file with
+   `secure_delete=ON` loses a key's bytes when the key is set to null, and is one file at rest. So did two
+   of the key review's: a `TRUNCATE` checkpoint does not succeed inside a transaction, and `secure_delete`
+   and `synchronous` reset per connection.
+
+   **The experiment also found a leftover, and forget now compacts the index to remove it.** With
+   forgotten tokens `<prefix><n>q` and `<prefix><n>x` interleaved with kept records, FTS5's `secure-delete`
+   left one forgotten token **whole** in `records_fts_idx`: a leaf page's separator is the shortest prefix of
+   its first term that sorts after the previous page's last term, and when the two differ only in their last
+   character it is the whole token. FTS5's `optimize` clears it only while the index has several segments;
+   on an index already merged into one, which every compaction leaves, it does nothing (the review's
+   "`optimize` does not clear them"). So after an erasure commits, `forget`, the purge before a write and
+   `sweep` run `INSERT INTO records_fts(records_fts) VALUES('rebuild')` in a `BEGIN IMMEDIATE` transaction
+   of its own, with `secure_delete=ON`, and only then the `TRUNCATE` checkpoint. The rebuild reads the
+   index's own plaintext copy, so it needs no key, and writes every segment and separator afresh; the freed
+   pages are overwritten. The tests: `memory_sqlite.rs` shows the separator surviving `secure-delete`,
+   `optimize` clearing it over two segments and not over one, and `rebuild` clearing it either way;
+   `memory_erasure_bytes.rs` checks first that a word about to be forgotten is an index page's separator,
+   then forgets in four calls (so the later ones meet a one-segment index) and finds no forgotten token or
+   prefix in any file, and the same through a sweep's purge.
+
+   **When the compaction cannot run.** The erasure has committed, so a forget does not fail: a busy or
+   failed rebuild, like a busy checkpoint, answers `wal: Pending`. Until the next erasing call or
+   `memory-reindex` rebuilds the index, 5.4's stated limit on token prefixes applies to that forget. The
+   purge before a write runs both steps with no wait and leaves a busy one for the next writer; a sweep
+   waits the lock timeout. Step 3b's markers must make roll-forward repeat the rebuild as well as the
+   checkpoint.
+
+   **Cost**, measured 2026-11-03 on the development Mac (debug test build, `fullfsync` on, five forgets of
+   one record each, records of about forty words): **20 to 23 ms per forget on 3000 records** (a 7.5 MB
+   database), of which the rebuild alone is about 6 ms; 34 to 38 ms on 10 000 records (24 MB), the rebuild
+   about 18 ms. It grows with the index, so a store far larger would want the rebuild limited to the
+   segments an erasure touched, which FTS5 does not offer; `forget_cost_on_a_few_thousand_records`
+   prints these figures (`UMBEL_FORGET_COST_RECORDS` sets the size).
 
 ## 15. For the owner
 

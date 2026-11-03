@@ -3,7 +3,7 @@
 //! processes may open one space's store at once; writers take turns under `BEGIN IMMEDIATE` and
 //! wait at most `store.lock_timeout_ms`. The lexical lane is [`TantivyIndex`], tantivy under
 //! `index/v1/` with LZ4 and English stems; the readable graph's petgraph form is cached per
-//! process.
+//! process. Memory (phase 3) is [`SqliteMemoryStore`], its own database beside the store's.
 
 mod connection;
 mod documents;
@@ -11,6 +11,7 @@ mod error;
 mod graph;
 mod index;
 mod inspect;
+mod memory;
 mod readable_graph;
 mod schema;
 mod sql;
@@ -22,6 +23,7 @@ use umbel_store::StoreError;
 pub use connection::StoreOptions;
 pub use index::{IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
+pub use memory::{MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryInfo, SqliteMemoryStore};
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 
 /// The file and directory names under a space's state directory (section 3.2).

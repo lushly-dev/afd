@@ -4,7 +4,9 @@
 //! the memory store of space [`SPACE`] under a directory; optionally a [`MemoryRestore`], which
 //! puts a `backup` copy in place by the backend's own procedure (the erasure group's copy case
 //! is skipped without one); and optionally a `spawn_writer`, whose child test opens the same
-//! directory and calls [`run_memory_child`].
+//! directory and calls [`run_memory_child`]. Through [`super::run_all`] the groups run on the
+//! stores' `memory` instead, and the child is the suite's own [`super::run_child`], told by
+//! [`super::ENV_KIND`] to write memory records.
 
 mod access;
 mod bitemporal;
@@ -23,7 +25,8 @@ use std::sync::Arc;
 
 use super::child::{ENV_COUNT, ENV_ID, WROTE_PREFIX, wait_for_start};
 use super::{
-    CaseReport, CaseResult, Ctx, GroupReport, Report, SPACE, SpawnWriter, run_case, samples,
+    CaseReport, CaseResult, Ctx, Factory, GroupReport, Outcome, Report, SPACE, SpawnWriter,
+    run_case, samples,
 };
 use crate::memory::{
     AsOf, MemoryBatch, MemoryList, MemoryOrder, MemoryReceipt, MemoryRecord, MemoryStore,
@@ -106,6 +109,58 @@ pub fn run_memory_groups(
         })
         .collect();
     Report { groups }
+}
+
+/// The memory groups named in `only` (all when it is empty), run through a phase 2 factory on the
+/// stores' `memory`: skipped when the stores carry none, failed when the factory fails.
+pub(super) fn run_through_stores(
+    factory: Factory<'_>,
+    spawn_writer: Option<SpawnWriter>,
+    only: &[&str],
+) -> Vec<GroupReport> {
+    let wanted: Vec<&str> = MEMORY_GROUPS
+        .into_iter()
+        .filter(|name| only.is_empty() || only.contains(name))
+        .collect();
+    if wanted.is_empty() {
+        return Vec::new();
+    }
+    let every_case = |outcome: &Outcome| -> Vec<GroupReport> {
+        GROUPS
+            .iter()
+            .filter(|(name, _)| wanted.contains(name))
+            .map(|(name, cases)| GroupReport {
+                name,
+                cases: cases
+                    .iter()
+                    .map(|(case, _)| CaseReport {
+                        name: case,
+                        outcome: outcome.clone(),
+                    })
+                    .collect(),
+            })
+            .collect()
+    };
+    let probe = match tempfile::tempdir() {
+        Ok(dir) => dir,
+        Err(e) => return every_case(&Outcome::Failed(format!("a temporary directory: {e}"))),
+    };
+    let restore = match factory(probe.path(), SPACE) {
+        Ok(stores) if stores.memory.is_some() => stores.memory_restore,
+        Ok(_) => {
+            return every_case(&Outcome::Skipped(
+                "the backend's stores carry no memory store".to_owned(),
+            ));
+        }
+        Err(e) => return every_case(&Outcome::Failed(format!("opening the stores: {e}"))),
+    };
+    drop(probe);
+    let memory_factory = |dir: &Path, space: &str| -> Result<Arc<dyn MemoryStore>, StoreError> {
+        factory(dir, space)?
+            .memory
+            .ok_or_else(|| StoreError::invalid("the stores carry no memory store"))
+    };
+    run_memory_groups(&memory_factory, restore, spawn_writer, &wanted).groups
 }
 
 /// The base id of a writer child's records: `a` writes from 1000, `b` from 2000, any other name
