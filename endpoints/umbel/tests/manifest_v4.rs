@@ -2,8 +2,9 @@
 //! `confirm_preview` and what it may name, refused on component commands, mounted tools and
 //! pipelines; the pipeline keys `expose` and `result`, parsed and stored; versions 1 to 3 still
 //! loading, with every pipeline exposed to every surface and returning every step; and a version
-//! 4 plugin sealing. Parsing and validation only: the CLI's preview, a pipeline's exposure at seal
-//! and `result` in the handler arrive with step 2 (`cli_confirm_preview.rs`, `pipeline_expose.rs`).
+//! 4 plugin sealing, with its pipeline no wider than its steps. What acts on the keys is step 2's
+//! and is tested there: the CLI's preview (`cli_confirm_preview.rs`), and a pipeline's exposure at
+//! seal and its `result` (`pipeline_expose.rs`).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -434,24 +435,35 @@ fn a_pipelines_expose_and_result_refuse_what_they_do_not_define() {
 }
 
 #[test]
-fn the_seal_does_not_act_on_the_new_keys_yet() {
-    // A pipeline exposed wider than its CLI-only step still seals: the check is step 2's.
-    let text = v4(&format!(
-        "{}{}{}",
-        approve("preview"),
-        good_preview(),
-        pipeline("sweep", "result = \"last\"")
-    ));
-    let plugin = Raw::new(text, |_| {
-        Ok(["review-approve", "review-preview"]
-            .into_iter()
-            .map(|name| closure(name, |input, _| afd::success(input)))
-            .collect())
-    });
-    let config = config(&[("review", "")], "").replace("config_version = 2", "config_version = 4")
-        + "[plugins.review.grants.records_write]\nallow = [\"main\"]\n";
-    let dir = support::workspace(&config);
-    seal(dir.path(), |b| b.with_compiled(plugin)).unwrap();
+fn a_version_4_plugin_seals_with_its_pipeline_no_wider_than_its_steps() {
+    // Step 2 acts on the keys at seal: a pipeline exposed wider than its CLI-only step is
+    // refused (`pipeline_expose.rs` covers the rule), and one as narrow as it seals.
+    let sealed = |keys: &str| {
+        let text = v4(&format!(
+            "{}{}{}",
+            approve("preview"),
+            good_preview(),
+            pipeline("sweep", keys)
+        ));
+        let plugin = Raw::new(text, |_| {
+            Ok(["review-approve", "review-preview"]
+                .into_iter()
+                .map(|name| closure(name, |input, _| afd::success(input)))
+                .collect())
+        });
+        let config = config(&[("review", "")], "")
+            .replace("config_version = 2", "config_version = 4")
+            + "[plugins.review.grants.records_write]\nallow = [\"main\"]\n";
+        let dir = support::workspace(&config);
+        seal(dir.path(), |b| b.with_compiled(plugin))
+    };
+    let error = sealed("result = \"last\"").err().unwrap();
+    assert_eq!(error.code(), "PLUGIN_MANIFEST_INVALID", "{error}");
+    assert!(error.message().contains("pipelines[0].expose"), "{error}");
+    assert!(error.message().contains("review-preview"), "{error}");
+    let host = sealed(&format!("result = \"last\"\n{CLI_ONLY}")).unwrap();
+    let sweep = host.registry().get("review-sweep").unwrap();
+    assert!(sweep.expose.cli && !sweep.expose.mcp && !sweep.expose.agent);
 }
 
 // ── Versions ───────────────────────────────────────────────────────────────────────────────────

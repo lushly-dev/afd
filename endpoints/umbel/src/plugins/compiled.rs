@@ -167,8 +167,8 @@ struct SdkHandler<P: umbel_sdk::Plugin> {
 }
 
 /// The call context a plugin receives (WIT `call-context`): the command, the trace id, the
-/// resolved space for a command with a `space` input, and a summary of the actor. Never a
-/// credential or a token.
+/// resolved space for a command with a `space` input, a summary of the actor, and the host's
+/// pipeline attestation for a step (phase 4 section 10.1). Never a credential or a token.
 pub(super) fn call_context(
     name: &str,
     has_space: bool,
@@ -196,6 +196,7 @@ pub(super) fn call_context(
             .interface
             .map(|interface| interface.as_str().to_owned())
             .unwrap_or_default(),
+        pipeline: services.pipeline(),
     }
 }
 

@@ -245,6 +245,8 @@ pub(crate) struct Inputs<'a> {
     pub stores: &'a crate::store::Hub,
     /// What calls did to the stores, read by the plugin gate.
     pub ledger: &'a Arc<super::ledger::Ledger>,
+    /// The pipeline steps in flight: written by pipeline handlers, read by the services.
+    pub attestations: &'a Arc<super::attestation::PipelineAttestations>,
     pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
     /// The terminal prompts and pipeline steps, which the host sets after the load (phase 3
@@ -386,8 +388,13 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
             if plan.state != PipelineState::Registered {
                 continue;
             }
+            let owner = pipelines::Owner {
+                plugin: prepared.manifest.plugin.id.clone(),
+                instance: id.clone(),
+                attestations: Arc::clone(inputs.attestations),
+            };
             register(
-                pipelines::definition(decl, plan, weak.clone()),
+                pipelines::definition(decl, plan, weak.clone(), owner),
                 schema.clone(),
             )?;
             let mut entry = gate_entry(&id, kind, &prepared.spaces, schema, true, false);
@@ -482,6 +489,7 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     pipeline: false,
                     digest: false,
                     authority_prompt: None,
+                    expose: command.expose.clone(),
                 },
             )
         })
@@ -526,6 +534,7 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                             .is_some_and(|journal| journal.mode == JournalMode::Digest)
                     }),
                     authority_prompt: decl.and_then(|command| command.authority_prompt.clone()),
+                    expose: definition.expose.clone(),
                 },
             );
         }
@@ -539,6 +548,11 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     pipeline: true,
                     digest: false,
                     authority_prompt: None,
+                    expose: ExposeOptions::new()
+                        .with_palette(false)
+                        .with_mcp(pipeline.expose.mcp)
+                        .with_agent(pipeline.expose.agent)
+                        .with_cli(pipeline.expose.cli),
                 },
             );
         }
@@ -884,6 +898,7 @@ fn prepare(
             })
             .collect(),
         ledger: Arc::clone(inputs.ledger),
+        attestations: Arc::clone(inputs.attestations),
         memory_policy: instance.memory_write.clone(),
         prompts: Arc::clone(inputs.prompts),
     });

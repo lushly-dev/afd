@@ -17,6 +17,13 @@ pub trait Console: Send + Sync + 'static {
     fn is_interactive(&self) -> bool;
     /// Show `text` on stderr and read one answer; `true` for `y` or `yes`.
     fn ask(&self, text: &str) -> bool;
+    /// Show `text` on stderr and read nothing: a confirmation preview, shown before the prompt
+    /// (phase 4 section 8.1). The default writes it to the process's stderr.
+    fn show(&self, text: &str) {
+        let mut stderr = std::io::stderr();
+        let _ = write!(stderr, "{text}");
+        let _ = stderr.flush();
+    }
     /// Read stdin for `@-` (phase 3 section 10.6): at most `limit + 1` bytes, so a longer input
     /// is seen to be too large without being read whole. The default reads the process's stdin.
     ///

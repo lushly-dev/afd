@@ -6,6 +6,7 @@
 //! ([`CompiledPlugin`]) and the host services they are granted ([`Services`]); the component and
 //! mounted kinds arrive in the steps that follow.
 
+mod attestation;
 mod check;
 mod compiled;
 #[cfg(feature = "component")]
@@ -29,6 +30,7 @@ mod skills;
 mod source;
 mod store_services;
 
+pub(crate) use attestation::PipelineAttestations;
 pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
 pub(crate) use check::single_plugin_config;
@@ -61,7 +63,7 @@ pub(crate) use pipelines::PipelineState;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
-pub use umbel_sdk::{HostError as ServiceError, HostServices, Level};
+pub use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
 
 /// The newest manifest version this host reads (`manifest_version`).
 pub const MANIFEST_VERSION: u32 = 4;

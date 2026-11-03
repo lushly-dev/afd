@@ -26,20 +26,44 @@
 //!   `PLUGIN_MANIFEST_INVALID`, because that step's resolved input would enter the journal. A
 //!   pipeline inherits its steps' `authority_prompt`s in step order, as it inherits their
 //!   `confirm_prompt`s.
+//! - **Exposure** (manifest version 4, phase 4 section 2.2, D105). A version 4 pipeline is
+//!   registered with its own `expose`, and one exposed to an interface (`mcp`, `agent`, `cli`)
+//!   that any of its steps is not exposed to is `PLUGIN_MANIFEST_INVALID`, naming the step. A
+//!   pipeline of manifest versions 1 to 3 keeps phase 1's exposure to every surface, unchecked.
+//!
+//! What the handler does (phase 4 section 10.1, D91):
+//!
+//! - **Attestation.** Each step runs under a fresh random trace id, replacing AFD's predictable
+//!   `<pipeline id>-step-<i>`, recorded in the host's [`PipelineAttestations`] table for as long
+//!   as the step runs: the plugin and instance that ship the pipeline, the pipeline, the run (the
+//!   pipeline call's trace id) and the step's command.
+//! - **Result.** `result = "steps"` (the default) returns every step's index, command, alias,
+//!   status and data; `result = "last"` returns only the last step's data, so only that data is
+//!   printed and enters the pipeline's journal entry. Each step is still journaled under its own
+//!   name in its own journal mode, as every call is.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
 
 use afd::{
     CommandContext, CommandDefinition, CommandError, CommandExecutor, CommandHandler,
-    CommandRegistry, CommandResult, ExposeOptions, PipelineRequest, StepStatus, execute_pipeline,
-    failure, success,
+    CommandInterface, CommandRegistry, CommandResult, ExposeOptions, PipelineRequest, StepStatus,
+    execute_pipeline, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
 
+use super::attestation::PipelineAttestations;
 use super::error::PluginError;
-use super::manifest::{Effect, Manifest, PipelineDecl};
+use super::manifest::{Effect, Manifest, PipelineDecl, PipelineResult};
+use umbel_sdk::PipelineAttestation;
+
+/// The interfaces a pipeline may be exposed to; no pipeline is offered in the palette.
+const INTERFACES: [CommandInterface; 3] = [
+    CommandInterface::Mcp,
+    CommandInterface::Agent,
+    CommandInterface::Cli,
+];
 
 /// What the pipeline resolver knows about one command a step may name.
 #[derive(Debug, Clone)]
@@ -54,6 +78,8 @@ pub(crate) struct Known {
     pub digest: bool,
     /// The command's `authority_prompt` (phase 3 section 3.3).
     pub authority_prompt: Option<String>,
+    /// The interfaces the command is exposed to (phase 4 section 2.2).
+    pub expose: ExposeOptions,
 }
 
 /// Whether a pipeline was registered.
@@ -149,6 +175,9 @@ fn plan_one(
         }
     }
     check_digest_flow(manifest, index, pipeline, &steps)?;
+    if manifest.manifest_version >= 4 {
+        check_exposure(manifest, index, pipeline, &steps)?;
+    }
     let union = |prompt: fn(&Known) -> Option<&String>| {
         let mut prompts: Vec<String> = Vec::new();
         let mut seen: Vec<&str> = Vec::new();
@@ -246,12 +275,57 @@ fn check_digest_flow(
     Ok(())
 }
 
+/// Phase 4 section 2.2 (D105): a version 4 pipeline is exposed no wider than its narrowest step.
+fn check_exposure(
+    manifest: &Manifest,
+    index: usize,
+    pipeline: &PipelineDecl,
+    steps: &[(&str, &Known, &Vec<Effect>)],
+) -> Result<(), PluginError> {
+    let exposed = |interface: CommandInterface| match interface {
+        CommandInterface::Mcp => pipeline.expose.mcp,
+        CommandInterface::Agent => pipeline.expose.agent,
+        CommandInterface::Cli => pipeline.expose.cli,
+        CommandInterface::Palette => false,
+    };
+    for interface in INTERFACES
+        .into_iter()
+        .filter(|interface| exposed(*interface))
+    {
+        if let Some((name, _, _)) = steps
+            .iter()
+            .find(|(_, known, _)| !known.expose.is_exposed_to(interface))
+        {
+            return Err(PluginError::manifest_invalid(
+                &manifest.file,
+                &format!("pipelines[{index}].expose"),
+                format!(
+                    "exposes `{}` to {interface}, but its step `{name}` is not exposed to {interface}: a pipeline may be exposed no wider than its narrowest step; set expose.{interface} = false",
+                    pipeline.name
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The plugin instance that ships a pipeline, and the host's table its steps are recorded in.
+#[derive(Clone)]
+pub(crate) struct Owner {
+    /// The `plugin.id` of the plugin that ships the pipeline.
+    pub plugin: String,
+    /// The instance whose pipeline it is.
+    pub instance: String,
+    pub attestations: Arc<PipelineAttestations>,
+}
+
 /// The command definition of a registered pipeline. The registry is held weakly: it holds this
 /// handler.
 pub(crate) fn definition(
     decl: &PipelineDecl,
     plan: &PipelinePlan,
     registry: Weak<CommandRegistry>,
+    owner: Owner,
 ) -> CommandDefinition {
     let steps = decl
         .steps
@@ -275,15 +349,17 @@ pub(crate) fn definition(
             name: decl.name.clone(),
             registry,
             steps,
+            result: decl.result,
+            owner,
         },
     )
-    .with_returns(returns())
+    .with_returns(returns(decl.result))
     .with_expose(
         ExposeOptions::new()
             .with_palette(false)
-            .with_mcp(true)
-            .with_agent(true)
-            .with_cli(true),
+            .with_mcp(decl.expose.mcp)
+            .with_agent(decl.expose.agent)
+            .with_cli(decl.expose.cli),
     );
     if let Some(prompt) = &plan.confirm_prompt {
         definition = definition.with_confirm_prompt(prompt);
@@ -297,18 +373,36 @@ pub(crate) fn definition(
     definition
 }
 
-fn returns() -> afd::JsonSchema {
-    serde_json::from_value(json!({
-        "type": "object",
-        "description": "steps: one entry per step, in order, with index, command, as, status and data"
-    }))
-    .unwrap_or_default()
+fn returns(result: PipelineResult) -> afd::JsonSchema {
+    let description = match result {
+        PipelineResult::Steps => {
+            "steps: one entry per step, in order, with index, command, as, status and data"
+        }
+        PipelineResult::Last => "the last step's data, and nothing of the steps before it",
+    };
+    serde_json::from_value(json!({ "type": "object", "description": description }))
+        .unwrap_or_default()
 }
 
 struct PipelineHandler {
     name: String,
     registry: Weak<CommandRegistry>,
     steps: Vec<afd::PipelineStep>,
+    result: PipelineResult,
+    owner: Owner,
+}
+
+/// `INTERNAL_ERROR` for a step that cannot get a trace id from the random source: it never runs
+/// under a trace id that could be guessed.
+fn no_random_source() -> CommandResult<Value> {
+    failure(
+        CommandError::new(
+            afd::error_codes::INTERNAL_ERROR,
+            "The operating system's random source failed, so the step was given no trace id",
+        )
+        .with_suggestion("Retry the command; if it keeps failing, check the host's random source.")
+        .with_retryable(true),
+    )
 }
 
 #[async_trait]
@@ -325,13 +419,32 @@ impl CommandHandler for PipelineHandler {
             );
         };
         let request = PipelineRequest::new(self.steps.clone()).with_input(input);
-        let executor: CommandExecutor = Arc::new(move |command, input, step| {
+        let attestation = PipelineAttestation {
+            plugin: self.owner.plugin.clone(),
+            instance: self.owner.instance.clone(),
+            pipeline: self.name.clone(),
+            run: context
+                .trace_id
+                .clone()
+                .unwrap_or_else(crate::host::new_trace_id),
+        };
+        let attestations = Arc::clone(&self.owner.attestations);
+        // AFD's step context (its `traceId`, `<pipeline id>-step-<i>`) is ignored: each step gets
+        // a fresh random trace id, recorded until the step returns (section 10.1).
+        let executor: CommandExecutor = Arc::new(move |command, input, _step| {
             let registry = Arc::clone(&registry);
+            let attestations = Arc::clone(&attestations);
+            let attestation = attestation.clone();
             let mut context = context.clone();
-            if let Some(trace) = step.get("traceId").and_then(Value::as_str) {
-                context.trace_id = Some(trace.to_owned());
-            }
-            Box::pin(async move { registry.execute(&command, input, Some(context)).await })
+            Box::pin(async move {
+                let Some(step) = attestations.begin(attestation, &command) else {
+                    return no_random_source();
+                };
+                context.trace_id = Some(step.trace().to_owned());
+                let result = registry.execute(&command, input, Some(context)).await;
+                drop(step);
+                result
+            })
         });
         let result = execute_pipeline(&request, &executor, None).await;
         if let Some(step) = result
@@ -351,6 +464,15 @@ impl CommandHandler for PipelineHandler {
             details.insert("step".into(), json!(step.index));
             details.insert("command".into(), json!(step.command));
             return failure(error.with_details(details));
+        }
+        if self.result == PipelineResult::Last {
+            let last = result
+                .steps
+                .last()
+                .filter(|step| step.status == StepStatus::Success)
+                .and_then(|step| step.data.clone())
+                .unwrap_or(Value::Null);
+            return success(last);
         }
         let steps: Vec<Value> = result
             .steps

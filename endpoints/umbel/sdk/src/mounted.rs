@@ -302,6 +302,8 @@ impl<P: Plugin> CommandHandler for Handler<P> {
             actor_id: None,
             on_behalf_of: None,
             interface: "mcp".to_owned(),
+            // A mounted server is outside the host, which attests nothing to it.
+            pipeline: None,
         };
         let services = Services {
             shared: Arc::clone(&self.shared),
