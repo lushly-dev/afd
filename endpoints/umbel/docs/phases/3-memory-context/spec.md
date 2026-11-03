@@ -62,14 +62,15 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 8 to 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s steps 9 and 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
   [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
   [#740](https://github.com/lushly-dev/afd/pull/740), step 5 in
   [#742](https://github.com/lushly-dev/afd/pull/742), step 6 in
   [#743](https://github.com/lushly-dev/afd/pull/743), step 7a in
-  [#744](https://github.com/lushly-dev/afd/pull/744); step 7b is in its pull request, 2026-11-03.
+  [#744](https://github.com/lushly-dev/afd/pull/744), step 7b in
+  [#745](https://github.com/lushly-dev/afd/pull/745); step 8 is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2559,6 +2560,90 @@ narrows what it may push of what the caller already reads.
     `umbel-first-party` is the first to link it), and `digest` uses `umbel-store`'s SHA-256
     (`ContentHash::of`), so the crate takes `chrono`, `serde`, `serde_json` and `toml`, all in the lock.
 
+### Amendments from step 8
+
+Step 8 settled these details of sections 10.2 to 10.4, 12 and 14 that the text left open, and recorded
+what its structure check found. None makes capture non-private or on by default, captures anything but
+user and assistant text, or otherwise changes the trust model: the hook sends no `share` and no
+`space`, `print-settings` writes nothing, and items 2, 3 and 5 exclude more than the text did. The host
+is unchanged.
+
+1. **The interactive CLI re-check could not be made on conversation.** On 2026-11-03 the local
+   transcripts held one main session with entrypoint `cli` (version 2.1.316), and it has no
+   conversation lines: `permission-mode`, `mode`, one `system` line with `isMeta`, `cost-state` and
+   `last-prompt`, all of which the reader ignores. The 25 largest main sessions (entrypoints
+   `claude-desktop` and `sdk-ts`, versions 2.1.197 to 2.1.316, 52 280 lines) were read again for keys,
+   types and enum values only, with no text read: the rules of 10.3 hold, with items 2 to 6. The
+   follow-up stays open for a CLI session with conversation.
+2. **A `queued_command`'s `isMeta` may be on the attachment** rather than the line (12 seen, all
+   `origin.kind = "peer"`); either excludes it.
+3. **A `queued_command`'s `prompt` is a string or a list of blocks** (one list seen, an image only);
+   its `text` blocks count, as a user line's do.
+4. **Harness wrappers are dropped per text block,** not per line: a user line can hold a person's
+   block beside a `<system-reminder>` block, and only the wrapper block is left out. A line with no
+   other text is not a turn.
+5. **Lines that copy API requests are "every other line type".** `api-request-blob` (1 958 lines)
+   holds a request's messages with text and `tool_result` blocks, and `queue-operation` and
+   `last-prompt` carry prompt text; with `api-request`, `api-request-shape`, `ai-title`,
+   `custom-title` and the rest they are never read, and the fixture has a canary in each kind.
+6. **`supersedesUuids` and `retractedMessageUuids` are ignored** (one assistant line and seven ids
+   seen, none naming a text line): the file stays append-only to the reader, so a retracted text, like
+   a rewound branch's, stays captured. Values seen as 10.3 says: `turnOrigin` `human`, `sdk`,
+   `task_notification`, `scheduled`, `peer`; `origin.kind` `human`, `task-notification`, `peer`;
+   `promptSource` `sdk`, `system`. Known excluded values are not counted; others are excluded and
+   counted.
+7. **Messages.** An assistant line joins the open message when its `message.id` equals it; an id
+   first seen at an earlier message, with any message or turn between, is a repeat. A line with no
+   `message.id` is a message of its own, keyed by its `uuid`. A message's text blocks are joined by a
+   blank line.
+8. **State.** `messageIds` maps each id to the byte offset of its message's first line, so a read
+   from `nextWindowOffset` tells a repeat from a message's start. `scanned` stops at the first line of
+   an assistant message still open, so the next read takes it whole, and `turns` counts the turns
+   before `scanned`. A state whose `nextWindowOffset` is past `scanned` is discarded, as for a
+   transcript shorter than `scanned`. The directory is made `0700` and each file `0600`, by rename.
+9. **Window text and parts.** A turn is its `[user]` or `[assistant]` line, then its text, ending in a
+   newline; a window is its turns concatenated. The part before a turn over 64 KiB ends at that turn; a
+   line over 64 KiB is split at character boundaries. A call's entries are at most 800 KiB **as JSON**,
+   stricter than counting text, and at most 256.
+10. **Episode fields.** `subject` is `Session <session> window <n>`, and a tail's adds
+    ` (open, <t> turns)`; `turns` is the part's first and last turn; `startedAt` is its first turn's
+    `timestamp` when that is RFC 3339, else absent; `harness.version` is the last `version` on a
+    conversation line when it is 1 to 64 letters, digits, `.`, `-` or `+`.
+11. **The child.** `$UMBEL_BIN [--workspace <dir>] --format json call <command> @-`, its stderr
+    discarded. A child running past 9 seconds (`context-bundle`) or 25 seconds (`memory-capture`,
+    `memory-sweep`), under the printed timeouts, is killed. A failure keeps only the child's error
+    code, never its message. The hook's own codes are `invalid-arguments`, `invalid-stdin`, `no-binary`,
+    `child-failed`, `child-timeout`, `transcript-unreadable`, `no-state-dir` and `state-unwritable`;
+    bad arguments in a hook position fail open too. A success that skipped lines prints one stderr
+    line of counts.
+12. **Paths and the project.** A relative `transcript_path` is taken from an absolute `cwd`, else
+    `invalid-stdin`. The project comes only from an absolute `cwd`. A `.git` file whose `gitdir` has no
+    `commondir` (a submodule) names the directory holding the `.git` file.
+13. **`generic session-start`** reads an optional JSON object on stdin with `space`, `project`,
+    `session` and `task` (empty stdin is none), and `UMBEL_TASK` fills a missing task.
+    `print-settings generic` exits 2, since a deployer wires that profile themselves.
+    `print-settings claude-code` adds the matcher `startup|clear|compact` on `SessionStart` and names
+    `umbel-hook` on `PATH`. `umbel-hook status` prints `{ stateDir, lastError }`.
+14. **The fixture binary** `umbel-hook-fixture` stands in for `$UMBEL_BIN` (feature `fixture`, enabled
+    by the crate's dev-dependency on itself, as the host's `testkit` binary is): it records each call
+    in its `--workspace` directory and answers as a `mode` file there says. Tests set no process
+    environment, so they never touch a real state directory or harness settings.
+15. **The fixture transcript** (165 lines, 65 text turns, 41 canaries in every excluded kind) was
+    generated by a throwaway script from invented strings; its secret is a `password=` assignment
+    rather than a token shape, so no secret scanner flags a committed synthetic token.
+16. **`first-party/tests/hook_smoke.rs`**, beyond the plan's tests, runs the hook through
+    `umbel_hook::run` against the real `umbel-first-party` binary: three private `transcript` records
+    after `Stop`, four after `SessionEnd`, and valid session-start output.
+17. **Measured.** Release build, Apple silicon, the four plugins enabled and six documents indexed:
+    the first `memory-capture` of a window 110 ms (it provisions `memory.keys`), later ones about
+    50 ms, a replay 25 ms, `context-bundle` 25 ms; the whole hook's `Stop` sending three windows
+    169 ms, `SessionEnd`'s tail 65 ms, a `Stop` with no closed window 20 ms and no child. Well inside
+    the 1.5-second default, so the printed timeouts are margin. The `memory` job's clippy and tests,
+    cold with `-j4`, took 120 s on this machine (MSRV check not run: 1.97 is not installed here);
+    three times that is six minutes, and the timeout stays **15 minutes** because hosted runners are
+    slower (C14). The release `umbel-first-party` is 38.8 MB and `umbel-hook` 0.9 MB; a cold check of
+    `umbel-hook` takes about 3 s.
+
 ## 15. For the owner
 
 **The owner decided items 1 to 5 on 2026-11-02.** They are final and written into this specification. Approval is under the owner's 2026-10-31 delegation, with these answers.
@@ -2621,6 +2706,6 @@ Nothing here touches O1, O4 or O5.
 | 2026-11-02 | `memory-confirm` on another person's record, with verified identity (D88, section 13) | Phase 5 |
 | 2026-11-02 | A `cursor` profile: read its transcript format; decide whether to push at all, since its docs put `additional_context` in the "initial system context" and `sessionStart` is fire-and-forget; never read `user_email` from its stdin | When asked |
 | 2026-11-02 | How a component's memory writes are masked, before world 1.1.0 may hold `memory_write` (6.2) | World 1.1.0 |
-| 2026-11-02 | Re-check the transcript reader on an interactive CLI session (10.3) | Step 8 |
+| 2026-11-02 | Re-check the transcript reader on an interactive CLI session (10.3). Step 8 found no local CLI session with conversation and re-checked the other entrypoints ([Amendments from step 8](#amendments-from-step-8), item 1) | Open: when a CLI session with conversation exists |
 | 2026-11-02 | Measure whether labels, quoting or the scan protect a pushed record; none of it is measured (section 11). If a deployer widens the push, this matters more | After phase 4's eval work |
 | 2026-11-02 | Pinned documents for a no-task bundle, and wrapping `memory.keys` | When a deployer asks |

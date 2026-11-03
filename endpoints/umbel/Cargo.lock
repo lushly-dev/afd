@@ -3943,6 +3943,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "umbel-first-party"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "umbel",
+ "umbel-hook",
+ "umbel-plugin-context",
+ "umbel-plugin-knowledge",
+ "umbel-plugin-memory",
+ "umbel-plugin-sources-filesystem",
+]
+
+[[package]]
 name = "umbel-fixture-behaviors"
 version = "0.1.0"
 dependencies = [
@@ -3972,6 +3987,16 @@ name = "umbel-fixture-sockets"
 version = "0.1.0"
 dependencies = [
  "wit-bindgen 0.63.0",
+]
+
+[[package]]
+name = "umbel-hook"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "umbel-hook",
 ]
 
 [[package]]

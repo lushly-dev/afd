@@ -295,6 +295,18 @@
 			"family": "umbel",
 			"layer": "endpoint",
 			"publicSurfaces": ["rust-library"]
+		},
+		{
+			"manifest": "endpoints/umbel/first-party/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["bin:umbel-first-party"]
+		},
+		{
+			"manifest": "endpoints/umbel/adapters/hook/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library", "bin:umbel-hook"]
 		}
 	],
 	"coverageContract": {
