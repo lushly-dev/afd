@@ -1,0 +1,34 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"verified_only": {
+			"type": "boolean",
+			"default": false,
+			"description": "Bundle only knowledge a person (a human or an owner) has verified, and omit every memory section with verified-only"
+		},
+		"push_authorities": {
+			"type": "array",
+			"uniqueItems": true,
+			"maxItems": 5,
+			"items": {
+				"type": "string",
+				"enum": ["person", "tool", "agent", "import", "transcript"]
+			},
+			"default": ["person"],
+			"description": "The authorities of the caller's own memory records a bundle pushes. The default pushes only what a person said or confirmed; widening it pushes text no person read"
+		},
+		"push_foreign_authorities": {
+			"type": "array",
+			"uniqueItems": true,
+			"maxItems": 5,
+			"items": {
+				"type": "string",
+				"enum": ["person", "tool", "agent", "import", "transcript"]
+			},
+			"default": ["person"],
+			"description": "The authorities of another principal's readable memory records a bundle pushes"
+		}
+	},
+	"additionalProperties": false
+}

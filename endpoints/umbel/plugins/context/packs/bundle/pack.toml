@@ -1,0 +1,6 @@
+pack_version = 1
+id = "bundle"
+plugin = "context"
+version = "1.0.0"
+title = "Bundle"
+description = "How a context bundle divides its byte budget among its sections, how many items each section and each authority tier holds, how long an item's text may be, how knowledge hits are scored, and the stop words removed from a task."

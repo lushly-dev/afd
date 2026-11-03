@@ -1,0 +1,43 @@
+[package]
+name = "umbel-plugin-context"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel context plugin: budgeted bundles of verified knowledge and pushed memory, assembled from the stores through host grants, with every item labeled and every omission counted"
+repository = "https://github.com/lushly-dev/afd"
+
+# No dependency on another plugin crate, of any kind (D3, D78): the bundle reads the stores
+# through the host's grants, and `tests/no_plugin_dependency.rs` holds that. Only
+# `umbel-first-party` (step 8) links this plugin beside the memory plugin (D80).
+[dependencies]
+# RFC 3339 instants (`asOf`), read as the host reads them.
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The bundle pack is a TOML file.
+toml = "1"
+# The locator string and `is_stale`, shared with the knowledge plugin (step 7a).
+umbel-okf = { path = "../../okf" }
+umbel-sdk = { path = "../../sdk" }
+umbel-store = { path = "../../store" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+# The bundle is validated against `context-bundle.v1.json`.
+jsonschema = { version = "0.60", default-features = false }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
+umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+# The tests write documents, chunks and memory records through the store API, with fixed ids and
+# a fixed clock (section 9.6), into the files the host then opens.
+umbel-store = { path = "../../store", features = ["conformance"] }
+umbel-store-embedded = { path = "../../store-embedded" }
+
+[lints]
+workspace = true
