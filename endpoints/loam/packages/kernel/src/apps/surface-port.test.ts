@@ -576,6 +576,17 @@ describe('P2-E7: what the port and the store hold of themselves', () => {
 		expect((await journal.read()).length).toBe(before);
 	});
 
+	it("gives a workspace-only app's port store the workspace, whatever is active", async () => {
+		const workspace = await scoped();
+		await workspace.kernel.call('scope-set', { project: 'atlas' });
+		await workspace.kernel.appPort('solo').store?.put('k', 'v');
+		expect(await workspace.store.get('app-solo', 'k')).toMatchObject({ scope: WORKSPACE });
+		await workspace.kernel.appPort('dual').store?.put('k', 'v');
+		expect(await workspace.store.get('app-dual', `p~${ATLAS.project}~k`)).toMatchObject({
+			scope: ATLAS,
+		});
+	});
+
 	it('decides the `loam.layout` alias on the scope it resolves to', async () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;

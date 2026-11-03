@@ -749,15 +749,17 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 					updatedAt: at,
 					updatedBy: actor,
 				} as WorkspaceAppV1;
-				// Changed only when a deployer's key did: a record that was listed again is not counted.
+				// Changed when a deployer's key did, compared as JSON, so reordered keys count; and when a
+				// record the projection had stopped listing is listed again.
 				if (!held) counts.added++;
 				else if (
+					held.listed === null ||
 					JSON.stringify(kept) !==
-					JSON.stringify(
-						Object.fromEntries(
-							KEPT.flatMap((key) => (held[key] === undefined ? [] : [[key, held[key]]]))
+						JSON.stringify(
+							Object.fromEntries(
+								KEPT.flatMap((key) => (held[key] === undefined ? [] : [[key, held[key]]]))
+							)
 						)
-					)
 				) {
 					counts.changed++;
 				}

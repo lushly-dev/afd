@@ -57,6 +57,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		context: CommandContext
 	): CommandResult<never> | undefined {
 		const from = scope.active();
+		// A server's call (no mark) holds no active scope, so it moves none: `project-archive` over MCP
+		// archives, and a person's scope stays where they put it (3.3).
+		if (!(context as { [CALL_MARK]?: string })[CALL_MARK]) return undefined;
 		if (sameScope(from, to)) {
 			// Stage A may hold the workspace in memory while `loam.scope` still names the project it refused
 			// (6.3): the record follows, so a reload lands where this call says.

@@ -299,6 +299,82 @@ describe('P2-E10: the workspace store across boots', () => {
 		});
 	});
 
+	it("reports stage B's apply as a mutation on its event", async () => {
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: readBoot(scopedDeployment()) as BootProjectionV2,
+			appsLoader: async () => ({ deployment: scopedDeployment(), ports: scopedPorts() }),
+		});
+		kernels.push(kernel);
+		const events: Array<{ command: string; mutation: boolean }> = [];
+		kernel.subscribe((event) => events.push(event));
+		await kernel.startApps();
+		expect(events.find((event) => event.command === 'workspace-deployment-apply')).toMatchObject({
+			mutation: true,
+		});
+	});
+
+	it('counts an entry listed again, as it was, as changed', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const boot = async (deployment: ProjectionV2, day: number) => {
+			const kernel = await createKernel({
+				store,
+				storeKind: 'memory',
+				journal,
+				auth: new MockAuthAdapter(),
+				environment: createFixedEnvironment(),
+				host: 'test',
+				clock: createSteppingClock(Date.UTC(2026, 0, day)),
+				deployment,
+			});
+			kernels.push(kernel);
+		};
+		const without = scopedDeployment();
+		without.generation = 'without';
+		without.apps = without.apps.filter((entry) => entry.instance !== 'tasks');
+		await boot(scopedDeployment(), 1);
+		await boot(without, 2);
+		// `tasks` is listed again, unchanged: it was unlisted, so it changed.
+		await boot(scopedDeployment(), 3);
+		const applied = (await journal.read())
+			.filter((entry) => entry.command === 'workspace-deployment-apply')
+			.map((entry) => entry.result.data);
+		expect(applied).toEqual([
+			{ added: 3, changed: 0, unlisted: 0 },
+			{ added: 0, changed: 0, unlisted: 1 },
+			{ added: 0, changed: 1, unlisted: 0 },
+		]);
+	});
+
+	it('fails the apply alone when the store cannot be read: the late commands load', async () => {
+		const inner = new MemoryAdapter();
+		const store = Object.assign(Object.create(inner), {
+			list: (table: string, params?: never) =>
+				table === 'workspace' ? Promise.reject(new Error('Unreadable')) : inner.list(table, params),
+		}) as MemoryAdapter;
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: readBoot(scopedDeployment()) as BootProjectionV2,
+			appsLoader: async () => ({ deployment: scopedDeployment(), ports: scopedPorts() }),
+		});
+		kernels.push(kernel);
+		await kernel.startApps();
+		expect(kernel.lateFailure).toBeUndefined();
+		expect((await kernel.call('app-close')).success).toBe(true);
+		expect((await kernel.call('dual-where')).success).toBe(true);
+	});
+
 	it('undoes a workspace-app-set to overrides that were never set, and back', async () => {
 		const workspace = await createScopedWorkspace({ empty: true });
 		kernels.push(workspace.kernel);

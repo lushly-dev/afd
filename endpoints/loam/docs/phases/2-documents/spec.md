@@ -47,7 +47,8 @@ No new package. The two apps are in the [units table](../2-scope-projects/spec.m
 
 | Directory | What | Loads |
 | --- | --- | --- |
-| `kernel/src/late/documents.ts`, `editor-state.ts`, `links.ts` | The commands, the editor's state and validator, the index | Stage B, in the `late` chunk |
+| `kernel/src/late/documents.ts` | The `document-*` commands' definitions | Stage B, in a chunk of their own, `late-documents`, which `loadLate` imports with `await import()` before stage B's final `setAppCommands`, so they register in stage B (amended 2026-11-03 with [scope and projects 2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule)) |
+| `kernel/src/late/` registry and check, `editor-state.ts`, `links.ts` | The type registry and the check, the editor's state and validator, the index | Stage B, in the `late` chunk |
 | `chrome/src/editor/` | `loam-editor-area`, `loam-editor-group`, `loam-editor-frame`, `loam-embed` | `editor` chunk, on the first document opened, restored or routed to |
 | `chrome/src/sections/documents.ts` | `loam-documents-section`, and `loam-tree` | `documents` chunk |
 | `chrome/src/new/` | `loam-new-menu` | `new` chunk, on first press of `loam-new-button`, which is in first paint |
@@ -616,7 +617,8 @@ Rows the [budget table](../2-scope-projects/spec.md#24-the-budget-and-the-rule) 
 | `editorMinified` | `chrome/src/editor/`, what it imports that nothing earlier has | A document opens or restores | 40,000 |
 | `documentsMinified` | The section, `loam-tree`, `violet-tree` and `violet-tree-item` | The section opens | 45,000 |
 | `newMinified` | `loam-new-menu`, `violet-menu` | First press, or `new` in the palette | 12,000 |
-| `lateMinified` | Shared with the other specification: these commands are most of it | Stage B | 60,000 |
+| `lateMinified` | Shared with the other specification, whose [2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule) holds its ceiling and ledger: the registry, the check, `editor-*` and the index | Stage B | 75,000, as 2.4 has it |
+| `lateDocumentsMinified` | `late-documents`: the `document-*` commands' definitions, what they import that `late` has not loaded. `budget.mjs`'s `late` closure leaves this chunk out, so it is counted once | Stage B, with `late` | Its measurement plus 10%, set by step 9 |
 
 Recorded, not limited: `notes` and `checklist`, as `hello` is. First paint's only addition here is `loam-new-button` ([the ledger](../2-scope-projects/spec.md#24-the-budget-and-the-rule)).
 

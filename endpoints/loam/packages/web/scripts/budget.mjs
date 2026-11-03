@@ -32,8 +32,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * value plus 5%, the one raise, for the bytes that left first paint. Step 3 raised `apps` once more, to
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
  * Step 2 changed no ceiling: first paint 273,179 and 83,564 gzip, `apps` 377,811 (2.4's table).
- * Step 4 changed none either: first paint 277,777 and 85,355 gzip, the kernel alone 110,682, `late`
- * 47,625 with the `store` chunk it shares with `apps`, and `apps` 377,472 (2.4's table).
+ * Step 4 changed none either: first paint 277,772 and 85,346 gzip, the kernel alone 110,680, `late`
+ * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 9 leaves
+ * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,

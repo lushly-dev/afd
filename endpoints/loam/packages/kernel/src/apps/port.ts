@@ -258,7 +258,13 @@ export function createAppPort(options: AppPortOptions): {
 						adapter: host.store,
 						app: record.app,
 						instance,
-						scope: () => host.activeScope(),
+						// The active scope at each operation; a workspace-only app's is the workspace, as its calls'.
+						scope: () => {
+							const active = host.activeScope();
+							return record.scopeLevels.includes('project')
+								? active
+								: { workspace: active.workspace };
+						},
 						now: () => host.clock(),
 					}),
 				}

@@ -18,6 +18,7 @@ import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as z from 'zod/mini';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from './commands.js';
+import { PERSON_SESSION } from './late/index.js';
 import { createScopedWorkspace, type ScopedWorkspace } from './testing.js';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -217,6 +218,26 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect((await client.call('dual-where')).success).toBe(true);
 		const active = await kernel.call<{ scope: { project?: string } }>('scope-get');
 		expect(active.data?.scope.project).toBe(vault.data?.id);
+	});
+
+	it("serves no command that moves a person's scope or session, and an archive moves none", async () => {
+		const workspace = await createScopedWorkspace();
+		const { kernel } = workspace;
+		const client = await connect(await serve(workspace), mode);
+		const listed = await client.names();
+		for (const name of PERSON_SESSION) {
+			expect(listed, name).not.toContain(name);
+			expect((await client.call(name, {})).error?.code, name).toBe('COMMAND_NOT_FOUND');
+		}
+		await kernel.call('scope-set', { project: 'atlas' });
+		const archived = await client.call('project-archive', { project: 'atlas' });
+		expect(archived.success).toBe(true);
+		// Archived for everyone; the person's active scope stays where the person put it.
+		const active = await kernel.call<{ scope: { project?: string } }>('scope-get');
+		expect(active.data?.scope.project).toBe(workspace.scopes.atlas.project);
+		expect((await kernel.call('view-state-get', { id: 'loam.scope' })).data).toMatchObject({
+			state: { project: workspace.scopes.atlas.project },
+		});
 	});
 
 	it("gives the same through afd-call's `meta` argument", async () => {

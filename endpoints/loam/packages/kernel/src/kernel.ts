@@ -641,7 +641,9 @@ export async function createKernelParts(
 			command: name,
 			interface: iface,
 			success: result.success,
-			mutation: mutations.get(name) ?? false,
+			// Boot's own work (`BOOT_FIELDS`) is a boot-only command, each a mutation, which `mutations`, built
+			// before `late/` loaded, does not hold yet.
+			mutation: mutations.get(name) ?? fields === BOOT_FIELDS,
 			...(seq !== undefined ? { seq } : {}),
 			...(fields.caller !== undefined ? { caller: fields.caller } : {}),
 			...(owned.instance !== undefined ? { instance: owned.instance } : {}),

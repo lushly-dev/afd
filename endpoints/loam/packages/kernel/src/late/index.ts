@@ -35,6 +35,20 @@ export type LateCommandDeps = ShellCommandDeps &
 		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
 	};
 
+/**
+ * The commands that move a person's active scope, what main shows or the session: a person's or an
+ * agent's in process, never a server's, which holds no active scope (phase 2 specification, 3.3).
+ */
+export const PERSON_SESSION: readonly string[] = Object.freeze([
+	'scope-set',
+	'section-open',
+	'app-open',
+	'app-close',
+	'app-route-set',
+	'auth-sign-in',
+	'auth-sign-out',
+]);
+
 /** A projection as stage B keeps it in the workspace store (4.1). */
 export interface AppliedProjection {
 	generation: string;
@@ -134,16 +148,26 @@ export function createLateParts(
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
 		mcpOptions: (commands, middleware) => ({
-			commands: commands.filter((command) => !INTERNAL_COMMANDS.includes(command.name)),
+			// A server holds no active scope and no person's session (3.3), so the commands that move them
+			// are not served: a person's calls make them.
+			commands: commands.filter(
+				(command) =>
+					!INTERNAL_COMMANDS.includes(command.name) && !PERSON_SESSION.includes(command.name)
+			),
 			middleware,
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
 		async apply(projection, replaying, run) {
-			// A replay applies through its entries; an empty projection there holds nothing to apply.
-			applied = replaying
-				? projection.apps.length === 0
-				: await applyDeployment(stores, projection, run);
+			// A replay applies through its entries; an empty projection there holds nothing to apply. A
+			// failure fails the apply alone, which the next stage B tries again: the shell's commands load.
+			try {
+				applied = replaying
+					? projection.apps.length === 0
+					: await applyDeployment(stores, projection, run);
+			} catch (cause) {
+				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+			}
 		},
 		async reload() {
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.

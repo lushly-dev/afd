@@ -16,7 +16,7 @@ import type {
 	LoamKernelV2,
 	ScopeV1,
 } from '@lushly-dev/loam-kernel';
-import type { AppContextV1, ModalInputV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1 } from '@lushly-dev/loam-sdk';
 import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
 import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
@@ -31,6 +31,7 @@ import { defineAppElements } from './define-elements.js';
 import { focusFallback } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
+import { surfaceCalls } from './surface-calls.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
 
@@ -640,37 +641,7 @@ export class AppSurfaces implements ShellApps {
 			config,
 			registry,
 			kit: createKit(registry),
-			...this.#calls(port, port.call),
-		};
-	}
-
-	/**
-	 * What of a context calls the kernel, over one caller's `call`: the port's for `activate`, a surface's
-	 * for its element, so an embed's `navigate` or modal is refused as its client's calls are (3.6).
-	 */
-	#calls(
-		port: AppPortV2,
-		call: AppPortV2['call']
-	): Pick<AppContextV1, 'client' | 'navigate' | 'overlays'> {
-		const { instance } = port;
-		return {
-			client: { call },
-			async navigate(route: string) {
-				await call('app-route-set', { instance, path: route });
-			},
-			overlays: {
-				toast: (input: ToastInputV1) => call('toast-show', input),
-				async modal(input: ModalInputV1) {
-					const opened = await call<{ overlayId: string }>('modal-open', input);
-					if (!opened.success || !opened.data) {
-						throw Object.assign(new Error(opened.error?.message ?? 'The modal could not open'), {
-							code: opened.error?.code,
-							suggestion: opened.error?.suggestion,
-						});
-					}
-					return port.waitOverlay(opened.data.overlayId);
-				},
-			},
+			...surfaceCalls(port, port.call),
 		};
 	}
 
@@ -901,7 +872,7 @@ export class AppSurfaces implements ShellApps {
 		mount.configure({
 			registry: held.registry as CustomElementRegistry,
 			element,
-			context: { ...(held.context as AppContextV1), ...this.#calls(held.port, surface.call) },
+			context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
 			selection: null,
 			...(label !== undefined ? { label } : {}),
 		});

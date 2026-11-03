@@ -77,7 +77,7 @@ export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddlew
 		if (requested.workspace !== scope.workspace.id) {
 			return kernelFailure(
 				'SCOPE_WORKSPACE_UNKNOWN',
-				"Not this shell's workspace",
+				'Not this workspace',
 				`Use '${scope.workspace.id}'`
 			);
 		}

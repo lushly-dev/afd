@@ -277,13 +277,24 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 		const auth = new MockAuthAdapter();
 		const first = await scoped({ store, auth });
 		await enterRestricted(first);
+		await first.kernel.flush();
 		await first.kernel.dispose();
 		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
-		// The same adapter, its session now expired: stage A must not hold the project.
-		const second = await scoped({ store, auth, clock: createSteppingClock(Date.UTC(2026, 0, 2)) });
-		expect((await second.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(
-			WORKSPACE
-		);
+		// The same adapter, its session now expired, and a boot whose stage B waits: stage A alone chooses.
+		const second = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			boot: readBoot(scopedDeployment()) as BootProjectionV2,
+			appsLoader: () => new Promise(() => {}),
+		});
+		kernels.push(second);
+		expect((await second.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+		expect((await second.call('layout-get')).success).toBe(true);
 		vi.useRealTimers();
 	});
 
@@ -565,5 +576,48 @@ describe('P2-E1 (kernel unit): stage B corrects a project layout stage A took fr
 		const opened = await kernel.call('layout-set', { inspector: { open: true } });
 		expect(opened.error?.code).toBe('LAYOUT_PART_UNDECLARED');
 		expect((await kernel.call('view-state-get', { id })).success).toBe(true);
+	});
+});
+
+describe('P2-E1 (kernel unit): a project layout a person wrote', () => {
+	it('keeps what was written to a project record through stage B', async () => {
+		const store = new MemoryAdapter();
+		const first = await scoped({ store });
+		await first.kernel.call('scope-set', { project: 'atlas' });
+		await first.kernel.call('app-open', { instance: 'dual' });
+		// Written by a person in Atlas, so stage A reads it from the store.
+		expect((await first.kernel.call('layout-set', { sidebar: { width: 333 } })).success).toBe(true);
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		const boot = readBoot(scopedDeployment()) as BootProjectionV2;
+		boot.apps = boot.apps.map((app) =>
+			app.instance === 'dual'
+				? { ...app, scopeLevels: ['workspace', 'project'], parts: ['sidebar'], layout: {} }
+				: app
+		);
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			boot,
+			appsLoader: async () => {
+				await held;
+				return { deployment: scopedDeployment(), ports: scopedPorts() };
+			},
+		});
+		kernels.push(kernel);
+		expect((await kernel.call<LayoutStateV0>('layout-get')).data?.sidebar.width).toBe(333);
+		release();
+		await kernel.startApps();
+		const after = await kernel.call<LayoutStateV0>('layout-get');
+		expect(after.data?.sidebar.width).toBe(333);
 	});
 });
