@@ -313,12 +313,12 @@ fn the_first_class_tools_are_kept_when_valid() {
 
 #[test]
 fn another_config_version_is_unsupported_and_names_the_supported_one() {
-    for text in ["config_version = 4\n", "config_version = 0\n"] {
+    for text in ["config_version = 5\n", "config_version = 0\n"] {
         let error = open(text).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
         assert_eq!(
             error.suggestion(),
-            "This umbel reads configuration versions 1, 2 and 3; upgrade umbel or migrate umbel.toml."
+            "This umbel reads configuration versions 1 to 4; upgrade umbel or migrate umbel.toml."
         );
     }
     invalid("name = \"x\"\n", "config_version");
