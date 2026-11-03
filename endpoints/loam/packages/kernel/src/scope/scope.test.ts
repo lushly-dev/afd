@@ -20,7 +20,7 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from '../testing.js';
-import type { KernelEventV2, LoamKernelV2, ProjectV1, ScopeV1 } from '../types.js';
+import type { AppSummaryV2, KernelEventV2, LoamKernelV2, ProjectV1, ScopeV1 } from '../types.js';
 import { decideAccess, LOCAL_ACTOR } from './access.js';
 
 const kernels: LoamKernelV2[] = [];
@@ -191,6 +191,7 @@ describe("P2-E4: 4.3's switch rules, in applyScopeChange", () => {
 		await kernel.call('scope-set', { project: 'atlas' });
 		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
 			id: null,
+			level: 'workspace',
 		});
 		await kernel.call('modal-open', { title: 'Sure?', body: 'Say so.' });
 		const refused = await kernel.call('scope-set', { project: 'beacon' });
@@ -734,6 +735,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		expect((await kernel.call('section-get')).data).toMatchObject({ path: '', active: 'dual' });
 		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
 			id: null,
+			level: 'workspace',
 		});
 		expect(await scopeOf(dual.second)).toMatchObject({ pending: false });
 		expect((await replayOf(await dual.journal.read())).report.diverged).toBe(false);
@@ -906,5 +908,79 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 			active: 'dual',
 		});
 		expect((await entries(workspace)).some((entry) => entry.command === 'section-get')).toBe(false);
+	});
+});
+
+describe('P2-E3 (kernel unit): what the rail and the parts read in a project (7.1, 7.4, 7.6)', () => {
+	it('keeps the level a selection was made at, defaulting to the call’s for an app that takes one', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('app-open', { instance: 'dual' });
+		const set = await kernel.call('app-selection-set', { instance: 'dual', id: 'a' });
+		expect(set.data).toEqual({ id: 'a', level: 'project' });
+		const wide = await kernel.call('app-selection-set', {
+			instance: 'dual',
+			id: 'w',
+			level: 'workspace',
+		});
+		expect(wide.undoArgs).toEqual({ instance: 'dual', id: 'a', level: 'project' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: 'w',
+			level: 'workspace',
+		});
+		// A workspace-only app's selection is at the workspace, whatever is active.
+		await kernel.call('app-open', { instance: 'solo' });
+		expect((await kernel.call('app-selection-set', { instance: 'solo', id: 's' })).data).toEqual({
+			id: 's',
+			level: 'workspace',
+		});
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'solo', id: 's', level: 'everywhere' }))
+				.error?.code
+		).toBe('VALIDATION_ERROR');
+	});
+
+	it('keeps a status value per instance and scope, and app-get answers for the call’s', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		const port = kernel.appPort('dual');
+		await kernel.call('app-open', { instance: 'dual' });
+		await port.surface({ scope: ATLAS }).call('status-item-set', { id: 'count', value: '1' });
+		await port.surface({ scope: WORKSPACE }).call('status-item-set', { id: 'count', value: '2' });
+		const statusIn = async (project: string | null) => {
+			await kernel.call('scope-set', { project });
+			return (
+				await kernel.call<{ statusItems: Record<string, string> }>('app-get', {
+					instance: 'dual',
+				})
+			).data?.statusItems;
+		};
+		expect(await statusIn('atlas')).toEqual({ count: '1' });
+		expect(await statusIn('beacon')).toEqual({});
+		expect(await statusIn(null)).toEqual({ count: '2' });
+	});
+
+	it('marks a project-only app unavailable with no project, and one listing projects elsewhere', async () => {
+		const base = scopedDeployment();
+		const { kernel } = await scoped({
+			deployment: {
+				...base,
+				apps: base.apps.map((app) =>
+					app.instance === 'dual' ? { ...app, projects: ['atlas'] } : app
+				),
+			},
+		});
+		const available = async () =>
+			Object.fromEntries(
+				((await kernel.call<{ apps: AppSummaryV2[] }>('app-list')).data?.apps ?? []).map((app) => [
+					app.instance,
+					app.available,
+				])
+			);
+		expect(await available()).toEqual({ tasks: false, dual: true, solo: true });
+		await kernel.call('scope-set', { project: 'atlas' });
+		expect(await available()).toEqual({ tasks: true, dual: true, solo: true });
+		await kernel.call('scope-set', { project: 'beacon' });
+		expect(await available()).toEqual({ tasks: true, dual: false, solo: true });
 	});
 });

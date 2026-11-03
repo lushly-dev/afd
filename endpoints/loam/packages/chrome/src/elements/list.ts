@@ -25,6 +25,8 @@ export interface LoamListItem {
 	id: string;
 	title: string;
 	description?: string;
+	/** A `tree` sidebar's row: how deep it is, from 0 (phase 2 specification, 7.4). */
+	depth?: number;
 }
 
 /** A failed read, as a failure's message and suggestion. */
@@ -37,7 +39,11 @@ export interface LoamListFailure {
 export const LIST_SELECT_EVENT = 'loam-list-select';
 
 const itemTemplate = html<LoamListItem>`
-	<violet-option value="${(x) => x.id}" data-item="${(x) => x.id}">
+	<violet-option
+		value="${(x) => x.id}"
+		data-item="${(x) => x.id}"
+		data-depth="${(x) => (x.depth ? String(Math.min(x.depth, 7)) : null)}"
+	>
 		<span class="item-title">${(x) => x.title}</span>
 		${when(
 			(x) => x.description !== undefined,
@@ -49,6 +55,7 @@ const itemTemplate = html<LoamListItem>`
 `;
 
 const template = html<LoamList>`
+	${when((x) => x.heading !== '', html<LoamList>`<h2>${(x) => x.heading}</h2>`)}
 	${when(
 		(x) => x.failure !== null,
 		html<LoamList>`
@@ -105,6 +112,29 @@ const styles = css`
 		background: var(--color-control-selected-background);
 		color: var(--color-control-selected-foreground);
 	}
+	h2 {
+		margin: 0 0 var(--space-stack-xs);
+		color: var(--color-text-secondary);
+		font-size: var(--type-label-sm-size);
+		line-height: var(--type-label-sm-line);
+		font-weight: var(--weight-semibold);
+	}
+	:host([heading]:not([heading=''])) {
+		margin-block-end: var(--space-stack-md);
+	}
+	violet-option[data-depth]::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 2);
+	}
+	violet-option[data-depth='2']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 3);
+	}
+	violet-option[data-depth='3']::part(control),
+	violet-option[data-depth='4']::part(control),
+	violet-option[data-depth='5']::part(control),
+	violet-option[data-depth='6']::part(control),
+	violet-option[data-depth='7']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 4);
+	}
 	.item-title {
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
@@ -127,6 +157,7 @@ const styles = css`
 		color: var(--color-text-secondary);
 	}
 	@media (forced-colors: active) {
+		h2,
 		p,
 		.failure p,
 		.failure .suggestion {
@@ -171,6 +202,13 @@ const styles = css`
 
 export class LoamList extends FASTElement {
 	declare label: string;
+	/**
+	 * A dual-scope app's sidebar has two lists, each a `region` with this heading, `In Atlas` or
+	 * `In Personal` (phase 2 specification, 7.4); empty, one list with none, as phase 1.
+	 */
+	declare heading: string;
+	/** The level its command runs at, which a selection in it carries. */
+	level?: 'workspace' | 'project';
 	declare emptyMessage: string;
 	declare items: LoamListItem[];
 	declare selected: string | null;
@@ -182,6 +220,7 @@ export class LoamList extends FASTElement {
 	constructor() {
 		super();
 		this.label = 'Items';
+		this.heading = '';
 		this.emptyMessage = 'Nothing here yet.';
 		this.items = [];
 		this.selected = null;
@@ -198,6 +237,16 @@ export class LoamList extends FASTElement {
 	override disconnectedCallback(): void {
 		Observable.getNotifier(this.listbox).unsubscribe(this.#activeWatch, 'activeValue');
 		super.disconnectedCallback();
+	}
+
+	headingChanged(): void {
+		if (!this.heading) {
+			this.removeAttribute('role');
+			this.removeAttribute('aria-label');
+			return;
+		}
+		this.setAttribute('role', 'region');
+		this.setAttribute('aria-label', this.heading);
 	}
 
 	busyChanged(): void {
@@ -222,11 +271,16 @@ export class LoamList extends FASTElement {
 		if (typeof id !== 'string' || id === '' || id === this.selected) return;
 		this.selected = id;
 		this.dispatchEvent(
-			new CustomEvent(LIST_SELECT_EVENT, { detail: { id }, bubbles: true, composed: true })
+			new CustomEvent(LIST_SELECT_EVENT, {
+				detail: { id, level: this.level },
+				bubbles: true,
+				composed: true,
+			})
 		);
 	}
 }
 attr(LoamList.prototype, 'label');
+attr(LoamList.prototype, 'heading');
 attr({ attribute: 'empty-message' })(LoamList.prototype, 'emptyMessage');
 observable(LoamList.prototype, 'items');
 observable(LoamList.prototype, 'selected');

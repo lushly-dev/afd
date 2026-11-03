@@ -288,8 +288,13 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 		expect((await stateOf(page)).scope).toEqual({ workspace: 'personal' });
+		// Amended by phase 2's step 6: the app kept across the change is recreated (7.6), which reads its
+		// detail, layout and list again, and its new main sets its status item; the command the traverse ran
+		// is the one that changes the shell's state.
+		const changes = (entries: EntrySummary[]) =>
+			entries.filter(({ command }) => !/-(get|list)$|^status-item-set$/.test(command));
 		expect(
-			(await since(page, count)).map(({ command, input, success, interface: iface }) => ({
+			changes(await since(page, count)).map(({ command, input, success, interface: iface }) => ({
 				command,
 				input,
 				success,
@@ -311,9 +316,9 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/p/atlas/hello`);
 		expect((await stateOf(page)).project?.slug).toBe('atlas');
-		expect((await since(page, count)).map(({ command, input }) => [command, input])).toEqual([
-			['scope-set', { project: 'atlas' }],
-		]);
+		expect(changes(await since(page, count)).map(({ command, input }) => [command, input])).toEqual(
+			[['scope-set', { project: 'atlas' }]]
+		);
 		expect(await historyLength(page)).toBe(pushed);
 		await showsApp(page, 'hello');
 		noFailures(opened);

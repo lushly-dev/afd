@@ -1,0 +1,316 @@
+/**
+ * @fileoverview The project switcher's list, the `switcher` chunk (phase 2 specification, 7.2), loaded on
+ * the switcher's first press. `loam-project-list`, in the switcher's own shadow root: a `violet-listbox` of
+ * `project-list`, first `No project`, then each project with its icon, and last `All projects`, which opens
+ * the projects section. In the rail it opens in a `violet-popover` laid over the switcher's button, so the
+ * button is its anchor and never moves; in the compact class, as the palette's list does, in a modal
+ * `dialog`. Selecting runs `scope-set` or `section-open`; Escape closes it; focus returns to the switcher,
+ * or, when the switch left the active app, to main's heading (7.8). A pressed row is made active on
+ * `mousedown`, as the console does for #712's `handleFocus`.
+ */
+
+import {
+	css,
+	FASTElement,
+	html,
+	Observable,
+	observable,
+	ref,
+	repeat,
+	Updates,
+	when,
+} from '@lushly-dev/fast-element';
+import type { LoamKernelV2, ProjectV1 } from '@lushly-dev/loam-kernel';
+import '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
+import '@lushly-dev/violet-elements/dist/option/violet-option.js';
+import '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
+import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
+import type { VioletPopover } from '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
+import { registerAppIcons } from '../apps/icons.js';
+import type { LoamProjectSwitcher } from '../elements/project-switcher.js';
+import type { LoamShell } from '../elements/shell.js';
+
+/** The values of the first row, no project, and the last, which opens the projects section. */
+const NONE = '~none';
+const ALL = '~all';
+
+const rows = html<LoamProjectList>`
+	<violet-listbox
+		${ref('listbox')}
+		label="Projects"
+		value="${(x) => x.active}"
+		@mousedown="${(x, c) => x.press(c.event)}"
+		@change="${(x, c) => x.choose(c.event as CustomEvent<{ value: string }>)}"
+	>
+		<violet-option value="${() => NONE}">No project</violet-option>
+		${repeat(
+			(x) => x.projects,
+			html<ProjectV1>`<violet-option value="${(p) => p.id}"
+				><violet-icon slot="before" icon="${(p) => p.icon}" decorative></violet-icon
+				>${(p) => p.name}</violet-option
+			>`
+		)}
+		<violet-option value="${() => ALL}">All projects</violet-option>
+	</violet-listbox>
+`;
+
+const template = html<LoamProjectList>`
+	${when(
+		(x) => !x.modal,
+		html<LoamProjectList>`<violet-popover
+			${ref('surface')}
+			positioning="after"
+			@open-change="${(x, c) => x.toggled((c.event as CustomEvent<{ open: boolean }>).detail.open)}"
+			>${rows}</violet-popover
+		>`
+	)}
+	${when(
+		(x) => x.modal,
+		html<LoamProjectList>`<dialog
+			${ref('dialog')}
+			aria-label="Choose a project"
+			@close="${(x) => x.toggled(false)}"
+			>${rows}</dialog
+		>`
+	)}
+`;
+
+const styles = css`
+	:host {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	violet-popover {
+		display: block;
+		inline-size: 100%;
+		block-size: 100%;
+		--violet-popover-min-inline-size: var(--shell-size-sidebar-min);
+		--violet-popover-background: var(--color-surface-floating);
+		--violet-popover-shadow: var(--shadow-floating);
+		--violet-popover-border: var(--color-border-subtle);
+	}
+	violet-popover::part(anchor) {
+		display: block;
+		inline-size: 100%;
+		block-size: 100%;
+	}
+	violet-popover::part(surface),
+	dialog {
+		pointer-events: auto;
+		color: var(--color-text-primary);
+	}
+	dialog {
+		inline-size: min(92vw, var(--shell-size-main-min));
+		padding: var(--space-layout-sm);
+		border: 0;
+		border-radius: var(--radius-lg);
+		background: var(--color-surface-floating);
+		box-shadow: var(--shadow-floating);
+	}
+	dialog::backdrop {
+		background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+	}
+	violet-option {
+		--color-surface-highlight: var(--color-surface-subtle);
+	}
+	violet-listbox::part(control):focus-visible {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+	}
+	violet-listbox:focus-within violet-option[data-active]::part(control) {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: calc(-1 * var(--shell-size-focus));
+	}
+	@media (forced-colors: active) {
+		dialog {
+			border: 1px solid CanvasText;
+		}
+		violet-listbox:focus-within violet-option[data-active]::part(control) {
+			outline-color: Highlight;
+		}
+	}
+`;
+
+export class LoamProjectList extends FASTElement {
+	declare projects: ProjectV1[];
+	/** The active project's id, or the first row's value for none. */
+	declare active: string;
+	/** The compact class: a modal list, as the palette's (7.2). */
+	declare modal: boolean;
+	declare listbox: VioletListbox;
+	declare surface?: VioletPopover;
+	declare dialog?: HTMLDialogElement;
+	kernel: LoamKernelV2 | null = null;
+	shell: LoamShell | null = null;
+	switcher: LoamProjectSwitcher | null = null;
+	#open = false;
+	/** When a press outside last closed it: the switcher's own press that did so does not reopen it. */
+	#closedAt = -Infinity;
+	/** It is closing itself: by Escape, a choice or a second press, so no press outside closed it. */
+	#hiding = false;
+	#watch = { handleChange: () => this.#markActive() };
+	/** Where focus goes when it closes: the switcher, unless a choice moved it. */
+	#returnFocus = true;
+
+	constructor() {
+		super();
+		this.projects = [];
+		this.active = NONE;
+		this.modal = false;
+	}
+
+	get isOpen(): boolean {
+		return this.#open;
+	}
+
+	/** Closed by the press that is asking to toggle it, so it stays closed. */
+	get justClosed(): boolean {
+		return performance.now() - this.#closedAt < 300;
+	}
+
+	override connectedCallback(): void {
+		super.connectedCallback();
+		// Escape closes it wherever focus is in it, whatever the listbox does with the key.
+		this.addEventListener(
+			'keydown',
+			(event) => {
+				if (event.key !== 'Escape' || !this.#open) return;
+				event.preventDefault();
+				event.stopPropagation();
+				this.hide();
+			},
+			true
+		);
+		// The keyboard's row has the focus ring, as `loam-list`'s does.
+		void Updates.next().then(() =>
+			Observable.getNotifier(this.listbox).subscribe(this.#watch, 'activeValue')
+		);
+	}
+
+	/** Read the projects, show the list, and put focus on the active row. */
+	async show(): Promise<void> {
+		const kernel = this.kernel as LoamKernelV2;
+		const [listed, scoped] = await Promise.all([
+			kernel.call<{ projects: ProjectV1[] }>('project-list'),
+			kernel.call<{ scope: { project?: string } }>('scope-get'),
+		]);
+		this.projects = listed.data?.projects ?? [];
+		this.active = scoped.data?.scope.project ?? NONE;
+		this.#returnFocus = true;
+		await Updates.next();
+		if (this.modal) this.dialog?.showModal();
+		else this.surface?.show();
+		this.toggled(true);
+		this.listbox.activeValue = this.active;
+		this.#markActive();
+		this.listbox.focus();
+	}
+
+	hide(): void {
+		this.#hiding = true;
+		if (this.modal) this.dialog?.close();
+		else this.surface?.hide();
+	}
+
+	toggled(open: boolean): void {
+		if (open === this.#open) return;
+		this.#open = open;
+		if (!open && !this.#hiding) this.#closedAt = performance.now();
+		if (!open) this.#hiding = false;
+		if (this.switcher) this.switcher.expanded = open;
+		// Its tooltip closes: focus moves inside the switcher, which the rail's tooltip cannot hear.
+		if (open) {
+			this.switcher?.dispatchEvent(
+				new CustomEvent('loam-tip-close', { bubbles: true, composed: true })
+			);
+		}
+		if (!open && this.#returnFocus) this.switcher?.shadowRoot?.querySelector('button')?.focus();
+	}
+
+	/** As the console does: the pressed row is the active one before `handleFocus` moves it (#712). */
+	press(event: Event): boolean {
+		const row = event
+			.composedPath()
+			.find((node) => (node as Element).localName === 'violet-option') as
+			| (HTMLElement & { value: string })
+			| undefined;
+		if (row) this.listbox.activeValue = row.value;
+		return true;
+	}
+
+	#markActive(): void {
+		for (const option of this.listbox.options ?? []) {
+			option.toggleAttribute('data-active', option.value === this.listbox.activeValue);
+		}
+	}
+
+	async choose(event: CustomEvent<{ value: string }>): Promise<void> {
+		event.stopPropagation();
+		const value = event.detail?.value ?? '';
+		const kernel = this.kernel as LoamKernelV2;
+		if (value === ALL) {
+			this.hide();
+			await kernel.call('section-open', { section: 'projects' });
+			return;
+		}
+		if (value === this.active) {
+			this.hide();
+			return;
+		}
+		const result = await kernel.call<{ app: 'kept' | 'left' }>('scope-set', {
+			project: value === NONE ? null : value,
+		});
+		// The app left: focus goes to main's heading, as phase 1 moves it from a surface that left (7.8).
+		const left = result.success && result.data?.app === 'left';
+		this.#returnFocus = !left;
+		this.hide();
+		if (left) focusMainHeading(this.shell);
+	}
+}
+observable(LoamProjectList.prototype, 'projects');
+observable(LoamProjectList.prototype, 'active');
+observable(LoamProjectList.prototype, 'modal');
+
+/** Main's `h1`, wherever it is now: the landing's, or what an app or a section renders. */
+function focusMainHeading(shell: LoamShell | null): void {
+	const main = shell?.shadowRoot?.querySelector<HTMLElement>('loam-main');
+	void Updates.next().then(() => {
+		const heading =
+			main?.querySelector<HTMLElement>('h1') ?? main?.shadowRoot?.querySelector<HTMLElement>('h1');
+		if (!heading) {
+			main?.focus();
+			return;
+		}
+		heading.tabIndex = -1;
+		heading.focus();
+	});
+}
+
+let defined: Promise<void> | null = null;
+
+/** Open the switcher's list, or close it when it is open: its button's press, after the chunk loads. */
+export async function openSwitcher(shell: LoamShell, switcher: LoamProjectSwitcher): Promise<void> {
+	defined ??= FASTElement.define(LoamProjectList, {
+		name: 'loam-project-list',
+		template,
+		styles,
+	}).then(() => {
+		// Each project's icon, as an empty shell has no app surfaces to register them.
+		registerAppIcons();
+		shell.rail.showIcons();
+	});
+	await defined;
+	const root = switcher.shadowRoot as ShadowRoot;
+	let list = root.querySelector<LoamProjectList>('loam-project-list');
+	if (!list) {
+		list = shell.ownerDocument.createElement('loam-project-list') as LoamProjectList;
+		list.kernel = shell.kernel;
+		list.shell = shell;
+		list.switcher = switcher;
+		list.modal = switcher.variant === 'tabbar';
+		root.append(list);
+		await Updates.next();
+	}
+	if (list.isOpen) list.hide();
+	else if (!list.justClosed) await list.show();
+}

@@ -37,17 +37,19 @@ import {
 	type PresentationV0,
 	presentLayout,
 } from '../layout-class.js';
+import { RailBands } from '../rail/rail-bands.js';
 import type { ResizeDetail } from '../resize.js';
 import { createRouter, type RouterV1, type RouteV1 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
 import type { MainStateV1, UrlSyncV1 } from '../url-sync.js';
-import { APP_OPEN_EVENT, type LoamAppEntry } from './app-entry.js';
+import { APP_OPEN_EVENT, SECTION_OPEN_EVENT } from './app-entry.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
 import { focusPart } from './focus.js';
 import { defineNotice } from './notice-loader.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 import { definePalette, whenIdle } from './palette-loader.js';
+import { type LoamProjectSwitcher, SWITCHER_OPEN_EVENT } from './project-switcher.js';
 import type { LoamResizeHandle } from './resize-handle.js';
 import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
@@ -186,6 +188,18 @@ const template = html<LoamShell>`
 				data-part="statusbar"
 				?hidden="${(x) => x.presentation.layoutClass === 'compact'}"
 			>
+				<loam-status-item slot="start" class="workspace-status" label="Workspace"
+					>${(x) => x.workspaceName}</loam-status-item
+				>
+				<loam-status-item
+					slot="start"
+					class="project-status"
+					label="Project"
+					?hidden="${(x) => !x.projectName}"
+					><button class="project-home" type="button" @click="${(x) => x.openHome()}">
+						${(x) => x.projectName}
+					</button></loam-status-item
+				>
 				<loam-status-item slot="start" class="actor-status"
 					>${(x) => (x.account ? `Signed in as ${x.account}` : 'Signed out')}</loam-status-item
 				>
@@ -198,6 +212,7 @@ const template = html<LoamShell>`
 				?hidden="${(x) => x.presentation.layoutClass !== 'compact'}"
 			></loam-tabbar>
 			<loam-palette ${ref('palette')}></loam-palette>
+			<span class="announce" role="status">${(x) => x.announcement}</span>
 		`
 	)}
 `;
@@ -223,6 +238,13 @@ export class LoamShell extends FASTElement {
 	declare landing: string;
 	/** Main hides its landing while a persisted active app's surface is on its way (2.2). */
 	declare mainBusy: boolean;
+	/** The status bar's left items: the workspace's name, and the active project's, or empty (7.4). */
+	declare workspaceName: string;
+	declare projectName: string;
+	/** The live region's text: a change of scope, and what it left (phase 2 specification, 7.8). */
+	declare announcement: string;
+	/** The rail's and the tab bar's entries, in first paint (7.2). */
+	readonly rail = new RailBands(this);
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
 	kernel: LoamKernelV2 | null = null;
@@ -233,11 +255,6 @@ export class LoamShell extends FASTElement {
 	listsApps = false;
 	/** How many apps `app-list` last listed: the app surfaces load after the first frame when any are. */
 	appCount = 0;
-	/**
-	 * The rail's and tab bar's entries the first frame drew, by instance, for the app surfaces to adopt.
-	 * A press before the surfaces attach queues `app-open` behind stage B.
-	 */
-	readonly bootEntries = new Map<string, LoamAppEntry[]>();
 	/** The app surfaces, once their chunk has loaded. */
 	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
@@ -279,6 +296,9 @@ export class LoamShell extends FASTElement {
 		this.booted = false;
 		this.landing = 'No apps yet';
 		this.mainBusy = false;
+		this.workspaceName = '';
+		this.projectName = '';
+		this.announcement = '';
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.base = new URL('./', globalThis.location?.href ?? 'http://localhost/').href;
 		this.home = new URL(this.base).pathname;
@@ -316,8 +336,6 @@ export class LoamShell extends FASTElement {
 		this.router = null;
 		this.#urlSync = null;
 		clearTimeout(this.#busyTimer);
-		for (const entries of this.bootEntries.values()) for (const entry of entries) entry.remove();
-		this.bootEntries.clear();
 		this.appCount = 0;
 		this.#started = null;
 		this.apps = null;
@@ -363,6 +381,16 @@ export class LoamShell extends FASTElement {
 			event.stopPropagation();
 			void kernel.call('app-open', (event as CustomEvent<{ instance: string }>).detail);
 		});
+		// The rail's sections, and its switcher, whose list is the `switcher` chunk's (7.2).
+		this.#listen(this, SECTION_OPEN_EVENT, (event) => {
+			void kernel.call('section-open', (event as CustomEvent<{ section: string }>).detail);
+		});
+		this.#listen(this, SWITCHER_OPEN_EVENT, (event) => {
+			const switcher = event.composedPath()[0] as LoamProjectSwitcher;
+			void import('../rail/switcher.js')
+				.then(({ openSwitcher }) => openSwitcher(this, switcher))
+				.catch(reportError);
+		});
 		this.#listen(this, 'resize-preview', (event) => this.#onResize(event, false));
 		this.#listen(this, 'resize-commit', (event) => this.#onResize(event, true));
 
@@ -399,12 +427,10 @@ export class LoamShell extends FASTElement {
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
-		const apps = this.listsApps ? this.#readAppList() : Promise.resolve(undefined);
-		const [, , list, state] = await Promise.all([
+		const [, , [list, state]] = await Promise.all([
 			this.readLayout(),
 			this.#readSession(),
-			apps,
-			this.readState(),
+			this.rail.read(),
 		]);
 		// Stage A: the URL's project is active only if the kernel let the actor in, so a missing and a refused
 		// one paint the same "Nothing here" (6.3).
@@ -423,10 +449,8 @@ export class LoamShell extends FASTElement {
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
-		if (list) {
-			await Updates.next();
-			this.#renderBootEntries(list);
-		}
+		await Updates.next();
+		this.rail.render(list, state);
 		void afterFirstFrame(view).then(() => {
 			// What E1 reads: everything requested before this mark is the first paint (2.2).
 			view.performance?.mark?.('loam-stage-b');
@@ -435,39 +459,6 @@ export class LoamShell extends FASTElement {
 			if (this.appCount > 0) void this.#loadApps();
 			whenIdle(view, () => void this.preparePalette());
 		});
-	}
-
-	/** Read `app-list`, and how many apps it lists. */
-	async #readAppList(): Promise<{ active: string | null; apps: AppSummaryV2[] } | undefined> {
-		const result = await this.kernel?.call<{ active: string | null; apps: AppSummaryV2[] }>(
-			'app-list'
-		);
-		if (!result?.success || !result.data) return undefined;
-		this.appList = result.data.apps;
-		this.appCount = result.data.apps.length;
-		return result.data;
-	}
-
-	/** The first frame's rail and tab bar, from the boot records: text, an icon and a state. */
-	#renderBootEntries({ active, apps }: { active: string | null; apps: AppSummaryV2[] }): void {
-		// Stage B may have ended first, and the app surfaces then draw the rail themselves.
-		if (this.apps) return;
-		for (const app of apps) {
-			if (!app.rail || this.bootEntries.has(app.instance)) continue;
-			const entries = (['rail', 'tabbar'] as const).map((variant) => {
-				const entry = this.ownerDocument.createElement('loam-app-entry') as LoamAppEntry;
-				entry.variant = variant;
-				entry.instance = app.instance;
-				entry.label = app.title;
-				// Blank until the app surfaces register `ICONS_V1` and set it (phase 2 specification, 2.4).
-				entry.icon = '';
-				entry.state = app.state;
-				entry.current = app.instance === active;
-				this.shadowRoot?.querySelector(`loam-${variant}`)?.append(entry);
-				return entry;
-			});
-			this.bootEntries.set(app.instance, entries);
-		}
 	}
 
 	#busyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -497,13 +488,12 @@ export class LoamShell extends FASTElement {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
 			// Stage B lists each app `failed`, so the first frame's entries say "(unavailable)" from it.
-			for (const app of (await this.#readAppList())?.apps ?? []) {
-				for (const entry of this.bootEntries.get(app.instance) ?? []) entry.state = app.state;
-			}
+			await this.rail.refresh();
 			return;
 		}
 		const listed = this.listsApps || this.appCount > 0;
-		if (listed) await this.#readAppList();
+		// Stage B's list corrects what the boot records said (2.2).
+		await this.rail.refresh();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
 		await this.#url((url) => url.boot());
 		// From here, a URL chunk loaded again after a failure starts late, with no boot of its own (6.3).
@@ -565,6 +555,11 @@ export class LoamShell extends FASTElement {
 		return (
 			workspace === state.workspace.id && (project === undefined || project === state.project?.slug)
 		);
+	}
+
+	/** The status bar's project item: the project's home, the projects section with no path (7.4). */
+	openHome(): void {
+		void this.kernel?.call('section-open', { section: 'projects' });
 	}
 
 	#listen(target: EventTarget, type: string, listener: (event: Event) => void): void {
@@ -634,6 +629,7 @@ export class LoamShell extends FASTElement {
 	#onEvent(event: KernelEventV2): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
+		this.rail.heard(event);
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
 		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
 		if (event.command === 'palette-open' && event.success) {
@@ -976,5 +972,8 @@ observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
 observable(LoamShell.prototype, 'booted');
 observable(LoamShell.prototype, 'landing');
+observable(LoamShell.prototype, 'workspaceName');
+observable(LoamShell.prototype, 'projectName');
+observable(LoamShell.prototype, 'announcement');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;

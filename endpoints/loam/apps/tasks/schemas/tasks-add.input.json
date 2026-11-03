@@ -1,0 +1,13 @@
+{
+	"type": "object",
+	"properties": {
+		"title": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 120,
+			"description": "What the task says"
+		}
+	},
+	"required": ["title"],
+	"additionalProperties": false
+}

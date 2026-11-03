@@ -240,19 +240,21 @@ export async function createKernelParts(
 		return apps
 			.summaries()
 			.map((app): AppSummaryV2 => {
-				const {
-					title = app.title,
-					order = app.order,
-					enabled,
-				} = scope.workspaceApps.get(app.instance)?.overrides ?? {};
+				const record = scope.workspaceApps.get(app.instance);
+				const { title = app.title, order = app.order, enabled } = record?.overrides ?? {};
+				const listed = record?.projects;
 				return {
 					...app,
 					title,
 					order,
 					state: enabled === false ? 'disabled' : app.state,
-					// An app has a level at least, so with a project active every app can open (narrowing).
+					// An app has a level at least, so with a project active every app can open (narrowing). An
+					// instance that lists projects opens only in those (7.1, 9.1).
 					available:
-						enabled !== false && (project !== undefined || app.scopeLevels.includes('workspace')),
+						enabled !== false &&
+						(project === undefined
+							? app.scopeLevels.includes('workspace')
+							: !listed || listed.includes(scope.projects.get(project)?.slug as string)),
 				};
 			})
 			.sort(byOrder);

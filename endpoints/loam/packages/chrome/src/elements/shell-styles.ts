@@ -84,6 +84,24 @@ export const styles = css`
 		align-self: end;
 		block-size: clamp(40dvh, var(--_panel-height), 80dvh);
 	}
+	/* Heard, not seen: the live region of a change of scope (phase 2 specification, 7.8). */
+	.announce {
+		position: absolute;
+		clip-path: inset(50%);
+	}
+	/* The status bar's project item, a button to the project's home (7.4). */
+	.project-home {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+	.project-home:focus-visible {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+	}
 	@media (forced-colors: active) {
 		:host {
 			background: Canvas;

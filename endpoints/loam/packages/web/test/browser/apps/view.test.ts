@@ -890,8 +890,13 @@ describe('E2: the host context', () => {
 			displayMode: string;
 			containerDimensions: { width: number; height: number };
 			'dev.loam/tokens': Record<string, string>;
+			'dev.loam/scope': { workspace: string; project?: string };
+			'dev.loam/route': string;
 		};
 		expect(context.platform).toBe('web');
+		// Phase 2's step 6: the surface's scope and the app's route (7.6).
+		expect(context['dev.loam/scope']).toEqual({ workspace: 'personal' });
+		expect(context['dev.loam/route']).toBe('');
 		expect(context.displayMode).toBe('inline');
 		expect(context.containerDimensions.width).toBeGreaterThan(0);
 		expect(context.containerDimensions.height).toBeGreaterThan(0);
@@ -920,6 +925,16 @@ describe('E2: the host context', () => {
 		await expect
 			.poll(async () => (await changes()).filter((change) => change.theme === 'dark').length)
 			.toBe(1);
+		// A change of route is a property change, told to the same view, which stays (7.6).
+		await agentCall(page, 'app-route-set', { instance: 'fixture', path: 'items/one' });
+		await expect
+			.poll(async () =>
+				(await changes()).some((change) => change['dev.loam/route'] === 'items/one')
+			)
+			.toBe(true);
+		expect(
+			await inner.evaluate(() => (window as unknown as { initialize: unknown }).initialize)
+		).toEqual(result);
 		await opened.context.close();
 	});
 });

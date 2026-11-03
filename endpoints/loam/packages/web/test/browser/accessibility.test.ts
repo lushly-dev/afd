@@ -238,12 +238,21 @@ describe('names, roles and the palette keyboard', () => {
 	it('shows the settings tooltip on hover and focus, keeps it under the pointer, and Escape dismisses it', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
-		const entry = page.locator('loam-rail button.entry');
-		const tip = page.locator('loam-rail .tip');
+		// Amended by phase 2's step 6: the empty rail also holds Projects, the switcher and Documents, and
+		// the tooltip is the rail's one `loam-tooltip` in the top layer (7.1, 7.5).
+		const entry = page.locator('loam-rail loam-section-entry.settings button');
+		const tip = page.locator('loam-rail loam-tooltip');
 		expect(await entry.getAttribute('aria-disabled')).toBe('true');
-		expect(await tip.textContent()).toBe('Settings arrive in phase 4');
+		expect(
+			await entry.evaluate((button) =>
+				button.getRootNode() instanceof ShadowRoot
+					? (button.getRootNode() as ShadowRoot).getElementById('why')?.textContent
+					: null
+			)
+		).toBe('Settings arrive in phase 4');
 		await entry.hover();
 		await expect.poll(() => tip.isVisible()).toBe(true);
+		expect(await tip.textContent()).toBe('Settings arrive in phase 4');
 		const box = await tip.boundingBox();
 		if (!box) throw new Error('No tooltip box');
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });

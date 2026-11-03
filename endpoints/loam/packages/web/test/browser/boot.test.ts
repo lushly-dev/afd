@@ -38,7 +38,8 @@ describe('the built shell', () => {
 		});
 		await page.goto(site.origin);
 		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
-		expect(await page.title()).toBe('Loam');
+		// Amended by phase 2's step 6: the title names the workspace, `<app or section> · <project> · <workspace>` (7.4).
+		await expect.poll(() => page.title()).toBe('Personal');
 		const csp = await page
 			.locator('meta[http-equiv="Content-Security-Policy"]')
 			.getAttribute('content');

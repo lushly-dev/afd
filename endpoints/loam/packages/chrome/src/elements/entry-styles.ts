@@ -1,12 +1,31 @@
 /**
- * @fileoverview What a rail or tab bar entry's button and tooltip share: the settings entry of
- * `loam-rail` and `loam-app-entry`. One fragment, since both are in first paint (phase 2 specification,
- * 2.4). Each element adds its own rules after it.
+ * @fileoverview What a rail or tab bar entry's button shares: `loam-app-entry`, `loam-section-entry` and
+ * `loam-project-switcher`. One fragment, since all are in first paint (phase 2 specification, 2.4). Each
+ * element adds its own rules after it; the tooltip is `loam-tooltip`'s (7.5).
  */
 
 import { css } from '@lushly-dev/fast-element';
 
 export const entryBase = css`
+	:host {
+		display: block;
+		flex: none;
+	}
+	:host([variant='rail']) .label {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	:host([variant='tabbar']) .entry {
+		flex-direction: column;
+	}
+	.entry:not([aria-disabled]):hover {
+		background: var(--color-action-secondary-hover);
+		color: var(--color-text-primary);
+	}
 	.entry {
 		box-sizing: border-box;
 		display: inline-flex;
@@ -32,19 +51,12 @@ export const entryBase = css`
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
 		outline-offset: calc(-1 * var(--shell-size-focus));
 	}
-	.tip {
-		position: absolute;
-		z-index: var(--z-index-popover);
-		display: none;
-		padding-block: var(--size-space-sm);
-		padding-inline: var(--size-space-md);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-floating);
-		background-clip: padding-box;
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		white-space: nowrap;
+	@media (forced-colors: active) {
+		.entry {
+			color: ButtonText;
+		}
+		.entry:focus-visible {
+			outline-color: Highlight;
+		}
 	}
 `;

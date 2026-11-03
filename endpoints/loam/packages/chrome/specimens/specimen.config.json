@@ -217,6 +217,66 @@
 			"exportName": "TabbarAppsCompact"
 		},
 		{
+			"id": "app-rail-project",
+			"title": "Loam/Apps/RailProject",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailProject"
+		},
+		{
+			"id": "app-rail-project-compact",
+			"title": "Loam/Apps/RailProjectCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailProjectCompact"
+		},
+		{
+			"id": "app-rail-tooltip",
+			"title": "Loam/Apps/RailTooltip",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailTooltip"
+		},
+		{
+			"id": "app-rail-tooltip-compact",
+			"title": "Loam/Apps/RailTooltipCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "RailTooltipCompact"
+		},
+		{
+			"id": "app-project-switcher-list",
+			"title": "Loam/Apps/ProjectSwitcherList",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectSwitcherList"
+		},
+		{
+			"id": "app-project-switcher-list-compact",
+			"title": "Loam/Apps/ProjectSwitcherListCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectSwitcherListCompact"
+		},
+		{
+			"id": "app-list-dual",
+			"title": "Loam/Apps/ListDual",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListDual"
+		},
+		{
+			"id": "app-list-dual-compact",
+			"title": "Loam/Apps/ListDualCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListDualCompact"
+		},
+		{
+			"id": "app-part-header-crumbs",
+			"title": "Loam/Apps/PartHeaderCrumbs",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeaderCrumbs"
+		},
+		{
+			"id": "app-part-header-crumbs-compact",
+			"title": "Loam/Apps/PartHeaderCrumbsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "PartHeaderCrumbsCompact"
+		},
+		{
 			"id": "app-status-action",
 			"title": "Loam/Apps/StatusAction",
 			"module": "./apps.specimens.ts",

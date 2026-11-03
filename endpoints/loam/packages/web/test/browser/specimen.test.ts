@@ -65,7 +65,9 @@ describe('E2: a replayed journal reproduces the layout', () => {
 		expect(journalNumber(replay)).toBe(2 + 3);
 		const diff = diffObservations(live, replay);
 		const outsideJournal = diff.differences.filter((difference) => {
-			if (difference.target?.includes('loam-status-item:2')) return false;
+			// The journal's item: fourth from phase 2's step 6, after the workspace's, the project's and the
+			// actor's (7.4).
+			if (difference.target?.includes('loam-status-item:4')) return false;
 			if (difference.target?.includes('loam-statusbar:1/shadow/span:2')) return false;
 			if (difference.channel === 'a11y' || difference.channel === 'dom') {
 				const strip = (value: unknown) =>
@@ -123,6 +125,12 @@ const APP_CAPTURES: [string, string][] = [
 	['app-part-header', 'button "Greet"'],
 	['app-rail-apps', 'button "Tray (unavailable)"'],
 	['app-tabbar-apps', 'button "Tray (unavailable)"'],
+	// Phase 2's step 6: the rail's bands, the switcher and its list, the tooltip, two sidebar groups, crumbs.
+	['app-rail-project', 'button "Project: Atlas"'],
+	['app-rail-tooltip', 'button "Tracker"'],
+	['app-project-switcher-list', 'listbox "Projects"'],
+	['app-list-dual', 'region "In Atlas"'],
+	['app-part-header-crumbs', 'navigation "Location"'],
 	['app-status-action', 'button "Total 3"'],
 	['app-toasts', 'status "Notifications"'],
 	['app-modal', 'Say hello?'],

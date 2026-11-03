@@ -463,6 +463,15 @@ export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'a
 /** `disabled` is step 4's, from a `workspace-app` record. */
 export type AppStateV2 = AppStateV1 | 'disabled';
 
+/**
+ * `app-selection-get`'s answer: the selected id and the level it was made at, so main calls its command
+ * there, in a dual-scope app's sidebar of two groups (phase 2 specification, 7.4).
+ */
+export interface SelectionV2 {
+	id: string | null;
+	level: 'workspace' | 'project';
+}
+
 export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {
 	state: AppStateV2;
 	scopeLevels: Array<'workspace' | 'project'>;

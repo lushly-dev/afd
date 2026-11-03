@@ -53,7 +53,12 @@ function manifestOf(
 			effects: command.effects,
 			input_schema: command.input,
 		})),
-		ui: { surfaces: { main: { element: `${id}-main` } } },
+		ui: {
+			surfaces: {
+				main: { element: `${id}-main` },
+				...(id === 'dual' ? { status: { items: [{ id: 'count', label: 'Count' }] } } : {}),
+			},
+		},
 	} as unknown as ManifestV2;
 }
 

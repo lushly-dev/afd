@@ -14,8 +14,9 @@ import type { RouterV1, RouteV1 } from './router.js';
 /** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
 export interface MainStateV1 {
 	scope: { project?: string };
-	workspace: { id: string };
-	project: { slug: string } | null;
+	workspace: { id: string; name?: string };
+	/** The active project's record, when the actor may read it: the rail reads its name and icon too. */
+	project: { slug: string; name?: string; icon?: string } | null;
 	/** Stage A's active scope is not the one `loam.scope` records. */
 	pending?: boolean;
 	section: string | null;

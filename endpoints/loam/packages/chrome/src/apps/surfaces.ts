@@ -3,7 +3,10 @@
  * section 8 and 9.3), in a chunk of its own, so the empty shell loads none of it. It owns the mounts and
  * parked elements, renders the nav's entries, the surfaces, status items and overlays from what the
  * kernel says, and re-reads after the events that change them. `loam-shell` stays the only element
- * holding the kernel: it gives this controller the kernel and its parts.
+ * holding the kernel: it gives this controller the kernel and its parts. From phase 2 the rail's entries
+ * are `RailBands`', in first paint, and `app-list` is read through it, once for both (7.2). A change of
+ * scope drops and recreates every surface of an app kept across it, parked or not, each with a new
+ * surface port, so nothing of one project stays under another (7.6).
  */
 
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
@@ -15,10 +18,10 @@ import type {
 	KernelEventV1,
 	KernelEventV2,
 	LoamKernelV2,
-	ScopeV1,
+	SelectionV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1 } from '@lushly-dev/loam-sdk';
-import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
+import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
 import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
 import type { LoamMount } from '../elements/mount.js';
@@ -27,12 +30,17 @@ import { type LoamPartHeader, PART_ACTION_EVENT } from '../elements/part-header.
 import type { LoamShell, ShellApps } from '../elements/shell.js';
 import { type LoamStatusAction, STATUS_ACTION_EVENT } from '../elements/status-action.js';
 import type { LoamStatusItem } from '../elements/status-item.js';
+import type { AppListV2 } from '../rail/rail-bands.js';
+import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
+import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
 import { focusFallback } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
+import { type Parked, scrollOffsets } from './parking.js';
 import { surfaceCalls } from './surface-calls.js';
+import { readTree } from './tree-reader.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
 
@@ -45,29 +53,9 @@ const CONSOLE_ELEMENT = 'loam-console';
 /** How long an app may take to open before main says it is opening. */
 const OPENING_NOTICE_MS = 400;
 
-interface AppList {
-	active: string | null;
-	apps: AppSummaryV2[];
-}
-
-/** What an element keeps of its scrollers while it is parked, through open shadow roots. */
-type ScrollOffsets = Array<[Element, number, number]>;
-
-function scrollOffsets(root: Element, found: ScrollOffsets = []): ScrollOffsets {
-	if (root.scrollTop !== 0 || root.scrollLeft !== 0) {
-		found.push([root, root.scrollTop, root.scrollLeft]);
-	}
-	for (const child of root.children) scrollOffsets(child, found);
-	if (root.shadowRoot) for (const child of root.shadowRoot.children) scrollOffsets(child, found);
-	return found;
-}
-
-/** A parked sidebar or panel: its elements, kept, and where they were scrolled to. */
-interface Parked {
-	elements: HTMLElement[];
-	scroll: ScrollOffsets;
-	body: number;
-}
+type AppList = AppListV2;
+/** `scope-get`'s scope, as a surface port takes it. */
+type ScopeOf = { workspace: string; project?: string };
 
 /** One app the chrome has given a port, once `activate` has run or failed. */
 interface HeldApp {
@@ -81,7 +69,8 @@ interface HeldApp {
 	deactivate?: () => void | Promise<void>;
 	sidebar?: Parked;
 	panel?: Parked;
-	list?: LoamList;
+	/** A `list` or `tree` sidebar's lists: two, at each level, for a dual-scope app in a project (7.4). */
+	lists?: LoamList[];
 }
 
 /** Added to `loam-main` from this chunk, so the empty shell's styles do not grow. */
@@ -114,29 +103,11 @@ const mainWithApp = css`
 	}
 `;
 
-/** Added to the tab bar: its entries scroll when they overflow (4.6), and its settings entry stays. */
-const tabbarWithApps = css`
-	:host {
-		justify-content: safe center;
-	}
-	.entries {
-		min-inline-size: 0;
-		max-inline-size: 100%;
-	}
-	slot {
-		display: flex;
-		gap: var(--space-inline-sm);
-		min-inline-size: 0;
-		overflow-inline: auto;
-	}
-`;
-
 export class AppSurfaces implements ShellApps {
 	readonly #shell: LoamShell;
 	readonly #kernel: LoamKernelV2;
 	readonly #cleanup: Array<() => void> = [];
 	readonly #held = new Map<string, HeldApp>();
-	readonly #entries = new Map<string, LoamAppEntry[]>();
 	#queue: Promise<void> = Promise.resolve();
 	#showing: string | null = null;
 	#token = 0;
@@ -148,14 +119,15 @@ export class AppSurfaces implements ShellApps {
 	#missedSwitch = false;
 	/** A selection set before an app's surfaces exist reaches them when they do. */
 	#selectionWritten = false;
-	/** The scope the surfaces now rendering are created in: `scope-get`'s, read at each render. */
-	#scope: ScopeV1 = { workspace: '' };
+	/** The scope and route the surfaces now rendering are created in: read at each render. */
+	#state: MainStateV1 | null = null;
+	/** A change of scope since the last render: what was parked belongs to the scope it left (7.6). */
+	#rescoped = false;
 	#openingNotice: ReturnType<typeof setTimeout> | undefined;
 	#mainElements: HTMLElement[] = [];
 	#inspectorElements: HTMLElement[] = [];
 	#statusElements: HTMLElement[] = [];
 	#statusFor: string | null = null;
-	#baseTitle: string | null = null;
 	readonly #overlays: OverlaySurfaces;
 
 	constructor(shell: LoamShell, kernel: LoamKernelV2) {
@@ -166,9 +138,14 @@ export class AppSurfaces implements ShellApps {
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
 			void kernel.call('app-open', { instance });
 		});
-		this.#listen(LIST_SELECT_EVENT, ({ id }) => {
+		this.#listen(LIST_SELECT_EVENT, ({ id, level }) => {
 			if (this.#showing !== null) {
-				void kernel.call('app-selection-set', { instance: this.#showing, id });
+				// The level of the list it was made in, in a dual-scope app's sidebar (7.4).
+				void kernel.call('app-selection-set', {
+					instance: this.#showing,
+					id,
+					...(level ? { level } : {}),
+				});
 			}
 		});
 		this.#listen(PART_ACTION_EVENT, ({ command }) => this.run(String(command)));
@@ -220,8 +197,7 @@ export class AppSurfaces implements ShellApps {
 	 * landing, or main busy with a persisted active app's parts ready for it.
 	 */
 	async prepare(): Promise<void> {
-		const list = await this.#kernel.call<AppList>('app-list');
-		this.#prepared = list.data ?? { active: null, apps: [] };
+		this.#prepared = (await this.#shell.rail.fresh()) ?? { active: null, apps: [] };
 		const { active, apps } = this.#prepared;
 		// With the late commands missing, the shell's "Could not load" is main's heading (2.2).
 		if (apps.length > 0 && !this.#kernel.lateFailure) this.#shell.landing = 'Choose an app';
@@ -237,7 +213,6 @@ export class AppSurfaces implements ShellApps {
 	async #start(): Promise<void> {
 		const shell = this.#shell;
 		this.#part<FASTElement>('main').$fastController.addStyles(mainWithApp);
-		this.#part<FASTElement>('tabbar').$fastController.addStyles(tabbarWithApps);
 		this.#overlays.attach();
 		const lateStart = !this.#prepared;
 		if (lateStart) await this.prepare();
@@ -245,7 +220,7 @@ export class AppSurfaces implements ShellApps {
 		const nextFrame = () => new Promise((resolve) => view.requestAnimationFrame(resolve));
 		this.#rendered = true;
 		const { active, apps } = this.#prepared as AppList;
-		this.#renderNav(active, apps);
+		this.#summaries = apps;
 		if (active !== null) {
 			const main = this.#part<HTMLElement>('main');
 			main.dataset.app = active;
@@ -280,8 +255,6 @@ export class AppSurfaces implements ShellApps {
 		for (const cleanup of this.#cleanup.splice(0)) cleanup();
 		if (this.#rendered) this.#leave();
 		this.#overlays.dispose();
-		for (const entries of this.#entries.values()) for (const entry of entries) entry.remove();
-		this.#entries.clear();
 		for (const held of this.#held.values()) {
 			const { deactivate } = held;
 			if (deactivate) void Promise.resolve().then(deactivate).catch(reportError);
@@ -301,6 +274,8 @@ export class AppSurfaces implements ShellApps {
 			command === 'app-close' ||
 			command === 'section-open' ||
 			(event as KernelEventV2).scopeChanged?.left !== undefined;
+		const rescoped = (event as KernelEventV2).scopeChanged !== undefined && event.success;
+		if (rescoped) this.#rescoped = true;
 		if (!this.#rendered) {
 			if (switched) this.#missedSwitch = true;
 			return;
@@ -317,6 +292,11 @@ export class AppSurfaces implements ShellApps {
 			return;
 		}
 		if (switched) this.#enqueue(() => this.#sync());
+		// A kept app: every surface is recreated in the new scope (7.6). A route is a property (below).
+		else if (rescoped) this.#enqueue(() => this.#sync(true));
+		else if ((event as KernelEventV2).mainChanged && event.success && this.#showing !== null) {
+			this.#enqueue(() => this.#readRoute());
+		}
 		if (
 			switched ||
 			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
@@ -332,8 +312,9 @@ export class AppSurfaces implements ShellApps {
 		else if (command === 'status-item-set' && event.caller === showing) {
 			this.#enqueue(() => this.#readStatus(showing));
 		} else if (event.mutation && event.instance === showing) {
-			const list = this.#held.get(showing)?.list;
-			if (list) this.#enqueue(() => this.#readList(showing, list));
+			for (const list of this.#held.get(showing)?.lists ?? []) {
+				this.#enqueue(() => this.#readList(showing, list));
+			}
 		}
 	}
 
@@ -347,57 +328,16 @@ export class AppSurfaces implements ShellApps {
 		return this.#queue;
 	}
 
-	// ─── The nav ───────────────────────────────────────────────────────────────────
-
-	#renderNav(active: string | null, apps: AppSummaryV2[]): void {
-		this.#summaries = apps;
-		// The entries the first frame drew from the boot records are these surfaces' from now on.
-		for (const [instance, entries] of this.#shell.bootEntries) {
-			if (!this.#entries.has(instance)) this.#entries.set(instance, entries);
-		}
-		// A boot record stage B did not confirm, or an app the rail does not list, has no entry.
-		const listed = new Set(apps.filter((app) => app.rail).map((app) => app.instance));
-		for (const [instance, entries] of this.#entries) {
-			if (listed.has(instance)) continue;
-			for (const entry of entries) entry.remove();
-			this.#entries.delete(instance);
-		}
-		for (const app of apps) {
-			if (!listed.has(app.instance)) continue;
-			let entries = this.#entries.get(app.instance);
-			if (!entries) {
-				entries = (['rail', 'tabbar'] as const).map((variant) => {
-					const entry = this.#create<LoamAppEntry>('loam-app-entry');
-					entry.variant = variant;
-					entry.instance = app.instance;
-					return entry;
-				});
-				this.#entries.set(app.instance, entries);
-			}
-			for (const entry of entries) {
-				entry.label = app.title;
-				entry.icon = app.icon;
-				entry.state = app.state;
-				entry.current = app.instance === active;
-				// Connected once it holds its state, so it renders once.
-				if (!entry.isConnected) this.#part<HTMLElement>(entry.variant).append(entry);
-			}
-		}
-		// In the list's order, which stage B may have corrected from a boot record's (2.2).
-		for (const [index, variant] of (['rail', 'tabbar'] as const).entries()) {
-			const part = this.#part<HTMLElement>(variant);
-			const wanted = apps.flatMap((app) => this.#entries.get(app.instance)?.[index] ?? []);
-			const shown = [...part.children].filter((child) => child.localName === 'loam-app-entry');
-			if (wanted.some((entry, at) => shown[at] !== entry)) part.append(...wanted);
-		}
-	}
-
 	// ─── Switching ─────────────────────────────────────────────────────────────────
 
-	async #sync(): Promise<void> {
-		const list = await this.#kernel.call<AppList>('app-list');
-		if (!list.success || !list.data) return;
-		const { active, apps } = list.data;
+	/**
+	 * Follow the active app; `recreate`, its scope changed under it, so its surfaces are made again. `read`,
+	 * what changed was no command, as an `activate` that threw, so the list is read again.
+	 */
+	async #sync(recreate = false, read = false): Promise<void> {
+		const list = await (read ? this.#shell.rail.refresh() : this.#shell.rail.fresh());
+		if (!list) return;
+		const { active, apps } = list;
 		const wasFailed = (instance: string) =>
 			this.#summaries.find((app) => app.instance === instance)?.state === 'failed';
 		const now = apps.find((app) => app.instance === active);
@@ -406,8 +346,11 @@ export class AppSurfaces implements ShellApps {
 		// A mounted instance's console stays, and says what changed.
 		const newlyFailed =
 			!changed && active !== null && nowFailed && now?.kind !== 'mounted' && !wasFailed(active);
-		this.#renderNav(active, apps);
-		if (!changed && !newlyFailed) return;
+		this.#summaries = apps;
+		if (!changed && !newlyFailed && !(recreate && active !== null)) {
+			if (this.#rescoped) this.#leave();
+			return;
+		}
 		const focusLeaves = this.#leave();
 		this.#showing = active;
 		if (changed) this.#selectionWritten = false;
@@ -415,7 +358,6 @@ export class AppSurfaces implements ShellApps {
 		await Updates.next();
 		if (focusLeaves) focusFallback(this.#shell);
 		if (active === null) {
-			this.#setTitle(null);
 			this.#overlays.announce('No app is open');
 			return;
 		}
@@ -423,15 +365,14 @@ export class AppSurfaces implements ShellApps {
 		void this.#enter(active, this.#token);
 	}
 
-	#setTitle(title: string | null): void {
-		const doc = this.#shell.ownerDocument;
-		this.#baseTitle ??= doc.title;
-		doc.title = title === null ? this.#baseTitle : `${title} - ${this.#baseTitle}`;
-	}
-
-	/** What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. */
+	/**
+	 * What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. After a change of
+	 * scope nothing is parked, and what each app had parked is dropped: it was made in the scope left (7.6).
+	 */
 	#leave(): boolean {
 		this.#token++;
+		const rescoped = this.#rescoped;
+		this.#rescoped = false;
 		clearTimeout(this.#openingNotice);
 		const shell = this.#shell;
 		const held = this.#showing === null ? undefined : this.#held.get(this.#showing);
@@ -440,6 +381,13 @@ export class AppSurfaces implements ShellApps {
 		if (held) {
 			held.sidebar = this.#park('sidebar', held.sidebar);
 			held.panel = this.#park('panel', held.panel);
+		}
+		if (rescoped) {
+			for (const each of this.#held.values()) {
+				each.sidebar = undefined;
+				each.panel = undefined;
+				each.lists = undefined;
+			}
 		}
 		for (const element of [
 			...this.#mainElements,
@@ -548,7 +496,6 @@ export class AppSurfaces implements ShellApps {
 		this.#declared = new Set(detail.surfaces);
 		this.#applyToggles();
 		this.#setEmptyStates(false);
-		this.#setTitle(detail.title);
 		if (detail.kind === 'mounted' && detail.state !== 'refused') {
 			// Its console says why it failed, and has the Refresh button (7.7). A mounted app has no port.
 			await this.#renderConsole(detail, stale);
@@ -592,7 +539,7 @@ export class AppSurfaces implements ShellApps {
 				this.#summaries = this.#summaries.map((app) =>
 					app.instance === instance ? { ...app, state: after.state } : app
 				);
-				this.#enqueue(() => this.#sync());
+				this.#enqueue(() => this.#sync(false, true));
 			}
 			return;
 		}
@@ -676,9 +623,9 @@ export class AppSurfaces implements ShellApps {
 	async #renderSurfaces(held: HeldApp, detail: AppDetailV1, stale: () => boolean): Promise<void> {
 		const { port } = held;
 		// Every surface below gets a port of its own, fixed to this scope for its life (phase 2
-		// specification, 3.6); recreating them when the scope changes is step 6's (7.6).
-		const scoped = await this.#kernel.call<{ scope: ScopeV1 }>('scope-get');
-		this.#scope = scoped.data?.scope ?? this.#scope;
+		// specification, 3.6), and is made again when the scope changes (7.6).
+		const state = await this.#shell.readState();
+		this.#state = state;
 		if (stale()) return;
 		const { manifest } = port;
 		const surfaces = manifest.ui?.surfaces ?? {};
@@ -687,6 +634,7 @@ export class AppSurfaces implements ShellApps {
 		if (surfaces.header) {
 			const header = this.#create<LoamPartHeader>('loam-part-header');
 			header.heading = surfaces.header.title ?? detail.title;
+			header.crumbs = crumbsOf(this.#state, port.instance, detail.title, this.#shell.base);
 			header.actions = (surfaces.header.actions ?? []).map(({ command, label }) => ({
 				command,
 				label,
@@ -730,18 +678,28 @@ export class AppSurfaces implements ShellApps {
 			if (held.sidebar) {
 				await this.#restore('sidebar', held.sidebar, stale);
 				if (stale()) return;
-			} else if (sidebar.shape === 'list') {
-				const list = this.#create<LoamList>('loam-list');
-				list.label = sidebar.title ?? detail.title;
-				held.list = list;
-				list.busy = true;
-				this.#part<HTMLElement>('sidebar').prepend(list);
+			} else if (sidebar.shape === 'list' || sidebar.shape === 'tree') {
+				// A dual-scope app in a project: one group per level, each a region with its heading (7.4).
+				const levels: readonly string[] = manifest.app?.scope_levels ?? [];
+				const dual =
+					state.project !== null && levels.includes('workspace') && levels.includes('project');
+				held.lists = (dual ? (['project', 'workspace'] as const) : [undefined]).map((level) => {
+					const list = this.#create<LoamList>('loam-list');
+					list.label = sidebar.title ?? detail.title;
+					list.busy = true;
+					if (level) {
+						list.level = level;
+						list.heading = `In ${level === 'project' ? state.project?.name : state.workspace.name}`;
+					}
+					return list;
+				});
+				this.#part<HTMLElement>('sidebar').prepend(...held.lists);
 			} else if (sidebar.element !== undefined) {
 				this.#part<HTMLElement>('sidebar').prepend(this.#mount(held, sidebar.element));
 			}
-			if (held.list) {
-				held.list.selected = null;
-				await this.#readList(port.instance, held.list);
+			for (const list of held.lists ?? []) {
+				list.selected = null;
+				await this.#readList(port.instance, list);
 				if (stale()) return;
 			}
 		}
@@ -807,7 +765,9 @@ export class AppSurfaces implements ShellApps {
 		frame.configure({
 			port,
 			// The view's broker is its surface's, so its calls run in the scope it opened in: a boundary (3.6).
-			view: port.surface({ scope: this.#scope }).view,
+			view: port.surface({ scope: (this.#state as MainStateV1).scope as ScopeOf }).view,
+			scope: (this.#state as MainStateV1).scope as ScopeOf,
+			route: this.#state?.path ?? '',
 			source: view.packageViewSource(port),
 			heading: title,
 			hostVersion: String(this.#kernel.version),
@@ -883,12 +843,15 @@ export class AppSurfaces implements ShellApps {
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {
 		const mount = this.#create<LoamMount>('loam-mount');
 		// A native surface's client is its own port's: a contract, as all of a native app is (D54).
-		const surface = held.port.surface({ scope: this.#scope });
+		const scope = (this.#state as MainStateV1).scope as ScopeOf;
+		const surface = held.port.surface({ scope });
 		mount.configure({
 			registry: held.registry as CustomElementRegistry,
 			element,
 			context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
 			selection: null,
+			scope,
+			route: this.#state?.path ?? '',
 			...(label !== undefined ? { label } : {}),
 		});
 		return mount;
@@ -897,10 +860,22 @@ export class AppSurfaces implements ShellApps {
 	// ─── Reads ─────────────────────────────────────────────────────────────────────
 
 	async #readList(instance: string, list: LoamList): Promise<void> {
-		const command = this.#held.get(instance)?.port.manifest.ui?.surfaces?.sidebar?.command;
+		const sidebar = this.#held.get(instance)?.port.manifest.ui?.surfaces?.sidebar;
+		const command = sidebar?.command;
 		if (command === undefined) return;
-		const result = await this.#kernel.call<{ items: LoamList['items'] }>(command, {});
+		// The workspace's group calls it at that level, the project's at the active scope (7.4).
+		const result = await this.#kernel.call<{ items: LoamList['items'] }>(
+			command,
+			{},
+			list.level === 'workspace' ? { scope: 'workspace' } : undefined
+		);
 		list.busy = false;
+		if (result.success && sidebar?.shape === 'tree') {
+			const read = readTree(result.data);
+			list.failure = read.failure ?? null;
+			list.items = read.failure ? [] : read.items;
+			return;
+		}
 		if (result.success && Array.isArray(result.data?.items)) {
 			list.failure = null;
 			list.items = result.data.items;
@@ -913,16 +888,39 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	async #readSelection(instance: string): Promise<void> {
-		const result = await this.#kernel.call<{ id: string | null }>('app-selection-get', {
-			instance,
-		});
+		const result = await this.#kernel.call<SelectionV2>('app-selection-get', { instance });
 		if (this.#showing !== instance || !result.success) return;
 		const id = result.data?.id ?? null;
-		const list = this.#held.get(instance)?.list;
-		if (list) list.selected = id;
+		const level = result.data?.level ?? 'workspace';
+		// Selected in the group of its level, and in no other (7.4).
+		for (const list of this.#held.get(instance)?.lists ?? []) {
+			list.selected = list.level === undefined || list.level === level ? id : null;
+		}
 		for (const element of [...this.#mainElements, ...this.#inspectorElements]) {
-			if (element.localName === 'loam-mount') (element as LoamMount).selection = id;
-			else if (element.localName === 'loam-view-frame') (element as LoamViewFrame).selection = id;
+			if (element.localName !== 'loam-mount' && element.localName !== 'loam-view-frame') continue;
+			const surface = element as LoamMount | LoamViewFrame;
+			surface.selectionLevel = level;
+			surface.selection = id;
+		}
+	}
+
+	/** The app's route moved: a property of its surfaces and the header's crumbs, recreating nothing (7.6). */
+	async #readRoute(): Promise<void> {
+		const showing = this.#showing;
+		const state = await this.#shell.readState();
+		if (showing === null || state.active !== showing || this.#state === null) return;
+		if (state.path === this.#state.path) return;
+		this.#state = state;
+		const title = this.#summaries.find((app) => app.instance === showing)?.title ?? showing;
+		const parts = ['sidebar', 'panel'].flatMap((name) => [
+			...this.#part<HTMLElement>(name).children,
+		]);
+		for (const element of [...this.#mainElements, ...this.#inspectorElements, ...parts]) {
+			if (element.localName === 'loam-mount' || element.localName === 'loam-view-frame') {
+				(element as LoamMount | LoamViewFrame).route = state.path;
+			} else if (element.localName === 'loam-part-header') {
+				(element as LoamPartHeader).crumbs = crumbsOf(state, showing, title, this.#shell.base);
+			}
 		}
 	}
 
@@ -968,6 +966,8 @@ export class AppSurfaces implements ShellApps {
 /** Create the controller, once the chunk's elements are defined. */
 export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV2): Promise<ShellApps> {
 	await defineAppElements();
+	// `ICONS_V1` is registered now: the rail's entries show their icons (2.4).
+	shell.rail.showIcons();
 	const surfaces = new AppSurfaces(shell, kernel);
 	// The chunk may load beside stage B; what it renders is what stage B read, never stage A's list.
 	await kernel.appsReady;

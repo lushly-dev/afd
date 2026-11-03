@@ -171,11 +171,12 @@ describe('scoping an app to itself', () => {
 		);
 		expect((await probe.call('app-selection-get')).error?.code).toBe('CALL_NOT_GRANTED');
 		const set = await probe.call('app-selection-set', { instance: 'probe', id: 'a' });
-		expect(set.data).toEqual({ id: 'a' });
+		expect(set.data).toEqual({ id: 'a', level: 'workspace' });
 		expect(set.undoCommand).toBe('app-selection-set');
-		expect(set.undoArgs).toEqual({ instance: 'probe', id: null });
+		expect(set.undoArgs).toEqual({ instance: 'probe', id: null, level: 'workspace' });
 		expect((await kernel.call('app-selection-get', { instance: 'probe' })).data).toEqual({
 			id: 'a',
+			level: 'workspace',
 		});
 		expect((await kernel.call('app-selection-get', { instance: 'zzz' })).error?.code).toBe(
 			'APP_NOT_FOUND'
@@ -289,12 +290,14 @@ describe('overlays on an app switch (section 8)', () => {
 		expect(again.data).toEqual({ active: 'probe', previous: 'probe' });
 		expect((await kernel.call('app-selection-get', { instance: 'probe' })).data).toEqual({
 			id: 'a',
+			level: 'workspace',
 		});
 		const second = await kernel.call('app-open', { instance: 'sums' });
 		expect(second.undoCommand).toBe('app-open');
 		expect(second.undoArgs).toEqual({ instance: 'probe' });
 		expect((await kernel.call('app-selection-get', { instance: 'probe' })).data).toEqual({
 			id: null,
+			level: 'workspace',
 		});
 		const closed = await kernel.call('app-close');
 		expect(closed.data).toEqual({ active: null, previous: 'sums' });

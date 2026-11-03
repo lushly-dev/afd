@@ -16,6 +16,11 @@ import {
 	type LoamPartHeader,
 	type LoamToast,
 } from '../dist/apps/index.js';
+import type { LoamAppNav } from '../dist/elements/app-nav.js';
+import type { LoamProjectSwitcher } from '../dist/elements/project-switcher.js';
+import { attachTooltip } from '../dist/elements/tooltip.js';
+import type { LoamShell } from '../dist/index.js';
+import { openSwitcher } from '../dist/rail/switcher.js';
 import { defineViewFrame, type LoamViewFrame } from '../dist/view/view.js';
 import { type Density, themePart } from './support.js';
 
@@ -106,16 +111,61 @@ const entry = (
 	return element;
 };
 
+/**
+ * The rail or tab bar with its bands (phase 2 specification, 7.1): a project-only app dimmed at the top
+ * with no project, and the rest at the bottom, as `RailBands` places them.
+ */
 const nav = (variant: 'rail' | 'tabbar') => (wrapper: HTMLElement) => {
-	const part = document.createElement(`loam-${variant}`);
-	part.append(
-		entry(variant, 'hello', 'Hello', 'ready', true),
-		entry(variant, 'counter', 'Counter', 'ready'),
-		entry(variant, 'tray', 'Tray', 'refused'),
-		entry(variant, 'work', 'Work', 'loading')
-	);
+	const part = document.createElement(`loam-${variant}`) as LoamAppNav;
 	wrapper.append(part);
+	const dimmed = entry(variant, 'tracker', 'Tracker', 'ready');
+	dimmed.dimmed = true;
+	dimmed.tip = 'Choose a project to open Tracker';
+	part.band('top').append(dimmed);
+	part
+		.band('bottom')
+		.append(
+			entry(variant, 'hello', 'Hello', 'ready', true),
+			entry(variant, 'counter', 'Counter', 'ready'),
+			entry(variant, 'tray', 'Tray', 'refused'),
+			entry(variant, 'work', 'Work', 'loading')
+		);
 };
+
+/** A rail in a project: the switcher on the selected colors, Projects current, a project app at the top. */
+const railInProject = async (wrapper: HTMLElement) => {
+	const part = document.createElement('loam-rail') as LoamAppNav;
+	wrapper.append(part);
+	const root = part.shadowRoot as ShadowRoot;
+	const switcher = root.querySelector('loam-project-switcher') as LoamProjectSwitcher;
+	switcher.project = 'Atlas';
+	const projects = root.querySelector('loam-section-entry') as LoamAppEntry;
+	projects.current = true;
+	part.band('top').append(entry('rail', 'tracker', 'Tracker', 'ready'));
+	part.band('bottom').append(entry('rail', 'counter', 'Counter', 'ready'));
+	return part;
+};
+
+/** A stand-in for the shell the switcher's list reads through: two projects, Atlas active. */
+const switcherShell = (): LoamShell =>
+	({
+		ownerDocument: document,
+		rail: { showIcons() {} },
+		kernel: {
+			call: async (name: string) =>
+				name === 'project-list'
+					? {
+							success: true,
+							data: {
+								projects: [
+									{ id: 'prj_atlas', name: 'Atlas', icon: 'system/folder' },
+									{ id: 'prj_beacon', name: 'Beacon', icon: 'system/document' },
+								],
+							},
+						}
+					: { success: true, data: { scope: { workspace: 'personal', project: 'prj_atlas' } } },
+		},
+	}) as unknown as LoamShell;
 
 const toast = (tone: LoamToast['tone'], message: string, id: string) => {
 	const element = document.createElement('loam-toast') as LoamToast;
@@ -185,6 +235,66 @@ export const [TabbarApps, TabbarAppsCompact] = both('loam-tabbar', nav('tabbar')
 	inline: '390px',
 	block: 'auto',
 });
+export const [RailProject, RailProjectCompact] = both(
+	'loam-section-entry',
+	async (wrapper) => {
+		await railInProject(wrapper);
+	},
+	{ inline: 'auto', block: '360px' }
+);
+export const [RailTooltip, RailTooltipCompact] = both(
+	'loam-tooltip',
+	async (wrapper) => {
+		const part = await railInProject(wrapper);
+		const tip = await attachTooltip(part);
+		const target = part.band('top').querySelector('loam-app-entry') as LoamAppEntry;
+		target.tip = 'Tracker';
+		tip.handle('pointerover', [target]);
+	},
+	{ inline: '320px', block: '360px' }
+);
+export const [ProjectSwitcherList, ProjectSwitcherListCompact] = both(
+	'loam-project-switcher',
+	async (wrapper) => {
+		const part = await railInProject(wrapper);
+		const switcher = part.shadowRoot?.querySelector('loam-project-switcher') as LoamProjectSwitcher;
+		await openSwitcher(switcherShell(), switcher);
+	},
+	{ inline: '360px', block: '360px' }
+);
+export const [ListDual, ListDualCompact] = both(
+	'loam-list',
+	(wrapper) => {
+		for (const [heading, items] of [
+			['In Atlas', [{ id: 'ada', title: 'Ada' }]],
+			['In Personal', [{ id: 'grace', title: 'Grace', description: 'Selected' }]],
+		] as const) {
+			const element = document.createElement('loam-list') as LoamList;
+			element.label = 'Greetings';
+			element.heading = heading;
+			element.items = [...items];
+			if (heading === 'In Personal') element.selected = 'grace';
+			wrapper.append(element);
+		}
+	},
+	{ inline: '260px', block: 'auto' }
+);
+export const [PartHeaderCrumbs, PartHeaderCrumbsCompact] = both(
+	'loam-part-header',
+	(wrapper) => {
+		const element = document.createElement('loam-part-header') as LoamPartHeader;
+		element.heading = 'Hello';
+		element.crumbs = [
+			{ label: 'Personal', href: '/personal' },
+			{ label: 'Atlas', href: '/personal/p/atlas' },
+			{ label: 'Hello', href: '/personal/p/atlas/hello' },
+			{ label: 'items' },
+		];
+		element.actions = [{ command: 'hello-greet', label: 'Greet' }];
+		wrapper.append(element);
+	},
+	{ inline: '640px', block: 'auto' }
+);
 export const [StatusAction, StatusActionCompact] = both(
 	'loam-status-action',
 	(wrapper) => {

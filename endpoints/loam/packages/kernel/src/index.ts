@@ -118,6 +118,7 @@ export {
 	type ProjectV1,
 	type ScopeChangeV2,
 	type ScopeV1,
+	type SelectionV2,
 	type ShellInfoV0,
 	type ShellInfoV1,
 	type ShellInfoV2,

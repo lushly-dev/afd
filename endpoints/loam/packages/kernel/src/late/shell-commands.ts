@@ -76,7 +76,7 @@ export interface ShellCommandDeps {
 	apps(): AppsRuntime;
 }
 
-/** The project a view-state id holds after `@`, as `loam.layout.tasks@prj_atlas` does (3.4). */
+/** The project a view-state id holds after `@`, as `loam.layout.hello@prj_atlas` does (3.4). */
 const projectOfId = (id: string): string | undefined => {
 	const at = id.lastIndexOf('@');
 	return at < 0 ? undefined : id.slice(at + 1);
