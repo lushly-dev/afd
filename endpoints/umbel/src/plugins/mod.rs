@@ -19,6 +19,8 @@ mod grants;
 mod ledger;
 mod loader;
 mod manifest;
+#[cfg(feature = "store-embedded")]
+mod memory_services;
 #[cfg(feature = "mounted")]
 mod mounted;
 mod packs;
@@ -88,9 +90,10 @@ pub const HOST_DOMAINS: &[&str] = &[
 ];
 
 /// The grants of this host's catalog: phase 1's six, phase 2's ten (specification section 3.3)
-/// and phase 3's two (phase 3 section 6.1). The store grants are scoped to the instance's spaces
-/// and held by compiled plugins only. A grant in [`PENDING_GRANTS`] is in the catalog, so a
-/// configuration may name it, but is refused as unavailable until its services exist.
+/// and phase 3's two (phase 3 section 6.1). The store grants, memory's included, are scoped to
+/// the instance's spaces and held by compiled plugins only. A grant in [`PENDING_GRANTS`] is in
+/// the catalog, so a configuration may name it, but is refused as unavailable until its services
+/// exist.
 pub const GRANTS: &[&str] = &[
     "config",
     "log",
@@ -113,15 +116,8 @@ pub const GRANTS: &[&str] = &[
 ];
 
 /// Grants of the catalog whose host services are not built yet (`PLUGIN_GRANT_UNAVAILABLE`), each
-/// with the step that adds them: phase 3 step 1 names `memory` and `memory_write`, so manifests
-/// and configurations can declare them, and step 4 wires them.
-pub const PENDING_GRANTS: &[(&str, &str)] = &[
-    ("memory", "phase 3 step 4, with the memory host services"),
-    (
-        "memory_write",
-        "phase 3 step 4, with the memory host services",
-    ),
-];
+/// with the step that adds them. Empty since phase 3 step 4 wired `memory` and `memory_write`.
+pub const PENDING_GRANTS: &[(&str, &str)] = &[];
 
 /// Why the host cannot provide `grant`: it is pending, reserved or not in the catalog. `None` for
 /// a grant of the catalog that is available.

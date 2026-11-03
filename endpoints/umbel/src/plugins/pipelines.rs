@@ -20,6 +20,12 @@
 //!   step's command name, and `destructive` when any step is. One confirmation of the pipeline
 //!   covers its steps, as one confirmation of `afd-pipe` does. A step with `approval =
 //!   "required"` is still checked inside, because the approval middleware runs at the registry.
+//! - **Journal and authority** (phase 3 section 2.3). A pipeline with a digest step is journaled
+//!   as digest with no kept key, whatever it declares, because its journaled result holds its
+//!   steps' data; one that passes a digest step's output to a step that is not digest is
+//!   `PLUGIN_MANIFEST_INVALID`, because that step's resolved input would enter the journal. A
+//!   pipeline inherits its steps' `authority_prompt`s in step order, as it inherits their
+//!   `confirm_prompt`s.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
@@ -44,6 +50,10 @@ pub(crate) struct Known {
     pub destructive: bool,
     /// Whether the command is a plugin pipeline.
     pub pipeline: bool,
+    /// Whether the command is journaled as digest (phase 3 section 7.1).
+    pub digest: bool,
+    /// The command's `authority_prompt` (phase 3 section 3.3).
+    pub authority_prompt: Option<String>,
 }
 
 /// Whether a pipeline was registered.
@@ -63,6 +73,10 @@ pub(crate) struct PipelinePlan {
     pub confirm_prompt: Option<String>,
     /// Whether any step is destructive.
     pub destructive: bool,
+    /// Whether a step is digest, so the pipeline is journaled as digest with no kept key.
+    pub digest: bool,
+    /// The union of the steps' authority prompts, in step order.
+    pub authority_prompt: Option<String>,
 }
 
 /// Decide every pipeline of `manifest` against the commands that exist.
@@ -93,6 +107,8 @@ fn plan_one(
         state: PipelineState::Skipped(reason),
         confirm_prompt: None,
         destructive: false,
+        digest: false,
+        authority_prompt: None,
     };
     let mut steps = Vec::new();
     for step in &pipeline.steps {
@@ -132,24 +148,102 @@ fn plan_one(
             ));
         }
     }
-    let mut prompts: Vec<String> = Vec::new();
-    let mut seen: Vec<&str> = Vec::new();
-    let mut destructive = false;
-    for (name, command, _) in &steps {
-        destructive |= command.destructive;
-        if let Some(prompt) = &command.confirm_prompt
-            && !seen.contains(name)
-        {
-            seen.push(name);
-            prompts.push(format!("{name}: {prompt}"));
+    check_digest_flow(manifest, index, pipeline, &steps)?;
+    let union = |prompt: fn(&Known) -> Option<&String>| {
+        let mut prompts: Vec<String> = Vec::new();
+        let mut seen: Vec<&str> = Vec::new();
+        for (name, command, _) in &steps {
+            if let Some(prompt) = prompt(command)
+                && !seen.contains(name)
+            {
+                seen.push(name);
+                prompts.push(format!("{name}: {prompt}"));
+            }
         }
-    }
+        (!prompts.is_empty()).then(|| prompts.join(" "))
+    };
     Ok(PipelinePlan {
         name: pipeline.name.clone(),
         state: PipelineState::Registered,
-        confirm_prompt: (!prompts.is_empty()).then(|| prompts.join(" ")),
-        destructive,
+        confirm_prompt: union(|known| known.confirm_prompt.as_ref()),
+        destructive: steps.iter().any(|(_, command, _)| command.destructive),
+        digest: steps.iter().any(|(_, command, _)| command.digest),
+        authority_prompt: union(|known| known.authority_prompt.as_ref()),
     })
+}
+
+/// The step a pipeline variable names, for step `at` of `pipeline`: `$prev` the step before,
+/// `$first` the first, `$steps[N]` and `$steps.<alias>` the one named. `None` for `$input`, a
+/// literal (`$$...`) and anything else.
+fn referenced_step(pipeline: &PipelineDecl, at: usize, text: &str) -> Option<usize> {
+    let rest = text
+        .strip_prefix('$')
+        .filter(|rest| !rest.starts_with('$'))?;
+    let head = |word: &str| {
+        rest.strip_prefix(word)
+            .filter(|tail| tail.is_empty() || tail.starts_with(['.', '[']))
+    };
+    if head("prev").is_some() {
+        return at.checked_sub(1);
+    }
+    if head("first").is_some() {
+        return Some(0);
+    }
+    let tail = rest.strip_prefix("steps")?;
+    if let Some(index) = tail.strip_prefix('[') {
+        let digits: String = index.chars().take_while(char::is_ascii_digit).collect();
+        return digits.parse().ok();
+    }
+    let alias = tail.strip_prefix('.')?;
+    let alias = alias.split(['.', '[']).next().unwrap_or(alias);
+    pipeline
+        .steps
+        .iter()
+        .position(|step| step.alias.as_deref() == Some(alias))
+}
+
+fn strings<'a>(value: &'a Value, out: &mut Vec<&'a str>) {
+    match value {
+        Value::String(text) => out.push(text),
+        Value::Array(items) => items.iter().for_each(|item| strings(item, out)),
+        Value::Object(map) => map.values().for_each(|item| strings(item, out)),
+        _ => {}
+    }
+}
+
+/// Phase 3 section 2.3: a step that is not digest may not take a digest step's output, since its
+/// resolved input would be journaled as it is.
+fn check_digest_flow(
+    manifest: &Manifest,
+    index: usize,
+    pipeline: &PipelineDecl,
+    steps: &[(&str, &Known, &Vec<Effect>)],
+) -> Result<(), PluginError> {
+    for (at, (step, (name, command, _))) in pipeline.steps.iter().zip(steps).enumerate() {
+        if command.digest {
+            continue;
+        }
+        let mut found = Vec::new();
+        if let Some(input) = &step.input {
+            strings(input, &mut found);
+        }
+        for text in found {
+            let Some(source) = referenced_step(pipeline, at, text) else {
+                continue;
+            };
+            if steps.get(source).is_some_and(|(_, known, _)| known.digest) {
+                return Err(PluginError::manifest_invalid(
+                    &manifest.file,
+                    &format!("pipelines[{index}].steps[{at}].input"),
+                    format!(
+                        "passes `{text}`, the output of the digest step `{}`, to `{name}`, which is not digest: its input would be journaled with that text",
+                        steps[source].0
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The command definition of a registered pipeline. The registry is held weakly: it holds this

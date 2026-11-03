@@ -341,3 +341,265 @@ async fn store_backup_holds_the_index_writer_and_waits_for_a_running_indexer() {
     let again = umbel_store::SearchIndex::writer(&outside);
     assert!(again.is_ok());
 }
+
+// ── The memory store (phase 3 sections 5.3 and 5.4) ───────────────────────────────────────────
+
+mod memory {
+    use super::*;
+    use support::memory::{MemoryProbe, NOW, config as memory_config};
+    use support::{Scripted, cli_with};
+
+    fn ada() -> Actor {
+        Actor::new(ActorKind::Human).with_id("ada")
+    }
+
+    fn memory_host(dir: &Path) -> Host {
+        HostBuilder::open(dir)
+            .unwrap()
+            .with_compiled(sdk(MemoryProbe::new()))
+            .with_clock(fixed_clock(NOW))
+            .seal()
+            .unwrap()
+    }
+
+    async fn remember(host: &Host, n: u64) -> String {
+        let outcome = call(
+            host,
+            ada(),
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": n, "text": format!("memory text {n}") } }),
+        )
+        .await;
+        assert!(outcome.success, "{outcome:?}");
+        outcome.data.unwrap()["ids"][0].as_str().unwrap().to_owned()
+    }
+
+    async fn store_cli(dir: &Path, words: &[&str]) -> support::Run {
+        cli_with(dir, words, Scripted::no_terminal(), |b| {
+            b.with_compiled(sdk(MemoryProbe::new()))
+                .with_clock(fixed_clock(NOW))
+        })
+        .await
+    }
+
+    fn check_status(run: &support::Run, id: &str) -> (String, String) {
+        let value = run.json();
+        let checks = if value["success"] == true {
+            value["data"]["checks"].clone()
+        } else {
+            value["error"]["details"]["checks"].clone()
+        };
+        let found = checks
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|check| check["id"] == id)
+            .unwrap_or_else(|| panic!("no {id}: {value}"))
+            .clone();
+        (
+            found["status"].as_str().unwrap().to_owned(),
+            found["message"].as_str().unwrap().to_owned(),
+        )
+    }
+
+    fn sqlite(path: &Path) -> rusqlite::Connection {
+        rusqlite::Connection::open(path).unwrap()
+    }
+
+    fn store_dir(dir: &Path) -> std::path::PathBuf {
+        dir.join("state/spaces/main/store")
+    }
+
+    #[tokio::test]
+    async fn store_show_reports_memory_without_creating_it() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let shown = call(&host, ada(), "store-show", json!({})).await;
+        assert_eq!(
+            shown.data.unwrap()["memory"],
+            json!({ "provisioned": false })
+        );
+        assert!(!store_dir(dir.path()).join("memory.sqlite3").exists());
+        remember(&host, 1).await;
+        let shown = call(&host, ada(), "store-show", json!({}))
+            .await
+            .data
+            .unwrap();
+        let memory = &shown["memory"];
+        assert_eq!(memory["provisioned"], true);
+        assert_eq!(memory["keyFile"], "present");
+        assert_eq!(memory["counts"]["byClass"]["semantic"]["live"], 1);
+        assert!(memory["files"]["keysBytes"].as_u64().unwrap() > 0);
+        assert!(
+            memory.get("head").is_none(),
+            "a library caller is not the CLI's person"
+        );
+        // Another reader counts nothing of ada's private record.
+        let bo = call(
+            &host,
+            Actor::new(ActorKind::Human).with_id("bo"),
+            "store-show",
+            json!({}),
+        )
+        .await;
+        assert_eq!(
+            bo.data.unwrap()["memory"]["counts"]["byClass"]["semantic"]["live"],
+            0
+        );
+        drop(host);
+        let run = store_cli(dir.path(), &["store", "show"]).await;
+        assert_eq!(run.json()["data"]["memory"]["head"], 1, "{}", run.stdout);
+    }
+
+    #[tokio::test]
+    async fn store_check_finds_a_damaged_index_a_missing_key_and_a_failed_seal() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let first = remember(&host, 1).await;
+        let second = remember(&host, 2).await;
+        let third = remember(&host, 3).await;
+        drop(host);
+        let healthy = store_cli(dir.path(), &["store", "check"]).await;
+        assert_eq!(healthy.code, 0, "{}", healthy.stdout);
+        for id in [
+            "store.memory",
+            "store.memory_keys",
+            "store.memory_index",
+            "store.memory_access",
+            "store.memory_rows",
+            "store.memory_journal",
+        ] {
+            assert_eq!(
+                check_status(&healthy, id).0,
+                "pass",
+                "{id}: {}",
+                healthy.stdout
+            );
+        }
+        // A damaged lexical lane: a row in the index that no record has.
+        sqlite(&store_dir(dir.path()).join("memory.sqlite3"))
+            .execute(
+                "INSERT INTO records_fts (rowid, subject, tags, text) VALUES (999, 'x', 'x', 'x')",
+                [],
+            )
+            .unwrap();
+        let damaged = store_cli(dir.path(), &["store", "check"]).await;
+        assert_eq!(damaged.code, 1);
+        assert_eq!(check_status(&damaged, "store.memory_index").0, "fail");
+        sqlite(&store_dir(dir.path()).join("memory.sqlite3"))
+            .execute("DELETE FROM records_fts WHERE rowid = 999", [])
+            .unwrap();
+        // A missing key entry and a failed seal.
+        sqlite(&store_dir(dir.path()).join("memory.keys"))
+            .execute("DELETE FROM record_keys WHERE id = ?1", [&first])
+            .unwrap();
+        sqlite(&store_dir(dir.path()).join("memory.sqlite3"))
+            .execute(
+                "UPDATE records SET sealed = CAST(zeroblob(64) AS BLOB) WHERE id = ?1",
+                [&second],
+            )
+            .unwrap();
+        let broken = store_cli(dir.path(), &["store", "check"]).await;
+        let (status, message) = check_status(&broken, "store.memory_rows");
+        assert_eq!(status, "fail", "{message}");
+        assert!(
+            message.contains("1 with no key entry") && message.contains("1 whose seal fails"),
+            "{message}"
+        );
+        // After memory-reindex skipped both rows, the counts agree and the rows are still a finding.
+        let host = memory_host(dir.path());
+        let reindex = call(
+            &host,
+            ada(),
+            "mem-change",
+            json!({ "space": "main", "args": { "op": "reindex" } }),
+        )
+        .await;
+        assert_eq!(reindex.data.unwrap()["result"], 1, "only {third} reindexed");
+        drop(host);
+        let after = store_cli(dir.path(), &["store", "check"]).await;
+        assert_eq!(
+            check_status(&after, "store.memory_index").0,
+            "pass",
+            "{}",
+            after.stdout
+        );
+        assert_eq!(check_status(&after, "store.memory_rows").0, "fail");
+    }
+
+    #[tokio::test]
+    async fn store_check_tells_the_deployer_to_keep_the_memory_files_when_the_stores_do_not_open() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        remember(&host, 1).await;
+        drop(host);
+        std::fs::write(
+            store_dir(dir.path()).join("store.sqlite3"),
+            b"not a database",
+        )
+        .unwrap();
+        let run = store_cli(dir.path(), &["store", "check"]).await;
+        let suggestion = run.json()["error"]["suggestion"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        assert_eq!(
+            suggestion,
+            "Restore state/spaces from a backup. To derive the knowledge stores again, move store.sqlite3 and the index aside and run sources-sync and knowledge-index rebuild=true. Keep memory.sqlite3 and memory.keys: memory cannot be derived.",
+            "{}",
+            run.stdout
+        );
+    }
+
+    #[tokio::test]
+    async fn store_backup_copies_memory_without_its_keys_or_index_and_says_so() {
+        let dir = support::workspace(&memory_config("", ""));
+        let host = memory_host(dir.path());
+        let outcome = call(
+            &host,
+            ada(),
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": 1, "text": "canarybackupzq" } }),
+        )
+        .await;
+        assert!(outcome.success);
+        drop(host);
+        let run = store_cli(dir.path(), &["store", "backup", "path=backups/one"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        let value = run.json();
+        assert_eq!(
+            value["warnings"][0]["code"], "MEMORY_KEYS_NOT_BACKED_UP",
+            "{value}"
+        );
+        let target = dir.path().join("backups/one");
+        assert!(target.join("memory.sqlite3").is_file());
+        assert!(!target.join("memory.keys").exists());
+        let manifest: Value =
+            serde_json::from_slice(&std::fs::read(target.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(manifest["memoryKeys"], "excluded");
+        assert_eq!(manifest["memoryFts"], "excluded");
+        assert!(
+            manifest["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f["path"] == "memory.sqlite3")
+        );
+        for entry in std::fs::read_dir(&target).unwrap().flatten() {
+            if entry.path().is_file() {
+                let bytes = std::fs::read(entry.path()).unwrap();
+                assert!(
+                    !bytes.windows(14).any(|w| w == b"canarybackupzq"),
+                    "{} holds the canary",
+                    entry.path().display()
+                );
+            }
+        }
+        // Before any memory write, a backup has no memory and no warning.
+        let empty = support::workspace(&memory_config("", ""));
+        let run = store_cli(empty.path(), &["store", "backup", "path=backups/two"]).await;
+        assert_eq!(run.code, 0, "{}", run.stdout);
+        assert!(run.json()["warnings"].is_null());
+        assert!(!empty.path().join("backups/two/memory.sqlite3").exists());
+    }
+}

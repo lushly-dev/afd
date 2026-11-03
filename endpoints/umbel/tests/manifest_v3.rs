@@ -2,10 +2,10 @@
 //! commands and pipelines, both modes and `keep`'s limits, a mode required of every command and
 //! pipeline of a plugin holding `memory` or `memory_write`, `authority_prompt` and its limits,
 //! neither key on a component command or a mounted tool, `memory_write` refused beside a document
-//! write grant, the memory grants in the catalog and still unavailable, and versions 1 and 2 still
-//! loading. Parsing only: digest journaling, a pipeline's inheritance of `digest` and of its steps'
-//! `authority_prompt`, the seal-time refusal of a digest step feeding a plain step, and the prompt
-//! itself are phase 3 step 4's, tested with the rest of this file there.
+//! write grant, the memory grants in the catalog and granted to a compiled plugin, versions 1 and 2
+//! still loading; and at seal (phase 3 step 4), a pipeline's inheritance of `digest` and of its
+//! steps' `authority_prompt` in step order, and the refusal of a digest step feeding a plain one.
+//! Digest journaling itself is `journal_digest.rs`'s and the prompt `cli_authority_prompt.rs`'s.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -305,28 +305,154 @@ fn store_write_is_satisfied_by_memory_write() {
 }
 
 #[test]
-fn the_memory_grants_are_in_the_catalog_and_still_unavailable() {
-    let manifest = |required: bool| {
-        format!(
-            "{}\n[[grants]]\nname = \"memory\"\nrequired = {required}\nreason = \"Reads memory.\"\n{}",
-            head(3, "compiled"),
-            command("find", PLAIN)
+fn the_memory_grants_are_in_the_catalog_and_granted_to_a_compiled_plugin() {
+    let manifest = format!(
+        "{}\n[[grants]]\nname = \"memory\"\nreason = \"Reads memory.\"\n{}",
+        head(3, "compiled"),
+        command("find", PLAIN)
+    );
+    let plugin = Raw::new(manifest, |services| {
+        assert!(services.is_granted("memory"));
+        Ok(vec![closure("notes-find", |input, _| afd::success(input))])
+    });
+    let dir = support::workspace(&config(&[("notes", "")], ""));
+    seal(dir.path(), |b| b.with_compiled(plugin)).unwrap();
+    assert!(umbel::plugins::PENDING_GRANTS.is_empty());
+}
+
+// ── Pipelines at seal ──────────────────────────────────────────────────────────────────────────
+
+/// A memory plugin with the commands `notes-<name>` (each with its `keys`) and `pipelines`.
+fn memory_plugin(commands: &[(&str, &str)], pipelines: &str) -> Raw {
+    let body: String = commands
+        .iter()
+        .map(|(name, keys)| command(name, keys))
+        .collect();
+    let names: Vec<String> = commands
+        .iter()
+        .map(|(name, _)| format!("notes-{name}"))
+        .collect();
+    Raw::new(
+        format!("{}{pipelines}", v3(&["memory"], &body)),
+        move |_| {
+            Ok(names
+                .iter()
+                .map(|name| closure(name, |input, _| afd::success(input)))
+                .collect())
+        },
+    )
+}
+
+/// A pipeline over steps `(command, input TOML)`.
+fn steps_pipeline(name: &str, steps: &[(&str, &str)]) -> String {
+    let mut text = format!(
+        "\n[[pipelines]]\nname = \"notes-{name}\"\ndescription = \"Run steps.\"\neffects = [\"inspect\"]\ninput_schema = {{ type = \"object\" }}\n{PLAIN}\n"
+    );
+    for (step, input) in steps {
+        text.push_str(&format!(
+            "[[pipelines.steps]]\ncommand = \"notes-{step}\"\n{input}\n"
+        ));
+    }
+    text
+}
+
+fn seal_plugin(plugin: Raw) -> Result<umbel::Host, umbel::HostError> {
+    let dir = support::workspace(&config(&[("notes", "")], ""));
+    let sealed = seal(dir.path(), |b| b.with_compiled(plugin));
+    drop(dir);
+    sealed
+}
+
+#[test]
+fn a_digest_step_feeding_a_plain_step_is_refused_at_seal() {
+    let commands = [("read", DIGEST), ("plain", PLAIN), ("other", DIGEST)];
+    for reference in ["$prev.text", "$first", "$steps[0].text", "$steps.got.text"] {
+        let pipeline = steps_pipeline(
+            "flow",
+            &[
+                ("read", "as = \"got\""),
+                ("plain", &format!("input = {{ copied = \"{reference}\" }}")),
+            ],
+        );
+        let error = seal_plugin(memory_plugin(&commands, &pipeline))
+            .err()
+            .unwrap();
+        assert_eq!(
+            error.code(),
+            "PLUGIN_MANIFEST_INVALID",
+            "{reference}: {error}"
+        );
+        assert!(
+            error.message().contains("pipelines[0].steps[1].input"),
+            "{error}"
+        );
+    }
+    // `$input`, a literal and a digest consumer are all allowed.
+    for (step, input) in [
+        ("plain", "input = { copied = \"$input.text\" }"),
+        ("plain", "input = { copied = \"$$prev\" }"),
+        ("other", "input = { copied = \"$prev.text\" }"),
+    ] {
+        let pipeline = steps_pipeline("flow", &[("read", ""), (step, input)]);
+        seal_plugin(memory_plugin(&commands, &pipeline)).unwrap();
+    }
+}
+
+#[test]
+fn a_pipeline_inherits_digest_and_its_steps_authority_prompts_in_step_order() {
+    // The prompts need memory_write, which needs an allow list: the CLI test of this file's
+    // neighbour drives them end to end. Here the inheritance is read from the prompt the CLI asks.
+    let commands = format!(
+        "{}{}{}",
+        command(
+            "first",
+            &format!("{DIGEST}\nauthority_prompt = \"First prompt.\"")
         )
-    };
-    let plugin = |text: String| {
-        Raw::new(text, |_| {
-            Ok(vec![closure("notes-find", |input, _| afd::success(input))])
+        .replace("[\"inspect\"]", "[\"store-write\"]"),
+        command("second", PLAIN),
+        command(
+            "third",
+            &format!("{PLAIN}\nauthority_prompt = \"Third prompt.\"")
+        )
+        .replace("[\"inspect\"]", "[\"store-write\"]"),
+    );
+    let pipeline = steps_pipeline("all", &[("first", ""), ("second", ""), ("third", "")])
+        .replace("[\"inspect\"]", "[\"store-write\"]");
+    let text = format!("{}{pipeline}", v3(&["memory_write"], &commands));
+    let plugin = || {
+        Raw::new(text.clone(), |_| {
+            Ok(["notes-first", "notes-second", "notes-third"]
+                .into_iter()
+                .map(|name| closure(name, |input, _| afd::success(input)))
+                .collect())
         })
     };
-    let dir = support::workspace(&config(&[("notes", "")], ""));
-    let error = seal(dir.path(), |b| b.with_compiled(plugin(manifest(true))))
-        .err()
+    let config = "config_version = 4\ndefault_space = \"main\"\n[spaces.main]\n[plugins]\nenabled = [\"notes\"]\n[plugins.notes]\nsource = \"compiled:notes\"\n[plugins.notes.grants.memory_write]\nallow = [\"main\"]\n";
+    let dir = support::workspace(config);
+    let console = support::Scripted::new(true, true);
+    let run = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(support::cli_with(
+            dir.path(),
+            &["notes", "all"],
+            console.clone(),
+            |b| b.with_compiled(plugin()),
+        ));
+    assert_eq!(run.code, 0, "{}", run.stdout);
+    let asked = console.asked();
+    assert_eq!(asked.len(), 1, "{asked:?}");
+    let first = asked[0].find("notes-first: First prompt.").unwrap();
+    let third = asked[0].find("notes-third: Third prompt.").unwrap();
+    assert!(first < third, "{asked:?}");
+    // Digest, with no kept key, although the pipeline declares plain.
+    let entry = support::journal_entries(dir.path())
+        .into_iter()
+        .find(|entry| entry.command == "notes-all")
         .unwrap();
-    assert_eq!(error.code(), "PLUGIN_GRANT_UNAVAILABLE", "{error}");
-    assert!(error.message().contains("memory"), "{error}");
-    assert!(error.message().contains("phase 3"), "{error}");
-    // Optional: withheld, and the plugin loads.
-    seal(dir.path(), |b| b.with_compiled(plugin(manifest(false)))).unwrap();
+    assert_eq!(entry.input["dev.umbel/journal"], "digest");
+    assert_eq!(entry.input["keep"], serde_json::json!({}));
 }
 
 // ── Versions ───────────────────────────────────────────────────────────────────────────────────

@@ -17,6 +17,20 @@ pub trait Console: Send + Sync + 'static {
     fn is_interactive(&self) -> bool;
     /// Show `text` on stderr and read one answer; `true` for `y` or `yes`.
     fn ask(&self, text: &str) -> bool;
+    /// Read stdin for `@-` (phase 3 section 10.6): at most `limit + 1` bytes, so a longer input
+    /// is seen to be too large without being read whole. The default reads the process's stdin.
+    ///
+    /// # Errors
+    /// The read's.
+    fn read_stdin(&self, limit: usize) -> std::io::Result<Vec<u8>> {
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        std::io::stdin()
+            .lock()
+            .take(limit as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        Ok(bytes)
+    }
 }
 
 /// The process's terminal.
@@ -116,6 +130,37 @@ pub(crate) async fn confirm(
             format!("'{command}' needs confirmation: {prompt}"),
         )
         .with_suggestion(suggestion)
+        .with_retryable(false),
+    ))
+}
+
+/// Ask a command's `authority_prompt` (phase 3 section 3.3, D86), only when a person is at the
+/// terminal (the caller decides that). `mcp.confirmations` does not change it. A refusal is
+/// `CONFIRMATION_DECLINED`, and nothing runs.
+pub(crate) async fn authority(
+    command: &str,
+    prompt: &str,
+    console: Arc<dyn Console>,
+) -> Result<(), Box<CommandError>> {
+    let text = format!(
+        "'{}' records this with authority person: {}\nProceed? [y/N] ",
+        sanitize(command),
+        sanitize(prompt)
+    );
+    let approved = tokio::task::spawn_blocking(move || console.ask(&text))
+        .await
+        .unwrap_or(false);
+    if approved {
+        return Ok(());
+    }
+    Err(Box::new(
+        CommandError::new(
+            error_codes::CONFIRMATION_DECLINED,
+            format!("'{command}' was not confirmed; nothing was written"),
+        )
+        .with_suggestion(
+            "Answer y to record it as your own word, or run it again with --yes to record it with authority tool.",
+        )
         .with_retryable(false),
     ))
 }
@@ -236,6 +281,24 @@ mod tests {
         assert!(no.asked()[0].ends_with("Proceed? [y/N] "));
         let yes = Fake::new(true, true);
         assert_eq!(run(ConfirmationMode::Enforce, false, yes).await, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn the_authority_prompt_is_sanitized_and_a_refusal_is_declined() {
+        let yes = Fake::new(true, true);
+        assert!(
+            authority("x-y", "Own word?\u{1b}[31m", yes.clone())
+                .await
+                .is_ok()
+        );
+        let asked = yes.asked();
+        assert!(
+            !asked[0].contains('\u{1b}') && asked[0].ends_with("Proceed? [y/N] "),
+            "{asked:?}"
+        );
+        let no = Fake::new(true, false);
+        let error = authority("x-y", "Own word?", no).await.unwrap_err();
+        assert_eq!(error.code, "CONFIRMATION_DECLINED");
     }
 
     #[tokio::test]

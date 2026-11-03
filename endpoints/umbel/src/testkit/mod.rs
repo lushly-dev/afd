@@ -175,6 +175,8 @@ impl TestHost {
             workspace: None,
             overrides: Overrides::default(),
             console: Arc::new(NoPerson),
+            vars: std::collections::BTreeMap::new(),
+            clock: None,
         };
         let plugin = matches!(self.source, Source::Compiled(_)).then(|| Arc::clone(&self.plugin));
         let clock = self.clock;

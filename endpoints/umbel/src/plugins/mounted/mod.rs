@@ -481,6 +481,10 @@ impl<'a> Plan<'a> {
                         spaces_command: false,
                         require_human: false,
                         pipeline: false,
+                        memory_writer: false,
+                        digest: None,
+                        authority_prompt: None,
+                        steps: Vec::new(),
                     },
                 )
             })

@@ -2,6 +2,7 @@
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
 pub mod mcp;
+pub mod memory;
 pub mod plugins;
 pub mod process;
 pub mod store;
@@ -158,6 +159,8 @@ pub struct Scripted {
     pub interactive: bool,
     pub answer: bool,
     pub asked: Mutex<Vec<String>>,
+    /// What `@-` reads.
+    pub stdin: Vec<u8>,
 }
 
 impl Scripted {
@@ -166,6 +169,17 @@ impl Scripted {
             interactive,
             answer,
             asked: Mutex::new(Vec::new()),
+            stdin: Vec::new(),
+        })
+    }
+
+    /// A console whose stdin holds `bytes`.
+    pub fn with_stdin(interactive: bool, answer: bool, bytes: Vec<u8>) -> Arc<Self> {
+        Arc::new(Self {
+            interactive,
+            answer,
+            asked: Mutex::new(Vec::new()),
+            stdin: bytes,
         })
     }
 
@@ -186,6 +200,10 @@ impl Console for Scripted {
     fn ask(&self, text: &str) -> bool {
         self.asked.lock().unwrap().push(text.to_owned());
         self.answer
+    }
+
+    fn read_stdin(&self, limit: usize) -> std::io::Result<Vec<u8>> {
+        Ok(self.stdin.iter().copied().take(limit + 1).collect())
     }
 }
 
@@ -218,11 +236,27 @@ pub async fn cli_with(
     console: Arc<dyn Console>,
     configure: impl FnOnce(HostBuilder) -> HostBuilder,
 ) -> Run {
+    cli_with_vars(cwd, args, console, &[], configure).await
+}
+
+/// [`cli_with`] with the environment variables `vars` set.
+pub async fn cli_with_vars(
+    cwd: &Path,
+    args: &[&str],
+    console: Arc<dyn Console>,
+    vars: &[(&str, &str)],
+    configure: impl FnOnce(HostBuilder) -> HostBuilder,
+) -> Run {
     let environment = Environment {
         cwd: cwd.to_path_buf(),
         workspace: None,
         overrides: Overrides::default(),
         console,
+        vars: vars
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+            .collect(),
+        clock: None,
     };
     let mut stdout = Vec::new();
     let code = umbel::cli::run(

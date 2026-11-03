@@ -389,12 +389,11 @@ pub struct CommandDecl {
     pub require_human: bool,
     /// `output_budget` (manifest version 2).
     pub output_budget: Option<OutputBudget>,
-    /// `journal` (manifest version 3): how the call is journaled. Stored only: digest journaling
-    /// is phase 3 step 4's.
+    /// `journal` (manifest version 3): how the call is journaled; `digest` keeps no text in the
+    /// journal (phase 3 section 7.1).
     pub journal: Option<JournalDecl>,
     /// `authority_prompt` (manifest version 3): the static prompt the CLI shows before a call
-    /// whose memory write would get authority `person`. Stored only: the CLI asks it from phase 3
-    /// step 4.
+    /// whose memory write would get authority `person` (phase 3 section 3.3, D86).
     pub authority_prompt: Option<String>,
     /// `instant`, `fast`, `slow` or `long-running`.
     pub execution_time: Option<String>,
@@ -494,8 +493,8 @@ pub struct PipelineDecl {
     pub input_schema: SchemaRef,
     /// The steps, in order.
     pub steps: Vec<PipelineStep>,
-    /// `journal` (manifest version 3), as declared. A pipeline with a digest step inherits
-    /// `digest` from phase 3 step 4, whatever it declares.
+    /// `journal` (manifest version 3), as declared. A pipeline with a digest step is journaled
+    /// as digest with no kept key, whatever it declares (phase 3 section 2.3).
     pub journal: Option<JournalDecl>,
 }
 

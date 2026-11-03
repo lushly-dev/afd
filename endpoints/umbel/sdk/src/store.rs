@@ -266,7 +266,7 @@ reads!(Reader);
 
 impl Cx {
     /// Check that `space` is one of the call's spaces; the host checks again.
-    fn check_space(&self, space: &str) -> Result<(), HostError> {
+    pub(crate) fn check_space(&self, space: &str) -> Result<(), HostError> {
         if self.call().spaces.iter().any(|allowed| allowed == space) {
             Ok(())
         } else {
@@ -467,8 +467,8 @@ impl Cx {
 
 /// One space of a call, bound by [`Cx::in_space`].
 pub struct SpaceCx<'a> {
-    cx: &'a Cx,
-    space: String,
+    pub(crate) cx: &'a Cx,
+    pub(crate) space: String,
 }
 
 impl SpaceCx<'_> {

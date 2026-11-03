@@ -175,6 +175,17 @@ impl Report {
     }
 }
 
+/// The doctor's memory checks (phase 3 section 5.3), which only a sealed host runs.
+pub const MEMORY_CHECKS: [&str; 7] = [
+    "stores.memory",
+    "stores.memory_keys",
+    "stores.memory_modes",
+    "stores.memory_backup",
+    "stores.principals",
+    "stores.sweep",
+    "stores.capture",
+];
+
 /// Inspect the workspace at `path` as if `--workspace` named it. Needs no registry and no
 /// sealed host, so it reports a workspace that cannot be opened.
 pub fn run(path: impl AsRef<Path>) -> Report {
@@ -259,6 +270,10 @@ pub fn inspect_with_catalog(
     checks.push(Check::skip_sealed("stores.version"));
     checks.push(Check::skip_sealed("stores.access"));
     checks.push(Check::skip_sealed("stores.lag"));
+    // Phase 3's memory checks (section 5.3) read the memory stores, which a sealed host opens.
+    for id in MEMORY_CHECKS {
+        checks.push(Check::skip_sealed(id));
+    }
     let space_ids: Vec<SpaceId> = match &spaces {
         Some(Ok((spaces, _))) => spaces.iter().map(|space| space.id.clone()).collect(),
         _ => Vec::new(),

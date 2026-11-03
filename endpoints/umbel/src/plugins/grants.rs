@@ -26,6 +26,8 @@ use crate::events::Projector;
 use crate::store::Hub;
 use crate::workspace::{SpaceId, Workspace};
 use umbel_sdk::{CollectionInfo, ContentEntry, Reader};
+#[cfg(feature = "store-embedded")]
+use umbel_store::memory;
 use umbel_store::{
     Change, ChunkHit, ContentHash, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
     Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
@@ -78,6 +80,13 @@ pub(crate) struct Shared {
     pub(crate) commands: BTreeMap<String, CommandPolicy>,
     /// What calls did to the stores, for the plugin gate.
     pub(crate) ledger: Arc<Ledger>,
+    /// `[plugins.<id>.grants.memory_write]`'s sharing policy (phase 3 section 3.2).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) memory_policy: Option<crate::workspace::MemoryWritePolicy>,
+    /// The commands' terminal prompts and pipeline steps, set once every instance is loaded
+    /// (phase 3 section 3.3).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) prompts: Arc<std::sync::OnceLock<crate::authority::Prompts>>,
 }
 
 /// The host services granted to one plugin instance. Cheap to clone.
@@ -575,6 +584,148 @@ impl HostServices for CallServices {
 
     fn as_reader(&self, principal: &str) -> Result<Reader, ServiceError> {
         self.svc_as_reader(principal)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_get(
+        &self,
+        space: &str,
+        id: &str,
+        as_of: umbel_store::AsOf,
+        flags: umbel_store::ReadFlags,
+    ) -> Result<Option<umbel_store::MemoryRecord>, ServiceError> {
+        self.svc_memory_get(space, id, as_of, flags)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_history(
+        &self,
+        space: &str,
+        id: &str,
+    ) -> Result<Vec<umbel_store::MemoryRecord>, ServiceError> {
+        self.svc_memory_history(space, id)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_list(
+        &self,
+        space: &str,
+        query: &memory::MemoryList,
+    ) -> Result<memory::MemoryPage, ServiceError> {
+        self.svc_memory_list(space, query)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_recall(
+        &self,
+        space: &str,
+        query: &memory::RecallQuery,
+    ) -> Result<memory::RecallPage, ServiceError> {
+        self.svc_memory_recall(space, query)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_left_out(
+        &self,
+        space: &str,
+        query: &umbel_sdk::LeftOutQuery,
+    ) -> Result<memory::LeftOut, ServiceError> {
+        self.svc_memory_left_out(space, query)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_changes(
+        &self,
+        space: &str,
+        after: Rev,
+        limit: u32,
+        trace: Option<&str>,
+    ) -> Result<Vec<memory::MemoryChange>, ServiceError> {
+        self.svc_memory_changes(space, after, limit, trace)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_counts(
+        &self,
+        space: &str,
+        now: memory::Millis,
+        expiring_within_ms: memory::Millis,
+    ) -> Result<memory::MemoryCounts, ServiceError> {
+        self.svc_memory_counts(space, now, expiring_within_ms)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_usage(
+        &self,
+        space: &str,
+        since: memory::Millis,
+    ) -> Result<memory::MemoryUsage, ServiceError> {
+        self.svc_memory_usage(space, since)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_head(&self, space: &str) -> Result<Rev, ServiceError> {
+        self.svc_memory_head(space)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_key_file(&self, space: &str) -> Result<memory::KeyFileState, ServiceError> {
+        self.svc_memory_key_file(space)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_write(
+        &self,
+        space: &str,
+        request: umbel_sdk::MemoryWriteRequest,
+    ) -> Result<memory::MemoryReceipt, ServiceError> {
+        self.svc_memory_write(space, request)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_invalidate(
+        &self,
+        space: &str,
+        request: memory::Invalidate,
+    ) -> Result<memory::MemoryVersionMeta, ServiceError> {
+        self.svc_memory_invalidate(space, request)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_confirm(
+        &self,
+        space: &str,
+        request: memory::Confirm,
+    ) -> Result<memory::MemoryVersionMeta, ServiceError> {
+        self.svc_memory_confirm(space, request)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_forget(
+        &self,
+        space: &str,
+        selector: umbel_store::ForgetSelector,
+    ) -> Result<memory::ForgetReceipt, ServiceError> {
+        self.svc_memory_forget(space, selector)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_sweep(
+        &self,
+        space: &str,
+        limit: u32,
+        retention: memory::Retention,
+    ) -> Result<memory::SweepReceipt, ServiceError> {
+        self.svc_memory_sweep(space, limit, retention)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_reindex(
+        &self,
+        space: &str,
+        remove_orphans: bool,
+    ) -> Result<memory::ReindexReceipt, ServiceError> {
+        self.svc_memory_reindex(space, remove_orphans)
     }
 }
 

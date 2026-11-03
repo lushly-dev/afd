@@ -22,6 +22,8 @@ mod store_common;
 #[cfg(feature = "store-embedded")]
 mod store_doctor;
 #[cfg(feature = "store-embedded")]
+mod store_memory;
+#[cfg(feature = "store-embedded")]
 mod store_show;
 mod workspace_doctor;
 mod workspace_show;
@@ -44,7 +46,9 @@ pub(crate) use store_backup::store_backup;
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_check::store_check;
 #[cfg(feature = "store-embedded")]
-pub(crate) use store_doctor::checks as store_doctor_checks;
+pub(crate) use store_doctor::{
+    checks as store_doctor_checks, memory_checks as store_memory_checks,
+};
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;
 pub(crate) use workspace_doctor::workspace_doctor;

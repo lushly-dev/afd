@@ -30,7 +30,7 @@ use crate::sql::Sql;
 /// `records` with a current version `v` past its purge date at `now` (section 8.8): `expires`
 /// older than `now − purge_after` for its class, or a current version carrying an invalidation
 /// recorded before that.
-fn due(now: Millis, retention: Retention) -> Sql {
+pub(super) fn due(now: Millis, retention: Retention) -> Sql {
     let line = |class: MemoryClass| now.saturating_sub(retention.purge_after_ms(class));
     let case = |sql: &mut Sql| {
         sql.push("(CASE r.class WHEN 'episodic' THEN ")
@@ -125,7 +125,7 @@ fn drop_marked(
 }
 
 /// Every `records` row.
-fn all_records(tx: &Connection) -> Result<Vec<RecordRow>, Fail> {
+pub(super) fn all_records(tx: &Connection) -> Result<Vec<RecordRow>, Fail> {
     let sql = format!("SELECT {} FROM records r", super::rows::RECORD_COLS);
     let mut stmt = tx.prepare(&sql)?;
     let mut found = stmt.query([])?;

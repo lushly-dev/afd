@@ -23,6 +23,9 @@ pub(crate) struct SpaceStores {
     pub(crate) sqlite: Arc<umbel_store_embedded::SqliteStore>,
     #[cfg(feature = "store-embedded")]
     pub(crate) tantivy: Arc<umbel_store_embedded::TantivyIndex>,
+    /// The memory store (phase 3): opens nothing until the first write.
+    #[cfg(feature = "store-embedded")]
+    pub(crate) sqlite_memory: Arc<umbel_store_embedded::SqliteMemoryStore>,
 }
 
 /// A build without a backend has no stores: every open fails, and no grant reaches it.
@@ -36,6 +39,16 @@ impl Stores {
     }
 
     pub(crate) fn space(&self, _space: &str) -> Result<Arc<SpaceStores>, StoreError> {
+        Err(StoreError::Io(
+            "this build of umbel links no store backend (feature store-embedded)".to_owned(),
+        ))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn memory(
+        &self,
+        _space: &str,
+    ) -> Result<Arc<dyn umbel_store::MemoryStore>, StoreError> {
         Err(StoreError::Io(
             "this build of umbel links no store backend (feature store-embedded)".to_owned(),
         ))
@@ -58,6 +71,8 @@ pub const STORE_GRANTS: &[&str] = &[
     "index_write",
     "graph",
     "graph_write",
+    "memory",
+    "memory_write",
 ];
 
 /// `STORE_*` codes of the store built-ins and of the host's refusals.
@@ -81,6 +96,18 @@ pub mod codes {
     pub const STORE_UNAVAILABLE: &str = "STORE_UNAVAILABLE";
     /// A destination that must not exist already does.
     pub const STORE_BACKUP_EXISTS: &str = "STORE_BACKUP_EXISTS";
+    /// A memory write met its quota (phase 3 section 8.11).
+    pub const MEMORY_QUOTA_EXCEEDED: &str = "MEMORY_QUOTA_EXCEEDED";
+    /// The memory key file does not exist (phase 3 section 5.4).
+    pub const MEMORY_KEYS_MISSING: &str = "MEMORY_KEYS_MISSING";
+    /// The memory key file is another database's, or not a key file.
+    pub const MEMORY_KEYS_MISMATCH: &str = "MEMORY_KEYS_MISMATCH";
+    /// A readable record's key entry is absent.
+    pub const MEMORY_KEY_ABSENT: &str = "MEMORY_KEY_ABSENT";
+    /// A readable record's sealed blob does not open.
+    pub const MEMORY_SEAL_INVALID: &str = "MEMORY_SEAL_INVALID";
+    /// The memory key file is never part of a `store-backup` copy (a warning).
+    pub const MEMORY_KEYS_NOT_BACKED_UP: &str = "MEMORY_KEYS_NOT_BACKED_UP";
 }
 
 /// The SDK's `HostError` for a store failure (specification section 3.3).
@@ -99,6 +126,18 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         other @ StoreError::VersionUnsupported { .. } => {
             HostError::Io(format!("{} ({})", codes::STORE_VERSION_UNSUPPORTED, other))
         }
+        StoreError::QuotaExceeded {
+            limit,
+            retry_after_ms,
+        } => HostError::QuotaExceeded {
+            limit,
+            retry_after_ms,
+        },
+        StoreError::NotProvisioned => HostError::NotProvisioned,
+        StoreError::KeysMissing => HostError::KeysMissing,
+        StoreError::KeysMismatch => HostError::KeysMismatch,
+        StoreError::KeyAbsent { id } => HostError::KeyAbsent { id },
+        StoreError::SealInvalid { id } => HostError::SealInvalid { id },
         other => HostError::Io(other.to_string()),
     }
 }
@@ -127,6 +166,18 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
             "Upgrade umbel to a version that serves this store.",
             false,
         ),
+        StoreError::KeysMissing => (codes::MEMORY_KEYS_MISSING, KEYS_MISSING_SUGGESTION, false),
+        StoreError::KeysMismatch => (codes::MEMORY_KEYS_MISMATCH, KEYS_MISMATCH_SUGGESTION, false),
+        StoreError::KeyAbsent { .. } => (
+            codes::MEMORY_KEY_ABSENT,
+            "Restore the key file from your own backup, or forget the record.",
+            false,
+        ),
+        StoreError::SealInvalid { .. } => (
+            codes::MEMORY_SEAL_INVALID,
+            "Restore the key file that belongs to this database, or forget the record.",
+            false,
+        ),
         StoreError::Invalid(_) | StoreError::TooLarge(_) | StoreError::NotFound => (
             afd::error_codes::VALIDATION_ERROR,
             "Fix the input and try again.",
@@ -142,6 +193,13 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
         .with_suggestion(suggestion)
         .with_retryable(retryable)
 }
+
+/// What to do about `MEMORY_KEYS_MISSING` (phase 3 section 5.4).
+#[cfg(feature = "store-embedded")]
+pub(crate) const KEYS_MISSING_SUGGESTION: &str = "Restore memory.keys from your own backup; or, to start empty, stop every process using the space and remove memory.sqlite3 with its -wal and -shm, which loses all memory.";
+/// What to do about `MEMORY_KEYS_MISMATCH` (phase 3 section 5.4).
+#[cfg(feature = "store-embedded")]
+pub(crate) const KEYS_MISMATCH_SUGGESTION: &str = "Put back the memory.keys that belongs to this memory.sqlite3; or restore memory.sqlite3. Never remove either file while you want its memory.";
 
 /// What the services and commands share: the stores of a workspace's spaces.
 pub(crate) type Hub = Arc<Stores>;

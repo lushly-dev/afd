@@ -975,6 +975,8 @@ mod sealed {
             workspace: None,
             overrides: Overrides::default(),
             console: Arc::new(NoPerson),
+            vars: std::collections::BTreeMap::new(),
+            clock: None,
         };
         let mut stdout = Vec::new();
         umbel::cli::run(

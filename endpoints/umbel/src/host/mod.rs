@@ -5,6 +5,7 @@
 //! surface, and returns the [`Host`]. Commands cannot be added after `seal`, which keeps the
 //! hybrid tool set fixed while serving (H2).
 
+mod digest;
 mod error;
 mod space;
 
@@ -149,6 +150,7 @@ impl HostBuilder {
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
         let stores: Hub = Arc::new(Stores::new(Arc::clone(&workspace)));
         let ledger = Arc::new(plugins::Ledger::default());
+        let prompts: Arc<OnceLock<crate::authority::Prompts>> = Arc::new(OnceLock::new());
         let catalog = Catalog::new(&self.compiled)?;
         let compiled_catalog = Arc::new(catalog.manifests().clone());
 
@@ -219,8 +221,10 @@ impl HostBuilder {
             registry: &registry,
             catalog: &catalog,
             mount_roots: &self.mount_roots,
+            prompts: &prompts,
         })?);
         let _ = loaded_cell.set(Arc::clone(&loaded));
+        let _ = prompts.set(terminal_prompts(&loaded));
         for command in get_bootstrap_commands(&registry) {
             let expose = command.expose.clone().with_cli(true);
             register(&registry, Pending::Plain(command.with_expose(expose)))?;
@@ -246,7 +250,7 @@ impl HostBuilder {
         )?;
         let server = serve_skills(server, &loaded)?;
         install_middleware(&registry, &workspace, &loaded, &ledger)?;
-        install_journal(&registry, &workspace, &projector);
+        install_journal(&registry, &workspace, &projector, digest_commands(&loaded));
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
         // stream too damaged to repair does not stop the open: `umbel event rebuild` needs the
@@ -423,12 +427,45 @@ fn install_middleware(
     Ok(())
 }
 
+/// The terminal prompts and pipeline steps of the loaded plugins (phase 3 section 3.3).
+fn terminal_prompts(loaded: &LoadedPlugins) -> crate::authority::Prompts {
+    let mut prompts = crate::authority::Prompts::default();
+    for (name, entry) in &loaded.gate {
+        if let Some(prompt) = &entry.authority_prompt {
+            prompts.prompts.insert(name.clone(), prompt.clone());
+        }
+        if entry.pipeline {
+            prompts
+                .steps
+                .insert(name.clone(), entry.steps.iter().cloned().collect());
+        }
+    }
+    prompts
+}
+
+/// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1).
+fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
+    loaded
+        .gate
+        .iter()
+        .filter_map(|(name, entry)| entry.digest.clone().map(|keep| (name.clone(), keep)))
+        .collect()
+}
+
 /// The journal recorder: the outermost layer, so the stamps are in the journaled result and the
-/// journal alone is enough to rebuild every stream.
-fn install_journal(registry: &CommandRegistry, workspace: &Workspace, projector: &Arc<Projector>) {
+/// journal alone is enough to rebuild every stream. Its redact step reduces the entry of every
+/// digest command, on every route that records: a direct call, a batch item, a pipe or pipeline
+/// step, each journaled under its own name.
+fn install_journal(
+    registry: &CommandRegistry,
+    workspace: &Workspace,
+    projector: &Arc<Projector>,
+    digests: digest::DigestCommands,
+) {
     registry.set_journal(
         JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
             .with_record_failures(workspace.config().journal.record_failures)
+            .with_redact(move |record| Some(digest::redact(&digests, record)))
             .with_on_error(|message| tracing::error!("journal: {message}")),
     );
 }
@@ -464,6 +501,16 @@ impl Host {
             .gate
             .get(command)
             .is_some_and(|entry| entry.require_human)
+    }
+
+    /// The `authority_prompt` the CLI asks before `command` (phase 3 section 3.3): the command's
+    /// own, or a pipeline's union of its steps'.
+    #[cfg(feature = "cli")]
+    pub(crate) fn authority_prompt(&self, command: &str) -> Option<String> {
+        self.loaded
+            .gate
+            .get(command)
+            .and_then(|entry| entry.authority_prompt.clone())
     }
 
     /// What the load sequence decided for every plugin instance, for `plugin-check`'s `boot`.

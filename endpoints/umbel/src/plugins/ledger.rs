@@ -23,6 +23,32 @@ pub(crate) struct CallRecord {
     pub(crate) to_rev: u64,
     /// How many revisions it wrote.
     pub(crate) count: u64,
+    /// The memory revisions it wrote (phase 3 section 6.4): their own sequence, recorded apart.
+    pub(crate) memory: RevRange,
+}
+
+/// A range of revisions of one sequence.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RevRange {
+    /// The lowest revision.
+    pub(crate) from_rev: u64,
+    /// The highest.
+    pub(crate) to_rev: u64,
+    /// How many.
+    pub(crate) count: u64,
+}
+
+impl RevRange {
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    fn add(&mut self, from: u64, to: u64, count: u64) {
+        self.from_rev = if self.count == 0 {
+            from
+        } else {
+            self.from_rev.min(from)
+        };
+        self.to_rev = self.to_rev.max(to);
+        self.count += count;
+    }
 }
 
 /// The records of the calls in flight, by trace id.
@@ -57,6 +83,18 @@ impl Ledger {
         });
     }
 
+    /// The call wrote `count` memory revisions from `from` to `to` (another process may have
+    /// written between them).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) fn note_memory(&self, trace: &str, from: u64, to: u64, count: u64) {
+        self.with(trace, |record| {
+            record.used = true;
+            if count > 0 && from >= 1 && from <= to {
+                record.memory.add(from, to, count);
+            }
+        });
+    }
+
     /// Take (and forget) the record of the call `trace`.
     pub(crate) fn take(&self, trace: &str) -> CallRecord {
         self.calls
@@ -85,10 +123,25 @@ mod tests {
                 used: true,
                 from_rev: 5,
                 to_rev: 9,
-                count: 3
+                count: 3,
+                memory: RevRange::default(),
             }
         );
         assert_eq!(ledger.take("t"), CallRecord::default());
         assert!(ledger.take("u").used);
+        ledger.note_memory("m", 4, 6, 3);
+        ledger.note_memory("m", 2, 2, 1);
+        ledger.note_memory("m", 0, 0, 0);
+        let memory = ledger.take("m");
+        assert!(memory.used);
+        assert_eq!(memory.count, 0, "memory revisions are their own sequence");
+        assert_eq!(
+            memory.memory,
+            RevRange {
+                from_rev: 2,
+                to_rev: 6,
+                count: 4
+            }
+        );
     }
 }

@@ -24,6 +24,7 @@ impl CommandHandler for Handler {
             Err(error) => return failure(error),
         };
         let totals = is_cli_human(&context);
+        let now = context.clock().now();
         let stores = Arc::clone(&self.stores);
         let space = space.to_string();
         let shown = blocking(move || {
@@ -66,6 +67,8 @@ impl CommandHandler for Handler {
             if totals {
                 data["totals"] = counts(&ReaderFilter::derivation())?;
             }
+            data["memory"] =
+                super::store_memory::show(&stores.sqlite_memory, &filter, totals, now)?;
             Ok(data)
         })
         .await;
@@ -80,13 +83,13 @@ impl CommandHandler for Handler {
 pub(crate) fn store_show(workspace: Arc<Workspace>, stores: Hub) -> Builtin {
     let definition = CommandDefinition::new(
         "store-show",
-        "What a space's stores hold: the head revision, the counts the caller can read, and how far the index and the graph have caught up",
+        "What a space's stores hold: the head revision, the counts the caller can read, how far the index and the graph have caught up, and the memory store's counts and key file",
         vec![],
         Handler { workspace, stores },
     )
     .with_category("store")
     .with_returns(returns_object(
-        "space, backend, storeVersion, schemaVersion, head, counts, index, graph, files, and totals for a person at the CLI",
+        "space, backend, storeVersion, schemaVersion, head, counts, index, graph, files, memory, and totals for a person at the CLI",
     ))
     .with_expose(expose_everywhere_but_the_palette());
     Builtin {

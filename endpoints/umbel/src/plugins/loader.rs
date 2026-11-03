@@ -26,7 +26,7 @@ use super::component::ComponentRuntime;
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, CommandPolicy, Services, Shared, needs_allow};
-use super::manifest::{CommandDecl, Effect, Manifest, PluginKind, Transport};
+use super::manifest::{CommandDecl, Effect, JournalMode, Manifest, PluginKind, Transport};
 #[cfg(feature = "mounted")]
 use super::mounted;
 use super::packs::{PackSet, PackState};
@@ -158,6 +158,18 @@ pub(crate) struct GateEntry {
     /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
     /// they are, so the pipeline itself is not projected as a second event.
     pub pipeline: bool,
+    /// Whether the instance holds `memory_write`: a successful call that wrote no memory revision
+    /// is marked `dev.umbel/no-change` and makes no event (phase 3 section 6.4), and its event's
+    /// text-derived envelope fields are nulled (section 6.2, rule 6).
+    pub memory_writer: bool,
+    /// `journal.mode = "digest"`: the input keys the journal keeps (phase 3 section 7.1). A
+    /// pipeline with a digest step inherits digest with no kept key.
+    pub digest: Option<Vec<String>>,
+    /// The `authority_prompt` the CLI asks before the call (phase 3 section 3.3); a pipeline's
+    /// is its steps', in step order.
+    pub authority_prompt: Option<String>,
+    /// A pipeline's step commands, which run under the context the CLI built for it.
+    pub steps: Vec<String>,
 }
 
 /// Every instance of the workspace and the plugin commands the host registered.
@@ -235,6 +247,9 @@ pub(crate) struct Inputs<'a> {
     pub ledger: &'a Arc<super::ledger::Ledger>,
     pub registry: &'a Arc<CommandRegistry>,
     pub catalog: &'a Catalog,
+    /// The terminal prompts and pipeline steps, which the host sets after the load (phase 3
+    /// section 3.3) and every instance's memory services read.
+    pub prompts: &'a Arc<std::sync::OnceLock<crate::authority::Prompts>>,
     /// Extra trusted root certificates (PEM) for HTTPS mounts.
     #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub mount_roots: &'a [Vec<u8>],
@@ -375,10 +390,11 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
                 pipelines::definition(decl, plan, weak.clone()),
                 schema.clone(),
             )?;
-            prepared.gate.push((
-                decl.name.clone(),
-                gate_entry(&id, kind, &prepared.spaces, schema, true, false),
-            ));
+            let mut entry = gate_entry(&id, kind, &prepared.spaces, schema, true, false);
+            entry.digest = plan.digest.then(Vec::new);
+            entry.authority_prompt = plan.authority_prompt.clone();
+            entry.steps = decl.steps.iter().map(|step| step.command.clone()).collect();
+            prepared.gate.push((decl.name.clone(), entry));
         }
         loaded.gate.extend(prepared.gate);
         loaded.contexts.extend(prepared.contexts);
@@ -405,6 +421,10 @@ fn gate_entry(
         spaces_command: has_spaces_property(schema),
         require_human,
         pipeline,
+        memory_writer: false,
+        digest: None,
+        authority_prompt: None,
+        steps: Vec::new(),
     }
 }
 
@@ -460,6 +480,8 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     confirm_prompt: command.confirm_prompt.clone(),
                     destructive: command.destructive.unwrap_or(false),
                     pipeline: false,
+                    digest: false,
+                    authority_prompt: None,
                 },
             )
         })
@@ -469,6 +491,11 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
             continue;
         };
         for (definition, _) in &prepared.commands {
+            let decl = prepared
+                .manifest
+                .commands
+                .iter()
+                .find(|command| command.name == definition.name);
             let effects = prepared
                 .manifest
                 .commands
@@ -492,6 +519,13 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     confirm_prompt: definition.confirm_prompt.clone(),
                     destructive: definition.destructive.unwrap_or(false),
                     pipeline: false,
+                    digest: decl.is_some_and(|command| {
+                        command
+                            .journal
+                            .as_ref()
+                            .is_some_and(|journal| journal.mode == JournalMode::Digest)
+                    }),
+                    authority_prompt: decl.and_then(|command| command.authority_prompt.clone()),
                 },
             );
         }
@@ -503,6 +537,8 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     confirm_prompt: None,
                     destructive: false,
                     pipeline: true,
+                    digest: false,
+                    authority_prompt: None,
                 },
             );
         }
@@ -821,6 +857,7 @@ fn prepare(
     }
 
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
+    let memory_writer = granted.contains("memory_write");
     let services = Services::new(Shared {
         instance: instance.id.clone(),
         granted,
@@ -847,6 +884,8 @@ fn prepare(
             })
             .collect(),
         ledger: Arc::clone(inputs.ledger),
+        memory_policy: instance.memory_write.clone(),
+        prompts: Arc::clone(inputs.prompts),
     });
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
@@ -886,17 +925,24 @@ fn prepare(
         .iter()
         .zip(&schemas)
         .map(|(command, schema)| {
-            (
-                command.name.clone(),
-                gate_entry(
+            (command.name.clone(), {
+                let mut entry = gate_entry(
                     &instance.id,
                     manifest.plugin.kind,
                     &space_names,
                     schema,
                     false,
                     command.require_human,
-                ),
-            )
+                );
+                entry.memory_writer = memory_writer;
+                entry.digest = command
+                    .journal
+                    .as_ref()
+                    .filter(|journal| journal.mode == JournalMode::Digest)
+                    .map(|journal| journal.keep.clone());
+                entry.authority_prompt = command.authority_prompt.clone();
+                entry
+            })
         })
         .collect();
     let contexts = context_configs(manifest);

@@ -122,7 +122,7 @@ impl DefaultAccess {
 }
 
 /// `[plugins.<id>.grants.memory_write]`'s sharing policy (configuration version 4, phase 3 section
-/// 3.2). Parsed and stored here; the host enforces it from phase 3 step 4.
+/// 3.2). The host enforces it on every `memory_write` call.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct MemoryWritePolicy {
