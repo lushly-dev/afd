@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
 import {
 	createPublishPlan,
+	formatIntent,
 	intentStatus,
 	main,
 	publishPlan as productionPublishPlan,
@@ -670,6 +671,19 @@ test('production planning requires exact committed intent and rejects explicit u
 		/differ from reviewed release intent/
 	);
 	assert.equal(existsSync(f.artifacts), false);
+});
+test('the version step leaves an intent the repository lint accepts and planning can read', (t) => {
+	const f = fixture(t);
+	writeFileSync(join(f.root, '.gitignore'), 'node_modules\n');
+	writeFileSync(join(f.root, 'biome.json'), readFileSync(join(repository, 'biome.json')));
+	symlinkSync(join(repository, 'node_modules'), join(f.root, 'node_modules'));
+	saveIntent(f.root, ['a']);
+	const biome = ['node_modules/@biomejs/biome/bin/biome', 'check', '.release/npm-intent.json'];
+	assert.throws(() => shell(f.root, process.execPath, biome));
+	formatIntent(f.root);
+	shell(f.root, process.execPath, biome);
+	commit(f.root);
+	assert.deepEqual(readIntent(f.root).selectedUnits, ['a']);
 });
 test('plan binds exact intent bytes and API publication rejects missing or edited approval before queries', (t) => {
 	const f = fixture(t),

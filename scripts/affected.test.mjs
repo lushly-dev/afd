@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -198,6 +199,54 @@ test('the diff runs against the merge base and the lockfile is compared by impor
 	assert.equal(unresolved.mode, 'all');
 	assert.match(unresolved.reason, /no base/);
 	assert.equal(resolveScope({ root, all: true, git }).mode, 'all');
+});
+
+test('a pull request is compared with main as merged, not with the base it recorded', (t) => {
+	const { root, write } = fixture(t);
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const git = (args) =>
+		execFileSync('git', ['-c', 'user.name=F', '-c', 'user.email=f@example.invalid', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+			env,
+			stdio: ['ignore', 'pipe', 'ignore'],
+		});
+	const commit = (message) => {
+		git(['add', '.']);
+		git(['commit', '-m', message]);
+	};
+	git(['init', '-b', 'main']);
+	commit('base');
+	const recorded = git(['rev-parse', 'HEAD']).trim();
+	git(['switch', '-c', 'docs-only']);
+	write('docs/guide.md', 'guide');
+	commit('docs');
+	git(['switch', 'main']);
+	write('package.json', { name: 'root', private: true, version: '1.0.0' });
+	commit('main moves on');
+	// GitHub's merge ref: main as it is now, then the pull request.
+	git(['switch', '--detach']);
+	git(['merge', '--no-ff', '-m', 'merge ref', 'docs-only']);
+
+	const stale = resolveScope({ root, bases: [recorded], git });
+	assert.equal(stale.mode, 'all');
+	const merged = resolveScope({ root, bases: ['HEAD^1'], git });
+	assert.notEqual(merged.mode, 'all');
+	assert.deepEqual(merged.files, ['docs/guide.md']);
+	assert.deepEqual(merged.affected, []);
+
+	const workflows = join(import.meta.dirname, '../.github/workflows');
+	const bases = readdirSync(workflows).flatMap(
+		(file) => readFileSync(join(workflows, file), 'utf8').match(/^\s*AFD_BASE: .*$/gm) ?? []
+	);
+	assert.ok(bases.length >= 8);
+	for (const base of bases)
+		assert.equal(
+			base.trim(),
+			"AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}"
+		);
 });
 
 test('pnpm arguments, gates and options follow the scope', (t) => {

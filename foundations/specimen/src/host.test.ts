@@ -36,8 +36,11 @@ describe('prebuilt host packages', () => {
 			expect(hostPackageName(host.os[0], host.cpu[0])).toBe(host.name);
 			expect(host.version).toBe(manifest.version);
 			expect(host.files).toContain('bin/specimen-host');
-			// Packing keeps a file executable only when it is a declared bin.
-			expect(host.bin).toEqual({ 'specimen-host': 'bin/specimen-host' });
+			// Packing keeps a file executable only when it is a declared bin. It is declared for
+			// publication alone: the binary does not exist at install, so a top-level bin makes pnpm
+			// warn in every source checkout.
+			expect(host.bin).toBeUndefined();
+			expect(host.publishConfig.bin).toEqual({ 'specimen-host': 'bin/specimen-host' });
 			expect(host.libc).toEqual(host.os[0] === 'linux' ? ['glibc'] : undefined);
 		}
 		expect(manifest.optionalDependencies).toEqual(

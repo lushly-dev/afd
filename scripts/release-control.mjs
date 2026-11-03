@@ -11,9 +11,20 @@ import { versionSelected } from './release-operations/version.mjs';
 
 export { createPublishPlan, publishPlan, versionSelected };
 
-import { intentFile, intentStatus, readIntent, saveIntent } from './release-operations/intent.mjs';
+import {
+	formatIntent,
+	intentFile,
+	intentStatus,
+	readIntent,
+	saveIntent,
+} from './release-operations/intent.mjs';
 
-export { intentStatus, readIntent, saveIntent } from './release-operations/intent.mjs';
+export {
+	formatIntent,
+	intentStatus,
+	readIntent,
+	saveIntent,
+} from './release-operations/intent.mjs';
 
 function evidence(root, file, selectedUnits, route = 'npm-main') {
 	if (!selectedUnits) {
@@ -98,8 +109,10 @@ export function main(args = process.argv.slice(2)) {
 			result = versionSelected({ root, plan: selected, inventory: loadInventory(root) });
 			if (existsSync(resolve(root, 'scripts/check-versions.mjs')))
 				run(process.execPath, ['scripts/check-versions.mjs', '--write'], root);
-			if (result.changed.length)
+			if (result.changed.length) {
 				result.intent = saveIntent(root, result.selectedUnits, opts.intent);
+				formatIntent(root, opts.intent);
+			}
 		}
 	} else if (command === 'plan') {
 		if (!opts.plan) throw new Error('plan requires --plan output path');
