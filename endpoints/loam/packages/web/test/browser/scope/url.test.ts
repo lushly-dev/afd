@@ -221,9 +221,9 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 
 		// An app in a project, with its route: the first frame is already in the project (stage A), and stage
-		// B journals the switch from the record, then the route.
+		// B journals the switch from the record, with the app in the same call, then the route (N4).
 		expect(await visit('personal/p/atlas/hello/items/a%20b')).toEqual([
-			ran('scope-set', { project: atlasId }),
+			ran('scope-set', { project: atlasId, app: 'hello' }),
 			ran('app-route-set', { instance: 'hello', path: 'items/a b' }),
 		]);
 		await showsApp(page, 'hello');
@@ -312,7 +312,13 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 				iface,
 			}))
 		).toEqual([
-			{ command: 'scope-set', input: { project: null }, success: true, iface: 'palette' },
+			// An app route switches and opens in one call, which the kernel refuses whole (N4).
+			{
+				command: 'scope-set',
+				input: { project: null, app: 'hello' },
+				success: true,
+				iface: 'palette',
+			},
 			{
 				command: 'status-item-set',
 				input: { id: 'count', value: '0' },
@@ -338,7 +344,7 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(await madeAgain()).toBe(true);
 		expect(changes(await since(page, count)).map(({ command, input }) => [command, input])).toEqual(
 			[
-				['scope-set', { project: 'atlas' }],
+				['scope-set', { project: 'atlas', app: 'hello' }],
 				['status-item-set', { id: 'count', value: '0' }],
 			]
 		);

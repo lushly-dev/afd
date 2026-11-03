@@ -289,7 +289,9 @@ export class AppSurfaces implements ShellApps {
 				for (const list of held.lists ?? []) list.stale = true;
 		}
 		if (!this.#rendered) {
-			if (switched) this.#missedSwitch = true;
+			// Anything that moved main or the scope before these surfaces rendered, the URL's own
+			// `scope-set { project, app }` among them (N4), is read again once they have.
+			if (switched || rescoped || (event as KernelEventV2).mainChanged) this.#missedSwitch = true;
 			return;
 		}
 		// From anyone: an agent's, or the automatic one. The console says what it found (7.3).
