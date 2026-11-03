@@ -85,8 +85,13 @@ export interface MountShellOptions {
 	 */
 	listsApps?: boolean;
 	/**
-	 * The path main's "Nothing here" links home to. Default: the document's base path. Fixtures
-	 * served under a path of their own set it, so two renders compare equal.
+	 * The deployment's root, absolute, with its trailing slash: what the router reads the URL against
+	 * (phase 2 specification, 6.2). Default: the directory of the page's URL.
+	 */
+	base?: string;
+	/**
+	 * The path main's "Nothing here" links home to. Default: the base's path. Fixtures served under a
+	 * path of their own set it, so two renders compare equal.
 	 */
 	home?: string;
 }
@@ -101,7 +106,8 @@ export async function mountShell(
 	const shell = container.ownerDocument.createElement('loam-shell') as LoamShell;
 	shell.kernel = options.kernel;
 	shell.journal = options.journal ?? null;
-	if (options.home !== undefined) shell.home = options.home;
+	if (options.base !== undefined) shell.base = options.base;
+	shell.home = options.home ?? new URL(shell.base).pathname;
 	if (options.listsApps) shell.listsApps = true;
 	container.append(shell);
 	await shell.ready;

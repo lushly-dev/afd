@@ -12,12 +12,13 @@ import { type MountChunk, type ViewChunk, webPorts } from './ports.js';
 export function readOrNotice(
 	raw: unknown,
 	document: Document,
+	base: string,
 	loadView: () => Promise<ViewChunk>,
 	loadMount: () => Promise<MountChunk>
 ): AppsLoadV2 {
 	const read = readProjection(raw);
 	if (read.ok) {
-		const ports = webPorts(document, read.projection.sandbox_origin, loadView, loadMount);
+		const ports = webPorts(document, base, read.projection.sandbox_origin, loadView, loadMount);
 		return { deployment: read.projection, ports };
 	}
 	const first = read.refusals[0];

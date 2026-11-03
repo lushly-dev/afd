@@ -6,7 +6,7 @@
  * command.
  */
 
-import { css, FASTElement, html, observable, ref, Updates, when } from '@lushly-dev/fast-element';
+import { FASTElement, html, observable, ref, Updates, when } from '@lushly-dev/fast-element';
 import {
 	APPEARANCE_QUERIES,
 	type AppearanceV0,
@@ -15,7 +15,7 @@ import {
 	createDefaultAppearance,
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
-	type KernelEventV0,
+	type KernelEventV2,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
@@ -38,9 +38,10 @@ import {
 	presentLayout,
 } from '../layout-class.js';
 import type { ResizeDetail } from '../resize.js';
-import { createRouter, type RouterV0, type RouteV0 } from '../router.js';
+import { createRouter, type RouterV1, type RouteV1 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
+import type { MainStateV1, UrlSyncV1 } from '../url-sync.js';
 import { APP_OPEN_EVENT, type LoamAppEntry } from './app-entry.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
 import { focusPart } from './focus.js';
@@ -48,6 +49,7 @@ import { defineNotice } from './notice-loader.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 import { definePalette, whenIdle } from './palette-loader.js';
 import type { LoamResizeHandle } from './resize-handle.js';
+import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
 
 /** What the shell reads the last sequence number from at boot. */
@@ -200,99 +202,14 @@ const template = html<LoamShell>`
 	)}
 `;
 
-const styles = css`
-	:host {
-		display: grid;
-		box-sizing: border-box;
-		inline-size: 100%;
-		block-size: 100dvh;
-		overflow: hidden;
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-family: 'Montserrat', 'Segoe UI', sans-serif;
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
-		grid-template-columns: auto auto minmax(0, 1fr) auto;
-		grid-template-rows: auto minmax(0, 1fr) auto auto auto;
-	}
-	:host([data-panel='inline']) {
-		grid-template-rows:
-			auto minmax(var(--shell-size-panel-min), 1fr) minmax(0, var(--_panel-height))
-			auto auto;
-	}
-	:host([data-panel='maximized']) {
-		grid-template-rows: auto 0 minmax(0, 1fr) auto auto;
-	}
-	loam-titlebar {
-		grid-column: 1 / -1;
-		grid-row: 1;
-	}
-	loam-rail {
-		grid-column: 1;
-		grid-row: 2 / 4;
-	}
-	loam-sidebar {
-		grid-column: 2;
-		grid-row: 2 / 4;
-		inline-size: var(--_sidebar-width);
-	}
-	loam-main {
-		grid-column: 3;
-		grid-row: 2;
-	}
-	:host([data-panel='maximized']) loam-main {
-		overflow: hidden;
-		padding-block: 0;
-	}
-	loam-panel {
-		grid-column: 3;
-		grid-row: 3;
-	}
-	loam-inspector {
-		grid-column: 4;
-		grid-row: 2 / 4;
-		inline-size: var(--_inspector-width);
-	}
-	loam-statusbar {
-		grid-column: 1 / -1;
-		grid-row: 4;
-	}
-	loam-tabbar {
-		grid-column: 1 / -1;
-		grid-row: 5;
-	}
-	:host([data-sidebar='overlay']) loam-sidebar {
-		grid-column: 3;
-		justify-self: start;
-		inline-size: min(var(--_sidebar-width), 85vw);
-	}
-	:host([data-inspector='overlay']) loam-inspector {
-		grid-column: 3;
-		justify-self: end;
-		inline-size: min(var(--_inspector-width), 85vw);
-	}
-	:host([data-panel='sheet']) loam-panel {
-		grid-column: 1 / -1;
-		grid-row: 2;
-		align-self: end;
-		block-size: clamp(40dvh, var(--_panel-height), 80dvh);
-	}
-	@media (forced-colors: active) {
-		:host {
-			background: Canvas;
-			color: CanvasText;
-		}
-	}
-`;
-
 export class LoamShell extends FASTElement {
 	declare layout: LayoutStateV0;
 	declare appearance: AppearanceV0;
 	declare presentation: PresentationV0;
 	declare account: string;
 	declare lastSeq: number;
-	declare route: RouteV0;
+	/** Main's "Nothing here" when the URL names nothing this person can open (6.1). */
+	declare route: 'home' | 'not-found';
 	declare panelMax: number;
 	declare failure: ShellFailure | null;
 	/** True once the first appearance, layout and session reads are in, so parts render themed. */
@@ -326,7 +243,9 @@ export class LoamShell extends FASTElement {
 	/** Where the shell reads the journal's last sequence number at boot. */
 	journal: JournalReader | null = null;
 	readonly mac: boolean;
-	/** Where main's "Nothing here" links home: the document's base path unless set. */
+	/** The deployment's root, absolute: the router's base, which `mountShell`'s `base` sets (6.2). */
+	base: string;
+	/** Where main's "Nothing here" links home: the base's path unless set. */
 	home: string;
 
 	#layoutClass: LayoutClass = 'expanded';
@@ -336,7 +255,14 @@ export class LoamShell extends FASTElement {
 	#started: Promise<void> | null = null;
 	#reads = { layout: 0, appearance: 0, session: 0 };
 	#pendingQuery = '';
-	#router: RouterV0 | null = null;
+	/** The router, once the shell has started (phase 2 specification, 6.3). */
+	router: RouterV1 | null = null;
+	/** Set once stage B's own boot of the URL chunk has been tried, whether or not the chunk loaded. */
+	declare urlBooted?: boolean;
+	/** The rows `app-list` last gave, for an app route's checks. */
+	appList: readonly AppSummaryV2[] = [];
+	/** The URL and the state, both ways, in a chunk loaded when stage B ends (6.3). */
+	#urlSync: Promise<UrlSyncV1> | null = null;
 	#appsLoad: Promise<void> | null = null;
 
 	constructor() {
@@ -354,7 +280,8 @@ export class LoamShell extends FASTElement {
 		this.landing = 'No apps yet';
 		this.mainBusy = false;
 		this.mac = isMacPlatform(globalThis.navigator);
-		this.home = new URL('./', globalThis.document?.baseURI ?? 'http://localhost/').pathname;
+		this.base = new URL('./', globalThis.location?.href ?? 'http://localhost/').href;
+		this.home = new URL(this.base).pathname;
 	}
 
 	get shortcut(): string {
@@ -385,8 +312,9 @@ export class LoamShell extends FASTElement {
 
 	override disconnectedCallback(): void {
 		for (const cleanup of this.#cleanup.splice(0)) cleanup();
-		this.#router?.dispose();
-		this.#router = null;
+		this.router?.dispose();
+		this.router = null;
+		this.#urlSync = null;
 		clearTimeout(this.#busyTimer);
 		for (const entries of this.bootEntries.values()) for (const entry of entries) entry.remove();
 		this.bootEntries.clear();
@@ -461,19 +389,37 @@ export class LoamShell extends FASTElement {
 
 		this.#layoutClass = layoutClassFor((query) => view.matchMedia(query).matches);
 		this.#width = this.getBoundingClientRect().width || view.innerWidth;
-		this.#router = createRouter(view, (route) => {
-			this.route = route;
-		});
+		// A person's navigation runs commands, after the boot's own route (6.3).
+		const router = createRouter(view, this.base, (route) =>
+			this.#url((url) => url.navigated(route))
+		);
+		this.router = router;
 
 		const entries = (await this.journal?.read()) ?? [];
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
 		const apps = this.listsApps ? this.#readAppList() : Promise.resolve(undefined);
-		await Promise.all([this.readLayout(), this.#readSession(), apps]);
-		const list = await apps;
-		// A persisted active app: main is busy in the first frame, with no landing, until its surface is in.
-		if (list?.active != null) this.#holdMain();
+		const [, , list, state] = await Promise.all([
+			this.readLayout(),
+			this.#readSession(),
+			apps,
+			this.readState(),
+		]);
+		// Stage A: the URL's project is active only if the kernel let the actor in, so a missing and a refused
+		// one paint the same "Nothing here" (6.3).
+		const { route } = router;
+		const found = this.#fits(route, state);
+		this.route = found ? 'home' : 'not-found';
+		// A persisted or URL-named active app: main is busy in the first frame, with no landing, until its
+		// surface is in.
+		const owner =
+			route.kind === 'app'
+				? list && route.instance
+				: route.kind === 'root' || route.kind === 'workspace'
+					? list?.active
+					: null;
+		if (found && owner != null) this.#holdMain();
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
@@ -497,6 +443,7 @@ export class LoamShell extends FASTElement {
 			'app-list'
 		);
 		if (!result?.success || !result.data) return undefined;
+		this.appList = result.data.apps;
 		this.appCount = result.data.apps.length;
 		return result.data;
 	}
@@ -555,8 +502,15 @@ export class LoamShell extends FASTElement {
 			}
 			return;
 		}
-		if (!this.listsApps && this.appCount === 0) return;
-		await this.#readAppList();
+		const listed = this.listsApps || this.appCount > 0;
+		if (listed) await this.#readAppList();
+		// Before the surfaces start, so they open what the URL names rather than the persisted app.
+		await this.#url((url) => url.boot());
+		// From here, a URL chunk loaded again after a failure starts late, with no boot of its own (6.3).
+		this.urlBooted = true;
+		// An app the route named that stage B does not hold shows "Nothing here" once main is released below,
+		// when the surfaces start; with no apps listed, main was never held.
+		if (!listed) return;
 		if (this.appCount === 0) {
 			this.releaseMain();
 			return;
@@ -573,6 +527,44 @@ export class LoamShell extends FASTElement {
 		// The owner's surface is in, so a heading the 15-second timer set no longer holds.
 		if (this.landing === COULD_NOT_LOAD) this.landing = 'Choose an app';
 		this.releaseMain();
+	}
+
+	// ─── The URL (phase 2 specification, 6.3) ──────────────────────────────────────
+
+	/**
+	 * Run `task` with the URL's chunk, loaded once. A chunk that fails is reported and forgotten, so the next
+	 * call tries again, and nothing else of stage B waits on it: the app surfaces still start.
+	 */
+	#url(task: (url: UrlSyncV1) => unknown): Promise<unknown> {
+		this.#urlSync ??= import('../url-sync.js').then(({ createUrlSync }) => createUrlSync(this));
+		return this.#urlSync.then(task).catch((cause: unknown) => {
+			this.#urlSync = null;
+			reportError(cause);
+		});
+	}
+
+	/** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
+	async readState(): Promise<MainStateV1> {
+		const kernel = this.kernel as LoamKernelV2;
+		const [scope, main] = await Promise.all([
+			kernel.call<object>('scope-get'),
+			kernel.call<object>('section-get'),
+		]);
+		return { ...scope.data, ...main.data } as MainStateV1;
+	}
+
+	/**
+	 * Stage A's reading of the first route: this workspace, and the project stage A entered. The URL's
+	 * project is active only if the kernel let the actor in, so a missing and a refused one fail alike. An
+	 * app the route names is checked in stage B, with the manifests' levels (6.3).
+	 */
+	#fits(route: RouteV1, state: MainStateV1): boolean {
+		if (route.kind === 'root') return true;
+		// `not-found` has no workspace, so it fits nothing.
+		const { workspace, project } = route as Partial<Record<string, string>>;
+		return (
+			workspace === state.workspace.id && (project === undefined || project === state.project?.slug)
+		);
 	}
 
 	#listen(target: EventTarget, type: string, listener: (event: Event) => void): void {
@@ -639,9 +631,11 @@ export class LoamShell extends FASTElement {
 			session.status === 'authenticated' ? (session.user?.name ?? session.user?.email ?? '') : '';
 	}
 
-	#onEvent(event: KernelEventV0): void {
+	#onEvent(event: KernelEventV2): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
+		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
+		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
 		if (event.command === 'palette-open' && event.success) {
 			void this.#showPalette();
 			return;

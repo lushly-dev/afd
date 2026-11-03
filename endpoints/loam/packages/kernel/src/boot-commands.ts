@@ -110,7 +110,12 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 
 	const scopeGet = defineCommandWithSchema<
 		typeof emptyInput,
-		{ scope: ScopeV1; workspace?: { id: string; name: string }; project?: ProjectV1 | null }
+		{
+			scope: ScopeV1;
+			workspace?: { id: string; name: string };
+			project?: ProjectV1 | null;
+			pending?: boolean;
+		}
 	>({
 		name: 'scope-get',
 		description: "Get the call's scope",
@@ -123,20 +128,23 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 			const current = callScope(context);
 			// Through a port, the scope alone: no app reads a project's record or its members (4.3).
 			if ((context as KernelFieldContext).caller !== undefined) return success({ scope: current });
-			// A project's record only where the actor may enter it, as every named project (3.4).
+			// A project's record only where the actor may enter it, as every named project (3.4). `pending`:
+			// stage A's active scope is not the one `loam.scope` records, so the chrome journals it with
+			// `scope-set` in stage B (6.3). It names no project.
 			return success({
 				scope: current,
 				workspace: scope.workspace,
 				project: scope.allows(actorKey(context), current)
 					? (scope.projects.get(current.project as string) ?? null)
 					: null,
+				pending: (scope.active().project ?? null) !== state.scopeProject(),
 			});
 		},
 	});
 
 	const sectionGet = defineCommandWithSchema<
 		typeof emptyInput,
-		{ section: string | null; path: string }
+		{ section: string | null; path: string; active: string | null }
 	>({
 		name: 'section-get',
 		description: "Get main's section",
@@ -146,8 +154,9 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
-			const { section, path } = state.main();
-			return success({ section, path });
+			// What the URL shows (6.3), in one read the chrome need not journal.
+			const { section, path, active } = state.main();
+			return success({ section, path, active });
 		},
 	});
 

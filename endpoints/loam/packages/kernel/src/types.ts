@@ -454,8 +454,8 @@ export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'a
 	boot?: BootProjectionV2;
 	/** What stage B reads. Required with `boot` when it lists an app. */
 	appsLoader?: () => Promise<AppsLoadV2>;
-	/** The URL's project, by slug, for the first frame (6.3). */
-	initialScope?: { project: string };
+	/** The URL's project, by slug, for the first frame, or `null` for a workspace-level URL (6.3). */
+	initialScope?: { project: string | null };
 	/** The workspace when no `boot` or `deployment` names one. Default `{ id: 'personal', name: 'Personal' }`. */
 	workspace?: { id: string; name: string };
 }

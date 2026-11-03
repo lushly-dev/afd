@@ -12,7 +12,7 @@
  * classic Zod, the chrome's surfaces, its view host and the console. Each is a static closure, charged
  * what a page has not loaded by then. Hello's and tally's bundles are recorded and not limited. It fails
  * when a measure is over its ceiling, when first paint holds classic Zod or `toJSONSchema`, or when it holds
- * a chunk of stage B: `late`, `apps`, the readers, `surfaces` (phase 2 specification, 2.2). That first
+ * a chunk of stage B: `late`, `apps`, the readers, `surfaces`, `url-sync` (phase 2 specification, 2.2). That first
  * paint is the same for every deployment. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -33,7 +33,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
  * Step 2 changed no ceiling: first paint 273,179 and 83,564 gzip, `apps` 377,811 (2.4's table).
  * Step 4 changed none either: first paint 277,772 and 85,346 gzip, the kernel alone 110,680, `late`
- * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 9 leaves
+ * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 5 changed
+ * none and added `urlMinified`: the URL's commands and writes are a `url-sync` chunk loaded when stage B
+ * ends, after `apps` and before `surfaces`, 3,719 of 5,091, its measurement plus 10% and 1,000 for steps
+ * 7 and 11's shapes, unrounded (approved by the coordinator); first paint 279,728 and 86,097 gzip, the
+ * kernel alone 110,790, `late` 48,425. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -42,6 +46,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
+	urlMinified: 5_091,
 	appsMinified: 378_993,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
@@ -115,7 +120,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late)-/.test(name)
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync)-/.test(name)
 	);
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
@@ -139,9 +144,13 @@ async function measurePage() {
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
 	const afterApps = new Set([...afterLate, ...apps]);
-	const surfaces = closure(/^assets\/surfaces-/, afterApps);
+	// The URL's chunk loads when stage B ends, after `apps` and before the surfaces start (6.3).
+	const url = closure(/^assets\/url-sync-/, afterApps);
+	if (url.size === 0) throw new Error('budget: the build has no `url-sync` chunk to measure');
+	const afterUrl = new Set([...afterApps, ...url]);
+	const surfaces = closure(/^assets\/surfaces-/, afterUrl);
 	// What a view app or a console adds when it opens: the surfaces have loaded by then.
-	const afterSurfaces = new Set([...afterApps, ...surfaces]);
+	const afterSurfaces = new Set([...afterUrl, ...surfaces]);
 	const view = closure(/^assets\/view-/, afterSurfaces);
 	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
@@ -165,6 +174,7 @@ async function measurePage() {
 		})),
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		lateMinified: sizeOf(late),
+		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
 		viewMinified: sizeOf(view),
@@ -232,6 +242,7 @@ const ROWS = [
 	['cssMinified', 'CSS, minified, including loam-theme.css'],
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
+	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],

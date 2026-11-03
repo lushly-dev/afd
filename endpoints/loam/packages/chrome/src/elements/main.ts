@@ -1,12 +1,11 @@
 /**
  * @fileoverview `loam-main`: `main`. With no app active it shows the landing, "No apps yet" or the
- * app surfaces' "Choose an app", and the palette shortcut; any path but `/` shows "Nothing here" with a link home
+ * app surfaces' "Choose an app", and the palette shortcut; a URL that names nothing here shows "Nothing here" with a link home
  * (5.1, section 7). `busy` hides the landing and sets `aria-busy` while a persisted owner's surface is
  * on its way, so no landing flashes before an app (phase 2 specification, 2.2).
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
-import type { RouteV0 } from '../router.js';
 import { partHost } from './styles.js';
 
 const template = html<LoamMain>`
@@ -103,7 +102,8 @@ const styles = [
 ];
 
 export class LoamMain extends FASTElement {
-	declare route: RouteV0;
+	/** `not-found` when the URL names nothing this person can open (phase 2 specification, 6.1). */
+	declare route: 'home' | 'not-found';
 	declare shortcut: string;
 	declare home: string;
 	declare landing: string;

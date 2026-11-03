@@ -5,7 +5,7 @@
  * reader and the ports load in stage B, after it (phase 2 specification, 2.2).
  */
 
-import { mountShell, renderNotice } from '@lushly-dev/loam-chrome';
+import { mountShell, parseRoute, renderNotice } from '@lushly-dev/loam-chrome';
 import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
 import { readBoot } from '@lushly-dev/loam-manifest';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
@@ -13,12 +13,20 @@ import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js'
 
 const CANNOT_START = 'Loam cannot start';
 
+/**
+ * The deployment's root: the entry is always `assets/index-*.js` under it, so this holds at any path the
+ * shell is served at, under any `base_path`. Nothing reads the document's base URL, which a deep link moves and
+ * `base-uri 'none'` forbids setting (phase 2 specification, 6.2).
+ */
+const base = new URL('../', /* @vite-ignore */ import.meta.url).href;
+
 /** The reader and the ports, in a chunk of their own: what stage B calls. */
 async function loadApps(raw: unknown): Promise<AppsLoadV2> {
 	// Named here because this chunk has the bundler's dynamic import helper, and that one does not.
 	return (await import('./deployment.js')).readOrNotice(
 		raw,
 		document,
+		base,
 		() => import('@lushly-dev/loam-chrome/view'),
 		() => import('./mount.js')
 	);
@@ -33,7 +41,7 @@ async function refusalOf(raw: unknown): Promise<string> {
 }
 
 async function boot(): Promise<void> {
-	const raw: unknown = await fetch('deployment.json')
+	const raw: unknown = await fetch(new URL('deployment.json', base))
 		.then((response) => response.json())
 		.catch(() => undefined);
 	const read = readBoot(raw);
@@ -47,10 +55,15 @@ async function boot(): Promise<void> {
 		document.documentElement.dataset.loamHost = 'failed';
 		return;
 	}
+	// The URL's project, by slug, for the first frame: the kernel enters it only if the actor may (6.3).
+	const { workspace, project } = parseRoute(location.href, base) as Partial<Record<string, string>>;
 	const host = await createHostKernel({
 		environment: mediaEnvironment(window),
 		boot: read,
 		appsLoader: () => loadApps(raw),
+		// Any shape at this workspace names the scope: a project's slug, or `null` for workspace level, so
+		// `/personal/hello` paints the workspace whatever `loam.scope` records (6.3, as amended by step 5).
+		...(workspace === read.workspace.id ? { initialScope: { project: project ?? null } } : {}),
 	});
 	if (host.kind === 'locked') {
 		await renderNotice(document.body, { themeCss, ...OTHER_TAB_NOTICE });
@@ -62,6 +75,7 @@ async function boot(): Promise<void> {
 		journal: host.journal,
 		themeCss,
 		listsApps: read.apps.length > 0,
+		base,
 	});
 	document.documentElement.dataset.loamHost = 'web';
 }

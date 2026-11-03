@@ -49,16 +49,45 @@ export interface AppCommandDeps {
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
 	const { apps, scope } = deps;
-	/** A change of what main shows moves the URL (phase 2 specification, 6.3). */
+	/**
+	 * A change of what main shows moves the URL (phase 2 specification, 6.3). Every success reports
+	 * `mainChanged`, so an app reopened from "Nothing here" brings the URL back to it; one that names the same
+	 * place moves nothing.
+	 */
 	const moved = (
 		result: CommandResult<{ active: string | null; previous: string | null }>,
 		context: CommandContext
 	) => {
-		if (result.success && result.data?.active !== result.data?.previous) {
+		if (!result.success) return result;
+		if (result.data?.active !== result.data?.previous) {
 			setMain(deps.viewState, { section: null, path: '' });
-			scope.note(context.traceId, { mainChanged: 'push' });
 		}
+		scope.note(context.traceId, { mainChanged: 'push' });
 		return result;
+	};
+
+	/**
+	 * `app-close`: main with no app. At workspace level that is the landing, so an open section closes too,
+	 * as Back to `/` asks; in a project it is the project's home, the projects section, which the project's
+	 * URL names (4.3, 6.3). Closing a section with no app is undone by reopening it.
+	 */
+	const closed = (context: CommandContext) => {
+		const before = deps.state.main();
+		const result = apps().close();
+		if (!result.success) return result;
+		const section = scope.active().project === undefined ? null : 'projects';
+		setMain(deps.viewState, { section, path: '' });
+		scope.note(context.traceId, { mainChanged: 'push' });
+		const reopen =
+			result.undoCommand === undefined &&
+			before.section !== null &&
+			(before.section !== section || before.path !== '');
+		return reopen
+			? success(result.data, {
+					undoCommand: 'section-open',
+					undoArgs: { section: before.section, path: before.path },
+				})
+			: result;
 	};
 
 	const appGet = defineCommandWithSchema<typeof instanceInput, AppDetailV1>({
@@ -119,7 +148,7 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
 		handler: async (_input, context) =>
-			moved(apps().close(), context) as CommandResult<{ active: null; previous: string | null }>,
+			closed(context) as CommandResult<{ active: null; previous: string | null }>,
 	});
 
 	const appCommandList = defineCommandWithSchema<

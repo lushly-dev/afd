@@ -13,6 +13,7 @@ import type {
 	AppPortV2,
 	AppSummaryV2,
 	KernelEventV1,
+	KernelEventV2,
 	LoamKernelV2,
 	ScopeV1,
 } from '@lushly-dev/loam-kernel';
@@ -92,6 +93,14 @@ const mainWithApp = css`
 		overflow: hidden;
 	}
 	:host([data-app]) .landing {
+		display: none;
+	}
+	/* A URL that names nothing here, Back to one among them: "Nothing here" shows, and the app it left does
+	   not (phase 2 specification, 6.3). */
+	:host([data-app][route='not-found']) .landing {
+		display: grid;
+	}
+	:host([route='not-found']) ::slotted(*) {
 		display: none;
 	}
 	::slotted(loam-mount),
@@ -285,8 +294,15 @@ export class AppSurfaces implements ShellApps {
 
 	#onEvent(event: KernelEventV1): void {
 		const { command } = event;
+		// What changes the active app: an app opened or closed, a section opened in its place, or a change of
+		// scope that left it (phase 2 specification, 4.3), as a route's commands do (6.3).
+		const switched =
+			command === 'app-open' ||
+			command === 'app-close' ||
+			command === 'section-open' ||
+			(event as KernelEventV2).scopeChanged?.left !== undefined;
 		if (!this.#rendered) {
-			if (command === 'app-open' || command === 'app-close') this.#missedSwitch = true;
+			if (switched) this.#missedSwitch = true;
 			return;
 		}
 		// From anyone: an agent's, or the automatic one. The console says what it found (7.3).
@@ -300,10 +316,9 @@ export class AppSurfaces implements ShellApps {
 			if (event.instance !== undefined) this.#enqueue(() => this.#sync());
 			return;
 		}
-		if (command === 'app-open' || command === 'app-close') this.#enqueue(() => this.#sync());
+		if (switched) this.#enqueue(() => this.#sync());
 		if (
-			command === 'app-open' ||
-			command === 'app-close' ||
+			switched ||
 			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
 			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))

@@ -1,6 +1,6 @@
 /**
  * @lushly-dev/loam-chrome: the shell parts as FAST-AF elements, the palette, keyboard, the layout
- * classes, the router seam and theme application (phase 0 specification,
+ * classes, the router and theme application (phase 0 specification,
  * endpoints/loam/docs/phases/0-kernel-chrome/spec.md, sections 5 and 7). It binds to the kernel
  * only through `LoamKernelV2`.
  */
@@ -68,6 +68,7 @@ export {
 	nextPreset,
 	type ResizeDetail,
 } from './resize.js';
-export { createRouter, homePaths, matchRoute, type RouterV0, type RouteV0 } from './router.js';
+export { formatRoute } from './route-format.js';
+export { createRouter, parseRoute, type RouterV1, type RouteV1, STATE_INFO } from './router.js';
 export { STATE_PROPERTIES, type StateProperty } from './state-properties.js';
 export { applyAppearance, applyThemeStylesheet, displayedTheme, documentStyles } from './theme.js';
