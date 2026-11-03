@@ -509,8 +509,22 @@ async fn an_approver_who_cannot_read_the_target_gets_not_found_and_sees_nothing(
     .await;
     let id = proposal_id(&result);
 
-    let approved = approve(&fx, &id).await;
-    assert_eq!(code(&approved), "PROPOSAL_NOT_FOUND", "{approved}");
+    // The confirmation preview applies approve's reader rules (phase 4 section 8.1), so the call
+    // stops there with approve's own answer as the cause, before any prompt.
+    let console = Terminal::new(true, true);
+    let (_, approved) = fx
+        .command_line(
+            console.clone(),
+            &[
+                "call",
+                "knowledge-approve",
+                &json!({ "proposal": id }).to_string(),
+            ],
+        )
+        .await;
+    assert_eq!(code(&approved), "CONFIRMATION_PREVIEW_FAILED", "{approved}");
+    assert_eq!(approved["error"]["details"]["cause"], "PROPOSAL_NOT_FOUND");
+    assert!(console.asked().is_empty(), "nothing is asked");
     never_mentions(&approved, &["xylophone", "Secret"]);
     let shown = show(&fx, human("cy"), &id).await;
     assert_eq!(code(&shown), "PROPOSAL_NOT_FOUND");

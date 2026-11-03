@@ -54,6 +54,16 @@ fn too_large() -> Outcome {
     )
 }
 
+/// Memory evidence without a drafter attestation (phase 4 sections 3.2 and 11.3): this command
+/// never takes one, so it never takes memory evidence.
+fn memory_evidence() -> Outcome {
+    failure(
+        "PROPOSAL_EVIDENCE_INVALID",
+        "memory evidence is accepted only from an attested drafter, never by knowledge-propose",
+        "Memory reaches proposals only through the curator's curator-run; cite other sources as document, url, text or record evidence.",
+    )
+}
+
 /// What the input says, checked.
 struct Submission {
     key: String,
@@ -101,6 +111,9 @@ fn parse(input: &Value) -> Result<Submission, Outcome> {
             .get("contentHash")
             .and_then(Value::as_str)
             .is_none_or(|hash| ContentHash::parse(hash).is_ok());
+        if kind == "memory" {
+            return Err(memory_evidence());
+        }
         let allowed = entry.as_object().is_some_and(|map| {
             map.keys()
                 .all(|name| matches!(name.as_str(), "kind" | "ref" | "contentHash" | "excerpt"))
@@ -352,8 +365,10 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
 
     let diff = diff::unified(&file, &old_text, &new_text, change.op == Op::Create);
     let origin = caller.origin();
+    // Envelope version 2, nested in proposal version 2 (phase 4 section 2.1): `authority` null,
+    // as for every record, and nothing derived from memory, since no drafter is attested here.
     let provenance = json!({
-        "version": 1,
+        "version": super::model::VERSION,
         "origin": origin,
         "space": caller.space,
         "plugin": "knowledge",
@@ -372,9 +387,12 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
         "derivedFrom": null,
         "access": target.access,
         "sensitivity": target.sensitivity,
+        "redactions": null,
+        "constraints": null,
+        "confirmation": null,
     });
     let proposal = Proposal {
-        version: 1,
+        version: super::model::VERSION,
         id: id.clone(),
         idempotency_key: submission.key,
         change_hash: hash.clone(),
@@ -399,6 +417,10 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
         flags: flags.clone(),
         created_at: caller.now.clone(),
         updated_at: caller.now.clone(),
+        drafter: None,
+        conflict_set: None,
+        withdrawal: None,
+        redacted: None,
     };
     if !common::fits_record(&proposal.to_value()) {
         return Err(too_large());

@@ -106,11 +106,13 @@ pub(crate) struct Parts {
     pub(crate) derived_from: Option<Vec<DerivedFrom>>,
 }
 
-/// An envelope version 1 with the fields the plugin supplies; the host overwrites the identity
-/// fields (`space`, `plugin`, `agent`, `principal`, `traceId`, `observedAt`) from the call.
+/// The store envelope of a new proposal record, in the version its body nests (D36): version 2,
+/// with `authority`, `redactions`, `constraints` and `confirmation` null, for a version 2
+/// proposal. The host overwrites the identity fields (`space`, `plugin`, `agent`, `principal`,
+/// `traceId`, `observedAt`) from the call. A later save of a record keeps its envelope's version.
 pub(crate) fn envelope(caller: &Caller<'_>, parts: Parts) -> Envelope {
     Envelope {
-        version: 1,
+        version: super::model::VERSION,
         origin: parts.origin,
         space: caller.space.clone(),
         plugin: None,
@@ -142,7 +144,8 @@ pub(crate) fn envelope(caller: &Caller<'_>, parts: Parts) -> Envelope {
 }
 
 /// `dev.umbel/provenance` for the event of a proposal command: the access-bearing fields of the
-/// envelope the command wrote.
+/// envelope the command wrote. It never carries `derivedFrom`, so no result's provenance holds a
+/// drafted proposal's memory hashes (phase 4 section 11.2).
 pub(crate) fn provenance_meta(envelope: &Envelope) -> Value {
     let mut meta = serde_json::Map::new();
     meta.insert(
