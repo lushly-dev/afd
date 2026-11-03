@@ -152,7 +152,7 @@ organization.
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations; the proposal, approve and reject commands for the knowledge base; the eval harness | Writing to the knowledge base outside a proposal |
 | memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall; invalidate, confirm, forget and sweep; import and export of harness memory | Promoting anything to the knowledge base |
 | context plugin | Budgeted context bundles assembled from the stores through host grants ([D78](decisions.md)) | Calling the knowledge or memory plugins; writing anything |
-| curator plugin | Settling window, deterministic candidates and conflict sets, drafting proposals with evidence, re-verification and inconsistency proposals, rejection feedback; runs on a schedule, started by cron, CI or a hook. It reads memory and documents through grants and reaches proposals only through a pipeline it ships as data, with the host attesting it as the drafter ([D90](decisions.md), [D91](decisions.md)); the optional model is reserved and unused in phase 4 (proposed, [D100](decisions.md)) | Running in the request path; approving its own proposals; writing knowledge or memory |
+| curator plugin | Settling window, deterministic candidates and conflict sets, drafting proposals with evidence, re-verification and inconsistency proposals, rejection feedback; runs on a schedule, started by cron, CI or a hook. It reads memory and documents through grants and reaches proposals only through a pipeline it ships as data ([D90](decisions.md)); in the phase 4 specification's recommended options, which await the owner, the host attests it as the drafter ([D91](decisions.md)), it never writes memory ([D104](decisions.md)) and it uses no model ([D100](decisions.md)) | Running in the request path; approving its own proposals; writing knowledge outside a proposal |
 | sources and connectors | Change detection, permission mirroring, indexed-copy and live modes; mounted external MCP servers as the federation path across vendor systems | Copying content the caller is not allowed to see |
 | Evaluation harness | Seeded queries with unanswerables, recall and ranking metrics, logged result ids, a calibrated judge | Replacing human review of content |
 | Distribution | Per-platform binaries, a bundle for desktop hosts, an OCI image, a registry entry, a server card | A hosted service; deployers host it |
@@ -281,7 +281,9 @@ sequenceDiagram
   follows the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md)
   fields where they apply. Settled as `umbel-plugin.toml`, manifest version 1
   ([D37](decisions.md)); connectors and backends are reserved keys until
-  their phases.
+  their phases. Manifest version 4 adds a pipeline's `expose` and
+  `result` ([D105](decisions.md)) and a command's `confirm_preview`
+  ([D97](decisions.md)).
 - **Host WIT world.** The imports a component may use, each gated by a grant,
   including clock and random from the command context, and the exports a
   component provides. Versioned with the manifest. Settled as
@@ -317,8 +319,8 @@ sequenceDiagram
   its version, any exception, state, approver, proposing agent and run,
   resulting state and any rejection reason, which makes it a decision trace
   about the knowledge itself. AFD approval gates only the command that applies
-  it. Version 1 is phase 2's; version 2, from phase 4, adds the drafter (from a
-  host-set pipeline mark), memory evidence carrying each source's authority,
+  it. Version 1 is phase 2's; version 2, from phase 4, adds the drafter (attested by
+  the host's pipeline table), memory evidence carrying each source's authority,
   origin, constraints and access, conflict sets and the decision's channel
   ([D92](decisions.md)). Approval shows a preview of the change before its
   confirmation prompt ([D97](decisions.md)).
@@ -592,7 +594,7 @@ Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 [phase 1, plugin contract](phases/1-plugin-contract/spec.md) (approved, merged in #583);
 [phase 2, knowledge](phases/2-knowledge/spec.md) (approved, merged in #625);
 [phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685);
-[phase 4, curator](phases/4-curator/spec.md) (written 2026-11-03, in review, not approved; eight trust-model questions for the owner in its section 16).
+[phase 4, curator](phases/4-curator/spec.md) (written 2026-11-03 and revised after review the same day; in review, not approved; ten trust-model questions for the owner in its section 16).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -689,10 +691,10 @@ document needs as an amendment.
 | Capture contract | The JSON a harness adapter sends `memory-capture`, version 1 |
 | Curator run | One `curator-run` call for one space: plan, submit, read feedback, finish ([D91](decisions.md)) |
 | Settling window | How long a memory record's current version must stand unchanged before it can be proposed as knowledge ([D93](decisions.md)) |
-| Candidate | A group of readable, settled memory records with one content hash and class, kept as a curator record |
+| Candidate | One caller's group of readable, settled memory records with one content hash and class, kept as a curator record with a content-free id |
 | Conflict set | Candidates in one space whose subjects normalise to the same key and whose content differs; drafted as alternatives, never chosen by the curator |
-| Drafter | The curator instance named on a drafted proposal, taken from the host's pipeline mark |
-| Pipeline mark | `dev.umbel/pipeline`, a context key only the host sets: the instance and pipeline whose step is running |
+| Drafter | The curator instance named on a drafted proposal, attested by the host's pipeline table |
+| Pipeline attestation | The host's record, keyed by a step's random trace id, of the plugin, instance, pipeline and run the step belongs to ([D91](decisions.md), proposed) |
 | Promotion | A person consenting, at a terminal, to have their own memory record drafted for wider readers ([D94](decisions.md), proposed) |
 | Confirmation preview | Text a command's declared preview command returns, shown by the CLI before its confirmation prompt ([D97](decisions.md)) |
 | Auto-approval rule | A deterministic predicate over a proposal that an area opts into, under which the knowledge plugin applies it without a person ([D98](decisions.md), proposed) |
