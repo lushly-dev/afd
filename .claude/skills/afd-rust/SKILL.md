@@ -517,7 +517,7 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
 
 ## MCP Server (`server` feature)
 
-Off by default; needs Rust 1.88 (the rest of the crate keeps 1.82). Built on the official MCP Rust SDK (`rmcp`), it serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint or connection.
+Off by default; needs Rust 1.88 (the rest of the crate keeps 1.85). Built on the official MCP Rust SDK (`rmcp`), it serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint or connection.
 
 ```rust
 use std::sync::Arc;

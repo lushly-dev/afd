@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Minimum supported Rust version 1.85 (was 1.82):** `hmac` moves to 0.13 and `sha2` to 0.11, which need it. Token and digest bytes are unchanged, and neither crate appears in the public API.
 - **Breaking:** `JournalEntry` and `JournalRecord` gain `output_budget` (the effective output budget, `None` for a call without one); code that builds either with a struct literal must set it.
 - The `server` feature enables the new `frontmatter` feature instead of depending on `saphyr-parser` directly.
 - **Breaking (`server` feature, #579):** the `afd-batch` MCP tool no longer reads a `context` argument. It is not in `spec/meta-tools.json` and TypeScript and Python never accepted it, but its entries filled each item's `CommandContext::extra`, so a caller could supply a declared context field outside `_meta`, which `spec/context-fields.md` names as the only source. The argument is now ignored, like any other argument the tool does not declare, and declared fields arrive only through `_meta`. A caller that sent values this way must send declared fields in `_meta` instead; for anything else, set it in trusted code with `McpServer::with_context_hook`. `BatchRequest::context` and `CommandRegistry::execute_batch_with_context`, the in-process batch API, are unchanged.

@@ -2,7 +2,7 @@
 //! constant-time comparison. Every byte here matches TypeScript's `approval.ts`, so a token
 //! issued by one implementation verifies on another.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde_json::{Map, Value};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
