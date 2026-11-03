@@ -32,10 +32,14 @@ describe('what schema:build writes', () => {
 		expect(source('src/_generated/facts.ts')).toBe(generateFacts());
 	}, 30_000);
 
-	it('compiles every schema under strict, and each $ref resolves against spec/', () => {
+	it('P2-E11: compiles every schema under strict, and each $ref resolves against spec/', () => {
 		const ajv = schemaAjv();
-		for (const name of ['app-manifest', 'deployment', 'projection'] as const) {
-			expect(typeof ajv.getSchema(readSchema(name).$id), name).toBe('function');
+		for (const [name, version] of [
+			['app-manifest', 2],
+			['deployment', 1],
+			['projection', 1],
+		] as const) {
+			expect(typeof ajv.getSchema(readSchema(name, version).$id), name).toBe('function');
 		}
 	});
 

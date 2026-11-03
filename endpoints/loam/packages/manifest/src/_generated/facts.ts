@@ -114,7 +114,10 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"surfaces",
 			"layout",
 			"compositions",
-			"resources"
+			"resources",
+			"project_summary",
+			"documents",
+			"new"
 		],
 		"/ui/surfaces": [
 			"rail",
@@ -226,6 +229,60 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		"/ui/resources/*/permissions/microphone": [],
 		"/ui/resources/*/permissions/geolocation": [],
 		"/ui/resources/*/permissions/clipboardWrite": [],
+		"/ui/project_summary": [
+			"command"
+		],
+		"/ui/documents": [],
+		"/ui/documents/*": [
+			"id",
+			"title",
+			"icon",
+			"content_schema",
+			"content_version",
+			"autosave_ms",
+			"instance_commands",
+			"export_command",
+			"import_command",
+			"scope_levels",
+			"editor",
+			"embed",
+			"inspector",
+			"binding",
+			"templates"
+		],
+		"/ui/documents/*/instance_commands": [],
+		"/ui/documents/*/scope_levels": [],
+		"/ui/documents/*/editor": [
+			"element",
+			"resource"
+		],
+		"/ui/documents/*/embed": [
+			"element",
+			"resource"
+		],
+		"/ui/documents/*/inspector": [
+			"element"
+		],
+		"/ui/documents/*/binding": [
+			"model",
+			"selection",
+			"locator",
+			"conflict"
+		],
+		"/ui/documents/*/templates": [],
+		"/ui/documents/*/templates/*": [
+			"id",
+			"title",
+			"content"
+		],
+		"/ui/new": [],
+		"/ui/new/*": [
+			"title",
+			"icon",
+			"command",
+			"scope_levels"
+		],
+		"/ui/new/*/scope_levels": [],
 		"/native": [
 			"entry"
 		],
@@ -233,9 +290,11 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"handlers"
 		],
 		"/app": [
-			"scope_levels"
+			"scope_levels",
+			"resource_keys"
 		],
-		"/app/scope_levels": []
+		"/app/scope_levels": [],
+		"/app/resource_keys": []
 	},
 	"deployment": {
 		"": [

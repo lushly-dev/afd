@@ -8,7 +8,7 @@ import type { Actor, CommandResult } from '@lushly-dev/afd-core';
 
 export type { Actor, CommandError, CommandResult } from '@lushly-dev/afd-core';
 export { failure, success } from '@lushly-dev/afd-core/result';
-export type { ManifestV1 } from '@lushly-dev/loam-manifest';
+export type { ManifestV1, ManifestV2 } from '@lushly-dev/loam-manifest';
 
 export const SDK_VERSION = 1;
 

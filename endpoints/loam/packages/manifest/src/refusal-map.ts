@@ -100,9 +100,11 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 	'/packs': umbel('packs'),
 	'/commands/*/confirm': umbel('commands[].confirm'),
 	'/agent': later('agent', 5),
-	'/ui/documents': later('ui.documents', 2),
-	'/ui/new': later('ui.new', 2),
-	'/ui/project_summary': later('ui.project_summary', 2),
+	'/ui/documents/*/panel': {
+		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		message: '`ui.documents[].panel` is not served: no document type needs a panel yet.',
+		suggestion: 'Remove `panel`. A later version adds it when a type asks.',
+	},
 	'/ui/account': later('ui.account', 3),
 	'/ui/settings': later('ui.settings', 4),
 	'/ui/experiments': later('ui.experiments', 4),
@@ -228,7 +230,7 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 			return {
 				code: 'MANIFEST_VERSION_UNSUPPORTED',
 				message: said,
-				suggestion: 'This shell reads `manifest_version = 1`.',
+				suggestion: 'This shell reads `manifest_version = 1` or `manifest_version = 2`.',
 			};
 		case '/commands/*/effects/*':
 		case '/mount/tools/*/effects/*':
@@ -257,15 +259,6 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 			break;
 		case '/ui/compositions/*':
 			return compositionRow(key, valueAt(document, pointer));
-		case '/ui/surfaces/sidebar/shape':
-			if (valueAt(document, pointer) === 'tree') {
-				return {
-					code: 'MANIFEST_SURFACE_UNAVAILABLE',
-					message: 'A `tree` sidebar is served from phase 2.',
-					suggestion: 'Use `list` or `custom` until phase 2.',
-				};
-			}
-			break;
 	}
 	return {
 		code: 'MANIFEST_INVALID',

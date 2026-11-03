@@ -25,7 +25,7 @@ const schemaPath = (name) => resolve(packageRoot, `schemas/${name}.json`);
 export const AJV_OPTIONS = { strict: true, allErrors: true, inlineRefs: false };
 
 export const readCore = () => json(CORE_PATH);
-export const readSchema = (name) => json(schemaPath(`${name}.v1`));
+export const readSchema = (name, version = 1) => json(schemaPath(`${name}.v${version}`));
 export const readShapeSchema = () => json(schemaPath('json-schema-shape'));
 
 function createAjv(options = {}) {
@@ -33,11 +33,16 @@ function createAjv(options = {}) {
 	return new Ajv2020({ ...AJV_OPTIONS, ...options });
 }
 
-/** An Ajv instance with the core and the three schemas added. */
+/**
+ * An Ajv instance with the core and the three schemas added. The manifest is version 2, the one
+ * schema that reads both versions (phase 2 specification, 8.1); `app-manifest.v1.json` stays
+ * committed and is added by the test that holds every valid version 1 case valid under 2.
+ */
 export function schemaAjv(options = {}) {
 	const ajv = createAjv(options);
 	ajv.addSchema(readCore());
-	for (const name of ['app-manifest', 'deployment', 'projection']) ajv.addSchema(readSchema(name));
+	ajv.addSchema(readSchema('app-manifest', 2));
+	for (const name of ['deployment', 'projection']) ajv.addSchema(readSchema(name));
 	return ajv;
 }
 
@@ -78,7 +83,7 @@ export function compileValidators() {
 	return {
 		'validate.generated.js': toModule(
 			standalone(schemaAjv({ code }), {
-				validateManifest: readSchema('app-manifest').$id,
+				validateManifest: readSchema('app-manifest', 2).$id,
 				validateProjection: readSchema('projection').$id,
 			})
 		),
@@ -211,12 +216,13 @@ export async function generateTypes() {
 		style: { useTabs: true, singleQuote: true, printWidth: 100 },
 	};
 	const parts = [];
-	for (const [schema, name] of [
-		['app-manifest', 'ManifestV1'],
-		['deployment', 'DeploymentV1'],
-		['projection', 'ProjectionV1'],
+	for (const [schema, version, name] of [
+		['app-manifest', 1, 'ManifestV1'],
+		['app-manifest', 2, 'ManifestV2'],
+		['deployment', 1, 'DeploymentV1'],
+		['projection', 1, 'ProjectionV1'],
 	]) {
-		const document = readSchema(schema);
+		const document = readSchema(schema, version);
 		const { title: _title, ...flat } = closeForTypes(
 			withoutRefused(flatten(document, document, core))
 		);
@@ -246,12 +252,12 @@ export function generateFacts() {
 	const core = readCore();
 	const version = readFileSync(VERSION_PATH, 'utf8').trim();
 	const admitted = {};
-	for (const [schema, name] of [
-		['app-manifest', 'manifest'],
-		['deployment', 'deployment'],
-		['projection', 'projection'],
+	for (const [schema, schemaVersion, name] of [
+		['app-manifest', 2, 'manifest'],
+		['deployment', 1, 'deployment'],
+		['projection', 1, 'projection'],
 	]) {
-		const document = readSchema(schema);
+		const document = readSchema(schema, schemaVersion);
 		admitted[name] = admittedKeys(withoutRefused(flatten(document, document, core)));
 	}
 	return [

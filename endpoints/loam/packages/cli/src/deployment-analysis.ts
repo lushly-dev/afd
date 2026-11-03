@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import {
 	type DeploymentV1,
-	type ManifestV1,
+	type ManifestV2,
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
 } from '@lushly-dev/loam-manifest';
@@ -40,7 +40,7 @@ export interface MountAccess {
 interface PackageState {
 	/** The kind the package says, read as data even when the manifest is refused. */
 	rawKind?: unknown;
-	manifest?: ManifestV1;
+	manifest?: ManifestV2;
 }
 
 export interface InstanceEffect {
@@ -88,7 +88,7 @@ async function readPackage(directory: string): Promise<{ state: PackageState; fo
 function configFindings(
 	id: string,
 	entry: InstanceEffect['entry'],
-	manifest: ManifestV1
+	manifest: ManifestV2
 ): DeploymentFinding[] {
 	const schema = manifest.config?.schema;
 	const refuse = (message: string): DeploymentFinding[] => [
@@ -132,7 +132,7 @@ const MOUNTED_KEYS = [
 function kindFindings(
 	id: string,
 	entry: InstanceEffect['entry'],
-	manifest: ManifestV1
+	manifest: ManifestV2
 ): DeploymentFinding[] {
 	const found: DeploymentFinding[] = [];
 	if (manifest.plugin.id !== entry.app) {

@@ -22,7 +22,7 @@ import {
 	type ReplayKernelResult,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import type { AppDefinitionV1, ManifestV1 } from '@lushly-dev/loam-sdk';
+import type { AppDefinitionV1, ManifestV1, ManifestV2 } from '@lushly-dev/loam-sdk';
 import { type RegistryScope, watchGlobalRegistry } from './global-registry.js';
 
 const SANDBOX_ORIGIN = 'https://sandbox.loam.test';
@@ -51,7 +51,7 @@ export type AppDefinitionSource =
 
 export interface AppTestKernelOptions {
 	/** A packed or scaffolded manifest: `readAppManifest` from `@lushly-dev/loam-cli` reads one. */
-	manifest: ManifestV1;
+	manifest: ManifestV2;
 	definition: AppDefinitionSource;
 	/** Keep only these of the manifest's grants, to test the app without the others. */
 	grants?: readonly string[];
@@ -84,13 +84,17 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 	const definition = await definitionOf(options.definition);
 	refuseGlobalDefinitions();
 
-	const manifest: ManifestV1 =
+	// Kernel interface 1 holds a `ManifestV1` (phase 2 specification, 8.1), as `forInterfaceOne` in
+	// `@lushly-dev/loam-manifest` narrows it: the reader refuses every key only version 2 has until its
+	// step, so setting the version is all the narrowing there is.
+	const read =
 		options.grants === undefined
 			? options.manifest
 			: {
 					...options.manifest,
 					grants: options.manifest.grants?.filter((grant) => options.grants?.includes(grant.name)),
 				};
+	const manifest = { ...read, manifest_version: 1 } as ManifestV1;
 	const { kind, id } = manifest.plugin;
 	if (kind === 'mounted') {
 		throw new LoamKernelError({

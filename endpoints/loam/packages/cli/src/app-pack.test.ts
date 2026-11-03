@@ -34,6 +34,26 @@ describe('loam app pack', () => {
 		expect(existsSync(join(out, 'dist/package'))).toBe(false);
 	});
 
+	it('writes the manifest version its source has (D76)', async () => {
+		for (const version of [1, 2]) {
+			const dir = await builtNative();
+			const source = join(dir, 'loam-app.toml');
+			await writeFile(
+				source,
+				readFileSync(source, 'utf8').replace(
+					'manifest_version = 1',
+					`manifest_version = ${version}`
+				)
+			);
+			const out = join(dir, 'dist/package');
+			const { report } = await appPack({ dir, out });
+			expect(report.refusals).toEqual([]);
+			const packed = JSON.parse(readFileSync(join(out, 'app-manifest.json'), 'utf8'));
+			expect(packed.manifest_version).toBe(version);
+			expect(readManifest(packed).ok).toBe(true);
+		}
+	});
+
 	it('replaces an earlier package, and keeps no stale file', async () => {
 		const dir = await builtNative();
 		const out = join(dir, 'dist/package');

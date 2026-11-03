@@ -5,9 +5,10 @@
 
 import { GRANT_CATALOG_V1, LAYOUT_DEFAULTS_V0, SHELL_RESERVED_CHORDS_V1 } from './catalogs.js';
 import type { Finding } from './core-rules.js';
-import type { ManifestRefusalCode, ManifestV1 } from './types.js';
+import { keyOf, valueAt } from './pointers.js';
+import type { ManifestRefusalCode, ManifestV2 } from './types.js';
 
-type Ui = NonNullable<ManifestV1['ui']>;
+type Ui = NonNullable<ManifestV2['ui']>;
 type Surfaces = NonNullable<Ui['surfaces']>;
 
 const SERVED_GRANTS = GRANT_CATALOG_V1.filter((grant) => grant.servedFrom === 1).map(
@@ -48,7 +49,93 @@ class Findings {
 	}
 }
 
-function packedRules(manifest: ManifestV1, found: Findings): void {
+interface VersionKey {
+	readonly pointer: string;
+	/** A value of a key version 1 also has. */
+	readonly value?: unknown;
+}
+
+/**
+ * The keys and values that only a version 2 manifest may hold (phase 2 specification, 8.3). One
+ * entry each: `manifest-version-keys` refuses every one under `manifest_version = 1`, so a version 1
+ * manifest means what it meant. A pointer with a `value` is a value of a key version 1 also has.
+ */
+export const VERSION_TWO_KEYS: readonly VersionKey[] = [
+	{ pointer: '/app/resource_keys' },
+	{ pointer: '/ui/surfaces/sidebar/shape', value: 'tree' },
+	{ pointer: '/ui/project_summary' },
+	{ pointer: '/ui/documents' },
+	{ pointer: '/ui/new' },
+];
+
+/**
+ * The version 2 keys no step has served yet, each refused as `MANIFEST_SURFACE_UNAVAILABLE` under
+ * `manifest_version = 2`. **Delete the one line of the step that serves a key**, in the pull request
+ * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
+ * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
+ * that step. `forInterfaceOne` narrows a version 2 manifest for kernel interface 1 on the strength of
+ * this list covering every entry of `VERSION_TWO_KEYS`, which a unit test holds until interface 2
+ * replaces the narrowing.
+ */
+export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
+	// Step 6 serves the `tree` sidebar. Its rules: a `tree` needs a `command` (the schema holds it).
+	{
+		pointer: '/ui/surfaces/sidebar/shape',
+		value: 'tree',
+		instead: 'Use `shape = "list"` until a later build serves `"tree"`.',
+	},
+	// Step 4 serves `app.resource_keys`. Its rules: `MANIFEST_RESOURCE_KEY_INVALID`, needs `store`, not `mounted`.
+	{ pointer: '/app/resource_keys' },
+	// Step 7 serves `ui.project_summary`. Its rules: `MANIFEST_SUMMARY_INVALID`, not `mounted`.
+	{ pointer: '/ui/project_summary' },
+	// Step 9 serves `ui.documents`. Its rules are the documents specification's 2.1, and `content_schema`'s `MANIFEST_NOT_PACKED`.
+	{ pointer: '/ui/documents' },
+	// Step 11 serves `ui.new`. Its rules: `MANIFEST_COMMAND_UNKNOWN`, `MANIFEST_COMMAND_NEEDS_INPUT`.
+	{ pointer: '/ui/new' },
+];
+
+const holds = (document: unknown, key: VersionKey): boolean => {
+	const found = valueAt(document, key.pointer);
+	return key.value === undefined ? found !== undefined : found === key.value;
+};
+
+const describeKey = (key: VersionKey): string =>
+	key.value === undefined
+		? `\`${keyOf(key.pointer)}\``
+		: `\`${keyOf(key.pointer)} = ${JSON.stringify(key.value)}\``;
+
+/**
+ * The version 2 keys a version 1 document holds, each refused with the version. It reads the raw
+ * document, so a key is told the version whatever its shape: phase 1 refused these keys before it
+ * looked inside them, and a version 1 manifest keeps that.
+ */
+export function versionKeyFindings(document: unknown): Finding[] {
+	if (valueAt(document, '/manifest_version') !== 1) return [];
+	return VERSION_TWO_KEYS.filter((key) => holds(document, key)).map((key) => ({
+		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		pointer: key.pointer,
+		message: `${describeKey(key)} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
+		suggestion: 'Set manifest_version = 2.',
+	}));
+}
+
+function versionRules(manifest: ManifestV2, found: Findings): void {
+	found.refusals.push(...versionKeyFindings(manifest));
+	// A version 1 manifest is told one thing at a time: the version first.
+	if (manifest.manifest_version === 1) return;
+	for (const key of NOT_YET_SERVED) {
+		if (holds(manifest, key)) {
+			found.refuse(
+				'MANIFEST_SURFACE_UNAVAILABLE',
+				key.pointer,
+				`${describeKey(key)} is part of phase 2, and no build serves it yet.`,
+				key.instead ?? `Remove ${describeKey(key)} until phase 2 serves it.`
+			);
+		}
+	}
+}
+
+function packedRules(manifest: ManifestV2, found: Findings): void {
 	const refuse = (pointer: string): void => {
 		found.refuse(
 			'MANIFEST_NOT_PACKED',
@@ -64,7 +151,7 @@ function packedRules(manifest: ManifestV1, found: Findings): void {
 	if (typeof manifest.config?.schema === 'string') refuse('/config/schema');
 }
 
-function identityRules(manifest: ManifestV1, found: Findings): void {
+function identityRules(manifest: ManifestV2, found: Findings): void {
 	const { id, domains } = manifest.plugin;
 	if (domains.length !== 1 || domains[0] !== id) {
 		found.refuse(
@@ -85,7 +172,7 @@ function identityRules(manifest: ManifestV1, found: Findings): void {
 	}
 }
 
-function grantRules(manifest: ManifestV1, found: Findings): void {
+function grantRules(manifest: ManifestV2, found: Findings): void {
 	const grants = manifest.grants ?? [];
 	if (manifest.plugin.kind === 'mounted') {
 		grants.forEach((grant, index) => {
@@ -138,7 +225,7 @@ function grantRules(manifest: ManifestV1, found: Findings): void {
 	});
 }
 
-function toolMetaRules(manifest: ManifestV1, found: Findings): void {
+function toolMetaRules(manifest: ManifestV2, found: Findings): void {
 	const resources = new Set((manifest.ui?.resources ?? []).map((resource) => resource.uri));
 	(manifest.commands ?? []).forEach((command, index) => {
 		const meta = (command.tool_meta ?? {}) as Record<string, unknown>;
@@ -164,7 +251,7 @@ function toolMetaRules(manifest: ManifestV1, found: Findings): void {
 	});
 }
 
-function resourceRules(manifest: ManifestV1, found: Findings): void {
+function resourceRules(manifest: ManifestV2, found: Findings): void {
 	const resources = manifest.ui?.resources ?? [];
 	const prefix = `ui://${manifest.plugin.id}/`;
 	const seen = new Set<string>();
@@ -205,7 +292,7 @@ function resourceRules(manifest: ManifestV1, found: Findings): void {
 	});
 }
 
-function surfaceRules(manifest: ManifestV1, found: Findings): void {
+function surfaceRules(manifest: ManifestV2, found: Findings): void {
 	const surfaces = manifest.ui?.surfaces;
 	if (!surfaces) return;
 	const { kind } = manifest.plugin;
@@ -222,12 +309,12 @@ function surfaceRules(manifest: ManifestV1, found: Findings): void {
 		}
 	}
 	const { sidebar, main } = surfaces;
-	if (kind === 'view' && sidebar && sidebar.shape !== 'list') {
+	if (kind === 'view' && sidebar && sidebar.shape === 'custom') {
 		found.refuse(
 			'MANIFEST_SURFACE_KIND',
 			'/ui/surfaces/sidebar/shape',
-			"A view app's sidebar is a `list`: no element of it runs in the shell's page.",
-			'Set `shape = "list"`.'
+			"A view app's sidebar is a `list` or a `tree`: no element of it runs in the shell's page.",
+			'Set `shape = "list"`, or `"tree"` from version 2.'
 		);
 	}
 	if (main && kind === 'native' && (main.resource !== undefined || main.command !== undefined)) {
@@ -326,7 +413,7 @@ function elementRules(surfaces: Surfaces, found: Findings): void {
 	});
 }
 
-function commandRules(manifest: ManifestV1, surfaces: Surfaces, found: Findings): void {
+function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings): void {
 	const declared = new Set((manifest.commands ?? []).map((command) => command.name));
 	const check = (command: string | undefined, pointer: string): void => {
 		if (command !== undefined && !declared.has(command)) {
@@ -364,7 +451,7 @@ function chordRules(surfaces: Surfaces, found: Findings): void {
 	});
 }
 
-function layoutRules(manifest: ManifestV1, found: Findings): void {
+function layoutRules(manifest: ManifestV2, found: Findings): void {
 	const layout = manifest.ui?.layout;
 	if (!layout) return;
 	const bound = (
@@ -388,7 +475,7 @@ function layoutRules(manifest: ManifestV1, found: Findings): void {
 	bound(layout.panel?.height, '/ui/layout/panel/height', panel.min);
 }
 
-function compositionRules(manifest: ManifestV1, found: Findings): void {
+function compositionRules(manifest: ManifestV2, found: Findings): void {
 	(manifest.ui?.compositions ?? []).forEach((name, index) => {
 		if (name !== 'list-detail') return;
 		const surfaces = manifest.ui?.surfaces;
@@ -404,7 +491,7 @@ function compositionRules(manifest: ManifestV1, found: Findings): void {
 }
 
 /** `text` over Loam's own display keys, which reach a person's screen as the core's do. */
-function textRules(manifest: ManifestV1, found: Findings): void {
+function textRules(manifest: ManifestV2, found: Findings): void {
 	const add = (pointer: string, value: string | undefined): void => {
 		if (value !== undefined && CONTROL.test(value)) {
 			found.refuse(
@@ -435,8 +522,9 @@ function textRules(manifest: ManifestV1, found: Findings): void {
 }
 
 /** Loam's rules, for a manifest that passed the schema. */
-export function loamRules(manifest: ManifestV1): { refusals: Finding[]; warnings: Finding[] } {
+export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
+	versionRules(manifest, found);
 	packedRules(manifest, found);
 	identityRules(manifest, found);
 	grantRules(manifest, found);

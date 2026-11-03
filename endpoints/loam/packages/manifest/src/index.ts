@@ -17,6 +17,7 @@ export {
 	type SurfaceEntry,
 	TRUST_LINES_V1,
 } from './catalogs.js';
+export { forInterfaceOne } from './interface-one.js';
 export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
 export type {
 	DeploymentRead,
@@ -27,6 +28,7 @@ export type {
 	ManifestRefusal,
 	ManifestRefusalCode,
 	ManifestV1,
+	ManifestV2,
 	ProjectionAppV1,
 	ProjectionMountedV1,
 	ProjectionRead,

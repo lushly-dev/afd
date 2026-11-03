@@ -1,9 +1,19 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { readSchema } from '../scripts/compile.mjs';
+import { AJV_OPTIONS, readCore, readSchema } from '../scripts/compile.mjs';
 import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from './catalogs.js';
+import { forInterfaceOne } from './interface-one.js';
+import { NOT_YET_SERVED, VERSION_TWO_KEYS } from './loam-rules.js';
+import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
+import type { ManifestV2 } from './types.js';
+import { validateManifest } from './validate.generated.js';
+import { pointerOf, type ValidatorError } from './validator-errors.js';
+
+const require = createRequire(import.meta.url);
+const Ajv2020 = require('ajv/dist/2020').default;
 
 interface ProfileCase {
 	id: string;
@@ -79,7 +89,7 @@ describe("Loam's profile", () => {
 	});
 
 	it('has a refusal for every closed object, at its depth (P1)', () => {
-		const profile = readSchema('app-manifest');
+		const profile = readSchema('app-manifest', 2);
 		const defined = Object.entries(profile.$defs)
 			.filter(
 				([, schema]) =>
@@ -91,16 +101,16 @@ describe("Loam's profile", () => {
 	});
 
 	it('keeps the vocabularies in the schema equal to the catalogs', () => {
-		const { $defs } = readSchema('app-manifest') as unknown as {
+		const { $defs } = readSchema('app-manifest', 2) as unknown as {
 			$defs: {
 				plugin: { properties: { id: { not: { enum: string[] } } } };
-				rail: { properties: { icon: { enum: string[] } } };
+				icon: { enum: string[] };
 				ui: { properties: { compositions: { items: { enum: string[] } } } };
 				surfaces: { properties: Record<string, unknown> };
 			};
 		};
 		expect($defs.plugin.properties.id.not.enum).toEqual([...SHELL_DOMAINS_V1, 'afd']);
-		expect($defs.rail.properties.icon.enum).toEqual(ICONS_V1);
+		expect($defs.icon.enum).toEqual(ICONS_V1);
 		expect($defs.ui.properties.compositions.items.enum).toEqual(
 			COMPOSITIONS_V1.filter((entry) => entry.servedFrom === 1).map((entry) => entry.name)
 		);
@@ -108,6 +118,120 @@ describe("Loam's profile", () => {
 			entry.place.startsWith('ui.surfaces.')
 		).map((entry) => entry.id);
 		expect(Object.keys($defs.surfaces.properties).sort()).toEqual(underSurfaces.sort());
+	});
+
+	it('P2-E11: profile-cases.json covers each version 2 key and its two refusals', () => {
+		const ids = new Set(cases.map((item) => item.id));
+		for (const key of [
+			'app-resource-keys',
+			'sidebar-tree',
+			'ui-project-summary',
+			'ui-documents',
+			'ui-new',
+		]) {
+			// Under version 1, the version is what the author is told; under 2, that no step serves it yet.
+			expect(ids.has(`version-keys-${key}`), key).toBe(true);
+			expect(ids.has(`not-yet-served-${key}`), key).toBe(true);
+		}
+		for (const item of cases.filter((candidate) => candidate.id.startsWith('version-keys-'))) {
+			if (item.id !== 'version-keys-each-once') expect(item.base).toBe('native');
+			expect(item.suggestion).toBe('Set manifest_version = 2.');
+		}
+	});
+
+	it('P2-E11: reads every document of version 1 as it did: valid under 1 is valid under 2, with the same errors otherwise (D76)', () => {
+		const ajv = new Ajv2020({ ...AJV_OPTIONS });
+		ajv.addSchema(readCore());
+		const validateV1 = ajv.compile(readSchema('app-manifest', 1));
+		const versionTwo = ['/app/resource_keys', '/ui/project_summary', '/ui/documents', '/ui/new'];
+		const errorsOf = (errors: readonly ValidatorError[] | null | undefined): string[] =>
+			(errors ?? [])
+				.filter((error) => error.keyword !== 'if')
+				.map((error) => `${error.keyword} ${pointerOf(error)}`)
+				.sort();
+		const documents = [...Object.values(bases), ...cases.map(manifestOf)];
+		let validUnderOne = 0;
+		let invalidUnderBoth = 0;
+		for (const document of documents) {
+			const v1 = validateV1(document);
+			const v1Errors = errorsOf(validateV1.errors);
+			const v2 = validateManifest(document);
+			if (v1) {
+				validUnderOne++;
+				expect(v2, JSON.stringify(document).slice(0, 80)).toBe(true);
+				continue;
+			}
+			const holdsVersionTwo =
+				valueAt(document, '/manifest_version') !== 1 ||
+				versionTwo.some((pointer) => valueAt(document, pointer) !== undefined) ||
+				valueAt(document, '/ui/surfaces/sidebar/shape') === 'tree';
+			if (holdsVersionTwo) continue;
+			expect(v2).toBe(false);
+			expect(errorsOf(validateManifest.errors)).toEqual(v1Errors);
+			invalidUnderBoth++;
+		}
+		// The comparison ran over a real corpus, not an empty one.
+		expect(validUnderOne).toBeGreaterThan(20);
+		expect(invalidUnderBoth).toBeGreaterThan(100);
+	});
+
+	it('P2-E11: tells a version 1 manifest the version first, and alone when the key is well-formed (D76)', () => {
+		// A loader reports the first refusal (`refusalError`), as phase 1 reported the version key's.
+		const first = (id: string) => {
+			const item = cases.find((candidate) => candidate.id === id);
+			const read = readManifest(manifestOf(item as ProfileCase));
+			expect(read.ok, id).toBe(false);
+			return read.ok ? [] : read.refusals.map((refusal) => [refusal.code, refusal.key]);
+		};
+		// Malformed key plus an unrelated schema error: the version leads.
+		expect(first('version-keys-before-unknown-key')).toEqual([
+			['MANIFEST_SURFACE_UNAVAILABLE', 'ui.documents'],
+			['MANIFEST_UNKNOWN_KEY', 'bogus'],
+		]);
+		// Well-formed key plus a core rule's refusal (a control character in the title): the version, alone.
+		expect(first('version-keys-with-core-rule-error')).toEqual([
+			['MANIFEST_SURFACE_UNAVAILABLE', 'ui.project_summary'],
+		]);
+	});
+
+	it("P2-E11: keeps the code of every input phase 1's 'naming phase 2' cases refused", () => {
+		// These are the inputs of `later-ui-documents`, `later-ui-new`, `later-ui-project_summary` and
+		// `sidebar-tree` on `main` at 9e046d49, unchanged: phase 1 refused each key before looking inside it.
+		const inputs: [string, Record<string, unknown>, string][] = [
+			['ui.documents', { '/ui/documents': {} }, 'ui.documents'],
+			['ui.new', { '/ui/new': {} }, 'ui.new'],
+			['ui.project_summary', { '/ui/project_summary': {} }, 'ui.project_summary'],
+			[
+				'ui.surfaces.sidebar.shape',
+				{ '/ui/surfaces/sidebar': { shape: 'tree' } },
+				'ui.surfaces.sidebar.shape',
+			],
+		];
+		for (const [name, set, key] of inputs) {
+			const read = readManifest(manifestOf({ id: name, base: 'native', set, accepted: false }));
+			expect(read.ok, name).toBe(false);
+			if (read.ok) continue;
+			expect(
+				read.refusals.map((refusal) => [refusal.code, refusal.key]),
+				name
+			).toEqual([['MANIFEST_SURFACE_UNAVAILABLE', key]]);
+			expect(read.refusals[0]?.suggestion, name).toBe('Set manifest_version = 2.');
+		}
+	});
+
+	it('P2-E11: keeps every version 2 key refused while kernel interface 1 narrows a ManifestV2', () => {
+		const served = (key: { pointer: string; value?: unknown }): boolean =>
+			NOT_YET_SERVED.some((line) => line.pointer === key.pointer && line.value === key.value);
+		for (const key of VERSION_TWO_KEYS) {
+			expect(
+				served(key),
+				`${key.pointer} left NOT_YET_SERVED while \`forInterfaceOne\` still narrows a ManifestV2 to a ManifestV1 ` +
+					'(interface 1 would hold a key it does not know). Remove the narrowing with interface 2, in the same step, and this test with it.'
+			).toBe(true);
+		}
+		expect(
+			forInterfaceOne({ ...(bases.native as ManifestV2), manifest_version: 2 }).manifest_version
+		).toBe(1);
 	});
 
 	it('reads what is not a manifest as a refusal, not a throw', () => {

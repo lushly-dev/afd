@@ -28,7 +28,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /**
  * The ceilings, in bytes, as phase 2's step 1 sets them (2.4): first paint lowered, the kernel's its
  * measured value plus 10% now that Zod's classic API has left it, `late` added, and `apps` its measured
- * value plus 5%, the one raise, for the bytes that left first paint.
+ * value plus 5%, the one raise, for the bytes that left first paint. Step 3 raised `apps` once more, to
+ * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -36,7 +37,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
-	appsMinified: 341_619,
+	appsMinified: 378_993,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

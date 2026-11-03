@@ -7,6 +7,7 @@
 import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
+	forInterfaceOne,
 	type ManifestV1,
 	NOTICES_V1,
 	type ProjectionAppV1,
@@ -329,7 +330,7 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 	const loadEntry = (entry: ProjectionAppV1, index: number) => {
 		const raw = raws[index] as { raw?: unknown; unavailable?: string };
 		const read = raw.unavailable === undefined ? readManifest(raw.raw) : undefined;
-		const manifest = read?.ok ? read.manifest : undefined;
+		const manifest = read?.ok ? forInterfaceOne(read.manifest) : undefined;
 		const { initial, declared } = firstLayout(manifest);
 		host.state.registerAppLayout(entry.instance, initial, declared);
 		// Every entry claims its domain, whatever else refuses it, as `deployment check` has it (D66).
@@ -357,14 +358,15 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 			settle(record, 'refused', refusalError(read.refusals));
 			return;
 		}
-		const record = baseRecord(entry, read.manifest, undefined);
+		const admitted = forInterfaceOne(read.manifest);
+		const record = baseRecord(entry, admitted, undefined);
 		record.warnings.push(...read.warnings);
-		const refusal = kindRefusal(entry, read.manifest) ?? claim;
+		const refusal = kindRefusal(entry, admitted) ?? claim;
 		if (refusal) {
 			settle(record, 'refused', refusal);
 			return;
 		}
-		admit(record, entry, read.manifest);
+		admit(record, entry, admitted);
 	};
 	deployment.apps.forEach((entry, index) => {
 		try {

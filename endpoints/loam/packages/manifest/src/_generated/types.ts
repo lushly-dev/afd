@@ -315,6 +315,393 @@ export interface ManifestV1 {
 	};
 }
 
+export interface ManifestV2 {
+	manifest_version: 1 | 2;
+	protocol: 1;
+	afd_contract?: string;
+	plugin: {
+		id: string;
+		title: string;
+		version: string;
+		description: string;
+		kind: 'native' | 'view' | 'mounted';
+		/**
+		 * @minItems 1
+		 */
+		domains: [string, ...string[]];
+		homepage?: string;
+		license?: string;
+	};
+	mount?: {
+		prefix: string;
+		transport: 'stdio' | 'http';
+		only?: string[];
+		tools?: {
+			tool: string;
+			name?: string;
+			/**
+			 * @minItems 1
+			 */
+			effects?: [
+				'inspect' | 'plugin-state' | 'external' | 'store-write',
+				...('inspect' | 'plugin-state' | 'external' | 'store-write')[]
+			];
+		}[];
+	};
+	grants?: {
+		name: string;
+		required?: boolean;
+		reason: string;
+	}[];
+	commands?: {
+		name: string;
+		title?: string;
+		description: string;
+		/**
+		 * @minItems 1
+		 */
+		effects: [
+			'inspect' | 'plugin-state' | 'external' | 'store-write',
+			...('inspect' | 'plugin-state' | 'external' | 'store-write')[]
+		];
+		input_schema:
+			| string
+			| {
+					[k: string]: unknown;
+			  };
+		returns?:
+			| string
+			| {
+					[k: string]: unknown;
+			  };
+		category?: string;
+		tags?: string[];
+		version?: string;
+		requires?: string[];
+		contexts?: string[];
+		destructive?: boolean;
+		undoable?: boolean;
+		approval?: 'none';
+		execution_time?: 'instant' | 'fast' | 'slow' | 'long-running';
+		expose?: {
+			mcp?: boolean;
+			agent?: boolean;
+			cli?: boolean;
+			palette?: boolean;
+		};
+		examples?: {
+			title: string;
+			input: {
+				[k: string]: unknown;
+			};
+		}[];
+		errors?: string[];
+		tool_meta?: {
+			[k: string]: unknown;
+		};
+	}[];
+	contexts?: {
+		name: string;
+		description: string;
+		triggers?: string[];
+		priority?: number;
+	}[];
+	skills?: {
+		name: string;
+		path: string;
+	}[];
+	config?: {
+		schema:
+			| string
+			| {
+					[k: string]: unknown;
+			  };
+	};
+	ui?: {
+		surfaces?: {
+			rail?: {
+				label?: string;
+				icon?:
+					| 'system/attach'
+					| 'system/calendar'
+					| 'system/checkmark'
+					| 'system/clock'
+					| 'system/document'
+					| 'system/folder'
+					| 'system/search'
+					| 'system/warning';
+				order?: number;
+			};
+			sidebar?: {
+				shape: 'list' | 'custom' | 'tree';
+				command?: string;
+				element?: string;
+				title?: string;
+			};
+			header?: {
+				title?: string;
+				/**
+				 * @maxItems 3
+				 */
+				actions?:
+					| []
+					| [
+							{
+								command: string;
+								label: string;
+							}
+					  ]
+					| [
+							{
+								command: string;
+								label: string;
+							},
+							{
+								command: string;
+								label: string;
+							}
+					  ]
+					| [
+							{
+								command: string;
+								label: string;
+							},
+							{
+								command: string;
+								label: string;
+							},
+							{
+								command: string;
+								label: string;
+							}
+					  ];
+			};
+			main?: {
+				element?: string;
+				resource?: string;
+				command?: string;
+			};
+			inspector?: {
+				element: string;
+				title?: string;
+			};
+			panel?: {
+				/**
+				 * @minItems 1
+				 */
+				views: [
+					{
+						id: string;
+						title: string;
+						element: string;
+					},
+					...{
+						id: string;
+						title: string;
+						element: string;
+					}[]
+				];
+			};
+			status?: {
+				/**
+				 * @maxItems 4
+				 */
+				items:
+					| []
+					| [
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							}
+					  ]
+					| [
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							}
+					  ]
+					| [
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							}
+					  ]
+					| [
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							},
+							{
+								id: string;
+								label: string;
+								command?: string;
+								priority?: number;
+							}
+					  ];
+			};
+			keybindings?: {
+				chord: string;
+				command: string;
+			}[];
+		};
+		layout?: {
+			sidebar?: {
+				open?: boolean;
+				width?: number;
+			};
+			inspector?: {
+				open?: boolean;
+				width?: number;
+			};
+			panel?: {
+				open?: boolean;
+				height?: number;
+			};
+		};
+		compositions?: ('console' | 'list-detail')[];
+		resources?: {
+			uri: string;
+			path: string;
+			title?: string;
+			prefers_border?: boolean;
+			csp?: {
+				connectDomains?: string[];
+				resourceDomains?: string[];
+				frameDomains?: string[];
+				baseUriDomains?: string[];
+			};
+			permissions?: {
+				camera?: {};
+				microphone?: {};
+				geolocation?: {};
+				clipboardWrite?: {};
+			};
+		}[];
+		project_summary?: {
+			command: string;
+		};
+		documents?: {
+			id: string;
+			title: string;
+			icon:
+				| 'system/attach'
+				| 'system/calendar'
+				| 'system/checkmark'
+				| 'system/clock'
+				| 'system/document'
+				| 'system/folder'
+				| 'system/search'
+				| 'system/warning';
+			content_schema:
+				| string
+				| {
+						[k: string]: unknown;
+				  };
+			content_version: number;
+			autosave_ms?: number;
+			instance_commands: string[];
+			export_command?: string;
+			import_command?: string;
+			/**
+			 * @minItems 1
+			 */
+			scope_levels?: ['workspace' | 'project', ...('workspace' | 'project')[]];
+			editor: {
+				element?: string;
+				resource?: string;
+			};
+			embed?: {
+				element?: string;
+				resource?: string;
+			};
+			inspector?: {
+				element: string;
+			};
+			binding: {
+				model: 'command' | 'crdt';
+				selection: 'none' | 'text-range' | 'item';
+				locator: 'none' | 'text-range' | 'item';
+				conflict: 'last-writer-wins';
+			};
+			templates: {
+				id: string;
+				title: string;
+				content: unknown;
+			}[];
+		}[];
+		new?: {
+			title: string;
+			icon:
+				| 'system/attach'
+				| 'system/calendar'
+				| 'system/checkmark'
+				| 'system/clock'
+				| 'system/document'
+				| 'system/folder'
+				| 'system/search'
+				| 'system/warning';
+			command: string;
+			/**
+			 * @minItems 1
+			 */
+			scope_levels?: ['workspace' | 'project', ...('workspace' | 'project')[]];
+		}[];
+	};
+	native?: {
+		entry: string;
+	};
+	view?: {
+		handlers?: string;
+	};
+	app?: {
+		/**
+		 * @minItems 1
+		 */
+		scope_levels?: ['workspace' | 'project', ...('workspace' | 'project')[]];
+		resource_keys?: {
+			[k: string]: string;
+		};
+	};
+}
+
 export interface DeploymentV1 {
 	deployment_version: 1;
 	sandbox?: {

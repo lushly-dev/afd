@@ -5,7 +5,7 @@
 
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, posix, resolve } from 'node:path';
-import type { ManifestV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type AppCheckOptions, appCheck } from './app-check.js';
 import type { AppCheckReport, Finding } from './check.js';
 import { builtPaths } from './file-rules.js';
@@ -55,7 +55,7 @@ async function outProblem(root: string, out: string): Promise<Finding | undefine
 
 /** What a package holds beside its manifest, as paths relative to the root. */
 function packagedPaths(
-	manifest: ManifestV1,
+	manifest: ManifestV2,
 	built: ReadonlyArray<{ path: string; pointer: string }>
 ) {
 	const paths = (manifest.skills ?? []).map((skill) => skill.path);
