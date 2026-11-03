@@ -1,0 +1,34 @@
+[package]
+name = "umbel-first-party"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel first-party binary: the umbel command line with the sources, knowledge, memory and context plugins compiled in"
+repository = "https://github.com/lushly-dev/afd"
+
+# The only crate that depends on the memory and context plugins together (D80): each plugin
+# reads the other's stores only through the host's grants (D78), and this binary links both.
+[[bin]]
+name = "umbel-first-party"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+# The command line and the embedded stores, and no loader (so no wasmtime), as `umbel-knowledge`
+# and `umbel-memory` do.
+umbel = { path = "..", default-features = false, features = ["cli", "store-embedded"] }
+umbel-plugin-context = { path = "../plugins/context" }
+umbel-plugin-knowledge = { path = "../plugins/knowledge" }
+umbel-plugin-memory = { path = "../plugins/memory" }
+umbel-plugin-sources-filesystem = { path = "../plugins/sources-filesystem" }
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
+# `umbel_hook::run` drives this binary as the `umbel-hook` binary does (section 12).
+umbel-hook = { path = "../adapters/hook" }
+
+[lints]
+workspace = true

@@ -1,0 +1,38 @@
+[package]
+name = "umbel-hook"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel harness adapter: turns a harness's hook events into memory-capture and context-bundle calls on the umbel-first-party binary, reading Claude Code transcripts for user and assistant text only, and always failing open"
+repository = "https://github.com/lushly-dev/afd"
+
+# Links no host, store or plugin code, so it builds in seconds on serde alone (phase 3
+# specification, section 1): it runs `$UMBEL_BIN` as a child process.
+
+[features]
+# The tests' stand-in for `$UMBEL_BIN`, `umbel-hook-fixture`. `cargo test` enables it through the
+# dev-dependency on this crate, so the tests get `CARGO_BIN_EXE_*` for it; `cargo build` and
+# `cargo install` never build it.
+fixture = []
+
+[[bin]]
+name = "umbel-hook"
+path = "src/bin/umbel-hook.rs"
+
+[[bin]]
+name = "umbel-hook-fixture"
+path = "src/bin/umbel-hook-fixture.rs"
+required-features = ["fixture"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+umbel-hook = { path = ".", features = ["fixture"] }
+
+[lints]
+workspace = true
