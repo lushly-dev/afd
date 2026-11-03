@@ -36,4 +36,18 @@ describe('the shell names no app', () => {
 			.map((path) => relative(PACKAGES, path));
 		expect(offenders).toEqual([]);
 	});
+
+	it('names its package, directory or element nowhere, fixtures, tests and manifests included', () => {
+		// Built from parts too, and with no exclusion but this file.
+		const app = ['ta', 'sks'].join('');
+		const named = new RegExp(`loam-app-${app}|apps/${app}|${app}-main`);
+		const offenders = [
+			...sources(join(PACKAGES, 'kernel')),
+			...sources(join(PACKAGES, 'chrome')),
+			...sources(join(PACKAGES, 'web/src')),
+		]
+			.filter((path) => path !== SELF && named.test(readFileSync(path, 'utf8')))
+			.map((path) => relative(PACKAGES, path));
+		expect(offenders).toEqual([]);
+	});
 });

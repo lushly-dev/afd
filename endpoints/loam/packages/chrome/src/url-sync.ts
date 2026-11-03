@@ -276,7 +276,10 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			});
 		},
 		changed(event) {
-			if (!event.success || !(event.scopeChanged || event.mainChanged) || applying > 0) return;
+			// A change of actor moves the scope before a call that may then fail (3.4): the URL follows it all
+			// the same, and a failed call's `mainChanged` alone moved nothing.
+			const moved = event.scopeChanged !== undefined || (event.success && event.mainChanged);
+			if (!moved || applying > 0) return;
 			const history = event.mainChanged ?? 'push';
 			void bootStarted.then(() => queued(() => follow(history)));
 		},

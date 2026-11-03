@@ -48,7 +48,9 @@ const template = html<LoamPartHeader>`
 	<violet-breadcrumb class="crumbs" label="Location" ?hidden="${(x) => x.crumbs.length === 0}">
 		${repeat((x) => x.crumbs, crumbTemplate)}
 	</violet-breadcrumb>
-	<span class="title">${(x) => x.heading}</span>
+	<span class="title" ?hidden="${(x) => x.crumbs.at(-1)?.label === x.heading}"
+		>${(x) => x.heading}</span
+	>
 	<span class="actions">${repeat((x) => x.actions, actionTemplate)}</span>
 `;
 
@@ -88,6 +90,12 @@ const styles = [
 		}
 		.crumbs[hidden] {
 			display: none;
+		}
+		/* Each ancestor a target of 24 pixels at least (WCAG 2.5.8). */
+		violet-breadcrumb-item::part(link) {
+			display: inline-flex;
+			align-items: center;
+			min-block-size: var(--size-target-compact);
 		}
 		.actions {
 			display: inline-flex;

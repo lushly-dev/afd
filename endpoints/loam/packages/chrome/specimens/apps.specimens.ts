@@ -152,6 +152,7 @@ const switcherShell = (): LoamShell =>
 		ownerDocument: document,
 		rail: { showIcons() {} },
 		kernel: {
+			subscribe: () => () => {},
 			call: async (name: string) =>
 				name === 'project-list'
 					? {
@@ -261,6 +262,30 @@ export const [ProjectSwitcherList, ProjectSwitcherListCompact] = both(
 		await openSwitcher(switcherShell(), switcher);
 	},
 	{ inline: '360px', block: '360px' }
+);
+export const [ProjectSwitcherDialog, ProjectSwitcherDialogCompact] = both(
+	'loam-project-list',
+	async (wrapper) => {
+		// The compact class's tab bar: the list is a modal dialog, as the palette's list is (7.2).
+		const part = document.createElement('loam-tabbar') as LoamAppNav;
+		wrapper.append(part);
+		const switcher = part.shadowRoot?.querySelector('loam-project-switcher') as LoamProjectSwitcher;
+		await openSwitcher(switcherShell(), switcher);
+	},
+	{ inline: '390px', block: '480px' }
+);
+export const [ListTree, ListTreeCompact] = both(
+	'loam-list',
+	list((element) => {
+		// A `tree` sidebar's rows until `loam-tree`: one step per level, and each names its level and parent.
+		element.items = [
+			{ id: 'guides', title: 'Guides', depth: 0 },
+			{ id: 'start', title: 'Getting started', depth: 1, parent: 'Guides' },
+			{ id: 'install', title: 'Install', depth: 2, parent: 'Getting started' },
+			{ id: 'deep', title: 'Eighth level', depth: 7, parent: 'Seventh level' },
+		];
+	}),
+	{ inline: '260px', block: 'auto' }
 );
 export const [ListDual, ListDualCompact] = both(
 	'loam-list',

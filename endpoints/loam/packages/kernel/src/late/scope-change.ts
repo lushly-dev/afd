@@ -86,9 +86,12 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		const active = state.activeApp();
 		let left: string | undefined;
 		if (active !== null) {
+			// Kept where it takes the level and can open (4.3): a workspace-only app leaves for a project, and
+			// an instance that does not list the project leaves too (7.1, 9.1).
 			const levels = levelsOf(active);
 			const kept =
-				to.project === undefined ? levels.includes('workspace') : levels.includes('project');
+				scope.opensIn(active, levels, to.project) &&
+				(to.project === undefined || levels.includes('project'));
 			if (!kept) left = active;
 		}
 		if (left !== undefined) {

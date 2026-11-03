@@ -34,7 +34,7 @@ export function bandFor(
 export const railOrder = (
 	a: Pick<AppSummaryV2, 'order' | 'instance'>,
 	b: Pick<AppSummaryV2, 'order' | 'instance'>
-): number => a.order - b.order || (a.instance < b.instance ? -1 : 1);
+): number => a.order - b.order || (a.instance < b.instance ? -1 : a.instance > b.instance ? 1 : 0);
 
 /** A dimmed entry's tooltip: why it cannot open here. */
 export const dimmedTip = (title: string, project: string | undefined): string =>

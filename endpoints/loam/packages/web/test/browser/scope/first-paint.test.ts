@@ -368,6 +368,7 @@ describe('P2-E1: one first paint', () => {
 		expect(await railOrder(page)).toEqual(['hello', 'tally']);
 		site.release();
 		await expect.poll(() => entryOf(page, 'hello').getAttribute('aria-label')).toBe('Hello');
+		// D29, open with the owner: a dual-scope app with no project is in the bottom band (7.1).
 		await expect.poll(() => bandOf('hello')).toBe('bottom');
 		expect(await entryOf(page, 'hello').getAttribute('aria-disabled')).toBeNull();
 		await expect.poll(() => railOrder(page)).toEqual(['hello', 'tally']);

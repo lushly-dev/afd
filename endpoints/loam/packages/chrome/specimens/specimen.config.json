@@ -13,6 +13,12 @@
 			"exportName": "ShellCompactDensity"
 		},
 		{
+			"id": "shell-project",
+			"title": "Loam/Chrome/ShellProject",
+			"module": "./chrome.specimens.ts",
+			"exportName": "ShellProject"
+		},
+		{
 			"id": "shell-palette",
 			"title": "Loam/Chrome/ShellPalette",
 			"module": "./chrome.specimens.ts",
@@ -251,6 +257,30 @@
 			"title": "Loam/Apps/ProjectSwitcherListCompact",
 			"module": "./apps.specimens.ts",
 			"exportName": "ProjectSwitcherListCompact"
+		},
+		{
+			"id": "app-project-switcher-dialog",
+			"title": "Loam/Apps/ProjectSwitcherDialog",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectSwitcherDialog"
+		},
+		{
+			"id": "app-project-switcher-dialog-compact",
+			"title": "Loam/Apps/ProjectSwitcherDialogCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectSwitcherDialogCompact"
+		},
+		{
+			"id": "app-list-tree",
+			"title": "Loam/Apps/ListTree",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListTree"
+		},
+		{
+			"id": "app-list-tree-compact",
+			"title": "Loam/Apps/ListTreeCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ListTreeCompact"
 		},
 		{
 			"id": "app-list-dual",

@@ -984,3 +984,39 @@ describe('P2-E3 (kernel unit): what the rail and the parts read in a project (7.
 		expect(await available()).toEqual({ tasks: true, dual: false, solo: true });
 	});
 });
+
+describe('P2-E3 (kernel unit): a selection belongs to its scope and its app’s levels (7.4)', () => {
+	it('refuses a level the app does not take, and a project level with no project', async () => {
+		const { kernel } = await scoped();
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'solo', id: 's', level: 'project' }))
+				.error?.code
+		).toBe('VALIDATION_ERROR');
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'dual', id: 'd', level: 'project' }))
+				.error?.code
+		).toBe('SCOPE_PROJECT_REQUIRED');
+	});
+
+	it('keeps a late selection made in Atlas out of Beacon', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('scope-set', { project: 'beacon' });
+		await kernel.call('app-open', { instance: 'dual' });
+		// A surface made in Atlas, whose call lands after the switch.
+		const late = await kernel
+			.appPort('dual')
+			.surface({ scope: ATLAS })
+			.call('app-selection-set', { instance: 'dual', id: 'from-atlas' });
+		expect(late.data).toEqual({ id: 'from-atlas', level: 'project' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: null,
+			level: 'workspace',
+		});
+		await kernel.call('app-selection-set', { instance: 'dual', id: 'here' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: 'here',
+			level: 'project',
+		});
+	});
+});

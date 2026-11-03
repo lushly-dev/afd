@@ -222,14 +222,18 @@ export const scopedDeployment = (): ProjectionV2 => ({
 	generation: 'scoped',
 	workspace: { id: 'personal', name: 'Personal' },
 	sandbox_origin: null,
-	apps: ['tasks', 'dual', 'solo'].map((id) => ({ instance: id, app: id, package: `apps/${id}/` })),
+	apps: ['tasks', 'dual', 'solo'].map((id) => ({
+		instance: id,
+		app: id,
+		package: `fixtures/${id}/`,
+	})),
 });
 
 export const scopedPorts = () =>
 	createFixturePorts({
-		'apps/tasks/': { manifest: TASKS_MANIFEST, definition: TASKS_DEFINITION },
-		'apps/dual/': { manifest: DUAL_MANIFEST, definition: DUAL_DEFINITION },
-		'apps/solo/': { manifest: SOLO_MANIFEST, definition: SOLO_DEFINITION },
+		'fixtures/tasks/': { manifest: TASKS_MANIFEST, definition: TASKS_DEFINITION },
+		'fixtures/dual/': { manifest: DUAL_MANIFEST, definition: DUAL_DEFINITION },
+		'fixtures/solo/': { manifest: SOLO_MANIFEST, definition: SOLO_DEFINITION },
 	});
 
 /** Write the projects into `store`, as a session before this one did. */

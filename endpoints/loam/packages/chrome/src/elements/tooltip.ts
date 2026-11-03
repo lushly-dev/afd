@@ -106,8 +106,15 @@ export class LoamTooltip extends FASTElement {
 		on(this.ownerDocument, 'keydown', (event) => this.#escape(event as KeyboardEvent), true);
 	}
 
-	/** An event in its root, by type and path: its own, or the one that loaded it. */
-	handle(type: string, path: readonly EventTarget[]): void {
+	/**
+	 * An event in its root, by type and path: its own, or, `replayed`, the one that loaded it, which counts
+	 * only if it still holds: the pointer still over its target, focus still on it (7.5).
+	 */
+	handle(type: string, path: readonly EventTarget[], replayed = false): void {
+		const first = path[0] as Element;
+		if (replayed && type !== 'click' && !first.matches(type === 'focusin' ? ':focus' : ':hover')) {
+			return;
+		}
 		const target = tipOf(path, this.#root as Node);
 		if (type === 'pointerout' || type === 'focusout') this.#settle();
 		else if (!target) return;

@@ -164,7 +164,10 @@ async function measurePage() {
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
 	const mount = closure(/^assets\/mount-/, afterSurfaces);
 	if (mount.size === 0) throw new Error('budget: the build has no `mount` chunk to measure');
-	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2).
+	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2), charged after the
+	// surfaces, as 2.4's order has it. Open with the coordinator (G1 of #752's review): an empty shell, which
+	// loads no surfaces, pays 41,057 for it, with `violet-listbox` and `violet-option`, over the estimate of
+	// 30,000; the row's basis and ceiling wait for that decision.
 	const switcher = closure(/^assets\/switcher-/, afterSurfaces);
 	if (switcher.size === 0) throw new Error('budget: the build has no `switcher` chunk to measure');
 	// The rail's tooltip, loaded on its first hover, focus or press, which can come before `late` (7.5).

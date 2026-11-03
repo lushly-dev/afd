@@ -50,6 +50,8 @@ export class RailBands {
 	#list: AppListV2 | undefined;
 	#state: MainStateV1 | undefined;
 	#icons = false;
+	/** A change of scope not yet announced: a later read that renders over this one announces it. */
+	#change: ScopeChangeV2 | undefined;
 
 	constructor(shell: LoamShell) {
 		this.#shell = shell;
@@ -74,7 +76,8 @@ export class RailBands {
 
 	/** Read again and render; `change` is announced once read. */
 	refresh(change?: ScopeChangeV2): Promise<AppListV2 | undefined> {
-		const done = this.#refresh(change, ++this.#started);
+		if (change) this.#change = change;
+		const done = this.#refresh(++this.#started);
 		this.#read = { at: this.#changes, done };
 		return done;
 	}
@@ -98,11 +101,13 @@ export class RailBands {
 		return [list, state];
 	}
 
-	async #refresh(change: ScopeChangeV2 | undefined, started: number) {
+	async #refresh(started: number) {
 		const [list, state] = await this.read();
 		// A later read renders over this one, never the reverse.
 		if (started !== this.#started) return list;
 		this.render(list ?? this.#list, state);
+		const change = this.#change;
+		this.#change = undefined;
 		if (change) {
 			const left = this.#list?.apps.find((app) => app.instance === change.left)?.title;
 			this.#shell.announcement = `${state.project ? `Project: ${state.project.name}` : 'No project'}${left ? `. ${left} closed` : ''}`;
@@ -193,7 +198,7 @@ export class RailBands {
 			SECTIONS[state.section ?? ''];
 		shell.workspaceName = state.workspace.name ?? state.workspace.id;
 		shell.projectName = project?.name ?? '';
-		shell.ownerDocument.title = [main, project?.name, state.workspace.name]
+		shell.ownerDocument.title = [main, project?.name, shell.workspaceName]
 			.filter(Boolean)
 			.join(' · ');
 	}

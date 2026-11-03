@@ -40,7 +40,7 @@ const template = html<LoamAppEntry>`
 		</span>
 		<span class="label">${(x) => x.accessibleLabel}</span>
 	</button>
-	<span id="why" hidden>${(x) => (x.dimmed ? x.tip : '')}</span>
+	<span id="why" hidden>${(x) => x.tip}</span>
 `;
 
 const styles = css`

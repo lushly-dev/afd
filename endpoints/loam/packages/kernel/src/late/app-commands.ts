@@ -129,9 +129,17 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 					`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
 				);
 			}
-			// A dimmed entry: a project-only app with no project (phase 2 specification, 7.1).
-			if (app && !app.scopeLevels.includes('workspace') && scope.active().project === undefined) {
-				return kernelFailure('SCOPE_PROJECT_REQUIRED', 'Open a project first', 'Run scope-set');
+			// A dimmed entry: a project-only app with no project, or an instance that does not list this
+			// project (phase 2 specification, 7.1, 9.1).
+			const project = scope.active().project;
+			if (app && !scope.opensIn(instance, app.scopeLevels, project)) {
+				return kernelFailure(
+					'SCOPE_PROJECT_REQUIRED',
+					project === undefined
+						? 'Open a project first'
+						: `The app '${instance}' is not available in this project`,
+					'Run scope-set'
+				);
 			}
 			return moved(apps().open(instance), context);
 		},
@@ -202,7 +210,8 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: async (input) => apps().selection(input.instance),
+		handler: async (input, context) =>
+			apps().selection(input.instance, (context as KernelFieldContext).scope?.project),
 	});
 
 	const appSelectionSet = defineCommandWithSchema<typeof selectionInput, SelectionV2>({
@@ -233,7 +242,7 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 				.find((app) => app.instance === input.instance)
 				?.scopeLevels.includes('project');
 			const level = input.level ?? (project !== undefined && takes ? 'project' : 'workspace');
-			return apps().setSelection(input.instance, input.id, level);
+			return apps().setSelection(input.instance, input.id, level, project);
 		},
 	});
 

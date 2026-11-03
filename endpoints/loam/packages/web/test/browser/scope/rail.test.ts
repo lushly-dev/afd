@@ -2,8 +2,8 @@
  * The rail and the parts (phase 2 specification, 7.1 to 7.6 and 7.8; step 6): E3 so far, E12 so far, E11's
  * "tasks as version 2, side by side", and 7.6's guarantee that nothing of one project stays under another.
  * E3's clauses that land in the projects section wait for step 7: here they assert the state and the URL.
- * D29 is open with the owner: a dual-scope app with no project is in the bottom band, as specified, and the
- * one expectation that says so is marked below.
+ * D29 is open with the owner: a dual-scope app with no project is in the bottom band, as specified. Every
+ * expectation that reads it is marked `D29`, here and in `first-paint.test.ts` and `chrome/src/rail/bands.test.ts`.
  */
 
 import { type Browser, chromium, type Page } from 'playwright';
@@ -142,6 +142,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		// Atlas: hello moves to the top as one element, and tasks opens.
 		await mark(page, 'loam-rail loam-app-entry[instance="hello"]');
 		await scopeTo(page, 'atlas');
+		// D29: from the bottom band, where it was with no project.
 		await expect.poll(() => bandOf(page, 'hello')).toBe('top');
 		expect(await marked(page, 'loam-rail loam-app-entry[instance="hello"]')).toBe(true);
 		expect(await tasks.getAttribute('aria-disabled')).toBeNull();
@@ -153,6 +154,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 	});
 
 	it('P2-E3: keeps focus on an entry that moves band (7.1)', async () => {
+		// D29: hello moves only because, with no project, it is in the bottom band.
 		const opened = await withProjects();
 		const { page } = opened;
 		await entry(page, 'hello').locator('button').focus();
@@ -181,13 +183,17 @@ describe('P2-E3: two projects, and an app at each level', () => {
 			await shell.kernel.call('hello-greet', { name: 'Grace' }, { scope: 'workspace' });
 		});
 		await surfacesIdle(page);
-		const group = (name: string) => page.locator(`loam-sidebar loam-list[aria-label="${name}"]`);
+		const group = (name: string) => page.locator(`loam-sidebar loam-list[heading="${name}"]`);
 		await expect.poll(() => texts(group('In Atlas').locator('violet-option'))).toEqual(['Ada']);
 		await expect
 			.poll(() => texts(group('In Personal').locator('violet-option')))
 			.toEqual(['Grace']);
-		expect(await group('In Atlas').getAttribute('role')).toBe('region');
-		expect(await group('In Atlas').locator('h2').textContent()).toBe('In Atlas');
+		// Each group a region named by its h3 (7.4).
+		expect(await group('In Atlas').locator('.group').getAttribute('role')).toBe('region');
+		expect(await group('In Atlas').locator('.group').getAttribute('aria-labelledby')).toBe(
+			'heading'
+		);
+		expect(await group('In Atlas').locator('h3#heading').textContent()).toBe('In Atlas');
 		// A selection in the workspace's group is at that level.
 		await group('In Personal').locator('violet-option').first().click();
 		await surfacesIdle(page);
@@ -197,7 +203,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		// With no project, one list and no heading, as phase 1.
 		await scopeTo(page, null);
 		await expect.poll(() => page.locator('loam-sidebar loam-list').count()).toBe(1);
-		expect(await page.locator('loam-sidebar loam-list h2').count()).toBe(0);
+		expect(await page.locator('loam-sidebar loam-list h3').count()).toBe(0);
 		await opened.context.close();
 	});
 
@@ -272,16 +278,69 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect(await page.locator('loam-statusbar .workspace-status').textContent()).toContain(
 			'Personal'
 		);
-		await page.locator('loam-statusbar .project-home').click();
+		const home = page.locator('loam-statusbar .project-home');
+		expect(await home.getAttribute('aria-label')).toBe('Project: Atlas');
+		const box = await home.boundingBox();
+		expect(box?.height).toBeGreaterThanOrEqual(24);
+		await home.click();
 		await expect.poll(async () => (await stateOf(page)).section).toBe('projects');
 		await expect.poll(() => page.title()).toBe('Projects · Atlas · Personal');
-		// All projects opens the section, as a press of Projects does.
+		// No project, chosen by pointer.
 		await switcher.click();
 		await list.locator('violet-option', { hasText: 'No project' }).click();
 		await expect.poll(async () => (await stateOf(page)).project).toBeNull();
 		await expect.poll(() => page.locator('loam-shell .announce').textContent()).toBe('No project');
 		expect(opened.errors).toEqual([]);
 		expect(opened.violations).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('P2-E3: All projects opens the projects section, and focus goes to main’s heading when it left an app', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await openApp(page, 'hello');
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.click();
+		await page
+			.locator('loam-rail loam-project-list violet-option', { hasText: 'All projects' })
+			.click();
+		await expect.poll(async () => (await stateOf(page)).section).toBe('projects');
+		expect((await stateOf(page)).active).toBeNull();
+		await expect.poll(() => new URL(page.url()).pathname).toBe('/personal/~/projects');
+		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
+		expect(await switcher.getAttribute('aria-expanded')).toBe('false');
+		await opened.context.close();
+	});
+
+	it('P2-E3: Tab out of the open list closes it, focus staying where it went (A2)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.focus();
+		await page.keyboard.press('Enter');
+		await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('true');
+		await page.keyboard.press('Tab');
+		await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('false');
+		expect((await focused(page)).label).toBe('Documents');
+		await opened.context.close();
+	});
+
+	it('P2-E3: a workspace-only app opened in Atlas is made at the workspace, and learns no project (4.3)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		expect(await agentCall(page, 'app-open', { instance: 'tally' })).toMatchObject({
+			success: true,
+		});
+		await surfacesIdle(page);
+		await page.locator('tally-main').waitFor();
+		expect(
+			await page.locator('tally-main').evaluate((element) => (element as { scope?: unknown }).scope)
+		).toEqual({ workspace: 'personal' });
+		await page.locator('tally-main violet-button.add').click();
+		await settle(page);
+		const added = (await journal(page)).filter(({ command }) => command === 'tally-add').at(-1);
+		expect(added?.context?.scope).toEqual({ workspace: 'personal' });
 		await opened.context.close();
 	});
 
@@ -347,6 +406,143 @@ describe('P2-E3: nothing of one project stays under another (7.6)', () => {
 	});
 });
 
+describe('P2-E3: a change of scope a call did not ask for (7.6, 3.4)', () => {
+	it('P2-E3: drops a restricted project’s surfaces when an expired session’s own call is refused', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernelCall(page, 'project-create', {
+			name: 'Atlas',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		await scopeTo(page, 'atlas');
+		// Hello first, so its sidebar is parked when tasks opens.
+		await openApp(page, 'hello');
+		await mark(page, 'loam-sidebar loam-list[heading="In Atlas"]');
+		await openApp(page, 'tasks');
+		await kernelCall(page, 'tasks-add', { title: 'Restricted plan' });
+		await surfacesIdle(page);
+		expect(new URL(page.url()).pathname).toBe('/personal/p/atlas/tasks');
+		// The session expires, with no command: the next call, the Atlas surface's own, is refused.
+		await page.clock.setFixedTime(Date.now() + 2 * 3600_000);
+		const refused = await page.locator('tasks-main').evaluate((element) =>
+			(
+				element as unknown as {
+					context: { client: { call(name: string): Promise<{ error?: { code: string } }> } };
+				}
+			).context.client.call('tasks-list')
+		);
+		expect(refused.error?.code).toBe('PROJECT_NOT_FOUND');
+		await surfacesIdle(page);
+		await expect
+			.poll(() => page.locator('loam-rail loam-project-switcher button').getAttribute('aria-label'))
+			.toBe('Project: none');
+		await expect.poll(() => page.locator('tasks-main').count()).toBe(0);
+		await expect.poll(() => new URL(page.url()).pathname).not.toContain('/p/atlas');
+		expect(await deepText(page)).not.toContain('Restricted plan');
+		// Hello's parked sidebar was Atlas's: it is made again.
+		await openApp(page, 'hello');
+		expect(await marked(page, 'loam-sidebar loam-list')).toBe(false);
+		await opened.context.close();
+	});
+
+	it('P2-E3: archiving the active project recreates the app kept at the workspace', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		await openApp(page, 'hello');
+		await mark(page, 'hello-main');
+		const archived = (await kernelCall(page, 'project-archive', { project: 'atlas' })) as {
+			success: boolean;
+		};
+		expect(archived.success).toBe(true);
+		await surfacesIdle(page);
+		await page.locator('hello-main').waitFor();
+		expect(await marked(page, 'hello-main')).toBe(false);
+		expect(
+			await page.locator('hello-main').evaluate((element) => (element as { scope?: unknown }).scope)
+		).toEqual({ workspace: 'personal' });
+		await expect.poll(() => new URL(page.url()).pathname).toBe('/personal/hello');
+		await expect.poll(() => page.locator('loam-shell .announce').textContent()).toBe('No project');
+		await opened.context.close();
+	});
+
+	it('P2-E3: ignores a selection from a list made before the change of scope (7.6)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		await openApp(page, 'hello');
+		const count = (await journal(page)).length;
+		const connected = await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				shadowRoot: ShadowRoot;
+				kernel: { call(name: string, input: unknown): Promise<unknown> };
+			};
+			const list = shell.shadowRoot.querySelector('loam-sidebar loam-list') as HTMLElement;
+			await shell.kernel.call('scope-set', { project: 'beacon' });
+			const attached = list.isConnected;
+			list.dispatchEvent(
+				new CustomEvent('loam-list-select', {
+					detail: { id: 'from-atlas' },
+					bubbles: true,
+					composed: true,
+				})
+			);
+			return attached;
+		});
+		expect(connected).toBe(true);
+		await surfacesIdle(page);
+		expect(
+			(await journal(page)).slice(count).filter(({ command }) => command === 'app-selection-set')
+		).toEqual([]);
+		await opened.context.close();
+	});
+});
+
+describe('P2-E3: a mounted instance with projects (7.1, 9.1)', () => {
+	it('P2-E3: is dimmed with no project and in a project it does not list, each with its tooltip', async () => {
+		const mounted = await serveDeployment({
+			config: deploymentFile(
+				[
+					'[apps.work]',
+					'app = "hello"',
+					`package = ${JSON.stringify(await packApp('hello', 'mounted'))}`,
+					'title = "Work"',
+					'prefix = "work"',
+					'audience = "person"',
+					'transport = "stdio"',
+					'command = ["umbel", "serve", "--stdio"]',
+					'projects = ["atlas"]',
+				].join('\n')
+			),
+		});
+		const opened = await openShell(browser, mounted.root);
+		const { page } = opened;
+		for (const name of ['Atlas', 'Beacon']) await kernelCall(page, 'project-create', { name });
+		await settle(page);
+		const work = entry(page, 'work').locator('button');
+		const tip = page.locator('loam-rail loam-tooltip');
+		expect(await bandOf(page, 'work')).toBe('top');
+		expect(await work.getAttribute('aria-disabled')).toBe('true');
+		await work.hover();
+		await expect.poll(() => tip.textContent()).toBe('Choose a project to open Work');
+		await page.mouse.move(700, 500);
+		await scopeTo(page, 'beacon');
+		await expect.poll(() => work.getAttribute('aria-disabled')).toBe('true');
+		await work.hover();
+		await expect.poll(() => tip.textContent()).toBe('Work is not available in Beacon');
+		await page.mouse.move(700, 500);
+		await scopeTo(page, 'atlas');
+		await expect.poll(() => work.getAttribute('aria-disabled')).toBeNull();
+		await opened.context.close();
+		await mounted.close();
+	});
+});
+
 describe('P2-E3: a layout per app and scope (7.6)', () => {
 	it("P2-E3: keeps hello's workspace layout and its Atlas layout apart, and the shell shows the one in scope", async () => {
 		const opened = await withProjects();
@@ -382,35 +578,40 @@ describe('P2-E12: accessibility of the rail and the parts', () => {
 		await settle(page);
 	};
 
-	for (const [theme, density] of [
-		['light', 'comfortable'],
-		['dark', 'compact'],
-		['high-contrast', 'comfortable'],
-	] as const) {
-		it(`P2-E12: has no violations with bands and a dimmed entry, the switcher open and a dual sidebar, ${theme} ${density}`, async () => {
-			const opened = await openShell(browser, site.root);
-			const { page } = opened;
-			await scenes(page);
-			await kernelCall(page, 'appearance-set', { theme, density });
-			await settle(page);
-			expect(await axe(page)).toEqual([]);
-			await page.locator('loam-rail loam-project-switcher button').click();
-			await expect
-				.poll(() =>
-					page.locator('loam-rail loam-project-switcher button').getAttribute('aria-expanded')
-				)
-				.toBe('true');
-			expect(await axe(page)).toEqual([]);
-			await page.keyboard.press('Escape');
-			await scopeTo(page, 'atlas');
-			await openApp(page, 'hello');
-			await expect.poll(() => page.locator('loam-sidebar loam-list').count()).toBe(2);
-			expect(await axe(page)).toEqual([]);
-			await opened.context.close();
-		});
+	/** The dual sidebar: hello in Atlas, its two groups in the sidebar, or the compact class's drawer. */
+	const dualSidebar = async (page: Page, compact = false) => {
+		await scopeTo(page, 'atlas');
+		await agentCall(page, 'app-open', { instance: 'hello' });
+		if (compact) await kernelCall(page, 'layout-set', { compact: { drawer: 'sidebar' } });
+		await surfacesIdle(page);
+		await expect.poll(() => page.locator('loam-sidebar loam-list').count()).toBe(2);
+	};
+
+	for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+		for (const density of ['comfortable', 'compact'] as const) {
+			it(`P2-E12: has no violations with bands and a dimmed entry, the switcher open and a dual sidebar, ${theme} ${density}`, async () => {
+				const opened = await openShell(browser, site.root);
+				const { page } = opened;
+				await scenes(page);
+				await kernelCall(page, 'appearance-set', { theme, density });
+				await settle(page);
+				expect(await axe(page)).toEqual([]);
+				await page.locator('loam-rail loam-project-switcher button').click();
+				await expect
+					.poll(() =>
+						page.locator('loam-rail loam-project-switcher button').getAttribute('aria-expanded')
+					)
+					.toBe('true');
+				expect(await axe(page)).toEqual([]);
+				await page.keyboard.press('Escape');
+				await dualSidebar(page);
+				expect(await axe(page)).toEqual([]);
+				await opened.context.close();
+			});
+		}
 	}
 
-	it('P2-E12: has no violations under forced colors and in the compact class', async () => {
+	it('P2-E12: has no violations under forced colors and in the compact class, the dual sidebar too', async () => {
 		for (const options of [
 			{ forcedColors: 'active' as const },
 			{ viewport: { width: 390, height: 844 } },
@@ -419,17 +620,80 @@ describe('P2-E12: accessibility of the rail and the parts', () => {
 			const { page } = opened;
 			await scenes(page);
 			expect(await axe(page)).toEqual([]);
-			const nav = options.viewport ? 'tabbar' : 'rail';
-			await page.locator(`loam-${nav} loam-project-switcher button`).click();
-			await expect
-				.poll(() =>
-					page.locator(`loam-${nav} loam-project-switcher button`).getAttribute('aria-expanded')
-				)
-				.toBe('true');
+			const compact = options.viewport !== undefined;
+			const switcher = page.locator(
+				`loam-${compact ? 'tabbar' : 'rail'} loam-project-switcher button`
+			);
+			expect(await switcher.getAttribute('aria-haspopup')).toBe(compact ? 'dialog' : 'listbox');
+			await switcher.click();
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('true');
 			expect(await axe(page)).toEqual([]);
 			await page.keyboard.press('Escape');
+			await expect.poll(() => switcher.getAttribute('aria-expanded')).toBe('false');
+			// Escape gives focus back to the switcher it opened from, the tab bar's in the compact class.
+			const back = await focused(page);
+			expect(back.hosts).toContain(`loam-${compact ? 'tabbar' : 'rail'}`);
+			expect(back.label).toBe('Project: none');
+			await dualSidebar(page, compact);
+			expect(await axe(page)).toEqual([]);
 			await opened.context.close();
 		}
+	});
+});
+
+describe('P2-E12: the tooltip loaded on first use (7.5)', () => {
+	it('P2-E12: does not open for an entry the pointer has left while its chunk loaded, nor take Escape', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await opened.context.route(/\/assets\/tooltip-[^/]*\.js$/, async (route) => {
+			await held;
+			await route.continue();
+		});
+		await entry(page, 'hello').hover();
+		await page.mouse.move(700, 500);
+		release();
+		const tip = page.locator('loam-rail loam-tooltip');
+		await tip.waitFor({ state: 'attached' });
+		await settle(page);
+		expect(await tip.evaluate((element) => element.matches(':popover-open'))).toBe(false);
+		// Escape reaches the page: nothing showing took it.
+		await page.evaluate(() => {
+			(window as unknown as { escapes: boolean[] }).escapes = [];
+			window.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape') {
+					(window as unknown as { escapes: boolean[] }).escapes.push(event.defaultPrevented);
+				}
+			});
+		});
+		await page.keyboard.press('Escape');
+		expect(
+			await page.evaluate(() => (window as unknown as { escapes: boolean[] }).escapes)
+		).toEqual([false]);
+		// From now on it is the tooltip's own listeners that show it.
+		await entry(page, 'hello').hover();
+		await expect.poll(() => tip.textContent()).toBe('Hello');
+		await opened.context.close();
+	});
+
+	it('P2-E12: tries the chunk again after a failed load', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		let refused = 0;
+		await opened.context.route(/\/assets\/tooltip-[^/]*\.js$/, (route) =>
+			refused++ === 0 ? route.abort() : route.continue()
+		);
+		await entry(page, 'hello').hover();
+		await expect.poll(() => refused).toBe(1);
+		await page.mouse.move(700, 500);
+		await entry(page, 'hello').hover();
+		await expect.poll(() => page.locator('loam-rail loam-tooltip').textContent()).toBe('Hello');
+		// The failed import was reported, as a chunk that does not load is.
+		expect(opened.errors.filter((error) => !/tooltip|ERR_FAILED/.test(error))).toEqual([]);
+		await opened.context.close();
 	});
 });
 

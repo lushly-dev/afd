@@ -35,6 +35,8 @@ const MODAL = new Set([
 	'app-modal-compact',
 	'app-modal-danger',
 	'app-modal-danger-compact',
+	'app-project-switcher-dialog',
+	'app-project-switcher-dialog-compact',
 ]);
 
 function expectClean(observation: Observation, id = observation.manifest.specimenId) {
@@ -65,9 +67,9 @@ describe('E2: a replayed journal reproduces the layout', () => {
 		expect(journalNumber(replay)).toBe(2 + 3);
 		const diff = diffObservations(live, replay);
 		const outsideJournal = diff.differences.filter((difference) => {
-			// The journal's item: fourth from phase 2's step 6, after the workspace's, the project's and the
-			// actor's (7.4).
-			if (difference.target?.includes('loam-status-item:4')) return false;
+			// The journal's item: third from phase 2's step 6, after the workspace's and the actor's; the
+			// project's is a button (7.4).
+			if (difference.target?.includes('loam-status-item:3')) return false;
 			if (difference.target?.includes('loam-statusbar:1/shadow/span:2')) return false;
 			if (difference.channel === 'a11y' || difference.channel === 'dom') {
 				const strip = (value: unknown) =>
@@ -113,6 +115,7 @@ const CAPTURES: [string, string][] = [
 	['empty-state', 'Output and logs will appear here.'],
 	['status-item', 'Journal'],
 	['notice', 'heading "Loam is open in another tab"'],
+	['shell-project', 'button "Project: Atlas"'],
 ];
 
 /** E11 (phase 1 specification, section 14): what apps add, comfortable and compact. */
@@ -129,6 +132,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-rail-project', 'button "Project: Atlas"'],
 	['app-rail-tooltip', 'button "Tracker"'],
 	['app-project-switcher-list', 'listbox "Projects"'],
+	['app-project-switcher-dialog', 'aria-label="Choose a project"'],
+	['app-list-tree', 'level 3, in Getting started'],
 	['app-list-dual', 'region "In Atlas"'],
 	['app-part-header-crumbs', 'navigation "Location"'],
 	['app-status-action', 'button "Total 3"'],

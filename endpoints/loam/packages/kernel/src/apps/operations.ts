@@ -60,24 +60,21 @@ export interface AppRecord {
 	commands: readonly string[];
 	/** The status items the manifest declares. */
 	readonly statusItemIds: ReadonlySet<string>;
-	/** Not persisted: `app-selection-set` sets it, and leaving the app clears it (4.4). */
-	selection: string | null;
-	/** The level the selection was made at (phase 2 specification, 7.4). */
-	selectionLevel?: SelectionV2['level'];
+	/**
+	 * Not persisted: `app-selection-set` sets one per scope, keyed as {@link statusKey} keys a status value,
+	 * so a late call of a surface made in Atlas cannot select under Beacon; leaving the app, or any change of
+	 * scope, clears them (4.4; phase 2 specification, 7.4).
+	 */
+	readonly selections: Map<string, SelectionV2>;
 	/** Keyed by {@link statusKey}: a value is per instance and scope (7.6). */
 	readonly statusValues: Map<string, string>;
 }
 
-const unselect = (record: AppRecord): void => {
-	record.selection = null;
-	record.selectionLevel = undefined;
-};
+const unselect = (record: AppRecord): void => record.selections.clear();
 
-/** A selection with no level read is at the workspace's. */
-const selectionOf = (record: AppRecord): SelectionV2 => ({
-	id: record.selection,
-	level: record.selectionLevel ?? 'workspace',
-});
+/** The selection made in `project`'s scope; none reads at the workspace's level. */
+const selectionOf = (record: AppRecord, project: string | undefined): SelectionV2 =>
+	record.selections.get(statusKey(record, project, '')) ?? { id: null, level: 'workspace' };
 
 /**
  * A status value's key: the project, for an app that takes one, then the item's id. An app that does not
@@ -333,9 +330,9 @@ export function createOperations(
 				}
 			);
 		},
-		selection(instance) {
+		selection(instance, project) {
 			const record = records.get(instance);
-			return record ? success(selectionOf(record)) : unknownApp(instance);
+			return record ? success(selectionOf(record, project)) : unknownApp(instance);
 		},
 		resetSession() {
 			for (const record of records.values()) {
@@ -343,12 +340,25 @@ export function createOperations(
 				record.statusValues.clear();
 			}
 		},
-		setSelection(instance, id, level) {
+		setSelection(instance, id, level, project) {
 			const record = records.get(instance);
 			if (!record) return unknownApp(instance);
-			const previous = selectionOf(record);
-			record.selection = id;
-			record.selectionLevel = level;
+			if (!record.scopeLevels.includes(level)) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					`The app '${instance}' has no ${level} level to select at`,
+					`Select at ${record.scopeLevels.map((each) => `'${each}'`).join(' or ')}`
+				);
+			}
+			if (level === 'project' && project === undefined) {
+				return kernelFailure(
+					'SCOPE_PROJECT_REQUIRED',
+					'Open a project first',
+					"Run scope-set, or select at 'workspace'"
+				);
+			}
+			const previous = selectionOf(record, project);
+			record.selections.set(statusKey(record, project, ''), { id, level });
 			return success(
 				{ id, level },
 				{ undoCommand: 'app-selection-set', undoArgs: { instance, ...previous } }

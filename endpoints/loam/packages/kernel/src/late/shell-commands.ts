@@ -243,6 +243,8 @@ function guardViewStateSet(
 			if (!mayRead(id, context, deps)) return unregistered(id);
 			const recordId = await layoutRecordId(id, context, deps);
 			if (isLayoutId(recordId)) {
+				// A project's record read on first use is read before this writes it, as `layout-*` waits (7.6).
+				await deps.state.whenRead(recordId);
 				const current = deps.state.layoutOf(recordId);
 				if (current) {
 					const checked = replace

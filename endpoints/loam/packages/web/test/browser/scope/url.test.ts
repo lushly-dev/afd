@@ -283,16 +283,27 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		const pushed = await historyLength(page);
 		expect(pushed).toBe(start + 1);
 
+		// Phase 2's step 6: hello is kept across the change, and made again (7.6).
+		const markMain = () =>
+			page.locator('hello-main').evaluate((element) => {
+				(element as unknown as { loamMark?: boolean }).loamMark = true;
+			});
+		const madeAgain = async () =>
+			!(await page
+				.locator('hello-main')
+				.evaluate((element) => (element as unknown as { loamMark?: boolean }).loamMark === true));
+		await markMain();
 		let count = (await journal(page)).length;
 		await traverse(page, 'back');
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 		expect((await stateOf(page)).scope).toEqual({ workspace: 'personal' });
-		// Amended by phase 2's step 6: the app kept across the change is recreated (7.6), which reads its
-		// detail, layout and list again, and its new main sets its status item; the command the traverse ran
-		// is the one that changes the shell's state.
+		await surfacesIdle(page);
+		expect(await madeAgain()).toBe(true);
+		// Amended by phase 2's step 6: the recreation reads hello's detail, layout and list again, which are
+		// reads; what changes state is the traverse's command, and the new main's one status item.
 		const changes = (entries: EntrySummary[]) =>
-			entries.filter(({ command }) => !/-(get|list)$|^status-item-set$/.test(command));
+			entries.filter(({ command }) => !/-(get|list)$/.test(command));
 		expect(
 			changes(await since(page, count)).map(({ command, input, success, interface: iface }) => ({
 				command,
@@ -302,6 +313,12 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 			}))
 		).toEqual([
 			{ command: 'scope-set', input: { project: null }, success: true, iface: 'palette' },
+			{
+				command: 'status-item-set',
+				input: { id: 'count', value: '0' },
+				success: true,
+				iface: 'palette',
+			},
 		]);
 		expect(await historyLength(page)).toBe(pushed);
 		expect(
@@ -311,13 +328,19 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 			)
 		).toBe(true);
 
+		await markMain();
 		count = (await journal(page)).length;
 		await traverse(page, 'forward');
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/p/atlas/hello`);
 		expect((await stateOf(page)).project?.slug).toBe('atlas');
+		await surfacesIdle(page);
+		expect(await madeAgain()).toBe(true);
 		expect(changes(await since(page, count)).map(({ command, input }) => [command, input])).toEqual(
-			[['scope-set', { project: 'atlas' }]]
+			[
+				['scope-set', { project: 'atlas' }],
+				['status-item-set', { id: 'count', value: '0' }],
+			]
 		);
 		expect(await historyLength(page)).toBe(pushed);
 		await showsApp(page, 'hello');

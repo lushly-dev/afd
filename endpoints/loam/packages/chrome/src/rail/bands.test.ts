@@ -28,6 +28,7 @@ describe('P2-E3: bandFor (7.1)', () => {
 	});
 
 	it('moves a dual-scope app from the bottom band to the top when a project is active (D29)', () => {
+		// D29, open with the owner: with no project, the bottom band (7.1). `bandFor`'s one row.
 		expect(bandFor(row(['workspace', 'project']), undefined)).toEqual({
 			band: 'bottom',
 			dimmed: false,

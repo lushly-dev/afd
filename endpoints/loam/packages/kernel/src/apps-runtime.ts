@@ -78,12 +78,14 @@ export interface AppsRuntime {
 	redact(record: JournalRecord): JournalRecord;
 	/** Register a catalog a journal recorded, with no network. Only a replay has one. */
 	applyCatalog(instance: string, catalog: unknown): void;
-	/** The selected id and the level it was made at (phase 2 specification, 7.4). */
-	selection(instance: string): CommandResult<SelectionV2>;
+	/** The selected id in `project`'s scope, the call's, and the level it was made at (7.4). */
+	selection(instance: string, project?: string): CommandResult<SelectionV2>;
+	/** Refused for a level the app does not take, or `project` with no project in the call's scope. */
 	setSelection(
 		instance: string,
 		id: string | null,
-		level: SelectionV2['level']
+		level: SelectionV2['level'],
+		project?: string
 	): CommandResult<SelectionV2>;
 	/** A value is per instance and scope: `project` is the call's, for an app that takes one (7.6). */
 	setStatusItem(

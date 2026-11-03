@@ -15,7 +15,7 @@ const template = html<LoamProjectSwitcher>`
 	<button
 		class="entry"
 		type="button"
-		aria-haspopup="listbox"
+		aria-haspopup="${(x) => (x.variant === 'tabbar' ? 'dialog' : 'listbox')}"
 		aria-expanded="${(x) => String(x.expanded)}"
 		aria-label="${(x) => x.accessibleName}"
 		@click="${(x) => x.press()}"

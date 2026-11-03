@@ -27,6 +27,8 @@ export interface LoamListItem {
 	description?: string;
 	/** A `tree` sidebar's row: how deep it is, from 0 (phase 2 specification, 7.4). */
 	depth?: number;
+	/** A `tree` row's parent's title, which its accessible text names. */
+	parent?: string;
 }
 
 /** A failed read, as a failure's message and suggestion. */
@@ -46,6 +48,12 @@ const itemTemplate = html<LoamListItem>`
 	>
 		<span class="item-title">${(x) => x.title}</span>
 		${when(
+			(x) => x.depth !== undefined,
+			html<LoamListItem>`<span class="visually-hidden"
+				>${(x) => `, level ${(x.depth ?? 0) + 1}${x.parent ? `, in ${x.parent}` : ''}`}</span
+			>`
+		)}
+		${when(
 			(x) => x.description !== undefined,
 			html<LoamListItem>`<span class="item-description" slot="description"
 				>${(x) => x.description}</span
@@ -55,7 +63,12 @@ const itemTemplate = html<LoamListItem>`
 `;
 
 const template = html<LoamList>`
-	${when((x) => x.heading !== '', html<LoamList>`<h2>${(x) => x.heading}</h2>`)}
+	<div
+		class="group"
+		role="${(x) => (x.heading ? 'region' : null)}"
+		aria-labelledby="${(x) => (x.heading ? 'heading' : null)}"
+	>
+	${when((x) => x.heading !== '', html<LoamList>`<h3 id="heading">${(x) => x.heading}</h3>`)}
 	${when(
 		(x) => x.failure !== null,
 		html<LoamList>`
@@ -78,6 +91,7 @@ const template = html<LoamList>`
 	>
 		${repeat((x) => x.items, itemTemplate)}
 	</violet-listbox>
+	</div>
 `;
 
 const styles = css`
@@ -112,7 +126,15 @@ const styles = css`
 		background: var(--color-control-selected-background);
 		color: var(--color-control-selected-foreground);
 	}
-	h2 {
+	.visually-hidden {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	h3 {
 		margin: 0 0 var(--space-stack-xs);
 		color: var(--color-text-secondary);
 		font-size: var(--type-label-sm-size);
@@ -122,18 +144,27 @@ const styles = css`
 	:host([heading]:not([heading=''])) {
 		margin-block-end: var(--space-stack-md);
 	}
-	violet-option[data-depth]::part(control) {
+	/* One step per level, all eight of a tree's (7.4). */
+	violet-option[data-depth='1']::part(control) {
 		padding-inline-start: calc(var(--space-inline-md) * 2);
 	}
 	violet-option[data-depth='2']::part(control) {
 		padding-inline-start: calc(var(--space-inline-md) * 3);
 	}
-	violet-option[data-depth='3']::part(control),
-	violet-option[data-depth='4']::part(control),
-	violet-option[data-depth='5']::part(control),
-	violet-option[data-depth='6']::part(control),
-	violet-option[data-depth='7']::part(control) {
+	violet-option[data-depth='3']::part(control) {
 		padding-inline-start: calc(var(--space-inline-md) * 4);
+	}
+	violet-option[data-depth='4']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 5);
+	}
+	violet-option[data-depth='5']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 6);
+	}
+	violet-option[data-depth='6']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 7);
+	}
+	violet-option[data-depth='7']::part(control) {
+		padding-inline-start: calc(var(--space-inline-md) * 8);
 	}
 	.item-title {
 		font-size: var(--type-body-md-size);
@@ -157,7 +188,7 @@ const styles = css`
 		color: var(--color-text-secondary);
 	}
 	@media (forced-colors: active) {
-		h2,
+		h3,
 		p,
 		.failure p,
 		.failure .suggestion {
@@ -209,6 +240,10 @@ export class LoamList extends FASTElement {
 	declare heading: string;
 	/** The level its command runs at, which a selection in it carries. */
 	level?: 'workspace' | 'project';
+	/** The scope it was made in, which its command reads, as a queued read after a change of scope does. */
+	scope?: { workspace: string; project?: string };
+	/** Made before a change of scope: it reads nothing more, and what it selects is ignored (7.6). */
+	stale = false;
 	declare emptyMessage: string;
 	declare items: LoamListItem[];
 	declare selected: string | null;
@@ -237,16 +272,6 @@ export class LoamList extends FASTElement {
 	override disconnectedCallback(): void {
 		Observable.getNotifier(this.listbox).unsubscribe(this.#activeWatch, 'activeValue');
 		super.disconnectedCallback();
-	}
-
-	headingChanged(): void {
-		if (!this.heading) {
-			this.removeAttribute('role');
-			this.removeAttribute('aria-label');
-			return;
-		}
-		this.setAttribute('role', 'region');
-		this.setAttribute('aria-label', this.heading);
 	}
 
 	busyChanged(): void {

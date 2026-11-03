@@ -87,25 +87,52 @@ export const styles = css`
 	/* Heard, not seen: the live region of a change of scope (phase 2 specification, 7.8). */
 	.announce {
 		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
 		clip-path: inset(50%);
 	}
-	/* The status bar's project item, a button to the project's home (7.4). */
+	/* The status bar's project item, a button to the project's home, as loam-status-action is (7.4). */
 	.project-home {
-		padding: 0;
-		border: 0;
-		background: none;
-		color: inherit;
+		min-block-size: var(--size-target-compact);
+		padding-inline: var(--space-inline-sm);
+		border: 1px solid transparent;
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--color-text-secondary);
 		font: inherit;
-		text-decoration: underline;
+		font-size: var(--type-caption-xs-size);
+		line-height: var(--type-caption-xs-line);
+		white-space: nowrap;
 		cursor: pointer;
+	}
+	.project-home .label {
+		margin-inline-end: var(--size-space-sm);
+		color: var(--color-text-muted);
+	}
+	.project-home:hover {
+		background: var(--color-action-secondary-hover);
+		color: var(--color-text-primary);
+	}
+	.project-home:active {
+		background: var(--color-action-secondary-pressed);
 	}
 	.project-home:focus-visible {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: calc(-1 * var(--shell-size-focus));
 	}
 	@media (forced-colors: active) {
 		:host {
 			background: Canvas;
 			color: CanvasText;
+		}
+		.project-home,
+		.project-home .label {
+			border-color: ButtonText;
+			color: ButtonText;
+		}
+		.project-home:focus-visible {
+			outline-color: Highlight;
 		}
 	}
 `;

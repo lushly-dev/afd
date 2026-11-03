@@ -34,13 +34,13 @@ const template = html<LoamAppNav>`
 		<hr class="divider" aria-hidden="true" />
 		<ul class="band bottom" aria-label="Workspace apps"></ul>
 	</div>
-	<ul class="end">
+	<ul class="end" aria-label="Settings">
 		<loam-section-entry
 			class="settings"
 			label="Settings"
 			icon="system/settings"
 			dimmed
-			tip="${() => SETTINGS_TOOLTIP}"
+			tip="Settings arrive in phase 4"
 			variant="${(x) => x.variant}"
 		></loam-section-entry>
 	</ul>
@@ -88,22 +88,39 @@ export abstract class LoamAppNav extends FASTElement {
 		registerChromeIcons();
 	}
 
-	#tooltip: Promise<{ handle(type: string, path: EventTarget[]): void }> | null = null;
+	#tooltip: Promise<{ handle(type: string, path: EventTarget[], replayed: boolean): void }> | null =
+		null;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'navigation');
 		this.setAttribute('aria-label', 'Apps');
-		for (const type of ['pointerover', 'focusin', 'click']) {
-			this.shadowRoot?.addEventListener(type, this.#wake);
-		}
+		this.#wakeOn('addEventListener');
 	}
 
-	/** The first event that needs the tooltip loads it, and is handed to it (phase 2 specification, 7.5). */
+	#wakeOn(method: 'addEventListener' | 'removeEventListener'): void {
+		for (const type of ['pointerover', 'focusin', 'click'])
+			this.shadowRoot?.[method](type, this.#wake);
+	}
+
+	/**
+	 * The first event that needs the tooltip loads it, and is handed to it if it still holds: the pointer
+	 * still over its target, focus still on it (phase 2 specification, 7.5). A failed load is tried again.
+	 */
 	#wake = (event: Event): void => {
 		const path = event.composedPath();
-		this.#tooltip ??= import('./tooltip.js').then(({ attachTooltip }) => attachTooltip(this));
-		void this.#tooltip.then((tip) => tip.handle(event.type, path)).catch(reportError);
+		const { type } = event;
+		this.#tooltip ??= import('./tooltip.js')
+			.then(({ attachTooltip }) => attachTooltip(this))
+			.then((tip) => {
+				this.#wakeOn('removeEventListener');
+				return tip;
+			})
+			.catch((cause: unknown) => {
+				this.#tooltip = null;
+				throw cause;
+			});
+		void this.#tooltip.then((tip) => tip.handle(type, path, true)).catch(reportError);
 	};
 
 	/** A band's list, which `RailBands` fills. */
