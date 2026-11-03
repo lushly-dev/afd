@@ -5,7 +5,7 @@ Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/
 ## Summary
 
 - **Scale.** Botcore has 55 canonical skills and AFD 69, of which 15 are local. Lushly has 93: 56 copies seeded from Botcore and 37 of its own. Together they hold about 600,000 words, counting each unique skill once. The average SKILL.md is about 1,300 words, and the average description is about 600 characters.
-- **The listing is already overflowing.** AFD's descriptions total about 40,600 characters and Lushly's about 53,000. In a Claude Code session in AFD on 2026-11-03, about 30 to 40 skills were listed by name only. Claude Code budgets the skill listing at 1% of the context window (8,000 characters as a fallback) and drops descriptions first from the least-used skills. Those skills include `review-code`, `run-dev-checks`, `write-tests` and `manage-git`.
+- **The listing is already overflowing.** AFD's descriptions total about 39,500 characters and Lushly's about 52,000. In a Claude Code session in AFD on 2026-11-03, about 30 to 40 skills were listed by name only. Claude Code budgets the skill listing at 1% of the context window (8,000 characters as a fallback) and drops descriptions first from the least-used skills. Those skills include `review-code`, `run-dev-checks`, `write-tests` and `manage-git`.
 - **Usage is concentrated.** Across 407 Claude Code transcripts and 48 Codex sessions, almost every explicit invocation went to the session loop (`do-init-lushly` 48, `do-end-session` 41, `do-prepare-pr` 39) and to a few Lushly skills. Real reads cluster on about 20 skills. The 19 Botcore `-learn` skills had one invocation between them.
 - **Diagnosis.** Most Botcore skills are textbook material in an identical template: capabilities list, routing table, principles, checklist, "When to Escalate", keyword-stuffed description and duplicate `triggers:` list. That template is the house standard because `manage-skills` and the SK lint rules encode it. Several of these skills contradict house conventions:
   - ESLint, Prettier and Black against Biome.
@@ -77,12 +77,12 @@ Sources were checked on 2026-11-03.
 - Undertriggering is still common, so keep one or two trigger phrases.
 - Moving content into AGENTS.md is not free:
   - Context files can lower success while adding more than 20% cost.
-  - AFD's AGENTS.md is already 27.6 KB against Codex's 32 KiB default `project_doc_max_bytes`.
+  - AFD's AGENTS.md is already about 28 KB against Codex's 32 KiB default `project_doc_max_bytes`.
   - Salvaged lines should therefore go to the skill or doc that owns the topic, not to AGENTS.md by default.
 
 ## Verdicts
 
-Verdicts are KEEP, REWRITE (keep the value, cut the rest), MERGE, CONVERT (the value is real but belongs in a doc, script or AGENTS.md) and REMOVE. Words are given as SKILL/references. The full audits, with evidence per skill, are in `/tmp/skill-audit/results/` and were not copied into the repository.
+Verdicts are KEEP, REWRITE (keep the value, cut the rest), MERGE, CONVERT (the value is real but belongs in a doc, script or AGENTS.md) and REMOVE. Words are given as SKILL/references. Each verdict summarizes a per-skill audit that read the SKILL.md and references in full and spot-checked claims against source. Re-check a verdict's evidence against the current tree before acting on it.
 
 ### Botcore canonical (AFD name in parentheses)
 

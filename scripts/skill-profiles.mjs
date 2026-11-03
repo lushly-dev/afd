@@ -95,47 +95,96 @@ function blockScalar(indicator, lines, field, terminated) {
 function scalar(value, lines, field, terminated) {
 	if (/^[>|]/.test(value))
 		return blockScalar(value.replace(/\s+#.*$/, ''), lines, field, terminated);
+	if (/^[[{&*!%@`]/.test(value) || /^(?:~|null|Null|NULL)$/.test(value))
+		throw new Error(`Unsupported ${field} value: ${value}`);
 	if (value.startsWith('"') || value.startsWith("'")) {
 		const quote = value[0];
 		if (lines.length || value.length < 2 || !value.endsWith(quote))
 			throw new Error(`Unsupported multi-line quoted ${field}`);
 		return quote === '"' ? JSON.parse(value) : value.slice(1, -1).replaceAll("''", "'");
 	}
-	if (lines.some((line) => /^\s*(?:- |[\w-]+:\s)/.test(line)))
-		throw new Error(`Expected a scalar ${field}`);
-	return [value.replace(/\s+#.*$/, ''), ...lines.map((line) => line.trim())]
+	if (lines.some((line) => /^\s*(?:- |#|[\w-]+:\s)/.test(line)))
+		throw new Error(`Unsupported multi-line plain ${field}`);
+	const text = [value.replace(/(?:^|\s+)#.*$/, ''), ...lines.map((line) => line.trim())]
 		.filter((part, index) => index === 0 || part)
 		.join(' ')
 		.trim();
+	// An empty value is YAML null: the host treats the field as omitted.
+	return text || undefined;
 }
+
+function flag(value, lines, field) {
+	if (lines.length) throw new Error(`Unsupported multi-line ${field}`);
+	// Only an unquoted YAML boolean disables listing; anything else stays listed.
+	return /^(?:true|True|TRUE)$/.test(value.replace(/\s+#.*$/, ''));
+}
+
+const listedKeys = [...listedFields, 'disable-model-invocation'];
 
 /** The listed frontmatter scalars; any syntax outside this narrow subset fails closed. */
 export function listingFields(text) {
-	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+	const match = text.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
 	if (!match) return {};
 	const lines = match[1].split(/\r?\n/);
 	const fields = {};
+	let previous;
 	for (let index = 0; index < lines.length; index++) {
-		const key = lines[index].match(/^([A-Za-z_][\w-]*):(?:[ \t]+(.*))?$/);
-		if (!key) continue;
+		const line = lines[index];
+		if (/^-(?:\s|$)/.test(line)) {
+			// A block sequence belongs to the key above it; a listed field is never a list.
+			if (listedKeys.includes(previous)) throw new Error(`Unsupported ${previous} list`);
+			continue;
+		}
+		if (!line.trim() || /^(?:\s|#)/.test(line)) continue;
+		const key = line.match(/^([A-Za-z_][\w-]*):(?:[ \t]+(.*))?$/);
+		if (!key) throw new Error(`Unsupported frontmatter line: ${line}`);
 		const continuation = [];
 		while (index + 1 < lines.length && /^(?:\s|$)/.test(lines[index + 1]))
 			continuation.push(lines[++index]);
-		const [, field, value = ''] = key;
-		if ([...listedFields, 'disable-model-invocation'].includes(field))
-			fields[field] = scalar(value.trim(), continuation, field, index + 1 < lines.length);
+		const [, field, raw = ''] = key;
+		previous = field;
+		if (!listedKeys.includes(field)) continue;
+		if (Object.hasOwn(fields, field)) throw new Error(`Duplicate frontmatter key: ${field}`);
+		const value = raw.trim();
+		fields[field] =
+			field === 'disable-model-invocation'
+				? flag(value, continuation, field)
+				: scalar(value, continuation, field, index + 1 < lines.length);
 	}
 	return fields;
 }
 
+// A skill without a description is listed by its first body paragraph.
+function firstParagraph(text) {
+	const source = text.replace(/^\uFEFF/, '');
+	const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+	const paragraph = [];
+	for (const line of body.split(/\r?\n/)) {
+		const trimmed = line.trim();
+		if (!trimmed) {
+			if (paragraph.length) break;
+			continue;
+		}
+		if (!paragraph.length && (trimmed.startsWith('#') || /^<!--.*-->$/.test(trimmed))) continue;
+		paragraph.push(trimmed);
+	}
+	return paragraph.join(' ');
+}
+
 /** Characters a skill adds to the host listing; user-only skills are not listed. */
 export function listingCharacters(text, skill) {
-	const fields = listingFields(text);
-	if (/^(?:true|True|TRUE)$/.test(fields['disable-model-invocation'] ?? '')) return 0;
-	const size = listedFields.reduce((total, field) => total + (fields[field]?.length ?? 0), 0);
+	let fields;
+	try {
+		fields = listingFields(text);
+	} catch (error) {
+		throw new Error(`${error.message} (${skill})`);
+	}
 	if ((fields.description?.length ?? 0) > maxDescription)
 		throw new Error(`Description over ${maxDescription} characters: ${skill}`);
-	return size;
+	if (fields['disable-model-invocation']) return 0;
+	// An empty description is listed like an omitted one.
+	const description = fields.description || firstParagraph(text);
+	return description.length + (fields.when_to_use?.length ?? 0);
 }
 
 export function projectText(text, { name, canonical, rewrites = {} }, aliases, file) {
