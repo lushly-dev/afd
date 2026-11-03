@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** **approved 2026-11-02**, under the owner's 2026-10-31 delegation, with the
+- **State:** **done 2026-11-03, exit criterion met** (below). **Approved 2026-11-02**, under the owner's 2026-10-31 delegation, with the
   owner's answers of 2026-11-02 (D24). Written 2026-11-01 by the phase 3 owning agent, then
   revised 2026-11-02 after an independent review ("approve after must-fixes"). It adds
   decisions [D68 to D89](../../decisions.md) and the architecture amendments they need, in
@@ -62,7 +62,12 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s step 10. Step 2 merged in
+- **Phase 3 is done (2026-11-03): the exit criterion of section [12](#12-exit-criterion-and-tests) is met**,
+  by step 10's `first-party/tests/exit_memory.rs` with `leak_probes.rs`, `poisoning.rs` and `forget_bytes.rs`
+  ([Amendments from step 10](#amendments-from-step-10); the run's evidence is in
+  [STATUS.md](../../STATUS.md#phase-3-memory-and-context)). The hosted `umbel.yml` run on `main` is recorded
+  in the step 10 pull request.
+- **Not done:** nothing in section [14](#14-implementation-plan)'s plan. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
   [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
@@ -71,7 +76,9 @@
   [#743](https://github.com/lushly-dev/afd/pull/743), step 7a in
   [#744](https://github.com/lushly-dev/afd/pull/744), step 7b in
   [#745](https://github.com/lushly-dev/afd/pull/745), step 8 in
-  [#746](https://github.com/lushly-dev/afd/pull/746); step 9 is in its pull request, 2026-11-03.
+  [#746](https://github.com/lushly-dev/afd/pull/746), step 9 in
+  [#747](https://github.com/lushly-dev/afd/pull/747) (`4e46de1b`), and step 10 is in its pull request,
+  2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2700,6 +2707,68 @@ items 4 and 6 export less than the text did. The host is unchanged.
    line naming its code and records nothing in the state directory; a usage error exits 2. The new codes
    are `dir-unreadable` and `dir-unwritable`. Each call may take 60 seconds.
 
+### Amendments from step 10
+
+Step 10 settled these details of sections 7.4, 11 and 12 that the text left open. The exit tests found no
+defect in the implementation, so nothing outside `first-party/` changed: no host, plugin or adapter code. None
+weakens access, authority or forget's guarantees, or otherwise changes the trust model; item 1 states what
+6.3 already allows, and is raised for the owner as a follow-up.
+
+1. **"Not writable by `bo`" holds below `person`.** 6.3 lets a sharing writer who can read a record
+   invalidate or supersede it, and 3.2 makes every caller with authority `person` a sharing writer, so every
+   person through the library is one. `leak_probes.rs` therefore asserts that `bo`'s agent is refused on
+   `ada`'s space-shared `person` record (`MEMORY_AUTHORITY_TOO_LOW` for invalidate, supersede and forget,
+   since it reads the record), that `bo`'s own forget counts it in `notFound`, and that `bo` the person may
+   invalidate it, as a new version with `ada`'s version and text kept in its history. On the shared `agent`
+   record of the `default_access = "space"` probe, `bo`'s agent, neither owner nor sharing writer, gets
+   `MEMORY_NOT_OWNED`. Whether another person should be able to close the validity of a record they did not
+   write is the owner's question, in the follow-ups; the test holds today's rule so a change is seen.
+2. **`SPACE_NOT_READABLE` comes after AFD's schema check.** A malformed input answers `VALIDATION_ERROR`
+   first; the check reads no store and names nothing in the space. "Before any handler" is tested with an
+   input the schema admits and the handler would refuse (`validUntil` before `validFrom`), on every memory
+   command, `context-bundle` and `event-list`, and nothing is written in `beta`.
+3. **`bo`'s view is compared whole.** Every read `bo` has in `alpha` (recall, list, status, export, two
+   bundles with their omissions, counts and `memoryHead`, and `event-list`'s events) is equal, field for
+   field, before and after `ada`'s private writes. `event-list`'s `cursor` and `head` are left out: they are
+   the stream's sequence numbers, phase 2's accepted hidden count (section 11).
+4. **The leak probes are a module.** `first-party/tests/support/probes.rs` writes its own records, with terms
+   no other test uses, into the workspace it is given, so `leak_probes.rs` runs it on a fresh workspace and
+   `exit_memory.rs` on the exit's stores (point 5); it restores `umbel.toml` after tightening a group and
+   setting `default_access = "space"`.
+5. **The hook's child gets the frozen clock through a script.** `umbel_hook::Environment` names the binary
+   and the workspace but passes the process's environment, and a test cannot set its own (`set_var` is
+   `unsafe` in edition 2024, and the workspace forbids `unsafe`). So the exit test's `$UMBEL_BIN` is a
+   two-line `sh` script that sets `UMBEL_TEST_CLOCK` from a file, unsets the agent variables, and `exec`s
+   `umbel-first-party` with the hook's arguments unchanged. It is Unix only, as the `memory` job is.
+6. **The agent's note in point 4 goes over the binary's stdio MCP server.** An agent at the command line
+   writes `tool` (3.3), so authority `agent` needs MCP: the test speaks JSON-RPC to `umbel-first-party serve
+   --stdio`, whose principal is an agent acting for `on_behalf_of`. "In the push" after the confirm is asserted
+   on the session-start bundle and the hook's output, since the 4000-byte task bundle may omit a placed item
+   for budget; its `authority` count is the one that drops by one.
+7. **Point 1's events** are counted against the journal: the first run's `memory-capture` entries (4, one per
+   window) equal the capture events, and the second run adds journal entries (replays) and no event.
+8. **Point 7's canaries** are a random canary in a person's fact and the fixture's `INCLUDED-HUMAN` and
+   `INCLUDED-ASSISTANT` markers, each first seen on disk by the probe. The backup is restored by 5.4's
+   procedure, so the database is the backup's afterwards (records written after it are gone, as 5.4 says) and
+   the recapture and missing-key checks run on it. The hook is run again from the transcript's first line by
+   removing its state directory. The doctor's failure arrives in the failed `workspace-doctor`'s error details.
+9. **`forget_bytes.rs`'s control and reach.** The control is that, before the forget, the index's plaintext
+   copy holds every subject, text and tag canary of every route; constraints and sources are only ever sealed.
+   The control with FTS5's `secure-delete` off stays in `memory_sqlite.rs` (step 3a's item 7), since the
+   compaction clears the index either way. "AEAD with the current key file cannot open the blob" is shown at
+   full stack as: the restored copy still holds the forgotten rows' sealed blobs, and every one of their key
+   entries is a destroyed, settled marker; the cipher's refusal itself is `memory_backup.rs`'s. The crash
+   points and the pragma read-backs of 7.4 are the store's (`memory_keyfile.rs`, `memory_multiprocess.rs`):
+   no full-stack path reaches them. Batch and pipe go through `afd-batch` and `afd-pipe` on the test kit's
+   in-process stdio client.
+10. **The digest across write orders** (point 6) is written into two library workspaces through the store API
+    (`first-party/tests/support/stores.rs`, eight documents and six records with fixed ids, at the suite's
+    instant), as `context/tests/deterministic.rs` does; the binary's two processes give the byte-equal `data`.
+11. **Dev-dependencies, all already in the lock:** `afd`, `jsonschema`, `rusqlite`, `umbel` with `testkit`
+    (which gives the binary built for the tests the frozen clock and the person at a terminal, as section 12
+    asks), `umbel-store` with `conformance` and `umbel-store-embedded`. `Cargo.lock` gains only those edges.
+    The `memory` job sets `UMBEL_EXIT_REPORT` and uploads the report as `memory-exit-report-<os>`.
+
 ## 15. For the owner
 
 **The owner decided items 1 to 5 on 2026-11-02.** They are final and written into this specification. Approval is under the owner's 2026-10-31 delegation, with these answers.
@@ -2765,3 +2834,4 @@ Nothing here touches O1, O4 or O5.
 | 2026-11-02 | Re-check the transcript reader on an interactive CLI session (10.3). Step 8 found no local CLI session with conversation and re-checked the other entrypoints ([Amendments from step 8](#amendments-from-step-8), item 1) | Open: when a CLI session with conversation exists |
 | 2026-11-02 | Measure whether labels, quoting or the scan protect a pushed record; none of it is measured (section 11). If a deployer widens the push, this matters more | After phase 4's eval work |
 | 2026-11-02 | Pinned documents for a no-task bundle, and wrapping `memory.keys` | When a deployer asks |
+| 2026-11-03 | Whether a sharing writer should be able to invalidate or supersede a readable record another principal wrote, as 6.3 allows today: every person through the library, and the CLI's person, is a sharing writer (3.2), so one person can close the validity of another's space- or group-shared fact (history keeps it). Narrowing it to the record's principal, or to `writers`, is a trust-model choice ([Amendments from step 10](#amendments-from-step-10), item 1) | Owner; before phase 5's verified principals |
