@@ -27,11 +27,12 @@ should never have to scan the codebase to learn what is current.
 | --- | --- | --- | --- |
 | [Architecture](architecture.md) | Revised after the 2026-10-30 end-to-end review and corrected in the 2026-10-31 handoff check; the through line | Merged in [#491](https://github.com/lushly-dev/afd/pull/491), [#493](https://github.com/lushly-dev/afd/pull/493) and [#516](https://github.com/lushly-dev/afd/pull/516); handoff corrections in [#519](https://github.com/lushly-dev/afd/pull/519) | 2026-10-30: three independent reviews (AFD alignment, coherence, external facts); relative links, fences and diagrams rendered. 2026-10-31: links, anchors and every D, O, R, W and S reference re-checked on `main` |
 | [Proposal](proposal.md) | Approved rationale; the architecture wins where they differ | #491, #493 and #516 | Same as above |
-| [Decision log](decisions.md) | D1 to D67 (D51 to D67 proposed with the phase 2 specification, in review, amended 2026-11-01 by its revision; D40 and D42 annotated); open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
-| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1; W1 to W4, W11, W16 and the store, search, parsing and tree-sitter library rows refreshed 2026-11-01 for phase 2 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
+| [Decision log](decisions.md) | D1 to D85 (D68 to D85 with the phase 3 specification, approved 2026-11-02 under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02, [#685](https://github.com/lushly-dev/afd/pull/685); D51 to D67 proposed with the phase 2 specification, in review, amended 2026-11-01 by its revision; D40 and D42 annotated); open decisions O1, O4 and O5; O2 closed as D27 on 2026-10-31; O3 closed as D37 and D38 on 2026-11-01 with the phase 1 specification, approved and merged in [#583](https://github.com/lushly-dev/afd/pull/583) | D1 to D12 in #491; D13 to D20 in #493; D21 to D26 and the O list in #516; D27 in [#522](https://github.com/lushly-dev/afd/pull/522); D28 to D36 accepted with the phase 0 specification, which the owner approved under the delegation of 2026-10-31 and which merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; D21, D28, D29, D31, D32, D33, D34, D35 and D36 were amended 2026-10-31 after its review | Same as above; 2026-10-31: D27's links and the O2 references re-checked; D28 to D36 merged with #564 |
+| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers; W1, W2, W5, W6, W12 and W15 refreshed 2026-10-31 for phase 0; W1, W2, W15, W16 and the library rows refreshed and W17 added 2026-11-01 for phase 1; W1 to W4, W11, W16 and the store, search, parsing and tree-sitter library rows refreshed 2026-11-01 for phase 2; W1, W2, W5, movement 3 and the SQLite and rusqlite rows refreshed and W18 added 2026-11-01 for phase 3; W18 and the `chacha20poly1305` row refreshed 2026-11-02 | #493; corrections in #516; the refresh with the phase 0 specification, merged in #564 | External claims fact-checked against primary sources on 2026-10-30; the refreshed rows on 2026-10-31 |
 | [Phase 0 specification](phases/0-host-skeleton/spec.md) | Approved 2026-10-31 under the owner's delegation (D24) after an independent review ("approve after must-fixes") and revision; merged in [#564](https://github.com/lushly-dev/afd/pull/564) as `fb35d525`; implementation in progress | [#564](https://github.com/lushly-dev/afd/pull/564), merged | 2026-10-31 against `main` at `472b5f68`: every finding checked against `packages/rust`, `packages/cli`, `packages/server`, `python/`, `spec/` and `scripts/`; links and anchors resolve |
 | [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
 | [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's decisions; approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as `e996aad1`. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader); step 0a done 2026-11-01 (see Phase 2 below) and amended section 14; step 2 done 2026-11-01 ([636](https://github.com/lushly-dev/afd/pull/636)); step 3 done 2026-11-01 ([643](https://github.com/lushly-dev/afd/pull/643)); steps 4 to 8 and 7a done the same day (see Phase 2 below); step 9 (the eval harness) done 2026-11-01 in the step 9 pull request; step 10 (the exit) done 2026-11-01 in the step 10 pull request, and with it **phase 2 is done** (exit criterion met; see Phase 2 below) | [#625](https://github.com/lushly-dev/afd/pull/625), merged | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
+| [Phase 3 specification](phases/3-memory-context/spec.md) | Written 2026-11-01; revised 2026-11-02 after an independent review; **approved 2026-11-02, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02** (D24). Adds D68 to D85 and W18 with the architecture amendments they need; section 15 records the owner's five decisions; no implementation started | [#685](https://github.com/lushly-dev/afd/pull/685) | 2026-11-02 against `main` at `4a26cc0b`: each review finding checked against `endpoints/umbel` and `packages/rust`; SQLite experiments for FTS5 erasure, `+a b`, backups and the key file (Python's SQLite 3.53.4); Claude Code transcript structure from 25 local sessions, with no content read; `chacha20poly1305` by `cargo info`; S14, S15 and S16 re-read; links and anchors resolve; no Rust built |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -42,7 +43,7 @@ should never have to scan the codebase to learn what is current.
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
-| 3. Memory and context | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
+| 3. Memory and context | Specification in [#685](https://github.com/lushly-dev/afd/pull/685), **not merged**: three owner answers and one safety change still to write in (see the phase 3 detail); no implementation started | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685) | Finish and merge #685, then step 1 of [its plan](phases/3-memory-context/spec.md#14-implementation-plan) |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification; the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) |
 | 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
@@ -1002,6 +1003,104 @@ should never have to scan the codebase to learn what is current.
 Phases 3 to 7 have no detail yet; add a heading in this shape when one
 starts.
 
+### Phase 3. Memory and context
+
+- **State:** specification approved 2026-11-02, under the owner's 2026-10-31
+  delegation, with the owner's answers of 2026-11-02 (D24). Nothing implemented.
+  Written 2026-11-01 by the phase 3 owning agent, revised 2026-11-02 after an
+  independent review. Last verified 2026-11-02 against `main` at `4a26cc0b`, by
+  reading the code, scratch SQLite experiments and `pnpm verify`; no Rust built.
+- **Key design review:** D82 to D85 had their own independent review on 2026-11-02,
+  and the specification's key design was revised from it, in the same pull request.
+- **Done:** [the specification](phases/3-memory-context/spec.md), in
+  [#685](https://github.com/lushly-dev/afd/pull/685), with D68 to D85, W18, and
+  amendments to the architecture's components, host services, interfaces, data,
+  cross-cutting rules, library table, phase 5 prerequisites and glossary. The
+  prerequisite security fix is done: `umbel batch` drops `request.context`
+  ([#688](https://github.com/lushly-dev/afd/pull/688)).
+- **Owner's decisions, 2026-11-02, final:** forget uses per-record keys in a
+  separate key file (D82, D83); session start pushes `person` authority only, and
+  `memory-confirm` promotes a memory (D78, D84); flagged memory is never pushed
+  and is labeled on recall (D75); `memory-erase` is deferred to phase 5 (D85);
+  hook capture stays, opt-in, user and assistant text only, always private (D79).
+- **Not done:** all of its
+  [plan](phases/3-memory-context/spec.md#14-implementation-plan): steps 1, 2, 3a,
+  3b, 4, 5, 6, 7a, 7b, 8, 9 and 10. There is no AFD step 0: the journal's
+  `with_redact` already exists.
+- **Next:** step 1 (shapes and configuration), then the plan's order: 1, 2, 3a,
+  3b, 4 in sequence. Heavy steps follow the plan's build note. A step that finds a
+  design decision stops and amends the specification.
+- **Waiting on the owner:** nothing. These four are decided; do not ask again.
+- **Follow-ups:** the [specification's list](phases/3-memory-context/spec.md#follow-ups).
+
+#### Handoff, 2026-11-02: resume here
+
+The session driving this epic ended here because its account ran out of capacity. The
+epic is every phase in the table above, then further first-class plugins.
+
+**Immediate work: finish [#685](https://github.com/lushly-dev/afd/pull/685).** CI last
+passed on `accbf687`. The four items below were decided after that revision. They are
+recorded in the specification's owner decisions, but **the specification's body, tests,
+plan and the decision log do not reflect them yet**. Write them in, as D86 onward:
+
+1. **`memory-remember` prompts for `person`.** Reaching `person` through remember needs
+   the same terminal prompt as `memory-confirm`, so one bar guards every route (section 3.3).
+   `confirm = "require-human"` on the command cannot do this, because it would refuse
+   agents, who must still write with authority `agent`. So the prompt must apply only on
+   the path that would give `person`. Design that against `src/cli/prompt.rs` and
+   `src/middleware.rs`, which were not yet read for this, and define what declining does.
+   This is still not an attestation.
+2. **File copies: keep per-record keys, state the limit, exclude from Time Machine.** On
+   macOS, mark `memory.sqlite3` and `memory.keys` as excluded from Time Machine when they
+   are created, with a setting to turn that off. The doctor says memory is not in machine
+   backups and that `store-backup` is the way to back it up. The owner accepts the cost: if
+   the disk dies, only what was backed up by hand remains, and the key file needs its own
+   copy. State what this does not cover: `cp`, rsync, filesystem snapshots, and Linux and
+   Windows backup tools. Whole-file encryption was rejected, because an old copy plus the
+   same file key still opens forgotten text. Sections 5.4 and 5.3's doctor table.
+3. **`memory-confirm`: own records only.** Remove "or the caller a sharing writer who can
+   read it" from section 8.7. Refusal is `MEMORY_CONFIRM_NOT_ALLOWED`. An agent acting for
+   its person shares that principal, so its notes still work. The prompt warns when a note
+   has no project, because it would reach every repository. Cross-person confirming may
+   return in phase 5, with verified identity; add it to section 13.
+4. **`memory-reindex`: removing orphan keys is opt-in.** Add a default-off `removeOrphans`
+   input (sections 5.4 and 8.8), because on an older restored copy removal deletes the keys
+   of every later record. Add a test.
+
+Then grep for leftovers, update tests, plan and exit criteria, run `pnpm verify`, push to
+`lush/umbel-phase-3-memory-spec`, and merge on green with
+`gh pr merge 685 --squash --match-head-commit <sha>`. Rebase first if `main` conflicts. The
+two independent reviews are done, so no third is required unless item 1's design changes
+the trust model further.
+
+**Then, in order:**
+
+| Work | Notes |
+| --- | --- |
+| Phase 3 implementation | Plan steps 1, 2, 3a, 3b, 4, 5, 6, 7a, 7b, 8, 9, 10 |
+| Phase 4, curator | Needs phase 3's exit. Specification first |
+| Phase 5, auth and hosted | Specification first, after #685 merges. Includes `memory-erase`, [#532](https://github.com/lushly-dev/afd/issues/532), partitioned BM25 statistics, token verification, `credentials`, Tasks, the dynamic confirmation prompt, real proof of a person |
+| Phase 6, backends | Specification first, after #685 merges |
+| Phase 7, distribution and guides | Needs phases 4, 5 and 6 |
+| Further first-class plugins | content-design; federation needs O1 from the owner |
+
+**Rules the owner set for this epic:** commit, open pull requests, auto-fix and merge on
+green between phases without asking. Each phase specification gets an independent review,
+then a revision, then merge, recorded here as approved under the owner's 2026-10-31
+delegation. **Still ask the owner about:** publishing, tagging, unquarantining or merging a
+release pull request; O1; anything that changes the trust model. Do not name the private
+reference system in code or documents; all knowledge content is deployer-provided. Run
+`pnpm verify` before the first push; never `--no-verify` or `--admin`.
+
+**Shared Mac:** heavy gates only under one-minute load 20, `cargo -j4`, Vitest 1 worker; stop
+under 5 GB free. Give each concurrent Rust agent its own `CARGO_TARGET_DIR`
+(`~/.cache/umbel-target-<step>`, deleted after merge) with `CARGO_INCREMENTAL=0`, and export
+it for `pnpm verify` too. Never stop other owners' jobs, or clear their build output.
+
+**Known traps:** commitlint has no `umbel` scope and rejects `wip`. The local branch
+`lush/umbel-phase-3-memory-spec` is held at an old commit by worktree `t3-08b48631`, so work
+on another local branch and push to that remote name.
+
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up | Status |
@@ -1068,6 +1167,7 @@ starts.
 | 2026-11-01 | Phase 2 step 7b | A bare nested name in inline code (`apply_step` for `Type::apply_step`) is not a `mentions` edge, only a qualified name or a top-level symbol's name is ([I1](phases/2-knowledge/spec.md#amendments-from-step-7b)); a symbol table that follows the code documents would be needed for the rest | Open, when a deployer asks |
 | 2026-11-01 | Phase 2 step 7b | The `knowledge` job gained the `code` feature's tree-sitter build (about 16 CPU seconds) and two legs for the crate without it (clippy and the tests); measure the job on its first hosted run against the 15-minute timeout. `scripts/affected/suites.mjs` does not mirror the two new legs either (see the step 6 row) | Open, phase 2 exit |
 | 2026-11-01 | Phase 2 step 7b | Symbols are Rust, Python, TypeScript and JavaScript definitions only (no fields, enum variants, Python module constants, or other languages); each language is a grammar crate and a query file | Open, when a deployer asks |
+| 2026-11-02 | Phase 3 specification | `memory-erase` is deferred to phase 5 on the conditions in D85; a `cursor` profile, and how a component's memory writes are masked under world 1.1.0, wait as the specification's follow-ups say | Open |
 
 ## Session log
 
@@ -1122,3 +1222,4 @@ starts.
 | 2026-11-01 | Phase 2 step 9 | The eval harness (the step 9 pull request): the seeded thousand-document fixture generator with its pinned digest (PCG32 and a pseudo-word generator in the crate), the 220-query set, `knowledge-eval` (CLI only, the report as the result, each query run as its own principal through the shared ranking code), recall@k, nDCG@k and MRR@k with expansion on and off, the zero-leak check, `eval::gate::check` and `lane_gate`, `plugins/knowledge/eval/baseline.json`, and the report uploaded by the `knowledge` job. Eleven amendments (J1 to J11). Measured, thresholds unchanged and met: recall@10 1.0, nDCG@10 0.9273 with expansion; 0 leaks; 15 of 15 unanswerable queries empty. Finding: expansion lowers the exact queries' nDCG (0.9368 against 1.0), recorded as a follow-up |
 | 2026-11-01 | Security fix | The independent review of the phase 3 specification found a live phase 2 bypass: `umbel batch` merged the request's `context` into `extra`, so a request could set `dev.umbel/human-confirmed` and pass `require-human` with no terminal. `knowledge-reject` had no other gate; `knowledge-approve` and `knowledge-verify` also need AFD's approval. `umbel batch` now drops the request's `context`, as the MCP route ignores it; `require_human.rs` holds the forgery as a regression test, which failed before the fix. [#688](https://github.com/lushly-dev/afd/pull/688) |
 | 2026-11-01 | Phase 2 exit | Phase 2 done. Steps 0a to 9 merged (#625 specification; #633, #632, #636, #643, #651, #668, #671, #672, #673 and the step 7a graph, 7b and 9 pull requests); step 10 added `plugins/knowledge/tests/exit_thousand.rs` (the exit criterion's four points on the seeded fixture: 650 and 400 documents with both indexes and graphs at their heads, no cross-space result, results filtered by principal with `SPACE_NOT_READABLE`, the eval report validated, gated and written to `UMBEL_EXIT_REPORT`), uploaded in the `knowledge` job, and re-ran the exit criterion on `main` at `aa0ecda2`: `cargo test --locked --workspace` in `endpoints/umbel` passed 1032 tests in 107 suites (0 failed, 1 ignored doctest); the `knowledge` job's crates 364 (46 suites) and `-p umbel-plugin-knowledge --no-default-features` 169 (21 suites); the `check` job's test 680 (64 suites); every `umbel.yml` leg and `pnpm verify` passed; a smoke on a fresh workspace with `umbel-knowledge` (init, refresh, search, open, propose, approve at a real pseudo-terminal, doctor healthy). Eval numbers: recall@10 1.0 and nDCG@10 0.9273 with expansion, 0 leaks in 220 queries, on a synthetic fixture whose recall measures the pipeline and regressions, not quality on real content. Added the README's "Run the knowledge plugin" (a working `umbel.toml` and every required `allow` list) and the follow-up "must do before real use": the `knowledge-approve` prompt cannot show the diff. Phases 3, 5, 6 and the further first-class plugins are unblocked |
+| 2026-11-02 | Phase 3 specification | The [phase 3 specification](phases/3-memory-context/spec.md), approved under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02, in [#685](https://github.com/lushly-dev/afd/pull/685): `MemoryStore` (store traits version 2) on its own SQLite FTS5 database per space; the bitemporal record; the scope tuple, private by default, captures always private; envelope version 2 with a closed, host-filled authority; digest journaling; per-record keys in `memory.keys`, destroyed by a forget; the `memory` and `context` plugins, composed through grants, with a `person`-only default push and `memory-confirm`; capture contract version 1 and `umbel-hook`, with turns defined from real transcript structure. D68 to D85, W18 and the architecture amendments in the same pull request. Findings: `SessionEnd` hooks share 1.5 seconds by default; an FTS5 `contentless_delete` table keeps deleted terms in the file; the research does not measure labels or quoting as a defence, so the push defences are unmeasured |
