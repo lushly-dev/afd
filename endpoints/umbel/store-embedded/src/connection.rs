@@ -80,15 +80,44 @@ impl Pool {
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
+
+    /// `store.lock_timeout_ms`.
+    pub(crate) fn timeout(&self) -> Duration {
+        self.timeout
+    }
+}
+
+/// `wal_checkpoint(TRUNCATE)` on `conn`, outside any transaction. With `wait` it waits for
+/// readers and writers as long as the lock timeout allows; without it, not at all. Answers
+/// whether the write-ahead log is now empty: `false` when a reader holds it or a lock was busy.
+pub(crate) fn truncate_wal(conn: &Connection, wait: bool, timeout: Duration) -> Result<bool, Fail> {
+    if !wait {
+        conn.busy_timeout(Duration::ZERO)?;
+    }
+    let result = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+        row.get::<_, i64>(0)
+    });
+    if !wait {
+        conn.busy_timeout(timeout)?;
+    }
+    match result {
+        Ok(busy) => Ok(busy == 0),
+        Err(error) if matches!(map_sql(&error), StoreError::Busy) => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 /// One connection with the backend's pragmas (section 3.2): `synchronous=FULL` (decision traces
-/// must survive power loss), `foreign_keys=ON`, a bounded busy timeout and, on macOS, full
-/// fsync, because `synchronous=FULL` alone does not flush the drive's cache there.
+/// must survive power loss), `foreign_keys=ON`, `secure_delete=ON` (phase 4 section 9.1: a
+/// replaced or deleted row's bytes are overwritten, as the memory store's and the key file's
+/// are, so a redacted proposal leaves no copy in a freed page), a bounded busy timeout and, on
+/// macOS, full fsync, because `synchronous=FULL` alone does not flush the drive's cache there.
 fn connect(path: &Path, timeout: Duration) -> Result<Connection, Fail> {
     let conn = Connection::open(path)?;
     conn.busy_timeout(timeout)?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
+    // `PRAGMA secure_delete = ON` answers the new value as a row, which `pragma_update` refuses.
+    conn.query_row("PRAGMA secure_delete = ON", [], |row| row.get::<_, i64>(0))?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     if cfg!(target_os = "macos") {
         conn.pragma_update(None, "fullfsync", "ON")?;

@@ -15,10 +15,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use afd::CommandContext;
 use serde_json::Value;
-use umbel_sdk::{HostError as ServiceError, HostServices, Level};
+use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
 
 use std::collections::BTreeMap;
 
+use super::attestation::PipelineAttestations;
 use super::files::lexical_problem;
 use super::ledger::Ledger;
 use super::packs::{PackCopy, PackSet};
@@ -80,6 +81,8 @@ pub(crate) struct Shared {
     pub(crate) commands: BTreeMap<String, CommandPolicy>,
     /// What calls did to the stores, for the plugin gate.
     pub(crate) ledger: Arc<Ledger>,
+    /// The pipeline steps in flight, by their trace id (phase 4 section 10.1).
+    pub(crate) attestations: Arc<PipelineAttestations>,
     /// `[plugins.<id>.grants.memory_write]`'s sharing policy (phase 3 section 3.2).
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     pub(crate) memory_policy: Option<crate::workspace::MemoryWritePolicy>,
@@ -235,6 +238,20 @@ impl CallServices {
     /// The call's checked spaces: the input's `spaces`, else the one space.
     pub fn spaces(&self) -> &[SpaceId] {
         &self.spaces
+    }
+
+    /// The host's attestation that this call is a step of a plugin pipeline (phase 4
+    /// specification, section 10.1, D91): `Some` only while a step of a registered pipeline runs
+    /// this instance's command under the trace id the host drew for it, and only for that
+    /// command. It is read from the host's own table, never from the input or `extra`. A call
+    /// made with [`Services::call`], which names no command, has none.
+    pub fn pipeline(&self) -> Option<PipelineAttestation> {
+        let command = self.command.as_deref()?;
+        if !self.shared.commands.contains_key(command) {
+            return None;
+        }
+        let trace = self.context.trace_id.as_deref()?;
+        self.shared.attestations.lookup(trace, command)
     }
 
     /// Whether the grant `name` is held (declared and not denied).

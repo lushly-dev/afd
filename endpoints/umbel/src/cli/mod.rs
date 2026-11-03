@@ -11,6 +11,7 @@
 mod args;
 mod output;
 mod parse;
+mod preview;
 mod prompt;
 mod serve;
 mod stdin;
@@ -534,6 +535,18 @@ async fn run_command(
         && !flags.yes
         && !flags.approve
         && agent.is_none();
+    // The confirmation preview (phase 4 section 8.1), before the prompt it explains: run under a
+    // fresh trace id without the marks, shown only where a person can read it, and a failure
+    // refuses the call before anything runs.
+    if gate.is_some()
+        && let Some(preview) = host.confirm_preview(command)
+    {
+        match preview::run(host, command, &preview, &input).await {
+            Ok(text) if environment.console.is_interactive() => environment.console.show(&text),
+            Ok(_) => {}
+            Err(error) => return writers.exit_for(&afd::failure(*error)),
+        }
+    }
     if let Some(prompt) = gate {
         let mode = if require_human {
             afd::server::ConfirmationMode::RequireHuman

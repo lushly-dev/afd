@@ -50,7 +50,7 @@ mod store;
 pub mod build;
 
 pub use assets::Asset;
-pub use cx::{CallContext, Cx, HostError, HostServices, Level, NoServices};
+pub use cx::{CallContext, Cx, HostError, HostServices, Level, NoServices, PipelineAttestation};
 pub use memory::{LeftOutQuery, MemoryPath, MemoryWriteRequest};
 #[cfg(feature = "mounted")]
 pub use mounted::{mounted_server, serve_mounted};

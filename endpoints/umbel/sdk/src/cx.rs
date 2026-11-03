@@ -43,6 +43,28 @@ pub struct CallContext {
     pub on_behalf_of: Option<String>,
     /// `mcp`, `cli`, `agent` or `palette`.
     pub interface: String,
+    /// The host's attestation that this call is a step of a plugin pipeline (phase 4
+    /// specification, section 10.1, D91); `None` for any other call.
+    ///
+    /// The host fills it for a compiled plugin's command only, from a table it keeps itself,
+    /// keyed by the fresh random trace id it gave the step, and only when the entry names the
+    /// command called. Nothing a caller sends sets it: not the input, not `extra`, not a trace id
+    /// chosen by a client. A component (WIT world 1.0.0) and a mounted server never see it.
+    pub pipeline: Option<PipelineAttestation>,
+}
+
+/// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the
+/// plugin and instance that ship the pipeline, the pipeline, and the run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PipelineAttestation {
+    /// The `plugin.id` of the plugin that ships the pipeline.
+    pub plugin: String,
+    /// The instance of that plugin whose pipeline is running.
+    pub instance: String,
+    /// The pipeline's command name.
+    pub pipeline: String,
+    /// The pipeline call's trace id: one run of the pipeline, shared by all of its steps.
+    pub run: String,
 }
 
 /// Why a host service refused (WIT `host-error`; world 1.1.0 adds the store variants). The memory

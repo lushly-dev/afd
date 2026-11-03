@@ -44,6 +44,8 @@ pub struct StoreInfo {
     pub synchronous_full: bool,
     /// Whether foreign keys are enforced on a pooled connection.
     pub foreign_keys: bool,
+    /// Whether `secure_delete` is on for a pooled connection (phase 4 section 9.1).
+    pub secure_delete: bool,
     /// The connection's busy timeout, in milliseconds.
     pub busy_timeout_ms: u64,
     /// `PRAGMA wal_autocheckpoint`, in pages; SQLite's default is 1000.
@@ -54,6 +56,16 @@ pub struct StoreInfo {
     pub database_bytes: u64,
     /// The write-ahead log's size in bytes.
     pub wal_bytes: u64,
+}
+
+/// What [`SqliteStore::truncate_wal`] achieved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WalCheckpoint {
+    /// Every frame is in the database file and the write-ahead log is empty.
+    Clean,
+    /// A reader holds the write-ahead log, or a lock was busy: its frames stay until a later
+    /// write's checkpoint ([`umbel_store::DocumentStore::checkpoint`]) truncates it.
+    Pending,
 }
 
 /// One space's SQLite store: implements [`umbel_store::DocumentStore`] and
@@ -118,11 +130,31 @@ impl SqliteStore {
                     .query_row("PRAGMA journal_mode", [], |r| r.get::<_, String>(0))?,
                 synchronous_full: int("synchronous")? == 2,
                 foreign_keys: int("foreign_keys")? == 1,
+                secure_delete: int("secure_delete")? == 1,
                 busy_timeout_ms: u64::try_from(int("busy_timeout")?).unwrap_or(0),
                 wal_autocheckpoint: u64::try_from(int("wal_autocheckpoint")?).unwrap_or(0),
                 full_fsync: int("fullfsync")? == 1,
                 database_bytes: size(&path),
                 wal_bytes: size(&wal),
+            })
+        })
+    }
+
+    /// `wal_checkpoint(TRUNCATE)` without any lock wait (phase 4 section 9.1): after a write
+    /// that replaced or removed content, with `secure_delete` on, the old bytes are gone from the
+    /// database file and the write-ahead log once this answers [`WalCheckpoint::Clean`]. A reader
+    /// holding the log answers [`WalCheckpoint::Pending`], as the memory store's erasure does
+    /// (phase 3 section 5.4), and a later write's checkpoint retries it.
+    ///
+    /// # Errors
+    /// `Io` or `Corrupt` when the checkpoint fails for a reason other than being busy.
+    pub fn truncate_wal(&self) -> Result<WalCheckpoint, StoreError> {
+        let timeout = self.pool.timeout();
+        self.pool.with(|conn| {
+            Ok(if connection::truncate_wal(conn, false, timeout)? {
+                WalCheckpoint::Clean
+            } else {
+                WalCheckpoint::Pending
             })
         })
     }

@@ -431,14 +431,11 @@ impl DocumentStore for SqliteStore {
     }
 
     fn checkpoint(&self) -> Result<(), StoreError> {
-        self.pool().with(|conn| {
-            // Best effort: a busy checkpoint (a reader holds the WAL) is not an error.
-            match conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())) {
-                Ok(()) => Ok(()),
-                Err(error) if matches!(crate::error::map_sql(&error), StoreError::Busy) => Ok(()),
-                Err(error) => Err(error.into()),
-            }
-        })
+        let timeout = self.pool().timeout();
+        // Best effort: a busy checkpoint (a reader holds the WAL) is not an error, and the next
+        // write's checkpoint retries it.
+        self.pool()
+            .with(|conn| crate::connection::truncate_wal(conn, true, timeout).map(|_| ()))
     }
 }
 

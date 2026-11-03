@@ -1,8 +1,9 @@
 //! What manifest version 4 adds (phase 4 specification, section 2.2; D97, D105): the command key
 //! `confirm_preview`, and the pipeline keys `expose` and `result`.
 //!
-//! Step 1 of the phase 4 plan parses, validates and stores them; nothing acts on them yet. The
-//! CLI's preview flow and a pipeline's exposure at seal and its `result` arrive with step 2.
+//! This module parses, validates and stores them. What acts on them is elsewhere: the CLI's
+//! preview flow in `src/cli/preview.rs`, and a pipeline's exposure at seal and its `result` in
+//! `src/plugins/pipelines.rs` (phase 4 step 2).
 
 use std::collections::BTreeSet;
 
@@ -84,7 +85,7 @@ pub(super) fn confirm_preview(
 
 /// A pipeline's `expose` (manifest version 4): `mcp`, `agent` and `cli`, each defaulting to true
 /// as a command's does. Without the key a pipeline is exposed to every surface, as in versions 1
-/// to 3. Whether it is wider than a step's is checked at seal (step 2).
+/// to 3. Whether it is wider than a step's is checked at seal (`pipelines::plan`).
 pub(super) fn pipeline_expose(table: &Tbl<'_>) -> Result<Expose, PluginError> {
     let mut expose = Expose::default();
     if let Some(flags) = table.table("expose")? {

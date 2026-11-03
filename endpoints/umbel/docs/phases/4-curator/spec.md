@@ -70,10 +70,16 @@
   - In the repository: `spec/command-metadata.md` ("Asking the human over MCP", lines 236-294) and
     `docs/language-parity.md` (line 136: the MCP approval relay is TypeScript only).
 - **No Rust was built** for this document.
-- **Done:** this specification, approved 2026-11-03. Step 1 (shapes) on 2026-11-03, in its pull request: the four
-  schemas with examples, manifest version 4 parsed, validated and stored (nothing acts on it yet), and the version
-  constants; its [amendments](#amendments-from-step-1) settle fourteen details and change no trust-model point.
-- **Not done:** steps 2 to 7 of section [15](#15-implementation-plan), with 3a, 3b and 3c; step 2 (host) is next.
+- **Done:** this specification, approved 2026-11-03.
+  - Step 1 (shapes), 2026-11-03, merged in [#751](https://github.com/lushly-dev/afd/pull/751) as `e7aeff70`: the
+    four schemas with examples, manifest version 4 parsed, validated and stored, and the version constants; its
+    [amendments](#amendments-from-step-1) settle fourteen details and change no trust-model point.
+  - Step 2 (host), 2026-11-03, in its pull request, from `e7aeff70`: the pipeline attestation table and the SDK's
+    `CallContext.pipeline`, a version 4 pipeline's exposure checked at seal and its `result` applied, the CLI's
+    confirmation preview, and `secure_delete` with a reporting checkpoint on `store.sqlite3`; its
+    [amendments](#amendments-from-step-2) settle ten details and change no trust-model point.
+- **Not done:** steps 3a to 7 of section [15](#15-implementation-plan); step 3a (knowledge: record and journal) is
+  next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1044,6 +1050,63 @@ less memory-derived residue than the text alone would.
     }`; `lock.trace` is the run's trace id. The report carries `version: 1`; its `run` is the pipeline call's
     trace id, as `drafter.run`; a `check-failed` inconsistency names its `check` (6.2, "and the check");
     `proposals` holds at most 50 ids, the batch's cap.
+
+### Amendments from step 2
+
+Step 2 settled these details of sections 2.2, 8.1, 9.1 and 10.1 that the text left open. None changes who may
+draft, verify, approve or read anything, or what the knowledge plugin trusts. Two of them (2 and 6) make the
+attestation and the preview fail closed where the text was silent.
+
+1. **Where the attestation is read.** The host table is `PipelineAttestations` (`src/plugins/attestation.rs`). It is
+   read by a new `CallServices::pipeline()`, and the SDK's handler fills `CallContext.pipeline` from it. The handler
+   gets its services from `Services::call_command`, which names the command. A `Services::call` handle names no
+   command, so it never carries an attestation. The read also needs the command to be one of the instance's own.
+   The SDK's `PipelineAttestation` carries `plugin`, `instance`, `pipeline` and `run`. The table's `command` is
+   compared, not copied: it is `CallContext.command`. A component (WIT world 1.0.0 unchanged) and a mounted
+   server never see an attestation.
+2. **Step trace ids never come from the clock.** `new_trace_id` falls back to the clock's nanoseconds when the
+   operating system's random source fails. A step's trace id comes from `random_trace_id` instead, which has no
+   fallback. A step that cannot draw one fails with `INTERNAL_ERROR`, retryable, before it runs. The entry is held
+   by a guard that drops when the step's future ends, so a step that fails, panics or is cancelled leaves no entry.
+   A pipeline call with no trace id (a bare library `registry.execute`) gets a fresh one as its `run`.
+3. **Every plugin pipeline's steps are attested**, in every manifest version, for every step command, whether
+   another plugin's or the pipeline's own. Whom an attestation is accepted from is the receiving plugin's rule:
+   the knowledge plugin's `drafters` (3.2).
+4. **Exposure at seal** applies to manifest version 4 pipelines only, with or without `expose`. Without the key, a
+   pipeline is on every surface but the palette, so all of its steps must be too. A step that is a host built-in is
+   checked by its registered exposure. The refusal is `PLUGIN_MANIFEST_INVALID` at `pipelines[i].expose`, naming
+   the interface and the step. As with a pipeline whose effects do not cover its steps, it fails the instance: a
+   required instance stops the host, and an optional one is dropped and reported by `plugin-list`.
+5. **`result = "last"`** makes the pipeline's `data` the last step's data itself, not wrapped in `steps`. It is
+   `null` if the last step returned none. A failed step fails the pipeline, as before, with the step named. The
+   pipeline's own journal entry holds only that data. Each step is still journaled under its own name in its own
+   mode, as every registry call is (`install_journal`). So an earlier step's text stays out of the journal through
+   its own digest mode, which phase 3's flow rule already requires of any step that handles memory text. The
+   pipeline's `returns` description says which shape it has.
+6. **When the preview runs.** It runs whenever the CLI's confirmation gate applies (a `confirm_prompt` and CLI
+   exposure), whatever `mcp.confirmations` says and whatever the prompt does next. So a failing preview always
+   refuses. It runs after the refusals that run nothing: `--yes` or `--approve`, and `@-`, on a `require-human`
+   command. The refusal is `CONFIRMATION_PREVIEW_FAILED`, `retryable: false`. Its `details` name `command`,
+   `preview` and `cause`: the preview's error code, or `PREVIEW_SHAPE` for an answer that is not exactly
+   `{ "preview": <string> }`. The preview's own message is not copied.
+7. **Where the preview is shown.** It is shown only at a terminal (stdin and stderr are terminals), as the prompts
+   are, through a new `Console::show`, which writes to stderr by default. Without a terminal it still runs and is
+   not printed, and the prompt then refuses or proceeds as before. The preview call is journaled as its own entry,
+   in its own mode, under its own trace id.
+8. **The preview's text.** "Control characters" are those the CLI's `sanitize` removes: every C0 control but newline
+   and tab, DEL, every C1 control, and escape sequences. Also removed are U+2028, U+2029, U+061C, U+200E, U+200F,
+   U+202A to U+202E and U+2066 to U+2069. The 6000-character cap counts the shown lines' characters without the
+   `> ` prefixes. Whole lines are shown while they fit; a first line longer than the cap is cut at it. The count
+   reads `(1 line not shown)` for one. The preview's input is the gated input's properties that the preview's
+   registered input schema names; a property the gated call omitted is omitted.
+9. **The document store's checkpoint.** Every `store.sqlite3` connection sets `secure_delete=ON`, and the embedded
+   store's `StoreInfo` gains `secure_delete` (`store-show` reports no pragmas and is unchanged). A new `SqliteStore::truncate_wal()` runs `wal_checkpoint(TRUNCATE)` with no
+   lock wait and answers `WalCheckpoint::Clean` or `Pending`. The trait's best-effort `checkpoint`, run after
+   writes, still waits up to the lock timeout and ignores busy, and it finishes a pending one later. Surfacing the
+   state to the knowledge plugin's redaction is step 3b's: the `checkpoint` host service still answers nothing.
+10. **The tests' control.** `secure_delete.rs` adds a control that the table did not list. It overwrites a row on a
+    connection with `secure_delete` off and checks that the raw-byte scan finds the old bytes, so the absence the
+    other tests assert is not the scan's blind spot.
 
 ## 16. For the owner
 

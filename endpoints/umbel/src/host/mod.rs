@@ -150,6 +150,7 @@ impl HostBuilder {
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
         let stores: Hub = Arc::new(Stores::new(Arc::clone(&workspace)));
         let ledger = Arc::new(plugins::Ledger::default());
+        let attestations = Arc::new(plugins::PipelineAttestations::default());
         let prompts: Arc<OnceLock<crate::authority::Prompts>> = Arc::new(OnceLock::new());
         let catalog = Catalog::new(&self.compiled)?;
         let compiled_catalog = Arc::new(catalog.manifests().clone());
@@ -218,6 +219,7 @@ impl HostBuilder {
             projector: &projector,
             stores: &stores,
             ledger: &ledger,
+            attestations: &attestations,
             registry: &registry,
             catalog: &catalog,
             mount_roots: &self.mount_roots,
@@ -503,6 +505,22 @@ impl Host {
             .is_some_and(|entry| entry.require_human)
     }
 
+    /// The `confirm_preview` of `command` (manifest version 4, phase 4 section 8.1): the
+    /// command of the same plugin the CLI runs, and shows, before its confirmation prompt.
+    #[cfg(feature = "cli")]
+    pub(crate) fn confirm_preview(&self, command: &str) -> Option<String> {
+        let entry = self.loaded.gate.get(command)?;
+        self.loaded
+            .instance(&entry.instance)?
+            .manifest
+            .as_ref()?
+            .commands
+            .iter()
+            .find(|decl| decl.name == command)?
+            .confirm_preview
+            .clone()
+    }
+
     /// The `authority_prompt` the CLI asks before `command` (phase 3 section 3.3): the command's
     /// own, or a pipeline's union of its steps'.
     #[cfg(feature = "cli")]
@@ -591,14 +609,26 @@ impl Host {
     }
 }
 
-/// A new trace id: 16 random bytes as lowercase hex.
+/// A new trace id: 16 random bytes as lowercase hex, or the clock's nanoseconds when the
+/// operating system's random source fails.
 pub(crate) fn new_trace_id() -> String {
-    let mut bytes = [0u8; 16];
-    if getrandom::fill(&mut bytes).is_err() {
+    random_trace_id().unwrap_or_else(|| {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_nanos());
-        bytes = nanos.to_be_bytes();
-    }
+        hex(&nanos.to_be_bytes())
+    })
+}
+
+/// A new trace id from the operating system's random source alone: 16 random bytes as
+/// lowercase hex, `None` when the source fails. A pipeline step's trace id, which keys its
+/// attestation (phase 4 section 10.1), is never drawn from the clock.
+pub(crate) fn random_trace_id() -> Option<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    Some(hex(&bytes))
+}
+
+fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
