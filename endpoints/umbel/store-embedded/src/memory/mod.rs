@@ -7,16 +7,22 @@
 //! FTS5 table with `secure-delete` set. Only a write creates the file: every read of a store not
 //! yet provisioned answers `NotProvisioned` and creates nothing.
 //!
-//! **Step 3a.** The `sealed` columns go through [`seal`], which stores them unsealed until step
-//! 3b drops in per-record keys and the key file. Until then `key_status` reports a key file that
-//! is present and matches with nothing destroyed, orphaned or absent, which is what an unsealed
-//! store means; `backup` refuses, since a copy would hold the text in clear; and a forget whose
-//! index rebuild or checkpoint is busy answers `wal: Pending` with no marker for a later writer to
-//! retry.
+//! **Sealing (section 5.4, D82, D83).** A record's subject, text, tags, content hash and the
+//! envelope's text-bearing fields are sealed in [`seal`] with XChaCha20-Poly1305 under the
+//! record's own key, which lives in the key file `memory.keys` beside the database ([`keys`]).
+//! A forget destroys the key first and durably, leaving a marker, then removes the rows; an
+//! unsettled marker is rolled forward by the next writer, never by a read. `backup` writes a
+//! stripped copy through `ATTACH` with no key file and no index, and opening a restored copy
+//! rebuilds its index, dropping rows whose key was destroyed. On macOS the files are kept out of
+//! Time Machine unless the deployer turns it off (D87).
 
+mod backup;
 mod change;
 mod erase;
+mod exclusion;
 mod filters;
+mod keys;
+mod points;
 mod pool;
 mod read;
 mod rows;
@@ -28,9 +34,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use umbel_store::memory::{
-    BackupReceipt, Confirm, ForgetReceipt, Invalidate, KeyFileState, KeyStatus, LeftOut,
-    MemoryChange, MemoryCounts, MemoryList, MemoryPage, MemoryReceipt, MemoryUsage,
-    MemoryVersionMeta, RecallPage, RecallQuery, ReindexReceipt, Sweep, SweepReceipt,
+    BackupReceipt, Confirm, ForgetReceipt, Invalidate, KeyStatus, LeftOut, MemoryChange,
+    MemoryCounts, MemoryList, MemoryPage, MemoryReceipt, MemoryUsage, MemoryVersionMeta,
+    RecallPage, RecallQuery, ReindexReceipt, Sweep, SweepReceipt,
 };
 use umbel_store::{
     AsOf, MemoryBatch, MemoryClass, MemoryRecord, MemoryStore, Millis, PushFilter, ReadFlags,
@@ -39,6 +45,8 @@ use umbel_store::{
 
 use crate::StoreOptions;
 
+pub use exclusion::is_excluded as is_excluded_from_machine_backup;
+pub use keys::{KEYS_FILE, MemoryKeysInfo};
 pub use schema::MEMORY_SCHEMA_VERSION;
 
 /// The memory database's file name under a space's `store/` directory.
@@ -97,6 +105,38 @@ impl SqliteMemoryStore {
                 Duration::from_millis(options.lock_timeout_ms),
             ),
         })
+    }
+
+    /// Keep memory's files out of machine backups (Time Machine) or not:
+    /// `store.exclude_memory_from_machine_backup`, `true` by default. With `true` a writer's open
+    /// sets the exclusion on `memory.sqlite3`, its WAL and shared-memory files and `memory.keys`
+    /// where it is missing; with `false` it removes it. Only macOS has the mark; elsewhere this
+    /// changes nothing.
+    #[must_use]
+    pub fn with_machine_backup_exclusion(mut self, exclude: bool) -> Self {
+        self.pool.set_exclude(exclude);
+        self
+    }
+
+    /// The key file, which exists once the store is provisioned.
+    #[must_use]
+    pub fn keys_path(&self) -> PathBuf {
+        self.pool.key_file().path().to_owned()
+    }
+
+    /// The files a writer's open marks for the machine-backup exclusion: the database, its WAL
+    /// and shared-memory files, and the key file.
+    #[must_use]
+    pub fn files(&self) -> Vec<PathBuf> {
+        self.pool.files().to_vec()
+    }
+
+    /// The key file's settings, read back on a **new** connection.
+    ///
+    /// # Errors
+    /// `KeysMissing` when it does not exist; `KeysMismatch` when it is not a key file.
+    pub fn keys_info(&self) -> Result<MemoryKeysInfo, StoreError> {
+        self.pool.key_file().info().map_err(StoreError::from)
     }
 
     /// The space this store serves.
@@ -220,26 +260,14 @@ impl MemoryStore for SqliteMemoryStore {
         self.do_reindex(remove_orphans)
     }
 
-    /// Refused in step 3a: the stripped copy of section 5.4 holds sealed blobs and no index, and
-    /// until step 3b seals them a copy would hold every record's text in clear.
-    fn backup(&self, _dest: &Path) -> Result<BackupReceipt, StoreError> {
-        self.pool.read(|_| Ok(()))?;
-        Err(StoreError::invalid(
-            "memory backup needs sealed records (phase 3 step 3b); nothing was copied",
-        ))
+    /// The stripped copy of section 5.4 in `<dest>/memory.sqlite3`: sealed blobs, no index, no
+    /// `record_derived` and never the key file. `dest/memory.sqlite3` must not exist yet.
+    fn backup(&self, dest: &Path) -> Result<BackupReceipt, StoreError> {
+        self.do_backup(dest)
     }
 
-    /// Step 3a: no record is sealed and there is no key file, so every row opens. The answer is
-    /// that of a key file that is present and matches, with no marker, orphan or absent entry.
     fn key_status(&self) -> Result<KeyStatus, StoreError> {
-        self.pool.read(|_| Ok(()))?;
-        Ok(KeyStatus {
-            file: KeyFileState::Present,
-            unsettled: 0,
-            destroyed: 0,
-            orphans: 0,
-            absent: 0,
-        })
+        self.do_key_status()
     }
 
     fn changes(

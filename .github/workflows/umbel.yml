@@ -145,7 +145,10 @@ jobs:
   # runners are slower than that machine and had not run the job when this was set
   # (specification, "Amendments from step 3", C14). Phase 3 step 3a's embedded memory store is in
   # `umbel-store-embedded`, so the same `cargo test` runs its `memory_*` tests and `run_all`, which
-  # now holds the memory conformance groups.
+  # now holds the memory conformance groups. Step 3b's sealing and key-file tests are there too:
+  # `cargo test` enables the crate's `testkit` feature (the crash points of section 7.4) through its
+  # dev-dependency on itself, and `memory_machine_backup.rs`, the Time Machine exclusion, runs only
+  # on macOS, so on the daily and manual macOS leg of this matrix.
   knowledge:
     name: Umbel knowledge (${{ matrix.os }})
     needs: scope

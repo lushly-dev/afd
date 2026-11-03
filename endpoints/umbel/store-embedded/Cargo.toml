@@ -26,11 +26,41 @@ time = { version = "0.3", default-features = false, features = ["std", "parsing"
 petgraph = { version = "0.8", default-features = false, features = ["stable_graph"] }
 serde = "1"
 serde_json = "1"
+# Per-record keys for memory (phase 3 section 5.4, D82): XChaCha20-Poly1305, with keys, nonces and
+# the store id from the operating system through `getrandom`; the cipher zeroizes its key copy.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc", "getrandom", "zeroize"] }
+
+# The Time Machine exclusion of memory's files (section 5.4, D87): `setxattr` and its kin, in one
+# macOS-only module.
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.191"
+
+[features]
+# `UMBEL_TEST_CRASH_AT` and `UMBEL_TEST_FAIL_AT` (section 7.4): a process aborts, or a step answers
+# an I/O error, at a named point of provisioning, writing, forgetting, purging, backing up or the
+# rebuild. `cargo test` enables it through the dev-dependency on this crate; a build without it
+# has no such points.
+testkit = []
 
 [dev-dependencies]
 # The conformance suite, and a directory per test.
 umbel-store = { path = "../store", features = ["conformance"] }
 tempfile = "3"
+# The crash tests drive the `testkit` points.
+umbel-store-embedded = { path = ".", features = ["testkit"] }
+# `memory_erasure_bytes.rs` and `memory_backup.rs` read sealed blobs and destroyed keys back.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 
-[lints]
-workspace = true
+# The workspace lints, with one scoped exception (phase 3 section 5.4, D87): the macOS exclusion
+# calls `setxattr`, `getxattr` and `removexattr` through `libc`, which is `unsafe`, so
+# `unsafe_code` is `deny`, not `forbid`, and only `memory/exclusion.rs` allows it. Hand-written
+# `unsafe` anywhere else stays refused.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

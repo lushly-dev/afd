@@ -3,12 +3,12 @@
 /// `PRAGMA user_version` of the memory schema this build writes and serves.
 pub const MEMORY_SCHEMA_VERSION: u32 = 1;
 
-/// The tables of section 5.3. Tables are `STRICT`. `sealed` columns hold what
-/// [`super::seal`] returns, never text in clear by design (step 3b seals them). Access is a join
-/// table, so a reader filter is a semi-join inside the same statement as the selection, ordering
-/// and limit. `record_derived` holds what the observation key and the tag filter need in clear.
-/// `changes` and `change_access` keep ids, times, owner, agent and byte counts, never text.
-/// `tombstones` hold no owner, class, project, session or text.
+/// The tables of section 5.3 that a `store-backup` copy keeps: every one but `record_derived`
+/// ([`DERIVED_SCHEMA`]) and `records_fts` ([`CREATE_FTS`]). Tables are `STRICT`. `sealed`
+/// columns hold what [`super::seal`] returns, XChaCha20-Poly1305 under the record's own key.
+/// Access is a join table, so a reader filter is a semi-join inside the same statement as the
+/// selection, ordering and limit. `changes` and `change_access` keep ids, times, owner, agent and
+/// byte counts, never text. `tombstones` hold no owner, class, project, session or text.
 pub(crate) const MEMORY_SCHEMA: &str = "
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -71,13 +71,6 @@ CREATE TABLE observations (
 ) STRICT;
 CREATE INDEX observations_by_id ON observations (id);
 
-CREATE TABLE record_derived (
-    id           TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    tags         TEXT NOT NULL
-) STRICT, WITHOUT ROWID;
-CREATE INDEX record_derived_by_hash ON record_derived (content_hash);
-
 CREATE TABLE changes (
     rev            INTEGER PRIMARY KEY,
     kind           TEXT NOT NULL,
@@ -124,6 +117,53 @@ CREATE TABLE idempotency (
     PRIMARY KEY (owner, authority, key)
 ) STRICT, WITHOUT ROWID;
 ";
+
+/// `record_derived`: what the observation key and the tag filter need in clear, the content hash
+/// and the tags. Derived from the sealed body, so left out of backups and rebuilt (section 5.4);
+/// `IF NOT EXISTS`, since the rebuild of a restored copy creates it.
+pub(crate) const DERIVED_SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS record_derived (
+    id           TEXT PRIMARY KEY,
+    content_hash TEXT NOT NULL,
+    tags         TEXT NOT NULL
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS record_derived_by_hash ON record_derived (content_hash);
+";
+
+/// [`MEMORY_SCHEMA`]'s statements with every table and index created in the attached schema
+/// `schema`, for `backup`'s copy.
+pub(crate) fn qualified(schema: &str) -> String {
+    MEMORY_SCHEMA
+        .split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|statement| {
+            let statement = if let Some(rest) = statement.strip_prefix("CREATE TABLE ") {
+                format!("CREATE TABLE {schema}.{rest}")
+            } else if let Some(rest) = statement.strip_prefix("CREATE INDEX ") {
+                format!("CREATE INDEX {schema}.{rest}")
+            } else {
+                statement.to_owned()
+            };
+            format!("{statement};\n")
+        })
+        .collect()
+}
+
+/// The tables a `store-backup` copy holds, in [`MEMORY_SCHEMA`]'s order, and whether each has
+/// an implicit rowid to carry over.
+pub(crate) const BACKUP_TABLES: &[(&str, bool)] = &[
+    ("meta", false),
+    ("records", false),
+    ("versions", false),
+    ("record_access", false),
+    ("observations", true),
+    ("changes", false),
+    ("change_access", false),
+    ("tombstones", false),
+    ("capture_erasures", false),
+    ("idempotency", false),
+];
 
 /// The lexical lane: an ordinary FTS5 table holding its own plaintext copy, `rowid` equal to
 /// `records.rowid` (section 5.3). Not `content=` and not contentless: see 5.3 and the

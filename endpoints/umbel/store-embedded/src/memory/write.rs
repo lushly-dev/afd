@@ -1,5 +1,7 @@
-//! `write` (phase 3 section 5.2): the purge before the write in transactions of its own, then one
-//! `BEGIN IMMEDIATE` transaction, all or nothing: replay, erased prefixes, entries, quota.
+//! `write` (phase 3 section 5.2): roll-forward and the purge before the write in transactions of
+//! their own, then one `BEGIN IMMEDIATE` transaction, all or nothing: replay, erased prefixes,
+//! entries, quota. Each created record gets its own key; the keys are committed to the key file
+//! before the memory transaction commits, so no live row ever lacks a key (section 5.4).
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde_json::{Value, json};
@@ -11,19 +13,24 @@ use umbel_store::memory::{
 use umbel_store::{Authority, ContentHash, MemoryBatch, Millis, Rev, StoreError};
 
 use super::SqliteMemoryStore;
+use super::keys::{self, KeyEntry};
+use super::points;
 use super::read::usage;
 use super::rows::{
     ChangeRow, FullVersion, access_text, body_plain, class_text, flag_texts, insert_change,
     insert_version, record_row, sensitivity_text,
 };
-use super::seal::{Part, Seal};
+use super::seal::{Part, RecordKey, Seal};
 use crate::error::{Fail, to_i64};
 
 impl SqliteMemoryStore {
     pub(super) fn do_write(&self, batch: MemoryBatch) -> Result<MemoryReceipt, StoreError> {
         let (owner, authority, hashes) = batch.check(&self.space)?;
         self.pool.write(|_| Ok(()))?;
-        // First, outside the write's transaction: purge at most 16 records past their purge
+        // First, outside the write's transaction: finish any forget or purge a crash or a busy
+        // checkpoint left unsettled.
+        self.roll_forward()?;
+        // Then, outside the write's transaction: purge at most 16 records past their purge
         // date, committed on their own, whatever the write answers. A `Busy` is left for the
         // next writer.
         match self.purge_committed(batch.at, batch.retention, PURGE_BEFORE_WRITE) {
@@ -31,22 +38,43 @@ impl SqliteMemoryStore {
             Err(other) => return Err(other),
         }
         self.pool.write(|conn| {
-            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let receipt = apply(&tx, &self.space, &batch, &owner, authority, &hashes)?;
-            tx.commit()?;
-            Ok(receipt)
+            self.pool.keys(|kc| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let mut fresh = Vec::new();
+                let receipt = apply(
+                    &tx,
+                    kc,
+                    &self.space,
+                    &batch,
+                    &owner,
+                    authority,
+                    &hashes,
+                    &mut fresh,
+                )?;
+                // Keys first, then memory: a crash between the two commits leaves orphan keys,
+                // which are harmless, and never a live row without its key.
+                if !fresh.is_empty() {
+                    keys::insert(kc, &fresh)?;
+                    points::crash("write-keys");
+                }
+                tx.commit()?;
+                Ok(receipt)
+            })
         })
     }
 }
 
-/// The write's transaction body.
+/// The write's transaction body. Each created record's new key is pushed to `fresh`.
+#[allow(clippy::too_many_arguments)]
 fn apply(
     tx: &Connection,
+    kc: &Connection,
     space: &str,
     batch: &MemoryBatch,
     owner: &str,
     authority: Authority,
     hashes: &[ContentHash],
+    fresh: &mut Vec<(String, RecordKey)>,
 ) -> Result<MemoryReceipt, Fail> {
     // (1) A used (owner, authority, key) replays its first receipt and writes nothing.
     if let Some(key) = &batch.idempotency {
@@ -84,13 +112,15 @@ fn apply(
     let mut entries = Vec::with_capacity(batch.entries.len());
     let mut superseded = Vec::new();
     for (entry, hash) in batch.entries.iter().zip(hashes) {
-        if let Some(observed) = observe(tx, batch, entry, hash, owner, authority)? {
+        if let Some(observed) = observe(tx, kc, batch, entry, hash, owner, authority)? {
             entries.push(observed);
             continue;
         }
-        entries.push(create(tx, space, batch, entry, hash, owner)?);
+        let key = RecordKey::generate()?;
+        entries.push(create(tx, space, batch, entry, hash, owner, &key)?);
+        fresh.push((entry.id.clone(), key));
         for target in &entry.supersedes {
-            supersede(tx, space, batch.at, entry, target, owner)?;
+            supersede(tx, kc, space, batch.at, entry, target, owner)?;
             superseded.push(target.clone());
         }
     }
@@ -124,9 +154,11 @@ fn apply(
 }
 
 /// A live record with the same owner, project, class, content hash, authority and access set
-/// takes an observation, and is renewed if the entry says so (section 8.2).
+/// takes an observation, and is renewed if the entry says so (section 8.2). A row with a destroyed
+/// marker is not live.
 fn observe(
     tx: &Connection,
+    kc: &Connection,
     batch: &MemoryBatch,
     entry: &MemoryWrite,
     hash: &ContentHash,
@@ -134,15 +166,17 @@ fn observe(
     authority: Authority,
 ) -> Result<Option<EntryReceipt>, Fail> {
     let at = batch.at;
-    let found: Option<String> = tx
-        .query_row(
+    let candidates: Vec<String> = {
+        let mut stmt = tx.prepare(
             "SELECT r.id FROM records r \
              JOIN versions v ON v.id = r.id AND v.recorded_until IS NULL \
              JOIN record_derived d ON d.id = r.id \
              WHERE r.owner = ?1 AND r.project IS ?2 AND r.class = ?3 AND d.content_hash = ?4 \
              AND v.authority = ?5 AND r.access = ?6 AND r.expires > ?7 \
              AND v.inv_reason IS NULL AND (v.valid_until IS NULL OR v.valid_until > ?7) \
-             ORDER BY r.rowid LIMIT 1",
+             ORDER BY r.rowid",
+        )?;
+        let found = stmt.query_map(
             params![
                 owner,
                 entry.scope.project,
@@ -153,8 +187,18 @@ fn observe(
                 at,
             ],
             |r| r.get(0),
-        )
-        .optional()?;
+        )?;
+        found.collect::<Result<_, _>>()?
+    };
+    let found = if candidates.is_empty() {
+        None
+    } else {
+        let refs: Vec<&str> = candidates.iter().map(String::as_str).collect();
+        let keys = keys::lookup(kc, &refs)?;
+        candidates
+            .into_iter()
+            .find(|id| !matches!(keys.entry(id), Some(KeyEntry::Destroyed { .. })))
+    };
     let Some(id) = found else { return Ok(None) };
     let rec = record_row(tx, &id)?
         .ok_or_else(|| StoreError::Corrupt("the observed record vanished".to_owned()))?;
@@ -214,6 +258,7 @@ fn create(
     entry: &MemoryWrite,
     hash: &ContentHash,
     owner: &str,
+    key: &RecordKey,
 ) -> Result<EntryReceipt, Fail> {
     let used: bool = tx.query_row(
         "SELECT EXISTS (SELECT 1 FROM changes WHERE id = ?1) \
@@ -236,7 +281,7 @@ fn create(
         owner,
         part: Part::Body,
     }
-    .seal(&body);
+    .seal(key, &body)?;
     let tags_text = entry.tags.join(" ");
     // The backend's own count: the sealed body plus the index's plaintext copy.
     let bytes = sealed.len() + entry.subject.len() + tags_text.len() + entry.text.len();
@@ -278,6 +323,7 @@ fn create(
         space,
         owner,
         &entry.id,
+        key,
         &FullVersion {
             number: 1,
             valid_from: entry.valid_from,
@@ -333,6 +379,7 @@ fn create(
 /// `validUntil = max(new.validFrom, target.validFrom + 1 ms)` (section 4.1).
 fn supersede(
     tx: &Connection,
+    kc: &Connection,
     space: &str,
     at: Millis,
     entry: &MemoryWrite,
@@ -340,7 +387,9 @@ fn supersede(
     owner: &str,
 ) -> Result<(), Fail> {
     let rec = record_row(tx, target)?.ok_or(StoreError::NotFound)?;
-    let current = rec.current(tx, space)?;
+    let keys = keys::lookup(kc, &[target])?;
+    let key = keys.require(target)?;
+    let current = rec.current(tx, space, key)?;
     let recorded = at.max(current.recorded_at);
     let until = entry.valid_from.max(current.valid_from.saturating_add(1));
     let trace = entry.envelope.trace_id.clone();
@@ -349,6 +398,7 @@ fn supersede(
         space,
         &rec.owner,
         target,
+        key,
         &current,
         recorded,
         trace,
@@ -389,6 +439,7 @@ pub(super) fn close(
     space: &str,
     owner: &str,
     id: &str,
+    key: &RecordKey,
     current: &FullVersion,
     recorded: Millis,
     trace: Option<String>,
@@ -406,7 +457,7 @@ pub(super) fn close(
     next.envelope.observed_at = format_instant(recorded);
     edit(&mut next);
     next.envelope.valid_until = next.valid_until.map(format_instant);
-    insert_version(tx, space, owner, id, &next)?;
+    insert_version(tx, space, owner, id, key, &next)?;
     Ok(next.number)
 }
 

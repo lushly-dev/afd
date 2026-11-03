@@ -55,8 +55,36 @@ pub(crate) fn memory_factory(dir: &Path, space: &str) -> Result<Arc<dyn MemorySt
     Ok(open_memory(dir, space, StoreOptions::default())?)
 }
 
-/// Open the SQLite stores, the tantivy index and the memory store of `space` under `dir`. There
-/// is no memory restore until phase 3 step 3b, so the erasure group's copy case is skipped.
+/// Section 5.4's restore by hand, as the suite's `MemoryRestore`: with every handle dropped,
+/// remove `memory.sqlite3-wal` and `memory.sqlite3-shm` (SQLite would replay a stale WAL into the
+/// copy), then copy the backup to `memory.sqlite3` with mode `0600`, beside the current key file.
+pub(crate) fn restore_memory(dir: &Path, _space: &str, backup: &Path) -> Result<(), StoreError> {
+    let io = |e: std::io::Error| StoreError::Io(e.to_string());
+    let db = dir.join("store").join("memory.sqlite3");
+    for suffix in ["-wal", "-shm"] {
+        let path = std::path::PathBuf::from(format!("{}{suffix}", db.display()));
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(io(e)),
+        }
+    }
+    let bytes = std::fs::read(backup.join("memory.sqlite3")).map_err(io)?;
+    let _ = std::fs::remove_file(&db);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&db).map_err(io)?;
+    std::io::Write::write_all(&mut file, &bytes).map_err(io)?;
+    file.sync_all().map_err(io)
+}
+
+/// Open the SQLite stores, the tantivy index and the memory store of `space` under `dir`, with
+/// the memory restore of section 5.4.
 pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
     let store = open_with(dir, space, StoreOptions::default())?;
     let index = open_index(dir, space, StoreOptions::default())?;
@@ -66,7 +94,7 @@ pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
         graph: store,
         index: Some(index),
         memory: Some(memory),
-        memory_restore: None,
+        memory_restore: Some(restore_memory),
     })
 }
 
