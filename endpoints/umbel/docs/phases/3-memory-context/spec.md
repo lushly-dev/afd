@@ -62,8 +62,9 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 3b to 10. Step 2 merged in
-  [#733](https://github.com/lushly-dev/afd/pull/733); step 3a is in its pull request, 2026-11-03.
+- **Not done:** section [14](#14-implementation-plan)'s steps 4 to 10. Step 2 merged in
+  [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
+  [#736](https://github.com/lushly-dev/afd/pull/736); step 3b is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2145,7 +2146,7 @@ Step 2 settled four details of 5.2 and 5.5 that the text left open. None changes
 ### Amendments from step 3a
 
 Step 3a settled these details of 5.3 to 5.5 and 7.2 for a store that has no key file yet. Items 1 to 4 are
-interim and end with step 3b; the host reaches the memory store only at step 4, after 3b. Item 7 adds a
+interim and ended with step 3b (below); the host reaches the memory store only at step 4, after 3b. Item 7 adds a
 step to every erasure, so that forget keeps the guarantee 5.4 and 7.2 state.
 
 1. **Forget before 3b.** With no key to destroy, a forget is 5.4's steps 1 and 3 in one `BEGIN IMMEDIATE`
@@ -2229,6 +2230,81 @@ step to every erasure, so that forget keeps the guarantee 5.4 and 7.2 state.
    about 18 ms. It grows with the index, so a store far larger would want the rebuild limited to the
    segments an erasure touched, which FTS5 does not offer; `forget_cost_on_a_few_thousand_records`
    prints these figures (`UMBEL_FORGET_COST_RECORDS` sets the size).
+
+### Amendments from step 3b
+
+Step 3b settled these details of 5.3, 5.4, 7.4 and 8.8 that the text left open, and ends items 1 to 4 of
+step 3a's: records are sealed, the key file exists, forget has its markers and roll-forward, `backup`
+writes the stripped copy and `key_status` reads the key file. None changes access, authority, forget's
+guarantees or the trust model.
+
+1. **A write's order.** Inside the memory transaction each created record gets its key, its body and
+   version blobs are sealed and its rows inserted; then the new keys are committed to the key file; then
+   the memory transaction commits. 5.4 lists "commit the keys" before "seal, insert"; what it needs is the
+   key commit before the memory commit, which this keeps, so a crash between them (`write-keys`) still
+   leaves orphan keys and never a live row without a key. A key-file entry that already exists for a new
+   id makes the write `Invalid` ("already used"), and nothing is written.
+2. **Step 4 is the compaction, then the checkpoint.** Step 3a's item 7 runs FTS5 `rebuild` after every
+   erasure. With markers, forget's step 4 is that rebuild in a transaction of its own, then
+   `wal_checkpoint(TRUNCATE)`; a marker is settled only when both succeeded, and roll-forward repeats both.
+   `forget-4` and `purge-4` are after the checkpoint and before the settle. `checkpoint()`, which
+   `store-check` will call, settles unsettled markers whose rows are gone only after a compaction and a
+   checkpoint that both succeed, so a settled marker always means the index was rewritten and the WAL
+   truncated after the rows went.
+3. **Waits.** Roll-forward's `BEGIN IMMEDIATE` waits the lock timeout, as the writer's own transaction
+   will; its compaction and checkpoint take no wait, and a `Busy` anywhere is left for the next writer. A
+   forget's steps wait the lock timeout. The purge before a write takes no wait after its commit; a sweep
+   waits. After the erasure point a forget answers success with `wal: Pending` on any failure of steps 3
+   to 5 (`UMBEL_TEST_FAIL_AT=forget-3`); a sweep whose step 3 fails after its keys were destroyed answers
+   the error, and the next writer's roll-forward finishes the purge.
+4. **Which reads touch the key file.** `get`, `history`, `list` and `recall` open text, so they take the
+   key file's shared lock for one `SELECT` of the rows' entries and answer `KeysMissing` or `KeysMismatch`
+   when it is gone or foreign. `left_out`, `counts`, `changes`, `head` and `usage` hold no text and read no
+   key file, so they still answer with `memory.keys` missing. A row with a marker is left out of every
+   text read as forgotten: `get` answers `None`, `history` is empty, and `list` and `recall` skip it
+   without counting it in `unreadable` (they count only absent entries and blobs that do not open). A
+   key file with no database is `KeysMismatch` for every read, including those. `key_status` answers
+   `Missing` or `Mismatch` instead of failing, so `store-show` and the doctor can report them. A key file
+   whose `application_id` is not `UMBK`, or is not SQLite, is `KeysMismatch`; a newer `user_version` is
+   `VersionUnsupported`.
+5. **Marked rows dropped by the rebuild or by `memory-reindex`** write a tombstone of kind
+   `forget-recovered`, as roll-forward does, an `Erased` change, and for a forget the row's capture key as
+   an erased prefix with the marker's `destroyed_at` and no trace id; for a purge, a `Purged` change only.
+6. **Orphan removal under the lock order.** With `removeOrphans`, `memory-reindex` commits its memory
+   transaction, then takes `BEGIN IMMEDIATE` on the memory database again, reads the orphans and removes
+   them in a transaction on the key file, then releases the memory lock. Holding the memory lock means no
+   writer is between its key commit and its memory commit, so a key about to be used is never taken for
+   an orphan. After its `TRUNCATE` succeeds, `memory-reindex` settles markers whose rows are gone.
+7. **The machine-backup exclusion is best effort.** A filesystem that refuses `setxattr` does not fail a
+   write; the doctor's `stores.memory_backup` (step 4) reports a file left unmarked. A writer's open is the
+   first write through a store handle. The setting reaches the store as
+   `SqliteMemoryStore::with_machine_backup_exclusion`, default `true`, so `StoreOptions` keeps its shape
+   for the host's callers; `umbel_store_embedded::is_excluded_from_machine_backup` reads the mark for the
+   doctor. `libc`'s calls are `unsafe`, so `umbel-store-embedded`'s `unsafe_code` lint is `deny`, not the
+   workspace's `forbid`, as `sdk` and `plugins/hello` already do, and only `memory/exclusion.rs` allows it.
+   `tmutil isexcluded` reports every file under the system's temporary folders as excluded, so the test
+   checks it in a directory under the build's target.
+8. **Randomness.** Keys, nonces and the store id come from `getrandom`, reached through
+   `chacha20poly1305`'s own re-export, with no new crate family; 3a's `randomblob` store id ends. The
+   temporary key file is `.memory-keys-<16 random hex digits>.tmp`, since the store has no trace id.
+9. **Zeroizing.** A key is held in one type that overwrites its 32 bytes when dropped, and the cipher
+   zeroizes its own copy (the crate's `zeroize` feature); the store takes no direct `zeroize` dependency.
+   Copies that SQLite keeps in its page cache and that the allocator held are outside the store's reach,
+   which 5.4's "local same-user agents can read everything" already covers.
+10. **`backup`** refuses with `Invalid` when `<dest>/memory.sqlite3` exists, and reads no key file. The
+    `backup-copy` crash point is after half the tables are copied; `rebuild` is after the index is filled
+    and before the commit. A crash point aborts the process; it is compiled in only with the `testkit`
+    feature, which `cargo test` enables through the crate's dev-dependency on itself.
+
+**Cost**, measured 2026-11-03 on the development Mac, `release` profile, `fullfsync` on, records of about
+thirty words: **about 20 ms per write of one record** (19.9 to 20.9 ms
+on 1000 and 3000 records), which is two durable commits, the key file's (`synchronous=EXTRA`: journal,
+database and directory synced) and the memory database's; **1.3 ms per recall** of 10 or 50 hits on 1000
+records and 3.2 to 3.4 ms on 3000, each hit's body and version opened; 37 µs per `get`; and **43 to 53 ms per
+forget** of one record on 3000 records, of which the index rebuild is about 9 ms (the debug figures of step 3a's
+item 7 were 20 to 23 ms, before the two key-file commits of steps 2 and 5). The split between the fsyncs and
+the cipher was not measured. `cost_per_write_and_per_recall` in `memory_seal.rs` and
+`forget_cost_on_a_few_thousand_records` print these (`cargo test --release ... -- --nocapture cost`).
 
 ## 15. For the owner
 
