@@ -10,7 +10,7 @@ import { createScopeRuntime } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { registerShellState } from '../shell-state.js';
 import { createFixedEnvironment } from '../testing.js';
-import { createOverlayStore, shellCommandsWithLate } from './index.js';
+import { createLateParts, createOverlayStore } from './index.js';
 
 function definitions() {
 	const viewState = new ViewStateRegistry();
@@ -22,7 +22,7 @@ function definitions() {
 	const boot = createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] });
 	return {
 		boot,
-		all: shellCommandsWithLate(boot, {
+		all: createLateParts(boot, {
 			viewState,
 			state,
 			environment,
@@ -37,7 +37,7 @@ function definitions() {
 			store: new MemoryAdapter(),
 			generation: () => 'test',
 			isMutation: () => false,
-		}),
+		}).shell,
 	};
 }
 

@@ -5,9 +5,13 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createKernel } from '../kernel.js';
+import type { LayoutStateV0 } from '../layout.js';
 import {
+	createFixedEnvironment,
 	createScopedWorkspace,
 	createSteppingClock,
 	diffJournals,
@@ -235,13 +239,52 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 		vi.setSystemTime(Date.UTC(2026, 10, 3));
 		const workspace = await scoped();
 		await enterRestricted(workspace);
+		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
 		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		// An app's command keeps the scope it was made in, and line 2 refuses it: no new read succeeds.
 		const where = await workspace.kernel.call<{ scope: ScopeV1 }>('dual-where');
-		expect((await lastEntry(workspace)).context?.scope).toEqual(WORKSPACE);
-		expect(where.data?.scope).toEqual(WORKSPACE);
+		expect(where.error?.code).toBe('PROJECT_NOT_FOUND');
+		expect((await lastEntry(workspace)).context?.scope).toEqual(vault);
+		// The active scope has left the project, and a shell command that asked for it runs there.
+		expect((await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(
+			WORKSPACE
+		);
+		expect((await workspace.kernel.call('layout-get')).success).toBe(true);
 		vi.useRealTimers();
 		const { report } = await replayOf(await entries(workspace));
 		expect(report.diverged).toBe(false);
+	});
+
+	it('refuses a surface bound to a restricted project once the session ends, and writes nothing', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(Date.UTC(2026, 10, 3));
+		const workspace = await scoped();
+		await enterRestricted(workspace);
+		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
+		const surface = workspace.kernel.appPort('dual').surface({ scope: vault as ScopeV1 });
+		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		const put = await surface.call('dual-put', { key: 'k', value: 'after' });
+		expect(put.error?.code).toBe('PROJECT_NOT_FOUND');
+		expect(await workspace.store.get('app-dual', 'k')).toBeNull();
+		expect((await workspace.store.list('app-dual')).data).toEqual([]);
+		vi.useRealTimers();
+	});
+
+	it('leaves a restricted project at stage A when the session has already expired', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(Date.UTC(2026, 10, 3));
+		const store = new MemoryAdapter();
+		const auth = new MockAuthAdapter();
+		const first = await scoped({ store, auth });
+		await enterRestricted(first);
+		await first.kernel.dispose();
+		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		// The same adapter, its session now expired: stage A must not hold the project.
+		const second = await scoped({ store, auth, clock: createSteppingClock(Date.UTC(2026, 0, 2)) });
+		expect((await second.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(
+			WORKSPACE
+		);
+		vi.useRealTimers();
 	});
 
 	it('moves the active scope to the workspace when the active project is archived, and restores it', async () => {
@@ -448,7 +491,79 @@ describe('P2-E4: replay with scope', () => {
 		expect((await second.kernel.call('scope-set', { project: null })).data).toMatchObject({
 			previous: expect.stringMatching(/^prj_/),
 		});
+		// The active scope was the workspace already; the record follows it, so a reload stays there.
+		expect((await second.kernel.call('view-state-get', { id: 'loam.scope' })).data).toEqual({
+			id: 'loam.scope',
+			state: { project: null },
+		});
 		const { report } = await replayOf(await journal.read());
 		expect(report.diverged).toBe(false);
+		await second.kernel.flush();
+		await second.kernel.dispose();
+		const signedIn = new MockAuthAdapter();
+		await signedIn.signIn({ method: 'credentials', email: 'person@example.com', password: 'x' });
+		const third = await scoped({
+			store,
+			auth: signedIn,
+			clock: createSteppingClock(Date.UTC(2026, 0, 3)),
+		});
+		expect((await third.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(
+			WORKSPACE
+		);
+	});
+});
+
+describe('P2-E1 (kernel unit): stage B corrects a project layout stage A took from a boot record', () => {
+	it("gives the manifest's first layout to a project record cloned from a lying boot record", async () => {
+		const store = new MemoryAdapter();
+		const first = await scoped({ store });
+		await first.kernel.call('scope-set', { project: 'atlas' });
+		await first.kernel.call('app-open', { instance: 'dual' });
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		const boot = readBoot(scopedDeployment()) as BootProjectionV2;
+		// It says `dual` has a sidebar and an inspector, open; its manifest declares main alone.
+		boot.apps = boot.apps.map((app) =>
+			app.instance === 'dual'
+				? {
+						...app,
+						scopeLevels: ['workspace', 'project'],
+						parts: ['sidebar', 'inspector'],
+						layout: { sidebar: { open: true, width: 300 }, inspector: { open: true } },
+					}
+				: app
+		);
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			boot,
+			appsLoader: async () => {
+				await held;
+				return { deployment: scopedDeployment(), ports: scopedPorts() };
+			},
+		});
+		kernels.push(kernel);
+		// Stage A: the project's record, from the boot record.
+		const before = await kernel.call<LayoutStateV0>('layout-get');
+		expect(before.data?.sidebar.open).toBe(true);
+		expect(before.data?.inspector.open).toBe(true);
+		release();
+		await kernel.startApps();
+		const after = await kernel.call<LayoutStateV0>('layout-get');
+		expect(after.data?.sidebar.open).toBe(false);
+		expect(after.data?.inspector.open).toBe(false);
+		const id = `loam.layout.dual@${ATLAS.project}`;
+		const opened = await kernel.call('layout-set', { inspector: { open: true } });
+		expect(opened.error?.code).toBe('LAYOUT_PART_UNDECLARED');
+		expect((await kernel.call('view-state-get', { id })).success).toBe(true);
 	});
 });

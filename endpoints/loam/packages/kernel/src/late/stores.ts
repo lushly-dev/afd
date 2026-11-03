@@ -6,7 +6,7 @@
 
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { LoamKernelError } from '../errors.js';
-import type { RecordCache } from '../scope/cache.js';
+import { createRecordCache, type RecordCache } from '../scope/cache.js';
 import {
 	PROJECT_TABLE,
 	type ProjectV1,
@@ -47,12 +47,16 @@ export function checkStamped(table: string, record: Stamped): void {
 }
 
 export interface ShellStores {
+	/** The workspace row, read once from the store: only late commands use it, so first paint holds none. */
+	workspace(): Promise<WorkspaceV1 | undefined>;
 	putWorkspace(record: WorkspaceV1): Promise<void>;
 	putWorkspaceApp(record: WorkspaceAppV1): Promise<void>;
 	putProject(record: ProjectV1): Promise<void>;
 }
 
 export function createShellStores(store: DataAdapter, scope: ScopeRuntime): ShellStores {
+	const workspaces = createRecordCache<WorkspaceV1>(WORKSPACE_TABLE);
+	let loading: Promise<void> | undefined;
 	async function put<T extends Stamped>(
 		table: string,
 		record: T,
@@ -67,7 +71,12 @@ export function createShellStores(store: DataAdapter, scope: ScopeRuntime): Shel
 		cache.put(record);
 	}
 	return {
-		putWorkspace: (record) => put(WORKSPACE_TABLE, record, scope.workspaces),
+		async workspace() {
+			loading ??= workspaces.load(store);
+			await loading;
+			return workspaces.get(scope.workspace.id);
+		},
+		putWorkspace: (record) => put(WORKSPACE_TABLE, record, workspaces),
 		putWorkspaceApp: (record) => put(WORKSPACE_APP_TABLE, record, scope.workspaceApps),
 		putProject: (record) => put(PROJECT_TABLE, record, scope.projects),
 	};

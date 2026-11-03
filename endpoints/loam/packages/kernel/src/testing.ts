@@ -26,6 +26,7 @@ import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
+import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
 import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV2 } from './types.js';
 
@@ -340,6 +341,8 @@ export async function replayKernel(
 					}
 					return entry.result;
 				}
+				// A call `run` made, as each entry was: the actor's changes replay as they ran (3.4).
+				(context as Record<symbol, unknown>)[CALL_MARK] = 'run';
 				const { registries } = parts;
 				// Boot's own work is in a registry of its own, which only boot and a replay reach (2.2).
 				const registry = BOOT_ONLY.includes(name)

@@ -639,15 +639,29 @@ export class AppSurfaces implements ShellApps {
 			version: manifest.plugin.version,
 			config,
 			registry,
-			client: { call: (name, input, options) => port.call(name, input, options) },
 			kit: createKit(registry),
+			...this.#calls(port, port.call),
+		};
+	}
+
+	/**
+	 * What of a context calls the kernel, over one caller's `call`: the port's for `activate`, a surface's
+	 * for its element, so an embed's `navigate` or modal is refused as its client's calls are (3.6).
+	 */
+	#calls(
+		port: AppPortV2,
+		call: AppPortV2['call']
+	): Pick<AppContextV1, 'client' | 'navigate' | 'overlays'> {
+		const { instance } = port;
+		return {
+			client: { call },
 			async navigate(route: string) {
-				await port.call('app-route-set', { instance, path: route });
+				await call('app-route-set', { instance, path: route });
 			},
 			overlays: {
-				toast: (input: ToastInputV1) => port.call('toast-show', input),
+				toast: (input: ToastInputV1) => call('toast-show', input),
 				async modal(input: ModalInputV1) {
-					const opened = await port.call<{ overlayId: string }>('modal-open', input);
+					const opened = await call<{ overlayId: string }>('modal-open', input);
 					if (!opened.success || !opened.data) {
 						throw Object.assign(new Error(opened.error?.message ?? 'The modal could not open'), {
 							code: opened.error?.code,
@@ -887,7 +901,7 @@ export class AppSurfaces implements ShellApps {
 		mount.configure({
 			registry: held.registry as CustomElementRegistry,
 			element,
-			context: { ...(held.context as AppContextV1), client: surface },
+			context: { ...(held.context as AppContextV1), ...this.#calls(held.port, surface.call) },
 			selection: null,
 			...(label !== undefined ? { label } : {}),
 		});

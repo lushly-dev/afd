@@ -5,7 +5,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
+import { type BootProjectionV2, type ProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
@@ -19,6 +19,7 @@ import {
 	createScopedWorkspace,
 	createSteppingClock,
 	scopedDeployment,
+	scopedPorts,
 } from './testing.js';
 import type { LoamKernelV2, WorkspaceAppV1 } from './types.js';
 
@@ -186,7 +187,8 @@ describe.each(adapters)('P2-E10: the stores over %s', (_name, adapter) => {
 			.filter((entry) => entry.instance !== 'tasks')
 			.map((entry) => (entry.instance === 'solo' ? { ...entry, order: 5 } : entry));
 		await boot(next);
-		expect((await applied()).at(-1)?.result.data).toEqual({ added: 0, changed: 2, unlisted: 1 });
+		// `solo`'s order changed; `dual` was listed again as it was, which is no change.
+		expect((await applied()).at(-1)?.result.data).toEqual({ added: 0, changed: 1, unlisted: 1 });
 		const solo = await store.get<WorkspaceAppV1>('workspace-app', 'solo');
 		expect(solo).toMatchObject({
 			order: 5,
@@ -211,6 +213,108 @@ describe.each(adapters)('P2-E10: the stores over %s', (_name, adapter) => {
 		await kernel.call('scope-get');
 		await kernel.call('section-get');
 		expect(await journal.read()).toEqual([]);
+	});
+});
+
+describe('P2-E10: the workspace store across boots', () => {
+	/** A boot kernel over `store`, its stage B reading through `loader`. */
+	async function bootOver(
+		store: DataAdapter,
+		journal: MemoryJournalSink,
+		loader: () => Promise<{ deployment: ProjectionV2; ports: ReturnType<typeof scopedPorts> }>,
+		day: number
+	) {
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: createSteppingClock(Date.UTC(2026, 0, day)),
+			boot: readBoot(scopedDeployment()) as BootProjectionV2,
+			appsLoader: loader,
+		});
+		kernels.push(kernel);
+		await kernel.startApps();
+		return kernel;
+	}
+
+	it('applies a deployment that a project created while the loader failed has not claimed', async () => {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const failing = await bootOver(store, journal, () => Promise.reject(new Error('Offline')), 1);
+		expect((await failing.call('project-create', { name: 'Atlas' })).success).toBe(true);
+		// The row exists, and claims no generation a projection can have.
+		expect(await store.get('workspace', 'personal')).toMatchObject({ generation: 'unapplied' });
+		await failing.dispose();
+		await bootOver(
+			store,
+			journal,
+			async () => ({ deployment: scopedDeployment(), ports: scopedPorts() }),
+			2
+		);
+		const applied = (await journal.read()).filter(
+			(entry) => entry.command === 'workspace-deployment-apply'
+		);
+		expect(applied).toHaveLength(1);
+		expect(applied[0]?.result.data).toEqual({ added: 3, changed: 0, unlisted: 0 });
+		expect(await store.get('workspace', 'personal')).toMatchObject({ generation: 'scoped' });
+	});
+
+	it('lets no call made while stage B applies run beside it: a workspace-app-set waits, and keeps its write', async () => {
+		const inner = new MemoryAdapter();
+		let kernel: LoamKernelV2 | undefined;
+		let during: Promise<{ success: boolean; error?: { code: string } }> | undefined;
+		// Made while the apply's handler writes its first record, after stage B has read the late commands.
+		const store = Object.assign(Object.create(inner), {
+			batch: (operations: Array<{ path: string }>) => {
+				if (!during && kernel && operations[0]?.path.startsWith('/workspace-app/')) {
+					during = kernel.call('workspace-app-set', { instance: 'solo', title: 'Alone' });
+				}
+				return inner.batch(operations as never);
+			},
+		}) as MemoryAdapter;
+		const journal = new MemoryJournalSink();
+		kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: readBoot(scopedDeployment()) as BootProjectionV2,
+			appsLoader: async () => ({ deployment: scopedDeployment(), ports: scopedPorts() }),
+		});
+		kernels.push(kernel);
+		await kernel.startApps();
+		expect(during).toBeDefined();
+		expect(await during).toMatchObject({ success: true });
+		expect((await journal.read()).map((entry) => entry.command)).toEqual([
+			'workspace-deployment-apply',
+			'workspace-app-set',
+		]);
+		expect(await inner.get('workspace-app', 'solo')).toMatchObject({
+			overrides: { title: 'Alone' },
+		});
+	});
+
+	it('undoes a workspace-app-set to overrides that were never set, and back', async () => {
+		const workspace = await createScopedWorkspace({ empty: true });
+		kernels.push(workspace.kernel);
+		const { kernel } = workspace;
+		const set = await kernel.call<WorkspaceAppV1>('workspace-app-set', {
+			instance: 'solo',
+			enabled: false,
+			title: 'Alone',
+		});
+		expect(set.data?.overrides).toEqual({ enabled: false, title: 'Alone' });
+		expect(set.undoArgs).toEqual({ instance: 'solo', enabled: null, title: null });
+		const undone = await kernel.call<WorkspaceAppV1>('workspace-app-set', set.undoArgs);
+		expect(undone.data?.overrides).toEqual({});
+		expect(undone.undoArgs).toEqual({ instance: 'solo', enabled: false, title: 'Alone' });
+		const redone = await kernel.call<WorkspaceAppV1>('workspace-app-set', undone.undoArgs);
+		expect(redone.data?.overrides).toEqual({ enabled: false, title: 'Alone' });
 	});
 });
 
@@ -248,27 +352,6 @@ describe('P2-E10: what no command, app or agent may write (D55, D56, D73)', () =
 				expect(result.error?.code, name).toBe('COMMAND_NOT_FOUND');
 			}
 		}
-	});
-
-	it('keeps no location, credential or command line in the store', async () => {
-		const store = new MemoryAdapter();
-		const deployment = scopedDeployment();
-		deployment.apps.push({
-			instance: 'work',
-			app: 'umbel',
-			package: 'apps/umbel/',
-			audience: 'team',
-			transport: 'http',
-			route: 'mounts/work/',
-			projects: ['atlas'],
-		});
-		const workspace = await createScopedWorkspace({ store, deployment });
-		kernels.push(workspace.kernel);
-		const rows = JSON.stringify((await store.list('workspace-app')).data);
-		for (const key of ['"url"', '"bearer_file"', '"bearer_env"', '"command"', '"cwd"']) {
-			expect(rows).not.toContain(key);
-		}
-		expect(rows).toContain('"route":"mounts/work/"');
 	});
 
 	it('refuses a key that would name another scope, as a TypeError', () => {

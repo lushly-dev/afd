@@ -82,9 +82,13 @@ const projectOfId = (id: string): string | undefined => {
 	return at < 0 ? undefined : id.slice(at + 1);
 };
 
-/** Whether the call's actor may read the record `id`: one holding `@<project>` is that project's (3.4). */
+/**
+ * Whether the call's actor may read the record `id`: one holding `@<project>` is that project's, and the
+ * alias `loam.layout` is the call's scope's record, so it is that scope's (3.4). Decided before the alias
+ * is resolved, which would register the record.
+ */
 const mayRead = (id: string, context: CommandContext, deps: ShellCommandDeps): boolean => {
-	const project = projectOfId(id);
+	const project = id === LAYOUT_VIEW_STATE_ID ? callScope(context).project : projectOfId(id);
 	return (
 		project === undefined ||
 		deps.scope.allows(actorKey(context), { workspace: deps.scope.workspace.id, project })

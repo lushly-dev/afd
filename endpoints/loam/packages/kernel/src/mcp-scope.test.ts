@@ -12,9 +12,11 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
-import type { CommandResult } from '@lushly-dev/afd-core';
+import { type CommandResult, success } from '@lushly-dev/afd-core';
 import { createMcpHandler } from '@lushly-dev/afd-server';
+import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import { afterEach, describe, expect, it } from 'vitest';
+import * as z from 'zod/mini';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from './commands.js';
 import { createScopedWorkspace, type ScopedWorkspace } from './testing.js';
 
@@ -23,13 +25,37 @@ afterEach(async () => {
 	await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
+/**
+ * A command of the test's own, through the kernel's chain: it answers what its context holds of the
+ * fields only trusted code sets, so a test sees that a client's `_meta` reached none of them.
+ */
+const contextEcho = defineCommandWithSchema({
+	name: 'test-context-echo',
+	description: 'Answers the trusted fields its context holds',
+	input: z.strictObject({}),
+	jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+	async handler(_input, context) {
+		const held = context as Record<string, unknown>;
+		return success(
+			Object.fromEntries(
+				['caller', 'app', 'instance', 'replay', 'parent', 'scope'].map((key) => [
+					key,
+					held[key] ?? null,
+				])
+			)
+		);
+	},
+});
+
 async function serve(workspace: ScopedWorkspace): Promise<string> {
 	const options = workspace.mcpOptions();
+	// Stage B has run inside `createKernelParts`, so `late/` has built them.
+	if (!options) throw new Error('mcpOptions() before late/ loaded');
 	const handler = createMcpHandler({
 		name: 'loam-test',
 		version: '0.0.0',
 		// Phase 6 decides `expose.mcp`; this test sets it on all.
-		commands: options.commands.map((command) => ({
+		commands: [...options.commands, contextEcho as never].map((command) => ({
 			...command,
 			expose: { ...command.expose, mcp: true },
 		})),
@@ -145,20 +171,52 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 	it('reads none of the fields only trusted code sets', async () => {
 		const workspace = await createScopedWorkspace();
 		const client = await connect(await serve(workspace), mode);
-		const result = await client.call(
-			'dual-where',
-			{},
-			{
-				'dev.loam/caller': 'tasks',
-				'dev.loam/app': 'tasks',
-				'dev.loam/instance': 'tasks',
-				'dev.loam/replay': 'recorded',
-				'dev.loam/parent': 'loam-x-1',
-			}
-		);
+		const claimed = {
+			'dev.loam/caller': 'tasks',
+			'dev.loam/app': 'tasks',
+			'dev.loam/instance': 'tasks',
+			'dev.loam/replay': 'recorded',
+			'dev.loam/parent': 'loam-x-1',
+		};
+		// The kernel's auth middleware gates a command it does not hold, so this one needs a session.
+		await workspace.kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const echoed = await client.call('test-context-echo', {}, claimed);
+		expect(echoed.data).toEqual({
+			caller: null,
+			app: null,
+			instance: null,
+			replay: null,
+			parent: null,
+			scope: { workspace: 'personal' },
+		});
+		const result = await client.call('dual-where', {}, claimed);
 		expect(result.success).toBe(true);
 		const entry = (await workspace.journal.read()).at(-1);
 		expect(entry?.context).toEqual({ scope: { workspace: 'personal' } });
+	});
+
+	it("never moves a person's active scope: a server's call has no active scope", async () => {
+		const workspace = await createScopedWorkspace();
+		const { kernel } = workspace;
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const vault = await kernel.call<{ id: string }>('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		await kernel.call('scope-set', { project: 'vault' });
+		const client = await connect(await serve(workspace), mode);
+		// The server's actor is an agent with no id, read as `local`, which Vault refuses.
+		expect((await client.call('dual-where')).success).toBe(true);
+		const active = await kernel.call<{ scope: { project?: string } }>('scope-get');
+		expect(active.data?.scope.project).toBe(vault.data?.id);
 	});
 
 	it("gives the same through afd-call's `meta` argument", async () => {

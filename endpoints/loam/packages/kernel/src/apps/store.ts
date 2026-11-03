@@ -8,6 +8,7 @@ import type { Actor } from '@lushly-dev/afd-core';
 import type { AppStoreV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { LoamKernelError } from '../errors.js';
+import { rowProject, scopeKeyOf, storeRecordId } from '../scope/store-id.js';
 
 /** One stored value, with the fields the architecture's section 7 gives a record. */
 export interface AppStoreRecord {
@@ -40,14 +41,7 @@ export interface AppStoreOptions {
 	readOnly?: boolean;
 }
 
-/** Workspace level keeps phase 1's id, so a phase 1 store needs no migration (D77). */
-export function storeRecordId(scope: ScopeV1, key: string): string {
-	return scope.project === undefined ? key : `p~${scope.project}~${key}`;
-}
-
-/** The string `queryRows` filters a scope's rows on. */
-export const scopeKeyOf = (scope: ScopeV1): string =>
-	scope.project === undefined ? 'w' : `p:${scope.project}`;
+export { scopeKeyOf, storeRecordId } from '../scope/store-id.js';
 
 /**
  * A key the adapter can hold as an id: any nonempty string but `.` and `..`, and none starting `p~`,
@@ -126,10 +120,11 @@ export function createAppStore(options: AppStoreOptions): AppStoreV1 {
 				table,
 				scope.project === undefined ? undefined : { scopeKey: scopeKeyOf(scope) }
 			);
+			// Filtered again here, by the id the kernel built: the adapter's `where` alone is not the boundary.
 			return data
 				.filter(
 					(record) =>
-						(scope.project !== undefined || !record.id.startsWith('p~')) &&
+						rowProject(record.id) === scope.project &&
 						(prefix === undefined || record.key.startsWith(prefix))
 				)
 				.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))

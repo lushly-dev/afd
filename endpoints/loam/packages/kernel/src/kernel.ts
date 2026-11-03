@@ -46,7 +46,7 @@ import {
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
-import { createScopeRuntime } from './scope/runtime.js';
+import { CALL_MARK, createScopeRuntime } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
 	AppSummaryV2,
@@ -189,7 +189,8 @@ export interface KernelParts {
 	 */
 	resetSession(): Promise<void>;
 	/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
-	mcpOptions(): KernelMcpOptions;
+	/** Undefined until stage B has loaded `late/`, which builds it. */
+	mcpOptions(): KernelMcpOptions | undefined;
 	/**
 	 * Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B, and only a `BOOT_ONLY`
 	 * command, from the boot registry; any other name answers `COMMAND_NOT_FOUND` (2.2).
@@ -249,10 +250,9 @@ export async function createKernelParts(
 					title,
 					order,
 					state: enabled === false ? 'disabled' : app.state,
+					// An app has a level at least, so with a project active every app can open (narrowing).
 					available:
-						enabled !== false &&
-						(app.scopeLevels.includes('workspace') ||
-							(project !== undefined && app.scopeLevels.includes('project'))),
+						enabled !== false && (project !== undefined || app.scopeLevels.includes('workspace')),
 				};
 			})
 			.sort(byOrder);
@@ -314,32 +314,37 @@ export async function createKernelParts(
 	let bootOnly: ZodCommandDefinition[] = [];
 	let current: { commands: ZodCommandDefinition[]; middleware: CommandMiddleware[] };
 	const scopeMiddleware = createScopeMiddleware({ scope, late: () => lateScope });
+	/**
+	 * The kernel's chain over `held`. The auth middleware closes over its `exclude` list, so it is a new
+	 * instance each time. Scope is last, so every refusal it makes is journaled, with the effective scope.
+	 */
+	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
+		createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name) }),
+		journal,
+		scopeMiddleware,
+	];
+	const build = (
+		iface: KernelInterfaceV0,
+		held: readonly ZodCommandDefinition[],
+		middleware = chain(held)
+	) =>
+		createDirectRegistry([...held], {
+			interface: iface,
+			middleware,
+			contextFields: KERNEL_CONTEXT_FIELDS,
+			...(clock ? { clock } : {}),
+			...(random ? { random } : {}),
+		});
 	function setAppCommands(appCommands: readonly ZodCommandDefinition[]): void {
 		const commands = [...fixed, ...appCommands];
 		mutations = new Map(
 			[...commands, ...bootOnly].map((command) => [command.name, command.mutation === true])
 		);
-		// The auth middleware closes over its `exclude` list, so it is a new instance each time. Scope is
-		// last, so every refusal it makes is journaled, with the effective scope (3.4).
-		const middleware: CommandMiddleware[] = [
-			createAuthMiddleware(options.auth, {
-				exclude: [...commands, ...bootOnly].map((command) => command.name),
-			}),
-			journal,
-			scopeMiddleware,
-		];
-		const build = (iface: KernelInterfaceV0, held = commands) =>
-			createDirectRegistry(held, {
-				interface: iface,
-				middleware,
-				contextFields: KERNEL_CONTEXT_FIELDS,
-				...(clock ? { clock } : {}),
-				...(random ? { random } : {}),
-			});
+		const middleware = chain([...commands, ...bootOnly]);
 		registries = {
-			palette: build('palette'),
-			agent: build('agent'),
-			boot: build('palette', bootOnly),
+			palette: build('palette', commands, middleware),
+			agent: build('agent', commands, middleware),
+			boot: build('palette', bootOnly, middleware),
 		};
 		current = { commands, middleware };
 		commandSet += 1;
@@ -380,7 +385,6 @@ export async function createKernelParts(
 				isMutation: (name) => mutations.get(name) === true,
 				...(internals.actorOf ? { actorOf: internals.actorOf } : {}),
 			});
-			applyLate = late.applyDeployment;
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
 			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
@@ -397,8 +401,6 @@ export async function createKernelParts(
 
 	/** What `late/` gives the kernel's parts, once it has loaded. */
 	let lateParts: import('./late/index.js').LateParts | undefined;
-	/** `late/`'s `applyDeployment`, once that chunk has loaded. */
-	let applyLate: typeof import('./late/index.js').applyDeployment | undefined;
 	/** The projection stage B keeps in the workspace store, once it is read (4.1). */
 	let applying: import('./late/index.js').AppliedProjection | undefined = options.deployment;
 
@@ -525,13 +527,15 @@ export async function createKernelParts(
 				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
 				apps.reconcileLayouts();
 			}
-			setAppCommands(apps.commands);
-			// Never in a replay, whose entries are what ran (10).
-			if (applying && !internals.replaying) {
-				await applyLate?.(scope, applying, (name, input) =>
+			// Boot's own work before any late name is callable, so no call runs beside it, unqueued, and
+			// none can lose a write to it (2.2). A replay's entries are what ran, an apply among them (10).
+			if (applying) {
+				registries = { ...registries, boot: build('palette', bootOnly) };
+				await lateParts?.apply(applying, internals.replaying === true, (name, input) =>
 					run('palette', name, input, {}, BOOT_FIELDS)
 				);
 			}
+			setAppCommands(apps.commands);
 		})()
 			.catch((cause: unknown) => {
 				stageBError = cause;
@@ -609,8 +613,10 @@ export async function createKernelParts(
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
 		// the active scope at this moment. No registry or connection holds it (3.2).
 		const asked = callOptions.scope;
-		const context: CommandContext & KernelCallFields = {
+		scope.seen.set(traceId, {});
+		const context: CommandContext & KernelCallFields & { [CALL_MARK]: string } = {
 			traceId,
+			[CALL_MARK]: fields.scope || asked ? 'run' : 'active',
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
@@ -671,9 +677,7 @@ export async function createKernelParts(
 	setAppCommands([]);
 	// One `list` per table, so a call costs no store read (4.1, 4.3).
 	await Promise.all(
-		[scope.projects, scope.workspaceApps, scope.workspaces].map((cache) =>
-			cache.load(options.store)
-		)
+		[scope.projects, scope.workspaceApps].map((cache) => cache.load(options.store))
 	);
 	if (boot) {
 		// Stage A: each app's layout record from its boot record, then the persisted state, before the
@@ -759,12 +763,7 @@ export async function createKernelParts(
 		},
 		runBoot: (name, input) => run('palette', name, input, {}, BOOT_FIELDS),
 		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served.
-		mcpOptions: () =>
-			lateParts?.mcpOptions(current.commands, current.middleware) ?? {
-				commands: [],
-				middleware: [],
-				contextFields: [],
-			},
+		mcpOptions: () => lateParts?.mcpOptions(current.commands, current.middleware),
 	};
 }
 

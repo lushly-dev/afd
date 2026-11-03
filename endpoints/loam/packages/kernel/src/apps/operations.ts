@@ -20,7 +20,7 @@ import type {
 	AppSummaryV2,
 } from '../types.js';
 import { boundRecorded, type MountedHost } from './mounted.js';
-import type { AppsHost } from './types.js';
+import { type AppsHost, layoutNamesOf } from './types.js';
 
 /** One entry of the deployment, whatever became of it. */
 export interface AppRecord {
@@ -163,8 +163,10 @@ export function createOperations(
 			);
 		},
 		reconcileLayouts() {
-			for (const { instance } of records.values()) {
-				const id = appLayoutId(instance);
+			// Every record of each instance: its own, and each project's (phase 2 specification, 7.6).
+			for (const id of [...records.keys()]
+				.flatMap((instance) => layoutNamesOf(host, instance))
+				.map(appLayoutId)) {
 				const layout = state.layoutOf(id);
 				if (!layout) continue;
 				const declared = state.declaredParts(id);

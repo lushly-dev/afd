@@ -44,7 +44,15 @@ export interface ScopeCommandDeps {
 	apps(): AppsRuntime;
 	/** The projection's generation this page booted with. */
 	generation(): string;
+	/** Whether stage B left the store holding that generation's entries (4.1). */
+	applied(): boolean;
 }
+
+/**
+ * The generation of a workspace row written before any deployment was applied: off the projection's
+ * pattern, so the next stage B that reads a projection applies it (4.1).
+ */
+export const UNAPPLIED = 'unapplied';
 
 /** A project's slug: the URL and what a deployment names (4.3). */
 export const PROJECT_SLUG = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -123,12 +131,14 @@ const sectionInput = z.strictObject({
 	path: z.optional(z.string()),
 });
 const routeInput = z.strictObject({ instance: ref, path: z.string() });
+/** Each override, or `null` to clear it, so an undo can restore one that was never set (4.1). */
 const appSetInput = z.strictObject({
 	instance: ref,
-	enabled: z.optional(z.boolean()),
-	order: z.optional(z.number()),
-	title: z.optional(z.string()),
+	enabled: z.optional(z.nullable(z.boolean())),
+	order: z.optional(z.nullable(z.number())),
+	title: z.optional(z.nullable(z.string())),
 });
+const OR_NULL = (type: string): JsonSchema => ({ type: [type, 'null'] }) as unknown as JsonSchema;
 
 const text = z.optional(z.string());
 const entry = z.strictObject({
@@ -213,14 +223,18 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	const shown = (project: ProjectV1, context: CommandContext) =>
 		(context as KernelFieldContext).caller === undefined ? project : forApp(project);
 
-	/** The workspace row, created from the projection's values when no deployment wrote it yet (4.1). */
+	/**
+	 * The workspace row, created from the projection's values when no deployment wrote it yet (4.1). Its
+	 * generation is the projection's only when stage B applied it, or it was empty: otherwise a row that
+	 * claimed it would keep every later stage B from applying it.
+	 */
 	async function ensureWorkspace(context: CommandContext): Promise<void> {
-		if (scope.workspaces.get(workspaceId)) return;
+		if (await stores.workspace()) return;
 		const at = now(context);
 		await stores.putWorkspace({
 			id: workspaceId,
 			name: scope.workspace.name,
-			generation: deps.generation(),
+			generation: deps.applied() ? deps.generation() : UNAPPLIED,
 			trashDays: 30,
 			organization: null,
 			tenant: null,
@@ -604,7 +618,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
 			return success(
-				scope.workspaces.get(workspaceId) ?? {
+				(await stores.workspace()) ?? {
 					id: workspaceId,
 					name: scope.workspace.name,
 					generation: deps.generation(),
@@ -647,9 +661,9 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			type: 'object',
 			properties: {
 				instance: REF_JSON,
-				enabled: { type: 'boolean' },
-				order: { type: 'number' },
-				title: STRING,
+				enabled: OR_NULL('boolean'),
+				order: OR_NULL('number'),
+				title: OR_NULL('string'),
 			},
 			required: ['instance'],
 			additionalProperties: false,
@@ -664,17 +678,22 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				);
 			}
 			const { instance: _instance, ...changes } = input;
+			const overrides: Record<string, unknown> = { ...record.overrides };
+			// Each changed key's previous value, or `null`, which clears it again.
+			const undoArgs: Record<string, unknown> = { instance: input.instance };
+			for (const [key, value] of Object.entries(changes)) {
+				undoArgs[key] = overrides[key] ?? null;
+				if (value === null) delete overrides[key];
+				else overrides[key] = value;
+			}
 			const next: WorkspaceAppV1 = {
 				...record,
-				overrides: { ...record.overrides, ...changes },
+				overrides,
 				updatedAt: now(context),
 				updatedBy: actorKey(context),
 			};
 			await stores.putWorkspaceApp(next);
-			return success(next, {
-				undoCommand: 'workspace-app-set',
-				undoArgs: { instance: input.instance, ...record.overrides },
-			});
+			return success(next, { undoCommand: 'workspace-app-set', undoArgs });
 		},
 	});
 
@@ -730,8 +749,18 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 					updatedAt: at,
 					updatedBy: actor,
 				} as WorkspaceAppV1;
-				if (held) counts.changed++;
-				else counts.added++;
+				// Changed only when a deployer's key did: a record that was listed again is not counted.
+				if (!held) counts.added++;
+				else if (
+					JSON.stringify(kept) !==
+					JSON.stringify(
+						Object.fromEntries(
+							KEPT.flatMap((key) => (held[key] === undefined ? [] : [[key, held[key]]]))
+						)
+					)
+				) {
+					counts.changed++;
+				}
 				await stores.putWorkspaceApp(record);
 			}
 			for (const held of scope.workspaceApps.all()) {
@@ -740,7 +769,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				counts.unlisted++;
 				await stores.putWorkspaceApp({ ...held, listed: null, updatedAt: at, updatedBy: actor });
 			}
-			const row = scope.workspaces.get(workspaceId);
+			const row = await stores.workspace();
 			await stores.putWorkspace({
 				id: workspaceId,
 				name: input.workspace.name,

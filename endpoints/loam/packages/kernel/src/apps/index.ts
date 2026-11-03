@@ -15,6 +15,7 @@ import {
 import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
+import { INTERNAL_COMMANDS } from '../commands.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { type AppKeybinding, needsInput } from '../keybindings.js';
 import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
@@ -36,7 +37,7 @@ import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
 import { pageDecided } from './support.js';
-import type { AppsHost, AppsHostInput } from './types.js';
+import { type AppsHost, type AppsHostInput, layoutNamesOf } from './types.js';
 import { createViewBroker } from './view-broker.js';
 
 export {
@@ -60,6 +61,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 	const { palette, ...rest } = input;
 	const host: AppsHost = {
 		...rest,
+		// The internal and boot-only names too, so no app's or discovered tool's command can take one (3.6).
+		taken: new Set([...rest.taken, ...INTERNAL_COMMANDS]),
 		commandRows(instance) {
 			const { commands, rows } = palette();
 			const summaries = new Map(rows.map((row) => [row.name, row]));
@@ -344,7 +347,11 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 		const read = raw.unavailable === undefined ? readManifest(raw.raw) : undefined;
 		const manifest = read?.ok ? read.manifest : undefined;
 		const { initial, declared } = firstLayout(manifest);
-		host.state.registerAppLayout(entry.instance, initial, declared);
+		// Its own record, and each project's that stage A cloned from its boot record: the manifest wins in
+		// every one (phase 2 specification, 2.2).
+		for (const name of layoutNamesOf(host, entry.instance)) {
+			host.state.registerAppLayout(name, initial, declared);
+		}
 		// Every entry claims its domain, whatever else refuses it, as `deployment check` has it (D66).
 		const mounted = manifest
 			? manifest.plugin.kind === 'mounted'

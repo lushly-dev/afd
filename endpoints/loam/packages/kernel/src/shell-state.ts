@@ -95,7 +95,8 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	const layouts = new Map<string, LayoutRecord>();
 	let appearance = createDefaultAppearance();
 	let active: string | null = null;
-	let hydrating = false;
+	/** Reads in progress, which may overlap: while any is, an invalid record is ignored. */
+	let hydrating = 0;
 	let hydrated = false;
 	/** Records registered after `hydrate`, for `hydrateLate`. */
 	const unread = new Set<string>();
@@ -166,11 +167,11 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	const reading = new Map<string, Promise<void>>();
 	/** One record from the store, an invalid one ignored as `hydrate` ignores it. */
 	const readOne = async (id: string): Promise<void> => {
-		hydrating = true;
+		hydrating++;
 		try {
 			await viewState.hydrateOne(id);
 		} finally {
-			hydrating = false;
+			hydrating--;
 		}
 	};
 
@@ -199,7 +200,8 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			if (held) {
 				// The handler closes over this record, so it is replaced in place. What `hydrate` loaded, or a
 				// command wrote, stays, and `reconcileLayouts` closes a part the new manifest dropped. A record
-				// nothing wrote takes the new first shape.
+				// nothing wrote takes the new first shape. A project's record is `<instance>@<project>`, which
+				// `apps/` corrects this way too (phase 2 specification, 2.2).
 				held.initial = cloneLayout(initial);
 				held.declared = declared;
 				if (!held.written) held.state = cloneLayout(initial);
@@ -233,13 +235,13 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 		},
 		appearance: () => ({ ...appearance }),
 		async hydrate() {
-			hydrating = true;
+			hydrating++;
 			try {
 				await viewState.hydrate();
 				// A persisted active app the deployment no longer lists is no active app.
 				if (active !== null && !layouts.has(appLayoutId(active))) active = null;
 			} finally {
-				hydrating = false;
+				hydrating--;
 				hydrated = true;
 			}
 		},

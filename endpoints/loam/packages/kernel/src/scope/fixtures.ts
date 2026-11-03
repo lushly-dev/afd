@@ -79,7 +79,11 @@ export const DUAL_MANIFEST: ManifestV2 = manifestOf(
 		{ name: 'dual-sneak', effects: ['inspect'], input: keyed('key') },
 		{ name: 'dual-where', effects: ['inspect'], input: EMPTY },
 		{ name: 'dual-nested', effects: ['inspect'], input: EMPTY },
-	]
+		{ name: 'dual-touch', effects: ['store-write'], input: keyed('key') },
+		{ name: 'dual-reach', effects: ['inspect'], input: EMPTY },
+		{ name: 'dual-relay', effects: ['store-write'], input: keyed('key') },
+	],
+	{ resource_keys: { 'dual-touch': 'key' } }
 );
 
 /** A workspace-only app: no levels, so `["workspace"]`. */
@@ -136,6 +140,26 @@ export const DUAL_DEFINITION = defineApp({
 			}
 		}) as never,
 		'dual-where': where as never,
+		'dual-touch': (async (input: { key: string }, context: AppCallContextV1) => {
+			const held = await context.store?.get(input.key);
+			if (held === undefined) {
+				return failure({ code: 'KEY_NOT_FOUND', message: 'No such key', suggestion: 'Put it' });
+			}
+			await context.store?.put(input.key, `${held} touched`);
+			return success({ key: input.key });
+		}) as never,
+		// A handler naming a scope for its nested call, which only `level: 'workspace'` may do.
+		'dual-reach': (async (_input: unknown, context: AppCallContextV1) => {
+			const reached = await context.client.call('dual-where', {}, {
+				scope: { workspace: 'personal' },
+			} as never);
+			return success({ refused: reached.error?.code ?? null });
+		}) as never,
+		// A mutation whose nested query tries to write: the query's store is read-only all the same.
+		'dual-relay': (async (input: { key: string }, context: AppCallContextV1) => {
+			const nested = await context.client.call<{ refused: string | null }>('dual-sneak', input);
+			return success({ refused: nested.data?.refused ?? nested.error?.code ?? null });
+		}) as never,
 		'dual-nested': (async (_input: unknown, context: AppCallContextV1) => {
 			const here = await context.client.call<{ scope: unknown }>('dual-where');
 			const wide = await context.client.call<{ scope: unknown }>(

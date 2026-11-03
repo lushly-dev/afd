@@ -11,7 +11,6 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import type { LateScope } from '../scope/middleware.js';
-import type { ScopeRuntime } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
@@ -20,7 +19,7 @@ import { createPortRefusals } from './port-refusals.js';
 import { createLateScope } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
-import { createShellStores } from './stores.js';
+import { createShellStores, type ShellStores } from './stores.js';
 
 export { createOverlayStore } from '../overlays.js';
 export { withBootActions } from './boot-actions.js';
@@ -46,16 +45,17 @@ export interface AppliedProjection {
 /**
  * Stage B's own journaled work (phase 2 specification, 2.2, step 5): `workspace-deployment-apply` when
  * the generation differs from the workspace row's. An empty projection with no row does nothing, so an
- * empty shell's journal is unchanged. `run` is boot's own: `BOOT_FIELDS`, past the queue.
+ * empty shell's journal is unchanged. `run` is boot's own: `BOOT_FIELDS`, past the queue. True when the
+ * store holds the projection's entries afterwards, so a workspace row may take its generation.
  */
 export async function applyDeployment(
-	scope: ScopeRuntime,
+	stores: ShellStores,
 	projection: AppliedProjection,
-	run: (name: string, input: unknown) => Promise<unknown>
-): Promise<void> {
-	const row = scope.workspaces.get(scope.workspace.id);
-	if (row ? row.generation === projection.generation : projection.apps.length === 0) return;
-	await run('workspace-deployment-apply', {
+	run: (name: string, input: unknown) => Promise<{ success: boolean }>
+): Promise<boolean> {
+	const row = await stores.workspace();
+	if (row ? row.generation === projection.generation : projection.apps.length === 0) return true;
+	const result = await run('workspace-deployment-apply', {
 		generation: projection.generation,
 		workspace: projection.workspace,
 		entries: projection.apps.map((entry) => {
@@ -63,6 +63,7 @@ export async function applyDeployment(
 			return kept;
 		}),
 	});
+	return result.success;
 }
 
 /** What the late chunk gives the kernel (phase 2 specification, 2.2 and 3.4). */
@@ -86,6 +87,15 @@ export interface LateParts {
 	): KernelMcpOptions;
 	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
 	reload(): Promise<void>;
+	/**
+	 * Stage B's own journaled work, with `run` boot's own (2.2, step 5); never re-run in a replay, whose
+	 * entries are what ran. It keeps whether the store now holds the projection's entries.
+	 */
+	apply(
+		projection: AppliedProjection,
+		replaying: boolean,
+		run: (name: string, input: unknown) => Promise<{ success: boolean }>
+	): Promise<void>;
 	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
 }
@@ -95,10 +105,14 @@ export function createLateParts(
 	deps: LateCommandDeps
 ): LateParts {
 	const lateScope = createLateScope(deps);
+	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
+	let applied = false;
+	const stores = createShellStores(deps.store, deps.scope);
 	const scoped = createScopeCommands({
 		...deps,
-		stores: createShellStores(deps.store, deps.scope),
+		stores,
 		lateScope,
+		applied: () => applied,
 	});
 	const byName = new Map(
 		[
@@ -125,21 +139,16 @@ export function createLateParts(
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
+		async apply(projection, replaying, run) {
+			// A replay applies through its entries; an empty projection there holds nothing to apply.
+			applied = replaying
+				? projection.apps.length === 0
+				: await applyDeployment(stores, projection, run);
+		},
 		async reload() {
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
 			await deps.auth.signOut();
 			lateScope.forgetActor();
 		},
 	};
-}
-
-/**
- * The late commands with `boot`, in the order `SHELL_COMMAND_NAMES` lists, which is the order a person
- * or an agent has always seen them in.
- */
-export function shellCommandsWithLate(
-	boot: readonly ZodCommandDefinition[],
-	deps: LateCommandDeps
-): ZodCommandDefinition[] {
-	return createLateParts(boot, deps).shell;
 }

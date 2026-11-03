@@ -13,6 +13,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import { appLayoutId } from '../layout.js';
 import type { OverlayStore } from '../overlays.js';
 import type { ShellState } from '../shell-state.js';
 import type { CallOptionsV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
@@ -68,4 +69,22 @@ export interface HandlerRefusal {
 	rpcCode: number;
 	message: string;
 	suggestion: string;
+}
+
+/**
+ * The names `state.registerAppLayout` keys an instance's layout records by: the instance, and
+ * `<instance>@<project>` for each project's record stage A or a call registered (phase 2 specification,
+ * 7.6). Read from the view-state registry, so first paint holds none of it.
+ */
+export function layoutNamesOf(host: Pick<AppsHost, 'viewState'>, instance: string): string[] {
+	const own = appLayoutId(instance);
+	const prefix = appLayoutId('');
+	return [
+		instance,
+		...host.viewState
+			.list()
+			.map(({ id }) => id)
+			.filter((id) => id.startsWith(`${own}@`))
+			.map((id) => id.slice(prefix.length)),
+	];
 }

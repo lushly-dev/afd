@@ -28,7 +28,7 @@ export interface LateScope {
 	 * leaves it, and a call made in it runs where it lands (3.4). A replay loads `late/` before its first
 	 * entry, so first paint needs neither.
 	 */
-	before(call: CommandContext & KernelFieldContext): void;
+	before(call: CommandContext & KernelFieldContext, name: string): void;
 	/** Lines 2 to 6 of an owned command, the handler, and after an `auth-*` command, its actor (3.4). */
 	run(
 		name: string,
@@ -56,7 +56,12 @@ export const projectNotFound = (): CommandResult<never> =>
 /** The actor the adapter reports now, as a key. */
 export const sessionActor = (auth: AuthAdapter): string => {
 	const state = auth.getSession();
-	return state.status === 'authenticated' ? state.user.id : LOCAL_ACTOR;
+	// As the auth middleware reads it: an expired session, or a malformed expiry, is no session.
+	const expiry = state.session?.expiresAt;
+	return state.status === 'authenticated' &&
+		(expiry === undefined || new Date(expiry).getTime() > Date.now())
+		? state.user.id
+		: LOCAL_ACTOR;
 };
 
 export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddleware {
@@ -64,7 +69,7 @@ export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddlew
 	return async (name, input, context, next) => {
 		const call = context as CommandContext & KernelFieldContext;
 		const late = deps.late();
-		late?.before(call);
+		late?.before(call, name);
 		// Absent is the workspace: no server holds an active scope (3.3).
 		const requested: ScopeV1 = call.scope ?? { workspace: scope.workspace.id };
 		call.scope = requested;

@@ -14,7 +14,7 @@ import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { registerShellState } from '../shell-state.js';
-import { createOverlayStore, shellCommandsWithLate } from './index.js';
+import { createLateParts, createOverlayStore } from './index.js';
 
 const FORMAT_EXCEPTIONS = [
 	{ name: 'auth-sign-in', input: { method: 'credentials', email: 'nope' } },
@@ -69,7 +69,7 @@ function registry() {
 	const apps = () => EMPTY_APPS;
 	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
 	return createDirectRegistry(
-		shellCommandsWithLate(
+		createLateParts(
 			createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] }),
 			{
 				viewState,
@@ -87,7 +87,7 @@ function registry() {
 				generation: () => 'test',
 				isMutation: () => false,
 			}
-		)
+		).shell
 	);
 }
 

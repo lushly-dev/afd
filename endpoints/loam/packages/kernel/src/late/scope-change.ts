@@ -8,7 +8,7 @@ import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { DataAdapter } from '@lushly-dev/local-db';
-import { type AppStoreRecord, storeRecordId } from '../apps/store.js';
+import type { AppStoreRecord } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
@@ -17,7 +17,8 @@ import type { OverlayStore } from '../overlays.js';
 import { actorKey } from '../scope/access.js';
 import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
 import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
-import type { ScopeRuntime } from '../scope/runtime.js';
+import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
+import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
 import { disabled, setMain, setScopeProject } from './main-state.js';
 
@@ -36,10 +37,6 @@ export interface LateScopeDeps {
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
 	a.workspace === b.workspace && a.project === b.project;
-
-/** The project a store row was written in, from its id: `p~<project>~<key>`. */
-const rowProject = (id: string): string | undefined =>
-	id.startsWith('p~') ? id.slice(2, id.indexOf('~', 2)) : undefined;
 
 export function createLateScope(deps: LateScopeDeps): LateScope {
 	const { scope, state, overlays } = deps;
@@ -60,7 +57,14 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		context: CommandContext
 	): CommandResult<never> | undefined {
 		const from = scope.active();
-		if (sameScope(from, to)) return undefined;
+		if (sameScope(from, to)) {
+			// Stage A may hold the workspace in memory while `loam.scope` still names the project it refused
+			// (6.3): the record follows, so a reload lands where this call says.
+			if (state.scopeProject() !== (to.project ?? null)) {
+				setScopeProject(deps.viewState, to.project ?? null);
+			}
+			return undefined;
+		}
 		const modal = overlays.modalOpen();
 		if (modal?.owner === SHELL_OWNER) {
 			if (reason !== 'actor') {
@@ -120,11 +124,10 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		const { data } = await deps.store.list<AppStoreRecord>(table);
 		const actor = actorKey(call);
 		const levels = levelsOf(named.instance);
-		const places = data
-			.filter((row) => row.key === key)
-			.map((row) => rowProject(row.id))
-			.map((project) => (project === undefined ? undefined : scope.projects.get(project)));
-		const projects = places
+		const ids = data.filter((row) => row.key === key).map((row) => rowProject(row.id));
+		// A project the cache does not hold is nowhere, not the workspace: only an id with no project is.
+		const projects = ids
+			.map((id) => (id === undefined ? undefined : scope.projects.get(id)))
 			.filter(
 				(project): project is ProjectV1 =>
 					project !== undefined &&
@@ -133,7 +136,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			)
 			.sort((a, b) => a.createdAt - b.createdAt);
 		const inWorkspace =
-			here.project !== undefined && levels.includes('workspace') && places.includes(undefined);
+			here.project !== undefined && levels.includes('workspace') && ids.includes(undefined);
 		const target = projects[0];
 		if (target === undefined && !inWorkspace) return undefined;
 		const current = here.project === undefined ? undefined : scope.projects.get(here.project);
@@ -177,20 +180,23 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 * asked for the active scope it was made in, so when this leaves it, it runs where it lands, and a
 		 * person's `layout-get` keeps working.
 		 */
-		before(call) {
+		before(call, name) {
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
 			const recorded = deps.actorOf?.(call.traceId);
 			if (recorded) {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
 			}
+			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move.
+			const mark = (call as { [CALL_MARK]?: string })[CALL_MARK];
 			const actor = actorKey(call);
-			if (actor === lastActor) return;
-			const before = scope.active();
-			if (lastActor !== undefined) leaveIfRefused(actor, call);
+			if (mark === undefined || actor === lastActor) return;
 			lastActor = actor;
-			const asked = call.scope;
-			if (asked?.workspace === before.workspace && asked.project === before.project) {
+			leaveIfRefused(actor, call);
+			// A shell command that asked for the active scope runs where it lands, so a person's `layout-get`
+			// keeps working. An app's command, a surface's call and an explicit scope keep theirs, and line 2
+			// refuses them.
+			if (mark === 'active' && call.caller === undefined && !deps.apps().owners.has(name)) {
 				call.scope = scope.active();
 			}
 		},
@@ -234,7 +240,11 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				}
 			}
 			const result = await next();
-			if (result.success && name.startsWith('auth-')) {
+			if (
+				result.success &&
+				name.startsWith('auth-') &&
+				(call as { [CALL_MARK]?: string })[CALL_MARK]
+			) {
 				// After sign-in or sign-out: the actor the adapter now reports (3.4).
 				lastActor = sessionActor(deps.auth);
 				leaveIfRefused(lastActor, call);

@@ -5,10 +5,12 @@
  */
 
 import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
+import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import * as z from 'zod/mini';
 import {
 	createScopedWorkspace,
 	createTestKernel,
@@ -16,11 +18,15 @@ import {
 	probeDefinition,
 	probeDeployment,
 	probeViewManifest,
+	replayKernel,
 	type ScopedWorkspace,
+	scopedDeployment,
+	scopedPorts,
 	seedProjects,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
 import type { LoamKernelV2, ScopeV1, ViewBrokerV1 } from '../types.js';
+import { createAppStore } from './store.js';
 
 const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
@@ -60,11 +66,19 @@ describe('P2-E7: the checks of a surface port, in the order `checkedCall` makes 
 		expect(codeOf(await surface.call('dual-where', {}, { level: 'project' } as never))).toBe(
 			'SCOPE_NOT_GRANTED'
 		);
-		// The chrome's port refuses the same, and a handler's nested client too.
+		// The chrome's port refuses the same, and so does a handler's nested client.
 		const port = workspace.kernel.appPort('dual');
 		expect(codeOf(await port.call('dual-where', {}, { scope: BEACON } as never))).toBe(
 			'SCOPE_NOT_GRANTED'
 		);
+		const reached = await surface.call<{ refused: string }>('dual-reach');
+		expect(reached.data?.refused).toBe('SCOPE_NOT_GRANTED');
+		// A mutation refused for its scope writes nothing, in any scope.
+		const put = await surface.call('dual-put', { key: 'k', value: 'v' }, {
+			scope: BEACON,
+		} as never);
+		expect(codeOf(put)).toBe('SCOPE_NOT_GRANTED');
+		expect((await workspace.store.list('app-dual')).data).toEqual([]);
 	});
 
 	it("1. widens to the workspace with `level: 'workspace'`, and nothing wider", async () => {
@@ -298,7 +312,8 @@ describe("P2-E7: the scope middleware's lines, reached from a surface", () => {
 			(await kernel.call('workspace-app-set', { instance: 'solo', enabled: false })).success
 		).toBe(true);
 		const surface = kernel.appPort('solo').surface({ scope: WORKSPACE });
-		expect(codeOf(await surface.call('solo-where'))).toBe('APP_DISABLED');
+		expect(codeOf(await surface.call('solo-put', { key: 'k', value: 'v' }))).toBe('APP_DISABLED');
+		expect(await workspace.store.get('app-solo', 'k')).toBeNull();
 		expect(codeOf(await kernel.call('app-open', { instance: 'solo' }))).toBe('APP_DISABLED');
 		const list = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
 			'app-list'
@@ -307,6 +322,34 @@ describe("P2-E7: the scope middleware's lines, reached from a surface", () => {
 		expect(kernel.listCommands().some((command) => command.instance === 'solo')).toBe(false);
 		await kernel.call('workspace-app-set', { instance: 'solo', enabled: true });
 		expect((await surface.call('solo-where')).success).toBe(true);
+		// A gate, so a replay, whose store has no override until that entry, refuses the same (E4).
+		const { report } = await replayKernel(await workspace.journal.read(), {
+			deployment: scopedDeployment(),
+			ports: scopedPorts(),
+		});
+		expect(report.diverged).toBe(false);
+	});
+
+	it("5. refuses a key at workspace level from a dual-scope app's call in a project, and none of a project the cache lacks", async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('dual-put', { key: 'w-1', value: 'here' });
+		await workspace.store.batch([
+			{
+				method: 'PUT',
+				path: '/app-dual/p~prj_ghost~g-1',
+				body: { id: 'p~prj_ghost~g-1', key: 'g-1', value: 'ghost' },
+			},
+		]);
+		await kernel.call('scope-set', { project: 'atlas' });
+		const touched = await kernel.call('dual-touch', { key: 'w-1' });
+		expect(touched.error).toMatchObject({
+			code: 'SCOPE_MISMATCH',
+			message: '`w-1` is in the workspace, not Atlas',
+			suggestion: 'Switch with scope-set { project: null } and run this again.',
+		});
+		// A row of a project the cache does not hold is nowhere: the handler answers a missing key.
+		expect((await kernel.call('dual-touch', { key: 'g-1' })).error?.code).toBe('KEY_NOT_FOUND');
 	});
 });
 
@@ -316,11 +359,41 @@ describe('P2-E7: what an app reads through a port', () => {
 		await workspace.kernel.call('scope-set', { project: 'atlas' });
 		const dual = await workspace.kernel.appPort('dual').surface({ scope: ATLAS }).call('scope-get');
 		expect(dual.data).toEqual({ scope: ATLAS });
-		// A workspace-only app narrowed under Atlas learns no project.
+		// A workspace-only app runs at the workspace, from any surface or port, and learns no project.
 		const solo = await workspace.kernel.appPort('solo').surface({ scope: ATLAS }).call('scope-get');
-		expect(solo.data).toEqual({ scope: ATLAS });
+		expect(solo.data).toEqual({ scope: WORKSPACE });
+		expect((await workspace.kernel.appPort('solo').call('scope-get')).data).toEqual({
+			scope: WORKSPACE,
+		});
 		const person = await workspace.kernel.call<{ project: { slug: string } }>('scope-get');
 		expect(person.data?.project.slug).toBe('atlas');
+	});
+
+	it("answers `scope-get` with no project's record for an explicit scope the actor may not enter", async () => {
+		const workspace = await scoped();
+		const restricted = await workspace.kernel.call<{ scope: ScopeV1; project: unknown }>(
+			'scope-get',
+			{},
+			{ scope: CITADEL }
+		);
+		expect(restricted.data).toMatchObject({ scope: CITADEL, project: null });
+		expect(JSON.stringify(restricted)).not.toMatch(/someone|members/);
+		const agent = await workspace.kernel.agent.call<{ project: unknown }>(
+			'scope-get',
+			{},
+			{
+				scope: CITADEL,
+			}
+		);
+		expect(agent.data?.project).toBeNull();
+		const open = await workspace.kernel.call<{ project: { slug: string } }>(
+			'scope-get',
+			{},
+			{
+				scope: ATLAS,
+			}
+		);
+		expect(open.data?.project.slug).toBe('atlas');
 	});
 
 	it('lists projects with no members and no writer, and none the actor may not enter', async () => {
@@ -448,6 +521,16 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		expect((await journal.read()).at(-1)?.command).toBe('app-modal-refuse');
 	});
 
+	it("refuses a nested query's write from inside a mutation", async () => {
+		const workspace = await scoped();
+		const relayed = await workspace.kernel
+			.appPort('dual')
+			.surface({ scope: WORKSPACE })
+			.call<{ refused: string }>('dual-relay', { key: 'k' });
+		expect(relayed.data?.refused).toBe('STORE_WRITE_IN_QUERY');
+		expect(await workspace.store.get('app-dual', 'k')).toBeNull();
+	});
+
 	it("refuses a frame's store write under a query as STORE_WRITE_IN_QUERY, -32601", async () => {
 		const { kernel, store } = await viewKernel();
 		const listed = await kernel.call<{ refused: string; rpc: number }>('probev-list');
@@ -469,3 +552,77 @@ async function probeKernel(): Promise<LoamKernelV2> {
 	kernels.push(kernel);
 	return kernel;
 }
+
+describe('P2-E7: what the port and the store hold of themselves', () => {
+	it('answers a boot-only name itself, though a command of that name were registered', async () => {
+		const impostor = defineCommandWithSchema({
+			name: 'document-trash-expire',
+			description: 'Stands for a command that took a boot-only name',
+			input: z.strictObject({}),
+			jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+			handler: async () => success({ ran: true }),
+		});
+		const { kernel, journal } = await createTestKernel({
+			commands: [impostor as never],
+			deployment: probeDeployment(),
+			ports: createFixturePorts({
+				'apps/probe/': { manifest: PROBE_MANIFEST, definition: probeDefinition() },
+			}),
+		});
+		kernels.push(kernel);
+		const before = (await journal.read()).length;
+		const answered = await kernel.appPort('probe').call('document-trash-expire');
+		expect(answered.error?.code).toBe('COMMAND_NOT_FOUND');
+		expect((await journal.read()).length).toBe(before);
+	});
+
+	it('decides the `loam.layout` alias on the scope it resolves to', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('app-open', { instance: 'dual' });
+		const read = await kernel.call('view-state-get', { id: 'loam.layout' }, { scope: CITADEL });
+		expect(read.error?.code).toBe('VIEW_STATE_NOT_FOUND');
+		const write = await kernel.call(
+			'view-state-set',
+			{ id: 'loam.layout', state: { sidebar: { width: 280 } } },
+			{ scope: CITADEL }
+		);
+		expect(write.error?.code).toBe('VIEW_STATE_NOT_FOUND');
+		expect(
+			(await kernel.call('view-state-get', { id: 'loam.layout' }, { scope: ATLAS })).success
+		).toBe(true);
+	});
+
+	it("lists a project's rows by the ids the kernel built, whatever the adapter's filter returns", async () => {
+		const store = new MemoryAdapter();
+		// An adapter whose `where` is ignored: it answers every row of the table.
+		const leaky = Object.assign(Object.create(store), {
+			list: (table: string) => store.list(table),
+		}) as MemoryAdapter;
+		await store.batch([
+			{
+				method: 'PUT',
+				path: '/app-dual/a',
+				body: { id: 'a', key: 'a', value: 'w', scopeKey: 'w' },
+			},
+			{
+				method: 'PUT',
+				path: '/app-dual/p~prj_beacon~b',
+				body: { id: 'p~prj_beacon~b', key: 'b', value: 'beacon', scopeKey: 'p:prj_atlas' },
+			},
+			{
+				method: 'PUT',
+				path: '/app-dual/p~prj_atlas~c',
+				body: { id: 'p~prj_atlas~c', key: 'c', value: 'atlas', scopeKey: 'p:prj_atlas' },
+			},
+		]);
+		const atlas = createAppStore({
+			adapter: leaky,
+			app: 'dual',
+			instance: 'dual',
+			scope: { workspace: 'personal', project: 'prj_atlas' },
+			now: () => 1,
+		});
+		expect(await atlas.list()).toEqual([{ key: 'c', value: 'atlas' }]);
+	});
+});

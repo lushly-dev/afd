@@ -18,6 +18,7 @@ import { type AppearanceStateV0, type AppearanceV0, resolveTheme } from './appea
 import type { AppsRuntime } from './apps-runtime.js';
 import type { KernelFieldContext } from './context-fields.js';
 import type { LayoutStateV0 } from './layout.js';
+import { actorKey } from './scope/access.js';
 import type { ProjectV1, ScopeV1 } from './scope/records.js';
 import type { ScopeRuntime } from './scope/runtime.js';
 import type { ShellState } from './shell-state.js';
@@ -112,7 +113,7 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 		{ scope: ScopeV1; workspace?: { id: string; name: string }; project?: ProjectV1 | null }
 	>({
 		name: 'scope-get',
-		description: "Get the call's workspace and project",
+		description: "Get the call's scope",
 		category: 'scope',
 		mutation: false,
 		executionTime: 'instant',
@@ -122,11 +123,13 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 			const current = callScope(context);
 			// Through a port, the scope alone: no app reads a project's record or its members (4.3).
 			if ((context as KernelFieldContext).caller !== undefined) return success({ scope: current });
+			// A project's record only where the actor may enter it, as every named project (3.4).
 			return success({
 				scope: current,
 				workspace: scope.workspace,
-				project:
-					current.project === undefined ? null : (scope.projects.get(current.project) ?? null),
+				project: scope.allows(actorKey(context), current)
+					? (scope.projects.get(current.project as string) ?? null)
+					: null,
 			});
 		},
 	});
@@ -136,7 +139,7 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 		{ section: string | null; path: string }
 	>({
 		name: 'section-get',
-		description: "Get main's section and route",
+		description: "Get main's section",
 		category: 'section',
 		mutation: false,
 		executionTime: 'instant',
