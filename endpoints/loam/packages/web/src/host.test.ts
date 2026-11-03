@@ -81,9 +81,11 @@ describe('the two stages (phase 2 specification, 2.2)', () => {
 			'appearance-get',
 			'auth-session-get',
 			'app-list',
+			'scope-get',
+			'section-get',
 		]);
 		await host.kernel.startApps();
-		expect(host.kernel.listCommands().length).toBeGreaterThan(4);
+		expect(host.kernel.listCommands().length).toBeGreaterThan(6);
 		await host.kernel.dispose();
 		await host.journal.close();
 	});

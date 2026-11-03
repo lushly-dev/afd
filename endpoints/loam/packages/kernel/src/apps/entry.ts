@@ -5,11 +5,11 @@
 
 import type { CommandError } from '@lushly-dev/afd-core';
 import {
-	GRANT_CATALOG_V1,
 	type ManifestRefusal,
 	type ManifestRefusalCode,
-	type ManifestV1,
+	type ManifestV2,
 	type ProjectionAppV1,
+	SERVED_GRANTS_V2,
 	TRUST_LINES_V1,
 } from '@lushly-dev/loam-manifest';
 import { fromJSONSchema, type ZodType } from 'zod';
@@ -18,9 +18,7 @@ import { firstLayoutOf, type LayoutPart, type LayoutStateV0 } from '../layout.js
 import type { AppKindV1 } from '../types.js';
 import type { AppRecord } from './operations.js';
 
-const SERVED_GRANTS: ReadonlySet<string> = new Set(
-	GRANT_CATALOG_V1.filter((grant) => grant.servedFrom === 1).map((grant) => grant.name)
-);
+const SERVED_GRANTS: ReadonlySet<string> = new Set(SERVED_GRANTS_V2);
 const PARTS: readonly LayoutPart[] = ['sidebar', 'inspector', 'panel'];
 const TRUST: Readonly<Record<AppKindV1, AppRecord['detail']['trust']>> = {
 	native: 'trusted',
@@ -57,7 +55,7 @@ export const errorOf = (
 /** What fixes a record's shape: the manifest, when one was read, else only the entry. */
 export function baseRecord(
 	entry: ProjectionAppV1,
-	manifest: ManifestV1 | undefined,
+	manifest: ManifestV2 | undefined,
 	rawKind: unknown
 ): AppRecord {
 	const rail = manifest?.ui?.surfaces?.rail;
@@ -116,7 +114,7 @@ export function refusalError(refusals: readonly ManifestRefusal[]): CommandError
 /** Each kind's own refusal of an entry, as `loam deployment check` names them. */
 export function kindRefusal(
 	entry: ProjectionAppV1,
-	manifest: ManifestV1
+	manifest: ManifestV2
 ): CommandError | undefined {
 	if (manifest.plugin.id !== entry.app) {
 		return errorOf(
@@ -154,12 +152,12 @@ export function kindRefusal(
 	return undefined;
 }
 
-export const transportOf = (entry: ProjectionAppV1, manifest: ManifestV1): 'http' | 'stdio' =>
+export const transportOf = (entry: ProjectionAppV1, manifest: ManifestV2): 'http' | 'stdio' =>
 	entry.transport ?? manifest.mount?.transport ?? 'http';
 
 export function configRefusal(
 	entry: ProjectionAppV1,
-	manifest: ManifestV1
+	manifest: ManifestV2
 ): CommandError | undefined {
 	const suggestion = "Match the manifest's `config.schema`.";
 	const schema = manifest.config?.schema;
@@ -193,13 +191,13 @@ export function configRefusal(
 }
 
 /** The parts a manifest's surfaces declare, which a boot record's `parts` says too. */
-export function declaredPartsOf(manifest: ManifestV1 | undefined): LayoutPart[] {
+export function declaredPartsOf(manifest: ManifestV2 | undefined): LayoutPart[] {
 	const surfaces = manifest?.ui?.surfaces ?? {};
 	return PARTS.filter((part) => surfaces[part] !== undefined);
 }
 
 /** An instance's first layout: the defaults, undeclared parts closed, with the preset over them (4.5). */
-export function firstLayout(manifest: ManifestV1 | undefined): {
+export function firstLayout(manifest: ManifestV2 | undefined): {
 	initial: LayoutStateV0;
 	declared: Set<LayoutPart>;
 } {
@@ -212,7 +210,7 @@ export function firstLayout(manifest: ManifestV1 | undefined): {
  */
 export function scopeLevelsOf(
 	entry: ProjectionAppV1,
-	manifest: ManifestV1 | undefined,
+	manifest: ManifestV2 | undefined,
 	mounted: boolean
 ): Array<'workspace' | 'project'> {
 	if (mounted && entry.projects !== undefined) return ['project'];
@@ -220,7 +218,7 @@ export function scopeLevelsOf(
 }
 
 /** `false` for a rail-less plugin: `ui.documents` with no rail, sidebar or main (8.3). */
-export function railOf(manifest: ManifestV1 | undefined): boolean {
+export function railOf(manifest: ManifestV2 | undefined): boolean {
 	const surfaces = manifest?.ui?.surfaces ?? {};
 	const documents = (manifest?.ui as { documents?: unknown } | undefined)?.documents !== undefined;
 	return !(documents && !surfaces.rail && !surfaces.sidebar && !surfaces.main);
@@ -249,7 +247,7 @@ export class DomainHolders {
 	}
 
 	/** Claim a mounted instance's prefix, as `deployment check` does (3.1). */
-	claimPrefix(entry: ProjectionAppV1, manifest: ManifestV1 | undefined): CommandError | undefined {
+	claimPrefix(entry: ProjectionAppV1, manifest: ManifestV2 | undefined): CommandError | undefined {
 		const { instance, app } = entry;
 		const named = entry.prefix !== undefined;
 		const first = !this.appsSeen.has(app);

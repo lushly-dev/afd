@@ -1,14 +1,16 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { zodToJsonSchema } from '@lushly-dev/afd-server/define';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
-import { SHELL_COMMAND_NAMES } from '../commands.js';
 import { KERNEL_CONTEXT_FIELDS } from '../context-fields.js';
+import { createScopeRuntime } from '../scope/runtime.js';
+import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { registerShellState } from '../shell-state.js';
 import { createFixedEnvironment } from '../testing.js';
-import { createOverlayStore, shellCommandsWithLate } from './index.js';
+import { createLateParts, createOverlayStore } from './index.js';
 
 function definitions() {
 	const viewState = new ViewStateRegistry();
@@ -16,10 +18,11 @@ function definitions() {
 	const auth = new MockAuthAdapter();
 	const environment = createFixedEnvironment();
 	const apps = () => EMPTY_APPS;
-	const boot = createBootCommands({ state, environment, auth, apps });
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+	const boot = createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] });
 	return {
 		boot,
-		all: shellCommandsWithLate(boot, {
+		all: createLateParts(boot, {
 			viewState,
 			state,
 			environment,
@@ -30,7 +33,11 @@ function definitions() {
 			apps,
 			paletteRows: () => [],
 			commandSet: () => 0,
-		}),
+			scope,
+			store: new MemoryAdapter(),
+			generation: () => 'test',
+			isMutation: () => false,
+		}).shell,
 	};
 }
 
@@ -49,6 +56,8 @@ describe('the shell commands on Zod Mini', () => {
 			'appearance-get',
 			'auth-session-get',
 			'layout-get',
+			'scope-get',
+			'section-get',
 		]);
 	});
 

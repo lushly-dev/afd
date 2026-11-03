@@ -167,7 +167,12 @@
 							"persona",
 							"session",
 							"auth",
-							"afd"
+							"workspace",
+							"section",
+							"editor",
+							"new",
+							"afd",
+							"p"
 						]
 					}
 				},

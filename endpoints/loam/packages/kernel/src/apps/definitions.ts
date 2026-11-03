@@ -9,11 +9,11 @@ import {
 	type ExposeOptions,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
-import type { ManifestV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { deriveMutation } from '@lushly-dev/loam-manifest/validate';
 import { fromJSONSchema } from 'zod';
 
-export type ManifestCommand = NonNullable<ManifestV1['commands']>[number];
+export type ManifestCommand = NonNullable<ManifestV2['commands']>[number];
 
 type JsonSchemaInput = Parameters<typeof fromJSONSchema>[0];
 

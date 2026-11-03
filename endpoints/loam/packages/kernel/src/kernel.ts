@@ -6,6 +6,7 @@
 
 import { createAuthMiddleware } from '@lushly-dev/afd-auth';
 import {
+	type Actor,
 	type CommandContext,
 	type CommandError,
 	type CommandMiddleware,
@@ -27,11 +28,12 @@ import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppsRuntime,
 	bootApps,
+	byOrder,
 	deploymentRefused,
 	EMPTY_APPS,
 	runtimeUnavailable,
 } from './apps-runtime.js';
-import { createBootCommands } from './boot-commands.js';
+import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { LoamKernelError } from './errors.js';
@@ -43,18 +45,22 @@ import {
 } from './keybindings.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
+import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
+import { CALL_MARK, createScopeRuntime } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
+	AppSummaryV2,
 	AppsLoadV2,
-	CallOptionsV1,
+	CallOptionsV2,
 	CommandSummaryV1,
-	KernelEventV1,
+	KernelEventV2,
+	KernelMcpOptions,
 	KernelOptionsV2,
 	LoamKernelV2,
 } from './types.js';
 
 /** The kernel's two interfaces, one registry each. */
-export type KernelInterfaceV0 = KernelEventV1['interface'];
+export type KernelInterfaceV0 = 'palette' | 'agent';
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
 export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. notes-create';
@@ -74,8 +80,16 @@ export const NEEDS_STAGE_B: readonly string[] = [
 	'status-item-set',
 ];
 
-/** Commands the one journal middleware leaves out: `palette-search` runs per keystroke. */
-export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze(['palette-search']);
+/**
+ * Commands the one journal middleware leaves out: `palette-search` runs per keystroke, and `scope-get` and
+ * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
+ * journals no more than it did (phase 2 specification, 4.3).
+ */
+export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
+	'palette-search',
+	'scope-get',
+	'section-get',
+]);
 
 /**
  * The journal options (phase 0 specification, 6.4): failures recorded, every command but
@@ -155,8 +169,11 @@ function reportKernelError(error: unknown): void {
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
 export interface KernelParts {
 	kernel: LoamKernelV2;
-	/** The current registries; {@link KernelParts.setAppCommands} replaces them. */
-	readonly registries: Record<KernelInterfaceV0, DirectCommandRegistry>;
+	/**
+	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
+	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
+	 */
+	readonly registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
 	/**
 	 * Build two new registries with `commands` as the apps' commands, over the same journal. In-flight
 	 * calls finish on the old ones. Mounted discovery is what changes the set (phase 1 specification,
@@ -165,9 +182,19 @@ export interface KernelParts {
 	setAppCommands(commands: readonly ZodCommandDefinition[]): void;
 	/** Register a mounted instance's catalog from a journal: a replay's discovery, with no network (7.6). */
 	applyCatalog(instance: string, catalog: unknown): void;
-	/** Forget what a page holds only in memory, as a reload does: overlays, selections, status values. */
-	resetSession(): void;
-	/** Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B (step 4 calls it). */
+	/**
+	 * Forget what a page holds only in memory, as a reload does: overlays, selections, status values, and
+	 * the session, since the Mock's does not survive a reload; the active scope is read again from its
+	 * record, as stage A does (phase 2 specification, 10).
+	 */
+	resetSession(): Promise<void>;
+	/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
+	/** Undefined until stage B has loaded `late/`, which builds it. */
+	mcpOptions(): KernelMcpOptions | undefined;
+	/**
+	 * Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B, and only a `BOOT_ONLY`
+	 * command, from the boot registry; any other name answers `COMMAND_NOT_FOUND` (2.2).
+	 */
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 }
 
@@ -180,6 +207,10 @@ export interface KernelPartsInternals {
 	answerNested?(parent: string, name: string, input: unknown): CommandResult | undefined;
 	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
 	nestedUnrecorded?(parent: string, name: string): void;
+	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
+	replaying?: boolean;
+	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
+	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
 }
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
@@ -187,9 +218,15 @@ export async function createKernelParts(
 	options: KernelOptionsV2,
 	internals: KernelPartsInternals = {}
 ): Promise<KernelParts> {
-	const { environment } = options;
+	const { environment, boot } = options;
 	const viewState = new ViewStateRegistry({ adapter: options.store });
 	const state = registerShellState(viewState);
+	const workspace = boot?.workspace ??
+		options.deployment?.workspace ??
+		options.workspace ?? { id: 'personal', name: 'Personal' };
+	const generation = boot?.generation ?? options.deployment?.generation ?? 'empty';
+	const scope = createScopeRuntime(workspace);
+	let lateScope: LateScope | undefined;
 	// Only late commands and apps use the store, so it loads with the former.
 	let overlays: OverlayStore | undefined;
 
@@ -197,10 +234,40 @@ export async function createKernelParts(
 	let keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, []);
 	let commandSet = 0;
 
-	const summarize = (registry: DirectCommandRegistry): CommandSummaryV1[] =>
-		registry
+	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
+	const summaries = (): AppSummaryV2[] => {
+		const { project } = scope.active();
+		return apps
+			.summaries()
+			.map((app): AppSummaryV2 => {
+				const {
+					title = app.title,
+					order = app.order,
+					enabled,
+				} = scope.workspaceApps.get(app.instance)?.overrides ?? {};
+				return {
+					...app,
+					title,
+					order,
+					state: enabled === false ? 'disabled' : app.state,
+					// An app has a level at least, so with a project active every app can open (narrowing).
+					available:
+						enabled !== false && (project !== undefined || app.scopeLevels.includes('workspace')),
+				};
+			})
+			.sort(byOrder);
+	};
+
+	const summarize = (registry: DirectCommandRegistry): CommandSummaryV1[] => {
+		// A command of an app that cannot open here stays callable by name, and is left out (11.2).
+		const hidden = lateParts?.hidden(summaries());
+		return registry
 			.listCommands()
-			.filter((command) => !INTERNAL_COMMANDS.includes(command.name))
+			.filter(
+				(command) =>
+					!INTERNAL_COMMANDS.includes(command.name) &&
+					!hidden?.has(apps.owners.get(command.name)?.instance as string)
+			)
 			.map((command) => {
 				const keybinding = keybindings.keybindingFor(command.name);
 				const instance = apps.owners.get(command.name)?.instance;
@@ -214,12 +281,15 @@ export async function createKernelParts(
 					...(instance !== undefined ? { instance } : {}),
 				};
 			});
+	};
 
 	const bootCommands = createBootCommands({
 		state,
 		environment,
 		auth: options.auth,
 		apps: () => apps,
+		summaries,
+		scope,
 	});
 	const extra = options.commands ?? [];
 
@@ -238,25 +308,45 @@ export async function createKernelParts(
 	const clock = options.clock ? { now: options.clock } : undefined;
 	const random = options.random ? { next: options.random } : undefined;
 
-	let registries: Record<KernelInterfaceV0, DirectCommandRegistry>;
+	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
 	let mutations: Map<string, boolean>;
+	/** `BOOT_ONLY`'s commands, once `late/` has loaded: never in the palette's or the agent's registry. */
+	let bootOnly: ZodCommandDefinition[] = [];
+	let current: { commands: ZodCommandDefinition[]; middleware: CommandMiddleware[] };
+	const scopeMiddleware = createScopeMiddleware({ scope, late: () => lateScope });
+	/**
+	 * The kernel's chain over `held`. The auth middleware closes over its `exclude` list, so it is a new
+	 * instance each time. Scope is last, so every refusal it makes is journaled, with the effective scope.
+	 */
+	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
+		createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name) }),
+		journal,
+		scopeMiddleware,
+	];
+	const build = (
+		iface: KernelInterfaceV0,
+		held: readonly ZodCommandDefinition[],
+		middleware = chain(held)
+	) =>
+		createDirectRegistry([...held], {
+			interface: iface,
+			middleware,
+			contextFields: KERNEL_CONTEXT_FIELDS,
+			...(clock ? { clock } : {}),
+			...(random ? { random } : {}),
+		});
 	function setAppCommands(appCommands: readonly ZodCommandDefinition[]): void {
 		const commands = [...fixed, ...appCommands];
-		mutations = new Map(commands.map((command) => [command.name, command.mutation === true]));
-		// The auth middleware closes over its `exclude` list, so it is a new instance each time.
-		const middleware: CommandMiddleware[] = [
-			createAuthMiddleware(options.auth, { exclude: commands.map((command) => command.name) }),
-			journal,
-		];
-		const build = (iface: KernelInterfaceV0) =>
-			createDirectRegistry(commands, {
-				interface: iface,
-				middleware,
-				contextFields: KERNEL_CONTEXT_FIELDS,
-				...(clock ? { clock } : {}),
-				...(random ? { random } : {}),
-			});
-		registries = { palette: build('palette'), agent: build('agent') };
+		mutations = new Map(
+			[...commands, ...bootOnly].map((command) => [command.name, command.mutation === true])
+		);
+		const middleware = chain([...commands, ...bootOnly]);
+		registries = {
+			palette: build('palette', commands, middleware),
+			agent: build('agent', commands, middleware),
+			boot: build('palette', bootOnly, middleware),
+		};
+		current = { commands, middleware };
 		commandSet += 1;
 	}
 
@@ -275,10 +365,10 @@ export async function createKernelParts(
 		let shell: ZodCommandDefinition[];
 		try {
 			const late = await import('./late/index.js');
-			const { createOverlayStore, shellCommandsWithLate } = late;
+			const { createOverlayStore, createLateParts } = late;
 			addBootActions = late.withBootActions;
 			overlays = createOverlayStore();
-			shell = shellCommandsWithLate(bootCommands, {
+			const parts = createLateParts(bootCommands, {
 				viewState,
 				state,
 				environment,
@@ -289,15 +379,30 @@ export async function createKernelParts(
 				apps: () => apps,
 				paletteRows: () => summarize(registries.palette),
 				commandSet: () => commandSet,
+				scope,
+				store: options.store,
+				generation: () => generation,
+				isMutation: (name) => mutations.get(name) === true,
+				...(internals.actorOf ? { actorOf: internals.actorOf } : {}),
 			});
+			lateParts = parts;
+			shell = [...parts.shell, ...parts.internal];
+			// The boot registry holds `BOOT_ONLY`'s names and nothing else: `late/` builds it from that list.
+			bootOnly = parts.bootOnly;
+			lateScope = parts.lateScope;
 		} catch (cause) {
 			reportKernelError(cause);
 			lateFailure = lateUnavailable();
 			return;
 		}
-		checkNames([...shell, ...extra]);
+		checkNames([...shell, ...bootOnly, ...extra]);
 		fixed = [...shellExposed(shell), ...extra];
 	}
+
+	/** What `late/` gives the kernel's parts, once it has loaded. */
+	let lateParts: import('./late/index.js').LateParts | undefined;
+	/** The projection stage B keeps in the workspace store, once it is read (4.1). */
+	let applying: import('./late/index.js').AppliedProjection | undefined = options.deployment;
 
 	let stageB: Promise<void> | undefined;
 	let stageBEnded = false;
@@ -317,7 +422,6 @@ export async function createKernelParts(
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;
 	});
-	const { boot } = options;
 	/** Stage A has hydrated, so stage B reads only what it registers new, one record at a time. */
 	let hydrated = false;
 	/** Why stage B ended early, so `createKernel` can reject on a refused name when it ran inside it. */
@@ -337,7 +441,11 @@ export async function createKernelParts(
 	/** The apps, once the late commands are in. One app's failure, or the runtime's, never stops the shell. */
 	async function loadAppsStage(): Promise<void> {
 		const listsApps = boot ? boot.apps.length > 0 : (options.deployment?.apps.length ?? 0) > 0;
-		if (!listsApps) return;
+		if (!listsApps) {
+			// An empty projection with a row of another generation unlists what the row's listed (4.1).
+			applying = { generation, workspace, apps: [] };
+			return;
+		}
 		// Every entry is listed `failed` with the reason, from its boot record, or from the projection's
 		// own entry when the host gave no boot.
 		const listed = boot ?? (readBoot(options.deployment) as BootProjectionV2);
@@ -372,6 +480,7 @@ export async function createKernelParts(
 			return;
 		}
 		const { deployment } = loaded;
+		applying = deployment;
 		try {
 			const { loadApps } = await import('./apps/index.js');
 			apps = await loadApps({
@@ -394,6 +503,7 @@ export async function createKernelParts(
 						? execute('palette', name, input, callOptions ?? {}, fields)
 						: run('palette', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
+				activeScope: () => scope.active(),
 			});
 			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
 		} catch (cause) {
@@ -417,6 +527,14 @@ export async function createKernelParts(
 				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
 				apps.reconcileLayouts();
 			}
+			// Boot's own work before any late name is callable, so no call runs beside it, unqueued, and
+			// none can lose a write to it (2.2). A replay's entries are what ran, an apply among them (10).
+			if (applying) {
+				registries = { ...registries, boot: build('palette', bootOnly) };
+				await lateParts?.apply(applying, internals.replaying === true, (name, input) =>
+					run('palette', name, input, {}, BOOT_FIELDS)
+				);
+			}
 			setAppCommands(apps.commands);
 		})()
 			.catch((cause: unknown) => {
@@ -431,7 +549,7 @@ export async function createKernelParts(
 		return stageB;
 	}
 
-	const listeners = new Set<(event: KernelEventV1) => void>();
+	const listeners = new Set<(event: KernelEventV2) => void>();
 	const traceBase = `loam-${Math.floor(options.clock?.() ?? Date.now()).toString(36)}`;
 	let calls = 0;
 	let disposed = false;
@@ -449,7 +567,7 @@ export async function createKernelParts(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV1 = {},
+		callOptions: CallOptionsV2 = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
@@ -474,7 +592,7 @@ export async function createKernelParts(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV1,
+		callOptions: CallOptionsV2,
 		fields: KernelCallFields
 	): Promise<CommandResult<T>> {
 		if (disposed) {
@@ -492,26 +610,44 @@ export async function createKernelParts(
 		}
 		const traceId = `${traceBase}-${++calls}`;
 		const owned = apps.contextOf(name, input);
-		const context: CommandContext & KernelCallFields = {
+		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
+		// the active scope at this moment. No registry or connection holds it (3.2).
+		const asked = callOptions.scope;
+		scope.seen.set(traceId, {});
+		const context: CommandContext & KernelCallFields & { [CALL_MARK]: string } = {
 			traceId,
+			[CALL_MARK]: fields.scope || asked ? 'run' : 'active',
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
+			scope:
+				fields.scope ??
+				(asked === 'workspace' ? { workspace: workspace.id } : asked) ??
+				scope.active(),
 		};
-		const result = await registries[iface].execute<T>(name, input ?? {}, context);
+		// `BOOT_ONLY`, both ways (2.2): its names are in the boot registry alone, which `BOOT_FIELDS` reach and
+		// nothing else does, so a caller gets the palette's or the agent's own `COMMAND_NOT_FOUND`, and boot's
+		// fields reach no other command.
+		const registry = fields === BOOT_FIELDS ? registries.boot : registries[iface];
+		const result = await registry.execute<T>(name, input ?? {}, context);
 		const seq = seqs.get(traceId);
 		seqs.delete(traceId);
+		const seen = scope.seen.get(traceId);
+		scope.seen.delete(traceId);
 		if (fields.parent !== undefined && seq !== undefined) {
 			internals.nestedUnrecorded?.(fields.parent, name);
 		}
-		const event: KernelEventV1 = {
+		const event: KernelEventV2 = {
 			command: name,
 			interface: iface,
 			success: result.success,
-			mutation: mutations.get(name) ?? false,
+			// Boot's own work (`BOOT_FIELDS`) is a boot-only command, each a mutation, which `mutations`, built
+			// before `late/` loaded, does not hold yet.
+			mutation: mutations.get(name) ?? fields === BOOT_FIELDS,
 			...(seq !== undefined ? { seq } : {}),
 			...(fields.caller !== undefined ? { caller: fields.caller } : {}),
 			...(owned.instance !== undefined ? { instance: owned.instance } : {}),
+			...seen,
 		};
 		for (const listener of [...listeners]) {
 			try {
@@ -527,7 +663,24 @@ export async function createKernelParts(
 			: { ...result, metadata: { ...result.metadata, 'dev.loam/seq': seq } };
 	}
 
+	/**
+	 * The active scope, as stage A chooses it (6.3): the URL's project if the cache has it and the actor may
+	 * enter it, otherwise the persisted record's on the same two tests, otherwise the workspace. In memory:
+	 * a change is journaled in stage B, by `scope-set`.
+	 */
+	function chooseScope(slug?: string): void {
+		const actor = sessionActor(options.auth);
+		const project = [slug && scope.project(slug)?.id, state.scopeProject()].find(
+			(id) => id && scope.allows(actor, { workspace: workspace.id, project: id })
+		);
+		scope.setActive(project ? { workspace: workspace.id, project } : { workspace: workspace.id });
+	}
+
 	setAppCommands([]);
+	// One `list` per table, so a call costs no store read (4.1, 4.3).
+	await Promise.all(
+		[scope.projects, scope.workspaceApps].map((cache) => cache.load(options.store))
+	);
 	if (boot) {
 		// Stage A: each app's layout record from its boot record, then the persisted state, before the
 		// first frame. Nothing but display comes of a record (2.2).
@@ -547,6 +700,12 @@ export async function createKernelParts(
 		await state.hydrate();
 		apps.reconcileLayouts();
 	}
+	chooseScope(options.initialScope?.project);
+	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.
+	await state.scopedLayoutId(
+		scope.active().project,
+		takesProject(() => apps)
+	);
 
 	const kernel: LoamKernelV2 = {
 		version: 2,
@@ -597,11 +756,16 @@ export async function createKernelParts(
 		},
 		setAppCommands,
 		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
-		resetSession() {
+		async resetSession() {
 			overlays?.reset();
 			apps.resetSession();
+			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
+			await lateParts?.reload();
+			chooseScope();
 		},
 		runBoot: (name, input) => run('palette', name, input, {}, BOOT_FIELDS),
+		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served.
+		mcpOptions: () => lateParts?.mcpOptions(current.commands, current.middleware),
 	};
 }
 

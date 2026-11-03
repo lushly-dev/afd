@@ -6,8 +6,8 @@
 
 import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
-import type { ManifestV1 } from '@lushly-dev/loam-manifest';
-import type { AppStoreV1, LoamClientV1 } from '@lushly-dev/loam-sdk';
+import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { AppStoreV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { kernelFailure, LoamKernelError, PAGE_DECIDED } from '../errors.js';
 import type { HandlerFrameV1, KernelPortsV1, McpToolCallResult } from '../types.js';
 import { visibilityOf } from './definitions.js';
@@ -22,6 +22,7 @@ import {
 	readRandom,
 	refuseRequest,
 	resultInvalid,
+	scopeOf,
 } from './support.js';
 import type { AppsHost } from './types.js';
 
@@ -43,7 +44,8 @@ export interface FrameHostOptions {
 	commands: readonly string[];
 	/** Whether the app's own `name` may be called from a view. */
 	visibleToApp(name: string): boolean;
-	nestedClient(parent: string): LoamClientV1;
+	/** A handler's `context.client`: its calls carry `parent`, and the call's effective scope (3.2). */
+	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
 }
 
 export interface FrameHost {
@@ -79,7 +81,7 @@ export function toolCallResult(result: CommandResult): McpToolCallResult {
 }
 
 /** Whether a view may call the app's own `name`: its `tool_meta.ui.visibility` leaves out `app` (6.2). */
-export function visibleToApp(manifest: ManifestV1, name: string): boolean {
+export function visibleToApp(manifest: ManifestV2, name: string): boolean {
 	const command = manifest.commands?.find((candidate) => candidate.name === name);
 	const visibility = command === undefined ? undefined : visibilityOf(command);
 	return visibility === undefined || visibility.includes('app');
@@ -109,7 +111,8 @@ function withoutPageDecided(result: CommandResult): CommandResult {
 
 export function createFrameHost(options: FrameHostOptions): FrameHost {
 	const { record, host, ports, config, granted, commands } = options;
-	const inFlight = new Map<string, CommandContext>();
+	/** Each call in flight: its context, and whether its command may write (phase 2 specification, 5). */
+	const inFlight = new Map<string, { context: CommandContext; mutation: boolean }>();
 	let calls = 0;
 	let opening: Promise<HandlerFrameV1> | undefined;
 	let current: HandlerFrameV1 | undefined;
@@ -127,14 +130,16 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 			adapter: host.store,
 			app: record.app,
 			instance: record.instance,
+			// The call's effective scope, by `callId`, as the frame's clock is (phase 2 specification, 5).
+			scope: scopeOf(context),
 			now: () => readClock(context),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
 		});
 	}
 
-	function callOf(callId: unknown): CommandContext {
-		const context = typeof callId === 'string' ? inFlight.get(callId) : undefined;
-		if (context) return context;
+	function callOf(callId: unknown): { context: CommandContext; mutation: boolean } {
+		const call = typeof callId === 'string' ? inFlight.get(callId) : undefined;
+		if (call) return call;
 		throw refuseRequest({
 			code: 'HANDLER_NO_CALL',
 			rpcCode: -32600,
@@ -152,7 +157,8 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 				suggestion: 'Declare the `store` grant in the manifest',
 			});
 		}
-		const store = storeFor(callOf(params.callId));
+		const call = callOf(params.callId);
+		const store = storeFor(call.context);
 		const invalid = (message: string, suggestion: string) =>
 			refuseRequest({ code: 'VALIDATION_ERROR', rpcCode: -32602, message, suggestion });
 		const { op, key, prefix } = params;
@@ -172,7 +178,19 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		if (typeof key !== 'string' || key === '' || key === '.' || key === '..') {
 			throw invalid('A store key is a nonempty string', 'Pass a key other than "." and ".."');
 		}
+		if (key.startsWith('p~')) {
+			throw invalid('A store key may not start "p~"', 'Choose a key that does not name a scope');
+		}
 		if (op === 'get') return store.get(key);
+		if (!call.mutation) {
+			// A query cannot write, so an embed cannot change data through one: a boundary (5).
+			throw refuseRequest({
+				code: 'STORE_WRITE_IN_QUERY',
+				rpcCode: -32601,
+				message: 'A query cannot write to the store',
+				suggestion: 'Declare `store-write` on the command, which makes it a mutation',
+			});
+		}
 		if (op === 'put') await store.put(key, value?.value);
 		else await store.delete(key);
 		return null;
@@ -180,7 +198,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 
 	async function toolsCall(params: Record<string, unknown>): Promise<unknown> {
 		const meta = params._meta as Record<string, unknown> | undefined;
-		const call = callOf(meta?.[CALL_META_KEY]);
+		const { context: call } = callOf(meta?.[CALL_META_KEY]);
 		const { name } = params;
 		if (typeof name !== 'string') {
 			throw refuseRequest({
@@ -207,7 +225,11 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 				suggestion: 'Pass arguments with no BigInt and no cycle',
 			});
 		}
-		const result = await options.nestedClient(call.traceId ?? '').call(name, input.value);
+		// The call's scope, or the workspace when the frame asks for that level and nothing wider (3.2).
+		const level = meta?.['dev.loam/level'] === 'workspace' ? { level: 'workspace' as const } : {};
+		const result = await options
+			.nestedClient(call.traceId ?? '', scopeOf(call))
+			.call(name, input.value, level);
 		return toolCallResult(result);
 	}
 
@@ -292,7 +314,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 			}
 			// Not the trace ID, which counts every call in the kernel (9.7). `parent` is still that.
 			const callId = `${record.instance}-${++calls}`;
-			inFlight.set(callId, context);
+			inFlight.set(callId, { context, mutation: host.isMutation(name) });
 			try {
 				const result: unknown = await withDeadline(
 					target.call(
@@ -304,6 +326,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 								traceId: callId,
 								config,
 								grants: [...granted],
+								scope: scopeOf(context),
 								...(granted.has('clock') ? { now: readClock(context) } : {}),
 								...(granted.has('random')
 									? { randomSeed: Math.floor(readRandom(context) * 2 ** 32) }

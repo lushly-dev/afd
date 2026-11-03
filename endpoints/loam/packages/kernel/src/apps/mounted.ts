@@ -14,7 +14,7 @@ import {
 	success,
 } from '@lushly-dev/afd-core';
 import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ManifestV1, ProjectionAppV1, ProjectionMountedV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2, ProjectionAppV1, ProjectionMountedV1 } from '@lushly-dev/loam-manifest';
 import { deriveMutation, mountCommandName } from '@lushly-dev/loam-manifest/validate';
 import { z } from 'zod';
 import type { CommandOwner } from '../apps-runtime.js';
@@ -388,7 +388,7 @@ const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(name);
  */
 export async function discoverInstance(
 	entry: Pick<ProjectionAppV1, 'instance' | 'prefix' | 'expose' | 'commands'>,
-	manifest: ManifestV1,
+	manifest: ManifestV2,
 	transport: MountTransportV1,
 	signal?: AbortSignal
 ): Promise<InstanceCatalogV1> {
@@ -571,7 +571,7 @@ export interface MountedHost {
 export interface MountedHostOptions {
 	record: AppRecord;
 	entry: ProjectionAppV1;
-	manifest: ManifestV1;
+	manifest: ManifestV2;
 	host: AppsHost;
 	ports: KernelPortsV1;
 	/** The runtime's live list and map, which the kernel's registries read from. */

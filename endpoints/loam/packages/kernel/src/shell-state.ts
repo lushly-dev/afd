@@ -30,6 +30,16 @@ import {
 /** The view-state id of the active app, which only `app-open` and `app-close` write. */
 export const APPS_VIEW_STATE_ID = 'loam.apps';
 
+/** The persisted active project, by id, which only `scope-set` writes (phase 2 specification, 6.3). */
+export const SCOPE_VIEW_STATE_ID = 'loam.scope';
+
+/** What main shows: the active app, or a section, and its route (phase 2 specification, 4.3). */
+export interface MainStateV2 {
+	active: string | null;
+	section: string | null;
+	path: string;
+}
+
 export interface ShellState {
 	/** The layout of the active owner: the active app's record, or the no-app record. */
 	layout(): LayoutStateV0;
@@ -49,6 +59,19 @@ export interface ShellState {
 	registerAppLayout(instance: string, initial: LayoutStateV0, declared: Set<LayoutPart>): void;
 	activeApp(): string | null;
 	setActiveApp(instance: string | null): void;
+	/** `loam.apps` whole: the active app, the section and the route. */
+	main(): MainStateV2;
+	/** The persisted active project's id (`loam.scope`). */
+	scopeProject(): string | null;
+	/**
+	 * The layout record a call's scope reads (phase 2 specification, 3.4 and 7.6): the active app's, at
+	 * `loam.layout.<instance>@<project>` when the app takes a project and the call has one, registered from
+	 * the app's preset on first use and read from the store before anything writes it.
+	 */
+	scopedLayoutId(
+		project: string | undefined,
+		takesProject: (instance: string) => boolean
+	): Promise<string>;
 	appearance(): AppearanceStateV0;
 	/** Load the persisted records. An invalid record is ignored and its defaults kept. */
 	hydrate(): Promise<void>;
@@ -72,7 +95,8 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	const layouts = new Map<string, LayoutRecord>();
 	let appearance = createDefaultAppearance();
 	let active: string | null = null;
-	let hydrating = false;
+	/** Reads in progress, which may overlap: while any is, an invalid record is ignored. */
+	let hydrating = 0;
 	let hydrated = false;
 	/** Records registered after `hydrate`, for `hydrateLate`. */
 	const unread = new Set<string>();
@@ -118,16 +142,42 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 		},
 	};
 
-	const appsHandler: ViewStateHandler<{ active: string | null } & Record<string, unknown>> = {
-		get: () => ({ active }),
+	let section: string | null = null;
+	let path = '';
+	const main = (): MainStateV2 => ({ active, section, path });
+	// A persisted record with fewer keys reads their defaults.
+	const appsHandler: ViewStateHandler<MainStateV2 & Record<string, unknown>> = {
+		get: () => main() as MainStateV2 & Record<string, unknown>,
 		set(partial) {
-			const next = (partial as { active?: unknown }).active;
-			if (next === null || typeof next === 'string') active = next;
+			const next = partial as Partial<Record<keyof MainStateV2, unknown>>;
+			if (next.active === null || typeof next.active === 'string') active = next.active;
+			if (next.section === null || typeof next.section === 'string') section = next.section;
+			if (typeof next.path === 'string') path = next.path;
 		},
+	};
+	let scopeProject: string | null = null;
+	const scopeHandler: ViewStateHandler<{ project: string | null } & Record<string, unknown>> = {
+		get: () => ({ project: scopeProject }),
+		set(partial) {
+			const next = (partial as { project?: unknown }).project;
+			if (next === null || typeof next === 'string') scopeProject = next;
+		},
+	};
+	/** Reads of records registered on first use, so no write lands before the read (step 0b's note). */
+	const reading = new Map<string, Promise<void>>();
+	/** One record from the store, an invalid one ignored as `hydrate` ignores it. */
+	const readOne = async (id: string): Promise<void> => {
+		hydrating++;
+		try {
+			await viewState.hydrateOne(id);
+		} finally {
+			hydrating--;
+		}
 	};
 
 	viewState.register(APPEARANCE_VIEW_STATE_ID, appearanceHandler as unknown as ViewStateHandler);
 	viewState.register(APPS_VIEW_STATE_ID, appsHandler as unknown as ViewStateHandler);
+	viewState.register(SCOPE_VIEW_STATE_ID, scopeHandler as unknown as ViewStateHandler);
 
 	const activeId = (): string =>
 		active !== null && layouts.has(appLayoutId(active))
@@ -150,7 +200,8 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			if (held) {
 				// The handler closes over this record, so it is replaced in place. What `hydrate` loaded, or a
 				// command wrote, stays, and `reconcileLayouts` closes a part the new manifest dropped. A record
-				// nothing wrote takes the new first shape.
+				// nothing wrote takes the new first shape. A project's record is `<instance>@<project>`, which
+				// `apps/` corrects this way too (phase 2 specification, 2.2).
 				held.initial = cloneLayout(initial);
 				held.declared = declared;
 				if (!held.written) held.state = cloneLayout(initial);
@@ -167,27 +218,37 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 		setActiveApp(instance) {
 			viewState.set(APPS_VIEW_STATE_ID, { active: instance });
 		},
+		main,
+		scopeProject: () => scopeProject,
+		async scopedLayoutId(project, takesProject) {
+			const base = activeId();
+			if (project === undefined || active === null || !takesProject(active)) return base;
+			const id = `${base}@${project}`;
+			if (!layouts.has(id)) {
+				const { initial, declared } = record(base);
+				registerLayout(id, { state: cloneLayout(initial), initial, declared });
+				// Silent on an invalid record, as `hydrate` is: its defaults are kept.
+				reading.set(id, readOne(id));
+			}
+			await reading.get(id);
+			return id;
+		},
 		appearance: () => ({ ...appearance }),
 		async hydrate() {
-			hydrating = true;
+			hydrating++;
 			try {
 				await viewState.hydrate();
 				// A persisted active app the deployment no longer lists is no active app.
 				if (active !== null && !layouts.has(appLayoutId(active))) active = null;
 			} finally {
-				hydrating = false;
+				hydrating--;
 				hydrated = true;
 			}
 		},
 		async hydrateLate() {
 			const ids = [...unread];
 			unread.clear();
-			hydrating = true;
-			try {
-				for (const id of ids) await viewState.hydrateOne(id);
-			} finally {
-				hydrating = false;
-			}
+			for (const id of ids) await readOne(id);
 		},
 		forgetUnlisted(listed) {
 			if (active !== null && !listed.has(active)) active = null;

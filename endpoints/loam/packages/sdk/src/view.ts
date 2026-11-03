@@ -6,7 +6,14 @@
 
 import type { CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core/result';
-import type { AppCallContextV1, AppDefinitionV1, AppStoreV1, LoamClientV1 } from './index.js';
+import {
+	type AppCallContextV1,
+	type AppDefinitionV1,
+	type AppStoreV1,
+	type LoamClientV1,
+	projectsOver,
+	type ScopeV1,
+} from './index.js';
 import { createPeer, RpcAborted, RpcFailure, type RpcPeer } from './rpc.js';
 
 /** The MCP Apps version a view and the shell speak. */
@@ -19,6 +26,10 @@ export interface ViewHostContextV1 {
 	containerDimensions: { width: number; height: number };
 	'dev.loam/tokens': Record<string, string>;
 	'dev.loam/selection'?: string | null;
+	/** The surface's scope (phase 2 specification, 7.6). */
+	'dev.loam/scope'?: { workspace: string; project?: string };
+	'dev.loam/route'?: string;
+	'dev.loam/selectionLevel'?: 'workspace' | 'project';
 }
 
 export interface ViewConnectionV1 {
@@ -75,8 +86,15 @@ function resultOf(answer: unknown): CommandResult {
 
 function clientFor(peer: RpcPeer, meta?: Record<string, unknown>): LoamClientV1 {
 	return {
-		async call<T>(name: string, input?: unknown, options?: { signal?: AbortSignal }) {
-			const params = { name, arguments: input ?? {}, ...(meta ? { _meta: meta } : {}) };
+		async call<T>(
+			name: string,
+			input?: unknown,
+			options?: { signal?: AbortSignal; level?: 'workspace' }
+		) {
+			// `dev.loam/level` is the only scope a view names: the shell binds the rest (phase 2 specification, 3.2).
+			const held =
+				options?.level === 'workspace' ? { ...meta, 'dev.loam/level': 'workspace' } : meta;
+			const params = { name, arguments: input ?? {}, ...(held ? { _meta: held } : {}) };
 			try {
 				return resultOf(
 					await peer.request('tools/call', params, options?.signal)
@@ -212,6 +230,8 @@ interface HandlerCallParams {
 		randomSeed?: number;
 		config: Readonly<Record<string, unknown>>;
 		grants: string[];
+		/** The call's effective scope (phase 2 specification, 3.2). */
+		scope?: ScopeV1;
 	};
 }
 
@@ -238,12 +258,15 @@ function storeFor(peer: RpcPeer, callId: string): AppStoreV1 {
 }
 
 function callContext(peer: RpcPeer, { callId, context }: HandlerCallParams): AppCallContextV1 {
-	const { traceId, now, randomSeed, config, grants } = context;
+	const { traceId, now, randomSeed, config, grants, scope } = context;
 	const granted = new Set(grants);
+	const client = clientFor(peer, { 'dev.loam/call': callId });
 	return {
 		traceId,
 		config,
-		client: clientFor(peer, { 'dev.loam/call': callId }),
+		client,
+		scope: scope ?? { workspace: '' },
+		...(granted.has('projects') ? { projects: projectsOver(client, scope?.project) } : {}),
 		...(granted.has('clock') && now !== undefined ? { now: () => now } : {}),
 		...(granted.has('random') && randomSeed !== undefined
 			? { random: mulberry32(randomSeed) }

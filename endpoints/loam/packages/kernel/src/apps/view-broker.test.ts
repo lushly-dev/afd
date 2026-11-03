@@ -1,7 +1,7 @@
 import { success } from '@lushly-dev/afd-core';
 import type { ManifestV1 } from '@lushly-dev/loam-manifest';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppPortV1, LinkedCallV1 } from '../types.js';
+import type { LinkedCallV1 } from '../types.js';
 import { createViewBroker } from './view-broker.js';
 
 const RESOURCE = 'ui://probe/main';
@@ -19,9 +19,9 @@ const manifest = {
 function setup() {
 	const call = vi.fn(async () => success({ ok: true }));
 	const readResource = vi.fn(async () => '<h1>Probe</h1>');
-	const port = { call, readResource } as unknown as AppPortV1;
-	const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test', port: () => port });
-	return { call, readResource, ...view };
+	const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test' });
+	const broker = view.brokerFor(call as never, readResource);
+	return { call, readResource, broker, notifyCall: view.notifyCall };
 }
 
 describe('the view broker', () => {

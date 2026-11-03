@@ -63,6 +63,10 @@ export interface TestKernelOptions {
 	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
 	boot?: KernelOptionsV2['boot'];
 	appsLoader?: KernelOptionsV2['appsLoader'];
+	/** Default: a new `MemoryAdapter`. Share one to stand for a reload, which keeps the store. */
+	store?: KernelOptionsV2['store'];
+	/** Default: a new `MockAuthAdapter`. */
+	auth?: KernelOptionsV2['auth'];
 }
 
 export interface TestKernel {
@@ -77,10 +81,10 @@ export interface TestKernel {
 export async function createTestKernel(options: TestKernelOptions = {}): Promise<TestKernel> {
 	const journal = new MemoryJournalSink();
 	const { kernel } = await createKernelParts({
-		store: new MemoryAdapter(),
+		store: options.store ?? new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
-		auth: new MockAuthAdapter(),
+		auth: options.auth ?? new MockAuthAdapter(),
 		environment: options.environment ?? createFixedEnvironment(),
 		host: 'test',
 		...(options.commands !== undefined ? { commands: options.commands } : {}),

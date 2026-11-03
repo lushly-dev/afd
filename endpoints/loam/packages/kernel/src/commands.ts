@@ -14,47 +14,28 @@ export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
 });
 
 /**
+ * Boot's own journaled work (phase 2 specification, 2.2): `run` answers `COMMAND_NOT_FOUND` for these
+ * names unless it is given the kernel's `BOOT_FIELDS`, so no person, app or agent reaches them, and
+ * `mcpOptions()` leaves them out. `document-trash-expire` is the documents specification's (step 9).
+ * Each is a mutation, which a kernel event of boot's own work reports.
+ */
+export const BOOT_ONLY: readonly string[] = Object.freeze([
+	'workspace-deployment-apply',
+	'document-trash-expire',
+]);
+
+/**
  * The commands `listCommands` never reports: each only answers a refusal the app port runs through
- * the journal (phase 1 specification, 5.3).
+ * the journal (phase 1 specification, 5.3; phase 2 specification, 3.6), and the boot-only commands.
  */
 export const INTERNAL_COMMANDS: readonly string[] = Object.freeze([
 	'app-call-refuse',
 	'app-modal-refuse',
 	'app-nested-refuse',
+	'app-scope-refuse',
+	'app-embed-refuse',
+	...BOOT_ONLY,
 ]);
-
-/** The shell's command names, in registration order. */
-export const SHELL_COMMAND_NAMES = [
-	'view-state-get',
-	'view-state-set',
-	'view-state-list',
-	'layout-get',
-	'layout-set',
-	'layout-reset',
-	'appearance-get',
-	'appearance-set',
-	'palette-open',
-	'palette-close',
-	'palette-search',
-	'auth-sign-in',
-	'auth-sign-out',
-	'auth-session-get',
-	'shell-info-get',
-	'app-list',
-	'app-get',
-	'app-open',
-	'app-close',
-	'app-command-list',
-	'app-instance-list',
-	'app-instance-refresh',
-	'app-selection-get',
-	'app-selection-set',
-	'status-item-set',
-	'toast-show',
-	'modal-open',
-	'overlay-dismiss',
-	'overlay-list',
-] as const;
 
 /** Most results `palette-search` returns, and its default. */
 export const PALETTE_SEARCH_LIMIT = { max: 50, default: 20 } as const;

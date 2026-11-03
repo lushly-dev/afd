@@ -42,6 +42,58 @@ export interface AppCallContextV1 {
 	readonly config: Readonly<Record<string, unknown>>;
 	/** For queries only: a nested mutation answers NESTED_MUTATION_REFUSED (5.3). */
 	readonly client: LoamClientV1;
+	/** The call's effective scope (phase 2 specification, 3.2). */
+	readonly scope: ScopeV1;
+	/** Present with the `projects` grant (phase 2 specification, 5). */
+	readonly projects?: ProjectsV1;
+}
+
+/** Where a call runs: a workspace, and a project in it (phase 2 specification, 3.1). Ids, never names. */
+export interface ScopeV1 {
+	/** The workspace's id. */
+	readonly workspace: string;
+	/** A project's `id`, when the call runs in one. */
+	readonly project?: string;
+}
+
+/**
+ * {@link ProjectsV1} over a client that may call `project-list` and `project-get`, as the `projects`
+ * grant lets it: what a view's handler frame gives a handler.
+ */
+export function projectsOver(client: LoamClientV1, active: string | undefined): ProjectsV1 {
+	const get = async (ref: string): Promise<AppProjectV1 | null> => {
+		const result = await client.call<AppProjectV1>('project-get', { project: ref });
+		return result.success && result.data ? result.data : null;
+	};
+	return {
+		active: () => (active === undefined ? Promise.resolve(null) : get(active)),
+		async list() {
+			const result = await client.call<{ projects: AppProjectV1[] }>('project-list', {});
+			return result.success && result.data ? result.data.projects : [];
+		},
+		get,
+	};
+}
+
+/** A project as an app sees it: no members, and no one who wrote it (phase 2 specification, 4.3). */
+export interface AppProjectV1 {
+	id: string;
+	workspace: string;
+	slug: string;
+	name: string;
+	icon: string;
+	status: 'active' | 'archived';
+	createdAt: number;
+	updatedAt: number;
+}
+
+/** What the `projects` grant gives a handler: reads only, never a member (phase 2 specification, 5). */
+export interface ProjectsV1 {
+	/** The call's effective project, so `null` for a workspace-only app. */
+	active(): Promise<AppProjectV1 | null>;
+	list(): Promise<AppProjectV1[]>;
+	/** By `id` or slug. */
+	get(ref: string): Promise<AppProjectV1 | null>;
 }
 
 export interface AppContextV1 {
@@ -54,13 +106,22 @@ export interface AppContextV1 {
 	readonly registry: CustomElementRegistry;
 	readonly kit: KitV1;
 	readonly overlays: OverlaysV1;
+	/**
+	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
+	 * only: a view calls `app-route-set` through its client.
+	 */
+	navigate?(route: string): Promise<void>;
 }
 
 export interface LoamClientV1 {
 	call<T = unknown>(
 		name: string,
 		input?: unknown,
-		options?: { signal?: AbortSignal }
+		options?: {
+			signal?: AbortSignal;
+			/** `workspace` runs the call at workspace level, the only widening (phase 2 specification, 3.2). */
+			level?: 'workspace';
+		}
 	): Promise<CommandResult<T>>;
 }
 
@@ -106,6 +167,12 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	context?: AppContextV1;
 	/** The selection, for `main` and `inspector` under `list-detail`. */
 	selection?: string | null;
+	/** The scope the surface was created in, fixed for its life (phase 2 specification, 7.6). */
+	scope?: ScopeV1;
+	/** The app's route, the URL's rest. */
+	route?: string;
+	/** The level the selection was made at, in a dual-scope app's sidebar. */
+	selectionLevel?: 'workspace' | 'project';
 }
 
 export type OverlayKindV1 = 'toast' | 'modal';

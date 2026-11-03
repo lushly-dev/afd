@@ -119,7 +119,8 @@ describe('E8: grants', () => {
 	it('loads an optional unserved grant without its API, and app-get says so', async () => {
 		const seen: Record<string, unknown> = {};
 		const app = manifest('opt', {
-			grants: [{ name: 'projects', required: false, reason: 'Later.' }],
+			// `documents` is served from step 9 (phase 2 specification, 5).
+			grants: [{ name: 'documents', required: false, reason: 'Later.' }],
 			commands: [
 				{
 					name: 'opt-read',
@@ -146,12 +147,14 @@ describe('E8: grants', () => {
 		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'opt' })).data;
 		expect(detail?.state).toBe('ready');
 		expect(detail?.grants).toEqual([
-			{ name: 'projects', required: false, served: false, reason: 'Later.' },
+			{ name: 'documents', required: false, served: false, reason: 'Later.' },
 		]);
 		expect((await kernel.call('opt-read')).success).toBe(true);
 		// No grant: no store, no clock and no random reach the handler.
 		expect(seen.keys).toEqual(expect.arrayContaining(['traceId', 'config', 'client']));
-		for (const absent of ['store', 'now', 'random']) expect(seen.keys).not.toContain(absent);
+		for (const absent of ['store', 'now', 'random', 'projects']) {
+			expect(seen.keys).not.toContain(absent);
+		}
 	});
 
 	it('gives each API only with its grant', async () => {
@@ -477,7 +480,8 @@ describe('app-list and app-get', () => {
 		expect(detail?.trust).toBe('trusted');
 		expect(detail?.trustLine).toContain('Trusted, not sandboxed');
 		expect(detail?.surfaces).toContain('sidebar');
-		expect(detail?.grants.map((grant) => grant.served)).toEqual([true, true, true, false]);
+		// `projects` is served from phase 2's step 4.
+		expect(detail?.grants.map((grant) => grant.served)).toEqual([true, true, true, true]);
 		expect((await kernel.call('app-get', { instance: 'nope' })).error?.code).toBe('APP_NOT_FOUND');
 	});
 
@@ -603,7 +607,10 @@ describe('listCommands and the palette', () => {
 					query: 'probe',
 					limit: 50,
 				})
-			).data?.items.map((item) => item.name);
+			).data?.items
+				.map((item) => item.name)
+				// The shell's `project-*` match the query too.
+				.filter((name) => name.startsWith('probe-'));
 		expect(await search()).toEqual([]);
 		await kernel.call('app-open', { instance: 'probe' });
 		expect(await search()).toContain('probe-list');

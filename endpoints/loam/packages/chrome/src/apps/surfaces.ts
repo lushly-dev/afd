@@ -10,12 +10,13 @@ import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
 import { ensureScopedRegistrySupport } from '@lushly-dev/fast-element/scoped.js';
 import type {
 	AppDetailV1,
-	AppPortV1,
+	AppPortV2,
 	AppSummaryV2,
 	KernelEventV1,
 	LoamKernelV2,
+	ScopeV1,
 } from '@lushly-dev/loam-kernel';
-import type { AppContextV1, ModalInputV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1 } from '@lushly-dev/loam-sdk';
 import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
 import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
@@ -30,6 +31,7 @@ import { defineAppElements } from './define-elements.js';
 import { focusFallback } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
+import { surfaceCalls } from './surface-calls.js';
 
 type Part = 'sidebar' | 'inspector' | 'panel';
 
@@ -69,7 +71,7 @@ interface Parked {
 /** One app the chrome has given a port, once `activate` has run or failed. */
 interface HeldApp {
 	instance: string;
-	port: AppPortV1;
+	port: AppPortV2;
 	registry?: CustomElementRegistry;
 	context?: AppContextV1;
 	activation?: Promise<string | undefined>;
@@ -137,6 +139,8 @@ export class AppSurfaces implements ShellApps {
 	#missedSwitch = false;
 	/** A selection set before an app's surfaces exist reaches them when they do. */
 	#selectionWritten = false;
+	/** The scope the surfaces now rendering are created in: `scope-get`'s, read at each render. */
+	#scope: ScopeV1 = { workspace: '' };
 	#openingNotice: ReturnType<typeof setTimeout> | undefined;
 	#mainElements: HTMLElement[] = [];
 	#inspectorElements: HTMLElement[] = [];
@@ -628,7 +632,7 @@ export class AppSurfaces implements ShellApps {
 		return held.activation;
 	}
 
-	#contextOf(port: AppPortV1, registry: CustomElementRegistry): AppContextV1 {
+	#contextOf(port: AppPortV2, registry: CustomElementRegistry): AppContextV1 {
 		const { manifest, instance, config } = port;
 		return {
 			instance,
@@ -636,21 +640,8 @@ export class AppSurfaces implements ShellApps {
 			version: manifest.plugin.version,
 			config,
 			registry,
-			client: { call: (name, input, options) => port.call(name, input, options) },
 			kit: createKit(registry),
-			overlays: {
-				toast: (input: ToastInputV1) => port.call('toast-show', input),
-				async modal(input: ModalInputV1) {
-					const opened = await port.call<{ overlayId: string }>('modal-open', input);
-					if (!opened.success || !opened.data) {
-						throw Object.assign(new Error(opened.error?.message ?? 'The modal could not open'), {
-							code: opened.error?.code,
-							suggestion: opened.error?.suggestion,
-						});
-					}
-					return port.waitOverlay(opened.data.overlayId);
-				},
-			},
+			...surfaceCalls(port, port.call),
 		};
 	}
 
@@ -669,6 +660,11 @@ export class AppSurfaces implements ShellApps {
 
 	async #renderSurfaces(held: HeldApp, detail: AppDetailV1, stale: () => boolean): Promise<void> {
 		const { port } = held;
+		// Every surface below gets a port of its own, fixed to this scope for its life (phase 2
+		// specification, 3.6); recreating them when the scope changes is step 6's (7.6).
+		const scoped = await this.#kernel.call<{ scope: ScopeV1 }>('scope-get');
+		this.#scope = scoped.data?.scope ?? this.#scope;
+		if (stale()) return;
 		const { manifest } = port;
 		const surfaces = manifest.ui?.surfaces ?? {};
 		const main = this.#part<HTMLElement>('main');
@@ -768,7 +764,7 @@ export class AppSurfaces implements ShellApps {
 
 	/** The view host is its own chunk, so a shell with no view app loads none of it (9.2). */
 	async #openView(
-		port: AppPortV1,
+		port: AppPortV2,
 		title: string,
 		resource: string,
 		command: string | undefined,
@@ -795,6 +791,8 @@ export class AppSurfaces implements ShellApps {
 		const frame = this.#create<LoamViewFrame>('loam-view-frame');
 		frame.configure({
 			port,
+			// The view's broker is its surface's, so its calls run in the scope it opened in: a boundary (3.6).
+			view: port.surface({ scope: this.#scope }).view,
 			source: view.packageViewSource(port),
 			heading: title,
 			hostVersion: String(this.#kernel.version),
@@ -869,10 +867,12 @@ export class AppSurfaces implements ShellApps {
 
 	#mount(held: HeldApp, element: string, label?: string): LoamMount {
 		const mount = this.#create<LoamMount>('loam-mount');
+		// A native surface's client is its own port's: a contract, as all of a native app is (D54).
+		const surface = held.port.surface({ scope: this.#scope });
 		mount.configure({
 			registry: held.registry as CustomElementRegistry,
 			element,
-			context: held.context as AppContextV1,
+			context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
 			selection: null,
 			...(label !== undefined ? { label } : {}),
 		});

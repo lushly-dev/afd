@@ -7,8 +7,7 @@
 import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
-	forInterfaceOne,
-	type ManifestV1,
+	type ManifestV2,
 	NOTICES_V1,
 	type ProjectionAppV1,
 	SHELL_DOMAINS_V1,
@@ -16,9 +15,10 @@ import {
 import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
+import { INTERNAL_COMMANDS } from '../commands.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { type AppKeybinding, needsInput } from '../keybindings.js';
-import type { AppPortV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
+import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
 	baseRecord,
@@ -37,7 +37,7 @@ import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
 import { pageDecided } from './support.js';
-import type { AppsHost, AppsHostInput } from './types.js';
+import { type AppsHost, type AppsHostInput, layoutNamesOf } from './types.js';
 import { createViewBroker } from './view-broker.js';
 
 export {
@@ -61,6 +61,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 	const { palette, ...rest } = input;
 	const host: AppsHost = {
 		...rest,
+		// The internal and boot-only names too, so no app's or discovered tool's command can take one (3.6).
+		taken: new Set([...rest.taken, ...INTERNAL_COMMANDS]),
 		commandRows(instance) {
 			const { commands, rows } = palette();
 			const summaries = new Map(rows.map((row) => [row.name, row]));
@@ -115,20 +117,16 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 
 	function hostFor(
 		record: AppRecord,
-		manifest: ManifestV1,
+		manifest: ManifestV2,
 		packageUrl: string,
 		config: Readonly<Record<string, unknown>>,
 		granted: ReadonlySet<string>
-	): { port: AppPortV1; invoke: NativeHost['invoke'] } {
+	): { port: AppPortV2; invoke: NativeHost['invoke'] } {
 		const names = (manifest.commands ?? []).map((command) => command.name);
 		let native: NativeHost | undefined;
 		const viewHost =
 			record.kind === 'view'
-				? createViewBroker({
-						manifest,
-						sandboxOrigin: deployment.sandbox_origin,
-						port: () => port,
-					})
+				? createViewBroker({ manifest, sandboxOrigin: deployment.sandbox_origin })
 				: undefined;
 		const { port, nestedClient } = createAppPort({
 			record,
@@ -148,7 +146,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 					})
 				);
 			},
-			...(viewHost ? { view: viewHost.broker } : {}),
+			...(viewHost ? { view: viewHost.brokerFor } : {}),
 		});
 		if (record.kind === 'native') {
 			const entryPath = manifest.native?.entry;
@@ -208,7 +206,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			return invoke(name, input, context);
 		};
 
-	function admit(record: AppRecord, entry: ProjectionAppV1, manifest: ManifestV1) {
+	function admit(record: AppRecord, entry: ProjectionAppV1, manifest: ManifestV2) {
 		const { kind } = record;
 		const refusal =
 			(kind !== 'mounted' && entry.instance !== entry.app
@@ -347,9 +345,13 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 	const loadEntry = (entry: ProjectionAppV1, index: number) => {
 		const raw = raws[index] as { raw?: unknown; unavailable?: string };
 		const read = raw.unavailable === undefined ? readManifest(raw.raw) : undefined;
-		const manifest = read?.ok ? forInterfaceOne(read.manifest) : undefined;
+		const manifest = read?.ok ? read.manifest : undefined;
 		const { initial, declared } = firstLayout(manifest);
-		host.state.registerAppLayout(entry.instance, initial, declared);
+		// Its own record, and each project's that stage A cloned from its boot record: the manifest wins in
+		// every one (phase 2 specification, 2.2).
+		for (const name of layoutNamesOf(host, entry.instance)) {
+			host.state.registerAppLayout(name, initial, declared);
+		}
 		// Every entry claims its domain, whatever else refuses it, as `deployment check` has it (D66).
 		const mounted = manifest
 			? manifest.plugin.kind === 'mounted'
@@ -375,7 +377,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			settle(record, 'refused', refusalError(read.refusals));
 			return;
 		}
-		const admitted = forInterfaceOne(read.manifest);
+		const admitted = read.manifest;
 		const record = baseRecord(entry, admitted, undefined);
 		record.warnings.push(...read.warnings);
 		const refusal = kindRefusal(entry, admitted) ?? claim;

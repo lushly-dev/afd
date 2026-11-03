@@ -6,15 +6,20 @@
 		"command": "shell-info-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:d1b72634b2164d7618b0ad9092520b101d952d921e0a18461a8be2558ea141c4",
+			"hash": "sha256:c92f030b9abfd56f86122700ce2ae9c97b5199e47127483208c8947febbe09e7",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
 			"data": {
 				"kernelInterface": 2,
 				"layoutState": 0,
-				"storeInterface": 0,
+				"storeInterface": 1,
 				"tokenContract": 1,
 				"manifestVersion": 2,
 				"appProtocol": 1,
@@ -42,8 +47,13 @@
 		"command": "layout-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:f4753d747164421877b62a540d8e4b18c46b585959cabb4f562e736d7bd9d4cc",
+			"hash": "sha256:9a33c20f958392ae7dd3e58b90b7a997fead3489d1a885f3fd37ea6717d240fa",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -85,8 +95,13 @@
 		"command": "appearance-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:1b9fc2ef02e311dec38dfc538336af431a3cd5fef4f241b56f2fb18d3a2ac2f3",
+			"hash": "sha256:989bc29ad1c0e744d30199725b5217ceb66eab29923514a1ac3db3f6f3fd6cec",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -113,8 +128,13 @@
 		"command": "auth-session-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:3289f2950e9974ea36fd48734b6f2bbf12aa756370ef9302fc9ebde6fb68eb4e",
+			"hash": "sha256:13cef81f7b7585a85605393b5a93156125d2dff0c4561dba306c7a80b1d3662d",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -145,16 +165,21 @@
 			"email": "person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:e75aff3e8fa9656743283fdec42b9249d04de368fe6d4d86bc4364d665935ee2",
+			"hash": "sha256:cf42d1c2624b75c772027dc0204f543c9fd01cf18e4dcec09ec4788aa870a0d9",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793678112701",
-					"expiresAt": "2026-11-03T04:55:12.701Z"
+					"id": "mock-session-1793694877585",
+					"expiresAt": "2026-11-03T09:34:37.585Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -190,8 +215,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:9e50316faf6a55647ebb26dea5ca93612ca1eb15cfe3f9b5697f788d72108b17",
+			"hash": "sha256:3708c7d2181f1698c4a30b4cc8de9ca9aa4ef0ac66f374a595c8f465dc32d9f4",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -249,8 +279,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:72236d8db8b5078d36ef4fe1e59c6f20538f65ad60eafcdf00f5fbf5ba3562b4",
+			"hash": "sha256:88ed231215b940c81c89e73092ad3574577f7544b7fd5db55113db65df9ee904",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -308,8 +343,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b89327d59a5b8c10fbdf8ede4231e353b7cbdf84c53698f813ae1d71e38c2ed6",
+			"hash": "sha256:ee127823165742d7ca29ad52b5d3b55b7168ea3066204f60ec53cf6c19156d35",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -367,8 +407,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:6234e9a6f25a7e3c0e20c97438fa130af794bef6b3d6d90a2848e691901db639",
+			"hash": "sha256:6ba618a090fb06ac4b060e1ab923dda5a244e09170945dd17a400acc600a1658",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -426,8 +471,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:41074441ea0a605fe70984d4bd2e43aa0b294c481b5d200f1b940c3ca46d276e",
+			"hash": "sha256:21ba214087221a800cc54505e3622d86e6a2624de888ae44797dee655b94f271",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -485,8 +535,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:a6b7f28ebef93144c8c61a330101a1f401e6fe4b20cb9a840067608942211cf3",
+			"hash": "sha256:0ea2c65b95a3fc92f7883f8a6507a8a2d2b3d59522d545fa598ffd939d604640",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -544,8 +599,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:d9c2ce2e6d6287ee7a627750de74833f3436fb7de6d31b90824f202c0f1deb48",
+			"hash": "sha256:a32a0c5415983ab973ee103c77b22bc8d5bfd22c576f03f3f75f671ef81e7588",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -603,8 +663,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:4a3fdc46a80664f747da918a24e0085ed77f0264157038643b666ce37ebe5cb0",
+			"hash": "sha256:9970d8925cda9e1b62fd45acb7f6b29f02f7e534bfd69237787ad64fed8528e9",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -648,8 +713,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:c941e066a0396b6ffb7285a600b134c183bd7e570a988045569e43a5e6bb0518",
+			"hash": "sha256:9598a9693d56c54cddd4b4966238ec6647a226198dd84421481e9ddd4f8f1464",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -693,8 +763,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:a43c7803e6db98a29c01b2c526e6e5248c9bc139c1b05e731d4f1e3c39216b3e",
+			"hash": "sha256:56c398c459624fe1f133851bed1858ad079b9bd0d408793ebd48abac6a78e91a",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -733,8 +808,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:62a194d91d96f5ae7bb60e2d4fcc8d7cb3b3666733099dfd78b8eaa9941564f7",
+			"hash": "sha256:cceb38e5f75ccbe63b1ff009416b5944d3872beb404aa31161ea6696b8e81bb5",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -765,8 +845,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:40c59282e16af571844f0d5972b26fe1039b73c1262985199ffd7b6e782ad449",
+			"hash": "sha256:ab8b58db047ee56c69c6cdddbcfdff30096f1d8994f947372d6e9b515d019c2b",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -799,8 +884,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:e76b6a79f6ecb5c06a4f4d876d4a79df05d9027ed987a4744632d0fbde31757b",
+			"hash": "sha256:27c3bb322fec93476b0a990a12f460337249627094d1e840595f5f9e2f3edecd",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -831,8 +921,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:c8fe4b235e88496f7ee4832812d61dcea9fc5b20c8cd0b330f0c845faa8b4af4",
+			"hash": "sha256:1066f44e52804bc5499408009fee7db7f352b2bb31368edc3f18de110f6c2c68",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -865,8 +960,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:b03c06a36620112b67a42e96130c7fec802d9f88c4c0f02efef3ee00573e9941",
+			"hash": "sha256:ac62ab8ed61519ccb1a294c97662ea82cc58245519036c941a2cffe7caf50e40",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -905,8 +1005,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:23276635f8580e43c4d845fa35638c7f93b7f28d2be12e25bfbde9b89b74559b",
+			"hash": "sha256:9d9b274da88cc0384e1a84e23c15aede5558aba5059d2e364c425f9c7b8cfd62",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -943,8 +1048,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:56ea36d59c2c05353031096a6f06e5b365912fa185876d247b41e7b28a865ed2",
+			"hash": "sha256:47aeb023ba017834d828f6a022cf088f46155515b77e236fc3c0eb2ba89c4ae7",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -977,8 +1087,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:1f7dcb37eb4cf9a906283568b0b2740bab8a233704e20fff00547800b852dbdc",
+			"hash": "sha256:6a77a3fafdc909541a3b40c4b61447919e752f6289f67bb5e05be5128ea04ee7",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1028,8 +1143,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:e23deb6f6bcf5efe30712dc7d4648fe4f70e087767643572e36768f52a0aa00d",
+			"hash": "sha256:ccf5c3d5c3c157d66305910a44f2a7bbbb3d653a3592e96eb9ce847d704a506f",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1089,8 +1209,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:7c2accf337cb32e6e30544dc34c50be91313407cafa7cdee27baf828cf22f071",
+			"hash": "sha256:963383156e2cec26287323e3b498c561117d9189934c864b1cdc2e2856dc6c2f",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1195,8 +1320,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:1b92f77987bb35877232d373172dd43ef16168934e8169405989ae53c4b62866",
+			"hash": "sha256:598b5b5595f3586eb3db4f5131118da3267b13131f2065d8177820f3f2698f09",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -1243,8 +1373,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:318ef13e09a4ff5a71844fd24a7d1b8d38bf04ac79639f10d073693f652a9c40",
+			"hash": "sha256:986566ff75eb41365859d24f1b1d1d03fc9833745a08dece83316f1ecea4eb6f",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1342,8 +1477,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:eee1759da1ee224ae9c9581c0f4541fce6759c1947c5f634fd764d660459ef4c",
+			"hash": "sha256:3c8ff11a0500412f92cf87e8d47a4c185e9661e3452561aa11c9c51b3ec47b12",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1382,13 +1522,21 @@
 					{
 						"id": "loam.apps",
 						"state": {
-							"active": null
+							"active": null,
+							"section": null,
+							"path": ""
+						}
+					},
+					{
+						"id": "loam.scope",
+						"state": {
+							"project": null
 						}
 					}
 				],
-				"total": 3
+				"total": 4
 			},
-			"reasoning": "Found 3 registered view state(s)",
+			"reasoning": "Found 4 registered view state(s)",
 			"confidence": 1,
 			"metadata": {
 				"executionTimeMs": 1,
@@ -1418,8 +1566,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:d3133a2cceb06f5a1f090c78fd1a32f8d131fcf54034209c1a14e79d9cc155ec",
+			"hash": "sha256:f20ff3adf73937cf7f93c39e1b525b1d8b2a4f3b42305a3771d839e863ff5a0b",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1477,8 +1630,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:bd63e240063aabea38212e904863e7840330dfe04e7c8953345d26877278689f",
+			"hash": "sha256:8616dafcc196b69eb69d58e074148c085f40a85570f3084acb6655c1e2ed4d24",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1536,8 +1694,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:34d0441e06b2f8bae1f4cc88fa2f1f79f681597572b89f7a3a9b76b5282138d6",
+			"hash": "sha256:7fb7ef9c71e6e89f0ae33cf3b61e313ab493b911f740cf12deaf7f9c11746951",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1596,8 +1759,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:2223f76e298ff48501ab4c772b8fc2526ed83f5952f516a290332046675ebf10",
+			"hash": "sha256:a03c2d6769ea1a2df6415097009d751c69ff047522d3f8dcebffa4a24cdfa2a1",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1654,8 +1822,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:dfbb79eb6e0e113a245010984fbdc09d10a95e8efcd81c986df18e0156dc5d27",
+			"hash": "sha256:dd6c49c8aca1a1be33e2e916d40049dfe5abaa75319365d1f68bfec436fabf49",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1697,8 +1870,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:0ade83b4b0f739a0a4751b65e86bbc697d9ded56386c67045754e47790dc3f15",
+			"hash": "sha256:8180f3de2295a7adc9a7cf673b8f69c00d7779599f8ccf973f478f65f2742404",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -1740,8 +1918,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:94f0179374f1f339eab36b7a3c55450928503a8586bcf5cf7c08a8431286a267",
+			"hash": "sha256:405deb15dacb93f6d64286e39db0bf1bee00b82b9b8401192997d80a34b7f1c1",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1791,15 +1974,20 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:1ecf9b5588caee88a50fca515032bf9b79d8bb4873809eb915460c10d1432996",
+			"hash": "sha256:6eddac7cf9ffae7cafaabd3dbd8a0c57944c74479a936244b8645cb24e365db2",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
 			"data": {
 				"kernelInterface": 2,
 				"layoutState": 0,
-				"storeInterface": 0,
+				"storeInterface": 1,
 				"tokenContract": 1,
 				"manifestVersion": 2,
 				"appProtocol": 1,
@@ -1838,8 +2026,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:f4cf637c4d11ae153aca426d8394baa766dea32800542074f338f5922bf5653d",
+			"hash": "sha256:91602d5c461d17e88656aa9182b0192c4d31b3f95bfed41c5123f5144f8604df",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1898,8 +2091,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:a0ff2884568b6e4360dd25707de185aee009770e434f0fa4fb0b13f6e662042f",
+			"hash": "sha256:84debac91e33f631c43f2566ed36118e50799efd4e2b9de221775b8fde551588",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -1957,8 +2155,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:4acc88cf968743efb7ea0e4e6a9a6c2d9a8cd4dd5a671d437de5b45e3adad4ba",
+			"hash": "sha256:4f81a873ee303da69a3d917ec1713d3dd3abfafa43449e5424a1138fb8a15ba6",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2012,8 +2215,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:78eeafe61cd8c42eed834674fe060f66456bea37896dcb2564591d8ddbd05973",
+			"hash": "sha256:6fecd4d5c3656bc8e48faa12c80e412db237adb2d57ecbf1f7b56a3e7e8f00ae",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2081,8 +2289,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:a4224aa9b5a5b52029bf76b5047b066d09fb3c25c9c78905d42ebf50bc093141",
+			"hash": "sha256:9d6dd4b8c0def89fc44b0ba703b319d6adefece28eec4600bd811b0e3eb21167",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2135,8 +2348,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:a78e62984b8816a4753e577874aa52f02bc05c406f05b1e4ed765421feae9d0d",
+			"hash": "sha256:ee83173d6d335cb4ed531da95736e536d0eb63b72ede8e25bd2089225ea1f788",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2195,8 +2413,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:1be48ee220d35d5b1beccfb66b880d17a9806feab318fb77217d6ddf115f017d",
+			"hash": "sha256:49e4d88b95749956aaa4512b29829f40bbeea63af5beb98b00e4b423a11213dd",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": false,
@@ -2239,8 +2462,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:89dc496f9eef0ddc8727908607ebd914684a4f22b3a3c082c4940886bc3d783e",
+			"hash": "sha256:1acfca78da546102007f8760884df5e976341b55dbb90e859a4bfa9e059b9f06",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2278,16 +2506,21 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:25df8677ac8372c3a730e9cebc47a907ff6001d3db1d3122b5c76d0ae3f68951",
+			"hash": "sha256:0e9718e1302bb082a30e40bf2e5ccc6359c20a651dd88936b972c4c5fe3c61a4",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793678112701",
-					"expiresAt": "2026-11-03T04:55:12.701Z"
+					"id": "mock-session-1793694877585",
+					"expiresAt": "2026-11-03T09:34:37.585Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -2320,8 +2553,13 @@
 			"label": "person"
 		},
 		"contextDigest": {
-			"hash": "sha256:68be5b0c1e4fa7e1085ad95ff9007761234771a2f9585ae8f2916273844f01e8",
+			"hash": "sha256:3a2f5cbbd1ced73239f899d09a8d7c568e3b346f0aef6ef10c143a1a2d3df0f9",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2346,8 +2584,13 @@
 		"command": "auth-session-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:f3484a7a4d01234985afa09aee788882e2f3dde8a572df2ce0fa9aa2263a686e",
+			"hash": "sha256:bfd13c56bb9434056c49153d928b9b80fa1c0688feb9add6a4fed4e19e6a0f1c",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2398,8 +2641,13 @@
 			"replace": true
 		},
 		"contextDigest": {
-			"hash": "sha256:15340d158ea5a2d3efe2bf5a6ab2f91073f3a33c7e9bf4b99ea1ef55558b1d82",
+			"hash": "sha256:6de04875312081017043e5e10a1d17578d8be752a63bb4c057925ccd6862effc",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2491,8 +2739,13 @@
 		"command": "layout-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:1e664d2a75e27583e931238bafe095a51b5c85297d38614db91be00580bb370e",
+			"hash": "sha256:c2ce3d5cbf5dc6e51e4c5c75a24209ad1966402c17b9d7efc187713436d09443",
 			"interface": "agent"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,
@@ -2534,8 +2787,13 @@
 		"command": "appearance-get",
 		"input": {},
 		"contextDigest": {
-			"hash": "sha256:6c957ca6164a5537646975afd9728cdd11f32b07c95b7e4581f5d7d2409d4f6f",
+			"hash": "sha256:731731815c2930e0ac7dfd05248a1aae09237a9ef62813bf6732ad514502ceb6",
 			"interface": "palette"
+		},
+		"context": {
+			"scope": {
+				"workspace": "personal"
+			}
 		},
 		"result": {
 			"success": true,

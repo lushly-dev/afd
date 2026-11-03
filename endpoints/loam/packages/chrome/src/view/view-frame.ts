@@ -5,7 +5,7 @@
  */
 
 import { attr, css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
-import type { AppPortV1 } from '@lushly-dev/loam-kernel';
+import type { AppPortV2, ViewBrokerV1 } from '@lushly-dev/loam-kernel';
 import { ProxyChannel } from './channel.js';
 import { readTokens } from './tokens.js';
 import { ViewHost, type ViewHostContext } from './view-host.js';
@@ -21,12 +21,14 @@ export interface ViewSource {
 }
 
 /** Phase 1's source: a file of the app's package. */
-export const packageViewSource = (port: AppPortV1): ViewSource => ({
+export const packageViewSource = (port: AppPortV2): ViewSource => ({
 	read: async (uri) => ({ html: await port.readResource(uri) }),
 });
 
 export interface ViewFrameOptions {
-	port: AppPortV1;
+	port: AppPortV2;
+	/** The surface's own broker, closed over its scope (phase 2 specification, 3.6). Default: the port's. */
+	view?: ViewBrokerV1;
 	source: ViewSource;
 	/** The app's title: the frame's name. */
 	heading: string;
@@ -158,8 +160,8 @@ export class LoamViewFrame extends FASTElement {
 	}
 
 	async #start(options: ViewFrameOptions): Promise<void> {
-		const sandboxOrigin = options.port.view?.sandboxOrigin;
-		const broker = options.port.view;
+		const broker = options.view ?? options.port.view;
+		const sandboxOrigin = broker?.sandboxOrigin;
 		if (!broker || !sandboxOrigin) {
 			this.#fail({
 				code: 'VIEW_SANDBOX_ORIGIN_INVALID',

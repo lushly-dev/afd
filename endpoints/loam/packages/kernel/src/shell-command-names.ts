@@ -1,0 +1,52 @@
+/**
+ * @fileoverview The shell's command names, in the order a person or an agent has always seen them. Only
+ * `late/` builds the commands, so this list is in that chunk and out of first paint's graph (phase 2
+ * specification, 2.4).
+ */
+
+/** The shell's command names, in registration order. */
+export const SHELL_COMMAND_NAMES = [
+	'view-state-get',
+	'view-state-set',
+	'view-state-list',
+	'layout-get',
+	'layout-set',
+	'layout-reset',
+	'appearance-get',
+	'appearance-set',
+	'palette-open',
+	'palette-close',
+	'palette-search',
+	'auth-sign-in',
+	'auth-sign-out',
+	'auth-session-get',
+	'shell-info-get',
+	'app-list',
+	'app-get',
+	'app-open',
+	'app-close',
+	'app-command-list',
+	'app-instance-list',
+	'app-instance-refresh',
+	'app-selection-get',
+	'app-selection-set',
+	'status-item-set',
+	'toast-show',
+	'modal-open',
+	'overlay-dismiss',
+	'overlay-list',
+	'scope-get',
+	'section-get',
+	'scope-set',
+	'section-open',
+	'app-route-set',
+	'project-create',
+	'project-list',
+	'project-get',
+	'project-update',
+	'project-archive',
+	'project-restore',
+	'workspace-get',
+	'workspace-app-list',
+	'workspace-app-set',
+] as const;

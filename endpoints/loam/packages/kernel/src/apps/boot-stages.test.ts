@@ -157,7 +157,8 @@ describe('stage B corrects a boot record', () => {
 		const digest = subtle.digest.bind(subtle);
 		let hashes = 0;
 		const spy = vi.spyOn(subtle, 'digest').mockImplementation(async (algorithm, data) => {
-			const first = ++hashes === 1;
+			// The first is stage B's own `workspace-deployment-apply`; the next, the first queued call's.
+			const first = ++hashes === 2;
 			const result = await digest(algorithm, data);
 			if (first) await new Promise((resolve) => setTimeout(resolve, 30));
 			return result;
@@ -171,6 +172,7 @@ describe('stage B corrects a boot record', () => {
 			];
 			await Promise.all(calls);
 			expect((await journal.read()).map((entry) => entry.command)).toEqual([
+				'workspace-deployment-apply',
 				'app-get',
 				'app-list',
 				'layout-get',
@@ -185,7 +187,8 @@ describe('stage B corrects a boot record', () => {
 		const digest = subtle.digest.bind(subtle);
 		let hashes = 0;
 		const spy = vi.spyOn(subtle, 'digest').mockImplementation(async (algorithm, data) => {
-			const first = ++hashes === 1;
+			// The first is stage B's own `workspace-deployment-apply`; the next, the first queued call's.
+			const first = ++hashes === 2;
 			const result = await digest(algorithm, data);
 			if (first) await new Promise((resolve) => setTimeout(resolve, 30));
 			return result;
@@ -198,6 +201,7 @@ describe('stage B corrects a boot record', () => {
 			const fromPort = kernel.appPort('probe').call('app-selection-get', { instance: 'probe' });
 			await Promise.all([first, fromPort]);
 			expect((await journal.read()).map((entry) => entry.command)).toEqual([
+				'workspace-deployment-apply',
 				'app-get',
 				'app-selection-get',
 			]);
@@ -219,6 +223,10 @@ describe('stage B corrects a boot record', () => {
 		const list = kernel.call('app-list');
 		expect((await detail).data?.title).toBe('Probe');
 		expect((await list).success).toBe(true);
-		expect((await journal.read()).map((entry) => entry.command)).toEqual(['app-get', 'app-list']);
+		expect((await journal.read()).map((entry) => entry.command)).toEqual([
+			'workspace-deployment-apply',
+			'app-get',
+			'app-list',
+		]);
 	});
 });

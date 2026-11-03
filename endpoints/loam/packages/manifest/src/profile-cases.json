@@ -1139,20 +1139,6 @@
 			"suggestion": "Set manifest_version = 2."
 		},
 		{
-			"id": "not-yet-served-app-resource-keys",
-			"base": "native",
-			"set": {
-				"/manifest_version": 2,
-				"/app/resource_keys": {
-					"hello-greet": "name"
-				}
-			},
-			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "app.resource_keys",
-			"suggestion": "until phase 2 serves it"
-		},
-		{
 			"id": "not-yet-served-sidebar-tree",
 			"base": "native",
 			"set": {
@@ -1457,6 +1443,98 @@
 			"code": "MANIFEST_INVALID",
 			"key": "app.resource_keys.Hello_Greet",
 			"alsoKeys": ["app.resource_keys"]
+		},
+		{
+			"id": "resource-keys-served",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-forget": "name"
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "resource-keys-command-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-nothing": "name"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_KEY_INVALID",
+			"key": "app.resource_keys[\"hello-nothing\"]"
+		},
+		{
+			"id": "resource-keys-property-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-greet": "other"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_KEY_INVALID",
+			"key": "app.resource_keys[\"hello-greet\"]"
+		},
+		{
+			"id": "resource-keys-needs-store",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-forget": "name"
+				},
+				"/grants": [
+					{
+						"name": "clock",
+						"reason": "Stamps each greeting with the command context's clock."
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_KEY_INVALID",
+			"key": "app.resource_keys",
+			"alsoKeys": ["commands[0].effects", "commands[2].effects"]
+		},
+		{
+			"id": "resource-keys-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-forget": "name"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_KEY_INVALID",
+			"key": "app.resource_keys"
+		},
+		{
+			"id": "id-reserved-workspace",
+			"base": "native",
+			"set": {
+				"/plugin/id": "workspace",
+				"/plugin/domains": ["workspace"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id"
+		},
+		{
+			"id": "id-reserved-p",
+			"base": "native",
+			"set": {
+				"/plugin/id": "p",
+				"/plugin/domains": ["p"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id"
 		},
 		{
 			"id": "project-summary-without-command",
@@ -2725,7 +2803,7 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "projects",
+					"name": "documents",
 					"reason": "x"
 				}
 			},
@@ -2753,7 +2831,7 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "projects",
+					"name": "documents",
 					"reason": "x",
 					"required": false
 				}
