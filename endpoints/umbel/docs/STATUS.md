@@ -43,7 +43,7 @@ should never have to scan the codebase to learn what is current.
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
-| 3. Memory and context | Specification approved 2026-11-02; no implementation started | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685) | Step 1 of [its plan](phases/3-memory-context/spec.md#14-implementation-plan) |
+| 3. Memory and context | Specification in [#685](https://github.com/lushly-dev/afd/pull/685), **not merged**: three owner answers and one safety change still to write in (see the phase 3 detail); no implementation started | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685) | Finish and merge #685, then step 1 of [its plan](phases/3-memory-context/spec.md#14-implementation-plan) |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification; the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) |
 | 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
@@ -1030,8 +1030,76 @@ starts.
 - **Next:** step 1 (shapes and configuration), then the plan's order: 1, 2, 3a,
   3b, 4 in sequence. Heavy steps follow the plan's build note. A step that finds a
   design decision stops and amends the specification.
-- **Waiting on the owner:** nothing.
+- **Waiting on the owner:** nothing. These four are decided; do not ask again.
 - **Follow-ups:** the [specification's list](phases/3-memory-context/spec.md#follow-ups).
+
+#### Handoff, 2026-11-02: resume here
+
+The session driving this epic ended here because its account ran out of capacity. The
+epic is every phase in the table above, then further first-class plugins.
+
+**Immediate work: finish [#685](https://github.com/lushly-dev/afd/pull/685).** CI last
+passed on `accbf687`. The four items below were decided after that revision. They are
+recorded in the specification's owner decisions, but **the specification's body, tests,
+plan and the decision log do not reflect them yet**. Write them in, as D86 onward:
+
+1. **`memory-remember` prompts for `person`.** Reaching `person` through remember needs
+   the same terminal prompt as `memory-confirm`, so one bar guards every route (section 3.3).
+   `confirm = "require-human"` on the command cannot do this, because it would refuse
+   agents, who must still write with authority `agent`. So the prompt must apply only on
+   the path that would give `person`. Design that against `src/cli/prompt.rs` and
+   `src/middleware.rs`, which were not yet read for this, and define what declining does.
+   This is still not an attestation.
+2. **File copies: keep per-record keys, state the limit, exclude from Time Machine.** On
+   macOS, mark `memory.sqlite3` and `memory.keys` as excluded from Time Machine when they
+   are created, with a setting to turn that off. The doctor says memory is not in machine
+   backups and that `store-backup` is the way to back it up. The owner accepts the cost: if
+   the disk dies, only what was backed up by hand remains, and the key file needs its own
+   copy. State what this does not cover: `cp`, rsync, filesystem snapshots, and Linux and
+   Windows backup tools. Whole-file encryption was rejected, because an old copy plus the
+   same file key still opens forgotten text. Sections 5.4 and 5.3's doctor table.
+3. **`memory-confirm`: own records only.** Remove "or the caller a sharing writer who can
+   read it" from section 8.7. Refusal is `MEMORY_CONFIRM_NOT_ALLOWED`. An agent acting for
+   its person shares that principal, so its notes still work. The prompt warns when a note
+   has no project, because it would reach every repository. Cross-person confirming may
+   return in phase 5, with verified identity; add it to section 13.
+4. **`memory-reindex`: removing orphan keys is opt-in.** Add a default-off `removeOrphans`
+   input (sections 5.4 and 8.8), because on an older restored copy removal deletes the keys
+   of every later record. Add a test.
+
+Then grep for leftovers, update tests, plan and exit criteria, run `pnpm verify`, push to
+`lush/umbel-phase-3-memory-spec`, and merge on green with
+`gh pr merge 685 --squash --match-head-commit <sha>`. Rebase first if `main` conflicts. The
+two independent reviews are done, so no third is required unless item 1's design changes
+the trust model further.
+
+**Then, in order:**
+
+| Work | Notes |
+| --- | --- |
+| Phase 3 implementation | Plan steps 1, 2, 3a, 3b, 4, 5, 6, 7a, 7b, 8, 9, 10 |
+| Phase 4, curator | Needs phase 3's exit. Specification first |
+| Phase 5, auth and hosted | Specification first, after #685 merges. Includes `memory-erase`, [#532](https://github.com/lushly-dev/afd/issues/532), partitioned BM25 statistics, token verification, `credentials`, Tasks, the dynamic confirmation prompt, real proof of a person |
+| Phase 6, backends | Specification first, after #685 merges |
+| Phase 7, distribution and guides | Needs phases 4, 5 and 6 |
+| Further first-class plugins | content-design; federation needs O1 from the owner |
+
+**Rules the owner set for this epic:** commit, open pull requests, auto-fix and merge on
+green between phases without asking. Each phase specification gets an independent review,
+then a revision, then merge, recorded here as approved under the owner's 2026-10-31
+delegation. **Still ask the owner about:** publishing, tagging, unquarantining or merging a
+release pull request; O1; anything that changes the trust model. Do not name the private
+reference system in code or documents; all knowledge content is deployer-provided. Run
+`pnpm verify` before the first push; never `--no-verify` or `--admin`.
+
+**Shared Mac:** heavy gates only under one-minute load 20, `cargo -j4`, Vitest 1 worker; stop
+under 5 GB free. Give each concurrent Rust agent its own `CARGO_TARGET_DIR`
+(`~/.cache/umbel-target-<step>`, deleted after merge) with `CARGO_INCREMENTAL=0`, and export
+it for `pnpm verify` too. Never stop other owners' jobs, or clear their build output.
+
+**Known traps:** commitlint has no `umbel` scope and rejects `wip`. The local branch
+`lush/umbel-phase-3-memory-spec` is held at an old commit by worktree `t3-08b48631`, so work
+on another local branch and push to that remote name.
 
 ## Follow-ups not yet issues
 

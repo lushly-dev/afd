@@ -2059,6 +2059,16 @@ one at a time, use `-p <crate>`, keep the full `--workspace` for each step's fin
 5. **Hook capture stays in, opt-in** (D79; sections 10.2, 10.3): user and assistant text only, always private, excluding summaries and harness lines, `memory.sqlite3` mode `0600`. Secrets are masked by a pattern net that **will
    miss some**, and a person's conversation still lands in a local database, with no default use until recall or phase 4.
 
+### Owner decisions after the key design's review, 2026-11-02
+
+Final, but **not yet carried into the sections they change**; [STATUS](../../STATUS.md) lists the edits.
+Where these differ from the text above or below, these win.
+
+- **`memory-remember` prompts for `person`,** as `memory-confirm` does, so one bar guards every route to it.
+- **Keys stay, with the file-copy limit stated.** On macOS, `memory.sqlite3` and `memory.keys` are excluded from Time Machine by default, with a setting to turn that off, and `store-backup` is the way to back up memory.
+- **`memory-confirm` takes the caller's own records only,** until phase 5.
+- **`memory-reindex` removes orphan keys only when asked,** through a default-off `removeOrphans`. This one is the phase 3 agent's safety change, announced to the owner.
+
 ### Decisions the architecture left open, made here
 
 6. **Memory has its own lexical lane, not the shared index and graph** (D70; section 5.1): amends architecture section 7's "indexed by the same search and graph".
