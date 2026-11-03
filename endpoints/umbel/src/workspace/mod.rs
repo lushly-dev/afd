@@ -20,16 +20,18 @@ use afd::{FileJournalSink, JournalFileLock, JournalLockError};
 pub use access::{AccessToken, PRINCIPAL_KINDS, ReaderEntry, check_member, parse_principal};
 pub use config::{
     AccessConfig, AccessGroup, CONFIG_VERSION, CollectionConfig, CollectionKind, Config,
-    ConfigFile, Confirmations, DEFAULT_MAX_FILE_BYTES, DEFAULT_STORE_LOCK_TIMEOUT_MS, HttpConfig,
-    JournalConfig, KeyScan, LogConfig, LogFormat, McpConfig, Overrides, PrincipalConfig,
-    SpaceConfig, StoreConfig,
+    ConfigFile, Confirmations, DEFAULT_LOCAL_ID, DEFAULT_MAX_FILE_BYTES,
+    DEFAULT_STORE_LOCK_TIMEOUT_MS, HttpConfig, JournalConfig, KeyScan, LogConfig, LogFormat,
+    McpConfig, Overrides, PrincipalConfig, SpaceConfig, StoreConfig,
 };
 pub(crate) use config::{RootProblem, resolve_root};
 pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_process};
 pub use error::{WorkspaceError, codes};
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
 pub use layout::Layout;
-pub use plugins_config::{Limits, PluginInstance, PluginsConfig, caps};
+pub use plugins_config::{
+    DefaultAccess, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
+};
 pub use space::SpaceId;
 
 pub(crate) use keys::{read_key, read_token};
@@ -89,8 +91,9 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 3` and, when given, `name`; `spaces/main/`; `state/` with the keys and a
-    /// `.gitignore` of `*`.
+    /// `config_version = 4`, when given, `name`, and `[principal] on_behalf_of` equal to the
+    /// default `local_id`, so a local agent's records belong to the same person as the CLI's
+    /// (phase 3 section 3.2); `spaces/main/`; `state/` with the keys and a `.gitignore` of `*`.
     ///
     /// # Errors
     /// `ALREADY_EXISTS` when `dir` holds `umbel.toml`; `WORKSPACE_CONFIG_INVALID` for a bad
@@ -106,6 +109,12 @@ impl Workspace {
         if let Some(name) = name {
             table.insert("name".into(), toml::Value::String(name.to_owned()));
         }
+        let mut principal = toml::Table::new();
+        principal.insert(
+            "on_behalf_of".into(),
+            toml::Value::String(DEFAULT_LOCAL_ID.to_owned()),
+        );
+        table.insert("principal".into(), toml::Value::Table(principal));
         let text = toml::to_string(&table)
             .map_err(|error| WorkspaceError::config_invalid("name", error))?;
         ConfigFile::parse(&text)?.into_config(&dir)?;

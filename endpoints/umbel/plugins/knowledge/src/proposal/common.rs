@@ -135,6 +135,9 @@ pub(crate) fn envelope(caller: &Caller<'_>, parts: Parts) -> Envelope {
         derived_from: parts.derived_from,
         access: parts.target.access,
         sensitivity: Some(parts.target.sensitivity),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     }
 }
 

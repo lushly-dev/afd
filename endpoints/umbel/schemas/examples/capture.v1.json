@@ -1,0 +1,40 @@
+{
+	"version": 1,
+	"space": "main",
+	"harness": {
+		"name": "claude-code",
+		"version": "2.1.309"
+	},
+	"event": "session-end",
+	"session": "s-81",
+	"project": "afd",
+	"idempotencyKey": "claude-code:s-81:w3:p0",
+	"captureKey": "claude-code:s-81:w3",
+	"window": 3,
+	"episodes": [
+		{
+			"subject": "Session s-81 window 3",
+			"text": "We rolled staging back through the canary flag.",
+			"startedAt": "2026-11-02T09:41:00.000Z",
+			"part": 0,
+			"turns": [60, 79]
+		}
+	],
+	"decisions": [
+		{
+			"subject": "Use the canary flag",
+			"text": "Roll staging back through the canary flag.",
+			"rationale": "The deploy script skips the cache flush.",
+			"origin": "user-stated",
+			"constraints": ["staging only"]
+		}
+	],
+	"artifacts": [
+		{
+			"kind": "file",
+			"resource": "src/deploy.rs",
+			"title": "deploy.rs",
+			"summary": null
+		}
+	]
+}

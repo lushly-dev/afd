@@ -48,8 +48,9 @@ pub use loader::{ORIGIN_KEY, TRUST_NOTE};
 pub(crate) use manifest::to_json;
 pub use manifest::{
     Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect, Expose, GrantDecl,
-    MAX_COMPONENT_BYTES, Manifest, MountDecl, MountTool, OutputBudget, PackDecl, PipelineDecl,
-    PipelineStep, PluginInfo, PluginKind, SchemaRef, SkillDecl, Transport,
+    JournalDecl, JournalMode, MAX_AUTHORITY_PROMPT_CHARS, MAX_COMPONENT_BYTES, MAX_JOURNAL_KEEP,
+    Manifest, MountDecl, MountTool, OutputBudget, PackDecl, PipelineDecl, PipelineStep, PluginInfo,
+    PluginKind, SchemaRef, SkillDecl, Transport,
 };
 #[cfg(feature = "mounted")]
 pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
@@ -61,9 +62,10 @@ pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level};
 
 /// The newest manifest version this host reads (`manifest_version`).
-pub const MANIFEST_VERSION: u32 = 2;
-/// Every manifest version this host reads: version 2 is an addition within protocol 1 (D54).
-pub const MANIFEST_VERSIONS: &[u32] = &[1, 2];
+pub const MANIFEST_VERSION: u32 = 3;
+/// Every manifest version this host reads: versions 2 and 3 are additions within protocol 1 (D54,
+/// phase 3 section 2.3).
+pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.
@@ -85,8 +87,10 @@ pub const HOST_DOMAINS: &[&str] = &[
     "store",
 ];
 
-/// The grants this host provides: phase 1's six, and phase 2's ten (specification section 3.3).
-/// The store grants are scoped to the instance's spaces and held by compiled plugins only.
+/// The grants of this host's catalog: phase 1's six, phase 2's ten (specification section 3.3)
+/// and phase 3's two (phase 3 section 6.1). The store grants are scoped to the instance's spaces
+/// and held by compiled plugins only. A grant in [`PENDING_GRANTS`] is in the catalog, so a
+/// configuration may name it, but is refused as unavailable until its services exist.
 pub const GRANTS: &[&str] = &[
     "config",
     "log",
@@ -104,7 +108,40 @@ pub const GRANTS: &[&str] = &[
     "index_write",
     "graph",
     "graph_write",
+    "memory",
+    "memory_write",
 ];
+
+/// Grants of the catalog whose host services are not built yet (`PLUGIN_GRANT_UNAVAILABLE`), each
+/// with the step that adds them: phase 3 step 1 names `memory` and `memory_write`, so manifests
+/// and configurations can declare them, and step 4 wires them.
+pub const PENDING_GRANTS: &[(&str, &str)] = &[
+    ("memory", "phase 3 step 4, with the memory host services"),
+    (
+        "memory_write",
+        "phase 3 step 4, with the memory host services",
+    ),
+];
+
+/// Why the host cannot provide `grant`: it is pending, reserved or not in the catalog. `None` for
+/// a grant of the catalog that is available.
+pub(crate) fn unavailable_grant(grant: &str) -> Option<String> {
+    if let Some((_, phase)) = PENDING_GRANTS.iter().find(|(name, _)| *name == grant) {
+        return Some(format!("arrives with {phase}"));
+    }
+    if GRANTS.contains(&grant) {
+        return None;
+    }
+    Some(
+        RESERVED_GRANTS
+            .iter()
+            .find(|(reserved, _)| *reserved == grant)
+            .map_or_else(
+                || "is not in this host's catalog".to_owned(),
+                |(_, phase)| format!("arrives with {phase}"),
+            ),
+    )
+}
 
 /// The grants whose use writes, reaches the network or reads secrets: enabling an instance is
 /// not consent to them, so each needs `[plugins.<id>.grants.<grant>] allow = [...]` (D42).
@@ -115,6 +152,7 @@ pub const ALLOW_REQUIRED_GRANTS: &[&str] = &[
     "records_write",
     "index_write",
     "graph_write",
+    "memory_write",
 ];
 
 /// Whether `grant` needs a per-instance allow list.
@@ -125,7 +163,6 @@ pub fn needs_allow_list(grant: &str) -> bool {
 /// Grants the architecture names and this host refuses until their phase
 /// (`PLUGIN_GRANT_UNAVAILABLE`), each with the phase that adds it.
 pub const RESERVED_GRANTS: &[(&str, &str)] = &[
-    ("memory", "phase 3"),
     ("http", "the first plugin that needs outbound calls"),
     ("secrets", "the first plugin that needs secrets, by phase 5"),
 ];

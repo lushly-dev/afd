@@ -1,0 +1,93 @@
+{
+	"version": 1,
+	"space": "main",
+	"task": "roll back the staging deploy",
+	"asOf": "2026-11-02T10:15:00.000Z",
+	"digest": "sha256:ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12",
+	"state": {
+		"indexApplied": 412,
+		"memoryHead": 88
+	},
+	"sections": [
+		{
+			"name": "knowledge",
+			"items": [
+				{
+					"kind": "document",
+					"id": "main:handbook/deploy/rollback",
+					"title": "Rolling back a deployment",
+					"text": "Revert the canary before the fleet.",
+					"cut": false,
+					"locator": "umbel:main/handbook/deploy/rollback#L12-L40@9f2c1a7b0d3e",
+					"status": "stable",
+					"verification": "human",
+					"stale": false,
+					"flags": [],
+					"trust": "content",
+					"provenance": {
+						"origin": "document-derived",
+						"authority": null,
+						"generated": {
+							"by": "human:ada",
+							"at": "2026-10-29T15:00:00.000Z"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "semantic",
+			"items": [
+				{
+					"kind": "memory",
+					"id": "main:mem-3f9a1c0d7b2e4a6f8c1d5e90",
+					"title": "Staging rollbacks use the canary flag",
+					"text": "Rollbacks in staging go through the canary flag, not the deploy script.",
+					"class": "semantic",
+					"verification": "unverified",
+					"flags": [],
+					"trust": "content",
+					"provenance": {
+						"origin": "agent-inferred",
+						"authority": "person",
+						"confirmation": {
+							"by": "human:ada",
+							"at": "2026-11-01T09:30:00.000Z",
+							"priorAuthority": "agent"
+						},
+						"principal": "human:ada",
+						"recordedAt": "2026-11-01T10:00:00.000Z",
+						"validFrom": "2026-10-30T09:00:00.000Z",
+						"validUntil": null,
+						"expiresAt": "2027-04-28T09:00:00.000Z",
+						"confidence": null,
+						"constraints": null
+					}
+				}
+			]
+		}
+	],
+	"omissions": [
+		{
+			"section": "semantic",
+			"id": "main:mem-77ab02c4e1d84f0a9b3c6d21",
+			"reason": "budget"
+		},
+		{
+			"section": "semantic",
+			"reason": "authority",
+			"count": 12
+		},
+		{
+			"section": "semantic",
+			"reason": "flagged",
+			"count": 1
+		},
+		{
+			"section": "procedural",
+			"reason": "lane-unavailable"
+		}
+	],
+	"omittedMore": 0,
+	"text": null
+}

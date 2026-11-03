@@ -14,7 +14,7 @@
   revised 2026-11-02 after an independent review ("approve after must-fixes"). It adds
   decisions [D68 to D89](../../decisions.md) and the architecture amendments they need, in
   [#685](https://github.com/lushly-dev/afd/pull/685). Section [15](#15-for-the-owner) records
-  the owner's decisions. No implementation has started. Phase 2 closed in
+  the owner's decisions. Implementation started with step 1 on 2026-11-02. Phase 2 closed in
   [#687](https://github.com/lushly-dev/afd/pull/687).
 - **Last verified:** 2026-11-02 against `main` at `4a26cc0b`. Read in `endpoints/umbel`:
   `store/src/{traits,envelope,access,index}.rs`, `store-embedded/src/{lib,schema,connection,inspect}.rs`,
@@ -58,8 +58,10 @@
   [D86 to D89](../../decisions.md): the remember prompt for `person` (3.3), Time Machine exclusion with the
   file-copy limit stated (5.4), own records only for `memory-confirm` (8.7), and opt-in orphan removal
   (5.4, 8.8). The exclusion attribute was checked with `tmutil` on the owner's Mac; nothing was built.
-- **Done:** this specification.
-- **Not done:** everything in section [14](#14-implementation-plan), starting at step 1.
+- **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
+  step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
+  records a question for the owner on the envelope version of document and record writes (2.1).
+- **Not done:** section [14](#14-implementation-plan)'s steps 2 to 10.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).

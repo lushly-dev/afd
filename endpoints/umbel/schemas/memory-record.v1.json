@@ -1,0 +1,301 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/memory-record.v1.json",
+	"title": "Umbel memory record, version 1",
+	"description": "One memory record as memory-show returns it (phase 3 section 4, D69): one agent-writable statement with a class, a scope tuple, an access set, a provenance envelope version 2 and its current version's bitemporal intervals. verification is always unverified: nothing in memory is verified knowledge (D15), including a record a person confirmed. subject, text, tags and contentHash are sealed at rest; contentHash is returned only to readers of the record and never appears in an event or journal entry. Reserved, and refused by version 1: promotedTo, candidate, settledAt (phase 4). Rules that need more than a schema, such as text of at most 16 KiB from remember and 64 KiB from capture or import, validUntil after validFrom, and the envelope agreeing with the record, are checked by the host and the store.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"recordVersion",
+		"class",
+		"scope",
+		"subject",
+		"text",
+		"tags",
+		"access",
+		"sensitivity",
+		"verification",
+		"flags",
+		"validFrom",
+		"validUntil",
+		"recordedAt",
+		"recordedUntil",
+		"expiresAt",
+		"observations",
+		"supersedes",
+		"supersededBy",
+		"invalidation",
+		"contentHash",
+		"trust",
+		"provenance"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "mem- and 24 hex digits: the first 12 bytes of SHA-256 over the space, the trace id, the entry's ordinal in the call, the clock and one random draw.",
+			"type": "string",
+			"pattern": "^mem-[0-9a-f]{24}$"
+		},
+		"recordVersion": {
+			"description": "The current version's number, from 1.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"class": {
+			"description": "Fixed for the record's life (D15).",
+			"enum": ["episodic", "semantic", "procedural"]
+		},
+		"scope": {
+			"description": "Where the record belongs. Only space and the access set are boundaries; the rest are labels.",
+			"type": "object",
+			"required": ["space", "project", "principal", "agent", "session"],
+			"additionalProperties": false,
+			"properties": {
+				"space": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				},
+				"project": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+						}
+					]
+				},
+				"principal": {
+					"description": "Whose record it is, filled by the host.",
+					"type": "string",
+					"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+				},
+				"agent": {
+					"description": "The actor when its kind is agent, service or script, filled by the host.",
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"required": ["kind"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": ["human", "agent", "service", "script", "test"]
+								},
+								"id": {
+									"type": "string"
+								},
+								"label": {
+									"type": "string"
+								},
+								"onBehalfOf": {
+									"type": "string"
+								}
+							}
+						}
+					]
+				},
+				"session": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+						}
+					]
+				}
+			}
+		},
+		"subject": {
+			"description": "One line, after hygiene.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256,
+			"pattern": "^[^\\n\\r]*$"
+		},
+		"text": {
+			"description": "After hygiene: at most 16 KiB from remember and 64 KiB from capture or import, in bytes.",
+			"type": "string",
+			"maxLength": 65536
+		},
+		"tags": {
+			"type": "array",
+			"maxItems": 32,
+			"items": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 64
+			}
+		},
+		"access": {
+			"description": "An access set: never empty.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+			}
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"]
+		},
+		"verification": {
+			"const": "unverified"
+		},
+		"flags": {
+			"description": "Scan findings. A flagged record is never pushed, and is returned on recall with its label.",
+			"type": "array",
+			"uniqueItems": true,
+			"items": {
+				"enum": ["hidden-text", "instruction-like"]
+			}
+		},
+		"validFrom": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"validUntil": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"recordedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"recordedUntil": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"expiresAt": {
+			"description": "Retention: an expired record is out of every default read, and is purged by a sweep.",
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"observations": {
+			"description": "A seam for phase 4: when the same content was seen, how often and in how many distinct sessions.",
+			"type": "object",
+			"required": ["first", "last", "count", "sessions"],
+			"additionalProperties": false,
+			"properties": {
+				"first": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				},
+				"last": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				},
+				"count": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"sessions": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"supersedes": {
+			"type": "array",
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^mem-[0-9a-f]{24}$"
+			}
+		},
+		"supersededBy": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^mem-[0-9a-f]{24}$"
+				}
+			]
+		},
+		"invalidation": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["at", "by", "reason", "note"],
+					"additionalProperties": false,
+					"properties": {
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"by": {
+							"type": "string",
+							"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+						},
+						"reason": {
+							"enum": ["wrong", "outdated", "duplicate", "other"]
+						},
+						"note": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"maxLength": 500
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		"contentHash": {
+			"description": "sha256 of subject, a newline and text. Returned only to readers of the record.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"trust": {
+			"const": "content"
+		},
+		"provenance": {
+			"description": "Envelope version 2 of the write that made this version; authority is never null.",
+			"allOf": [
+				{
+					"$ref": "provenance-envelope.v2.json"
+				},
+				{
+					"properties": {
+						"authority": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		}
+	}
+}

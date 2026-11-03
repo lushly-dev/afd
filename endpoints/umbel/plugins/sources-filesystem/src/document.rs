@@ -48,6 +48,9 @@ pub(crate) fn envelope(
         derived_from: None,
         access: access.tokens().to_vec(),
         sensitivity: Some(sensitivity),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     }
 }
 

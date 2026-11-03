@@ -582,7 +582,9 @@ fn declared_grants_in_the_catalog_pass() {
 
 #[test]
 fn a_reserved_or_unknown_grant_fails_when_required_and_warns_when_optional() {
-    for name in ["memory", "http", "secrets", "teleport"] {
+    // `memory` and `memory_write` are tested in `manifest_v3.rs`: a plugin holding them needs
+    // manifest version 3.
+    for name in ["http", "secrets", "teleport"] {
         let report = grants_report("", &grant(name, true));
         let found = check(&report, "plugins.grants");
         assert_eq!(found.status, CheckStatus::Fail, "{name}");
@@ -600,8 +602,12 @@ fn a_reserved_or_unknown_grant_fails_when_required_and_warns_when_optional() {
             "{name}"
         );
     }
-    let report = grants_report("", &grant("memory", true));
-    assert!(check(&report, "plugins.grants").message.contains("phase 3"));
+    let report = grants_report("", &grant("http", true));
+    assert!(
+        check(&report, "plugins.grants")
+            .message
+            .contains("outbound calls")
+    );
 }
 
 #[test]

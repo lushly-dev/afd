@@ -424,7 +424,7 @@ fn init_creates_the_layout_with_private_keys() {
     assert_eq!(workspace.config().name, "my-team");
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 3\nname = \"my-team\"\n"
+        "config_version = 4\nname = \"my-team\"\n\n[principal]\non_behalf_of = \"local\"\n"
     );
     assert!(dir.join("spaces/main").is_dir());
     assert!(dir.join("state/keys").is_dir());
@@ -447,13 +447,13 @@ fn init_creates_the_layout_with_private_keys() {
 }
 
 #[test]
-fn init_without_a_name_writes_only_the_version_and_defaults_the_name() {
+fn init_without_a_name_writes_the_version_and_principal_and_defaults_the_name() {
     let temp = tempfile::tempdir().unwrap();
     let dir = temp.path().join("team-notes");
     let workspace = Workspace::init(&dir, None).unwrap();
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 3\n"
+        "config_version = 4\n\n[principal]\non_behalf_of = \"local\"\n"
     );
     assert_eq!(workspace.config().name, "team-notes");
 }

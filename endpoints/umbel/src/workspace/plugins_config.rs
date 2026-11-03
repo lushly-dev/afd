@@ -1,4 +1,6 @@
-//! `[plugins]` of `umbel.toml`, configuration version 2 (phase 1 specification, section 9.1).
+//! `[plugins]` of `umbel.toml`, configuration version 2 (phase 1 specification, section 9.1), with
+//! version 3's grant allow lists (phase 2 section 4.1) and version 4's `memory_write` policy
+//! (phase 3 sections 2.4 and 3.2).
 //!
 //! Version 2 adds the plugin instances: `plugins.enabled` lists their ids in load order, and an
 //! optional `[plugins.<id>]` table per instance holds its source, spaces, denied grants,
@@ -13,6 +15,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use serde_json::Value as Json;
 use toml::{Table, Value};
 
+use super::access::AccessToken;
 use super::config::{ConfigFile, Reader};
 use super::error::WorkspaceError;
 use super::space::SpaceId;
@@ -57,6 +60,12 @@ pub(super) const INSTANCE_KEYS_V3: &[&str] = &[
 pub(super) const INSTANCE_RESERVED: &[&str] = &["grants"];
 /// The keys of one `grants.<grant>` table.
 pub(super) const GRANT_KEYS: &[&str] = &["allow"];
+/// The keys of `grants.memory_write` (configuration version 4): the allow list and the sharing
+/// policy the host enforces (phase 3 section 3.2).
+pub(super) const MEMORY_WRITE_GRANT_KEYS: &[&str] =
+    &["allow", "default_access", "writers", "agents_may_share"];
+/// The grants configuration version 4 adds to `deny` and `grants`.
+const GRANTS_V4: &[&str] = &["memory_write"];
 /// The component limits.
 pub(super) const LIMITS_KEYS: &[&str] = &["fuel", "timeout_ms", "memory_bytes", "table_elements"];
 
@@ -92,6 +101,39 @@ pub struct Limits {
     pub table_elements: Option<u64>,
 }
 
+/// The default access set of a remembered record (`default_access`, phase 3 section 3.2).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DefaultAccess {
+    /// `["principal:<effective>"]`, the default.
+    #[default]
+    Private,
+    /// `["space"]`: the deployer's consent to share remembered facts space-wide.
+    Space,
+}
+
+impl DefaultAccess {
+    /// The configuration spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Private => "private",
+            Self::Space => "space",
+        }
+    }
+}
+
+/// `[plugins.<id>.grants.memory_write]`'s sharing policy (configuration version 4, phase 3 section
+/// 3.2). Parsed and stored here; the host enforces it from phase 3 step 4.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MemoryWritePolicy {
+    /// The access set of a `memory-remember` with no `share`.
+    pub default_access: DefaultAccess,
+    /// Access tokens whose holders, acting as a person, may widen a record's access.
+    pub writers: Vec<String>,
+    /// Whether an agent holding a `writers` token may widen it too.
+    pub agents_may_share: bool,
+}
+
 /// One entry of `plugins.enabled`: a plugin, its source, its configuration and its spaces.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -108,8 +150,11 @@ pub struct PluginInstance {
     pub deny: Vec<String>,
     /// `[plugins.<id>.grants.<grant>] allow`, configuration version 3: what each write grant may
     /// reach. `content_write` and `documents_write` list `<space>/<collection>` or `<space>/*`;
-    /// `records_write`, `index_write` and `graph_write` list `<space>` or `*`.
+    /// `records_write`, `index_write`, `graph_write` and `memory_write` list `<space>` or `*`.
     pub allow: BTreeMap<String, Vec<String>>,
+    /// `[plugins.<id>.grants.memory_write]`'s policy, configuration version 4; `None` when the
+    /// instance gives `memory_write` no table.
+    pub memory_write: Option<MemoryWritePolicy>,
     /// The instance configuration, an object.
     pub config: Json,
     /// A component's limits.
@@ -290,14 +335,20 @@ fn instance(
         if !is_known_grant(grant) {
             return Err(invalid("deny", &format!("entry `{grant}` is not a grant")));
         }
+        if version < 4 && GRANTS_V4.contains(&grant.as_str()) {
+            return Err(invalid(
+                "deny",
+                &format!("entry `{grant}` needs config_version = 4"),
+            ));
+        }
         if deny[..index].contains(grant) {
             return Err(invalid("deny", &format!("names `{grant}` twice")));
         }
     }
-    let allow = if version >= 3 {
-        allow_lists(table, &prefix_key, declared)?
+    let (allow, memory_write) = if version >= 3 {
+        allow_lists(table, &prefix_key, declared, version)?
     } else {
-        BTreeMap::new()
+        (BTreeMap::new(), None)
     };
     let config = match table.and_then(|t| t.get("config")) {
         None => Json::Object(serde_json::Map::new()),
@@ -346,6 +397,7 @@ fn instance(
         spaces,
         deny,
         allow,
+        memory_write,
         config,
         limits,
         prefix,
@@ -362,21 +414,30 @@ fn instance(
     })
 }
 
-/// `grants.<grant>.allow` of one instance (configuration version 3).
+/// `grants.<grant>.allow` of one instance (configuration version 3), and the `memory_write`
+/// policy of version 4.
 fn allow_lists(
     table: Option<&Table>,
     prefix_key: &str,
     declared: Option<&[SpaceId]>,
-) -> Result<BTreeMap<String, Vec<String>>, WorkspaceError> {
+    version: u32,
+) -> Result<(BTreeMap<String, Vec<String>>, Option<MemoryWritePolicy>), WorkspaceError> {
     let key = format!("{prefix_key}.grants");
+    let mut memory_write = None;
     let grants = match table.and_then(|t| t.get("grants")) {
-        None => return Ok(BTreeMap::new()),
+        None => return Ok((BTreeMap::new(), None)),
         Some(Value::Table(grants)) => grants,
         Some(_) => return Err(WorkspaceError::config_invalid(&key, "must be a table")),
     };
     let mut lists = BTreeMap::new();
     for (grant, value) in grants {
         let grant_key = format!("{key}.{grant}");
+        if version < 4 && GRANTS_V4.contains(&grant.as_str()) {
+            return Err(WorkspaceError::config_invalid(
+                &grant_key,
+                "needs config_version = 4",
+            ));
+        }
         if !crate::plugins::needs_allow_list(grant) {
             return Err(WorkspaceError::config_invalid(
                 &grant_key,
@@ -392,11 +453,23 @@ fn allow_lists(
                 "must be a table with an allow list",
             ));
         };
-        if let Some(unknown) = entry.keys().find(|k| !GRANT_KEYS.contains(&k.as_str())) {
+        let known = if grant == "memory_write" {
+            MEMORY_WRITE_GRANT_KEYS
+        } else {
+            GRANT_KEYS
+        };
+        if let Some(unknown) = entry.keys().find(|k| !known.contains(&k.as_str())) {
             return Err(WorkspaceError::config_invalid(
                 &format!("{grant_key}.{unknown}"),
-                "is not a known key; a grant table holds only `allow`",
+                if grant == "memory_write" {
+                    "is not a known key; the memory_write table holds allow, default_access, writers and agents_may_share"
+                } else {
+                    "is not a known key; a grant table holds only `allow`"
+                },
             ));
+        }
+        if grant == "memory_write" {
+            memory_write = Some(memory_write_policy(entry, &grant_key)?);
         }
         let allow_key = format!("{grant_key}.allow");
         let entries = Reader::new(Some(entry), &grant_key)
@@ -458,7 +531,43 @@ fn allow_lists(
         }
         lists.insert(grant.clone(), entries);
     }
-    Ok(lists)
+    Ok((lists, memory_write))
+}
+
+/// `default_access`, `writers` and `agents_may_share` of `grants.memory_write` (phase 3 section
+/// 3.2).
+fn memory_write_policy(
+    entry: &Table,
+    grant_key: &str,
+) -> Result<MemoryWritePolicy, WorkspaceError> {
+    let reader = Reader::new(Some(entry), grant_key);
+    let default_access = match reader.string("default_access")?.as_deref() {
+        None | Some("private") => DefaultAccess::Private,
+        Some("space") => DefaultAccess::Space,
+        Some(_) => {
+            return Err(WorkspaceError::config_invalid(
+                &format!("{grant_key}.default_access"),
+                "must be \"private\" or \"space\"",
+            ));
+        }
+    };
+    let writers_key = format!("{grant_key}.writers");
+    let writers = reader.string_array("writers")?.unwrap_or_default();
+    for (index, token) in writers.iter().enumerate() {
+        AccessToken::parse(token)
+            .map_err(|problem| WorkspaceError::config_invalid(&writers_key, problem))?;
+        if writers[..index].contains(token) {
+            return Err(WorkspaceError::config_invalid(
+                &writers_key,
+                format!("names `{token}` twice"),
+            ));
+        }
+    }
+    Ok(MemoryWritePolicy {
+        default_access,
+        writers,
+        agents_may_share: reader.boolean("agents_may_share")?.unwrap_or(false),
+    })
 }
 
 fn to_i64(cap: u64) -> i64 {
@@ -482,7 +591,7 @@ fn limits(instance: &Reader<'_>, prefix_key: &str) -> Result<Limits, WorkspaceEr
     })
 }
 
-fn is_env_name(name: &str) -> bool {
+pub(super) fn is_env_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 128
         && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')

@@ -191,12 +191,7 @@ fn version_3_refuses_content_roots_and_keeps_backend_reserved() {
     open("config_version = 2\n[spaces.main]\ncontent_roots = [\"notes\"]\n").unwrap();
 }
 
-#[test]
-fn another_version_is_unsupported_and_names_1_2_and_3() {
-    let error = open("config_version = 4\n").unwrap_err();
-    assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-    assert!(error.message().contains("1, 2 and 3"), "{error}");
-}
+// Configuration version 4 and `umbel init`, which writes it, are in `tests/config_v4.rs`.
 
 // ── Collections ────────────────────────────────────────────────────────────────────────────────
 
@@ -525,22 +520,6 @@ fn unknown_collection_keys_are_found_by_the_key_scan() {
 }
 
 // ── init ───────────────────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn init_writes_version_3_and_creates_spaces_main() {
-    let dir = tempfile::tempdir().unwrap();
-    let target = dir.path().join("fresh");
-    let workspace = Workspace::init(&target, Some("team")).unwrap();
-    assert_eq!(
-        fs::read_to_string(target.join("umbel.toml")).unwrap(),
-        "config_version = 3\nname = \"team\"\n"
-    );
-    assert_eq!(workspace.config().version, 3);
-    assert!(target.join("spaces/main").is_dir());
-    assert_eq!(workspace.config().spaces[0].readers, ["*"]);
-    let report = doctor::run(&target);
-    assert!(report.healthy(), "{:?}", report.checks);
-}
 
 // ── Allow lists (phase 2 step 4) ───────────────────────────────────────────────────────────────
 

@@ -1,0 +1,14 @@
+{
+	"version": 1,
+	"harness": {
+		"name": "generic"
+	},
+	"event": "manual",
+	"idempotencyKey": "generic:2026-11-02:1",
+	"episodes": [
+		{
+			"subject": "Notes from the release review",
+			"text": "The release waits for the migration."
+		}
+	]
+}

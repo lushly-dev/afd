@@ -84,7 +84,8 @@ fn a_denied_required_grant_fails_the_load_with_plugin_grant_denied() {
 
 #[test]
 fn each_reserved_grant_is_plugin_grant_unavailable() {
-    for grant in ["memory", "http", "secrets", "teleport"] {
+    // `memory` and `memory_write` are in the catalog and still unavailable: `manifest_v3.rs`.
+    for grant in ["http", "secrets", "teleport"] {
         let dir = support::workspace(&config(&[("probe", "")], ""));
         let error = seal(dir.path(), |b| b.with_compiled(sdk(Probe::new(&[grant]))))
             .err()
