@@ -7,6 +7,7 @@
  */
 
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
+import { entryBase } from './entry-styles.js';
 import { registerChromeIcons } from './icons.js';
 import { partHost } from './styles.js';
 
@@ -46,46 +47,8 @@ const entryStyles = css`
 		position: relative;
 	}
 	.entry {
-		box-sizing: border-box;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--size-space-xs);
-		min-inline-size: var(--size-target-comfortable);
-		min-block-size: var(--size-target-comfortable);
-		padding: var(--size-space-xs);
-		border: 1px solid transparent;
-		border-radius: var(--radius-md);
-		background: transparent;
-		color: var(--color-text-secondary);
-		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
 		opacity: 0.55;
 		cursor: not-allowed;
-	}
-	.entry violet-icon {
-		--violet-icon-size: var(--size-line-md);
-	}
-	.entry:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
-	}
-	.tip {
-		position: absolute;
-		z-index: var(--z-index-popover);
-		display: none;
-		padding-block: var(--size-space-sm);
-		padding-inline: var(--size-space-md);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-floating);
-		background-clip: padding-box;
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		white-space: nowrap;
 	}
 	.entry-item:hover .tip,
 	.entry:focus-visible + .tip {
@@ -157,6 +120,7 @@ export const railDefinition = {
 	template,
 	styles: [
 		partHost,
+		entryBase,
 		entryStyles,
 		css`
 			:host {
@@ -201,6 +165,7 @@ export const tabbarDefinition = {
 	template,
 	styles: [
 		partHost,
+		entryBase,
 		entryStyles,
 		css`
 			:host {

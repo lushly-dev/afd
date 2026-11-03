@@ -1,11 +1,12 @@
 /**
- * @fileoverview The browser projection's reader. The web host runs it on `deployment.json` at boot;
- * its schema has no key for a location, a credential or a command line.
+ * @fileoverview The browser projection's reader, version 2 only. The web host runs it on
+ * `deployment.json` in stage B (phase 2 specification, 2.2); its schema has no key for a location, a
+ * credential or a command line.
  */
 
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
-import type { DeploymentRefusal, ProjectionRead, ProjectionV1 } from './types.js';
+import type { DeploymentRefusal, ProjectionRead, ProjectionV2 } from './types.js';
 import { validateProjection } from './validate.generated.js';
 
 export function readProjection(json: unknown): ProjectionRead {
@@ -16,7 +17,7 @@ export function readProjection(json: unknown): ProjectionRead {
 			warnings: [],
 		};
 	}
-	const projection = json as ProjectionV1;
+	const projection = json as ProjectionV2;
 	const refusals: DeploymentRefusal[] = [];
 	const seen = new Set<string>();
 	projection.apps.forEach((app, index) => {

@@ -4,13 +4,21 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createKernel } from './kernel.js';
 import { createFixedEnvironment } from './testing.js';
-import type { KernelOptionsV1 } from './types.js';
+
+// What `readBoot` reads of the empty shell's `deployment.json` (phase 2 specification, 2.2).
+const EMPTY_BOOT = {
+	generation: 'empty',
+	workspace: { id: 'personal', name: 'Personal' },
+	apps: [],
+};
+
+import type { KernelOptionsV2 } from './types.js';
 
 vi.mock('./late/index.js', () => {
 	throw new Error('The chunk did not load');
 });
 
-function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
+function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -18,7 +26,7 @@ function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
-		deferLate: true,
+		boot: EMPTY_BOOT,
 		...overrides,
 	};
 }
@@ -45,7 +53,7 @@ describe('the late chunk failing to load', () => {
 	});
 
 	it('still resolves createKernel when it runs inside it', async () => {
-		const kernel = await createKernel(options({ deferLate: false }));
+		const kernel = await createKernel(options({ boot: undefined }));
 		expect(kernel.lateFailure).toMatchObject({ code: 'LATE_COMMANDS_UNAVAILABLE' });
 		expect(await kernel.call('appearance-get')).toMatchObject({ success: true });
 		await kernel.dispose();
@@ -54,9 +62,11 @@ describe('the late chunk failing to load', () => {
 	it('lists each app of a deployment as failed, and never the shell', async () => {
 		const kernel = await createKernel(
 			options({
-				deferLate: false,
+				boot: undefined,
 				deployment: {
-					deployment_version: 1,
+					deployment_version: 2,
+					generation: 'test',
+					workspace: { id: 'personal', name: 'Personal' },
 					sandbox_origin: null,
 					apps: [{ instance: 'hello', app: 'hello', package: 'apps/hello/', order: 10 }],
 				} as never,

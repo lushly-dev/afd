@@ -6,12 +6,12 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
-import type { KernelEnvironmentV0, KernelOptionsV1, KernelPortsV1, LoamKernelV1 } from './types.js';
+import type { KernelEnvironmentV0, KernelOptionsV2, KernelPortsV1, LoamKernelV2 } from './types.js';
 
 // ─── Environment ────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ export interface RecordSessionOptions {
 	start?: number;
 	/** Random seed. Default: `'loam'`. */
 	seed?: string;
-	deployment?: ProjectionV1;
+	deployment?: ProjectionV2;
 	ports?: KernelPortsV1;
 }
 
@@ -58,13 +58,15 @@ export interface TestKernelOptions {
 	commands?: ZodCommandDefinition[];
 	clock?: () => number;
 	random?: () => number;
-	deployment?: ProjectionV1;
+	deployment?: ProjectionV2;
 	ports?: KernelPortsV1;
-	appsUnavailable?: string;
+	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
+	boot?: KernelOptionsV2['boot'];
+	appsLoader?: KernelOptionsV2['appsLoader'];
 }
 
 export interface TestKernel {
-	kernel: LoamKernelV1;
+	kernel: LoamKernelV2;
 	journal: MemoryJournalSink;
 }
 
@@ -86,7 +88,8 @@ export async function createTestKernel(options: TestKernelOptions = {}): Promise
 		...(options.random !== undefined ? { random: options.random } : {}),
 		...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 		...(options.ports !== undefined ? { ports: options.ports } : {}),
-		...(options.appsUnavailable !== undefined ? { appsUnavailable: options.appsUnavailable } : {}),
+		...(options.boot !== undefined ? { boot: options.boot } : {}),
+		...(options.appsLoader !== undefined ? { appsLoader: options.appsLoader } : {}),
 	});
 	return { kernel, journal };
 }
@@ -122,7 +125,7 @@ export async function recordSession(
 	options: RecordSessionOptions = {}
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
-	const kernelOptions: KernelOptionsV1 = {
+	const kernelOptions: KernelOptionsV2 = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
@@ -154,7 +157,7 @@ export async function recordSession(
 
 /** Run `calls` in order on `kernel`, each on its interface. */
 export async function runSession(
-	kernel: LoamKernelV1,
+	kernel: LoamKernelV2,
 	calls: readonly SessionCall[]
 ): Promise<void> {
 	for (const call of calls) {

@@ -7,7 +7,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
-import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import type { Browser, BrowserContext, BrowserContextOptions, Frame, Page } from 'playwright';
 import { createMountRelay, type MountRelay } from '../mounted/mount-relay';
 
@@ -28,6 +28,19 @@ export interface LoggedRequest {
 	status: number;
 }
 
+/**
+ * Requests a test holds unanswered, until it releases them: what stage B reads, to show the first frame
+ * paints without it (phase 2 specification, E1).
+ */
+export interface HeldRequests {
+	/** Hold every later request whose path matches. */
+	hold(pattern: RegExp): void;
+	/** Answer every held request, and hold no more. */
+	release(): void;
+	/** The paths held so far. */
+	readonly held: string[];
+}
+
 /** Serves a directory over loopback HTTP, so the page's CSP applies as deployed. */
 async function serveDirectory(
 	root: string,
@@ -36,11 +49,18 @@ async function serveDirectory(
 		headers?: () => Record<string, string>;
 		relay?: () => MountRelay | undefined;
 	} = {}
-): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> }> {
+): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> } & HeldRequests> {
 	const log: LoggedRequest[] = [];
+	let holding: RegExp | undefined;
+	const waiting: Array<() => void> = [];
+	const held: string[] = [];
 	const server: Server = createServer(async (request, response) => {
 		if (options.relay?.()?.handle(request, response)) return;
 		const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+		if (holding?.test(path)) {
+			held.push(path);
+			await new Promise<void>((resume) => waiting.push(resume));
+		}
 		const file = normalize(join(root, path === '/' ? 'index.html' : path));
 		if (
 			(file !== root && !file.startsWith(root + sep)) ||
@@ -65,11 +85,21 @@ async function serveDirectory(
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 	const address = server.address();
 	if (!address || typeof address === 'string') throw new Error('No loopback address');
+	const release = () => {
+		holding = undefined;
+		for (const resume of waiting.splice(0)) resume();
+	};
 	return {
 		origin: `http://127.0.0.1:${address.port}`,
 		log,
+		held,
+		hold(pattern) {
+			holding = pattern;
+		},
+		release,
 		close: () =>
 			new Promise((done) => {
+				release();
 				server.close(() => done());
 				server.closeAllConnections();
 			}),
@@ -118,12 +148,12 @@ export function packApp(
 	return pack;
 }
 
-export interface DeploymentSite {
+export interface DeploymentSite extends HeldRequests {
 	origin: string;
 	log: LoggedRequest[];
 	/** The directory `writeDeployment` wrote. */
 	out: string;
-	projection: ProjectionV1;
+	projection: ProjectionV2;
 	/** With `sandbox: true`, the second origin that serves `sandbox/`, and its log. */
 	sandbox?: { origin: string; log: LoggedRequest[] };
 	/** With `mounts: true`, the test-only relay at `mounts/<instance>/mcp`, and its log. */
@@ -142,6 +172,8 @@ export async function serveDeployment(options: {
 	config: string;
 	sandbox?: true;
 	mounts?: true;
+	/** Serve this in place of the projection `writeDeployment` wrote: a hostile or lying one (E1). */
+	rewrite?: (projection: ProjectionV2) => unknown;
 }): Promise<DeploymentSite> {
 	const directory = await mkdtemp(join(tmpdir(), 'loam-deployment-'));
 	const config = join(directory, 'loam.deployment.toml');
@@ -162,6 +194,10 @@ export async function serveDeployment(options: {
 	);
 	const written = await writeDeployment({ config, dist: DIST, out });
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
+	if (options.rewrite) {
+		const served = options.rewrite(structuredClone(written.projection));
+		await writeFile(join(out, 'deployment.json'), `${JSON.stringify(served, null, '\t')}\n`);
+	}
 	const relay = options.mounts ? createMountRelay(written.mounts) : undefined;
 	const site = await serveDirectory(out, { relay: () => relay });
 	shellOrigin = site.origin;
@@ -196,7 +232,7 @@ export function deploymentEntry(
 }
 
 export const deploymentFile = (...entries: string[]): string =>
-	['deployment_version = 1', '', ...entries.map((entry) => `${entry}\n`)].join('\n');
+	['deployment_version = 2', '', ...entries.map((entry) => `${entry}\n`)].join('\n');
 
 // ─── Pages ─────────────────────────────────────────────────────────────────────
 
@@ -498,19 +534,20 @@ export async function openApp(page: Page, instance: string): Promise<void> {
 }
 
 /**
- * Each resource the page requested before its first paint, by path, from its own timings. It reads
- * `first-contentful-paint`, the frame with the parts in it: `first-paint` is the theme's background on
- * an empty body, a moment that depends on the machine and says nothing of what loaded.
+ * Each resource the page requested before the shell's mark `loam-stage-b`, by path, from its own
+ * timings: the first paint, which is the same for every deployment (phase 2 specification, E1). It
+ * reads the mark the shell sets after its first frame, and not `first-contentful-paint`, which a machine
+ * can report after the idle chunks have loaded (2.1).
  */
-export function requestedBeforeFirstPaint(page: Page): Promise<string[]> {
+export async function measureFirstPaint(page: Page): Promise<string[]> {
+	await page.waitForFunction(() => performance.getEntriesByName('loam-stage-b').length > 0);
 	return page.evaluate(() => {
-		const paint = performance.getEntriesByName('first-contentful-paint')[0];
-		if (!paint) throw new Error('The page reported no first paint');
+		const mark = performance.getEntriesByName('loam-stage-b')[0] as PerformanceEntry;
 		const entries = performance.getEntriesByType('resource');
 		return [
 			new URL(location.href).pathname,
 			...entries
-				.filter((entry) => entry.startTime < paint.startTime)
+				.filter((entry) => entry.startTime < mark.startTime)
 				.map((entry) => new URL(entry.name).pathname),
 		];
 	});

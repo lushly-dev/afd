@@ -2,7 +2,7 @@
  * @lushly-dev/loam-chrome: the shell parts as FAST-AF elements, the palette, keyboard, the layout
  * classes, the router seam and theme application (phase 0 specification,
  * endpoints/loam/docs/phases/0-kernel-chrome/spec.md, sections 5 and 7). It binds to the kernel
- * only through `LoamKernelV1`.
+ * only through `LoamKernelV2`.
  */
 
 export {

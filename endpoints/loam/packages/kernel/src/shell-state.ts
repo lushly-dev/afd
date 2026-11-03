@@ -41,13 +41,21 @@ export interface ShellState {
 	layoutInitial(): LayoutStateV0;
 	/** The parts the record `id` may open: all of them with no app. */
 	declaredParts(id: string): ReadonlySet<LayoutPart>;
-	/** Register an instance's record, before `hydrate`. */
+	/**
+	 * Register an instance's record. A second registration, as stage B's manifest after stage A's boot
+	 * record, replaces its `initial` and `declared` and keeps what `hydrate` loaded (phase 2
+	 * specification, 2.2). One registered after `hydrate` is read by {@link ShellState.hydrateLate}.
+	 */
 	registerAppLayout(instance: string, initial: LayoutStateV0, declared: Set<LayoutPart>): void;
 	activeApp(): string | null;
 	setActiveApp(instance: string | null): void;
 	appearance(): AppearanceStateV0;
 	/** Load the persisted records. An invalid record is ignored and its defaults kept. */
 	hydrate(): Promise<void>;
+	/** Load each record registered since `hydrate`, one by one, as stage B's new instances. */
+	hydrateLate(): Promise<void>;
+	/** In memory, as `hydrate` does: an active app that stage B does not list is no active app. */
+	forgetUnlisted(listed: ReadonlySet<string>): void;
 }
 
 const ALL_PARTS: ReadonlySet<LayoutPart> = new Set<LayoutPart>(['sidebar', 'inspector', 'panel']);
@@ -56,6 +64,8 @@ interface LayoutRecord {
 	state: LayoutStateV0;
 	initial: LayoutStateV0;
 	declared: ReadonlySet<LayoutPart>;
+	/** Written by `hydrate` or a command, so a later registration keeps it. */
+	written?: boolean;
 }
 
 export function registerShellState(viewState: ViewStateRegistry): ShellState {
@@ -63,6 +73,9 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	let appearance = createDefaultAppearance();
 	let active: string | null = null;
 	let hydrating = false;
+	let hydrated = false;
+	/** Records registered after `hydrate`, for `hydrateLate`. */
+	const unread = new Set<string>();
 
 	const registerLayout = (id: string, record: LayoutRecord): void => {
 		layouts.set(id, record);
@@ -70,13 +83,16 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			get: () => cloneLayout(record.state) as LayoutStateV0 & Record<string, unknown>,
 			set(partial) {
 				const checked = validateLayoutPatch(record.state, partial);
-				if (checked.valid) record.state = checked.state;
-				else if (!hydrating) throw LoamKernelError.fromCommandError(checked.error);
+				if (checked.valid) {
+					record.state = checked.state;
+					record.written = true;
+				} else if (!hydrating) throw LoamKernelError.fromCommandError(checked.error);
 			},
 			replace(state) {
 				const checked = validateLayoutState(state);
 				if (!checked.valid) throw LoamKernelError.fromCommandError(checked.error);
 				record.state = checked.state;
+				record.written = true;
 			},
 		};
 		viewState.register(id, handler as unknown as ViewStateHandler);
@@ -129,11 +145,23 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 		layoutInitial: () => cloneLayout(record(activeId()).initial),
 		declaredParts: (id) => layouts.get(id)?.declared ?? ALL_PARTS,
 		registerAppLayout(instance, initial, declared) {
-			registerLayout(appLayoutId(instance), {
+			const id = appLayoutId(instance);
+			const held = layouts.get(id);
+			if (held) {
+				// The handler closes over this record, so it is replaced in place. What `hydrate` loaded, or a
+				// command wrote, stays, and `reconcileLayouts` closes a part the new manifest dropped. A record
+				// nothing wrote takes the new first shape.
+				held.initial = cloneLayout(initial);
+				held.declared = declared;
+				if (!held.written) held.state = cloneLayout(initial);
+				return;
+			}
+			registerLayout(id, {
 				state: cloneLayout(initial),
 				initial: cloneLayout(initial),
 				declared,
 			});
+			if (hydrated) unread.add(id);
 		},
 		activeApp: () => active,
 		setActiveApp(instance) {
@@ -148,7 +176,21 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 				if (active !== null && !layouts.has(appLayoutId(active))) active = null;
 			} finally {
 				hydrating = false;
+				hydrated = true;
 			}
+		},
+		async hydrateLate() {
+			const ids = [...unread];
+			unread.clear();
+			hydrating = true;
+			try {
+				for (const id of ids) await viewState.hydrateOne(id);
+			} finally {
+				hydrating = false;
+			}
+		},
+		forgetUnlisted(listed) {
+			if (active !== null && !listed.has(active)) active = null;
 		},
 	};
 }

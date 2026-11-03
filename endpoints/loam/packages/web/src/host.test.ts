@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { createHostKernel, type HostKernelOptions, isEmptyProjection } from './host.js';
+import { createHostKernel, type HostKernelOptions } from './host.js';
 
 /** A Web Locks stand-in: one holder per name, `ifAvailable` refuses when held. */
 function fakeLocks(): NonNullable<HostKernelOptions['locks']> {
@@ -65,13 +65,73 @@ describe('the browser host kernel', () => {
 	});
 });
 
-describe('isEmptyProjection', () => {
-	it('is what `vite build` writes, and nothing else', () => {
-		expect(isEmptyProjection({ deployment_version: 1, sandbox_origin: null, apps: [] })).toBe(true);
-		expect(isEmptyProjection({ deployment_version: 1, apps: [{ instance: 'x' }] })).toBe(false);
-		expect(isEmptyProjection({ deployment_version: 2, apps: [] })).toBe(false);
-		expect(isEmptyProjection({ apps: 'none' })).toBe(false);
-		expect(isEmptyProjection(undefined)).toBe(false);
-		expect(isEmptyProjection('not json')).toBe(false);
+describe('the two stages (phase 2 specification, 2.2)', () => {
+	it('resolves after stage A with the boot commands, and stage B adds the rest', async () => {
+		const host = await createHostKernel({
+			environment,
+			indexedDB: new IDBFactory(),
+			locks: fakeLocks(),
+			// What `readBoot` reads of `vite build`'s own `deployment.json`.
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		if (host.kind !== 'ready') throw new Error('expected a kernel');
+		expect(host.kernel.version).toBe(2);
+		expect(host.kernel.listCommands().map((row) => row.name)).toEqual([
+			'layout-get',
+			'appearance-get',
+			'auth-session-get',
+			'app-list',
+		]);
+		await host.kernel.startApps();
+		expect(host.kernel.listCommands().length).toBeGreaterThan(4);
+		await host.kernel.dispose();
+		await host.journal.close();
+	});
+
+	it('lists the boot records before stage B, and asks the loader only in stage B', async () => {
+		let asked = 0;
+		const host = await createHostKernel({
+			environment,
+			indexedDB: new IDBFactory(),
+			locks: fakeLocks(),
+			boot: {
+				generation: 'test',
+				workspace: { id: 'acme', name: 'Acme' },
+				apps: [
+					{
+						instance: 'hello',
+						app: 'hello',
+						title: 'Hello',
+						kind: 'native',
+						icon: 'system/document',
+						order: 10,
+						scopeLevels: ['workspace'],
+						rail: true,
+						parts: [],
+						layout: {},
+						refusal: null,
+					},
+				],
+			},
+			appsLoader: async () => {
+				asked += 1;
+				return { refused: 'Its deployment.json is refused: no.' };
+			},
+		});
+		if (host.kind !== 'ready') throw new Error('expected a kernel');
+		const before = await host.kernel.call<{ apps: Array<{ state: string }> }>('app-list');
+		expect(before.data?.apps.map((app) => app.state)).toEqual(['loading']);
+		expect(asked).toBe(0);
+		await host.kernel.startApps();
+		expect(asked).toBe(1);
+		const after = await host.kernel.call<{
+			apps: Array<{ state: string; error?: { code: string } }>;
+		}>('app-list');
+		expect(after.data?.apps[0]).toMatchObject({
+			state: 'failed',
+			error: { code: 'DEPLOYMENT_INVALID' },
+		});
+		await host.kernel.dispose();
+		await host.journal.close();
 	});
 });

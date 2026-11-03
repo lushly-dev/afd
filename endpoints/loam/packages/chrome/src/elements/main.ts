@@ -1,7 +1,8 @@
 /**
  * @fileoverview `loam-main`: `main`. With no app active it shows the landing, "No apps yet" or the
  * app surfaces' "Choose an app", and the palette shortcut; any path but `/` shows "Nothing here" with a link home
- * (5.1, section 7).
+ * (5.1, section 7). `busy` hides the landing and sets `aria-busy` while a persisted owner's surface is
+ * on its way, so no landing flashes before an app (phase 2 specification, 2.2).
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
@@ -43,6 +44,9 @@ const styles = [
 			padding: var(--space-layout-md);
 			background: var(--color-surface-page);
 			color: var(--color-text-primary);
+		}
+		:host([busy]) .landing {
+			display: none;
 		}
 		.landing {
 			display: grid;
@@ -103,6 +107,7 @@ export class LoamMain extends FASTElement {
 	declare shortcut: string;
 	declare home: string;
 	declare landing: string;
+	declare busy: boolean;
 
 	constructor() {
 		super();
@@ -110,16 +115,26 @@ export class LoamMain extends FASTElement {
 		this.route = 'home';
 		this.shortcut = 'Ctrl+K';
 		this.home = './';
+		this.busy = false;
 	}
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'main');
+		this.busyChanged();
+	}
+
+	busyChanged(): void {
+		// An element may not gain an attribute in its constructor; `connectedCallback` sets it.
+		if (!this.$fastController?.isConnected) return;
+		if (this.busy) this.setAttribute('aria-busy', 'true');
+		else if (this.dataset.app === undefined) this.removeAttribute('aria-busy');
 	}
 }
 attr(LoamMain.prototype, 'route');
 attr(LoamMain.prototype, 'shortcut');
 attr(LoamMain.prototype, 'home');
 attr(LoamMain.prototype, 'landing');
+attr({ mode: 'boolean' })(LoamMain.prototype, 'busy');
 
 export const mainDefinition = { name: 'loam-main', template, styles } as const;

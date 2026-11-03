@@ -40,9 +40,11 @@ const FILE = {
 	},
 };
 
-// The specification's example (3.2).
+// The phase 1 specification's example (3.2), as version 2 writes it (phase 2 specification, 2.2).
 const PROJECTION = {
-	deployment_version: 1,
+	deployment_version: 2,
+	generation: `sha256-${'3b7e9f'.padEnd(64, '0')}`,
+	workspace: { id: 'acme', name: 'Acme' },
 	sandbox_origin: 'https://sandbox.example.com',
 	apps: [
 		{
@@ -51,6 +53,17 @@ const PROJECTION = {
 			package: 'apps/hello/',
 			order: 10,
 			config: { default_name: 'friend' },
+			boot: {
+				title: 'Hello',
+				kind: 'native',
+				icon: 'system/document',
+				order: 10,
+				scope_levels: ['workspace', 'project'],
+				rail: true,
+				parts: ['sidebar', 'inspector'],
+				layout: { sidebar: { open: true, width: 260 }, inspector: { open: false } },
+				refusal: null,
+			},
 		},
 		{
 			instance: 'work',
@@ -75,6 +88,15 @@ const PROJECTION = {
 			transport: 'stdio',
 		},
 	],
+};
+
+// What `vite build` serves (phase 2 specification, 2.2).
+const EMPTY = {
+	deployment_version: 2,
+	generation: 'empty',
+	workspace: { id: 'personal', name: 'Personal' },
+	sandbox_origin: null,
+	apps: [],
 };
 
 const withEntry = (id: string, entry: Record<string, unknown>) => ({
@@ -116,7 +138,7 @@ describe('readDeployment', () => {
 		],
 		[
 			'a version it does not read',
-			{ ...FILE, deployment_version: 2 },
+			{ ...FILE, deployment_version: 3 },
 			'DEPLOYMENT_VERSION_UNSUPPORTED',
 			'deployment_version',
 		],
@@ -284,7 +306,53 @@ describe('readDeployment', () => {
 describe('readProjection', () => {
 	it("accepts the specification's example and the empty shell's", () => {
 		expect(readProjection(PROJECTION).ok).toBe(true);
-		expect(readProjection({ deployment_version: 1, sandbox_origin: null, apps: [] }).ok).toBe(true);
+		expect(readProjection(EMPTY).ok).toBe(true);
+	});
+
+	it('reads no version 1 projection: dist and its projection are written together', () => {
+		const read = readProjection({ deployment_version: 1, sandbox_origin: null, apps: [] });
+		expect(read.ok).toBe(false);
+	});
+
+	it.each([
+		['a boot record with a key it does not hold', { bogus: 1 }, 'apps[0].boot.bogus'],
+		['a boot record missing a field', { refusal: undefined }, 'apps[0].boot.refusal'],
+		['an unknown kind', { kind: 'plugin' }, 'apps[0].boot.kind'],
+		['an unknown part', { parts: ['tray'] }, 'apps[0].boot.parts[0]'],
+		['an unknown level', { scope_levels: ['team'] }, 'apps[0].boot.scope_levels[0]'],
+		[
+			'a layout with a key it does not hold',
+			{ layout: { tray: { open: true } } },
+			'apps[0].boot.layout.tray',
+		],
+		[
+			'a layout value out of shape',
+			{ layout: { sidebar: { width: 'wide' } } },
+			'apps[0].boot.layout.sidebar.width',
+		],
+		[
+			'a refusal with a key it does not hold',
+			{ refusal: { code: 'A', message: '', suggestion: '', url: 'x' } },
+			'apps[0].boot.refusal.url',
+		],
+	])('refuses %s', (_name, change, key) => {
+		const [hello, ...rest] = PROJECTION.apps;
+		const boot = { ...(hello?.boot as Record<string, unknown>), ...change };
+		const read = readProjection({ ...PROJECTION, apps: [{ ...hello, boot }, ...rest] });
+		expect(read.ok).toBe(false);
+		if (!read.ok) expect(read.refusals.map((refusal) => refusal.key)).toContain(key);
+	});
+
+	it.each([
+		['no generation', { generation: undefined }, 'generation'],
+		['a generation that is not a digest', { generation: 'sha1-abc' }, 'generation'],
+		['no workspace', { workspace: undefined }, 'workspace'],
+		['a reserved workspace', { workspace: { id: 'assets', name: 'Assets' } }, 'workspace.id'],
+		['a workspace off its pattern', { workspace: { id: 'Acme', name: 'Acme' } }, 'workspace.id'],
+	])('refuses %s', (_name, change, key) => {
+		const read = readProjection({ ...EMPTY, ...change });
+		expect(read.ok).toBe(false);
+		if (!read.ok) expect(read.refusals.map((refusal) => refusal.key)).toContain(key);
 	});
 
 	it.each(['url', 'bearer_file', 'bearer_env', 'command', 'cwd'])(
@@ -304,22 +372,15 @@ describe('readProjection', () => {
 	);
 
 	it('refuses the rest as the same code, naming the key', () => {
+		const { sandbox_origin: _origin, ...noOrigin } = EMPTY;
 		for (const [json, key] of [
-			[{ deployment_version: 2, sandbox_origin: null, apps: [] }, 'deployment_version'],
-			[{ deployment_version: 1, apps: [] }, 'sandbox_origin'],
-			[{ deployment_version: 1, sandbox_origin: 'nope', apps: [] }, 'sandbox_origin'],
+			[{ ...EMPTY, deployment_version: 3 }, 'deployment_version'],
+			[noOrigin, 'sandbox_origin'],
+			[{ ...EMPTY, sandbox_origin: 'nope' }, 'sandbox_origin'],
+			[{ ...EMPTY, apps: [{ instance: 'a', app: 'a', package: '/etc/' }] }, 'apps[0].package'],
 			[
 				{
-					deployment_version: 1,
-					sandbox_origin: null,
-					apps: [{ instance: 'a', app: 'a', package: '/etc/' }],
-				},
-				'apps[0].package',
-			],
-			[
-				{
-					deployment_version: 1,
-					sandbox_origin: null,
+					...EMPTY,
 					apps: [{ instance: 'a', app: 'a', package: 'apps/a/', expose: { mcp: true } }],
 				},
 				'apps[0].expose.mcp',
@@ -336,12 +397,96 @@ describe('readProjection', () => {
 
 	it('refuses a repeated instance', () => {
 		const app = { instance: 'a', app: 'a', package: 'apps/a/' };
-		const read = readProjection({
-			deployment_version: 1,
-			sandbox_origin: null,
-			apps: [app, app],
-		});
+		const read = readProjection({ ...EMPTY, apps: [app, app] });
 		expect(read.ok).toBe(false);
 		if (!read.ok) expect(read.refusals[0]?.key).toBe('apps[1].instance');
+	});
+});
+
+describe('readDeployment, version 2 (phase 2 specification, 4.2)', () => {
+	const v2 = (extra: Record<string, unknown>) => ({ ...FILE, deployment_version: 2, ...extra });
+	const codesOf = (json: unknown) => refusalsOf(json).map((refusal) => [refusal.code, refusal.key]);
+
+	it('reads the workspace and the base path, with their defaults', () => {
+		const read = readDeployment(
+			v2({ workspace: { id: 'acme', name: 'Acme Inc' }, site: { base_path: '/loam/' } })
+		);
+		expect(read.ok && [read.workspace, read.basePath]).toEqual([
+			{ id: 'acme', name: 'Acme Inc' },
+			'/loam/',
+		]);
+		const named = readDeployment(v2({ workspace: { id: 'acme' } }));
+		expect(named.ok && named.workspace).toEqual({ id: 'acme', name: 'Acme' });
+		const bare = readDeployment(v2({}));
+		expect(bare.ok && [bare.workspace, bare.basePath]).toEqual([
+			{ id: 'personal', name: 'Personal' },
+			'/',
+		]);
+	});
+
+	it('reads a version 1 file as the personal workspace at /', () => {
+		const read = readDeployment(FILE);
+		expect(read.ok && [read.workspace, read.basePath]).toEqual([
+			{ id: 'personal', name: 'Personal' },
+			'/',
+		]);
+	});
+
+	it.each([
+		'apps',
+		'assets',
+		'mounts',
+		'sandbox',
+		'p',
+		'~',
+		'deployment.json',
+		'index.html',
+		'404.html',
+		'Acme',
+		'-acme',
+		'a'.repeat(64),
+	])('refuses the workspace id %s', (id) => {
+		expect(codesOf(v2({ workspace: { id } }))).toEqual([
+			['DEPLOYMENT_WORKSPACE_INVALID', 'workspace.id'],
+		]);
+	});
+
+	it.each(['loam/', '/loam', '//evil.example/', '/a/../', '/./', '/a b/', '/a?b/'])(
+		'refuses the base path %s',
+		(base_path) => {
+			expect(codesOf(v2({ site: { base_path } }))).toEqual([
+				['DEPLOYMENT_BASE_PATH_INVALID', 'site.base_path'],
+			]);
+		}
+	);
+
+	it.each(['/', '/loam/', '/a.b/c~d/'])('accepts the base path %s', (base_path) => {
+		expect(codesOf(v2({ site: { base_path } }))).toEqual([]);
+	});
+
+	it('refuses an instance named p, which would read as a project segment', () => {
+		expect(codesOf(v2({ apps: { p: { app: 'p', package: './p' } } }))).toEqual([
+			['DEPLOYMENT_INSTANCE_RESERVED', 'apps.p'],
+		]);
+	});
+
+	it('refuses a projects slug off the project pattern', () => {
+		const work = { ...FILE.apps.work, projects: ['atlas', 'Bad_Slug'] };
+		expect(codesOf(v2({ apps: { work } }))).toEqual([
+			['DEPLOYMENT_PROJECT_INVALID', 'apps.work.projects[1]'],
+		]);
+	});
+
+	it('refuses an unknown key under workspace and site', () => {
+		expect(codesOf(v2({ workspace: { id: 'acme', owner: 'x' } }))).toEqual([
+			['DEPLOYMENT_INVALID', 'workspace.owner'],
+		]);
+		expect(codesOf(v2({ site: { base: '/' } }))).toEqual([['DEPLOYMENT_INVALID', 'site.base']]);
+	});
+
+	it('refuses workspace and site in a version 1 file', () => {
+		expect(codesOf({ ...FILE, workspace: { id: 'acme' } })).toEqual([
+			['DEPLOYMENT_INVALID', 'workspace'],
+		]);
 	});
 });

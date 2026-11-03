@@ -1,5 +1,5 @@
 /**
- * @lushly-dev/loam-kernel: the registries with name refusal, kernel interface version 1, the shell
+ * @lushly-dev/loam-kernel: the registries with name refusal, kernel interface version 2, the shell
  * and app commands, the layout model, the palette index and the journal options (phase 0
  * specification, endpoints/loam/docs/phases/0-kernel-chrome/spec.md, sections 5 and 6; phase 1
  * specification, section 9). Replay, the journal diff and the reference workspace are in
@@ -21,7 +21,7 @@ export {
 	resolveTheme,
 	validateAppearancePatch,
 } from './appearance.js';
-export type { AppCommandRowV1 } from './apps-runtime.js';
+export { type AppCommandRowV1, type BootAppsOptions, bootApps } from './apps-runtime.js';
 export {
 	INTERNAL_COMMANDS,
 	PALETTE_SEARCH_LIMIT,
@@ -40,6 +40,7 @@ export {
 	createKernel,
 	type KernelInterfaceV0,
 	kernelJournalOptions,
+	NEEDS_STAGE_B,
 	redactJournalRecord,
 	UNJOURNALED_COMMANDS,
 } from './kernel.js';
@@ -54,6 +55,7 @@ export {
 export {
 	appLayoutId,
 	createDefaultLayout,
+	firstLayoutOf,
 	LAYOUT_DEFAULTS_V0,
 	LAYOUT_VIEW_STATE_ID,
 	type LayoutPart,
@@ -82,7 +84,10 @@ export {
 	type AppKindV1,
 	type AppPortV1,
 	type AppStateV1,
+	type AppStateV2,
 	type AppSummaryV1,
+	type AppSummaryV2,
+	type AppsLoadV2,
 	type CallOptionsV0,
 	type CallOptionsV1,
 	type CommandSummaryV0,
@@ -94,14 +99,17 @@ export {
 	type KernelEventV1,
 	type KernelOptionsV0,
 	type KernelOptionsV1,
+	type KernelOptionsV2,
 	type KernelPortsV1,
 	type LinkedCallV1,
 	type LoamKernelV0,
 	type LoamKernelV1,
+	type LoamKernelV2,
 	type McpTool,
 	type McpToolCallResult,
 	type MountTransportV1,
 	type ShellInfoV0,
 	type ShellInfoV1,
+	type ShellInfoV2,
 	type ViewBrokerV1,
 } from './types.js';

@@ -71,7 +71,7 @@ async function layout(toml: string, packages: Record<string, unknown> = {}): Pro
 	await write(
 		root,
 		'dist/deployment.json',
-		'{"deployment_version":1,"sandbox_origin":null,"apps":[]}'
+		'{"deployment_version":2,"generation":"empty","workspace":{"id":"personal","name":"Personal"},"sandbox_origin":null,"apps":[]}'
 	);
 	await write(root, 'dist/assets/app.js', '1;');
 	return {
@@ -155,12 +155,32 @@ describe('deployment write', () => {
 		if (!written.ok) return;
 		const projection = JSON.parse(readFileSync(join(paths.out, 'deployment.json'), 'utf8'));
 		expect(readProjection(projection).ok).toBe(true);
+		const boot = (extra: object) => ({
+			title: 'An app',
+			kind: 'native',
+			icon: 'system/folder',
+			order: 100,
+			scope_levels: ['workspace'],
+			rail: true,
+			parts: [],
+			layout: {},
+			refusal: null,
+			...extra,
+		});
 		expect(projection).toEqual({
-			deployment_version: 1,
+			deployment_version: 2,
+			generation: expect.stringMatching(/^sha256-[0-9a-f]{64}$/),
+			workspace: { id: 'personal', name: 'Personal' },
 			sandbox_origin: 'https://sandbox.example.com',
 			apps: [
-				{ instance: 'hello', app: 'hello', package: 'apps/hello/', order: 10 },
-				{ instance: 'board', app: 'board', package: 'apps/board/' },
+				{
+					instance: 'hello',
+					app: 'hello',
+					package: 'apps/hello/',
+					order: 10,
+					boot: boot({ order: 10 }),
+				},
+				{ instance: 'board', app: 'board', package: 'apps/board/', boot: boot({ kind: 'view' }) },
 				{
 					instance: 'work',
 					app: 'umbel',
@@ -176,6 +196,8 @@ describe('deployment write', () => {
 					commands: {
 						'work-event-ack': { expose: { palette: true }, effects: ['plugin-state'] },
 					},
+					// An instance with `projects` serves only those projects (9.1).
+					boot: boot({ kind: 'mounted', title: 'Work knowledge', scope_levels: ['project'] }),
 				},
 				{
 					instance: 'home',
@@ -184,6 +206,7 @@ describe('deployment write', () => {
 					prefix: 'home',
 					audience: 'person',
 					transport: 'stdio',
+					boot: boot({ kind: 'mounted' }),
 				},
 			],
 		});
@@ -278,7 +301,7 @@ package = "broken"
 	});
 
 	it('stops on what makes the file unreadable, leaving the output alone', async () => {
-		const paths = await layout('deployment_version = 2\napps = {}\n');
+		const paths = await layout('deployment_version = 3\napps = {}\n');
 		const written = await write_(paths);
 		expect(written).toMatchObject({ ok: false });
 		expect(written.ok === false && written.refusals[0]?.code).toBe(
@@ -548,7 +571,12 @@ bearer_file = "http.token"
 
 describe('the projection refuses what must never reach it (a schema test)', () => {
 	const app = { instance: 'home', app: 'umbel', package: 'apps/home/' };
-	const base = { deployment_version: 1, sandbox_origin: null };
+	const base = {
+		deployment_version: 2,
+		generation: 'test',
+		workspace: { id: 'personal', name: 'Personal' },
+		sandbox_origin: null,
+	};
 
 	it.each(['command', 'cwd', 'url', 'bearer_file', 'bearer_env'])('refuses `%s`', (key) => {
 		const checked = checkedProjection({ ...base, apps: [{ ...app, [key]: 'x' }] });
@@ -558,6 +586,103 @@ describe('the projection refuses what must never reach it (a schema test)', () =
 
 	it('passes a clean one', () => {
 		expect(checkedProjection({ ...base, apps: [app] }).ok).toBe(true);
+	});
+});
+
+describe('deployment write, version 2 (phase 2 specification, 2.2 and 4.2)', () => {
+	const HELLO = 'deployment_version = 2\n\n[apps.hello]\napp = "hello"\npackage = "hello"\n';
+	const helloWith = (extra: object) => ({
+		hello: nativePackage('hello', {
+			ui: {
+				surfaces: {
+					rail: { label: 'Hello there', icon: 'system/document', order: 5 },
+					main: { element: 'hello-main' },
+					inspector: { element: 'hello-inspector' },
+				},
+				layout: { inspector: { open: true } },
+			},
+			app: { scope_levels: ['workspace', 'project'] },
+			...extra,
+		}),
+	});
+
+	it("writes the workspace, and each entry's boot record from its manifest", async () => {
+		const paths = await layout(
+			`deployment_version = 2\n\n[workspace]\nid = "acme"\n\n[site]\nbase_path = "/loam/"\n\n[apps.hello]\napp = "hello"\npackage = "hello"\n`,
+			helloWith({})
+		);
+		const written = await write_(paths);
+		expect(written.ok).toBe(true);
+		if (!written.ok) return;
+		expect(written.projection.workspace).toEqual({ id: 'acme', name: 'Acme' });
+		expect(written.projection.apps[0]?.boot).toEqual({
+			title: 'Hello there',
+			kind: 'native',
+			icon: 'system/document',
+			order: 5,
+			scope_levels: ['workspace', 'project'],
+			rail: true,
+			parts: ['inspector'],
+			layout: { inspector: { open: true } },
+			refusal: null,
+		});
+	});
+
+	it("carries a refused package's reason in its boot record, and keeps it listed", async () => {
+		const paths = await layout(HELLO, { hello: { manifest_version: 1 } });
+		const written = await write_(paths);
+		expect(written.ok).toBe(true);
+		if (!written.ok) return;
+		const boot = written.projection.apps[0]?.boot;
+		expect(boot).toMatchObject({ title: 'hello', kind: 'native', rail: true });
+		expect(boot?.refusal?.code).toMatch(/^MANIFEST_/);
+		expect(Object.keys(boot?.refusal ?? {})).toEqual(['code', 'message', 'suggestion']);
+	});
+
+	it("changes the generation with a deployer's entry, and not with a package's display", async () => {
+		const generation = async (toml: string, packages: Record<string, object>) => {
+			const paths = await layout(toml, packages);
+			const written = await write_(paths);
+			return written.ok ? written.projection.generation : undefined;
+		};
+		const first = await generation(HELLO, helloWith({}));
+		expect(first).toMatch(/^sha256-[0-9a-f]{64}$/);
+		expect(await generation(HELLO, helloWith({}))).toBe(first);
+		const relabelled = helloWith({});
+		(relabelled.hello as { plugin: { title: string } }).plugin.title = 'Another title';
+		expect(await generation(HELLO, relabelled)).toBe(first);
+		expect(await generation(`${HELLO}order = 3\n`, helloWith({}))).not.toBe(first);
+		expect(
+			await generation(HELLO.replace('\n\n', '\n\n[workspace]\nid = "acme"\n\n'), helloWith({}))
+		).not.toBe(first);
+	});
+
+	it('warns when --out last held another workspace, and writes', async () => {
+		const paths = await layout(HELLO, helloWith({}));
+		expect((await write_(paths)).warnings).toEqual([]);
+		await writeFile(paths.config, HELLO.replace('\n\n', '\n\n[workspace]\nid = "acme"\n\n'));
+		const again = await write_(paths);
+		expect(again.ok).toBe(true);
+		expect(again.warnings.map(({ code, key }) => [code, key])).toEqual([
+			['DEPLOYMENT_WORKSPACE_CHANGED', 'workspace.id'],
+		]);
+		const third = await write_(paths);
+		expect(third.warnings).toEqual([]);
+	});
+
+	it('refuses a reserved instance and a bad base path, writing nothing', async () => {
+		for (const [toml, code] of [
+			[HELLO.replaceAll('hello', 'p'), 'DEPLOYMENT_INSTANCE_RESERVED'],
+			[`${HELLO}\n[site]\nbase_path = "//evil.example/"\n`, 'DEPLOYMENT_BASE_PATH_INVALID'],
+			[HELLO.replace('\n\n', '\n\n[workspace]\nid = "assets"\n\n'), 'DEPLOYMENT_WORKSPACE_INVALID'],
+		] as const) {
+			const paths = await layout(toml, helloWith({}));
+			const written = await write_(paths);
+			expect(written.ok === false && written.refusals.map((refusal) => refusal.code)).toEqual([
+				code,
+			]);
+			expect(existsSync(paths.out)).toBe(false);
+		}
 	});
 });
 

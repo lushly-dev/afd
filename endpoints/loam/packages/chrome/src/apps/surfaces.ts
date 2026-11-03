@@ -11,9 +11,9 @@ import { ensureScopedRegistrySupport } from '@lushly-dev/fast-element/scoped.js'
 import type {
 	AppDetailV1,
 	AppPortV1,
-	AppSummaryV1,
+	AppSummaryV2,
 	KernelEventV1,
-	LoamKernelV1,
+	LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1, ModalInputV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
 import { APP_OPEN_EVENT, type LoamAppEntry } from '../elements/app-entry.js';
@@ -44,7 +44,7 @@ const OPENING_NOTICE_MS = 400;
 
 interface AppList {
 	active: string | null;
-	apps: AppSummaryV1[];
+	apps: AppSummaryV2[];
 }
 
 /** What an element keeps of its scrollers while it is parked, through open shadow roots. */
@@ -122,7 +122,7 @@ const tabbarWithApps = css`
 
 export class AppSurfaces implements ShellApps {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV1;
+	readonly #kernel: LoamKernelV2;
 	readonly #cleanup: Array<() => void> = [];
 	readonly #held = new Map<string, HeldApp>();
 	readonly #entries = new Map<string, LoamAppEntry[]>();
@@ -130,7 +130,7 @@ export class AppSurfaces implements ShellApps {
 	#showing: string | null = null;
 	#token = 0;
 	#declared: ReadonlySet<string> | null = null;
-	#summaries: AppSummaryV1[] = [];
+	#summaries: AppSummaryV2[] = [];
 	#started: Promise<void> | null = null;
 	#prepared: AppList | null = null;
 	#rendered = false;
@@ -145,7 +145,7 @@ export class AppSurfaces implements ShellApps {
 	#baseTitle: string | null = null;
 	readonly #overlays: OverlaySurfaces;
 
-	constructor(shell: LoamShell, kernel: LoamKernelV1) {
+	constructor(shell: LoamShell, kernel: LoamKernelV2) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 		this.#overlays = new OverlaySurfaces(shell, kernel);
@@ -210,7 +210,8 @@ export class AppSurfaces implements ShellApps {
 		const list = await this.#kernel.call<AppList>('app-list');
 		this.#prepared = list.data ?? { active: null, apps: [] };
 		const { active, apps } = this.#prepared;
-		if (apps.length > 0) this.#shell.landing = 'Choose an app';
+		// With the late commands missing, the shell's "Could not load" is main's heading (2.2).
+		if (apps.length > 0 && !this.#kernel.lateFailure) this.#shell.landing = 'Choose an app';
 		if (active !== null) this.#declared = await this.#readDeclared(active);
 	}
 
@@ -329,9 +330,21 @@ export class AppSurfaces implements ShellApps {
 
 	// ─── The nav ───────────────────────────────────────────────────────────────────
 
-	#renderNav(active: string | null, apps: AppSummaryV1[]): void {
+	#renderNav(active: string | null, apps: AppSummaryV2[]): void {
 		this.#summaries = apps;
+		// The entries the first frame drew from the boot records are these surfaces' from now on.
+		for (const [instance, entries] of this.#shell.bootEntries) {
+			if (!this.#entries.has(instance)) this.#entries.set(instance, entries);
+		}
+		// A boot record stage B did not confirm, or an app the rail does not list, has no entry.
+		const listed = new Set(apps.filter((app) => app.rail).map((app) => app.instance));
+		for (const [instance, entries] of this.#entries) {
+			if (listed.has(instance)) continue;
+			for (const entry of entries) entry.remove();
+			this.#entries.delete(instance);
+		}
 		for (const app of apps) {
+			if (!listed.has(app.instance)) continue;
 			let entries = this.#entries.get(app.instance);
 			if (!entries) {
 				entries = (['rail', 'tabbar'] as const).map((variant) => {
@@ -350,6 +363,13 @@ export class AppSurfaces implements ShellApps {
 				// Connected once it holds its state, so it renders once.
 				if (!entry.isConnected) this.#part<HTMLElement>(entry.variant).append(entry);
 			}
+		}
+		// In the list's order, which stage B may have corrected from a boot record's (2.2).
+		for (const [index, variant] of (['rail', 'tabbar'] as const).entries()) {
+			const part = this.#part<HTMLElement>(variant);
+			const wanted = apps.flatMap((app) => this.#entries.get(app.instance)?.[index] ?? []);
+			const shown = [...part.children].filter((child) => child.localName === 'loam-app-entry');
+			if (wanted.some((entry, at) => shown[at] !== entry)) part.append(...wanted);
 		}
 	}
 
@@ -931,9 +951,11 @@ export class AppSurfaces implements ShellApps {
 }
 
 /** Create the controller, once the chunk's elements are defined. */
-export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV1): Promise<ShellApps> {
+export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV2): Promise<ShellApps> {
 	await defineAppElements();
 	const surfaces = new AppSurfaces(shell, kernel);
-	if (shell.hasApps) await surfaces.prepare();
+	// The chunk may load beside stage B; what it renders is what stage B read, never stage A's list.
+	await kernel.appsReady;
+	if (shell.appCount > 0) await surfaces.prepare();
 	return surfaces;
 }

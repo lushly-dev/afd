@@ -5,11 +5,19 @@
  * line reaches the projection.
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import type { DeploymentV1, ProjectionV1 } from '@lushly-dev/loam-manifest';
-import { readProjection } from '@lushly-dev/loam-manifest/validate';
+import type {
+	DeploymentV1,
+	DeploymentV2,
+	DeploymentWorkspaceV2,
+	ProjectionAppV2,
+	ProjectionBootV2,
+	ProjectionV2,
+} from '@lushly-dev/loam-manifest';
+import { DEFAULT_WORKSPACE_V2, readProjection } from '@lushly-dev/loam-manifest/validate';
 import {
 	analyzeDeployment,
 	appKey,
@@ -43,7 +51,7 @@ export type WriteDeploymentResult =
 	| {
 			ok: true;
 			out: string;
-			projection: ProjectionV1;
+			projection: ProjectionV2;
 			/** In memory: what the caller's relay needs. */
 			mounts: MountAccess[];
 			/** Each instance the kernel will refuse, and the packages' warnings. */
@@ -52,15 +60,89 @@ export type WriteDeploymentResult =
 	  }
 	| { ok: false; refusals: DeploymentFinding[]; warnings: DeploymentFinding[] };
 
+const PARTS = ['sidebar', 'inspector', 'panel'] as const;
+const DEFAULT_ICON = 'system/folder';
+const DEFAULT_ORDER = 100;
+
+/** The finding that refuses `id`, the first of those `deployment check` reports for it. */
+function refusalFor(
+	id: string,
+	findings: readonly DeploymentFinding[]
+): ProjectionBootV2['refusal'] {
+	const key = appKey(id);
+	const found = findings.find(
+		(finding) =>
+			finding.key === key ||
+			(/^[.:[]/.test(finding.key.slice(key.length)) && finding.key.startsWith(key))
+	);
+	return found ? { code: found.code, message: found.message, suggestion: found.suggestion } : null;
+}
+
+/**
+ * An entry's boot record (phase 2 specification, 2.2): what `app-list` will say of it, for the rail
+ * and a layout's first shape before stage B reads its manifest. Display only.
+ */
+export function bootRecordOf(
+	effect: InstanceEffect,
+	findings: readonly DeploymentFinding[]
+): ProjectionBootV2 {
+	const { id, entry, manifest } = effect;
+	const surfaces = manifest?.ui?.surfaces ?? {};
+	const rail = surfaces.rail;
+	// `ui.documents` is manifest version 2's (8.3); a version 1 manifest never has it.
+	const documents = (manifest?.ui as { documents?: unknown } | undefined)?.documents !== undefined;
+	const levels: ProjectionBootV2['scope_levels'] =
+		effect.mounted && entry.projects !== undefined
+			? ['project']
+			: (manifest?.app?.scope_levels ?? ['workspace']);
+	return {
+		title: entry.title ?? rail?.label ?? manifest?.plugin.title ?? id,
+		kind: manifest?.plugin.kind ?? 'native',
+		icon: rail?.icon ?? DEFAULT_ICON,
+		order: entry.order ?? rail?.order ?? DEFAULT_ORDER,
+		scope_levels: levels,
+		rail: !(documents && !rail && !surfaces.sidebar && !surfaces.main),
+		parts: PARTS.filter((part) => surfaces[part] !== undefined),
+		layout: (manifest?.ui?.layout ?? {}) as ProjectionBootV2['layout'],
+		refusal: refusalFor(id, findings),
+	};
+}
+
+/** JSON with every object's keys sorted, so equal values give equal text. */
+export function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+	if (typeof value === 'object' && value !== null) {
+		const entries = Object.entries(value)
+			.filter(([, item]) => item !== undefined)
+			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
+	}
+	return JSON.stringify(value);
+}
+
+/**
+ * `sha256-` and the digest of `{ workspace, apps }` with each `boot` left out (2.2): it changes when a
+ * deployer's entry changes, not when a package's display does.
+ */
+export function generationOf(
+	workspace: DeploymentWorkspaceV2,
+	apps: readonly ProjectionAppV2[]
+): string {
+	const entries = apps.map(({ boot: _boot, ...entry }) => entry);
+	const digest = createHash('sha256').update(canonicalJson({ workspace, apps: entries }));
+	return `sha256-${digest.digest('hex')}`;
+}
+
 /** The whitelist of what reaches a browser. A key not named here cannot arrive there. */
 export function projectionOf(
-	deployment: DeploymentV1,
-	instances: readonly InstanceEffect[]
-): ProjectionV1 {
-	return {
-		deployment_version: 1,
-		sandbox_origin: deployment.sandbox?.origin ?? null,
-		apps: instances.map(({ id, entry, mounted, prefix, transport }) => ({
+	deployment: DeploymentV1 | DeploymentV2,
+	instances: readonly InstanceEffect[],
+	workspace: DeploymentWorkspaceV2 = DEFAULT_WORKSPACE_V2,
+	findings: readonly DeploymentFinding[] = []
+): ProjectionV2 {
+	const apps: ProjectionAppV2[] = instances.map((effect) => {
+		const { id, entry, mounted, prefix, transport } = effect;
+		return {
 			instance: id,
 			app: entry.app,
 			package: `apps/${id}/`,
@@ -75,14 +157,22 @@ export function projectionOf(
 			...(entry.space !== undefined ? { space: entry.space } : {}),
 			...(entry.expose !== undefined ? { expose: entry.expose } : {}),
 			...(entry.commands !== undefined ? { commands: entry.commands } : {}),
-		})),
+			boot: bootRecordOf(effect, findings),
+		};
+	});
+	return {
+		deployment_version: 2,
+		generation: generationOf(workspace, apps),
+		workspace: { id: workspace.id, name: workspace.name },
+		sandbox_origin: deployment.sandbox?.origin ?? null,
+		apps,
 	};
 }
 
 /** A projection the schema refuses stops the write: nothing with an unknown key is ever served. */
 export function checkedProjection(
 	candidate: unknown
-): { ok: true; projection: ProjectionV1 } | { ok: false; refusals: DeploymentFinding[] } {
+): { ok: true; projection: ProjectionV2 } | { ok: false; refusals: DeploymentFinding[] } {
 	const read = readProjection(candidate);
 	return read.ok
 		? { ok: true, projection: read.projection }
@@ -108,6 +198,27 @@ export function withFrameSrc(html: string, frameSrc: string): string | undefined
 	return `${html.slice(0, meta.index)}${tag}${html.slice(meta.index + meta[0].length)}`;
 }
 
+/**
+ * A different `workspace.id` from the one `--out` last held (4.2): a browser's records are under the
+ * old one. A warning, since the deployer may mean it.
+ */
+async function workspaceChange(out: string, id: string): Promise<DeploymentFinding | undefined> {
+	let previous: unknown;
+	try {
+		previous = JSON.parse(await readFile(join(out, 'deployment.json'), 'utf8'));
+	} catch {
+		return undefined;
+	}
+	const before = (previous as { workspace?: { id?: unknown } } | null)?.workspace?.id;
+	if (typeof before !== 'string' || before === id) return undefined;
+	return {
+		code: 'DEPLOYMENT_WORKSPACE_CHANGED',
+		key: 'workspace.id',
+		message: `The workspace was \`${before}\` and is now \`${id}\`: what a browser holds under \`${before}\` is stranded there.`,
+		suggestion: `Keep \`workspace.id = "${before}"\` unless you mean to start a new workspace.`,
+	};
+}
+
 function pathRefusal(key: string, message: string, suggestion: string): DeploymentFinding {
 	return { code: 'DEPLOYMENT_PATH_INVALID', key, message, suggestion };
 }
@@ -117,7 +228,7 @@ async function pathRefusals(
 	options: WriteDeploymentOptions,
 	dist: string,
 	out: string,
-	deployment: DeploymentV1,
+	deployment: DeploymentV1 | DeploymentV2,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const found: DeploymentFinding[] = [];
@@ -216,9 +327,18 @@ export async function writeDeployment(
 	const out = await realish(options.out);
 	const paths = await pathRefusals(options, dist, out, analysis.deployment, analysis.instances);
 	if (paths.length > 0) return stop(paths);
-	const checked = checkedProjection(projectionOf(analysis.deployment, analysis.instances));
+	const checked = checkedProjection(
+		projectionOf(
+			analysis.deployment,
+			analysis.instances,
+			analysis.workspace,
+			analysis.instanceRefusals
+		)
+	);
 	if (!checked.ok) return stop(checked.refusals);
 	const { projection } = checked;
+	const changed = await workspaceChange(out, projection.workspace.id);
+	if (changed) warnings.push(changed);
 	const anyView = analysis.instances.some(({ rawKind }) => rawKind === 'view');
 	const frameSrc = anyView && projection.sandbox_origin ? projection.sandbox_origin : "'none'";
 	const page = withFrameSrc(await readFile(join(dist, 'index.html'), 'utf8'), frameSrc);

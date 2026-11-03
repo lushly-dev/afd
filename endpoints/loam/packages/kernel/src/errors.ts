@@ -7,7 +7,8 @@ import { type CommandError, type CommandResult, failure } from '@lushly-dev/afd-
 
 /**
  * Codes a {@link LoamKernelError} or a kernel failure carries: every code of the phase 1
- * specification's section 10 that is not a refusal of a manifest.
+ * specification's section 10 that is not a refusal of a manifest, and those phase 2 adds as its steps
+ * land (phase 2 specification, section 12).
  */
 export type LoamKernelErrorCode =
 	| 'COMMAND_NAME_INVALID'
@@ -61,6 +62,7 @@ export type LoamKernelErrorCode =
 	| 'OVERLAY_NOT_FOUND'
 	| 'OVERLAY_NOT_OWNER'
 	| 'OVERLAY_OWNER_INACTIVE'
+	| 'SCOPE_PROJECT_REQUIRED'
 	| 'STATUS_ITEM_UNKNOWN'
 	| 'VIEW_CALL_REFUSED'
 	| 'VIEW_READY_TIMEOUT'
@@ -96,6 +98,8 @@ export interface LoamKernelErrorInit {
 	message: string;
 	suggestion: string;
 	details?: Record<string, unknown>;
+	/** Whether the same call may succeed later, as a port asked for before stage B ends. */
+	retryable?: boolean;
 }
 
 /**
@@ -105,7 +109,7 @@ export interface LoamKernelErrorInit {
 export class LoamKernelError extends Error {
 	readonly code: LoamKernelErrorCode;
 	readonly suggestion: string;
-	readonly retryable = false;
+	readonly retryable: boolean;
 	readonly details?: Record<string, unknown>;
 
 	constructor(init: LoamKernelErrorInit) {
@@ -113,6 +117,7 @@ export class LoamKernelError extends Error {
 		this.name = 'LoamKernelError';
 		this.code = init.code;
 		this.suggestion = init.suggestion;
+		this.retryable = init.retryable ?? false;
 		if (init.details !== undefined) this.details = init.details;
 	}
 

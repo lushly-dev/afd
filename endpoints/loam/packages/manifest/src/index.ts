@@ -19,19 +19,31 @@ export {
 } from './catalogs.js';
 export { forInterfaceOne } from './interface-one.js';
 export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
+// Stage A's reader, in first paint: it holds no validator (phase 2 specification, 2.2).
+export {
+	type BootAppV2,
+	type BootProjectionV2,
+	type BootRefusalV2,
+	readBoot,
+} from './read-boot.js';
 export type {
 	DeploymentRead,
 	DeploymentRefusal,
 	DeploymentRefusalCode,
 	DeploymentV1,
+	DeploymentV2,
+	DeploymentWorkspaceV2,
 	ManifestRead,
 	ManifestRefusal,
 	ManifestRefusalCode,
 	ManifestV1,
 	ManifestV2,
 	ProjectionAppV1,
+	ProjectionAppV2,
+	ProjectionBootV2,
 	ProjectionMountedV1,
 	ProjectionRead,
 	ProjectionV1,
+	ProjectionV2,
 	Refusal,
 } from './types.js';

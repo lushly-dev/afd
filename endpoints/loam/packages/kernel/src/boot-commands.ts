@@ -18,7 +18,7 @@ import { type AppearanceStateV0, type AppearanceV0, resolveTheme } from './appea
 import type { AppsRuntime } from './apps-runtime.js';
 import type { LayoutStateV0 } from './layout.js';
 import type { ShellState } from './shell-state.js';
-import type { AppSummaryV1, KernelEnvironmentV0 } from './types.js';
+import type { AppSummaryV2, KernelEnvironmentV0 } from './types.js';
 
 export const emptyInput = z.strictObject({});
 
@@ -73,7 +73,7 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 
 	const appList = defineCommandWithSchema<
 		typeof emptyInput,
-		{ active: string | null; apps: AppSummaryV1[] }
+		{ active: string | null; apps: AppSummaryV2[] }
 	>({
 		name: 'app-list',
 		description: 'List the deployed apps with their state, and which one is active',

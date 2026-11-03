@@ -5,7 +5,8 @@
  */
 
 import type { FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV1 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import { appEntryDefinition, LoamAppEntry } from './elements/app-entry.js';
 import { LoamRail, LoamTabbar, railDefinition, tabbarDefinition } from './elements/app-nav.js';
 import { emptyStateDefinition, LoamEmptyState } from './elements/empty-state.js';
 import { LoamMain, mainDefinition } from './elements/main.js';
@@ -26,6 +27,8 @@ import { applyThemeStylesheet } from './theme.js';
 
 const ELEMENTS: [typeof FASTElement, { name: string }][] = [
 	[LoamEmptyState, emptyStateDefinition],
+	// In first paint, so the rail lists the apps from their boot records (phase 2 specification, 2.2).
+	[LoamAppEntry, appEntryDefinition],
 	[LoamStatusItem, statusItemDefinition],
 	[LoamTitlebar, titlebarDefinition],
 	[LoamRail, railDefinition],
@@ -47,7 +50,6 @@ export const CHROME_ELEMENTS: readonly string[] = Object.freeze([
 	'loam-mount',
 	'loam-list',
 	'loam-part-header',
-	'loam-app-entry',
 	'loam-status-action',
 	'loam-toast-region',
 	'loam-toast',
@@ -72,13 +74,16 @@ export function defineChrome(): Promise<void> {
 }
 
 export interface MountShellOptions {
-	kernel: LoamKernelV1;
+	kernel: LoamKernelV2;
 	/** The text of `@lushly-dev/loam-theme/loam-theme.css`, adopted on the document. */
 	themeCss: string;
 	/** Where the status bar reads the journal's last sequence number at boot. */
 	journal?: JournalReader;
-	/** Whether the deployment lists an app, so the app surfaces load before first paint. */
-	apps?: boolean;
+	/**
+	 * Whether the boot records list an app, so the first frame reads `app-list` and the rail lists them
+	 * (phase 2 specification, 2.2). An empty shell's journal gains nothing.
+	 */
+	listsApps?: boolean;
 	/**
 	 * The path main's "Nothing here" links home to. Default: the document's base path. Fixtures
 	 * served under a path of their own set it, so two renders compare equal.
@@ -97,7 +102,7 @@ export async function mountShell(
 	shell.kernel = options.kernel;
 	shell.journal = options.journal ?? null;
 	if (options.home !== undefined) shell.home = options.home;
-	if (options.apps) shell.hasApps = true;
+	if (options.listsApps) shell.listsApps = true;
 	container.append(shell);
 	await shell.ready;
 	return shell;

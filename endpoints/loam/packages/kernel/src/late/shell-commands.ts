@@ -49,7 +49,7 @@ import type {
 	CommandSummaryV1,
 	KernelEnvironmentV0,
 	KernelOptionsV0,
-	ShellInfoV1,
+	ShellInfoV2,
 } from '../types.js';
 
 export interface ShellCommandDeps {
@@ -379,7 +379,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV1>({
+	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV2>({
 		name: 'shell-info-get',
 		description: 'Get the shell interface versions, the host and the store backend',
 		category: 'shell',
@@ -389,11 +389,11 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
 			return success({
-				kernelInterface: 1 as const,
+				kernelInterface: 2 as const,
 				layoutState: 0 as const,
 				storeInterface: 0 as const,
 				tokenContract: 1 as const,
-				manifestVersion: 1 as const,
+				manifestVersion: 2 as const,
 				appProtocol: 1 as const,
 				surfaceCatalog: 1 as const,
 				compositionLibrary: 1 as const,

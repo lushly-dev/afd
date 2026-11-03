@@ -6,6 +6,6 @@
 export { deriveMutation, mountCommandName } from './naming.js';
 export { keyOf } from './pointers.js';
 export { readCoreManifest } from './read-core-manifest.js';
-export { readDeployment } from './read-deployment.js';
+export { DEFAULT_WORKSPACE_V2, readDeployment, workspaceNameOf } from './read-deployment.js';
 export { readManifest } from './read-manifest.js';
 export { readProjection } from './read-projection.js';

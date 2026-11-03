@@ -19,14 +19,14 @@ import {
 	type ReplayReport,
 	replayJournal,
 } from '@lushly-dev/afd-server/direct';
-import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { createFixedEnvironment } from './session.js';
-import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV1 } from './types.js';
+import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV2 } from './types.js';
 
 export {
 	createReferenceWorkspace,
@@ -64,8 +64,8 @@ export {
  * Result paths replay leaves out: the timing, the environment-dependent results
  * (`appearance-*` `data.resolved`, `shell-info-get` `data.host` and `data.store`) and the Mock
  * session's timestamps. `MockAuthAdapter` derives the session id from `Date.now()`, so it is a
- * timestamp too. Its user id comes from the email now, but journals recorded earlier, the committed
- * fixture among them, hold a timestamped one, so `data.user.id` stays until they are re-recorded.
+ * timestamp too. Its user id comes from the email, so a replay compares it (phase 2 specification,
+ * step 0b; the committed fixture was re-recorded by step 2).
  */
 export const REPLAY_IGNORE: readonly string[] = Object.freeze([
 	'metadata.executionTimeMs',
@@ -74,7 +74,6 @@ export const REPLAY_IGNORE: readonly string[] = Object.freeze([
 	'data.store',
 	'data.session.id',
 	'data.session.expiresAt',
-	'data.user.id',
 ]);
 
 export interface ReplayKernelOptions {
@@ -90,7 +89,7 @@ export interface ReplayKernelOptions {
 	 */
 	keep?: boolean;
 	/** The recording kernel's deployment. */
-	deployment?: ProjectionV1;
+	deployment?: ProjectionV2;
 	/** Ports that serve the deployment's packages in process, so a view replays with no iframe. */
 	ports?: KernelPortsV1;
 }
@@ -108,7 +107,7 @@ export interface ReplayKernelResult {
 	/** `appearance-get` after the last entry. */
 	appearance: AppearanceV0;
 	/** The replayed kernel, when `keep` was set; the caller disposes it. */
-	kernel?: LoamKernelV1;
+	kernel?: LoamKernelV2;
 }
 
 /**
@@ -377,16 +376,15 @@ export interface DiffJournalsOptions {
 }
 
 /**
- * Result paths `diffJournals` leaves out: the duration, the per-session trace ID, the Mock
- * session's timestamps (its id comes from `Date.now()`) and the user id, which journals recorded
- * before it came from the email hold as a timestamp.
+ * Result paths `diffJournals` leaves out: the duration, the per-session trace ID and the Mock
+ * session's timestamps (its id comes from `Date.now()`). The user id comes from the email, so it is
+ * compared.
  */
 export const DIFF_IGNORE: readonly string[] = Object.freeze([
 	'metadata.executionTimeMs',
 	'metadata.traceId',
 	'data.session.id',
 	'data.session.expiresAt',
-	'data.user.id',
 ]);
 
 /** JSON with object keys sorted at every level, so key order never counts as a difference. */

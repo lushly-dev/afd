@@ -14,12 +14,7 @@ import {
 } from '@lushly-dev/loam-manifest';
 import { fromJSONSchema, type ZodType } from 'zod';
 import type { LoamKernelErrorCode } from '../errors.js';
-import {
-	createDefaultLayout,
-	type LayoutPart,
-	type LayoutStateV0,
-	validateLayoutPatch,
-} from '../layout.js';
+import { firstLayoutOf, type LayoutPart, type LayoutStateV0 } from '../layout.js';
 import type { AppKindV1 } from '../types.js';
 import type { AppRecord } from './operations.js';
 
@@ -78,6 +73,8 @@ export function baseRecord(
 		instance: entry.instance,
 		app: entry.app,
 		kind,
+		scopeLevels: scopeLevelsOf(entry, manifest, kind === 'mounted'),
+		rail: railOf(manifest),
 		title: entry.title ?? rail?.label ?? manifest?.plugin.title ?? entry.instance,
 		icon: rail?.icon ?? DEFAULT_ICON,
 		order: entry.order ?? rail?.order ?? DEFAULT_ORDER,
@@ -195,17 +192,38 @@ export function configRefusal(
 	);
 }
 
+/** The parts a manifest's surfaces declare, which a boot record's `parts` says too. */
+export function declaredPartsOf(manifest: ManifestV1 | undefined): LayoutPart[] {
+	const surfaces = manifest?.ui?.surfaces ?? {};
+	return PARTS.filter((part) => surfaces[part] !== undefined);
+}
+
 /** An instance's first layout: the defaults, undeclared parts closed, with the preset over them (4.5). */
 export function firstLayout(manifest: ManifestV1 | undefined): {
 	initial: LayoutStateV0;
 	declared: Set<LayoutPart>;
 } {
+	return firstLayoutOf(declaredPartsOf(manifest), manifest?.ui?.layout);
+}
+
+/**
+ * The levels an entry serves (phase 2 specification, 2.2): `app.scope_levels`, or `["workspace"]`, and
+ * `["project"]` for a mounted entry that names `projects` (9.1).
+ */
+export function scopeLevelsOf(
+	entry: ProjectionAppV1,
+	manifest: ManifestV1 | undefined,
+	mounted: boolean
+): Array<'workspace' | 'project'> {
+	if (mounted && entry.projects !== undefined) return ['project'];
+	return [...(manifest?.app?.scope_levels ?? ['workspace'])];
+}
+
+/** `false` for a rail-less plugin: `ui.documents` with no rail, sidebar or main (8.3). */
+export function railOf(manifest: ManifestV1 | undefined): boolean {
 	const surfaces = manifest?.ui?.surfaces ?? {};
-	const declared = new Set(PARTS.filter((part) => surfaces[part] !== undefined));
-	const seeded = validateLayoutPatch(createDefaultLayout(), manifest?.ui?.layout ?? {});
-	const initial = seeded.valid ? seeded.state : createDefaultLayout();
-	for (const part of PARTS) if (!declared.has(part)) initial[part].open = false;
-	return { initial, declared };
+	const documents = (manifest?.ui as { documents?: unknown } | undefined)?.documents !== undefined;
+	return !(documents && !surfaces.rail && !surfaces.sidebar && !surfaces.main);
 }
 
 /** The shell's own domains and every domain a deployment entry has taken so far (D66). */

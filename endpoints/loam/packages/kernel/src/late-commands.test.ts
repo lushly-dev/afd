@@ -7,9 +7,17 @@ import { z } from 'zod';
 import { SHELL_COMMAND_NAMES } from './commands.js';
 import { createKernel } from './kernel.js';
 import { createFixedEnvironment } from './testing.js';
-import type { KernelEventV1, KernelOptionsV1 } from './types.js';
 
-function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
+// What `readBoot` reads of the empty shell's `deployment.json` (phase 2 specification, 2.2).
+const EMPTY_BOOT = {
+	generation: 'empty',
+	workspace: { id: 'personal', name: 'Personal' },
+	apps: [],
+};
+
+import type { KernelEventV1, KernelOptionsV2 } from './types.js';
+
+function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -17,7 +25,7 @@ function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
 		auth: new MockAuthAdapter(),
 		environment: createFixedEnvironment(),
 		host: 'test',
-		deferLate: true,
+		boot: EMPTY_BOOT,
 		...overrides,
 	};
 }
@@ -44,7 +52,7 @@ describe('stage A and stage B', () => {
 	});
 
 	it('resolves with no wait at all when nothing defers', async () => {
-		const kernel = await createKernel(options({ deferLate: false }));
+		const kernel = await createKernel(options({ boot: undefined }));
 		await kernel.appsReady;
 		expect(kernel.listCommands().map((row) => row.name)).toEqual([...SHELL_COMMAND_NAMES]);
 		await kernel.startApps();
@@ -102,7 +110,7 @@ describe('stage A and stage B', () => {
 			handler: async () => success(null),
 		}) as unknown as ZodCommandDefinition;
 		await expect(
-			createKernel(options({ deferLate: false, commands: [extra] }))
+			createKernel(options({ boot: undefined, commands: [extra] }))
 		).rejects.toMatchObject({ code: 'COMMAND_NAME_DUPLICATE' });
 	});
 

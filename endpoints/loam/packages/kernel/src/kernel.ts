@@ -23,11 +23,13 @@ import {
 	type JournalMiddlewareOptions,
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
 import {
-	type AppCommandRowV1,
 	type AppsRuntime,
+	bootApps,
+	deploymentRefused,
 	EMPTY_APPS,
-	unavailableApps,
+	runtimeUnavailable,
 } from './apps-runtime.js';
 import { createBootCommands } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
@@ -39,14 +41,16 @@ import {
 	needsInput,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
+import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
 import { registerShellState } from './shell-state.js';
 import type {
+	AppsLoadV2,
 	CallOptionsV1,
 	CommandSummaryV1,
 	KernelEventV1,
-	KernelOptionsV1,
-	LoamKernelV1,
+	KernelOptionsV2,
+	LoamKernelV2,
 } from './types.js';
 
 /** The kernel's two interfaces, one registry each. */
@@ -54,6 +58,21 @@ export type KernelInterfaceV0 = KernelEventV1['interface'];
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
 export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. notes-create';
+
+/**
+ * Commands that answer from what stage B reads, so a call waits for stage B (phase 2 specification,
+ * 2.2). Each is a late command, which stage A never registers, so `run`'s wait for a name it does not
+ * hold already covers them, and `boot-apps.test.ts` holds that true.
+ */
+export const NEEDS_STAGE_B: readonly string[] = [
+	'app-get',
+	'app-command-list',
+	'app-instance-list',
+	'app-instance-refresh',
+	'app-selection-get',
+	'app-selection-set',
+	'status-item-set',
+];
 
 /** Commands the one journal middleware leaves out: `palette-search` runs per keystroke. */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze(['palette-search']);
@@ -135,7 +154,7 @@ function reportKernelError(error: unknown): void {
 
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
 export interface KernelParts {
-	kernel: LoamKernelV1;
+	kernel: LoamKernelV2;
 	/** The current registries; {@link KernelParts.setAppCommands} replaces them. */
 	readonly registries: Record<KernelInterfaceV0, DirectCommandRegistry>;
 	/**
@@ -148,6 +167,8 @@ export interface KernelParts {
 	applyCatalog(instance: string, catalog: unknown): void;
 	/** Forget what a page holds only in memory, as a reload does: overlays, selections, status values. */
 	resetSession(): void;
+	/** Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B (step 4 calls it). */
+	runBoot(name: string, input: unknown): Promise<CommandResult>;
 }
 
 /** What only `replayKernel` asks of a kernel. */
@@ -163,7 +184,7 @@ export interface KernelPartsInternals {
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
 export async function createKernelParts(
-	options: KernelOptionsV1,
+	options: KernelOptionsV2,
 	internals: KernelPartsInternals = {}
 ): Promise<KernelParts> {
 	const { environment } = options;
@@ -194,7 +215,7 @@ export async function createKernelParts(
 				};
 			});
 
-	const boot = createBootCommands({
+	const bootCommands = createBootCommands({
 		state,
 		environment,
 		auth: options.auth,
@@ -203,11 +224,11 @@ export async function createKernelParts(
 	const extra = options.commands ?? [];
 
 	// Name refusal comes first: a bad name never reaches a registry.
-	checkNames([...boot, ...extra]);
+	checkNames([...bootCommands, ...extra]);
 
 	const shellExposed = (commands: readonly ZodCommandDefinition[]): ZodCommandDefinition[] =>
 		commands.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } }));
-	let fixed: ZodCommandDefinition[] = [...shellExposed(boot), ...extra];
+	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...extra];
 	const seqs = new Map<string, number>();
 	// One journal middleware, shared by every registry, so they share one journal sequence.
 	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
@@ -240,6 +261,8 @@ export async function createKernelParts(
 	}
 
 	let lateFailure: CommandError | undefined;
+	/** `late/`'s `withBootActions`, once that chunk has loaded. */
+	let addBootActions: typeof import('./late/index.js').withBootActions | undefined;
 	const lateUnavailable = (): CommandError => ({
 		code: 'LATE_COMMANDS_UNAVAILABLE',
 		message: 'The late commands did not load',
@@ -251,9 +274,11 @@ export async function createKernelParts(
 	async function loadLate(): Promise<void> {
 		let shell: ZodCommandDefinition[];
 		try {
-			const { createOverlayStore, shellCommandsWithLate } = await import('./late/index.js');
+			const late = await import('./late/index.js');
+			const { createOverlayStore, shellCommandsWithLate } = late;
+			addBootActions = late.withBootActions;
 			overlays = createOverlayStore();
-			shell = shellCommandsWithLate(boot, {
+			shell = shellCommandsWithLate(bootCommands, {
 				viewState,
 				state,
 				environment,
@@ -276,16 +301,126 @@ export async function createKernelParts(
 
 	let stageB: Promise<void> | undefined;
 	let stageBEnded = false;
-	let waiting = 0;
+	/**
+	 * The calls queued behind stage B, as a chain: each runs once stage B has ended and the call before
+	 * it has finished, so they run and are journaled in the order they were made. Running them together
+	 * would not: the journal appends after hashing the context with WebCrypto, which finishes in any order.
+	 */
+	let queue: Promise<unknown> | undefined;
+	/**
+	 * The fields of boot's own journaled work, an object no caller can name (phase 2 specification, 2.2).
+	 * Step 4 runs `workspace-deployment-apply` with them from inside stage B, so they never join the queue,
+	 * which waits for stage B and would never drain.
+	 */
+	const BOOT_FIELDS: KernelCallFields = {};
 	let endStageB: () => void = () => {};
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;
 	});
-	/** Stage B, once: so far only the late commands (phase 2 specification, 2.2). It never rejects. */
+	const { boot } = options;
+	/** Stage A has hydrated, so stage B reads only what it registers new, one record at a time. */
+	let hydrated = false;
+	/** Why stage B ended early, so `createKernel` can reject on a refused name when it ran inside it. */
+	let stageBError: unknown;
+
+	/** What stage B reads of the apps: the host's loader with `boot`, else the options themselves. */
+	async function readApps(): Promise<AppsLoadV2 | undefined> {
+		if (boot) return options.appsLoader?.();
+		const listed = options.deployment;
+		if (listed === undefined || listed.apps.length === 0) return undefined;
+		return {
+			deployment: listed,
+			...(options.ports !== undefined ? { ports: options.ports } : {}),
+		} as AppsLoadV2;
+	}
+
+	/** The apps, once the late commands are in. One app's failure, or the runtime's, never stops the shell. */
+	async function loadAppsStage(): Promise<void> {
+		const listsApps = boot ? boot.apps.length > 0 : (options.deployment?.apps.length ?? 0) > 0;
+		if (!listsApps) return;
+		// Every entry is listed `failed` with the reason, from its boot record, or from the projection's
+		// own entry when the host gave no boot.
+		const listed = boot ?? (readBoot(options.deployment) as BootProjectionV2);
+		const fallBack = (failure: CommandError) => {
+			const listedOnly = bootApps(listed, { failure });
+			apps =
+				addBootActions?.(
+					listedOnly,
+					new Map(listed.apps.map((app) => [app.instance, app.parts])),
+					state,
+					overlays
+				) ?? listedOnly;
+		};
+		if (lateFailure) {
+			fallBack(runtimeUnavailable(lateFailure.message));
+			return;
+		}
+		let loaded: AppsLoadV2 | undefined;
+		try {
+			loaded = await readApps();
+		} catch (cause) {
+			reportKernelError(cause);
+			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
+			return;
+		}
+		if (loaded === undefined) {
+			fallBack(runtimeUnavailable('no apps loader'));
+			return;
+		}
+		if ('refused' in loaded) {
+			fallBack(deploymentRefused(loaded.refused));
+			return;
+		}
+		const { deployment } = loaded;
+		try {
+			const { loadApps } = await import('./apps/index.js');
+			apps = await loadApps({
+				deployment,
+				...(loaded.ports !== undefined ? { ports: loaded.ports } : {}),
+				store: options.store,
+				taken: new Set(fixed.map((command) => command.name)),
+				state,
+				viewState,
+				overlays: overlays as OverlayStore,
+				owners: () => apps.owners,
+				isMutation: (name) => mutations.get(name) === true,
+				setCommands: setAppCommands,
+				palette: () => ({
+					commands: registries.palette.listCommands(),
+					rows: summarize(registries.palette),
+				}),
+				runAs: (name, input, callOptions, fields, unqueued) =>
+					unqueued
+						? execute('palette', name, input, callOptions ?? {}, fields)
+						: run('palette', name, input, callOptions, fields),
+				clock: () => options.clock?.() ?? Date.now(),
+			});
+			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
+		} catch (cause) {
+			// A chunk that does not load refuses every app, and never the shell (D66).
+			reportKernelError(cause);
+			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
+		}
+	}
+
+	/**
+	 * Stage B, once (phase 2 specification, 2.2): the late commands, then each package's manifest, read
+	 * and validated, and the app commands. After stage A, a manifest that differs from its boot record
+	 * wins, keeping what `hydrate` loaded where it still validates. It never rejects.
+	 */
 	function startApps(): Promise<void> {
-		stageB ??= loadLate()
-			.then(() => setAppCommands(apps.commands))
+		stageB ??= (async () => {
+			await loadLate();
+			await loadAppsStage();
+			if (hydrated) {
+				await state.hydrateLate();
+				state.forgetUnlisted(new Set(apps.summaries().map((app) => app.instance)));
+				apps.reconcileLayouts();
+			}
+			setAppCommands(apps.commands);
+		})()
 			.catch((cause: unknown) => {
+				stageBError = cause;
 				reportKernelError(cause);
 				lateFailure = { ...lateUnavailable(), message: String((cause as Error)?.message ?? cause) };
 			})
@@ -301,20 +436,47 @@ export async function createKernelParts(
 	let calls = 0;
 	let disposed = false;
 
-	async function run<T>(
+	/**
+	 * A name stage A does not hold waits for stage B, so a chord or an agent's first call runs a moment
+	 * later, and so does any call made while one waits, so calls run and are journaled in the order they
+	 * were made. `NEEDS_STAGE_B`'s names are all late, so stage A never registers them and they wait here
+	 * too. A nested call (an app's, through `runAs`) runs inside its parent, which may hold the queue, so
+	 * it never joins it, and nor does boot's own work (`BOOT_FIELDS`), which stage B runs from inside
+	 * `startApps`. The trade-off: while the queue drains, one slow call holds every call behind it. Once
+	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2.
+	 */
+	function run<T>(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
 		callOptions: CallOptionsV1 = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
-		// A name stage A does not hold waits for stage B, so a chord or an agent's first call runs a moment
-		// later, and so does any call after it, so calls still run in the order they were made.
-		if (!disposed && !stageBEnded && (waiting > 0 || !mutations.has(name))) {
-			waiting += 1;
-			await startApps();
-			waiting -= 1;
-		}
+		const go = () => execute<T>(iface, name, input, callOptions, fields);
+		if (
+			disposed ||
+			// Not truthiness: a frame's call may name its parent with an empty trace ID.
+			fields.parent !== undefined ||
+			fields === BOOT_FIELDS ||
+			!(queue || (!stageBEnded && !mutations.has(name)))
+		)
+			return go();
+		const mine = (queue ?? startApps()).then(go);
+		const drained = () => {
+			if (queue === tail) queue = undefined;
+		};
+		const tail: Promise<unknown> = mine.then(drained, drained);
+		queue = tail;
+		return mine;
+	}
+
+	async function execute<T>(
+		iface: KernelInterfaceV0,
+		name: string,
+		input: unknown,
+		callOptions: CallOptionsV1,
+		fields: KernelCallFields
+	): Promise<CommandResult<T>> {
 		if (disposed) {
 			return failure({
 				code: 'KERNEL_DISPOSED',
@@ -365,64 +527,29 @@ export async function createKernelParts(
 			: { ...result, metadata: { ...result.metadata, 'dev.loam/seq': seq } };
 	}
 
-	// `apps/` loads only for a deployment that lists an app, so the empty shell never fetches it.
-	const listed = options.deployment as NonNullable<KernelOptionsV1['deployment']> | undefined;
-	const listsApps = listed !== undefined && listed.apps.length > 0;
-	// Until step 2's `boot`, only a host with no app to load can resolve before stage B.
-	if (options.deferLate !== true || listsApps) {
-		await loadLate();
-		stageBEnded = true;
-		stageB = appsReady;
-		endStageB();
-	}
-	const unavailable = options.appsUnavailable ?? (listsApps ? lateFailure?.message : undefined);
-	if (unavailable !== undefined) {
-		apps = unavailableApps(listed, state, unavailable);
-	} else if (listsApps) {
-		try {
-			const { loadApps } = await import('./apps/index.js');
-			apps = await loadApps({
-				deployment: listed,
-				...(options.ports !== undefined ? { ports: options.ports } : {}),
-				store: options.store,
-				taken: new Set(fixed.map((command) => command.name)),
-				state,
-				viewState,
-				overlays: overlays as OverlayStore,
-				owners: () => apps.owners,
-				isMutation: (name) => mutations.get(name) === true,
-				setCommands: setAppCommands,
-				commandRows(instance) {
-					const summaries = new Map(summarize(registries.palette).map((row) => [row.name, row]));
-					return registries.palette
-						.listCommands()
-						.filter((command) => apps.owners.get(command.name)?.instance === instance)
-						.map(
-							(command): AppCommandRowV1 => ({
-								...(summaries.get(command.name) as CommandSummaryV1),
-								inputSchema: command.inputSchema,
-								...(command.destructive !== undefined ? { destructive: command.destructive } : {}),
-							})
-						);
-				},
-				runAs: (name, input, callOptions, fields) =>
-					run('palette', name, input, callOptions, fields),
-				clock: () => options.clock?.() ?? Date.now(),
-			});
-			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
-		} catch (cause) {
-			// A chunk that does not load refuses every app, and never the shell (D66).
-			reportKernelError(cause);
-			apps = unavailableApps(listed, state, String((cause as Error)?.message ?? cause));
+	setAppCommands([]);
+	if (boot) {
+		// Stage A: each app's layout record from its boot record, then the persisted state, before the
+		// first frame. Nothing but display comes of a record (2.2).
+		for (const app of boot.apps) {
+			const { initial, declared } = firstLayoutOf(app.parts, app.layout);
+			state.registerAppLayout(app.instance, initial, declared);
 		}
+		await state.hydrate();
+		hydrated = true;
+		apps = bootApps(boot);
+	} else {
+		// No boot, as in every test and the test kit: stage B runs before `createKernel` resolves, so
+		// `createKernel({ deployment, ports })` keeps phase 1's meaning, and so does a replay.
+		await startApps();
+		// A refused name rejects `createKernel` here, as phase 0 has it; in the background it is kept.
+		if (stageBError instanceof LoamKernelError) throw stageBError;
+		await state.hydrate();
+		apps.reconcileLayouts();
 	}
-	setAppCommands(apps.commands);
 
-	await state.hydrate();
-	apps.reconcileLayouts();
-
-	const kernel: LoamKernelV1 = {
-		version: 1,
+	const kernel: LoamKernelV2 = {
+		version: 2,
 		call: (name, input, callOptions) => run('palette', name, input, callOptions),
 		listCommands: () => summarize(registries.palette),
 		subscribe(listener) {
@@ -474,18 +601,20 @@ export async function createKernelParts(
 			overlays?.reset();
 			apps.resetSession();
 		},
+		runBoot: (name, input) => run('palette', name, input, {}, BOOT_FIELDS),
 	};
 }
 
 /**
- * Create the kernel: check every command name, read the deployment's packages, build the palette and
- * agent registries over the same commands and journal, and hydrate the view state from `store` before
- * resolving. A bad app never rejects it: it is reported in `app-list`. With `deferLate` and no app listed
- * it resolves with only the boot commands, and `startApps` adds the rest.
+ * Create the kernel: check every command name, build the palette and agent registries over the same
+ * commands and journal, and hydrate the view state from `store` before resolving. With `boot` it resolves
+ * after stage A, holding only the boot commands and the boot records, and `startApps` runs stage B: the
+ * late commands and the deployment's packages (phase 2 specification, 2.2). With no `boot` it runs stage
+ * B first. A bad app never rejects it: it is reported in `app-list`.
  *
  * @throws LoamKernelError `COMMAND_NAME_INVALID` for a name that is not domain-action kebab-case,
  *   `COMMAND_NAME_DUPLICATE` for a name given twice
  */
-export async function createKernel(options: KernelOptionsV1): Promise<LoamKernelV1> {
+export async function createKernel(options: KernelOptionsV2): Promise<LoamKernelV2> {
 	return (await createKernelParts(options)).kernel;
 }

@@ -22,10 +22,10 @@ import {
 	kernelCall,
 	type Layout,
 	layoutOf,
+	measureFirstPaint,
 	openApp,
 	openShell,
 	packApp,
-	requestedBeforeFirstPaint,
 	serveDeployment,
 	surfacesIdle,
 } from '../harness';
@@ -107,7 +107,7 @@ describe('E9: layout and persistence with apps', () => {
 				.map(({ command }) => command);
 		});
 		expect(sinceReload).not.toContain('app-open');
-		const paths = await requestedBeforeFirstPaint(page);
+		const paths = await measureFirstPaint(page);
 		expect(paths.some((path) => path.endsWith('dist/native.js'))).toBe(false);
 		await page.reload();
 		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');

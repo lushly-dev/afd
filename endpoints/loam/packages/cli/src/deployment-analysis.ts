@@ -8,6 +8,8 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import {
 	type DeploymentV1,
+	type DeploymentV2,
+	type DeploymentWorkspaceV2,
 	type ManifestV2,
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
@@ -53,6 +55,8 @@ export interface InstanceEffect {
 	prefix?: string;
 	transport?: 'http' | 'stdio';
 	rawKind?: unknown;
+	/** The manifest, when `readManifest` accepted it: what its boot record is read from. */
+	manifest?: ManifestV2;
 }
 
 export interface DeploymentAnalysis {
@@ -63,7 +67,11 @@ export interface DeploymentAnalysis {
 	/** Warnings of the packages, which fail nothing. */
 	warnings: DeploymentFinding[];
 	notices: DeploymentNotice[];
-	deployment?: DeploymentV1;
+	deployment?: DeploymentV1 | DeploymentV2;
+	/** The deployment's workspace, `personal` unless it names one (phase 2 specification, 4.2). */
+	workspace?: DeploymentWorkspaceV2;
+	/** `site.base_path`, or `/`. */
+	basePath?: string;
 	instances: InstanceEffect[];
 	mounts: MountAccess[];
 }
@@ -304,7 +312,10 @@ async function readCredential(
 }
 
 /** The deployment file and each credential file: what must never be served or replaced. */
-export async function secretPaths(config: string, deployment: DeploymentV1): Promise<string[]> {
+export async function secretPaths(
+	config: string,
+	deployment: DeploymentV1 | DeploymentV2
+): Promise<string[]> {
 	const base = dirname(resolve(config));
 	const bearers = Object.values(deployment.apps).flatMap(({ bearer_file }) =>
 		bearer_file === undefined ? [] : [resolve(base, bearer_file)]
@@ -315,7 +326,7 @@ export async function secretPaths(config: string, deployment: DeploymentV1): Pro
 /** A package is served whole, so nothing secret may sit inside one. */
 async function secretsServed(
 	config: string,
-	deployment: DeploymentV1,
+	deployment: DeploymentV1 | DeploymentV2,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const secrets = await secretPaths(config, deployment);
@@ -408,6 +419,7 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 			packaged: !found,
 			mounted,
 			rawKind: state.rawKind,
+			...(manifest ? { manifest } : {}),
 			...((entry.prefix ?? manifest?.mount?.prefix)
 				? { prefix: entry.prefix ?? manifest?.mount?.prefix }
 				: {}),
@@ -453,6 +465,8 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 		warnings,
 		notices: instances.flatMap(noticesFor),
 		deployment,
+		workspace: read.workspace,
+		basePath: read.basePath,
 		instances,
 		mounts,
 	};

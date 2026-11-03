@@ -1,7 +1,7 @@
 /**
  * E5 (phase 1 specification, section 14): tally lands from a deployment entry alone. What is requested
- * before first paint is the same with and without it, but for `deployment.json` and its own manifest,
- * which 5.5 has the shell read at boot.
+ * before first paint is the same with and without it, but for `deployment.json`: from phase 2 no
+ * manifest is read before the first frame (phase 2 specification, 2.2 and E1).
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,10 +13,10 @@ import {
 	deploymentEntry,
 	deploymentFile,
 	focused,
+	measureFirstPaint,
 	openApp,
 	openShell,
 	packApp,
-	requestedBeforeFirstPaint,
 	serveDeployment,
 	serveDist,
 } from '../harness';
@@ -85,10 +85,7 @@ describe('E5: a second app lands with no shell change', () => {
 		const hello = await packApp('hello');
 		const firstPaintBytes = async (site: DeploymentSite) => {
 			const opened = await openShell(browser, site.origin);
-			await opened.page.waitForFunction(
-				() => performance.getEntriesByName('first-contentful-paint').length > 0
-			);
-			const paths = await requestedBeforeFirstPaint(opened.page);
+			const paths = await measureFirstPaint(opened.page);
 			expect(opened.errors).toEqual([]);
 			await opened.context.close();
 			return Object.fromEntries(
@@ -112,10 +109,11 @@ describe('E5: a second app lands with no shell change', () => {
 		const a = await firstPaintBytes(without);
 		const b = await firstPaintBytes(withTally);
 		const { '/deployment.json': _a, ...restA } = a;
-		const { '/deployment.json': _b, '/apps/tally/app-manifest.json': manifest, ...restB } = b;
+		const { '/deployment.json': _b, ...restB } = b;
 		expect(_a).toBeGreaterThan(0);
 		expect(_b).toBeGreaterThan(_a as number);
-		expect(manifest).toBeGreaterThan(0);
+		// Phase 2's one first paint: no manifest is read before the frame (2.2, E1).
+		expect(Object.keys(restB).some((path) => path.endsWith('app-manifest.json'))).toBe(false);
 		expect(restB).toEqual(restA);
 		expect(Object.keys(restA).some((path) => /dist\/native/.test(path))).toBe(false);
 		await without.close();
@@ -125,12 +123,11 @@ describe('E5: a second app lands with no shell change', () => {
 	it('keeps the empty shell free of what apps load', async () => {
 		const site = await serveDist();
 		const opened = await openShell(browser, site.origin);
-		await opened.page.waitForFunction(
-			() => performance.getEntriesByName('first-contentful-paint').length > 0
-		);
-		const paths = await requestedBeforeFirstPaint(opened.page);
+		const paths = await measureFirstPaint(opened.page);
 		expect(
-			paths.filter((path) => /surfaces-|\/apps-|validate\.generated-|deployment-/.test(path))
+			paths.filter((path) =>
+				/surfaces-|\/apps-|validate\.generated-|deployment-|\/late-/.test(path)
+			)
 		).toEqual([]);
 		expect(
 			site.log.filter(({ path }) => /surfaces-|\/apps-|validate\.generated-|deployment-/.test(path))

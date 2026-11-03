@@ -8,10 +8,10 @@ import {
 	probeDeployment,
 	probeViewManifest,
 } from '../testing.js';
-import type { HandlerFrameV1, KernelPortsV1, LoamKernelV1 } from '../types.js';
+import type { HandlerFrameV1, KernelPortsV1, LoamKernelV2 } from '../types.js';
 import { HANDLER_CALL_TIMEOUT_MS, HANDLER_READY_TIMEOUT_MS } from './index.js';
 
-const kernels: LoamKernelV1[] = [];
+const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));

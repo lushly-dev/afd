@@ -12,6 +12,7 @@ import { createOverlayCommands } from './overlay-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 
 export { createOverlayStore } from '../overlays.js';
+export { withBootActions } from './boot-actions.js';
 
 export type LateCommandDeps = ShellCommandDeps &
 	AppCommandDeps & {

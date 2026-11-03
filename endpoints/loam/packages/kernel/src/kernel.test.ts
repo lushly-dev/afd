@@ -14,15 +14,15 @@ import {
 } from './kernel.js';
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
-import type { KernelEventV1, KernelOptionsV1, LoamKernelV1 } from './types.js';
+import type { KernelEventV1, KernelOptionsV2, LoamKernelV2 } from './types.js';
 
-const kernels: LoamKernelV1[] = [];
+const kernels: LoamKernelV2[] = [];
 
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
 
-function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
+function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -35,7 +35,7 @@ function options(overrides: Partial<KernelOptionsV1> = {}): KernelOptionsV1 {
 	};
 }
 
-async function kernel(overrides: Partial<KernelOptionsV1> = {}) {
+async function kernel(overrides: Partial<KernelOptionsV2> = {}) {
 	const opts = options(overrides);
 	const created = await createKernel(opts);
 	kernels.push(created);
@@ -143,11 +143,11 @@ describe('registries and exposure', () => {
 	it('reports shell info echoing the options', async () => {
 		const { kernel: k } = await kernel({ host: 'browser', storeKind: 'indexeddb' });
 		expect((await k.call('shell-info-get')).data).toEqual({
-			kernelInterface: 1,
+			kernelInterface: 2,
 			layoutState: 0,
 			storeInterface: 0,
 			tokenContract: 1,
-			manifestVersion: 1,
+			manifestVersion: 2,
 			appProtocol: 1,
 			surfaceCatalog: 1,
 			compositionLibrary: 1,
@@ -155,7 +155,7 @@ describe('registries and exposure', () => {
 			host: 'browser',
 			store: 'indexeddb',
 		});
-		expect(k.version).toBe(1);
+		expect(k.version).toBe(2);
 	});
 });
 

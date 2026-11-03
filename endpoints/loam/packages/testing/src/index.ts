@@ -12,7 +12,7 @@ import {
 	type AppDetailV1,
 	type AppPortV1,
 	LoamKernelError,
-	type LoamKernelV1,
+	type LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
 import {
 	createFixturePorts,
@@ -60,7 +60,7 @@ export interface AppTestKernelOptions {
 }
 
 export interface AppTestKernel {
-	kernel: LoamKernelV1;
+	kernel: LoamKernelV2;
 	port: AppPortV1;
 	journal: MemoryJournalSink;
 	/** Replay everything journaled so far on a fresh kernel; it throws on any difference. */
@@ -105,7 +105,9 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 	}
 	const directory = `apps/${id}/`;
 	const deployment = {
-		deployment_version: 1 as const,
+		deployment_version: 2 as const,
+		generation: 'test',
+		workspace: { id: 'personal', name: 'Personal' },
 		sandbox_origin: kind === 'view' ? SANDBOX_ORIGIN : null,
 		apps: [
 			{
