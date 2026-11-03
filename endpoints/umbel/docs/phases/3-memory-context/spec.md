@@ -62,13 +62,14 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 7b to 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s steps 8 to 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
   [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
   [#740](https://github.com/lushly-dev/afd/pull/740), step 5 in
   [#742](https://github.com/lushly-dev/afd/pull/742), step 6 in
-  [#743](https://github.com/lushly-dev/afd/pull/743); step 7a is in its pull request, 2026-11-03.
+  [#743](https://github.com/lushly-dev/afd/pull/743), step 7a in
+  [#744](https://github.com/lushly-dev/afd/pull/744); step 7b is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2497,6 +2498,66 @@ model. The host is unchanged; the SDK gains one method (item 6).
    patterns the schema subset drops; `ids` are deduplicated. Its `confirm_prompt` is "Forget these memory
    records? Their text cannot be recovered from Umbel afterwards."; before anything is written every read
    and a forget answer as for an absent record, and create no file.
+
+### Amendments from step 7b
+
+Step 7b settled these details of sections 9.3 to 9.5 and 12 that the text left open. None weakens
+access or authority, pushes anything but `person` by default, names or counts a record the caller
+cannot read, or otherwise changes the trust model. The host is unchanged; every read is under the
+caller's reader filter, which the host applies inside the query, so the plugin's push rule only
+narrows what it may push of what the caller already reads.
+
+1. **`sections` lists only what was placed.** A section appears in `data.sections` when it holds an
+   item, in bundle order; a section that holds nothing is said in `omissions`, as the schema's empty
+   example has it. The input's `sections` is deduplicated by the plugin, since the registry's schema
+   subset has no `uniqueItems`.
+2. **`asOf` is one instant.** The input's `asOf` is one RFC 3339 instant for both valid and recorded
+   time, and `data.asOf` is it, else the command context's clock, as `YYYY-MM-DDTHH:MM:SS.fffZ`.
+   Expiry is measured against the clock, as `ReadFlags` says.
+3. **Terms.** A word over 64 characters is dropped, not cut, and terms are taken in order only while
+   the quoted, `OR`-joined index query fits the index's 1024 characters, which 32 terms of 64
+   characters would not.
+4. **A tier's cap.** Candidates past a tier's `per_authority_cap` are omitted with `budget` and their
+   id, as items past `max_items` are, so the `Left out` line counts them.
+5. **Absent lanes.** A missing optional grant, or a memory store never written (no file), is
+   `lane-unavailable` with no warning and creates no file. The memory lane reads the key file's state
+   first (`memory_key_file`, which reads no text); `Missing` or `Mismatch`, or a text read answering
+   `KeysMissing` or `KeysMismatch`, makes every memory section asked for `lane-unavailable` with
+   `MEMORY_KEYS_MISSING` or `MEMORY_KEYS_MISMATCH`, and no counts. Any other store failure fails the
+   call. Without a task, `memory_list` gives no text, so each candidate is read with `memory_get` at
+   the same instants; one whose body does not open counts in `unreadable`.
+6. **The knowledge lane re-reads each hit's document** with `doc_get` and takes its status,
+   verification, flags and `stale_after` from the store, not the index; `verified_only` checks the
+   document's tier too. The reserved files are the types `okf-index` and `okf-log` and the file names
+   `index.md` and `log.md`. `state.indexApplied` is `null` when knowledge was not asked for, had no
+   task or had no lane; `state.memoryHead` is the caller's readable head, `null` without a lane.
+7. **An item's cost** in step 3 is its JSON and its AFD `Source`, since AFD measures both.
+8. **The reserve under a small budget.** When the target is below the empty shape and 2048 bytes,
+   the reserve is what remains. When step 7 has no placed item left to move, it shortens the
+   omissions' listing further, moving `budget` entries into `omittedMore`; section-level and count
+   entries are always kept.
+9. **The omissions' order**, per section in bundle order: its section-level reason, its `budget`
+   entries in rank order, then `authority`, `flagged` and `unreadable`.
+10. **What "something left out" is** for 9.5's text: `budget` (with `omittedMore`), `authority`,
+    `flagged` and `unreadable`, which the `Left out` line counts (`N unreadable` added). A section-level
+    reason alone (`no-task`, `index-empty`, `verified-only`, `lane-unavailable`) leaves `data.text`
+    null, except the keys failure, whose line is always rendered.
+11. **The block's layout.** A blank line separates the preamble, each item, the `Left out` line and
+    the `Memory unavailable` line. A knowledge header adds ` · draft` and ` · stale` when they hold; a
+    memory header's date is the recorded date in UTC. Header values also drop `[` and `]`, which
+    validated values never hold.
+12. **Limits and codes.** `maxBytes` is 1024 to 64 000 and `maxChars` 1000 to 32 000. A refused input
+    is `CONTEXT_INVALID`, a pack override that does not load `CONTEXT_PACK_INVALID`. The pack's numbers
+    are checked: shares and factors 0 to 1, `max_items` 1 to 24, `per_authority_cap` 1 to 64,
+    `max_item_bytes` 256 to 16 000.
+13. **`tests/default_tools.rs` loads the plugins from their directories.** The host depends on no
+    plugin crate, and D80 keeps memory and context together in `umbel-first-party` alone, so the test
+    seals a host with each first-party plugin's real manifest, schemas, packs and skills and handlers
+    that answer `{}`; `tools/list` comes from those alone. It measured 16 292 bytes for the eleven
+    tools and asserts at most 20 000.
+14. **No binary and no `sha2`.** The context crate has no binary of its own (step 8's
+    `umbel-first-party` is the first to link it), and `digest` uses `umbel-store`'s SHA-256
+    (`ContentHash::of`), so the crate takes `chrono`, `serde`, `serde_json` and `toml`, all in the lock.
 
 ## 15. For the owner
 

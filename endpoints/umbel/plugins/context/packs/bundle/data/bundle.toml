@@ -1,0 +1,32 @@
+# The context plugin's bundle rules (phase 3 specification, sections 9.3 and 9.4). A space may
+# override this whole file under spaces/<space>/packs/context/bundle/data/bundle.toml.
+
+# The most items one section places; items past it are left out with reason `budget`.
+max_items = 24
+# The most memory items one authority tier places in a section, so fresh writes in a lower tier
+# never displace a higher one.
+per_authority_cap = 8
+# The longest item text, in bytes; a longer knowledge passage is cut at a line boundary and
+# marked `cut: true`, and its locator says how to open the rest.
+max_item_bytes = 4000
+# A document's score is its best chunk's plus this weight times its next two chunks'.
+secondary_weight = 0.1
+# A draft document's score is multiplied by this.
+draft_factor = 0.8
+# Words removed from a task before its terms are searched. Lower case.
+stop_words = [
+	"a", "about", "after", "all", "also", "an", "and", "any", "are", "as", "at", "be", "been",
+	"before", "but", "by", "can", "could", "do", "does", "for", "from", "had", "has", "have",
+	"how", "i", "if", "in", "into", "is", "it", "its", "may", "me", "my", "no", "not", "of",
+	"on", "or", "our", "out", "should", "so", "some", "than", "that", "the", "their", "them",
+	"then", "there", "these", "they", "this", "to", "up", "us", "was", "we", "were", "what",
+	"when", "where", "which", "while", "who", "why", "will", "with", "would", "you", "your",
+]
+
+# Each section's share of the byte budget left after the omissions' reserve. The shares of the
+# sections not asked for, or whose lane is absent, are divided among the others in proportion.
+[shares]
+knowledge = 0.5
+semantic = 0.25
+procedural = 0.15
+episodic = 0.1

@@ -1020,6 +1020,27 @@
 					"private": true
 				}
 			]
+		},
+		{
+			"id": "umbel-plugin-context",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "8f12481006c98520fdd567deea5e5f7adfe01d42",
+			"authority": "none: new context plugin crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-context",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/context/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

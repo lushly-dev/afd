@@ -1,0 +1,56 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"task": {
+			"type": "string",
+			"maxLength": 4000,
+			"description": "What the bundle is for, in plain words. Its words are searched as terms, with no query syntax. Without it the knowledge section is left out (no-task) and memory is listed by authority and recency"
+		},
+		"project": {
+			"type": "string",
+			"description": "Only memory of this project, or with no project when a person wrote it"
+		},
+		"session": {
+			"type": "string",
+			"description": "The session the bundle is for; a label, not a filter"
+		},
+		"sections": {
+			"type": "array",
+			"maxItems": 4,
+			"items": {
+				"type": "string",
+				"enum": ["knowledge", "semantic", "procedural", "episodic"]
+			},
+			"default": ["knowledge", "semantic", "procedural"],
+			"description": "The sections to assemble, in any order; they are placed in the order knowledge, semantic, procedural, episodic. episodic runs only when named"
+		},
+		"maxBytes": {
+			"type": "integer",
+			"minimum": 1024,
+			"maximum": 64000,
+			"description": "The most bytes of the whole result, as the output budget measures it; the smaller of this and the call's budget applies"
+		},
+		"render": {
+			"type": "string",
+			"enum": ["none", "text"],
+			"default": "none",
+			"description": "text also returns data.text, the quoted block a harness injects, and drops each item's text field"
+		},
+		"maxChars": {
+			"type": "integer",
+			"minimum": 1000,
+			"maximum": 32000,
+			"default": 9000,
+			"description": "The most UTF-16 code units of data.text"
+		},
+		"asOf": {
+			"type": "string",
+			"description": "Read memory as of this RFC 3339 instant, for both valid and recorded time; default: now. Knowledge is not bitemporal"
+		}
+	}
+}
