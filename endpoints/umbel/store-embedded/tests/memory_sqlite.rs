@@ -295,3 +295,117 @@ fn secure_delete_and_synchronous_are_per_connection() {
     assert_eq!(int(&first, "synchronous"), 0);
     assert_ne!(int(&second, "synchronous"), 0, "not inherited");
 }
+
+/// The whole-token leftover of FTS5's `secure-delete`, on a plain table: tokens `<p><n>q` and
+/// `<p><n>x` in odd rows, kept words in even rows, after 50 filler rows, inserted in `batches`,
+/// optionally compacted to one segment by `optimize` first, then the odd rows deleted. Returns how
+/// many `t_idx` separators hold a whole deleted token before the deletes, after them, and after
+/// running `command` (if any).
+fn separator_leftover(
+    command: Option<&str>,
+    batches: &[(i64, i64)],
+    pre_optimize: bool,
+) -> (usize, usize, usize) {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let path = dir.path().join("fts.sqlite3");
+    let conn = wal_db(&path);
+    conn.execute_batch(
+        "CREATE VIRTUAL TABLE t USING fts5(subject, tags, x,
+             tokenize = 'porter unicode61 remove_diacritics 2');
+         INSERT INTO t (t, rank) VALUES ('secure-delete', 1);",
+    )
+    .expect("create");
+    conn.execute_batch("BEGIN").expect("begin");
+    for n in 1000_i64..1050 {
+        conn.execute(
+            "INSERT INTO t (rowid, subject, tags, x) VALUES (?1, ?2, '', ?3)",
+            rusqlite::params![
+                n,
+                format!("filler note {n}"),
+                format!("ordinary words about deploys and rollbacks, number {n}")
+            ],
+        )
+        .expect("filler");
+    }
+    conn.execute_batch("COMMIT").expect("commit");
+    let p = "kzhhwdfvmdhq";
+    for &(from, to) in batches {
+        conn.execute_batch("BEGIN").expect("begin");
+        for n in from..=to {
+            let x = if n % 2 == 1 {
+                format!("{p}{n:04}q and {p}{n:04}x with kept words")
+            } else {
+                format!("kept words only, number {n:04}")
+            };
+            conn.execute(
+                "INSERT INTO t (rowid, subject, tags, x) VALUES (?1, ?2, '', ?3)",
+                rusqlite::params![n, format!("note {n}"), x],
+            )
+            .expect("a row");
+        }
+        conn.execute_batch("COMMIT").expect("commit");
+    }
+    let whole: Vec<String> = (1..=400)
+        .filter(|n| n % 2 == 1)
+        .flat_map(|n| [format!("{p}{n:04}q"), format!("{p}{n:04}x")])
+        .collect();
+    let count = |conn: &Connection| -> usize {
+        let mut stmt = conn.prepare("SELECT term FROM t_idx").expect("t_idx");
+        let terms: Vec<Vec<u8>> = stmt
+            .query_map([], |r| r.get(0))
+            .expect("terms")
+            .collect::<Result<_, _>>()
+            .expect("a term");
+        terms
+            .iter()
+            .filter(|t| {
+                whole
+                    .iter()
+                    .any(|w| t.windows(w.len()).any(|x| x == w.as_bytes()))
+            })
+            .count()
+    };
+    if pre_optimize {
+        conn.execute("INSERT INTO t (t) VALUES ('optimize')", [])
+            .expect("optimize first");
+    }
+    let before = count(&conn);
+    for n in (1..=400).filter(|n| n % 2 == 1) {
+        conn.execute("DELETE FROM t WHERE rowid = ?1", [n])
+            .expect("delete");
+    }
+    let left = count(&conn);
+    if let Some(command) = command {
+        conn.execute(&format!("INSERT INTO t (t) VALUES ('{command}')"), [])
+            .expect("the command");
+    }
+    (before, left, count(&conn))
+}
+
+#[test]
+fn secure_delete_can_leave_a_whole_token_as_a_page_separator() {
+    let (before, left, _) = separator_leftover(None, &[(1, 200), (201, 400)], false);
+    println!("separators holding a whole token: before delete {before}, after {left}");
+    assert!(before >= 1, "a deleted token starts an index page");
+    assert!(left >= 1, "and its separator outlives the delete");
+}
+
+#[test]
+fn rebuild_clears_the_separator_and_optimize_only_with_several_segments() {
+    let two = &[(1, 200), (201, 400)][..];
+    // Several segments: `optimize` merges them and writes new separators.
+    let (_, left, after) = separator_leftover(Some("optimize"), two, false);
+    assert_eq!((left, after), (1, 0), "optimize over several segments");
+    // One segment already: `optimize` does nothing, so the separator stays. This is why the
+    // store rebuilds instead (spec, "Amendments from step 3a", item 7).
+    let (_, left, after) = separator_leftover(Some("optimize"), two, true);
+    assert_eq!((left, after), (1, 1), "optimize over one segment");
+    for pre_optimize in [false, true] {
+        let (_, left, after) = separator_leftover(Some("rebuild"), two, pre_optimize);
+        assert_eq!(
+            (left, after),
+            (1, 0),
+            "rebuild, pre-optimized: {pre_optimize}"
+        );
+    }
+}

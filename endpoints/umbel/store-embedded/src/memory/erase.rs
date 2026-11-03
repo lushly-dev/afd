@@ -1,11 +1,13 @@
 //! Forget, purge, sweep, reindex and checkpoints (phase 3 sections 5.4, 7.2 and 8.8).
 //!
 //! Step 3a has no key file, so a forget is section 5.4's steps 1 and 3 in one transaction
-//! (erased prefixes, rows removed, tombstones, changes), then step 4, `wal_checkpoint(TRUNCATE)`
-//! outside any transaction, because SQLite refuses a checkpoint inside one. A purge is the same
+//! (erased prefixes, rows removed, tombstones, changes), then the index compacted in a
+//! transaction of its own (`compact`), then step 4, `wal_checkpoint(TRUNCATE)` outside any
+//! transaction, because SQLite refuses a checkpoint inside one. A purge is the same
 //! without prefixes or tombstones. Step 3b inserts the key destruction between them and adds the
-//! markers that let a later writer retry a busy checkpoint; until then a busy checkpoint answers
-//! `wal: Pending` and the next forget, purge or `checkpoint()` truncates.
+//! markers that let a later writer retry a busy compaction or checkpoint; until then either one
+//! busy answers `wal: Pending`: the next erasing call or `reindex` compacts the index, and they
+//! or `checkpoint()` truncate the WAL.
 
 use std::collections::BTreeSet;
 
@@ -121,9 +123,47 @@ pub(super) fn truncate(
     }
 }
 
+/// Rebuild the index from its own content table in a transaction of its own, after an erasure
+/// has committed (phase 3 "Amendments from step 3a", item 7). FTS5's `secure-delete` removes a
+/// deleted row's entries from the segments, but a leaf page's separator in `records_fts_idx` can
+/// be a whole deleted token; `optimize` is a no-op on an index that is already one segment, so it
+/// cannot be relied on, and `rebuild` writes every segment and separator afresh. With
+/// `secure_delete=ON` the freed pages are overwritten. It reads the index's plaintext copy and needs
+/// no key. Without `wait` it takes no lock wait. Answers whether it ran.
+fn compact(conn: &mut Connection, wait: bool, timeout: std::time::Duration) -> Result<bool, Fail> {
+    if !wait {
+        conn.busy_timeout(std::time::Duration::ZERO)?;
+    }
+    let run = |conn: &mut Connection| -> Result<(), rusqlite::Error> {
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
+            "INSERT INTO records_fts (records_fts) VALUES ('rebuild')",
+            [],
+        )?;
+        tx.commit()
+    };
+    let result = run(conn);
+    if !wait {
+        conn.busy_timeout(timeout)?;
+    }
+    match result {
+        Ok(()) => Ok(true),
+        Err(error) if matches!(map_sql(&error), StoreError::Busy) => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// After an erasure has committed: compact the index, then truncate the WAL, each outside the
+/// erasure's transaction. Never fails, since the rows are already gone: a busy or failed step
+/// answers `false`, which a forget reports as `wal: Pending`.
+fn settle(conn: &mut Connection, wait: bool, timeout: std::time::Duration) -> bool {
+    matches!(compact(conn, wait, timeout), Ok(true))
+        && matches!(truncate(conn, wait, timeout), Ok(true))
+}
+
 impl SqliteMemoryStore {
     /// Purge at most `limit` records in a transaction of their own, then, outside it and with
-    /// no wait, truncate the WAL. Returns how many were purged.
+    /// no wait, compact the index and truncate the WAL. Returns how many were purged.
     pub(super) fn purge_committed(
         &self,
         now: Millis,
@@ -135,7 +175,7 @@ impl SqliteMemoryStore {
             let purged = purge(&tx, now, retention, limit)?;
             tx.commit()?;
             if purged > 0 {
-                truncate(conn, false, self.pool.timeout())?;
+                settle(conn, false, self.pool.timeout());
             }
             Ok(purged)
         })
@@ -184,7 +224,7 @@ impl SqliteMemoryStore {
                 )?;
             }
             tx.commit()?;
-            let wal = if targets.is_empty() || truncate(conn, true, self.pool.timeout())? {
+            let wal = if targets.is_empty() || settle(conn, true, self.pool.timeout()) {
                 WalState::Clean
             } else {
                 WalState::Pending
@@ -219,7 +259,11 @@ impl SqliteMemoryStore {
                 |r| r.get(0),
             )?;
             tx.commit()?;
-            truncate(conn, false, self.pool.timeout())?;
+            if purged > 0 {
+                settle(conn, true, self.pool.timeout());
+            } else {
+                truncate(conn, false, self.pool.timeout())?;
+            }
             Ok(SweepReceipt {
                 purged,
                 remaining: to_u64(remaining)?,

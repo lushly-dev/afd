@@ -1099,21 +1099,23 @@ starts.
     `recordedAt` and id, with the query compiled by `MemoryQuery::fts5`.
   - Writes: replay, erased prefixes, observe or create, supersede, and the quota inside one
     `BEGIN IMMEDIATE`; the purge before a write (at most 16) in a transaction of its own; `invalidate`
-    and `confirm` closing versions; forget, sweep and `reindex`, with `TRUNCATE` checkpoints outside
-    any transaction.
+    and `confirm` closing versions; forget, sweep and `reindex`. Every erasure is followed by an FTS5
+    index `rebuild` in a transaction of its own, then a `TRUNCATE` checkpoint outside any transaction.
   - The sealed columns go through one seam, `memory/seal.rs`, which stores them unsealed until 3b; until
     then `key_status` answers a matching key file, `backup` refuses, and a busy forget checkpoint answers
     `wal: Pending` with no marker to retry it.
   - The suite: `Stores` gains `memory` and `memory_restore`, `run_all` runs the memory groups, and the
     writer child writes memory records on `ENV_KIND`. New tests: `memory_conformance.rs` (the memory
     groups on the store alone: 43 pass, the backup copy case skipped), `memory_multiprocess.rs` (8),
-    `memory_erasure_bytes.rs` (6) and `memory_sqlite.rs` (9), which repeats the specification's SQLite
+    `memory_erasure_bytes.rs` (8) and `memory_sqlite.rs` (11), which repeats the specification's SQLite
     experiments on the bundled 3.54.1.
   - Seven details settled in the specification's
-    [Amendments from step 3a](phases/3-memory-context/spec.md#amendments-from-step-3a). One experiment
-    result differs from 5.4's figure: FTS5's `secure-delete` can leave a forgotten token **whole** in
-    `records_fts_idx` as a page separator, not only a prefix, until `memory-reindex`. 5.4's stated limit and
-    7.2's row now say so; no design changed, and the amendment says what the owner may weigh.
+    [Amendments from step 3a](phases/3-memory-context/spec.md#amendments-from-step-3a). The experiments
+    found that FTS5's `secure-delete` can leave a forgotten token **whole** in `records_fts_idx` as a page
+    separator, and that `optimize` does nothing on a one-segment index. So forget, the purge before a write
+    and sweep rebuild the index after the erasure commits, and no forgotten token or prefix stays on disk;
+    the stated limits of 5.4 and 7.2 are unchanged. Cost: 20 to 23 ms per forget on 3000 records, 34 to
+    38 ms on 10 000 (debug build, macOS, `fullfsync`). A busy rebuild answers `wal: Pending`.
   - The `knowledge` job's commands already run the new test binaries, so `umbel.yml` changed only in a
     comment, and `scripts/affected/suites.mjs` not at all.
 - **Not done:** steps 3b, 4, 5, 6, 7a, 7b, 8, 9 and 10 of the
@@ -1290,4 +1292,4 @@ on another local branch and push to that remote name.
 | 2026-11-02 | Phase 3 step 1 | Shapes and configuration (the step 1 pull request): the seven schemas of section 2 with examples; envelope version 2 in `umbel-store` and the host; event version 2 with `changes.store`; manifest version 3's `journal` and `authority_prompt`, parsed, validated and stored; configuration version 4 with the `memory_write` policy, `principal.agent_env` and `store.exclude_memory_from_machine_backup`; `umbel init` writing version 4 and `on_behalf_of`; the version constants; `memory` and `memory_write` in the catalog and still unavailable. Tests: `schemas.rs` extended, `config_v4.rs` and `manifest_v3.rs` new. Section 2.1 amended: document and record writes keep envelope version 1 in phase 3, since their shapes nest it (D36) |
 | 2026-11-02 | Phase 3 specification, last answers | The four owner answers given after the key design's review written into the [phase 3 specification](phases/3-memory-context/spec.md) as D86 to D89, in the follow-up to [#685](https://github.com/lushly-dev/afd/pull/685): `memory-remember`'s `authority_prompt` (manifest version 3) asked only on the path that would give `person`, declining writes nothing (3.3); Time Machine exclusion through the sticky `com_apple_backup_excludeItem` attribute, checked with `tmutil` on the owner's Mac, with the setting `store.exclude_memory_from_machine_backup` and the doctor check `stores.memory_backup` (5.4); `memory-confirm` on own records only (8.7); `memory-reindex`'s default-off `removeOrphans` (8.8). Tests, plan and exit criteria updated. No Rust built |
 | 2026-11-03 | Phase 3 step 2 | The memory trait and suite (the step 2 pull request): `MemoryStore` and its types, the memory query parser, the nine memory conformance groups with their fixture and `MemoryRestore`, the in-memory store with eight faults, `memory_suite_detects.rs` and `memory_query.rs`. Four amendments in the specification's "Amendments from step 2". Written 2026-11-02 while free disk was under the 5 GB floor and built on 2026-11-03 after the owner freed space; the build found only clippy findings |
-| 2026-11-03 | Phase 3 step 3a | The embedded memory store (the step 3a pull request): `SqliteMemoryStore` in `store-embedded/src/memory/` (schema, `0600` file created only by a write, per-connection pragmas, FTS5 with `secure-delete`, reads filtered in one statement, erased prefixes, sweep, quota, the purge before a write and checkpoints outside transactions, sealed columns behind one seam that stores them unsealed until 3b); `Stores.memory` and `memory_restore` with the memory groups in `run_all`; `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` and `memory_sqlite.rs`. Marked step 2 done ([#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`). Seven amendments in the specification's "Amendments from step 3a". Finding: on the bundled SQLite 3.54.1 every Status experiment held, but FTS5's `secure-delete` can leave a whole forgotten token in `records_fts_idx` as a page separator until `memory-reindex`; 5.4's stated limit corrected |
+| 2026-11-03 | Phase 3 step 3a | The embedded memory store (the step 3a pull request): `SqliteMemoryStore` in `store-embedded/src/memory/` (schema, `0600` file created only by a write, per-connection pragmas, FTS5 with `secure-delete`, reads filtered in one statement, erased prefixes, sweep, quota, the purge before a write and checkpoints outside transactions, sealed columns behind one seam that stores them unsealed until 3b); `Stores.memory` and `memory_restore` with the memory groups in `run_all`; `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` and `memory_sqlite.rs`. Marked step 2 done ([#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`). Seven amendments in the specification's "Amendments from step 3a". Finding: on the bundled SQLite 3.54.1 every Status experiment held, but FTS5's `secure-delete` can leave a whole forgotten token in `records_fts_idx` as a page separator, and `optimize` does nothing on a one-segment index; every erasure now rebuilds the index in a transaction of its own (20 to 23 ms per forget on 3000 records), so forget keeps the stated guarantee |

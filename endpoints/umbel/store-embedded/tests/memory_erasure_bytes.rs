@@ -1,10 +1,12 @@
 //! Raw-byte canaries (phase 3 section 7.4, step 3a's part): records holding random canaries in
 //! subject, text, tag, constraint, source and invalidation note are written, recalled and
 //! forgotten, then the raw bytes of every file in the store directory are read and must hold no
-//! canary: not the database, not its WAL, not FTS5's shadow tables. A control with FTS5's
-//! `secure-delete` off must find one. A reader held across a forget leaves `wal: Pending` until
-//! a later checkpoint. `memory-reindex` clears the token prefixes FTS5 leaves, and nothing runs
-//! `ANALYZE`. Step 3b adds markers, retries and destroyed keys to this file.
+//! canary: not the database, not its WAL, not FTS5's shadow tables. The test sees them before the
+//! forget; the control without FTS5's `secure-delete` is in `memory_sqlite.rs`, since the store's
+//! own compaction now clears the index even with it off. A reader held across a forget leaves
+//! `wal: Pending` until a later checkpoint. A forget or purge compacts the index, so no forgotten
+//! word stays whole as an index page's separator, and nothing runs `ANALYZE`. Step 3b adds
+//! markers, retries and destroyed keys to this file.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -253,7 +255,9 @@ fn a_forget_leaves_no_canary_in_any_file() {
 }
 
 #[test]
-fn the_control_with_fts_secure_delete_off_finds_a_canary() {
+fn with_fts_secure_delete_off_the_compaction_still_leaves_no_canary() {
+    // FTS5's `secure-delete` alone keeps a forgotten term with it off (`memory_sqlite.rs`); the
+    // compaction after the forget rewrites the index, so the guarantee does not rest on it.
     let dir = tempfile::tempdir().expect("a temporary directory");
     let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
     filler(&*m, 200, 1);
@@ -266,15 +270,10 @@ fn the_control_with_fts_secure_delete_off_finds_a_canary() {
     drop(raw);
     let c = Canaries::new();
     let ids = write_canaries(&m, &c);
+    assert!(!found_in(dir.path(), &c.all()).is_empty(), "seen before");
     assert_eq!(forget(&*m, ids), WalState::Clean);
-    let found = found_in(dir.path(), &[&c.subject, &c.text, &c.tag]);
-    assert!(
-        !found.is_empty(),
-        "without FTS5 secure-delete the index keeps a forgotten term"
-    );
-    // Only the index: the sealed columns and the content table were overwritten.
-    let found = found_in(dir.path(), &[&c.constraint, &c.source, &c.note]);
-    assert!(found.is_empty(), "{found:?}");
+    let found = found_in(dir.path(), &c.all());
+    assert!(found.is_empty(), "canaries left on disk: {found:?}");
 }
 
 #[test]
@@ -328,14 +327,12 @@ fn fts_secure_delete_is_set_by_the_insert_form_and_kept_by_reindex() {
     assert_eq!(recall(&*m, "filler"), 3, "and still recalls");
 }
 
-#[test]
-fn reindex_clears_token_prefixes_a_forget_leaves() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
-    filler(&*m, 1000, 50);
-    // Tokens sharing a long prefix unique to the forgotten records, as section 5.4's review found,
-    // in the same segments as kept records, so the segments outlive the forget.
-    let prefix = canary('k');
+/// Records of tokens `<prefix><n>q` and `<prefix><n>x` in odd records, kept words in even ones,
+/// in two batches after 50 filler records: the layout where a leaf page of `records_fts_idx`
+/// starts with a forgotten token that differs from the previous page's last term only in its last
+/// character, so the page's separator is the whole token (spec, "Amendments from step 3a").
+fn separator_layout(m: &SqliteMemoryStore, prefix: &str) -> Vec<String> {
+    filler(m, 1000, 50);
     let entries = |range: std::ops::RangeInclusive<u64>| -> Vec<MemoryWrite> {
         range
             .map(|n| {
@@ -352,11 +349,45 @@ fn reindex_clears_token_prefixes_a_forget_leaves() {
         m.write(samples::memory_batch(T0, entries(range)))
             .expect("a batch");
     }
-    for chunk in (1..=400_u64)
+    (1..=400)
         .filter(|n| n % 2 == 1)
-        .collect::<Vec<_>>()
-        .chunks(100)
-    {
+        .flat_map(|n| [format!("{prefix}{n:04}q"), format!("{prefix}{n:04}x")])
+        .collect()
+}
+
+/// How many `records_fts_idx` separators hold one of `whole`.
+fn separators_holding(dir: &Path, whole: &[String]) -> usize {
+    let raw = Connection::open(dir.join("store").join("memory.sqlite3")).expect("raw");
+    let mut stmt = raw
+        .prepare("SELECT term FROM records_fts_idx")
+        .expect("records_fts_idx");
+    let terms: Vec<Vec<u8>> = stmt
+        .query_map([], |r| r.get(0))
+        .expect("the separators")
+        .collect::<Result<_, _>>()
+        .expect("a separator");
+    terms
+        .iter()
+        .filter(|term| whole.iter().any(|w| contains(term, w)))
+        .count()
+}
+
+#[test]
+fn a_forget_leaves_no_whole_token_as_an_index_separator() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let prefix = canary('k');
+    let whole = separator_layout(&m, &prefix);
+    // The case is exercised: a word about to be forgotten starts an index page, and is that page's
+    // separator. FTS5's `secure-delete` alone keeps it (`memory_sqlite.rs`).
+    assert!(
+        separators_holding(dir.path(), &whole) >= 1,
+        "a forgotten word must start an index page for this test to mean anything"
+    );
+    // Forgotten in four calls, so each later call finds the index already compacted to one
+    // segment, where FTS5's `optimize` would do nothing.
+    let odd: Vec<u64> = (1..=400).filter(|n| n % 2 == 1).collect();
+    for chunk in odd.chunks(50) {
         let receipt = m
             .forget(Forget {
                 owner: ADA.into(),
@@ -368,49 +399,120 @@ fn reindex_clears_token_prefixes_a_forget_leaves() {
             })
             .expect("forget");
         assert_eq!(receipt.erased, chunk.len() as u64);
+        assert_eq!(receipt.wal, WalState::Clean);
     }
-    // FTS5's `secure-delete` removes the forgotten entries from the segments, but a leaf page's
-    // separator in `records_fts_idx` is the shortest prefix of the page's first term that sorts
-    // after the previous page's last term. When those differ only in their last character, the
-    // separator is the whole token: on the bundled 3.54.1 this layout leaves one forgotten token
-    // whole (spec, "Amendments from step 3a"). Recreating the table clears it.
-    let whole: Vec<String> = (1..=400)
-        .filter(|n| n % 2 == 1)
-        .flat_map(|n| [format!("{prefix}{n:04}q"), format!("{prefix}{n:04}x")])
-        .collect();
+    assert_eq!(separators_holding(dir.path(), &whole), 0, "no separator");
     let whole: Vec<&str> = whole.iter().map(String::as_str).collect();
-    let raw = Connection::open(dir.path().join("store").join("memory.sqlite3")).expect("raw");
-    let separators: Vec<Vec<u8>> = {
-        let mut stmt = raw
-            .prepare("SELECT term FROM records_fts_idx")
-            .expect("records_fts_idx");
-        stmt.query_map([], |r| r.get(0))
-            .expect("the separators")
-            .collect::<Result<_, _>>()
-            .expect("a separator")
-    };
-    drop(raw);
-    let kept_whole = separators
-        .iter()
-        .filter(|term| whole.iter().any(|w| contains(term, w)))
-        .count();
-    let kept_prefix = separators
-        .iter()
-        .filter(|term| contains(term, &prefix))
-        .count();
-    println!(
-        "before reindex: {kept_prefix} separators hold the forgotten prefix, {kept_whole} a whole \
-         forgotten token; files holding the prefix: {}",
-        found_in(dir.path(), &[&prefix]).len()
-    );
-    assert!(
-        kept_whole >= 1,
-        "the stated limit no longer reproduces on this SQLite: re-check section 5.4's limits"
-    );
-    m.reindex(false).expect("reindex");
-    let after = found_in(dir.path(), &[&prefix]);
-    assert!(after.is_empty(), "the prefix after reindex: {after:?}");
+    let left = found_in(dir.path(), &whole);
+    assert!(left.is_empty(), "whole forgotten tokens on disk: {left:?}");
+    let left = found_in(dir.path(), &[&prefix]);
+    assert!(left.is_empty(), "the forgotten prefix on disk: {left:?}");
     assert_eq!(recall(&*m, "filler"), 50);
+    assert_eq!(recall(&*m, "kept"), 200);
+    assert!(
+        m.info().expect("info").fts_secure_delete,
+        "kept by the rebuild"
+    );
+}
+
+#[test]
+fn a_purge_leaves_no_whole_token_as_an_index_separator() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let prefix = canary('k');
+    let whole = separator_layout(&m, &prefix);
+    assert!(separators_holding(dir.path(), &whole) >= 1);
+    for n in (1..=400).filter(|n| n % 2 == 1) {
+        m.invalidate(
+            Invalidate {
+                id: samples::memory_id(n),
+                at: T0 + 1,
+                valid_until: T0 + 1,
+                by: ADA.into(),
+                reason: InvalidationReason::Outdated,
+                note: None,
+                expect_version: None,
+                trace_id: None,
+            },
+            &ada(),
+        )
+        .expect("invalidate");
+    }
+    let receipt = m
+        .sweep(umbel_store::memory::Sweep {
+            now: T0 + 91 * umbel_store::memory::DAY_MS,
+            limit: 10_000,
+            retention: umbel_store::memory::Retention::default(),
+        })
+        .expect("sweep");
+    assert_eq!((receipt.purged, receipt.remaining), (200, 0));
+    assert_eq!(separators_holding(dir.path(), &whole), 0);
+    let left = found_in(dir.path(), &[&prefix]);
+    assert!(left.is_empty(), "the purged prefix on disk: {left:?}");
+}
+
+/// Forget's cost with the compaction, on a store of `UMBEL_FORGET_COST_RECORDS` records (3000 by
+/// default): printed, not asserted, for the specification's note.
+#[test]
+fn forget_cost_on_a_few_thousand_records() {
+    let total: u64 = std::env::var("UMBEL_FORGET_COST_RECORDS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3000);
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let mut n = 1;
+    while n <= total {
+        let entries = (n..(n + 250).min(total + 1))
+            .map(|k| {
+                samples::memory_entry(
+                    k,
+                    ADA,
+                    &[P_ADA],
+                    &format!("record {k} about deploys"),
+                    &format!(
+                        "a paragraph of ordinary words for record {k}: rollbacks, canary flags, \
+                         nightly backups, restarts and the release train, about forty words long \
+                         so the index has a realistic size per record and several pages per term"
+                    ),
+                )
+            })
+            .collect();
+        m.write(samples::memory_batch(T0, entries))
+            .expect("a batch");
+        n += 250;
+    }
+    let mut times = Vec::new();
+    for k in 1..=5 {
+        let started = std::time::Instant::now();
+        let receipt = m
+            .forget(Forget {
+                owner: ADA.into(),
+                selector: ForgetSelector::Ids(vec![samples::memory_id(k)]),
+                at: T0 + 1,
+                trace_id: None,
+            })
+            .expect("forget");
+        times.push(started.elapsed());
+        assert_eq!(receipt.erased, 1);
+    }
+    let info = m.info().expect("info");
+    // The compaction alone, on a raw connection with the store's `secure_delete`.
+    let raw = Connection::open(dir.path().join("store").join("memory.sqlite3")).expect("raw");
+    raw.query_row("PRAGMA secure_delete = ON", [], |r| r.get::<_, i64>(0))
+        .expect("secure_delete");
+    let started = std::time::Instant::now();
+    raw.execute(
+        "INSERT INTO records_fts (records_fts) VALUES ('rebuild')",
+        [],
+    )
+    .expect("rebuild");
+    let rebuild = started.elapsed();
+    println!(
+        "forget of one record on {total} records: {times:?}; the rebuild alone {rebuild:?}; \
+         database {} bytes",
+        info.database_bytes
+    );
 }
 
 #[test]

@@ -11,7 +11,8 @@
 //! 3b drops in per-record keys and the key file. Until then `key_status` reports a key file that
 //! is present and matches with nothing destroyed, orphaned or absent, which is what an unsealed
 //! store means; `backup` refuses, since a copy would hold the text in clear; and a forget whose
-//! checkpoint is busy answers `wal: Pending` with no marker for a later writer to retry.
+//! index rebuild or checkpoint is busy answers `wal: Pending` with no marker for a later writer to
+//! retry.
 
 mod change;
 mod erase;

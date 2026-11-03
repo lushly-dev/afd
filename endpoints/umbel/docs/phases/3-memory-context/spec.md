@@ -547,8 +547,7 @@ no graph**, for four reasons.
    a document with term frequency alone.
 2. **Forgetting.** A tantivy delete is a tombstone until segments merge; terms and
    stored text stay in the files. An ordinary FTS5 table's `secure-delete` removes the stored text and
-   whole tokens at once, though token prefixes, and rarely a whole token, can stay in its index table
-   until `memory-reindex` (5.4).
+   whole tokens at once, though token prefixes can stay in its index table (5.4).
 3. **The hot path.** A hook is a one-shot process. A tantivy commit takes the
    space's single index writer, which an indexing run may hold for minutes, and a
    record would be invisible until the next commit. An FTS5 row commits with its
@@ -940,14 +939,10 @@ suggestion, the skill and the README:
 - **The FTS index stays plaintext on disk while a record lives**, and `record_derived` holds its tags and
   `contentHash` in clear. Forget's secure-delete and checkpoint handling are what remove them, so a crash or
   a held WAL can leave them behind for a time.
-- **Token prefixes, and rarely a whole token, can outlive a forget in the live file.** In the review's
-  test, FTS5 `secure-delete` left 0 of 4800 forgotten tokens whole, but 64 prefixes unique to forgotten
-  records stayed in `records_fts_idx`, such as `payrolldmv`, and with tokens sharing a long prefix up to 24
-  of 25 characters. Step 3a found the limit case: a leaf page's separator is the shortest prefix of its first
-  term that sorts after the previous page's last term, so when the two differ only in their last character
-  the separator is the whole forgotten token ([Amendments from step 3a](#amendments-from-step-3a), item 7).
-  `optimize` does not clear them. `memory-reindex` does. Backups exclude this table, so a `store-backup`
-  copy holds none.
+- **Token prefixes can outlive a forget in the live file.** In the review's test, FTS5 `secure-delete` left
+  0 of 4800 forgotten tokens whole, but 64 prefixes unique to forgotten records stayed in `records_fts_idx`,
+  such as `payrolldmv`, and with tokens sharing a long prefix up to 24 of 25 characters. `optimize` does not
+  clear them. `memory-reindex` does. Backups exclude this table, so a `store-backup` copy holds none.
 - **Text copied elsewhere survives**: results already returned, harness transcripts, exports, and
   anything an agent copied into another command (7.2).
 - **Local same-user agents can read everything.** The key file sits beside the store with the same
@@ -1122,7 +1117,7 @@ meta-tool whose steps Umbel does not see before they resolve, so it stays a stat
 | Layer | After a forget | After a sweep's purge |
 | --- | --- | --- |
 | `record_keys` | The key destroyed; the row stays as a marker: id, time, kind | Same |
-| `records`, `versions`, `observations`, `record_access`, `record_derived`, `records_fts` | Rows gone. `secure_delete` and FTS5 `secure-delete` overwrite them, except that token prefixes, and rarely a whole token, can stay in `records_fts_idx` until `memory-reindex` (5.4) | Same |
+| `records`, `versions`, `observations`, `record_access`, `record_derived`, `records_fts` | Rows gone. `secure_delete` and FTS5 `secure-delete` overwrite them, except that token prefixes can stay in `records_fts_idx` until `memory-reindex` (5.4) | Same |
 | `tombstones` | `(id, erased_at, trace_id, kind)` | No row: an expired record needs no tombstone |
 | `capture_erasures` | The owner's erased key prefix, for a captured record: `<harness>:<session>:w<n>`, or `<harness>:<session>:` for a forget by `session`. Committed before the key is destroyed, from the rows. Refuses later captures under it, including tails and closed windows of the same window, however late. A `captureKey` is under a prefix when it equals it, or when the prefix ends in `:` and the key starts with it, so `w1` does not cover `w10`. **Kept as long as tombstones** | No row |
 | `changes`, `change_access` | Kept: ids, times, owner, agent, byte counts. No text | Kept |
@@ -2150,15 +2145,15 @@ Step 2 settled four details of 5.2 and 5.5 that the text left open. None changes
 ### Amendments from step 3a
 
 Step 3a settled these details of 5.3 to 5.5 and 7.2 for a store that has no key file yet. Items 1 to 4 are
-interim and end with step 3b; the host reaches the memory store only at step 4, after 3b. Item 7 is an
-experiment result that corrects a figure of 5.4's stated limits; it changes no design, and the owner may
-want to weigh it (below).
+interim and end with step 3b; the host reaches the memory store only at step 4, after 3b. Item 7 adds a
+step to every erasure, so that forget keeps the guarantee 5.4 and 7.2 state.
 
 1. **Forget before 3b.** With no key to destroy, a forget is 5.4's steps 1 and 3 in one `BEGIN IMMEDIATE`
-   transaction (erased prefixes, then rows, tombstones and `Erased` changes), then step 4,
-   `wal_checkpoint(TRUNCATE)` outside it with the store's lock timeout. A busy checkpoint answers
-   `wal: Pending`. There is no marker, so no later writer retries it: a later forget or purge that erases
-   something, a sweep, `reindex` or `checkpoint()` truncates. Step 3b splits the transaction around the key destruction and
+   transaction (erased prefixes, then rows, tombstones and `Erased` changes), then the index rebuild of
+   item 7 in a transaction of its own, then step 4, `wal_checkpoint(TRUNCATE)` outside them, each with the
+   store's lock timeout. A busy rebuild or checkpoint answers `wal: Pending`. There is no marker, so no
+   later writer retries it: a later forget or purge that erases something, or `reindex`, rebuilds the
+   index, and they, a sweep or `checkpoint()` truncate the WAL. Step 3b splits the transaction around the key destruction and
    adds the markers and roll-forward of 5.4.
 2. **The seal seam.** Every `sealed` column is written by one function and read by one function
    (`store-embedded/src/memory/seal.rs`). In 3a a blob is the byte `0x00`, the length of the associated
@@ -2173,8 +2168,7 @@ want to weigh it (below).
    `Invalid` and copies nothing, since a copy would hold the text in clear; the erasure group's copy case is
    `Skipped` because `memory_restore` is `None`. `reindex` already does 5.4's table rebuild (drop and create
    `records_fts`, set `secure-delete` again, empty and refill `record_derived`, `indexed = 0` for a row that
-   does not open, then a `TRUNCATE` checkpoint), because it is what clears item 7's leftovers; it counts no
-   orphans until there is a key file.
+   does not open, then a `TRUNCATE` checkpoint); it counts no orphans until there is a key file.
 4. **`store_id`.** 128 bits from SQLite's `randomblob(16)`, whose generator SQLite seeds from the operating
    system, because the store crate has no random source of its own until 3b adds `chacha20poly1305` with
    `getrandom`; 3b may draw it from `getrandom` instead. It is an identity matched against the key file,
@@ -2186,8 +2180,8 @@ want to weigh it (below).
    whole capture key, which is the prefix a forget erases. `versions` holds `authority` for the filters, and
    the envelope in clear with `confirmation` inside it. The quota is checked over the state the batch
    leaves, inside the same transaction, which equals checking it before the entries and refuses the same
-   writes. The purge before a write takes at most 16 records in one transaction of its own, then a
-   `TRUNCATE` checkpoint with no wait; a `Busy` at either point is left for the next writer.
+   writes. The purge before a write takes at most 16 records in one transaction of its own, then item 7's
+   rebuild and a `TRUNCATE` checkpoint with no wait; a `Busy` at any point is left for the next writer.
 6. **The suite.** `Stores` gains `memory: Option<Arc<dyn MemoryStore>>` and
    `memory_restore: Option<MemoryRestore>`, and `run_all` and `run_groups` run the memory groups after the
    others, on the stores' `memory`, reporting every memory case `Skipped` when it is `None`. The writer child
@@ -2204,15 +2198,37 @@ want to weigh it (below).
    text, leaves no journal or temporary file, and copies no `user_version`; a rollback-journal file with
    `secure_delete=ON` loses a key's bytes when the key is set to null, and is one file at rest. So did two
    of the key review's: a `TRUNCATE` checkpoint does not succeed inside a transaction, and `secure_delete`
-   and `synchronous` reset per connection. **One result differs from 5.4's figure:** with 200 forgotten
-   records of tokens `<prefix><n>q` and `<prefix><n>x` interleaved with kept records, `records_fts_idx`
-   kept one forgotten token **whole**, as the separator of a leaf page whose first term differed from the
-   previous page's last only in its last character. The review's "0 of 4800 whole" was its data, not a
-   bound. 5.4's limit and 7.2's row now say "token prefixes, and rarely a whole token". The canaries of
-   7.4, which share no prefix with other terms, still leave nothing; `memory-reindex` clears the separator
-   (`memory_erasure_bytes.rs`). **For the owner:** this is the stated limit at its edge, not a new kind of
-   leak, and no design changed. If a forgotten word must never survive whole in the live file, the remedy
-   is a design change for a later step to weigh, such as a forget that rebuilds the index when it erases.
+   and `synchronous` reset per connection.
+
+   **The experiment also found a leftover, and forget now compacts the index to remove it.** With
+   forgotten tokens `<prefix><n>q` and `<prefix><n>x` interleaved with kept records, FTS5's `secure-delete`
+   left one forgotten token **whole** in `records_fts_idx`: a leaf page's separator is the shortest prefix of
+   its first term that sorts after the previous page's last term, and when the two differ only in their last
+   character it is the whole token. FTS5's `optimize` clears it only while the index has several segments;
+   on an index already merged into one, which every compaction leaves, it does nothing (the review's
+   "`optimize` does not clear them"). So after an erasure commits, `forget`, the purge before a write and
+   `sweep` run `INSERT INTO records_fts(records_fts) VALUES('rebuild')` in a `BEGIN IMMEDIATE` transaction
+   of its own, with `secure_delete=ON`, and only then the `TRUNCATE` checkpoint. The rebuild reads the
+   index's own plaintext copy, so it needs no key, and writes every segment and separator afresh; the freed
+   pages are overwritten. The tests: `memory_sqlite.rs` shows the separator surviving `secure-delete`,
+   `optimize` clearing it over two segments and not over one, and `rebuild` clearing it either way;
+   `memory_erasure_bytes.rs` checks first that a word about to be forgotten is an index page's separator,
+   then forgets in four calls (so the later ones meet a one-segment index) and finds no forgotten token or
+   prefix in any file, and the same through a sweep's purge.
+
+   **When the compaction cannot run.** The erasure has committed, so a forget does not fail: a busy or
+   failed rebuild, like a busy checkpoint, answers `wal: Pending`. Until the next erasing call or
+   `memory-reindex` rebuilds the index, 5.4's stated limit on token prefixes applies to that forget. The
+   purge before a write runs both steps with no wait and leaves a busy one for the next writer; a sweep
+   waits the lock timeout. Step 3b's markers must make roll-forward repeat the rebuild as well as the
+   checkpoint.
+
+   **Cost**, measured 2026-11-03 on the development Mac (debug test build, `fullfsync` on, five forgets of
+   one record each, records of about forty words): **20 to 23 ms per forget on 3000 records** (a 7.5 MB
+   database), of which the rebuild alone is about 6 ms; 34 to 38 ms on 10 000 records (24 MB), the rebuild
+   about 18 ms. It grows with the index, so a store far larger would want the rebuild limited to the
+   segments an erasure touched, which FTS5 does not offer; `forget_cost_on_a_few_thousand_records`
+   prints these figures (`UMBEL_FORGET_COST_RECORDS` sets the size).
 
 ## 15. For the owner
 
