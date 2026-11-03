@@ -74,11 +74,16 @@
   - Step 1 (shapes), 2026-11-03, merged in [#751](https://github.com/lushly-dev/afd/pull/751) as `e7aeff70`: the
     four schemas with examples, manifest version 4 parsed, validated and stored, and the version constants; its
     [amendments](#amendments-from-step-1) settle fourteen details and change no trust-model point.
-  - Step 2 (host), 2026-11-03, in its pull request, from `e7aeff70`: the pipeline attestation table and the SDK's
-    `CallContext.pipeline`, a version 4 pipeline's exposure checked at seal and its `result` applied, the CLI's
-    confirmation preview, and `secure_delete` with a reporting checkpoint on `store.sqlite3`; its
-    [amendments](#amendments-from-step-2) settle ten details and change no trust-model point.
-- **Not done:** steps 3a to 7 of section [15](#15-implementation-plan); step 3a (knowledge: record and journal) is
+  - Step 2 (host), 2026-11-03, merged in [#753](https://github.com/lushly-dev/afd/pull/753) as `83639abb`: the
+    pipeline attestation table and the SDK's `CallContext.pipeline`, a version 4 pipeline's exposure checked at seal
+    and its `result` applied, the CLI's confirmation preview, and `secure_delete` with a reporting checkpoint on
+    `store.sqlite3`; its [amendments](#amendments-from-step-2) settle ten details and change no trust-model point.
+  - Step 3a (knowledge: record and journal), 2026-11-03, in its pull request, from `83639abb`: proposal version 2
+    written and version 1 read and kept, the knowledge manifest at version 4, the digest set of 11.2, and
+    `knowledge-proposal-preview` declared as `confirm_preview` by approve and reject; its
+    [amendments](#amendments-from-step-3a) settle eleven details, fix one fault in step 1's schema, and change no
+    trust-model point.
+- **Not done:** steps 3b to 7 of section [15](#15-implementation-plan); step 3b (knowledge: the drafted path) is
   next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
@@ -1107,6 +1112,64 @@ attestation and the preview fail closed where the text was silent.
 10. **The tests' control.** `secure_delete.rs` adds a control that the table did not list. It overwrites a row on a
     connection with `secure_delete` off and checks that the raw-byte scan finds the old bytes, so the absence the
     other tests assert is not the scan's blind spot.
+
+### Amendments from step 3a
+
+Step 3a settled these details of sections 2.1, 8.1 and 11.2 that the text left open, and fixed one fault in step 1's
+schema. None changes who may draft, verify, approve or read anything, or what the knowledge plugin trusts.
+
+1. **The record's store envelope.** A version 2 proposal's record is written with envelope version 2 (`authority`,
+   `redactions`, `constraints` and `confirmation` null): the version its body's `provenance` nests, as D36 and phase
+   3's step 1 kept version 1 beside proposal version 1. Every later save keeps the record's envelope version, so a
+   version 1 record's envelope stays version 1.
+2. **Reading both versions.** The plugin reads versions 1 and 2 and writes each back in its own version. A version 1
+   record gains no version 2 key and no `decision.channel` when it is decided, withdrawn or applied, and stays valid
+   against `proposal.v1.json`; an idempotent retry by key still returns it, and another change under its key is still
+   `PROPOSAL_KEY_REUSED`. A record of any other version is treated as absent (`PROPOSAL_NOT_FOUND`, and lists skip
+   it), as an unreadable body already was.
+3. **A proposer's withdrawal** of a version 2 proposal records `{ by: "proposer", reason: "retracted", at }`, `at`
+   from the call's clock (step 1's amendment 7). A decision by a person records `channel = "terminal"`.
+4. **Memory evidence through `knowledge-propose`.** Its closed input schema already refuses the kind, so the host
+   answers `VALIDATION_ERROR`. The handler also refuses `kind = "memory"` with `PROPOSAL_EVIDENCE_INVALID` (11.3), so
+   no caller that skips the schema can store one. `derivedFrom`, `conflictSet` and withdrawals are not inputs of
+   `knowledge-propose` at all. The attested path is step 3b's.
+5. **The digest set's `keep`.** `-proposal-show`, `-proposal-preview`, `-approve`, `-reject` and `-withdraw` keep
+   `["space", "proposal"]`, so reject's `reason` is not kept. `-proposal-list`, which has no proposal input, keeps
+   its filters, `["space", "state", "area", "after", "limit"]`, none of them content. `knowledge-propose`,
+   `-verify` and every read and index command declare no `journal` and stay plain. The `journal` on every command
+   that phase 3's rule requires comes with the `memory` grant in step 3c. A failed call keeps no input value (phase 3
+   step 5, amendment 4), so AFD's `APPROVAL_REQUIRED` entry before an approve keeps no id.
+6. **What the preview shows beyond 8.1's list:** the record's version and state, its proposer's principal and actor
+   kind, and a withdrawal or redaction. A person deciding a proposal that is no longer pending then sees why the
+   decision will refuse. The preview renders every state, and the decision fails with its own code.
+7. **The settling figures** labelled **"drafter's policy"** are each memory entry's `observations` and the draft's
+   settling instant, the content's `generated.at` (13, point 3). Section 3.2 checks the sessions only as a bound,
+   cannot verify that sessions are distinct, and checks `generated.at` only within bounds. The preview names the
+   settling days, authorities and session floor as the drafter's pack. Excerpts are not shown: the diff holds the
+   text.
+8. **Untrusted text in the preview.** Values that came from a proposer or a record are JSON-quoted on their line:
+   evidence refs, constraints, access tokens, the run id and the settling instant. Every diff line is prefixed `| `.
+   So no content can start a line that reads as one of the preview's own labels. The CLI's sanitising and cap (step
+   2's amendment 8) apply on top. The result carries `dev.umbel/trust = "content"`; its data stays exactly
+   `{ preview }`, with no output budget declared, since the CLI caps what it shows.
+9. **Approve's reader rules, shared.** Approve's gate and the preview use one function (`apply::readable`): the
+   proposal readable, and its target too (the collection for a create, the document otherwise). Two consequences:
+   - An approve or reject of a proposal the caller may not read now stops at the preview with
+     `CONFIRMATION_PREVIEW_FAILED`, `details.cause = "PROPOSAL_NOT_FOUND"`, before any prompt. It used to fail after
+     the prompt with `PROPOSAL_NOT_FOUND`. Nothing of the proposal is shown either way; `proposals.rs` changed with it.
+   - In the decision gate the reader check now runs before the area check, so an unreadable proposal is reported
+     absent even where no area governs it any more.
+10. **Approve's prompt** is the text 2.2 shows, "Apply this proposal to the knowledge base?": it no longer tells the
+    person to read `knowledge-proposal-show` first, since the preview comes before it.
+11. **A fault in step 1's schema, fixed.** `proposal.v2.json`'s rule that a drafter's withdrawal needs a drafter tested
+    `withdrawal.by` without `type: object`. A `null` withdrawal matched it, so every undrafted pending version 2
+    record was refused. It now has `type: object`. `tests/schemas/phase4.rs` checks that an undrafted pending record
+    validates; each of step 1's examples had a drafter or a proposer's withdrawal, which is why it was missed.
+12. **Drafted records before step 3b.** No command stores a drafter, memory evidence, a conflict set or a redaction
+    in this step. The tests write such records straight through the document store (`tests/support/records.rs`), as a
+    library embedder can (D14). So the preview, show, list and the digest set are tested on them before step 3b's
+    batch writes them. Approve's re-checks of a drafted proposal (8.2) and `agent-inferred` for its document stay
+    steps 3b and 3c's.
 
 ## 16. For the owner
 

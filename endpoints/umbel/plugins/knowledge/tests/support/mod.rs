@@ -13,6 +13,7 @@ use umbel::plugins::sdk;
 use umbel::{Host, HostBuilder};
 
 pub mod eval;
+pub mod records;
 
 /// Spaces `main` (collections `handbook`, `code`) and `beta` (`notes`); the group `platform` with
 /// `human:ada` in it; both plugins enabled with their write grants allowed for both spaces.
@@ -229,11 +230,15 @@ impl Fx {
     }
 }
 
-/// A scripted terminal: whether a person can answer, what they answer, and what was asked.
+/// A scripted terminal: whether a person can answer, what they answer, what was asked, and what
+/// was shown without a question (a confirmation preview).
 pub struct Terminal {
     pub interactive: bool,
     pub answer: bool,
     pub asked: Mutex<Vec<String>>,
+    pub shown: Mutex<Vec<String>>,
+    /// `ask` and `show`, in the order they came.
+    pub order: Mutex<Vec<&'static str>>,
 }
 
 impl Terminal {
@@ -242,11 +247,21 @@ impl Terminal {
             interactive,
             answer,
             asked: Mutex::new(Vec::new()),
+            shown: Mutex::new(Vec::new()),
+            order: Mutex::new(Vec::new()),
         })
     }
 
     pub fn asked(&self) -> Vec<String> {
         self.asked.lock().unwrap().clone()
+    }
+
+    pub fn shown(&self) -> Vec<String> {
+        self.shown.lock().unwrap().clone()
+    }
+
+    pub fn order(&self) -> Vec<&'static str> {
+        self.order.lock().unwrap().clone()
     }
 }
 
@@ -257,7 +272,13 @@ impl Console for Terminal {
 
     fn ask(&self, text: &str) -> bool {
         self.asked.lock().unwrap().push(text.to_owned());
+        self.order.lock().unwrap().push("ask");
         self.answer
+    }
+
+    fn show(&self, text: &str) {
+        self.shown.lock().unwrap().push(text.to_owned());
+        self.order.lock().unwrap().push("show");
     }
 }
 

@@ -47,8 +47,9 @@ id plus a step works), a `change`, a `rationale` and `evidence`:
 Cite documents as `document` evidence with the `contentHash` you read; a stale hash is refused. The
 same key with the same change returns your proposal; the same key with another change is
 `PROPOSAL_KEY_REUSED`, so use a new key for a new change. A proposal changes nothing: a person at a
-terminal approves or rejects it with `knowledge-approve` or `knowledge-reject` (you cannot), after
-reading `knowledge-proposal-show`. Poll `knowledge-proposal-list` for the outcome; a rejection
+terminal approves or rejects it with `knowledge-approve` or `knowledge-reject` (you cannot); the
+command line first shows them `knowledge-proposal-preview` (the proposal's facts, evidence and the
+diff's first 80 lines), and `knowledge-proposal-show` has the whole diff. Poll `knowledge-proposal-list` for the outcome; a rejection
 carries the reason, and `knowledge-withdraw` takes back your own pending proposal. An applied
 document is searchable after the next `knowledge-refresh`.
 

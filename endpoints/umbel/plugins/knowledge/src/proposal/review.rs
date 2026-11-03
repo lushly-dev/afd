@@ -7,7 +7,7 @@ use umbel_sdk::{Cx, HostError, Outcome, failure, success};
 use umbel_store::{ContentHash, Expect, canonical_json};
 
 use super::common::{self, Caller};
-use super::model::{KIND, Proposal, State};
+use super::model::{KIND, Proposal, State, Withdrawal};
 use crate::budget::fit_count;
 use crate::fail;
 
@@ -201,6 +201,10 @@ pub(crate) fn withdraw(input: &Value, cx: &mut Cx) -> Outcome {
     }
     proposal.state = State::Withdrawn;
     proposal.updated_at.clone_from(&caller.now);
+    // Version 2 records who withdrew; a version 1 record stays version 1, without the field.
+    if proposal.is_v2() {
+        proposal.withdrawal = Some(Withdrawal::retracted(&caller.now));
+    }
     let mut envelope = record.envelope.clone();
     envelope.origin = caller.origin();
     envelope.observed_at.clone_from(&caller.now);
