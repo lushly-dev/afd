@@ -9,13 +9,16 @@
 
 ## Status
 
-- **State:** written 2026-11-03 by the phase 4 owning agent and **revised 2026-11-03 after an independent
-  review** ([Review response](#review-response)); **in review, not approved** (D24). It adds decisions
-  [D90 to D105](../../decisions.md), all proposed, and the architecture amendments they need. **Ten points
-  change the trust model and wait for the owner**; they are numbered questions in section
-  [16](#16-for-the-owner), each with a recommendation. No section presents one of them as decided: where a
-  section depends on an answer, it names the question and builds the recommended option, so a different
-  answer changes that section and one plan step.
+- **State:** **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of
+  2026-11-03 (D24)**, after an independent review and a revision ([Review response](#review-response)). Written
+  2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
+  owner's answers, and the architecture amendments they need. The owner chose the recommended option on nine of
+  the ten trust-model questions. On question 10 the owner chose **attest and verify**: the knowledge plugin checks
+  every claim a drafter makes rather than trusting it (3.2). Section [16](#16-for-the-owner) records each answer as
+  the owner's decision of 2026-11-03. Implementation starts with step 1.
+- **The owner's correction, 2026-11-03.** Question 10 was first written in as "attest and trust" and corrected
+  before commit. Sections 1, 2.1, 3.2, 4.5, 8.1, 8.2, 11, 12, 13 and 15 changed with it; the review response rows
+  3 and 5 describe the review-time text and are superseded by 3.2.
 - **Last verified:** 2026-11-03 against `main` at `f0c618aa` (phase 3 done), and again for the review. Read in
   `endpoints/umbel`:
   - `plugins/knowledge/src/proposal/{mod,model,area,propose,apply,review,document,common}.rs` and
@@ -67,8 +70,8 @@
   - In the repository: `spec/command-metadata.md` ("Asking the human over MCP", lines 236-294) and
     `docs/language-parity.md` (line 136: the MCP approval relay is TypeScript only).
 - **No Rust was built** for this document.
-- **Done:** this specification.
-- **Not done:** everything in section [15](#15-implementation-plan).
+- **Done:** this specification, approved 2026-11-03.
+- **Not done:** everything in section [15](#15-implementation-plan); step 1 is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -80,9 +83,9 @@ fixed, and 2 hold in part.
 | --- | --- | --- | --- |
 | 1 | `curator-run` reachable over MCP | Holds in part. `execute` does refuse an unexposed step when the context has an interface (`commands.rs:1359-1399`), but the pipeline is still listed and called over MCP, and library calls carry no interface | Manifest version 4's pipeline `expose`, no wider than its narrowest step, checked at seal (2.2, 10.1, steps 1 and 2, `manifest_v4.rs`, `not_request_path.rs`) |
 | 2 | Forgotten memory survives in ids, paths, keys and hashes | Holds | Candidate, conflict-set ids, paths and keys are content-free (2.3, 4.4, 4.5). Erase redacts `changeHash` and the title, and drops `subjectKey` and the reason (9.1). Every knowledge command returning a drafted proposal is digest-journaled (11.2). The document store uses `secure_delete` (9.1). The forget test scans raw bytes (13) |
-| 3 | `drafter` fields not attestable from the mark | Holds | Attested (`plugin`, `instance`, `pipeline`, `run`) versus asserted by a listed drafter (`mode`, `candidate`, `promotedBy`, memory evidence) (2.1, 3.2), and question 10 |
+| 3 | `drafter` fields not attestable from the mark | Holds | Attested (`plugin`, `instance`, `pipeline`, `run`) versus asserted by a listed drafter (`mode`, `candidate`, `promotedBy`, memory evidence) (2.1, 3.2), and question 10 (superseded by the owner's decision 10: 3.2 verifies the drafter's claims) |
 | 4 | The mark's anti-forgery premise is false | Holds | A host table keyed by fresh random step trace ids, not `extra`; the SDK reads the table; library embedders trusted (10.1) |
-| 5 | Unchecked memory evidence | Holds | Memory evidence and memory `derivedFrom` refused without an accepted mark; the preview says "asserted by drafter" (2.1, 8.1) |
+| 5 | Unchecked memory evidence | Holds | Memory evidence and memory `derivedFrom` refused without an accepted mark; the preview says "asserted by drafter" (2.1, 8.1) (superseded by the owner's decision 10: 3.2 verifies memory evidence against the store, and the preview says "verified") |
 | 6 | Self-approval laundering | Holds | The recommended rule now compares the approver with `promotedBy` **and** every source's principal; the consequence is stated (8.2, question 6) |
 | 7 | Per-space state against per-caller reads | Holds | State, cursors, reports and candidates are per (space, principal) and carry an access set; every run re-checks open drafts' sources (2.3, 7.2, 9.1) |
 | 8 | Wrong pipeline references | Holds | `$steps.<alias>.<path>`; the feed takes its drafter from the mark (3.1) |
@@ -131,14 +134,14 @@ It is the second half of item 4 of the proposal's [first proof](../../proposal.m
 | 1. Empty host | The host gains a pipeline attestation table, two pipeline manifest keys and the CLI's confirmation preview, all domain-free. Candidates, drafting and feedback are the `curator` plugin's |
 | 2. Plugins are the unit | `curator` never calls another plugin; it reads through grants and reaches proposals only through a pipeline it ships as data (D3, D91) |
 | 3. Everything is a command | A run, a promotion and every status read are commands; a schedule is a cron line that runs one |
-| 4. No model in the request path | Curator commands and its pipeline are CLI only and never first-class; in the recommended option phase 4 calls no model (question 3) |
+| 4. No model in the request path | Curator commands and its pipeline are CLI only and never first-class; phase 4 calls no model (owner decision 3) |
 | 6. Deterministic core | Candidates, conflict sets and drafts are pure functions of the stores, the pack, the curator's records and the clock (4.6) |
-| 7. Provenance on everything | A drafted proposal names its drafter and run (attested) and its candidate (asserted), and copies each source's authority, origin, constraints and access (2.1, 13) |
-| 8. Durable knowledge changes by proposal | The curator only proposes; a person approves at a terminal, or a deterministic rule an area opts into, which no pipeline can trigger (8.3, question 1) |
-| 9. Stored content is untrusted input | In the recommended options only `person` authority settles, flagged records never do, and the approver sees a preview with the diff and the evidence's authority (section 12) |
-| 10. Permission-aware | The curator reads memory under its caller's reader filter (question 4); in the recommended option a draft never widens a record's readers without its owner at a terminal (question 5) |
+| 7. Provenance on everything | A drafted proposal names its drafter and run (attested by the host) and its candidate, and copies each source's authority, origin, constraints and access, every claim verified by the knowledge plugin against the memory store (2.1, 3.2, 13) |
+| 8. Durable knowledge changes by proposal | The curator only proposes; a person approves at a terminal, or the one deterministic rule an area may opt into, which no pipeline can trigger (8.3, owner decision 1) |
+| 9. Stored content is untrusted input | By default only `person` authority settles (owner decision 9), flagged records never do, and the approver sees a preview with the diff and the evidence's authority (section 12) |
+| 10. Permission-aware | The curator reads memory under its caller's reader filter (owner decision 4); a draft never widens a record's readers without its owner at a terminal (owner decision 5) |
 | 14. Every mutation is an event | Runs, promotions, submissions, withdrawals and decisions are journaled commands with events naming content-free ids |
-| 15. AFD first | Pipelines, digest journaling, confirmations and approvals are AFD's; no AFD change in the recommended options (section 15) |
+| 15. AFD first | Pipelines, digest journaling, confirmations and approvals are AFD's; no AFD change (section 15) |
 | 16. Spaces do not mix | A run, a candidate and a proposal belong to one space |
 
 Decisions served: D3, D7, D9, D13, D15, D17, D24, D25, D26, D36, D42, D46, D54, D62, D63, D66, D67, D68, D69,
@@ -147,15 +150,15 @@ untouched.
 
 ## Trajectory refresh
 
-Refreshed 2026-11-03 against primary sources. **No finding changes the architecture.** One finding weighs on
-question 2: the 2026-07-28 elicitation specification fixes no user interaction model.
+Refreshed 2026-11-03 against primary sources. **No finding changes the architecture.** One finding weighed on
+owner decision 2: the 2026-07-28 elicitation specification fixes no user interaction model.
 
 | Row | Checked against | Finding on 2026-11-03 | Effect on phase 4 |
 | --- | --- | --- | --- |
 | W1 release cycle | [MCP roadmap](https://modelcontextprotocol.io/development/roadmap), last updated 2026-08-22 | 2026-07-28 is current; the same five priority areas | Pins 2026-07-28 and keeps 2025-11-25 |
 | W2 MCP Events, SEP-3415 | The pull request, GitHub API | Open, not a draft, updated 2026-11-03 | Curator events stay in Umbel's log |
 | W5 agent identity | The roadmap | Human-presence attestation is only "under discussion" | Approval rests on the terminal check until phase 5 (8.4) |
-| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | "The protocol itself does not mandate any specific user interaction model"; form schemas are flat primitives, so a diff travels only in `message`; "Servers MUST NOT rely on client-provided user identification without server verification" | A relayed approval proves a client answered, not that a person read the diff (8.4, question 2) |
+| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | "The protocol itself does not mandate any specific user interaction model"; form schemas are flat primitives, so a diff travels only in `message`; "Servers MUST NOT rely on client-provided user identification without server verification" | A relayed approval proves a client answered, not that a person read the diff (8.4, owner decision 2) |
 | W7 Tasks | The roadmap | Tasks (SEP-2663) continue toward core; no date | Runs are bounded one-shot commands (7.3) |
 | W11 Open Knowledge Format | Not re-checked | Phase 2's refresh of 2026-11-01 stands | Phase 4 uses only `verified`, `stale_after`, `status`, `generated` |
 
@@ -188,7 +191,8 @@ endpoints/umbel/
 ├── sdk/src/cx.rs              # CallContext.pipeline
 ├── store-embedded/src/        # secure_delete on store.sqlite3 (9.1)
 ├── plugins/curator/           # umbel-plugin-curator: compiled plugin
-├── plugins/knowledge/         # proposal version 2, the drafted path, preview, feed, auto rules
+├── okf/src/draft.rs           # the fixed draft rendering and id derivations, shared (4.5, 3.2)
+├── plugins/knowledge/         # proposal version 2, the drafted path and its verification, preview, feed, auto rules
 ├── first-party/               # umbel-first-party gains curator
 └── schemas/                   # + the shapes of section 2
 ```
@@ -198,7 +202,8 @@ endpoints/umbel/
 | `umbel` (host) | as before | none | Section 10; manifest version 4 |
 | `umbel-sdk` | as before | none | `CallContext.pipeline: Option<PipelineAttestation>`; WIT world 1.0.0 unchanged, so components never see it |
 | `umbel-store-embedded` | as before | none | `secure_delete=ON` on every `store.sqlite3` connection |
-| `umbel-plugin-knowledge` | as before | none | Section 11.2 |
+| `umbel-okf` | as before | none | Gains `draft`: the rendering of 4.5, `subject_key`, and the candidate, conflict-set and document-id derivations, so the curator renders and the knowledge plugin re-renders to verify, without depending on each other (D3 governs plugins, not libraries; D57) |
+| `umbel-plugin-knowledge` | as before | none | Section 11.2; declares `memory`, read only (owner decision 7) |
 | `umbel-plugin-curator` | `umbel-sdk`, `umbel-store`, `umbel-okf`, `umbel-scan` | `sha2`, `toml`, `chrono`, `serde_json` (in the lock) | Kind `compiled`; id `curator`, domain `curator` |
 | `umbel-first-party` | + `umbel-plugin-curator` | none | |
 
@@ -230,12 +235,12 @@ when it is decided, withdrawn or applied; new proposals are version 2.
 | --- | --- |
 | `version` | `2` |
 | `provenance` | Envelope **version 2**, `authority: null` |
-| `drafter` | **New.** `null`, or `{ "plugin", "instance", "pipeline", "run", "mode", "candidate"?, "promotedBy"? }`. **Attested by the host** (10.1): `plugin`, `instance`, `pipeline`, and `run` (the pipeline call's trace id). **Asserted by the drafter**, accepted only from an instance in `drafters` (3.2, question 10): `mode` (`scheduled` or `promoted`), `candidate`, `promotedBy` |
-| `conflictSet` | **New.** `null`, or a conflict set id `k-<20 hex>` (4.4); asserted by the drafter |
-| `evidence` | Version 1's kinds plus **`memory`**: `{ "kind": "memory", "ref": "<mem id>@<recordVersion>", "principal", "contentHash", "class", "authority", "origin", "constraints", "access", "sensitivity", "confirmation", "observations": { "sessions", "principals" }, "excerpt"?, "erased"? }`. It copies each source's authority, origin, constraints and access (D81). **Refused** (`PROPOSAL_EVIDENCE_INVALID`) without an accepted drafter attestation, because knowledge cannot check it; asserted by the drafter |
-| `provenance.derivedFrom` | For a drafted proposal, `{ "kind": "memory", "id", "contentHash" }` per source (D81), at most 32; refused without an accepted attestation; `null` otherwise |
+| `drafter` | **New.** `null`, or `{ "plugin", "instance", "pipeline", "run", "mode", "candidate"?, "promotedBy"? }`. **Attested by the host** (10.1): `plugin`, `instance`, `pipeline`, and `run` (the pipeline call's trace id). **Verified by the knowledge plugin** against the memory store (3.2, owner decision 10): `mode` (`scheduled` or `promoted`), `candidate`, `promotedBy`. A mismatch is `PROPOSAL_DRAFT_MISMATCH` |
+| `conflictSet` | **New.** `null`, or a conflict set id `k-<20 hex>` (4.4); verified for consistency with the sources and the document id (3.2) |
+| `evidence` | Version 1's kinds plus **`memory`**: `{ "kind": "memory", "ref": "<mem id>@<recordVersion>", "principal", "contentHash", "class", "authority", "origin", "constraints", "access", "sensitivity", "confirmation", "observations": { "sessions", "principals" }, "excerpt"?, "erased"? }`. It copies each source's authority, origin, constraints and access (D81). **Refused** (`PROPOSAL_EVIDENCE_INVALID`) without an accepted drafter attestation, and **verified field by field** against the record (3.2) |
+| `provenance.derivedFrom` | For a drafted proposal, `{ "kind": "memory", "id", "contentHash" }` per source (D81), at most 32; refused without an accepted attestation; each must equal an evidence entry's id and hash; `null` otherwise |
 | `policy.rule` | `"person"` or `"auto:<rule id>"` (8.3) |
-| `decision.channel` | **New.** `"terminal"` or `"policy"`; a relay over MCP would add `"mcp-elicitation"` (question 2) |
+| `decision.channel` | **New.** `"terminal"` or `"policy"`; a relay over MCP, in phase 5, would add `"mcp-elicitation"` (owner decision 2) |
 | `decision.by` | For `"policy"`, `{ "kind": "service", "id": "policy:<area>" }` |
 | `withdrawal` | **New.** `null`, or `{ "by": "drafter" \| "proposer", "reason", "at" }`, reasons `source-erased`, `source-changed`, `superseded-alternative`, `retracted` |
 | `redacted` | **New.** `null`, or `{ "at", "reason": "source-erased" }` (9.1) |
@@ -320,7 +325,7 @@ missing one is a `VALIDATION_ERROR` for that step, not an empty list. All steps 
 counts, never text, so cron mail and CI logs hold none. Feedback read by `feed` is applied by `finish`, and the
 next run's `plan` sees it.
 
-### 3.2 The drafter (question 10)
+### 3.2 The drafter: attested, then verified (owner decision 10)
 
 `knowledge-propose-batch` and `knowledge-proposal-feed` read `CallContext.pipeline`, which the SDK fills from
 the host's attestation table (10.1). A call without an attestation has `drafter: null`. It may not carry memory
@@ -332,16 +337,50 @@ by its caller. **The knowledge instance accepts an attestation only from instanc
 drafters = ["curator"]          # default []: an attested submission is PROPOSAL_DRAFTER_NOT_ALLOWED
 ```
 
-**Listing an instance is trusting its assertions** (`mode`, `candidate`, `promotedBy`, `conflictSet`, memory
-evidence), which knowledge cannot check without reading memory. A compiled plugin is trusted code (D42); this
-makes that trust reach the knowledge base's decision traces, which question 10 asks the owner to accept.
+**Listing an instance is not trusting it.** The host attests who drafted (`plugin`, `instance`, `pipeline`,
+`run`). The knowledge plugin then **verifies every other claim itself**, through its read-only `memory` grant
+(owner decision 7), under the batch caller's reader filter, before it stores the proposal. Each check refuses
+the one item with `PROPOSAL_DRAFT_MISMATCH`, whose `details.check` names the check and never the content:
+
+| Check | What the knowledge plugin compares | `details.check` |
+| --- | --- | --- |
+| Source exists | `memory_get` at `now` finds each evidence entry's record: readable to the caller, live (valid, not invalidated or superseded, `expiresAt > now`), not flagged, class `semantic` or `procedural` | `source-missing`, `source-not-live`, `source-flagged`, `source-class` |
+| Version | The record's current version equals the entry's `recordVersion`, and its `contentHash` equals the entry's and the `derivedFrom` entry's | `source-version`, `source-hash` |
+| Copied fields | `principal`, `class`, `authority`, `origin`, `constraints`, `access`, `sensitivity` and `confirmation` equal the record's, exactly; the proposal's `confidence` is the highest of the sources' | `copied-<field>`, `confidence` |
+| Counts | Each entry's `observations.sessions` is at most the record's; `principals` equals the number of distinct source principals; the rationale's counts are at most those | `counts` |
+| One group | Every source has the same `contentHash` and `class`; at most 32 sources | `group` |
+| Excerpt | Each `excerpt` is the record's text cut at 1000 characters | `excerpt` |
+| Content | `change.content` is byte-equal to `umbel_okf::draft::render` over the verified sources, the instance and `generated.at` | `content` |
+| Candidate | `candidate` equals `umbel_okf::draft::candidate_id(space, caller principal, lowest source id)` | `candidate` |
+| Document id | `change.doc` is the curator's configured target, ending in the candidate id, or in the conflict set id when `conflictSet` is set | `document` |
+| Conflict set | `conflictSet`, when set, has the `k-` form; every open proposal sharing it targets the same document, and their sources share `umbel_okf::draft::subject_key` of the subject and differ in content hash | `conflict-set` |
+| Widening and mode | Knowledge computes whether the target's access is wider than the sources' (5.1). If it is not, `mode` must be `scheduled` and `promotedBy` absent. If it is, `mode` must be `promoted`, and the caller's effective principal must be the principal of **every** source; `promotedBy` must equal it. Higher sensitivity is always refused | `mode`, `promoted-by`, `sensitivity` |
+| `generated.at` | At or after every source's current `recordedAt`, and at or before `now` | `generated-at` |
+
+Each source is read once per batch: at most 32 per proposal and **400 per batch**, else
+`PROPOSAL_BATCH_TOO_LARGE`. Approve repeats the source, version, copied-field and widening checks (8.2), so a
+change between submission and approval is caught.
+
+**What still cannot be verified, and why:**
+- **That a promotion's owner consented at a terminal.** The consent lives in the curator's own records, which
+  are namespaced per instance (`store_services.rs:330-370`), so knowledge cannot read it. Knowledge verifies what
+  bounds it: a widening draft is accepted only when the batch's caller owns every source, so no one's private
+  memory is widened by a run another principal started. Under owner decision 6, the owner approving their own
+  widened record is self-approval.
+- **The settling policy:** whether a record had stood for the pack's days, which authorities the pack admits, and
+  the session floor. These are the curator's pack and clock, not facts about the record. Knowledge verifies the
+  facts it shows the approver, and the preview labels the policy figures "drafter's policy".
+- **`generated.at`'s exact value**, the candidate's settling instant in curator state. Knowledge checks only its
+  bounds.
+- **Sessions as labels** (D68). Knowledge verifies the counts against the store; it cannot verify that the
+  sessions were distinct people or times.
 
 ### 3.3 Not in the request path, never approving
 
 - Every curator command and `curator-run` are CLI only and never first-class. Over MCP, `tools/list`,
   `afd-discover` and `afd-call` neither list nor run them (`not_request_path.rs`, through the binary's stdio
   server).
-- The curator holds no write grant to knowledge or memory (D90; memory is question 8).
+- The curator holds no write grant to knowledge or memory (D90; owner decision 8).
 - Approve, reject and verify stay `require-human` and CLI only. In a pipeline step they are refused at the
   plugin gate, because the CLI's mark names the pipeline (`middleware.rs:278`); a test holds this.
 - `knowledge-auto-approve` refuses any call with a pipeline attestation (8.3).
@@ -352,7 +391,7 @@ makes that trust reach the knowledge base's decision traces, which question 10 a
 
 ### 4.1 Inputs
 
-Records are read with `memory_list` under the caller's reader filter (question 4) and filtered on `MemoryMeta`
+Records are read with `memory_list` under the caller's reader filter (owner decision 4) and filtered on `MemoryMeta`
 first: class, authority, flags, validity, `recorded_at`, `expires_at`, access and sensitivity. Only survivors
 are read with `memory_get` for `contentHash`, `observations`, `constraints`, `confirmation`, `confidence` and
 the text. A run makes at most `max_records` (5000) list reads and `max_gets` (500) gets, a bounded cost stated
@@ -369,7 +408,7 @@ A record is **settled** at the run's instant `now` (the command context's clock)
 | Live | Valid at `now`, not invalidated or superseded, `expiresAt > now` |
 | Stable since | `now - recordedAt(current version) >= semantic_days` (7) or `procedural_days` (14) |
 | Sessions | The group's sessions (4.3) at least `min_sessions` (2) |
-| Authority | In `authorities`, default `["person"]` (which includes records a person confirmed, D84). **Widening it is question 9** |
+| Authority | In `authorities`, default `["person"]` (which includes records a person confirmed, D84). A pack may widen it per space to `agent`, `tool` or `import` (owner decision 9) |
 | Flags | None (D75) |
 | Confidence | Carried as asserted; `min_confidence` (unset) may make it a gate |
 
@@ -440,7 +479,7 @@ reads. The other proposal fields:
 - **`idempotency_key`:** `curator/<candidate id>/<drafts>`.
 - **`confidence`:** the highest asserted, or `null`.
 
-A rerun therefore renders byte-equal input and gets the existing proposal back.
+The rendering and the id derivations live in `umbel_okf::draft`, so the knowledge plugin re-renders to verify (3.2). A rerun renders byte-equal input and gets the existing proposal back.
 
 ### 4.6 Determinism
 
@@ -448,12 +487,12 @@ A rerun therefore renders byte-equal input and gets the existing proposal back.
 caller's curator records and `now`. Candidates come in id order, then re-verifications in document id order, at
 most `max_proposals` (20) per run (`deterministic.rs`).
 
-## 5. Access, sensitivity and promotion (D94, question 5)
+## 5. Access, sensitivity and promotion (D94, owner decision 5)
 
 ### 5.1 The rule
 
 A drafted proposal is readable by anyone who can read its target. Drafting a private record for a shared
-collection would therefore show it to the collection's readers before any approval. **Recommended:** a candidate
+collection would therefore show it to the collection's readers before any approval. A candidate
 is drafted on a schedule only when:
 - every token of the target's resolved access set is in every source's access set; and
 - no source's sensitivity is above the target's (`public` < `internal` < `confidential` < `restricted`).
@@ -471,7 +510,7 @@ rule again (8.2).
 - **Proof of looking:** the `contentHash` must match, since prompts cannot show text through
   `curator-candidates`.
 - **What it records:** a `consent` record listing each source and version. The next run drafts with
-  `mode = "promoted"` and `promotedBy`.
+  `mode = "promoted"` and `promotedBy`, which the knowledge plugin checks against the sources' principals (3.2).
 - **Limits:** sensitivity is never overridden. The prompt says the text becomes readable by the target
   collection's readers once proposed.
 
@@ -572,10 +611,11 @@ A failed preview refuses the call (`CONFIRMATION_PREVIEW_FAILED`; nothing runs).
 
 `knowledge-proposal-preview { space, proposal }` renders:
 - id, op, document, area and change hash;
-- the drafter, attested fields apart from asserted ones;
+- the drafter's attested fields, and the verified ones;
 - `conflictSet` and flags;
-- each evidence entry. Memory entries show authority, origin, constraints and access, labelled **"asserted by
-  drafter `<instance>`"**;
+- each evidence entry. Memory entries show authority, origin, constraints and access, labelled **"verified
+  against memory at submission"**, and the settling figures labelled **"drafter's policy"** (3.2);
+- for a widening draft, the line **"widens readers: sources private to `<principal>`"**;
 - the diff's first 80 lines.
 
 It applies approve's reader rules. `knowledge-approve` and `knowledge-reject` declare it. `knowledge-verify`
@@ -583,17 +623,19 @@ declares none: it takes a document, not a proposal, and the person attests the d
 proposal's content changes after submission only by a redaction (9.1), which withdraws it, so what is previewed
 is what is applied.
 
-### 8.2 Approve's re-checks and who authored a draft (question 6, D102)
+### 8.2 Approve's re-checks and who authored a draft (owner decision 6, D102)
 
 **Re-checks at approve** for a drafted proposal (the check runs at draft time; the use is at approve):
 - the target's current resolved access set and sensitivity are checked against each memory evidence entry's
   copied `access` and `sensitivity` by 5.1's rule, else `PROPOSAL_ACCESS_WIDENED`, applying nothing;
-- when knowledge holds `memory` (question 7), each source must still be readable, live and at its cited version,
-  else `PROPOSAL_SOURCE_GONE`.
+- knowledge holds `memory`, read only (owner decision 7), so each source must still be readable, live and at its
+  cited version, else `PROPOSAL_SOURCE_GONE`; and its copied fields must still equal the record's, else
+  `PROPOSAL_DRAFT_MISMATCH` (3.2).
 
 **Authorship.** The CLI is always `human:<local_id>` before phase 5 (`host/mod.rs:584-591`), so the person whose
-cron runs `curator-run` is the `proposer.actor`. **Recommended:** for a drafted proposal, self-approval compares
-the approving actor with `promotedBy` **and with every source's `principal`** (from the memory evidence). Any
+cron runs `curator-run` is the `proposer.actor`. For a drafted proposal, self-approval compares
+the approving actor with **every source's `principal`, read from the memory store** at approve, and with
+`promotedBy`, which 3.2 verified to be one of them. Nothing in the comparison is the drafter's word. Any
 match is `self-approval`, allowed only where the area allows it.
 
 **The consequence, stated plainly:** in a one-person workspace every draft of that person's memory is
@@ -601,9 +643,9 @@ self-approval. The area must set `allow_self_approval`, and each approval record
 A draft of someone else's shared memory, or a `verify` or `deprecate` draft, is approved by the runner with no
 exception. Drafted documents are `agent-inferred`.
 
-### 8.3 Auto-approval rules (question 1, D98)
+### 8.3 Auto-approval rules (owner decision 1, D98)
 
-**Recommended:** the mechanism, with **one** rule kind, off by default.
+The mechanism, with **one** rule kind, off by default.
 
 ```toml
 [plugins.knowledge.config.areas.handbook]
@@ -627,23 +669,23 @@ auto = ["deprecate-declared"]   # default []
 **Never auto-approved, whatever an area lists:** `create`, `update` and `verify`; memory evidence; flags;
 alternatives. A deprecated document drops out of search (D58).
 
-### 8.4 The MCP approval relay (question 2, D99)
+### 8.4 The MCP approval relay (owner decision 2, D99)
 
 AFD's relay asks the client to show a form. "A server cannot tell a person's answer from client code that
 answers on its own" (`spec/command-metadata.md`), and the 2026-07-28 elicitation text fixes no interaction
 model. Umbel's gate accepts `require-human` only at the CLI. Every MCP caller before phase 5 is an agent or
 `agent:loopback`, and only humans approve (D62).
 
-**Recommended:** approval stays CLI only in phase 4. The Rust relay prerequisite and Umbel's use of it move to
+Approval stays CLI only in phase 4. The Rust relay prerequisite and Umbel's use of it move to
 phase 5. When it lands it is:
 - opt-in per area (`approve_over_mcp`, default false);
 - carrying 8.1's preview as the elicitation `message`;
 - recording `decision.channel = "mcp-elicitation"` and the verified person;
 - limited to approve and reject.
 
-### 8.5 The optional model (question 3, D100)
+### 8.5 The optional model (owner decision 3, D100)
 
-**Recommended for phase 4: no model.** Drafts are 4.5's fixed rendering, and
+**No model in phase 4.** Drafts are 4.5's fixed rendering, and
 `[plugins.curator.config.model]` is reserved and refused (`CURATOR_MODEL_UNAVAILABLE`). The reasons:
 - memory text would leave the process;
 - injected memory could steer plausible drafts (S14, S15);
@@ -651,13 +693,13 @@ phase 5. When it lands it is:
 
 ## 9. Changed and forgotten evidence (D103, D104)
 
-### 9.1 What an open proposal does when its source changes (question 7)
+### 9.1 What an open proposal does when its source changes (owner decision 7)
 
 Phase 3 left this open (D73, D81, D85). **Every run re-checks every open drafted proposal of the caller**: it
 reads each source with `memory_get` at `now`, which covers expiry and what the feed cannot show the caller. It
 also reads the changes feed.
 
-| Source state | Recommended handling |
+| Source state | Handling |
 | --- | --- |
 | `Erased` (forget) | Withdraw with `source-erased` **and redact** (below) |
 | Absent or unreadable at re-check, `Purged`, `Invalidated` (which includes superseded), or `expiresAt <= now` | Withdraw with `source-changed`; no redaction (an absent record may be erased; the caller cannot tell, and the next run redacts it if the feed shows `Erased`) |
@@ -684,13 +726,13 @@ command returning a drafted proposal is digest-journaled (11.2). Results keep no
 disclosed residue.
 
 **Limits, stated:**
-- the window between a forget and the next run, unless approve re-checks sources (question 7);
+- none for approval: approve refuses a proposal whose source is gone (8.2), though the proposal stays readable until the next run redacts it;
 - `store-backup` copies;
 - text an approver copied elsewhere.
 
-### 9.2 Memory is never written (question 8)
+### 9.2 Memory is never written (owner decision 8)
 
-**Recommended:** the curator holds no `memory_write`. The reserved fields `promotedTo`, `candidate` and
+The curator holds no `memory_write`. The reserved fields `promotedTo`, `candidate` and
 `settledAt` stay reserved, and candidate state lives in curator records. After an applied promotion,
 `curator-status` lists the source records whose owner may close them with `memory-invalidate`, reason
 `outdated`. Phase 3's refusal of `memory_write` beside a document write grant stays.
@@ -727,8 +769,8 @@ Manifest version 4's `confirm_preview` and 8.1's CLI flow; nothing changes on MC
 ### 10.3 Grants
 
 No new grant. The curator declares `config`, `packs`, `clock`, `memory`, `documents`, `graph`, `records` and
-`records_write` (allow `<space>`). Memory reads stay under the caller's filter (question 4). If question 7 is
-answered as recommended, knowledge also declares `memory`, read only. Phase 3 then requires a `journal` on every
+`records_write` (allow `<space>`). Memory reads stay under the caller's filter (owner decision 4). Knowledge also declares `memory`, read only
+(owner decision 7). Phase 3 then requires a `journal` on every
 knowledge command and pipeline (11.2).
 
 ## 11. The plugins
@@ -759,10 +801,10 @@ proposal's content, title, change hash or memory evidence is digest-journaled**,
 
 | Command | Effects | Exposed | Journal | Contract |
 | --- | --- | --- | --- | --- |
-| `knowledge-propose-batch` | `store-write` | every surface | digest | `{ space, proposals: [...] (at most 50), withdraw?: [{ proposal, reason, redact? }] (at most 50) }`; each item is `knowledge-propose`'s validation, plus 3.2's attestation rules, plus `PROPOSAL_ALREADY_OPEN` when a drafted item's document, or one of its memory sources, already has an open proposal; results per item |
+| `knowledge-propose-batch` | `store-write` | every surface | digest | `{ space, proposals: [...] (at most 50), withdraw?: [{ proposal, reason, redact? }] (at most 50) }`; each item is `knowledge-propose`'s validation, plus 3.2's attestation rules and verification, plus `PROPOSAL_ALREADY_OPEN` when a drafted item's document, or one of its memory sources, already has an open proposal; results per item |
 | `knowledge-proposal-feed` | `inspect` | CLI | digest | Section 7.1; refuses a call without an accepted attestation |
 | `knowledge-proposal-preview` | `inspect` | CLI | digest | Section 8.1 |
-| `knowledge-auto-approve` | `store-write`, `workspace-write` | CLI | digest | Section 8.3; built only if question 1 is answered yes |
+| `knowledge-auto-approve` | `store-write`, `workspace-write` | CLI | digest | Section 8.3 |
 | `knowledge-proposal-list`, `-proposal-show` | unchanged | unchanged | **digest** (was plain) | |
 | `knowledge-approve`, `-reject` | unchanged | unchanged | **digest** (was plain) | `confirm_preview`; 8.2's re-checks and authorship rule |
 | `knowledge-withdraw` | unchanged | unchanged | **digest** | Proposer only, as phase 2; drafter withdrawals go only through the batch |
@@ -782,10 +824,11 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `CURATOR_MODEL_UNAVAILABLE` | `config.model` is set (8.5) | No |
 | `PROPOSAL_DRAFTER_NOT_ALLOWED` | An attested submission from an instance not in `drafters` | No |
 | `PROPOSAL_EVIDENCE_INVALID` (extended) | Memory evidence, memory `derivedFrom`, a `conflictSet` or a withdrawal without an accepted attestation | No |
+| `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2); `details.check` names the check | No |
 | `PROPOSAL_ALREADY_OPEN` | A drafted proposal for a document or source that has an open proposal | No |
-| `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals or 50 withdrawals | No |
+| `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals, 50 withdrawals or 400 cited sources | No |
 | `PROPOSAL_ACCESS_WIDENED` | Approve's re-check of 5.1 fails | No |
-| `PROPOSAL_SOURCE_GONE` | Approve finds a source gone (question 7) | No |
+| `PROPOSAL_SOURCE_GONE` | Approve finds a source gone (8.2) | No |
 | `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation | No |
 | `CONFIRMATION_PREVIEW_FAILED` | The preview failed; nothing ran | No |
 | `CURATOR_CANDIDATES_SKIPPED` (warning) | A run skipped candidates; details hold counts by reason | |
@@ -794,21 +837,22 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 
 | Threat | Control | Test |
 | --- | --- | --- |
-| **Poisoned memory promoted** (S14) | In the recommended options only `person` authority settles (question 9), flagged never; a person approves every content change after a preview with each source's authority and origin; no auto rule touches content. Session counts are labels and are **not** a control | `curator/tests/poisoning.rs` |
-| **Private memory disclosed through a proposal** | 5.1's rule (question 5); per-principal curator records; promotion by the owner at a terminal | `curator/tests/access_rule.rs`, `first-party/tests/curator_leaks.rs` |
+| **Poisoned memory promoted** (S14) | By default only `person` authority settles (owner decision 9), flagged never; a person approves every content change after a preview with each source's authority and origin; no auto rule touches content. Session counts are labels and are **not** a control | `curator/tests/poisoning.rs` |
+| **Private memory disclosed through a proposal** | 5.1's rule (owner decision 5); per-principal curator records; promotion by the owner at a terminal | `curator/tests/access_rule.rs`, `first-party/tests/curator_leaks.rs` |
 | **Access or sensitivity changed between draft and approve** | Approve's re-check (8.2) | `knowledge/tests/drafted.rs` |
-| **A source forgotten before approve** | Withdrawal and redaction on the next run; source re-check at approve if knowledge holds `memory` (question 7) | `curator/tests/forgotten.rs`, `knowledge/tests/drafted.rs` |
-| **Forged drafter or forged memory evidence** | Host attestation by random step trace (10.1); `drafters`; memory evidence refused otherwise (3.2) | `pipeline_attestation.rs`, `knowledge/tests/drafted.rs` |
-| **Rubber-stamped machine drafts** | The preview (8.1), with asserted fields labelled | `cli_confirm_preview.rs`, `knowledge/tests/preview.rs` |
+| **A source forgotten before approve** | Withdrawal and redaction on the next run; source re-check at approve (8.2) | `curator/tests/forgotten.rs`, `knowledge/tests/drafted.rs` |
+| **Forged drafter or forged memory evidence** | Host attestation by random step trace (10.1); `drafters`; memory evidence refused without an attestation; every claim of a listed drafter verified against the memory store and the fixed rendering (3.2) | `pipeline_attestation.rs`, `knowledge/tests/verify_drafts.rs`, `knowledge/tests/drafted.rs` |
+| **A faulty or compromised drafter misstating a source** (wrong authority, dropped constraint, another person's record widened) | 3.2's field-by-field checks; widening only of the caller's own records; re-checked at approve | `knowledge/tests/verify_drafts.rs` |
+| **Rubber-stamped machine drafts** | The preview (8.1), with verified facts and the drafter's policy labelled apart | `cli_confirm_preview.rs`, `knowledge/tests/preview.rs` |
 | **The curator approving its own work** | No approve path from a pipeline; auto refuses an attestation | `curator/tests/not_request_path.rs` |
-| **Self-approval laundered through the curator** | 8.2's comparison with every source's principal (question 6) | `knowledge/tests/drafted.rs` |
+| **Self-approval laundered through the curator** | 8.2's comparison with every source's principal (owner decision 6) | `knowledge/tests/drafted.rs` |
 | **Request-path reachability** | Pipeline `expose`, checked at seal | `pipeline_expose.rs`, `not_request_path.rs` |
 | **Constraints lost** (S16) | `Holds only`; constraints in every memory evidence entry | `curator/tests/draft.rs` |
 | **Forget residue** | Content-free ids, paths and keys; digest journaling; redaction; `secure_delete` and the checkpoint; limits in 9.1 | `first-party/tests/exit_curator.rs` (point 6), `curator/tests/forgotten.rs` |
-| **Model injection** | No model (question 3) | `curator/tests/config.rs` |
+| **Model injection** | No model (owner decision 3) | `curator/tests/config.rs` |
 | **Hidden counts** | Records, reports and status per principal | `curator_leaks.rs` |
 | **Runaway runs** | Per-principal lock with owner-only release; caps; rotating scan | `curator/tests/run.rs` |
-| **Auto-deprecation by editing a file** | `deprecate-declared` needs bytes an applied proposal wrote (question 1) | `knowledge/tests/auto_approve.rs` |
+| **Auto-deprecation by editing a file** | `deprecate-declared` needs bytes an applied proposal wrote (owner decision 1) | `knowledge/tests/auto_approve.rs` |
 
 Content trust is phase 2's (D67): drafts, excerpts and reasons are `trust: "content"` and never appear in
 messages, reasoning or warnings.
@@ -834,11 +878,13 @@ It asserts:
    - `drafter` `run` and `instance` match the attestation;
    - one `memory` evidence entry whose `authority`, `origin`, `constraints`, `access` and `principal` equal the
      record's;
-   - `derivedFrom` naming it.
+   - `derivedFrom` naming it;
+   - and a batch replayed with one copied field changed (`authority`) is refused with
+     `PROPOSAL_DRAFT_MISMATCH`, `details.check = "copied-authority"`.
 
    The pipeline's stdout, the journal and the events hold no canary.
-2. **Approved from the CLI.** `knowledge-approve` prints the preview (the diff, the drafter, the "asserted"
-   label) and the stand-in person confirms. The approver `human:local` matches neither `promotedBy` nor the
+2. **Approved from the CLI.** `knowledge-approve` prints the preview (the diff, the drafter, the "verified
+   against memory" label) and the stand-in person confirms. The approver `human:local` matches neither `promotedBy` nor the
    source's principal, so `exception: null` and `decision.channel = "terminal"`.
 3. **Lands with full provenance.**
    - The file is the fixed rendering with `Holds only`.
@@ -875,6 +921,8 @@ It asserts:
 | `store-embedded/tests/secure_delete.rs` | embedded | `store.sqlite3` connections read back `secure_delete=1`; a replaced record's canary absent after a `TRUNCATE` checkpoint; `pending` with a reader held |
 | `plugins/knowledge/tests/proposals_v2.rs` | knowledge | Version 2 fields; version 1 kept in its version |
 | `plugins/knowledge/tests/drafted.rs` | knowledge | Attestation needed for `drafter`, memory evidence and withdrawals; `drafters`; `PROPOSAL_ALREADY_OPEN`; batch caps; 8.2's re-checks and authorship; `agent-inferred`; no memory hash in result provenance |
+| `plugins/knowledge/tests/verify_drafts.rs` | knowledge | Every row of 3.2's table, one mismatch each, with its `details.check` and nothing stored; a valid draft accepted; widening by a caller who owns every source accepted, by any other caller refused; the 400-source cap; approve's repeat of the checks after a source changes |
+| `okf/tests/draft.rs` | `umbel-okf` | The rendering, `subject_key` and the id derivations, byte for byte |
 | `plugins/knowledge/tests/preview.rs` | knowledge | Rendering, labels, reader rules |
 | `plugins/knowledge/tests/redaction.rs` | knowledge | 9.1's redacted record; idempotent; applied proposals untouched |
 | `plugins/knowledge/tests/journal_modes.rs` | knowledge | 11.2's digest set: a canary in a drafted proposal never in the journal |
@@ -901,10 +949,10 @@ It asserts:
 
 | Out of scope | When | Seam |
 | --- | --- | --- |
-| The MCP approval relay | Phase 5, if question 2 is answered as recommended | `decision.channel`; 8.4's conditions |
-| A model drafting or extracting | Owner decision (question 3) | `config.model` reserved |
-| Derivation reads of memory, team-wide candidates | Owner decision (question 4) | `ReaderFilter::Derivation`, still refused |
-| Writing memory, the reserved record fields, knowledge invalidating memory | Owner decision (question 8) | The reserved fields; `memory-invalidate` reason `outdated` |
+| The MCP approval relay | Phase 5 (owner decision 2) | `decision.channel`; 8.4's conditions |
+| A model drafting or extracting | A new owner decision (decision 3 chose none) | `config.model` reserved |
+| Derivation reads of memory, team-wide candidates | A new owner decision (decision 4 chose the caller's filter) | `ReaderFilter::Derivation`, still refused |
+| Writing memory, the reserved record fields, knowledge invalidating memory | A new owner decision (decision 8 chose never) | The reserved fields; `memory-invalidate` reason `outdated` |
 | A doctor API for plugins | When a plugin needs one | `curator-status`'s `overdue` |
 | Procedural memory as skills in a pack (D15) | When a deployer asks | Documents of type `procedure` |
 | Edits needing judgment | With a model or person tooling | Reported inconsistencies (6.2) |
@@ -914,8 +962,7 @@ It asserts:
 
 ## 15. Implementation plan
 
-**No step 0** in the recommended options. If question 2 is answered "relay in phase 4", step 0 is the Rust relay
-in AFD, spec first.
+**No step 0**: AFD needs no change, since the relay moved to phase 5 (owner decision 2).
 
 Each step is one pull request, green on the repository's checks and `umbel.yml`, and updates
 [STATUS.md](../../STATUS.md) and this file. A step that finds a design decision stops and amends this document.
@@ -926,79 +973,98 @@ Steps that change host code carry the `Plugin-isolation-exempt:` line.
 | 1 | Shapes | The four schemas with examples; manifest version 4 parsing (`confirm_preview`, pipeline `expose` and `result`); version constants | `schemas.rs`, `manifest_v4.rs` | S |
 | 2 | Host | Pipeline attestation, exposure at seal, `result`; the SDK field; the CLI preview; `secure_delete` on `store.sqlite3` | `pipeline_attestation.rs`, `pipeline_expose.rs`, `cli_confirm_preview.rs`, `secure_delete.rs` | M |
 | 3a | Knowledge: record and journal | Proposal version 2; manifest version 4; the digest set of 11.2; `knowledge-proposal-preview` and `confirm_preview` | `proposals_v2.rs`, `preview.rs`, `journal_modes.rs`, existing suites | M |
-| 3b | Knowledge: the drafted path | `drafters`; `knowledge-propose-batch`, `-proposal-feed`; attestation rules; `PROPOSAL_ALREADY_OPEN`; withdrawal and redaction; 8.2's re-checks and authorship (the source re-check only if question 7 is answered as recommended) | `drafted.rs`, `redaction.rs` | M |
-| 4 | Curator: candidates | The crate, pack, skill and config; candidates, conflicts, drafting, access rule; `curator-candidates`, `curator-promote`; per-principal records; the `memory` job gains the crate | `settle.rs`, `conflicts.rs`, `draft.rs`, `access_rule.rs`, `promote.rs`, `config.rs`, `no_plugin_dependency.rs` | L |
+| 3b | Knowledge: the drafted path | `drafters`; `knowledge-propose-batch`, `-proposal-feed`; attestation rules; `PROPOSAL_ALREADY_OPEN`; withdrawal and redaction | `drafted.rs`, `redaction.rs` | M |
+| 3c | Knowledge: verifying drafts | `umbel_okf::draft` (rendering, `subject_key`, id derivations); knowledge declares `memory` read only; 3.2's checks and `PROPOSAL_DRAFT_MISMATCH`; 8.2's re-checks and authorship from the store | `okf/tests/draft.rs`, `verify_drafts.rs` | L |
+| 4 | Curator: candidates | The crate, pack, skill and config; drafting through `umbel_okf::draft`; candidates, conflicts, drafting, access rule; `curator-candidates`, `curator-promote`; per-principal records; the `memory` job gains the crate | `settle.rs`, `conflicts.rs`, `draft.rs`, `access_rule.rs`, `promote.rs`, `config.rs`, `no_plugin_dependency.rs` | L |
 | 5 | Curator: runs | `curator-plan`, `-finish`, `-status`, `curator-run`; re-verification and inconsistencies; feedback; lock, recovery and scan; re-check and forgotten evidence | `reverify.rs`, `feedback.rs`, `run.rs`, `forgotten.rs`, `deterministic.rs`, `poisoning.rs`, `not_request_path.rs` | L |
-| 6 | Auto-approval | `knowledge-auto-approve` and `deprecate-declared`. **Only if question 1 is answered yes** | `auto_approve.rs` | S |
+| 6 | Auto-approval | `knowledge-auto-approve` and `deprecate-declared` (owner decision 1) | `auto_approve.rs` | S |
 | 7 | Binary and exit | `umbel-first-party` gains curator; `curator_leaks.rs`, `exit_curator.rs`; STATUS.md marks phase 4 done | The two | M |
 
-**Order:** 1, 2, 3a, 3b in order. Step 4 needs 1. Step 5 needs 3b and 4. Step 6 needs 3b. Step 7 needs all.
+**Order:** 1, 2, 3a, 3b, 3c in order. Step 4 needs 1 and 3c (it renders with `umbel_okf::draft`). Step 5 needs 4. Step 6 needs 3b. Step 7 needs all.
 
 **Build cost:** no new dependency family. Share `CARGO_TARGET_DIR`, use `-p <crate>`, `-j4`, and build only
 under load 20.
 
 ## 16. For the owner
 
-Ten questions; each changes the trust model, and none is decided here.
+### Owner decisions, 2026-11-03
+
+**The owner answered all ten questions on 2026-11-03: the recommended option on questions 1 to 9, and on question 10 "attest and verify".** They are final
+and written into the sections they govern; do not ask again. Approval is under the owner's 2026-10-31 delegation,
+with these answers (D24). Each entry keeps the question as it was asked, the decision, and the alternatives the
+owner did not choose.
 
 1. **Auto-approval rules** (D98; 8.3, step 6). Should any proposal be applied without a person in phase 4?
-   *Recommended:* the mechanism with one rule kind, `deprecate-declared`, off by default per area. It applies
+   *Decided by the owner, 2026-11-03:* the mechanism with one rule kind, `deprecate-declared`, off by default per area. It applies
    only when the document's current bytes were written by an applied proposal, so a `superseded_by` typed into
    a file never triggers it. It never applies to `create`, `update`, `verify`, memory-derived, flagged or
-   alternative proposals. *Alternatives:* (a) no auto-approval in phase 4 (drop step 6); (b) let the rule
+   alternative proposals. *Alternatives not chosen:* (a) no auto-approval in phase 4 (drop step 6); (b) let the rule
    accept a declaration that arrived by file sync, as any file edit already can change a document directly;
-   (c) a rule applying `create` from `person` memory, not recommended.
-2. **The MCP approval relay** (D99; 8.4). Should a person approve over MCP in phase 4? *Recommended:* no. Keep
+   (c) a rule applying `create` from `person` memory.
+2. **The MCP approval relay** (D99; 8.4). Should a person approve over MCP in phase 4? *Decided by the owner, 2026-11-03:* no. Keep
    approve CLI only, and move the Rust relay prerequisite and Umbel's use of it to phase 5, with 8.4's
-   conditions. *Alternatives:* (a) build the AFD Rust relay now and leave Umbel's use until phase 5; (b) enable
+   conditions. *Alternatives not chosen:* (a) build the AFD Rust relay now and leave Umbel's use until phase 5; (b) enable
    it now per area, recording "the person behind an unverified client".
-3. **The optional model** (D100; 8.5). *Recommended:* no model in phase 4; the key reserved and refused.
-   *Alternatives:* (a) a deployer-configured child process: JSON on stdin, a draft on stdout, CLI only,
+3. **The optional model** (D100; 8.5). *Decided by the owner, 2026-11-03:* no model in phase 4; the key reserved and refused.
+   *Alternatives not chosen:* (a) a deployer-configured child process: JSON on stdin, a draft on stdout, CLI only,
    recorded and never replayed, the model named in `drafter`; (b) an HTTP endpoint once `http` and `secrets`
    exist (phase 5).
-4. **Reading other people's memory** (D101; 4.1). *Recommended:* memory is read only under the caller's reader
-   filter, and `ReaderFilter::Derivation` stays refused. *Alternative:* a derivation read under a new rule, so a
+4. **Reading other people's memory** (D101; 4.1). *Decided by the owner, 2026-11-03:* memory is read only under the caller's reader
+   filter, and `ReaderFilter::Derivation` stays refused. *Alternative not chosen:* a derivation read under a new rule, so a
    team's candidates count across principals; the curator would then see records its caller cannot.
-5. **Widening a private record into a proposal** (D94; 5). *Recommended:* scheduled drafts only of records whose
+5. **Widening a private record into a proposal** (D94; 5). *Decided by the owner, 2026-11-03:* scheduled drafts only of records whose
    readers cover the target's. A person widens their own records at a terminal with `curator-promote`, own
-   records only, as D88 limits `memory-confirm`. *Alternatives:* (a) no widening in phase 4; (b) an approver
+   records only, as D88 limits `memory-confirm`. *Alternatives not chosen:* (a) no widening in phase 4; (b) an approver
    promotes others' records, which before phase 5 cannot tell local people apart.
-6. **Who authored a drafted proposal** (D102; 8.2). *Recommended:* self-approval compares the approver with
+6. **Who authored a drafted proposal** (D102; 8.2). *Decided by the owner, 2026-11-03:* self-approval compares the approver with
    `promotedBy` and with every source record's principal. In a one-person workspace every draft of that
    person's memory is therefore self-approval, needing `allow_self_approval` and recorded as such.
-   *Alternatives:* (a) the curator is the author, so the runner approves any scheduled draft with no exception,
+   *Alternatives not chosen:* (a) the curator is the author, so the runner approves any scheduled draft with no exception,
    which lets a person remember, run the schedule and approve their own statement unrecorded; (b) the runner is
    the author, so `verify` and `deprecate` drafts also count as self-approval.
-7. **Forgotten evidence in an open proposal** (D103; 9.1, 8.2). *Recommended:* the next run withdraws and
+7. **Forgotten evidence in an open proposal** (D103; 9.1, 8.2). *Decided by the owner, 2026-11-03:* the next run withdraws and
    redacts. Invalidation, purge, expiry or loss of readability withdraws without redaction. Knowledge declares
    `memory` (read only) so approve refuses a proposal whose source is gone. An applied proposal is never
-   retracted. *Alternatives:* (a) no `memory` grant for knowledge, accepting the window until the next run;
+   retracted. *Alternatives not chosen:* (a) no `memory` grant for knowledge, accepting the window until the next run;
    (b) withdraw only, keeping hashes as D85's residue; (c) keep the proposal open.
-8. **Writing memory** (D104; 9.2). *Recommended:* the curator never writes memory; `curator-status` lists
+8. **Writing memory** (D104; 9.2). *Decided by the owner, 2026-11-03:* the curator never writes memory; `curator-status` lists
    records their owner may invalidate as `outdated`. *Alternative:* the curator holds `memory_write` and
    invalidates promoted records itself, filling the reserved fields (memory record version 2).
-9. **What may settle** (D93; 4.2). *Recommended:* the default `authorities` is `["person"]`, confirmed records
+9. **What may settle** (D93; 4.2). *Decided by the owner, 2026-11-03:* the default `authorities` is `["person"]`, confirmed records
    included, and a deployer may widen it per space by pack to `agent`, `tool` or `import`, never `transcript`.
-   *Alternatives:* (a) fix it at `person` with no override in phase 4; (b) default to `person` and `agent`.
+   *Alternatives not chosen:* (a) fix it at `person` with no override in phase 4; (b) default to `person` and `agent`.
    An agent's note is what S14's poisoning writes, so widening is the main lever on that risk.
-10. **Trusting a drafter** (D91; 3.2, 10.1). *Recommended:* the host attests a step's plugin, instance,
-    pipeline and run through a table keyed by random step trace ids. A knowledge instance listing a drafter in
-    `drafters` accepts that drafter's assertions (`mode`, `candidate`, `promotedBy`, `conflictSet`, memory
-    evidence) without checking them, as trusted compiled code (D42). *Alternatives:* (a) knowledge declares
-    `memory` and checks every memory evidence entry against the store at submission (more coupling, exact);
-    (b) no attestation, so curator proposals are recorded as the runner's own with no drafter.
+10. **Trusting a drafter** (D91; 3.2, 10.1). *Decided by the owner, 2026-11-03: attest and verify.* The host
+    attests a step's plugin, instance, pipeline and run through a table keyed by random step trace ids. The
+    knowledge plugin accepts an attestation only from instances in `drafters`, and **verifies every claim of a
+    listed drafter itself**:
+    - memory evidence and `derivedFrom` against the memory store, through its read-only `memory` grant: existence,
+      liveness, version and hash, and the copied `authority`, `origin`, `constraints` and `access`;
+    - the content against the shared fixed rendering;
+    - the candidate and document ids against their derivations;
+    - `conflictSet` for consistency;
+    - `mode` and `promotedBy` from the sources' principals and the access comparison.
 
-**Decisions made here that do not change the trust model** (proposed, in review): proposal record version 2
-(D92); re-verification through `verify` proposals a person approves (D95); feedback and scheduling (D96); the
-confirmation preview (D97), which strengthens approval; and the pipeline `expose` and `result` keys (D105),
-which narrow exposure. D90 (the curator's grants) depends on questions 4 and 8.
+    Self-approval comes from the records, not the drafter. A mismatch is `PROPOSAL_DRAFT_MISMATCH`. What remains
+    unverifiable is stated in 3.2: a promotion's terminal consent, the settling policy, `generated.at`'s exact
+    value, and sessions as labels. *Alternatives not chosen:* (a) attest and trust: accept a listed drafter's
+    assertions unchecked, as trusted compiled code (D42); (b) no attestation, so curator proposals are recorded as
+    the runner's own with no drafter. The owner's standing goal is a high-quality MCP system with no corners cut,
+    and option (a) was preferred at first only because verifying looked like more work.
+
+### Decisions made here that do not change the trust model
+
+Decided with the specification's approval: proposal record version 2 (D92); re-verification through `verify`
+proposals a person approves (D95); feedback and scheduling (D96); the confirmation preview (D97), which strengthens
+approval; and the pipeline `expose` and `result` keys (D105), which narrow exposure. D90 (the curator's grants)
+follows owner decisions 4 and 8.
 
 ## Follow-ups
 
 | Date | Follow-up | Owner |
 | --- | --- | --- |
 | 2026-11-03 | Procedural candidates as skills in a pack (D15) | When a deployer asks |
-| 2026-11-03 | Edits that need judgment (6.2's reported kinds) | After question 3 |
+| 2026-11-03 | Edits that need judgment (6.2's reported kinds) | A new owner decision on a model |
 | 2026-11-03 | Exact session counts need session ids the store does not return (4.3) | When it matters |
 | 2026-11-03 | A doctor API for plugins, so `overdue` reaches `workspace-doctor` (7.3) | When a second plugin needs one |
 | 2026-11-03 | A `MemoryMeta` projection with `contentHash` and `observations`, if `max_gets` proves too small (4.1) | When a deployer asks |
