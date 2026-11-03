@@ -41,7 +41,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * project switcher's list, measured at 10,288 against a first estimate of 30,000, so lowered by phase 0's
  * rule to its measurement plus 10%, 11,317; and `tooltipMinified`, the rail's tooltip, 2,841 of 3,126, its
  * measurement plus 10%, which left first paint to meet the step's allowance. First paint 284,967 and
- * 88,041 gzip, the kernel alone 110,857, `late` 48,777, `surfaces` 81,460. Step 9 leaves
+ * 88,041 gzip, the kernel alone 110,857, `late` 48,777, `surfaces` 81,460. After its reviews the coordinator
+ * approved a third row, `switcherColdMinified` (2.4, 2026-11-03): what a press of the switcher downloads on
+ * an empty shell, which never loads `surfaces` (7.8), 41,057 of 45,163, its measurement plus 10%, unrounded,
+ * as `urlMinified`'s is. No other ceiling rose. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -57,6 +60,7 @@ export const CEILINGS = Object.freeze({
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
+	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 });
 
@@ -164,12 +168,15 @@ async function measurePage() {
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
 	const mount = closure(/^assets\/mount-/, afterSurfaces);
 	if (mount.size === 0) throw new Error('budget: the build has no `mount` chunk to measure');
-	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2), charged after the
-	// surfaces, as 2.4's order has it. Open with the coordinator (G1 of #752's review): an empty shell, which
-	// loads no surfaces, pays 41,057 for it, with `violet-listbox` and `violet-option`, over the estimate of
-	// 30,000; the row's basis and ceiling wait for that decision.
+	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2): in "the rest" of
+	// 2.4's load order, so charged after the surfaces.
 	const switcher = closure(/^assets\/switcher-/, afterSurfaces);
 	if (switcher.size === 0) throw new Error('budget: the build has no `switcher` chunk to measure');
+	// The same press on an empty shell, which loads no `apps` and never `surfaces` (7.8): what it downloads
+	// after first paint, `late` and `url-sync`, the kit's listbox and option among it (2.4,
+	// `switcherColdMinified`, approved by the coordinator on 2026-11-03).
+	const cold = new Set([...afterLate, ...closure(/^assets\/url-sync-/, afterLate)]);
+	const switcherCold = closure(/^assets\/switcher-/, cold);
 	// The rail's tooltip, loaded on its first hover, focus or press, which can come before `late` (7.5).
 	const tooltip = closure(/^assets\/tooltip-/, initial);
 	if (tooltip.size === 0) throw new Error('budget: the build has no `tooltip` chunk to measure');
@@ -198,6 +205,7 @@ async function measurePage() {
 		consoleMinified: sizeOf(consoleFiles),
 		mountMinified: sizeOf(mount),
 		switcherMinified: sizeOf(switcher),
+		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
@@ -268,6 +276,7 @@ const ROWS = [
 	['consoleMinified', 'The `console` chunk and its imports, minified'],
 	['mountMinified', 'The `mount` chunk and its imports, minified: the MCP client'],
 	['switcherMinified', "The chrome's `switcher` chunk and its imports, minified"],
+	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 ];
 
