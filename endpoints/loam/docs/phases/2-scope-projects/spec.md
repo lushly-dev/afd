@@ -368,7 +368,7 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 | --- | --- | --- | --- |
 | 0a | Planned as nothing. Measured: the message builder and the moved modules, which the registry and `defineCommand` reach ([2.3](#23-the-lean-schema-layer-d70)) | 621, 330 | 319,118, 94,891 |
 | 1 | The acceptance above: what is left after moving out classic's schemas, `toJSONSchema` and the non-boot definitions | | 272,000, 82,000 |
-| 0b | `hydrateOne`, a method on a class first paint holds | 200, 100 | 272,200, 82,100 |
+| 0b | `hydrateOne`, a method on a class first paint holds. Measured with 0a, before step 1: 180 and 50, so 319,298 and 94,941, leaving 702 and 59 for what lands before step 1. Step 1 re-bases this column, so it stays on the allowance until then | 200, 100 | 272,200, 82,100 |
 | 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 282,000, 85,600 |
 | 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 286,600, 87,400 |
 | 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 288,600, 88,200 |
@@ -913,6 +913,11 @@ The rail's lists scroll with `overflow-block: auto` and `scrollbar-width: thin`.
 
 **AFD, step 0b.** `ViewStateRegistry.hydrateOne(id): Promise<void>` in `packages/view-state/src/registry.ts`, the same read as `hydrate` for one registered id, by `adapter.get(table, id)`, ignoring a missing record, with a test and a changeset.
 
+**Notes from step 0b's reviews, for steps 4 and 6.**
+
+- **Await `hydrateOne` before any `set` or `replace` on that id.** It applies the record over the handler's state, so a `layout-set` that lands while the read is pending is lost in memory, while its scheduled write still reaches the store, and the layout flips at the next reload. A `set` still inside the debounce when the read starts does the same, since the read returns the older row. A review reproduced this on `MemoryAdapter`. `hydrate` has the same gap, but it runs before the kernel takes calls; first entry, and a `layout-*` that registers a record ([3.4](#34-the-order-of-a-call-d72)), do not. A guard in the registry would not fit step 0b's allowance, so the registry documents the order and the kernel must keep it, holding calls on that id until the promise settles.
+- **Choose what an invalid record does.** `shell-state.ts`'s handlers tolerate one only while its `hydrating` flag is set, and only `state.hydrate()` sets that. Stage A's step 5 and this section call `viewState.hydrateOne` directly, so an invalid record throws in the handler, is caught, and logs `Hydration failed`, where `hydrate` ignores the same record silently. The state is kept either way. The step adding the first caller chooses: a `state.hydrateOne` under the same flag, silent like `hydrate`, or the warning.
+
 ### 7.7 Project summary
 
 **The section.** `loam-projects-section`, in main, on `/<workspace>/~/projects` and `/<workspace>/p/<project>`. Main shows it when `section-get` says so, and no app is active: `app-open` clears the section and `section-open` clears the active app, in `loam.apps`, which gains `section: string | null`, and a persisted record with none reads `null`. Its declared parts are none but main, so `loam.layout.~projects` has every other part closed.
@@ -1295,4 +1300,5 @@ See the [Review](../2-documents/spec.md#review-2026-11-02) of the documents spec
 | 2026-11-02 | Phase 2 specification | A project's slug cannot change. With redirects, if a consumer asks | Open |
 | 2026-11-02 | Phase 2 specification | Deleting a project, with a retention rule for what apps stored under it | Open |
 | 2026-11-02 | Phase 2 specification | Keep Mod+P, or another chord, for the project switcher, with phase 4's keybindings | Open; phase 4 |
+| 2026-11-02 | Step 0b | Drop `data.user.id` from `REPLAY_IGNORE` and `DIFF_IGNORE` (`kernel/src/testing.ts`) at step 1 or the next `session:record`, whichever comes first, and re-record `session-50.journal.json`, which still holds `mock-user-1793608037914`. Until then a replay cannot catch a regression in the stable id [3.4](#34-the-order-of-a-call-d72) requires. A journal recorded before step 0b would then diverge at that path. The `data.session.*` paths stay, since the session's id and expiry are still time-based | Open; step 1 or the next `session:record` |
 | 2026-11-02 | Phase 2 specification | Run E1's first-paint measurement on a real low-end device, not just throttled CPU. The ratios of 2.1 are from a fast machine | Open; phase 6 |
