@@ -152,7 +152,7 @@ organization.
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations; the proposal, approve and reject commands for the knowledge base; the eval harness | Writing to the knowledge base outside a proposal |
 | memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall; invalidate, confirm, forget and sweep; import and export of harness memory | Promoting anything to the knowledge base |
 | context plugin | Budgeted context bundles assembled from the stores through host grants ([D78](decisions.md)) | Calling the knowledge or memory plugins; writing anything |
-| curator plugin | Settling window, deterministic candidates and conflict sets, drafting proposals with evidence, rejection feedback; runs on a schedule with an optional configured model | Running in the request path; approving its own proposals |
+| curator plugin | Settling window, deterministic candidates and conflict sets, drafting proposals with evidence, re-verification and inconsistency proposals, rejection feedback; runs on a schedule, started by cron, CI or a hook. It reads memory and documents through grants and reaches proposals only through a pipeline it ships as data ([D90](decisions.md)); the host attests it as the drafter and the knowledge plugin verifies every claim of its drafts against the memory store ([D91](decisions.md)), and in phase 4 it uses no model ([D100](decisions.md)), the owner's decisions of 2026-11-03 | Running in the request path; approving its own proposals; writing knowledge outside a proposal; writing memory ([D104](decisions.md)) |
 | sources and connectors | Change detection, permission mirroring, indexed-copy and live modes; mounted external MCP servers as the federation path across vendor systems | Copying content the caller is not allowed to see |
 | Evaluation harness | Seeded queries with unanswerables, recall and ranking metrics, logged result ids, a calibrated judge | Replacing human review of content |
 | Distribution | Per-platform binaries, a bundle for desktop hosts, an OCI image, a registry entry, a server card | A hosted service; deployers host it |
@@ -281,7 +281,9 @@ sequenceDiagram
   follows the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md)
   fields where they apply. Settled as `umbel-plugin.toml`, manifest version 1
   ([D37](decisions.md)); connectors and backends are reserved keys until
-  their phases.
+  their phases. Manifest version 4 adds a pipeline's `expose` and
+  `result` ([D105](decisions.md)) and a command's `confirm_preview`
+  ([D97](decisions.md)).
 - **Host WIT world.** The imports a component may use, each gated by a grant,
   including clock and random from the command context, and the exports a
   component provides. Versioned with the manifest. Settled as
@@ -317,7 +319,11 @@ sequenceDiagram
   its version, any exception, state, approver, proposing agent and run,
   resulting state and any rejection reason, which makes it a decision trace
   about the knowledge itself. AFD approval gates only the command that applies
-  it.
+  it. Version 1 is phase 2's; version 2, from phase 4, adds the drafter (attested by
+  the host's pipeline table), memory evidence carrying each source's authority,
+  origin, constraints and access, conflict sets and the decision's channel
+  ([D92](decisions.md)). Approval shows a preview of the change before its
+  confirmation prompt ([D97](decisions.md)).
 - **Context bundle.** A budgeted, deterministic assembly for a task from the
   stores, in sections rather than fused scores, with provenance and a
   verification label on every item and a list of what was left out and why
@@ -529,7 +535,8 @@ material, from loosest to strongest:
   shapes are closed JSON Schemas in `endpoints/umbel/schemas/`, with reserved
   fields named in advance ([D36](decisions.md)). Phase 2 adds the document
   record, the locator, the proposal record and the eval query set and report
-  to that list.
+  to that list; phase 4 adds proposal record version 2 and the curator's
+  records and run report ([D92](decisions.md)).
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
@@ -577,8 +584,8 @@ flowchart LR
 | 1. Plugin contract | Manifest, grants and the host services catalog, the WIT world, three loader kinds, skills on all three delivery paths, plugin new and plugin check, the test kit, the hello plugin | hello loads compiled, as a component and mounted; a second plugin lands with no host change; the 34-case todo conformance suite passes in legacy and modern modes with the todo example loaded as a plugin | Manifest format; WIT world v1 with clock and random; grant semantics; protocol versioning; mounted-tool renaming |
 | 2. Knowledge | Sources from the filesystem, chunking, per-space lexical indexes and structural graphs, search, open, find, metadata, citations as AFD sources, the access field on every document and chunk, the eval harness | A thousand documents indexed across two spaces; no result crosses spaces without an explicit multi-space query; results filtered by principal; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; access field; chunking rules; query syntax; locator format; eval set shape |
 | 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 2 (version 1 came with phase 2's stores, [D55](decisions.md)); adapter contract; bundle budget rules; hygiene and redaction policy |
-| 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | A curator proposal approved from the CLI lands in the knowledge base with full provenance (amended 2026-11-01: phase 2 already lands person-written proposals, [D62](decisions.md)) | The curator's proposal fields on proposal record version 1 (which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
-| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile |
+| 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | A curator proposal approved from the CLI lands in the knowledge base with full provenance (amended 2026-11-01: phase 2 already lands person-written proposals, [D62](decisions.md)) | The curator's proposal fields on proposal record ~~version 1~~ version 2 (amended 2026-11-03: version 1, which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md), is closed with `rule` constant `person`, so the fields need a new version, [D92](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
+| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events, the MCP approval relay on approve and reject (moved from phase 4, [D99](decisions.md)) | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile |
 | 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
@@ -586,7 +593,8 @@ Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 (approved 2026-10-31 under the owner's delegation, after review; merged in #564);
 [phase 1, plugin contract](phases/1-plugin-contract/spec.md) (approved, merged in #583);
 [phase 2, knowledge](phases/2-knowledge/spec.md) (approved, merged in #625);
-[phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685).
+[phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685);
+[phase 4, curator](phases/4-curator/spec.md) (approved 2026-11-03 under the owner's delegation, with the owner's answers of 2026-11-03, after an independent review and a revision).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -614,7 +622,7 @@ criterion.
 | The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 5 (moved from phase 2 on 2026-11-01: phase 2 needs nothing the journal does not record; usage events and OpenTelemetry export wait for phase 5 and W12) | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | Partitioned BM25 statistics per access set, or coarsened scores, and no hidden counts in revisions, event sequence numbers or index-building totals, and the same for the order of memory recall under FTS5's global statistics (memory returns no score, [D70](decisions.md)); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-01: accepted for phase 2, where every local caller is one principal) | [Phase 2 specification, section 6](phases/2-knowledge/spec.md#6-access-d53), [D53](decisions.md); STATUS.md follow-ups |
 | `memory-erase`, a listed person removing anyone's memory records, on the conditions in [D85](decisions.md); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-02) | [Phase 3 specification, section 13](phases/3-memory-context/spec.md#13-out-of-scope-and-the-seams-reserved) |
-| The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
+| The MCP approval relay in Rust | Phase 5 (moved from phase 4 by the owner's decision of 2026-11-03, with Umbel's use of it, [phase 4 specification](phases/4-curator/spec.md#16-for-the-owner) section 16, decision 2, [D99](decisions.md)): before phase 5 every MCP caller is an unverified agent, and only humans approve | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
 | The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
 
@@ -681,6 +689,15 @@ document needs as an amendment.
 | Digest journaling | A command's journal entry keeps its metadata and named input fields, and neither its text nor its result data |
 | Bundle section, omission | One part of a context bundle with its own budget share (`knowledge`, `semantic`, `procedural`, `episodic`), and an entry in its list of what was left out and why |
 | Capture contract | The JSON a harness adapter sends `memory-capture`, version 1 |
+| Curator run | One `curator-run` call for one space: plan, submit, read feedback, finish ([D91](decisions.md)) |
+| Settling window | How long a memory record's current version must stand unchanged before it can be proposed as knowledge ([D93](decisions.md)) |
+| Candidate | One caller's group of readable, settled memory records with one content hash and class, kept as a curator record with a content-free id |
+| Conflict set | Candidates in one space whose subjects normalise to the same key and whose content differs; drafted as alternatives, never chosen by the curator |
+| Drafter | The curator instance named on a drafted proposal, attested by the host's pipeline table |
+| Pipeline attestation | The host's record, keyed by a step's random trace id, of the plugin, instance, pipeline and run the step belongs to ([D91](decisions.md)) |
+| Promotion | A person consenting, at a terminal, to have their own memory record drafted for wider readers ([D94](decisions.md)) |
+| Confirmation preview | Text a command's declared preview command returns, shown by the CLI before its confirmation prompt ([D97](decisions.md)) |
+| Auto-approval rule | A deterministic predicate over a proposal that an area opts into, under which the knowledge plugin applies it without a person ([D98](decisions.md)) |
 | Pack | Content a plugin ships by default and an instance overrides |
 | Skill | A guidance document a plugin contributes, in the Agent Skills format |
 | AFD context | A named scope that changes which commands are visible, through `afd-context-*` |
