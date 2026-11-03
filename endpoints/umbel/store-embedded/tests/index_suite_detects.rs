@@ -107,6 +107,8 @@ fn factory(fault: Fault) -> impl Fn(&Path, &str) -> Result<Stores, StoreError> {
             documents: store.clone(),
             graph: store,
             index: Some(Arc::new(Faulty { inner, fault })),
+            memory: None,
+            memory_restore: None,
         })
     }
 }

@@ -57,8 +57,10 @@ fn reopen(env: &Env<'_>) -> CaseResult {
         documents,
         graph,
         index,
+        memory,
+        memory_restore: _,
     } = f.stores.clone();
-    drop((documents, graph, index));
+    drop((documents, graph, index, memory));
     let reopened = (env.factory)(&dir, SPACE).map_err(|e| format!("reopening: {e}"))?;
     ensure_eq(reopened.documents.head().ctx("head")?, head, "the head")?;
     ensure_eq(

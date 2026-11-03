@@ -13,15 +13,21 @@ fn a_correct_in_memory_backend_passes_every_case() {
     report.assert_passed();
     assert!(report.passed() >= 40, "{report}");
     // Without a spawn_writer and an index, the multi-process case and every index case wait; the
-    // embedded backend's own tests run those, and detect their faults.
+    // embedded backend's own tests run those, and detect their faults. The fake has no memory
+    // store, so every memory case waits too; `memory_suite_detects.rs` runs them on a fake of
+    // their own.
     let skipped = report.skipped();
+    let (memory, other): (Vec<_>, Vec<_>) = skipped
+        .iter()
+        .partition(|s| s.starts_with("memory_") && s.contains("no memory store"));
     assert!(
-        skipped
+        other
             .iter()
             .all(|s| s.contains("no spawn_writer") || s.contains("no search index")),
         "{skipped:?}"
     );
-    assert_eq!(skipped.len(), 15, "{skipped:?}");
+    assert_eq!(other.len(), 15, "{skipped:?}");
+    assert_eq!(memory.len(), 44, "every memory case: {skipped:?}");
 }
 
 /// Each fault, and a group that must fail because of it.

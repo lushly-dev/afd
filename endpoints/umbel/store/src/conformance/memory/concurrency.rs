@@ -7,7 +7,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::{ADA, MemoryEnv, P_ADA, T0, ada, get_at, write};
-use crate::conformance::child::{ENV_COUNT, ENV_ID, WROTE_PREFIX};
+use crate::conformance::child::{ENV_COUNT, ENV_ID, ENV_KIND, KIND_MEMORY, WROTE_PREFIX};
 use crate::conformance::{CaseResult, Ctx, ensure, ensure_eq, pass, samples, skip};
 
 pub(super) const CASES: &[(&str, super::MemoryCaseFn)] = &[
@@ -126,6 +126,7 @@ fn processes(env: &MemoryEnv<'_>) -> CaseResult {
         command
             .env(ENV_ID, name)
             .env(ENV_COUNT, PER_WRITER.to_string())
+            .env(ENV_KIND, KIND_MEMORY)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

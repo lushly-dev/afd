@@ -6,16 +6,22 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-use umbel_store::conformance::{SPACE, Stores, run_child, wait_for_start, write_documents};
-use umbel_store::{
-    ChangeKind, DocGraph, DocumentStore, Expect, GraphBatch, Node, ReaderFilter, StoreError,
+use umbel_store::conformance::{
+    SPACE, Stores, run_child, run_memory_child, wait_for_start, write_documents, write_memories,
 };
-use umbel_store_embedded::{SqliteStore, StoreOptions, TantivyIndex};
+use umbel_store::{
+    ChangeKind, DocGraph, DocumentStore, Expect, GraphBatch, MemoryStore, Node, ReaderFilter,
+    StoreError,
+};
+use umbel_store_embedded::{SqliteMemoryStore, SqliteStore, StoreOptions, TantivyIndex};
 
 /// Set to `race` for a child that opens the store only after the start line, `busy` for one
 /// that tries a single write with a short lock timeout and reports whether it was `Busy`,
 /// `index` for one that writes documents and indexes them in turns with the others, or `hold`
-/// for one that takes the index writer and keeps it until told to stop.
+/// for one that takes the index writer and keeps it until told to stop. The memory store's
+/// children: `memory` opens the memory store alone and runs the suite's memory child,
+/// `memory-race` opens it only after the start line, `memory-busy` tries one memory write with a
+/// short lock timeout, and `memory-forever` writes memory records until it is killed.
 pub(crate) const ENV_MODE: &str = "UMBEL_STORE_WRITER_MODE";
 
 pub(crate) fn open_with(
@@ -35,14 +41,32 @@ pub(crate) fn open_index(
     TantivyIndex::open(dir, space, options).map(Arc::new)
 }
 
-/// Open the SQLite stores and the tantivy index of `space` under `dir`.
+/// Open the memory store of `space` under `dir`.
+pub(crate) fn open_memory(
+    dir: &Path,
+    space: &str,
+    options: StoreOptions,
+) -> Result<Arc<SqliteMemoryStore>, StoreError> {
+    SqliteMemoryStore::open(dir, space, options).map(Arc::new)
+}
+
+/// The memory factory of `run_memory`: the memory store alone.
+pub(crate) fn memory_factory(dir: &Path, space: &str) -> Result<Arc<dyn MemoryStore>, StoreError> {
+    Ok(open_memory(dir, space, StoreOptions::default())?)
+}
+
+/// Open the SQLite stores, the tantivy index and the memory store of `space` under `dir`. There
+/// is no memory restore until phase 3 step 3b, so the erasure group's copy case is skipped.
 pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
     let store = open_with(dir, space, StoreOptions::default())?;
     let index = open_index(dir, space, StoreOptions::default())?;
+    let memory = open_memory(dir, space, StoreOptions::default())?;
     Ok(Stores {
         documents: store.clone(),
         graph: store,
         index: Some(index),
+        memory: Some(memory),
+        memory_restore: None,
     })
 }
 
@@ -53,6 +77,14 @@ pub(crate) fn spawn_writer(dir: &Path) -> Command {
     command
         .args(["--exact", "writer_child", "--nocapture"])
         .env(umbel_store::conformance::ENV_WRITER, dir);
+    command
+}
+
+/// The command that re-runs this test binary as one memory writer child, which opens the memory
+/// store alone.
+pub(crate) fn spawn_memory_writer(dir: &Path) -> Command {
+    let mut command = spawn_writer(dir);
+    command.env(ENV_MODE, "memory");
     command
 }
 
@@ -93,6 +125,70 @@ pub(crate) fn writer_child() {
                 writer
                     .commit(7)
                     .unwrap_or_else(|e| fail(format!("commit: {e}")));
+            }
+        }
+        Ok("memory") => {
+            let memory = open_memory(dir, SPACE, StoreOptions::default())
+                .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
+            run_memory_child(&*memory).unwrap_or_else(|e| fail(e));
+        }
+        Ok("memory-race") => {
+            wait_for_start().unwrap_or_else(|e| fail(e));
+            let memory = open_memory(dir, SPACE, StoreOptions::default())
+                .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
+            write_memories(&*memory).unwrap_or_else(|e| fail(e));
+        }
+        Ok("memory-forever") => {
+            let memory = open_memory(dir, SPACE, StoreOptions::default())
+                .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
+            let mut n = 0_u64;
+            loop {
+                let entry = umbel_store::conformance::samples::memory_entry(
+                    5000 + n,
+                    "human:ada",
+                    &["principal:human:ada"],
+                    &format!("forever {n}"),
+                    &format!("written until killed, number {n}"),
+                );
+                let batch = umbel_store::conformance::samples::memory_batch(
+                    umbel_store::conformance::samples::MEMORY_AT,
+                    vec![entry],
+                );
+                let receipt = memory
+                    .write(batch)
+                    .unwrap_or_else(|e| fail(format!("write: {e}")));
+                println!(
+                    "{} {} {}",
+                    umbel_store::conformance::WROTE_PREFIX,
+                    receipt.to_rev.unwrap_or(0),
+                    umbel_store::conformance::samples::memory_id(5000 + n)
+                );
+                n += 1;
+            }
+        }
+        Ok("memory-busy") => {
+            let memory = open_memory(
+                dir,
+                SPACE,
+                StoreOptions {
+                    lock_timeout_ms: 200,
+                },
+            )
+            .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
+            let entry = umbel_store::conformance::samples::memory_entry(
+                9000,
+                "human:ada",
+                &["principal:human:ada"],
+                "busy",
+                "a write that waits",
+            );
+            let batch = umbel_store::conformance::samples::memory_batch(
+                umbel_store::conformance::samples::MEMORY_AT,
+                vec![entry],
+            );
+            match memory.write(batch) {
+                Err(StoreError::Busy) => println!("UMBEL-BUSY"),
+                other => println!("UMBEL-UNEXPECTED {other:?}"),
             }
         }
         Ok("busy") => {

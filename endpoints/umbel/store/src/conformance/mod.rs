@@ -1,7 +1,8 @@
 //! The conformance suite (specification section 3.1, D10): `run_all` runs every case group
-//! against a backend and reports; phase 6's second backend runs the same function. The memory
-//! groups (phase 3 section 5.5) run through [`run_memory`] on a memory factory of their own until
-//! `Stores` carries the memory store (phase 3 step 3a), which then folds them into `run_all`.
+//! against a backend and reports; phase 6's second backend runs the same function. Since phase 3
+//! step 3a `Stores` carries the memory store, and `run_all` runs the memory groups (phase 3
+//! section 5.5) after the others, on the stores' `memory`; a backend without one reports them
+//! skipped. [`run_memory`] still runs them alone, on a memory factory of their own.
 //!
 //! A backend's own test supplies a **factory**, which opens (creating when empty) the stores of
 //! space [`SPACE`] under a directory, and, for the multi-process cases, a **`spawn_writer`**: a
@@ -31,10 +32,12 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
+use crate::memory::MemoryStore;
 use crate::{DocumentStore, GraphStore, SearchIndex, StoreError};
 
 pub use child::{
-    ENV_COUNT, ENV_ID, ENV_WRITER, WROTE_PREFIX, run_child, wait_for_start, write_documents,
+    ENV_COUNT, ENV_ID, ENV_KIND, ENV_WRITER, WROTE_PREFIX, run_child, wait_for_start,
+    write_documents,
 };
 pub use memory::{
     MEMORY_GROUPS, MemoryFactory, MemoryRestore, run_memory, run_memory_child, run_memory_groups,
@@ -51,8 +54,9 @@ pub type Factory<'a> = &'a dyn Fn(&Path, &str) -> Result<Stores, StoreError>;
 /// Builds the command that runs one writer child against the directory.
 pub type SpawnWriter = fn(&Path) -> Command;
 
-/// One space's stores. `index` is `None` for a backend without a search index; the index cases
-/// are then skipped.
+/// One space's stores. `index` is `None` for a backend without a search index, and `memory` for
+/// one without a memory store; their cases are then skipped. `memory_restore` puts a memory
+/// `backup` copy in place (section 5.5); without it only the erasure group's copy case is skipped.
 #[derive(Clone)]
 pub struct Stores {
     /// Documents, records and changes.
@@ -61,6 +65,10 @@ pub struct Stores {
     pub graph: Arc<dyn GraphStore>,
     /// The lexical lane, when built.
     pub index: Option<Arc<dyn SearchIndex>>,
+    /// The memory store (phase 3), when the backend has one.
+    pub memory: Option<Arc<dyn MemoryStore>>,
+    /// The backend's restore of a memory `backup` copy, when it has one.
+    pub memory_restore: Option<MemoryRestore>,
 }
 
 /// What happened to one case.
@@ -298,16 +306,17 @@ const GROUPS: &[Group] = &[
     ("durability", durability::CASES),
 ];
 
-/// Run every case group against a backend. `spawn_writer` enables the multi-process cases; the
-/// index cases are skipped for a backend whose stores carry no index.
+/// Run every case group against a backend, the memory groups last. `spawn_writer` enables the
+/// multi-process cases; the index cases are skipped for a backend whose stores carry no index, and
+/// the memory groups for one whose stores carry no memory store.
 #[must_use]
 pub fn run_all(factory: Factory<'_>, spawn_writer: Option<SpawnWriter>) -> Report {
     run_groups(factory, spawn_writer, &[])
 }
 
-/// Run the named case groups (all of them when `only` is empty), in the suite's order. A backend's
-/// own tests use it to run the part of the suite a change touches; a backend passes only when
-/// [`run_all`] does.
+/// Run the named case groups (all of them when `only` is empty), in the suite's order; `only` may
+/// name memory groups ([`MEMORY_GROUPS`]) too. A backend's own tests use it to run the part of the
+/// suite a change touches; a backend passes only when [`run_all`] does.
 #[must_use]
 pub fn run_groups(
     factory: Factory<'_>,
@@ -318,7 +327,7 @@ pub fn run_groups(
         factory,
         spawn_writer,
     };
-    let groups = GROUPS
+    let mut groups: Vec<GroupReport> = GROUPS
         .iter()
         .filter(|(name, _)| only.is_empty() || only.contains(name))
         .map(|(name, cases)| GroupReport {
@@ -332,6 +341,7 @@ pub fn run_groups(
                 .collect(),
         })
         .collect();
+    groups.extend(memory::run_through_stores(factory, spawn_writer, only));
     Report { groups }
 }
 

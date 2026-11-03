@@ -11,6 +11,11 @@ pub const ENV_WRITER: &str = "UMBEL_STORE_WRITER";
 pub const ENV_ID: &str = "UMBEL_STORE_WRITER_ID";
 /// How many documents the child writes; the suite sets it.
 pub const ENV_COUNT: &str = "UMBEL_STORE_WRITER_COUNT";
+/// What the child writes: unset for documents, [`KIND_MEMORY`] for memory records; the suite's
+/// memory groups set it.
+pub const ENV_KIND: &str = "UMBEL_STORE_WRITER_KIND";
+/// [`ENV_KIND`]'s value for a child that writes memory records through the stores' `memory`.
+pub(crate) const KIND_MEMORY: &str = "memory";
 /// A line of the child's standard output: `UMBEL-WROTE <rev> <doc id>`.
 pub const WROTE_PREFIX: &str = "UMBEL-WROTE";
 
@@ -57,12 +62,21 @@ pub fn write_documents(stores: &Stores) -> Result<(), String> {
     out.flush().map_err(|e| e.to_string())
 }
 
-/// The child's work: [`wait_for_start`], then [`write_documents`]. A backend's `writer_child`
+/// The child's work: [`wait_for_start`], then [`write_documents`], or, when [`ENV_KIND`] is
+/// `memory`, [`super::write_memories`] on the stores' memory store. A backend's `writer_child`
 /// test opens the stores in `ENV_WRITER` and calls this.
 ///
 /// # Errors
 /// Why the child failed (the test then panics and the parent reports its output).
 pub fn run_child(stores: &Stores) -> Result<(), String> {
     wait_for_start()?;
-    write_documents(stores)
+    if std::env::var(ENV_KIND).as_deref() == Ok(KIND_MEMORY) {
+        let memory = stores
+            .memory
+            .as_ref()
+            .ok_or("the stores carry no memory store")?;
+        super::write_memories(&**memory)
+    } else {
+        write_documents(stores)
+    }
 }
