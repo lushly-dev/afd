@@ -6,10 +6,11 @@
 //!
 //! - [`frontmatter`]: the frontmatter, read with AFD's public reader under Umbel's 64 KiB cap,
 //!   with the byte order mark and the empty block decided here, and the OKF and Umbel keys
-//!   normalized under the field caps;
+//!   normalized under the field caps, and whether a `stale_after` has passed ([`is_stale`]);
 //! - [`structure`]: the heading tree, blocks, links and code spans of the body, with
 //!   pulldown-cmark, in a bounded amount of work for any input;
 //! - [`links`]: how a link target resolves to a document id;
+//! - [`locator`]: the locator string, the stable address of a span of a document's lines;
 //! - [`rewrite`]: frontmatter-only rewrites that keep every other byte of a file;
 //! - [`ingest`]: one call that turns a file's bytes into everything the plugin stores, including
 //!   the write scan's flags.
@@ -21,9 +22,11 @@
 pub mod frontmatter;
 pub mod ingest;
 pub mod links;
+pub mod locator;
 pub mod rewrite;
 pub mod structure;
 
+pub use frontmatter::is_stale;
 pub use ingest::{Analysis, Ingest, Kind, PathProblem, Reserved, analyze, document_id};
 pub use rewrite::{RewriteError, rewrite_keys};
 pub use structure::{Block, BlockKind, CodeSpan, Heading, LineRange, Link, Structure, structure};

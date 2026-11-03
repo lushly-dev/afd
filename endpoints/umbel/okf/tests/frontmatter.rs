@@ -7,7 +7,7 @@ use umbel_okf::frontmatter::{
     Declared, MAX_ALIASES, MAX_DESCRIPTION_BYTES, MAX_FRONTMATTER_BYTES, MAX_ITEM_CHARS, MAX_TAGS,
     MAX_TITLE_CHARS, Problem, is_datetime_with_offset, normalize, split,
 };
-use umbel_okf::{Ingest, Kind, analyze, document_id};
+use umbel_okf::{Ingest, Kind, analyze, document_id, is_stale};
 use umbel_store::{Flag, Sensitivity, Status, Tier};
 
 fn fields(text: &str) -> serde_json::Map<String, Value> {
@@ -526,4 +526,30 @@ fn document_ids_follow_section_5_1() {
         document_id("c", &long, Kind::Markdown),
         Err(PathProblem::TooLong)
     );
+}
+
+#[test]
+fn a_document_is_stale_at_and_after_its_stale_after_instant() {
+    // 2026-01-01T00:00:00Z in epoch milliseconds.
+    let at = 1_767_225_600_000;
+    let stale_after = Some("2026-01-01T00:00:00Z");
+    assert!(!is_stale(stale_after, at - 1));
+    assert!(is_stale(stale_after, at));
+    assert!(is_stale(stale_after, at + 1));
+    // The offset is honoured: 01:00 at +01:00 is the same instant.
+    assert!(is_stale(Some("2026-01-01T01:00:00+01:00"), at));
+    assert!(!is_stale(Some("2026-01-01T01:00:00+01:00"), at - 1));
+}
+
+#[test]
+fn an_absent_or_unparseable_stale_after_is_never_stale() {
+    for value in [
+        None,
+        Some(""),
+        Some("2026-01-01"),
+        Some("soon"),
+        Some("2026-13-01T00:00:00Z"),
+    ] {
+        assert!(!is_stale(value, i64::MAX), "{value:?}");
+    }
 }
