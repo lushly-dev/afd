@@ -94,10 +94,13 @@ fn digest_result(result: CommandResult<Value>) -> CommandResult<Value> {
 }
 
 /// The recorder's redact step: a digest command's entry reduced, every other entry unchanged.
+/// A failed call keeps no input value, since the value may be why it failed: a label refused for
+/// looking like a secret must not enter the journal (section 3.1; phase 3 step 5, amendment 4).
 pub(crate) fn redact(commands: &DigestCommands, mut record: JournalRecord) -> JournalRecord {
     let Some(keep) = commands.get(&record.command) else {
         return record;
     };
+    let keep: &[String] = if record.result.success { keep } else { &[] };
     record.input = digest_input(&record.input, keep);
     record.result = digest_result(record.result);
     record

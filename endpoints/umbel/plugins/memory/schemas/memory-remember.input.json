@@ -1,0 +1,154 @@
+{
+	"type": "object",
+	"required": ["class", "subject", "text"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"class": {
+			"enum": ["episodic", "semantic", "procedural"],
+			"description": "semantic for a fact someone asserted, procedural for how something is done, episodic for what happened in a run or session"
+		},
+		"subject": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256,
+			"description": "One line naming what the record is about"
+		},
+		"text": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 16384,
+			"description": "The statement, at most 16 KiB. Secrets are masked before it is stored"
+		},
+		"tags": {
+			"type": "array",
+			"maxItems": 32,
+			"items": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 64
+			}
+		},
+		"project": {
+			"type": "string",
+			"description": "A label such as a repository name, never a path. Without it the record belongs to every project"
+		},
+		"session": {
+			"type": "string",
+			"description": "The harness session, as a label"
+		},
+		"share": {
+			"type": "string",
+			"description": "Who may read it: private (you), space (everyone who reads the space) or group:<g>. Default: the deployer's default, private unless they chose space. Widening needs a person or a listed writer"
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"],
+			"description": "Default: internal"
+		},
+		"validFrom": {
+			"type": "string",
+			"description": "When the statement starts to hold, RFC 3339; default: now"
+		},
+		"validUntil": {
+			"type": "string",
+			"description": "When it stops holding, RFC 3339, after validFrom; default: open"
+		},
+		"ttlDays": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "How many days to keep it; default: the class's, at most the class's maximum"
+		},
+		"confidence": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		},
+		"origin": {
+			"enum": ["user-stated", "agent-inferred", "document-derived"],
+			"description": "Who said it. Default: user-stated when a person records it at a terminal, else agent-inferred"
+		},
+		"sources": {
+			"type": "array",
+			"maxItems": 64,
+			"items": {
+				"type": "object",
+				"required": ["resource"],
+				"additionalProperties": false,
+				"properties": {
+					"resource": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 2048
+					},
+					"id": {
+						"type": "string",
+						"maxLength": 512
+					},
+					"title": {
+						"type": "string",
+						"maxLength": 512
+					},
+					"author": {
+						"type": "string",
+						"maxLength": 256
+					},
+					"lastModified": {
+						"type": "string",
+						"maxLength": 64
+					}
+				}
+			}
+		},
+		"derivedFrom": {
+			"type": "array",
+			"maxItems": 64,
+			"items": {
+				"type": "object",
+				"required": ["kind", "id", "contentHash"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"id": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512
+					},
+					"contentHash": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"constraints": {
+			"type": "array",
+			"maxItems": 16,
+			"items": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 200
+			},
+			"description": "Limits the source stated on use, such as \"staging only\""
+		},
+		"supersedes": {
+			"type": "array",
+			"maxItems": 16,
+			"items": {
+				"type": "string"
+			},
+			"description": "Records this one replaces: yours, in the same project and with the same access"
+		},
+		"idempotencyKey": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256,
+			"description": "A retry with the same key returns the first answer and writes nothing"
+		}
+	}
+}

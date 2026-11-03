@@ -88,6 +88,24 @@ impl Outcome {
         self
     }
 
+    /// Mark a failure as retryable or not (AFD's `error.retryable`). A success is unchanged.
+    #[must_use]
+    pub fn with_retryable(mut self, retryable: bool) -> Self {
+        if let Some(Value::Object(error)) = self.object().get_mut("error") {
+            error.insert("retryable".to_owned(), Value::Bool(retryable));
+        }
+        self
+    }
+
+    /// Set a failure's `error.details`, which must hold no content. A success is unchanged.
+    #[must_use]
+    pub fn with_error_details(mut self, details: Value) -> Self {
+        if let Some(Value::Object(error)) = self.object().get_mut("error") {
+            error.insert("details".to_owned(), details);
+        }
+        self
+    }
+
     /// Set `result.metadata[key]`, for the keys a command may supply (`dev.umbel/record`,
     /// `dev.umbel/provenance`, and for compiled and component plugins `dev.umbel/index` and
     /// `dev.umbel/trust` with the value `"content"`); the host removes every other `dev.umbel/`
@@ -155,6 +173,18 @@ mod tests {
         assert_eq!(round_trip(&outcome), *outcome.as_value());
         assert!(!outcome.is_success());
         assert_eq!(outcome.as_value()["error"]["suggestion"], "Try again");
+    }
+
+    #[test]
+    fn a_failure_can_be_retryable_with_details() {
+        let outcome = failure("LIMIT", "Over the limit", "Wait")
+            .with_retryable(true)
+            .with_error_details(json!({ "retryAfterMs": 5 }));
+        assert_eq!(round_trip(&outcome), *outcome.as_value());
+        assert_eq!(outcome.as_value()["error"]["retryable"], true);
+        assert_eq!(outcome.as_value()["error"]["details"]["retryAfterMs"], 5);
+        let unchanged = success(json!(1)).with_retryable(true);
+        assert!(unchanged.as_value().get("error").is_none());
     }
 
     #[test]

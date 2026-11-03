@@ -4029,6 +4029,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "umbel-plugin-memory"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "chrono",
+ "jsonschema",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-scan",
+ "umbel-sdk",
+ "umbel-store",
+]
+
+[[package]]
 name = "umbel-plugin-sources-filesystem"
 version = "0.1.0"
 dependencies = [

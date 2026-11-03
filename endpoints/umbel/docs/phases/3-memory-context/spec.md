@@ -62,10 +62,11 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 5 to 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s steps 6 to 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
-  [#737](https://github.com/lushly-dev/afd/pull/737); step 4 is in its pull request, 2026-11-03.
+  [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
+  [#740](https://github.com/lushly-dev/afd/pull/740); step 5 is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2394,6 +2395,72 @@ and 12 are narrower than the text.
     document's lifted version 1 envelope already has them. A version 1 entry is still read by its own
     rules. This narrows what a plugin can assert and changes no record: the stored authority was always
     the host's.
+
+### Amendments from step 5
+
+Step 5 settled these details of sections 3.1, 6.2, 7.1, 8.1 to 8.3, 8.5, 8.8 and 10.1 that the text left
+open. None weakens access or authority, lets an agent obtain `person`, or otherwise changes the trust model;
+items 1, 2 and 4 are narrower than the text, and are host changes.
+
+1. **Renewal and the default `origin` follow the authority the host assigns.** A plugin cannot know its
+   write's authority beforehand: only the host sees the terminal marks (3.3). So the plugin sends a `renew`
+   on every entry and, when the input names no `origin`, the origin `unspecified`; in `memory_write` the host
+   keeps `renew` only when the authority is `person`, and fills an `unspecified` origin with `user-stated`
+   for `person` and `agent-inferred` for every other authority. An agent's or a tool's observation therefore
+   never renews, whatever a plugin sends (8.2).
+2. **The supersede scope check is the host's.** Item 4 of step 4's amendments left 8.2's
+   `MEMORY_SCOPE_MISMATCH` to the plugin, but a plugin cannot know the access set an absent `share` gets:
+   `default_access` is on the grant's table, which plugins do not read (3.2). So the host, after 6.3's
+   authority and ownership checks of each `supersedes` target, compares the target's current project and
+   access set with the entry's project and the access set it computed, and refuses a difference with
+   `Invalid` and `MEMORY_SCOPE_MISMATCH`. The store writes nothing.
+3. **`captureId`** is `cap-` and the first 24 hex digits of SHA-256 over `umbel-capture`, a NUL and the first
+   record id of the receipt. A replay returns the first receipt, so the same id, and the store needs no field
+   for it (8.3's "stored in the idempotency receipt"). A capture refused under an erased prefix has no record
+   and gets an id made as a record id is. The result's `replayed` and `refused` count entries; `created` and
+   `observed` are 0 on a replay.
+4. **A failed digest call keeps no input value.** The redact step kept the declared `keep` keys whatever the
+   result, so a `project` refused for looking like a secret (3.1) still reached the journal. A digest entry of
+   a failed call now has an empty `keep`; its `bytes`, command, actor and error code remain (7.1).
+5. **`memory-status`'s `pushable`** counts the caller's own current, unflagged records that the default push
+   admits (`push_authorities = ["person"]`, 9.3), from two `memory_left_out` counts that read no key: memory
+   reads no other plugin's configuration (D78), so a deployer's widened `push_authorities` is not reflected,
+   and the result's `pushRule` says so. Its usage window is the last hour, and the limits it reports are the
+   policy pack's under the host's ceilings. Before the first write it answers `provisioned: false`, zero
+   counts and a `keyFile` of `null`, and creates no file.
+6. **`memory-show`'s result** is `{ record, state, history?, historyOmitted? }`, because
+   `memory-record.v1.json` is closed: `state` is 4.2's label (`live`, `flagged`, `not-yet-valid`,
+   `invalidated` or `expired`), measured at `asOf` and, for expiry, at now. A deliberate read shows flagged and
+   expired records. A record not valid at `asOf.valid` is shown as its current version with its history
+   (item 4 of step 2's). The warnings are `UNVERIFIED_CONTENT`, always, and `CONTENT_FLAGGED`; to fit the
+   budget the oldest versions are dropped first, with `RESULTS_LIMITED`.
+7. **Input schemas in the registry's subset.** AFD checks an input schema against a subset with no
+   `pattern`, `oneOf` or `not`, so `memory-capture.input.json` is `capture.v1.json` with those reduced (a
+   null-or-string field as a type list), and a unit test holds the two equal under that reduction. The plugin
+   checks the dropped patterns itself: the harness name, an artifact's kind, an absolute `resource`, the
+   labels, ids and instants (a `startedAt` with an offset is accepted and stored in UTC).
+8. **The capture field map, completed.** An episode's and a decision's source is
+   `harness:<name>/<session>#w<window>.p<part>.t<first>-<last>`, each part present only when the contract gives
+   it; an artifact's sources are its own `{ resource, title }` only, and its subject is cut to 256
+   characters. A capture with no entry is `MEMORY_INVALID`. The per-entry cap counts a decision's text with its
+   rationale.
+9. **What masking covers.** `subject`, `text`, `tags`, `constraints` and the text fields of `sources`, with one
+   `redactions` list summed over them. A match that already holds a `[REDACTED:` mark is left alone, so a
+   broader later pattern does not count one secret twice, and `credential-assignment` takes a quote between
+   the key and its `:` or `=`, as JSON writes it. A subject or tag that masking lengthens past its cap is
+   `MEMORY_INVALID`.
+10. **No `config` grant.** 8.1 lists `config`, but the plugin has no instance configuration (8.11), so the
+    manifest does not declare it.
+11. **The `umbel-memory` binary** is in the plugin crate, as `umbel-knowledge` is in its, for `process.rs`,
+    since `CARGO_BIN_EXE_*` is set only for the owning package. It compiles in the memory plugin alone, so
+    `umbel-first-party` (step 8) is still the only crate with `memory` and `context` together (D80).
+12. **The SDK's `Outcome` gains `with_retryable` and `with_error_details`**, so `MEMORY_QUOTA_EXCEEDED` is
+    retryable with `retryAfterMs` and the limit in `error.details` for a rate, and not retryable for a stored
+    limit (5.2).
+13. **The `memory` job** runs clippy and the tests of `umbel-plugin-memory`, and an MSRV check on Linux, with
+    the `knowledge` job's gating, matrix and 15-minute timeout until step 8 measures it; the `check` job's
+    `cargo test` excludes the crate. Later steps add `umbel-plugin-context`, `umbel-first-party` and
+    `umbel-hook` to its commands.
 
 ## 15. For the owner
 

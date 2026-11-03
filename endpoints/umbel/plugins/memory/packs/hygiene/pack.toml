@@ -1,0 +1,6 @@
+pack_version = 1
+id = "hygiene"
+plugin = "memory"
+version = "1.0.0"
+title = "Hygiene"
+description = "The secret patterns every memory write masks before anything is stored or hashed: an ordered list of kinds and regular expressions. A net, not a guarantee."
