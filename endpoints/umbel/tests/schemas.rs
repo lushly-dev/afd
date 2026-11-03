@@ -1360,7 +1360,9 @@ fn the_context_bundle_labels_every_item_and_names_omissions_by_rule() {
         }
         b["text"] = json!("Context from Umbel.");
     })));
-    let memory = |b: &mut Value| -> &mut Value { &mut b["sections"][1]["items"][0] };
+    fn memory(b: &mut Value) -> &mut Value {
+        &mut b["sections"][1]["items"][0]
+    }
     assert_refuses(
         &validator,
         "context-bundle.v1",

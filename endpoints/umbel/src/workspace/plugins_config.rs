@@ -414,6 +414,9 @@ fn instance(
     })
 }
 
+/// An instance's allow lists by grant, and its `memory_write` policy when it has one.
+type AllowLists = (BTreeMap<String, Vec<String>>, Option<MemoryWritePolicy>);
+
 /// `grants.<grant>.allow` of one instance (configuration version 3), and the `memory_write`
 /// policy of version 4.
 fn allow_lists(
@@ -421,7 +424,7 @@ fn allow_lists(
     prefix_key: &str,
     declared: Option<&[SpaceId]>,
     version: u32,
-) -> Result<(BTreeMap<String, Vec<String>>, Option<MemoryWritePolicy>), WorkspaceError> {
+) -> Result<AllowLists, WorkspaceError> {
     let key = format!("{prefix_key}.grants");
     let mut memory_write = None;
     let grants = match table.and_then(|t| t.get("grants")) {

@@ -228,8 +228,13 @@ and two new fields. `delegationChain` and `tenant` stay reserved and refused.
 | `constraints` | **New.** `null` or at most 16 strings of at most 200 characters: limits the source stated on use ("staging only", "until the launch"). Scanned like the record's text. Phase 4 must carry them through consolidation; research finding S16 is why they exist from the first write |
 | `confirmation` | **New.** `null` or `{ by, at, priorAuthority }`, filled only by the host, for `memory-confirm` (8.7). A plugin's value is overwritten |
 
-Every new store write and event uses version 2. Stored rows and lines of
-version 0 and 1 stay as written and are read in their own version. The gate's
+Every memory write and every event uses version 2. **Document and record writes keep version 1 in
+phase 3**, because `document.v1.json` and `proposal.v1.json` nest envelope version 1 and an embedded
+shape versions with its parent (D36); their `authority` is `null` either way, so a version 2 would
+change no meaning. An event version 2 carries a document's version 1 envelope lifted into version 2,
+with `redactions`, `constraints` and `confirmation` null. (Settled by step 1, 2026-11-02, which found
+the two shapes nesting version 1.) Stored rows and lines of version 0 and 1 stay as written and are
+read in their own version. The gate's
 `supplied_fields` admits `constraints` and `redactions`, and admits `authority`
 only from the closed set.
 
