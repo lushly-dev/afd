@@ -3946,6 +3946,9 @@ dependencies = [
 name = "umbel-first-party"
 version = "0.1.0"
 dependencies = [
+ "afd",
+ "jsonschema",
+ "rusqlite",
  "serde_json",
  "tempfile",
  "tokio",
@@ -3955,6 +3958,8 @@ dependencies = [
  "umbel-plugin-knowledge",
  "umbel-plugin-memory",
  "umbel-plugin-sources-filesystem",
+ "umbel-store",
+ "umbel-store-embedded",
 ]
 
 [[package]]
