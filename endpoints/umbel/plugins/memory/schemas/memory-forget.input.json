@@ -1,0 +1,32 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"ids": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 100,
+			"items": {
+				"type": "string"
+			},
+			"description": "Your records to forget, by id"
+		},
+		"session": {
+			"type": "string",
+			"description": "Forget every record of yours in this session (a person at a terminal only)"
+		},
+		"project": {
+			"type": "string",
+			"description": "Forget every record of yours in this project (a person at a terminal only)"
+		},
+		"before": {
+			"type": "string",
+			"description": "Forget every record of yours first recorded before this instant, RFC 3339 (a person at a terminal only)"
+		}
+	},
+	"description": "Exactly one of ids, session, project or before"
+}

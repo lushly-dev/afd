@@ -1,0 +1,21 @@
+{
+	"type": "object",
+	"required": ["id", "contentHash"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"id": {
+			"type": "string",
+			"description": "The record's id: one of your own"
+		},
+		"contentHash": {
+			"type": "string",
+			"minLength": 16,
+			"maxLength": 71,
+			"description": "The contentHash memory-show printed for the record, at least its first 16 hex digits"
+		}
+	}
+}

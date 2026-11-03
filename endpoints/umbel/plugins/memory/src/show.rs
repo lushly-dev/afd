@@ -11,6 +11,7 @@ use umbel_store::{AsOf, MemoryRecord, Millis, ReadFlags};
 use crate::budget;
 use crate::fail;
 use crate::pipeline;
+use crate::policy::Policy;
 
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -101,6 +102,10 @@ fn show(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
     };
     let label = state(&record, as_of, now);
     let flagged = !record.flags.is_empty();
+    // Section 4.1: before the class's purge age, history cannot tell "never" from "removed".
+    let purge_days = Policy::load(cx)?.class(record.class).purge_after_days;
+    let before = now.saturating_sub(Millis::from(purge_days) * umbel_store::memory::DAY_MS);
+    let purged_before = (as_of.valid < before || as_of.recorded < before).then_some(before);
     let build = |kept: usize| {
         let mut data = json!({
             "record": record.to_json(),
@@ -126,6 +131,16 @@ fn show(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
             outcome = outcome.with_warning(
                 "CONTENT_FLAGGED",
                 "the record matched the injection or hidden-text scan; it is shown with its label and never pushed",
+            );
+        }
+        if let Some(before) = purged_before {
+            let date = umbel_store::memory::format_instant(before);
+            outcome = outcome.with_warning_details(
+                "MEMORY_HISTORY_PURGED",
+                &format!(
+                    "the read reaches before {date}: from then on, versions since purged or forgotten are not shown"
+                ),
+                json!({ "before": date }),
             );
         }
         outcome

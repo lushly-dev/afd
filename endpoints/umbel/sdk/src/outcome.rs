@@ -88,6 +88,23 @@ impl Outcome {
         self
     }
 
+    /// Add a suggestion to a successful result (AFD's `suggestions`): what the caller may do next.
+    /// A failure is unchanged; its one suggestion is `failure`'s.
+    #[must_use]
+    pub fn with_suggestion(mut self, text: &str) -> Self {
+        if !self.is_success() {
+            return self;
+        }
+        let suggestions = self
+            .object()
+            .entry("suggestions".to_owned())
+            .or_insert_with(|| Value::Array(Vec::new()));
+        if let Value::Array(list) = suggestions {
+            list.push(Value::String(text.to_owned()));
+        }
+        self
+    }
+
     /// Mark a failure as retryable or not (AFD's `error.retryable`). A success is unchanged.
     #[must_use]
     pub fn with_retryable(mut self, retryable: bool) -> Self {
@@ -173,6 +190,20 @@ mod tests {
         assert_eq!(round_trip(&outcome), *outcome.as_value());
         assert!(!outcome.is_success());
         assert_eq!(outcome.as_value()["error"]["suggestion"], "Try again");
+    }
+
+    #[test]
+    fn a_success_carries_suggestions_and_a_failure_keeps_its_own() {
+        let outcome = success(json!(1))
+            .with_suggestion("First")
+            .with_suggestion("Second");
+        assert_eq!(round_trip(&outcome), *outcome.as_value());
+        assert_eq!(
+            outcome.as_value()["suggestions"],
+            json!(["First", "Second"])
+        );
+        let failed = failure("BAD", "It broke", "Try again").with_suggestion("Other");
+        assert!(failed.as_value().get("suggestions").is_none());
     }
 
     #[test]

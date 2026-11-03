@@ -133,13 +133,50 @@ impl Fx {
         self.as_actor(agent_for("bot", "ada"), command, input).await
     }
 
+    /// The library's person through the command-line interface, for the commands exposed there
+    /// alone (`memory-sweep`, `memory-reindex`): still the embedder's person, with no terminal mark.
+    pub async fn cli_person(&self, command: &str, input: Value) -> Value {
+        self.call(human("ada"), CommandInterface::Cli, command, input)
+            .await
+    }
+
+    /// `command` as `actor` over MCP with an output budget of `ask` bytes.
+    pub async fn with_budget(&self, actor: Actor, command: &str, input: Value, ask: u64) -> Value {
+        let context = self
+            .host
+            .context(actor)
+            .with_interface(CommandInterface::Mcp)
+            .with_output_budget_ask(ask);
+        json_of(
+            self.host
+                .registry()
+                .execute(command, input, Some(context))
+                .await,
+        )
+    }
+
     /// Run the command line in process, as `principal.local_id`, with `console` for a terminal.
     pub async fn command_line(&self, console: Arc<dyn Console>, args: &[&str]) -> (i32, Value) {
+        self.command_line_with(console, args, &[]).await
+    }
+
+    /// The command line with these environment variables set (an agent's, say).
+    pub async fn command_line_with(
+        &self,
+        console: Arc<dyn Console>,
+        args: &[&str],
+        vars: &[(&str, &str)],
+    ) -> (i32, Value) {
         let mut environment = Environment::from_process();
         environment.cwd = self.dir.path().to_path_buf();
         environment.workspace = None;
         environment.console = console;
         environment.vars.clear();
+        for (name, value) in vars {
+            environment
+                .vars
+                .insert((*name).to_owned(), (*value).to_owned());
+        }
         let clock = self.clock;
         let mut stdout = Vec::new();
         let code = umbel::cli::run(
@@ -198,6 +235,46 @@ impl Fx {
     /// The stored record of `id`, as `memory-show` returns it.
     pub async fn record(&self, id: &str) -> Value {
         data(&self.show(id).await)["record"].clone()
+    }
+
+    /// The memory store's file `name` in `space` (`memory.sqlite3`, `memory.keys`).
+    pub fn store_file(&self, space: &str, name: &str) -> PathBuf {
+        self.path(&format!("state/spaces/{space}/store/{name}"))
+    }
+
+    /// Reopen the workspace, so no connection holds the store's files.
+    pub fn reopen(&mut self) {
+        self.host = build(self.dir.path(), self.clock);
+    }
+
+    /// A file-level copy of `main`'s memory file `name`, taken with no connection open (so its
+    /// write-ahead log is folded in), as an outside backup would take it.
+    pub fn copy_out(&mut self, name: &str) -> Vec<u8> {
+        self.reopen();
+        let wal = self.store_file("main", &format!("{name}-wal"));
+        assert!(
+            std::fs::metadata(&wal).map_or(true, |m| m.len() == 0),
+            "{name} still has a write-ahead log"
+        );
+        std::fs::read(self.store_file("main", name)).unwrap()
+    }
+
+    /// Put a file-level copy back over `main`'s memory file `name`, with no connection open.
+    pub fn put_back(&mut self, name: &str, bytes: &[u8]) {
+        self.reopen();
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let _ = std::fs::remove_file(self.store_file("main", &format!("{name}{suffix}")));
+        }
+        std::fs::write(self.store_file("main", name), bytes).unwrap();
+        self.reopen();
+    }
+
+    /// `command` at a terminal where the person answers yes, with `extra` arguments (`--yes`).
+    pub async fn at_terminal(&self, command: &str, input: Value, extra: &[&str]) -> Value {
+        let input = input.to_string();
+        let mut args = vec!["call", command, input.as_str()];
+        args.extend_from_slice(extra);
+        self.command_line(Terminal::new(true, true), &args).await.1
     }
 
     pub fn events(&self, space: &str) -> Vec<Value> {

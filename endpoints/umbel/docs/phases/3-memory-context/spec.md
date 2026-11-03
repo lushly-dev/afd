@@ -2462,6 +2462,40 @@ items 1, 2 and 4 are narrower than the text, and are host changes.
     `cargo test` excludes the crate. Later steps add `umbel-plugin-context`, `umbel-first-party` and
     `umbel-hook` to its commands.
 
+### Amendments from step 6
+
+Step 6 settled these details of sections 4.1, 8.4 to 8.8 and 8.10 that the text left open. None weakens
+access, authority or forget's guarantees, lets an agent obtain `person`, or otherwise changes the trust
+model. The host is unchanged; the SDK gains one method (item 6).
+
+1. **The read results.** `memory-recall` answers `{ hits, unreadable }` and `memory-list` `{ items, next,
+   unreadable }`, each hit or item with 8.4's concise fields (a list item has no `rank` or `snippet`).
+   `memory-list` takes recall's `limit` (1 to 50, default 10). Its cursor is `<recordedAt in epoch
+   milliseconds>:<id>`, which holds no text. When the budget drops items, `next` resumes after the last
+   item kept, so nothing is skipped, and `RESULTS_LIMITED` says how many were left out. `authorities`
+   admits `person`, `agent`, `tool`, `transcript` and `import`.
+2. **The sweep's event** names `{ memory-sweep, <space> }` with no version: a sweep purges every owner's
+   records, the plugin reads only the changes the caller may read, and the host already puts the range in
+   the event's `changes`. A forget's event takes its version from the last change carrying the call's
+   trace id, which the caller always reads because every one was of its own record, so it equals
+   `changes.toRev`.
+3. **An invalidation's `note`** is masked and scanned (8.6). A note the scan flags is kept, with
+   `CONTENT_FLAGGED` in the result, and the record's `flags` are unchanged: an invalidation's `validUntil`
+   is never after now, so the version carrying the note is never live again and never pushed.
+4. **`MEMORY_CONFIRM_NOT_ALLOWED` names its reason.** The store answers one `Invalid` for every reason
+   (step 2, item 3); after it, the plugin reads the record's current version as the caller and names the
+   first rule it breaks: another principal's, flagged, `transcript`, or already `person`. The store's
+   `NotFound` comes before any of these, so a reason is named only for a record the caller can read.
+5. **`MEMORY_HISTORY_PURGED`** is on `memory-recall` and `memory-list`, measured by the classes asked for
+   (every class when none), and on `memory-show`, by the record's class. Its `details.before` is the date.
+6. **A success's `suggestion`** (8.7's fixed limits on `memory-forget`, 8.8's on `memory-reindex` when it
+   kept orphans, and a sweep with `remaining`) is AFD's `suggestions`. The SDK's `Outcome` gains
+   `with_suggestion`, which a failure ignores, since its one suggestion is `failure`'s.
+7. **`memory-forget`'s input** checks "exactly one selector" in the plugin, as step 5's item 7 does for the
+   patterns the schema subset drops; `ids` are deduplicated. Its `confirm_prompt` is "Forget these memory
+   records? Their text cannot be recovered from Umbel afterwards."; before anything is written every read
+   and a forget answer as for an absent record, and create no file.
+
 ## 15. For the owner
 
 **The owner decided items 1 to 5 on 2026-11-02.** They are final and written into this specification. Approval is under the owner's 2026-10-31 delegation, with these answers.
