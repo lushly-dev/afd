@@ -52,7 +52,7 @@
     `scripts/repository-contract.test.mjs:227-262`, `:315-330` (a workflow reads the one output its gate writes).
   - **Measured 2026-11-02 at `980cc1aa`,** with a build of `main` and throwaway scripts, none committed. See [section 2.1](#21-what-was-measured).
   - **Outside the repository:** see [Trajectory refresh](#trajectory-refresh).
-- **Done:** this specification and the [documents specification](../2-documents/spec.md).
+- **Done:** this specification and the [documents specification](../2-documents/spec.md). Steps 0a, 0b, 1 and 3 merged; step 2, the two-stage boot, implemented on 2026-11-02, with what it measured and decided in [2.2](#what-step-2-measured-and-decided). STATUS.md's phase 2 block has each step's state and evidence.
 - **Step 3, manifest version 2, implemented 2026-11-02** (its pull request is linked from STATUS.md's step line; evidence and checks there). What the step decided, where this specification left a choice:
   - **The schema is structural.** `app-manifest.v2.json` is v1, `"manifest_version": { "enum": [1, 2] }` and the new keys, closed at their depth. It holds shapes, required keys and the ranges that [8.3](#83-new-keys) and the documents specification's table give to `MANIFEST_INVALID` (`title`, `icon`, `content_version`, `autosave_ms`). Each rule with a code of its own arrives with the step that serves the key: `app.resource_keys`' `MANIFEST_RESOURCE_KEY_INVALID` (step 4), `ui.project_summary`'s `MANIFEST_SUMMARY_INVALID` (7), the documents table's `DOCUMENT_*`, `MANIFEST_DOCUMENT_BINDING` and the kind checks (9), and `ui.new`'s `MANIFEST_COMMAND_UNKNOWN` and `MANIFEST_COMMAND_NEEDS_INPUT` (11).
   - **Required keys.** A document type requires `id`, `title`, `icon`, `content_schema`, `content_version`, `instance_commands`, `editor`, `binding` and `templates`, and a `ui.new` entry `title`, `icon` and `command`: [`DocumentTypeV1`](../2-documents/spec.md#22-the-registry) and `NewItemV1` hold an icon, a content version and the instance commands as non-optional values, and 2.1 marks only the other keys optional. `binding.model` admits `crdt` in the schema so that step 9 can refuse it as `BINDING_MODEL_UNAVAILABLE`, naming the collaboration specification. `ui.documents[].panel` is `false`, with a `MANIFEST_SURFACE_UNAVAILABLE` row.
@@ -307,6 +307,27 @@ With no `boot`, as in every test and the test kit, `createKernelParts` runs stag
 - **Main in the first frame.** `loam-main` gains `busy`, set when the persisted or URL-named owner is an app, a section or a document. It hides the landing and sets `aria-busy`, in its first-paint stylesheet. `busy` clears when the owner's surface is in, or on any failure, from `appsReady`, from the `surfaces`, `sections` or `editor` chunk failing, or after 15 seconds, with main's heading saying "Could not load. Reload to try again." Phase 1's "Opening Hello…" after 400 ms stays in the `surfaces` chunk. So no landing flashes before an app, which is why 9.6 thought the manifests were needed first.
 - **`AppSurfaces`** gains `host(): SurfaceHostV1`, `{ ensureActivated(instance): Promise<void>; createMount(instance, element, label?): LoamMount }`, what `#activate`, `#hold` and `#mount` (`surfaces.ts`) do privately, for the [editor frame](../2-documents/spec.md#56-the-editor-contract). `attachSurfaces`' use of `shell.hasApps` (`surfaces.ts:937`) becomes `appCount > 0`.
 
+#### What step 2 measured and decided
+
+Correcting the above where it differs.
+
+- **First paint is 272,722 bytes and 83,440 gzip,** from step 1's 264,350 and 80,341: 8,372 and 3,099 against the allowance of 9,800 and 3,500, and the same for the empty shell, hello, and hello with tally, which E1 holds. As first built it was 279,853 and 85,494, over the allowance by 5,703 and 1,653. These moves brought it under, in order:
+  - The kernel named `SHELL_OWNER` from `overlays.ts`, which brought the overlay store into first paint. It is now in `overlay-owner.ts`.
+  - **`ICONS_V1` registers with the app surfaces, after the first frame.** This departs from the ledger's "`loam-app-entry` with `ICONS_V1`". It is the fallback step 1's acceptance named: an entry the first frame draws has an empty slot of the icon's size, so nothing shifts, and its icon appears with the surfaces. Those two moves gave 275,924 and 84,285.
+  - The rail's settings entry and `loam-app-entry` share their button and tooltip CSS (`elements/entry-styles.ts`), and `readBoot` was written more compactly: 274,517 and 84,138.
+  - A first-frame entry pressed before stage B ends does nothing, rather than the shell answering it, and `main.ts`' refusal lost a branch `readProjection` makes unreachable: 274,182 and 84,027. Such an entry is `loading`, `aria-busy` and says "(loading)", so a press that does nothing until then matches what it shows. The app surfaces answer presses once stage B ends.
+  - `commandRows`, which only `apps/` calls, moved into that chunk; the web host lost a default boot of its own; and two of `bootApps`' messages are shorter, `SCOPE_PROJECT_REQUIRED`'s now 3.4's "Open a project first": 273,732 and 83,877.
+  - **`run` does not read `NEEDS_STAGE_B`.** Every name on it is a late command, which stage A never registers, so `run`'s wait for a name it does not hold already holds each one. The list stays exported, and `boot-apps.test.ts` fails if stage A ever registers one of its names: 273,542 and 83,833.
+  - Rebased on step 3 ([#730](https://github.com/lushly-dev/afd/pull/730)), with `shell-info-get`'s `manifestVersion: 2` (8.1): 273,542 and 83,835. The queue below then added 123 and 46.
+  - `app-get`, `app-open` and `app-close` for apps listed from their boot records alone are answered only through late commands, so `detail`, `open` and `close` moved to `late/boot-actions.ts`, which stage B adds when it falls back to `bootApps`; first paint holds the list and `port`: 272,722 and 83,440.
+- **Calls queued behind stage B run one after another.** Step 1's rule, "a call made while another waits, waits too", kept the order calls started in, and they then ran together. AFD's journal middleware appends after hashing the context with WebCrypto (`createContextDigest`), which finishes in any order, so two calls released together could be journaled reversed: a kernel unit test failed once in about 25 runs. Now each queued call starts when the one before it has finished, so they run and are journaled in the order they were made, which `boot-stages.test.ts` holds with the first call's hash made the slow one; it fails on the earlier code. A nested call (`parent`) and the trusted host's `runAs`, which a mounted handler's own refresh uses, never join the queue, which would otherwise wait behind its caller.
+- **`apps` is 376,290 of step 3's 378,993.** The version 2 projection's validator, with each entry's boot record, adds about 14,000 bytes to `validate.generated`, whatever the boot record's shape: Ajv compiles every key with `allErrors` and no inlined `$ref`. A `refusal` as `null` or an object, rather than `oneOf`, and no `uniqueItems` on `parts` and `scope_levels`, since `readBoot` keeps an array's first of each, saved about 1,000. Before the rebase it was 340,669 of 341,619; step 3 raised the ceiling for its own validator, and 2,703 bytes are left.
+- **Version 2 of the interface lands with the version, `KernelOptionsV2`, `AppSummaryV2` and `ShellInfoV2`.** `CallOptionsV2`'s scope, `KernelEventV2`'s fields, `MountTransportV2`, `initialScope` and `workspace` are step 4's, which first gives them a meaning, as are stage A's steps 3 to 5 and stage B's step 5. `mountShell`'s `base` is step 5's, and `AppSurfaces.host()` step 10's, for the editor frame.
+- **`boot` is optional in the projection's schema,** so a projection written by hand for a test needs none. `loam deployment write` always writes it, and `readBoot` gives a missing one its defaults, after the entry's own `title` and `order`.
+- **A layout record registered twice** keeps the state `hydrate` or a command wrote, and one nothing wrote takes the manifest's first shape. Without the second half, a boot record that lied about a part would keep its shape after stage B, which E1's lying record caught in the kernel's units.
+- **`DEPLOYMENT_WORKSPACE_CHANGED`** is `writeDeployment`'s warning, read from `--out`'s `deployment.json`. `TEAM_INSTANCE_WHOLE_WORKSPACE` waits for step 8, and `index.html`'s rewrite and `404.html` for step 5, as the plan has them.
+- **`session-50` was regenerated:** each entry's user id is now `mock-user-person@example.com`, `shell-info-get` says interface 2, each entry carries the clock tape the journal now writes, and, after the rebase on step 3, `shell-info-get` says manifest version 2. `data.user.id` left `REPLAY_IGNORE` and `DIFF_IGNORE`.
+
 ### 2.3 The lean schema layer (D70)
 
 Phase 0's and phase 1's budgets met Zod by narrowing around it. This step removes it from first paint.
@@ -383,12 +404,12 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 
 | Row | Measures | Now | Ceiling | Set by |
 | --- | --- | --- | --- | --- |
-| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** once step 2 lands | 264,350, 80,341 | 300,000, 91,000 | Set by step 1. Lowered from 320,000 and 95,000 |
+| `jsMinified`, `jsGzip` | The entry's static closure: **first paint, the same for every deployment** from step 2 | 272,722, 83,440 | 300,000, 91,000 | Set by step 1. Lowered from 320,000 and 95,000. Measured by step 2 |
 | `cssMinified` | As phase 0 | 7,719 | 8,496 | Unchanged |
-| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 103,092 | 113,401, the measurement plus 10% | Step 1 |
-| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | 22,173 | 75,000, a first estimate from the ledger below | Step 1 |
-| `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 360,946, with step 3's validator | 378,993, the measurement plus 5%. Raised from 341,619 by step 3: version 2's validator is 39,969 bytes of generated code larger than version 1's (of which the documents subtree 28,831, `ui.new` 4,996, `ui.project_summary` 2,384 and `app.resource_keys` 2,167; the remaining 1,591 are the sidebar's `if` and the shared `$def`s), and the closure grew by 35,594. The step-1 raise was for bytes that left first paint | Step 1; raised by step 3 |
-| `surfacesMinified` | As phase 1, and it loads after first paint | 78,554 | 85,000 | Unchanged |
+| `kernelMinified` | The kernel alone, without `src/apps/` and `src/late/` | 106,970 | 113,401, the measurement plus 10% | Step 1. Measured by step 2 |
+| `lateMinified` | `late-*` and what it imports that first paint has not loaded, with the moved command definitions | 22,990 | 75,000, a first estimate from the ledger below | Step 1. Measured by step 2, with `boot-actions.ts` |
+| `appsMinified` | The `apps`, `validate.generated` and `deployment` chunks' closure, now with classic Zod | 376,290, with step 3's validator and step 2's projection | 378,993, the measurement plus 5%. Raised from 341,619 by step 3: version 2's validator is 39,969 bytes of generated code larger than version 1's (of which the documents subtree 28,831, `ui.new` 4,996, `ui.project_summary` 2,384 and `app.resource_keys` 2,167; the remaining 1,591 are the sidebar's `if` and the shared `$def`s), and the closure grew by 35,594. The step-1 raise was for bytes that left first paint | Step 1; raised by step 3 |
+| `surfacesMinified` | As phase 1, and it loads after first paint | 73,725 | 85,000 | Unchanged. Measured by step 2, with `ICONS_V1` and without `loam-app-entry` |
 | `viewMinified`, `consoleMinified`, `mountMinified` | As phase 1, with `apps` counted as loaded | 22,800, 83,325, 215,923 | 25,080, 91,222, 238,268 | Unchanged. `view` holds the editor's frame host unless step 12 amends it |
 | `switcherMinified` | `switcher-*`: the project list | None | 30,000, a first estimate | Step 6 |
 | `sectionsMinified` | `sections-*`, the projects section | None | 45,000, a first estimate | Step 7 |
@@ -403,15 +424,15 @@ Every lazy row is a **static closure**: the named chunks and what they import th
 | 0a | Planned as nothing. Measured: the message builder and the moved modules, which the registry and `defineCommand` reach ([2.3](#23-the-lean-schema-layer-d70)) | 621, 330 | 319,118, 94,891 |
 | 0b | `hydrateOne`, a method on a class first paint holds. Measured before step 1, as it landed first | 180, 50 | 319,298, 94,941 |
 | 1 | Measured against the acceptance of 272,000 and 82,000: what is left after moving out classic's schemas, `toJSONSchema`, the non-boot definitions and, as it turned out, `palette-index.ts` and the overlay store, with 0b in it | | 264,350, 80,341 |
-| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest) | 9,800, 3,500 | 274,150, 83,841 |
-| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 278,750, 85,641 |
-| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 280,750, 86,441 |
-| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 286,350, 88,541 |
-| 7 | The `sections` boundary | 150, 100 | 286,500, 88,641 |
-| 10 | The `editor` boundary | 150, 100 | 286,650, 88,741 |
-| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 287,250, 88,991 |
+| 2 | `readBoot`, `bootApps` in place of `unavailableApps`, the stages, `run`'s wait, `busy`, and `loam-app-entry` with `ICONS_V1` (measured by the first review at 8,292 and 2,688, leaving 812 gzip for the rest). Measured: 8,372 and 3,099, with `ICONS_V1` after the first frame ([2.2](#what-step-2-measured-and-decided)) | 9,800, 3,500 | 272,722, 83,440 |
+| 4 | `decideAccess`, the field, the middleware, the project cache, `scope-get`, `section-get`, the `workspace-app` read, the `late` boundary | 4,600, 1,800 | 277,322, 85,240 |
+| 5 | `parseRoute`, `formatRoute`, the router's writes | 2,000, 800 | 279,322, 86,040 |
+| 6 | The bands, `loam-section-entry`, the switcher's button, `loam-tooltip`, the status bar's left items, the live region, the `switcher` boundary, less the settings tooltip's CSS | 5,600, 2,100 | 284,922, 88,140 |
+| 7 | The `sections` boundary | 150, 100 | 285,072, 88,240 |
+| 10 | The `editor` boundary | 150, 100 | 285,222, 88,340 |
+| 11 | `loam-new-button`, a text button with no icon, and the `documents` and `new` boundaries | 600, 250 | 285,822, 88,590 |
 
-That total leaves 12,750 and **2,009 gzip** under the ceilings, on step 1's real figures. **Gzip is the binding margin,** though no longer by as little as the plan feared. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
+That total leaves 14,178 and **2,410 gzip** under the ceilings, on step 2's real figures. **Gzip is the binding margin,** though no longer by as little as the plan feared. **Everything else this phase adds is lazy.** A step over its allowance moves code out or amends this table first.
 
 **The `late` chunk's ledger,** a rough count for about 70 commands, each a schema, a literal and a handler. Each step records its real figure, and a step that would pass the ceiling moves logic to a chunk of its own first.
 

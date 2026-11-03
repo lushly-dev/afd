@@ -34,7 +34,7 @@ function createAjv(options = {}) {
 }
 
 /**
- * An Ajv instance with the core and the three schemas added. The manifest is version 2, the one
+ * An Ajv instance with the core and the schemas added. The manifest is version 2, the one
  * schema that reads both versions (phase 2 specification, 8.1); `app-manifest.v1.json` stays
  * committed and is added by the test that holds every valid version 1 case valid under 2.
  */
@@ -43,6 +43,8 @@ export function schemaAjv(options = {}) {
 	ajv.addSchema(readCore());
 	ajv.addSchema(readSchema('app-manifest', 2));
 	for (const name of ['deployment', 'projection']) ajv.addSchema(readSchema(name));
+	// Version 2 of the deployment file and the projection (phase 2 specification, 2.2 and 4.2).
+	for (const name of ['deployment', 'projection']) ajv.addSchema(readSchema(name, 2));
 	return ajv;
 }
 
@@ -84,13 +86,15 @@ export function compileValidators() {
 		'validate.generated.js': toModule(
 			standalone(schemaAjv({ code }), {
 				validateManifest: readSchema('app-manifest', 2).$id,
-				validateProjection: readSchema('projection').$id,
+				// Only version 2 of the projection is read: `dist` and its projection are written together.
+				validateProjection: readSchema('projection', 2).$id,
 			})
 		),
 		'validate-host.generated.js': toModule(
 			standalone(schemaAjv({ code }), {
 				validateCoreManifest: `${core.$id}#/$defs/manifest`,
 				validateDeployment: readSchema('deployment').$id,
+				validateDeploymentV2: readSchema('deployment', 2).$id,
 			})
 		),
 		'validate-shape.generated.js': toModule(
@@ -221,6 +225,8 @@ export async function generateTypes() {
 		['app-manifest', 2, 'ManifestV2'],
 		['deployment', 1, 'DeploymentV1'],
 		['projection', 1, 'ProjectionV1'],
+		['deployment', 2, 'DeploymentV2'],
+		['projection', 2, 'ProjectionV2'],
 	]) {
 		const document = readSchema(schema, version);
 		const { title: _title, ...flat } = closeForTypes(
@@ -255,7 +261,8 @@ export function generateFacts() {
 	for (const [schema, schemaVersion, name] of [
 		['app-manifest', 2, 'manifest'],
 		['deployment', 1, 'deployment'],
-		['projection', 1, 'projection'],
+		['deployment', 2, 'deploymentV2'],
+		['projection', 2, 'projection'],
 	]) {
 		const document = readSchema(schema, schemaVersion);
 		admitted[name] = admittedKeys(withoutRefused(flatten(document, document, core)));

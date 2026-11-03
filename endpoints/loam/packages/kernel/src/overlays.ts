@@ -12,8 +12,9 @@ import type {
 	ToastInputV1,
 } from '@lushly-dev/loam-sdk';
 
-/** The owner of an overlay a person or an agent opened. */
-export const SHELL_OWNER = 'shell';
+import { SHELL_OWNER } from './overlay-owner.js';
+
+export { SHELL_OWNER };
 
 /** Most toasts on screen; a further one dismisses the oldest. */
 export const TOAST_CAP = 5;

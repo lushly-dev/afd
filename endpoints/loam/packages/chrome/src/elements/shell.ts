@@ -10,6 +10,7 @@ import { css, FASTElement, html, observable, ref, Updates, when } from '@lushly-
 import {
 	APPEARANCE_QUERIES,
 	type AppearanceV0,
+	type AppSummaryV2,
 	type CommandSummaryV0,
 	createDefaultAppearance,
 	createDefaultLayout,
@@ -18,7 +19,7 @@ import {
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	type LoamKernelV1,
+	type LoamKernelV2,
 	type PaletteItem,
 } from '@lushly-dev/loam-kernel';
 import { afterFirstFrame } from '../first-frame.js';
@@ -40,6 +41,7 @@ import type { ResizeDetail } from '../resize.js';
 import { createRouter, type RouterV0, type RouteV0 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
+import type { LoamAppEntry } from './app-entry.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
 import { focusPart } from './focus.js';
 import { defineNotice } from './notice-loader.js';
@@ -74,6 +76,10 @@ interface ShellFailure {
 	heading: string;
 	message: string;
 }
+
+/** How long main stays busy for a persisted owner before saying it could not load (2.2). */
+const MAIN_BUSY_MS = 15_000;
+const COULD_NOT_LOAD = 'Could not load. Reload to try again.';
 
 const sideEmpty = {
 	sidebar: "The active app's navigation will appear here.",
@@ -127,6 +133,7 @@ const template = html<LoamShell>`
 			<loam-main
 				data-part="main"
 				landing="${(x) => x.landing}"
+				?busy="${(x) => x.mainBusy}"
 				route="${(x) => x.route}"
 				shortcut="${(x) => x.shortcut}"
 				home="${(x) => x.home}"
@@ -297,11 +304,23 @@ export class LoamShell extends FASTElement {
 
 	/** Main's landing heading: the empty shell's until the app surfaces say otherwise. */
 	declare landing: string;
+	/** Main hides its landing while a persisted active app's surface is on its way (2.2). */
+	declare mainBusy: boolean;
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
-	kernel: LoamKernelV1 | null = null;
-	/** Whether the deployment lists an app, so the app surfaces load before first paint. */
-	hasApps = false;
+	kernel: LoamKernelV2 | null = null;
+	/**
+	 * Whether the boot records list an app, so the first frame reads `app-list` (phase 2 specification,
+	 * 2.2). `mountShell`'s `listsApps` sets it.
+	 */
+	listsApps = false;
+	/** How many apps `app-list` last listed: the app surfaces load after the first frame when any are. */
+	appCount = 0;
+	/**
+	 * The rail's and tab bar's entries the first frame drew, by instance, for the app surfaces to adopt.
+	 * Each is `loading` until then, and a press does nothing, as its busy state says.
+	 */
+	readonly bootEntries = new Map<string, LoamAppEntry[]>();
 	/** The app surfaces, once their chunk has loaded. */
 	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
@@ -333,6 +352,7 @@ export class LoamShell extends FASTElement {
 		this.failure = null;
 		this.booted = false;
 		this.landing = 'No apps yet';
+		this.mainBusy = false;
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.home = new URL('./', globalThis.document?.baseURI ?? 'http://localhost/').pathname;
 	}
@@ -367,6 +387,10 @@ export class LoamShell extends FASTElement {
 		for (const cleanup of this.#cleanup.splice(0)) cleanup();
 		this.#router?.dispose();
 		this.#router = null;
+		clearTimeout(this.#busyTimer);
+		for (const entries of this.bootEntries.values()) for (const entry of entries) entry.remove();
+		this.bootEntries.clear();
+		this.appCount = 0;
 		this.#started = null;
 		this.apps = null;
 		this.#appsLoad = null;
@@ -374,14 +398,14 @@ export class LoamShell extends FASTElement {
 	}
 
 	/** Bind to a kernel and read its state. */
-	start(kernel: LoamKernelV1): Promise<void> {
+	start(kernel: LoamKernelV2): Promise<void> {
 		this.kernel = kernel;
 		if (!this.$fastController.isConnected) return Promise.resolve();
 		this.#started ??= this.#start(kernel);
 		return this.#started;
 	}
 
-	async #start(kernel: LoamKernelV1): Promise<void> {
+	async #start(kernel: LoamKernelV2): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
 			await defineNotice();
 			this.failure = {
@@ -393,7 +417,7 @@ export class LoamShell extends FASTElement {
 		const view = this.ownerDocument.defaultView ?? window;
 		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
 		// Before a call that waited on stage B goes on, so a palette result finds its row.
-		void kernel.appsReady.then(() => this.#stageBEnded(kernel));
+		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(view, 'keydown', (event) => this.#onKeydown(event as KeyboardEvent));
@@ -438,24 +462,99 @@ export class LoamShell extends FASTElement {
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
-		await Promise.all([this.readLayout(), this.#readSession()]);
-		if (this.hasApps) await this.#loadApps();
+		const apps = this.listsApps ? this.#readAppList() : Promise.resolve(undefined);
+		await Promise.all([this.readLayout(), this.#readSession(), apps]);
+		const list = await apps;
+		// A persisted active app: main is busy in the first frame, with no landing, until its surface is in.
+		if (list?.active != null) this.#holdMain();
+		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
-		if (this.apps) {
+		if (list) {
 			await Updates.next();
-			await this.apps.start();
+			this.#renderBootEntries(list);
 		}
 		void afterFirstFrame(view).then(() => {
+			// What E1 reads: everything requested before this mark is the first paint (2.2).
+			view.performance?.mark?.('loam-stage-b');
 			void kernel.startApps();
+			// Its chunk loads beside stage B; it starts once stage B ends.
+			if (this.appCount > 0) void this.#loadApps();
 			whenIdle(view, () => void this.preparePalette());
 		});
 	}
 
-	/** The commands stage B added, for the palette's rows; a chunk that failed says so in main. */
-	#stageBEnded(kernel: LoamKernelV1): void {
+	/** Read `app-list`, and how many apps it lists. */
+	async #readAppList(): Promise<{ active: string | null; apps: AppSummaryV2[] } | undefined> {
+		const result = await this.kernel?.call<{ active: string | null; apps: AppSummaryV2[] }>(
+			'app-list'
+		);
+		if (!result?.success || !result.data) return undefined;
+		this.appCount = result.data.apps.length;
+		return result.data;
+	}
+
+	/** The first frame's rail and tab bar, from the boot records: text, an icon and a state. */
+	#renderBootEntries({ active, apps }: { active: string | null; apps: AppSummaryV2[] }): void {
+		for (const app of apps) {
+			if (!app.rail || this.bootEntries.has(app.instance)) continue;
+			const entries = (['rail', 'tabbar'] as const).map((variant) => {
+				const entry = this.ownerDocument.createElement('loam-app-entry') as LoamAppEntry;
+				entry.variant = variant;
+				entry.instance = app.instance;
+				entry.label = app.title;
+				// Blank until the app surfaces register `ICONS_V1` and set it (phase 2 specification, 2.4).
+				entry.icon = '';
+				entry.state = app.state;
+				entry.current = app.instance === active;
+				this.shadowRoot?.querySelector(`loam-${variant}`)?.append(entry);
+				return entry;
+			});
+			this.bootEntries.set(app.instance, entries);
+		}
+	}
+
+	#busyTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/** Main stays busy until the surface is in, a chunk fails or 15 seconds pass (2.2). */
+	#holdMain(): void {
+		this.mainBusy = true;
+		clearTimeout(this.#busyTimer);
+		this.#busyTimer = setTimeout(() => this.releaseMain(true), MAIN_BUSY_MS);
+	}
+
+	/** Main shows what it shows; with `failed`, its heading says the owner could not load. */
+	releaseMain(failed = false): void {
+		clearTimeout(this.#busyTimer);
+		const held = this.mainBusy;
+		this.mainBusy = false;
+		if (failed && held) this.landing = COULD_NOT_LOAD;
+	}
+
+	/**
+	 * The commands stage B added, for the palette's rows, and the apps it read, whose surfaces start now.
+	 * A chunk that failed says so in main.
+	 */
+	async #stageBEnded(kernel: LoamKernelV2): Promise<void> {
 		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
-		if (kernel.lateFailure) this.landing = 'Could not load. Reload to try again.';
+		if (kernel.lateFailure) {
+			this.landing = COULD_NOT_LOAD;
+			this.releaseMain(true);
+			return;
+		}
+		if (!this.listsApps && this.appCount === 0) return;
+		await this.#readAppList();
+		if (this.appCount === 0) {
+			this.releaseMain();
+			return;
+		}
+		await this.#loadApps();
+		if (!this.apps) {
+			this.releaseMain(true);
+			return;
+		}
+		await this.apps.start();
+		this.releaseMain();
 	}
 
 	#listen(target: EventTarget, type: string, listener: (event: Event) => void): void {
@@ -474,7 +573,7 @@ export class LoamShell extends FASTElement {
 	#loadApps(): Promise<void> {
 		this.#appsLoad ??= import('../apps/surfaces.js')
 			.then(async ({ attachSurfaces }) => {
-				const apps = await attachSurfaces(this, this.kernel as LoamKernelV1);
+				const apps = await attachSurfaces(this, this.kernel as LoamKernelV2);
 				this.apps = apps;
 				this.#cleanup.push(() => apps.dispose());
 			})

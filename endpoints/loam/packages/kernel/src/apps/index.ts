@@ -15,10 +15,10 @@ import {
 } from '@lushly-dev/loam-manifest';
 import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
-import type { AppsRuntime, CommandOwner } from '../apps-runtime.js';
+import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { type AppKeybinding, needsInput } from '../keybindings.js';
-import type { AppPortV1, KernelPortsV1 } from '../types.js';
+import type { AppPortV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
 	baseRecord,
@@ -37,7 +37,7 @@ import { createNativeHost, type NativeHost } from './native.js';
 import { type AppRecord, createOperations, createRefusalCommands } from './operations.js';
 import { createAppPort, packageFile } from './port.js';
 import { pageDecided } from './support.js';
-import type { AppsHost } from './types.js';
+import type { AppsHost, AppsHostInput } from './types.js';
 import { createViewBroker } from './view-broker.js';
 
 export {
@@ -46,7 +46,7 @@ export {
 	HANDLER_READY_TIMEOUT_MS,
 	toolCallResult,
 } from './handler-frame.js';
-export type { AppsHost } from './types.js';
+export type { AppsHost, AppsHostInput } from './types.js';
 
 const NO_PORTS: KernelPortsV1 = {
 	baseUrl: 'http://loam.invalid/',
@@ -57,7 +57,24 @@ const NO_PORTS: KernelPortsV1 = {
 	mountTransport: () => Promise.reject(new Error('The host gave the kernel no ports')),
 };
 /** Read every package, in parallel, then decide in deployment order, since the later holder loses. */
-export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
+export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
+	const { palette, ...rest } = input;
+	const host: AppsHost = {
+		...rest,
+		commandRows(instance) {
+			const { commands, rows } = palette();
+			const summaries = new Map(rows.map((row) => [row.name, row]));
+			return commands
+				.filter((command) => host.owners().get(command.name)?.instance === instance)
+				.map(
+					(command): AppCommandRowV1 => ({
+						...(summaries.get(command.name) as CommandSummaryV1),
+						inputSchema: command.inputSchema,
+						...(command.destructive !== undefined ? { destructive: command.destructive } : {}),
+					})
+				);
+		},
+	};
 	const { deployment } = host;
 	const ports = host.ports ?? NO_PORTS;
 	const records = new Map<string, AppRecord>();

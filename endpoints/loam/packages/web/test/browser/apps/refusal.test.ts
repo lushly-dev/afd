@@ -276,8 +276,9 @@ describe('D66: nothing an app does stops the shell', () => {
 			await expect
 				.poll(() => entryButton(page, 'hello').getAttribute('aria-label'))
 				.toBe('Hello there (unavailable)');
+			// The title is the boot record's, which is the manifest's rail label (phase 2 specification, 2.2).
 			expect(await entryButton(page, 'tally').getAttribute('aria-label')).toBe(
-				'tally (unavailable)'
+				'Tally (unavailable)'
 			);
 			// Deployment order means nothing here: `order`, then the instance id.
 			expect(

@@ -348,15 +348,26 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		],
 		"/apps/*/commands/*/effects": []
 	},
-	"projection": {
+	"deploymentV2": {
 		"": [
 			"deployment_version",
-			"sandbox_origin",
+			"workspace",
+			"site",
+			"sandbox",
 			"apps"
+		],
+		"/workspace": [
+			"id",
+			"name"
+		],
+		"/site": [
+			"base_path"
+		],
+		"/sandbox": [
+			"origin"
 		],
 		"/apps": [],
 		"/apps/*": [
-			"instance",
 			"app",
 			"package",
 			"order",
@@ -365,12 +376,17 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"prefix",
 			"audience",
 			"transport",
-			"route",
+			"url",
+			"bearer_file",
+			"bearer_env",
+			"command",
+			"cwd",
 			"projects",
 			"space",
 			"expose",
 			"commands"
 		],
+		"/apps/*/command": [],
 		"/apps/*/projects": [],
 		"/apps/*/space": [],
 		"/apps/*/expose": [
@@ -392,5 +408,75 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"cli"
 		],
 		"/apps/*/commands/*/effects": []
+	},
+	"projection": {
+		"": [
+			"deployment_version",
+			"generation",
+			"workspace",
+			"sandbox_origin",
+			"apps"
+		],
+		"/workspace": [
+			"id",
+			"name"
+		],
+		"/apps": [],
+		"/apps/*": [
+			"instance",
+			"app",
+			"package",
+			"order",
+			"title",
+			"config",
+			"prefix",
+			"audience",
+			"transport",
+			"route",
+			"projects",
+			"space",
+			"expose",
+			"commands",
+			"boot"
+		],
+		"/apps/*/projects": [],
+		"/apps/*/space": [],
+		"/apps/*/expose": [
+			"agent",
+			"palette",
+			"mcp",
+			"cli"
+		],
+		"/apps/*/commands": [],
+		"/apps/*/commands/*": [
+			"expose",
+			"effects",
+			"destructive"
+		],
+		"/apps/*/commands/*/expose": [
+			"agent",
+			"palette",
+			"mcp",
+			"cli"
+		],
+		"/apps/*/commands/*/effects": [],
+		"/apps/*/boot": [
+			"title",
+			"kind",
+			"icon",
+			"order",
+			"scope_levels",
+			"rail",
+			"parts",
+			"layout",
+			"refusal"
+		],
+		"/apps/*/boot/scope_levels": [],
+		"/apps/*/boot/parts": [],
+		"/apps/*/boot/refusal": [
+			"code",
+			"message",
+			"suggestion"
+		]
 	}
 };

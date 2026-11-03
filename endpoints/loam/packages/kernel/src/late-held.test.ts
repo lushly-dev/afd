@@ -5,6 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createKernel } from './kernel.js';
 import { createFixedEnvironment } from './testing.js';
 
+// What `readBoot` reads of the empty shell's `deployment.json` (phase 2 specification, 2.2).
+const EMPTY_BOOT = {
+	generation: 'empty',
+	workspace: { id: 'personal', name: 'Personal' },
+	apps: [],
+};
+
 const chunk = vi.hoisted(() => {
 	let release: () => void = () => {};
 	const held = new Promise<void>((resolve) => {
@@ -27,7 +34,7 @@ describe('a call while the late chunk is on its way', () => {
 			auth: new MockAuthAdapter(),
 			environment: createFixedEnvironment(),
 			host: 'test',
-			deferLate: true,
+			boot: EMPTY_BOOT,
 		});
 		const stageB = kernel.startApps();
 

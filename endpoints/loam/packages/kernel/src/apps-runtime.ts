@@ -1,20 +1,26 @@
 /**
  * @fileoverview What the kernel knows of its apps, in the first-paint chunk (phase 1 specification,
- * 9.1). `apps/` implements it when a deployment lists an app, and it is imported dynamically, so the
- * empty shell loads neither the readers nor the validators, and holds only {@link EMPTY_APPS}.
+ * 9.1). `apps/` implements it in stage B when a deployment lists an app, and it is imported dynamically,
+ * so no first paint loads the readers or the validators (phase 2 specification, 2.2). Before then, and
+ * when it cannot load, {@link bootApps} answers from the boot records.
  */
 
-import { type CommandResult, type JournalRecord, success } from '@lushly-dev/afd-core';
+import {
+	type CommandError,
+	type CommandResult,
+	type JournalRecord,
+	success,
+} from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { BootProjectionV2 } from '@lushly-dev/loam-manifest';
 import type { KernelFieldContext } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import type { AppKeybinding } from './keybindings.js';
-import type { ShellState } from './shell-state.js';
 import type {
 	AppDetailV1,
 	AppInstanceV1,
 	AppPortV1,
-	AppSummaryV1,
+	AppSummaryV2,
 	CommandSummaryV1,
 } from './types.js';
 
@@ -50,7 +56,7 @@ export interface AppsRuntime {
 	reconcileLayouts(): void;
 	/** The mounted instances, for `startInstances`. */
 	mountedInstances(): string[];
-	summaries(): AppSummaryV1[];
+	summaries(): AppSummaryV2[];
 	detail(instance: string): CommandResult<AppDetailV1>;
 	open(instance: string): CommandResult<{ active: string | null; previous: string | null }>;
 	close(): CommandResult<{ active: null; previous: string | null }>;
@@ -122,72 +128,76 @@ export const EMPTY_APPS: AppsRuntime = Object.freeze({
 	dispose: () => Promise.resolve(),
 });
 
-/** One entry of a projection the readers may never have seen, so each field is checked as it is read. */
-interface UncheckedEntry {
-	instance?: unknown;
-	app?: unknown;
-	title?: unknown;
-	order?: unknown;
-}
-
-/**
- * `apps/` or the readers could not load, so no manifest can be read (D66): the shell still runs, and
- * each deployed app is listed `failed` with the reason until a reload. With no manifest there is no
- * layout record for it, so an open app uses the no-app record and every part stays available. In the
- * first-paint chunk, since nothing lazy can be relied on here.
- */
-export function unavailableApps(
-	deployment: { apps?: unknown } | undefined,
-	state: Pick<ShellState, 'activeApp' | 'setActiveApp'>,
-	reason: string
-): AppsRuntime {
-	const error = {
+/** Why stage B could not read the apps: `APP_RUNTIME_UNAVAILABLE`, retryable, for a chunk that failed. */
+export function runtimeUnavailable(reason: string): CommandError {
+	return {
 		code: 'APP_RUNTIME_UNAVAILABLE',
 		message: `The app runtime could not load: ${reason}`,
 		suggestion: 'Reload the page; if it persists, check that the deployment serves its assets',
 		retryable: true,
 	};
-	const entries = (Array.isArray(deployment?.apps) ? (deployment.apps as UncheckedEntry[]) : [])
-		.filter((entry) => typeof entry?.instance === 'string')
-		.map((entry) => ({
-			instance: entry.instance as string,
-			app: String(entry.app ?? entry.instance),
-			title: String(entry.title ?? entry.instance),
-			kind: 'native' as const,
-			icon: 'system/folder',
-			order: Number(entry.order ?? 100),
-			state: 'failed' as const,
-			error,
-		}))
-		.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1));
-	const find = (instance: string) => entries.find((entry) => entry.instance === instance);
-	const move = (active: string | null) => {
-		const previous = state.activeApp();
-		state.setActiveApp(active);
-		return { active, previous };
+}
+
+/** The reader refused `deployment.json` in stage B: the shell is on screen, so the rail says so (D66). */
+export function deploymentRefused(message: string): CommandError {
+	return {
+		code: 'DEPLOYMENT_INVALID',
+		message,
+		suggestion: 'Run loam deployment write',
+		retryable: false,
 	};
+}
+
+/** How `bootApps` lists the entries. */
+export interface BootAppsOptions {
+	/** Every entry is `failed` with this, as stage B could not read the apps. */
+	failure?: CommandError;
+}
+
+/**
+ * What the kernel knows of its apps from their boot records alone (phase 2 specification, 2.2): before
+ * stage B reads the manifests, or after it could not. In the first-paint chunk. Each entry is listed,
+ * `refused` with its record's refusal or `loading`, or `failed` with `failure`. A record is display:
+ * nothing here grants a command, a module or a surface. `port` answers `APP_NOT_READY`, retryable.
+ * `detail`, `open` and `close` are answered only through late commands, so `late/boot-actions.ts` adds
+ * them when stage B falls back to this.
+ */
+export function bootApps(boot: BootProjectionV2, options: BootAppsOptions = {}): AppsRuntime {
+	const { failure } = options;
+	const entries: AppSummaryV2[] = boot.apps
+		.map((app): AppSummaryV2 => {
+			const refusal =
+				failure === undefined && app.refusal !== null
+					? { ...app.refusal, retryable: false }
+					: undefined;
+			const error = failure ?? refusal;
+			return {
+				instance: app.instance,
+				app: app.app,
+				title: app.title,
+				kind: app.kind,
+				icon: app.icon,
+				order: app.order,
+				state: failure ? 'failed' : refusal ? 'refused' : 'loading',
+				...(error !== undefined ? { error } : {}),
+				scopeLevels: [...app.scopeLevels],
+				rail: app.rail,
+				// No project is active until step 4.
+				available: app.scopeLevels.includes('workspace'),
+			};
+		})
+		.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1));
 	return {
 		...EMPTY_APPS,
-		summaries: () => entries,
-		detail(instance) {
-			const entry = find(instance);
-			if (!entry) return unknownApp(instance);
-			return success({
-				...entry,
-				version: '',
-				trust: 'trusted',
-				trustLine: '',
-				surfaces: ['sidebar', 'inspector', 'panel'],
-				compositions: [],
-				grants: [],
-				contexts: [],
-				skills: [],
-				warnings: [],
-				notices: [],
-				statusItems: {},
+		port(instance) {
+			if (!entries.some((entry) => entry.instance === instance)) return EMPTY_APPS.port(instance);
+			throw new LoamKernelError({
+				code: 'APP_NOT_READY',
+				message: `The app '${instance}' has not loaded`,
+				suggestion: 'Ask again once the apps have loaded',
+				retryable: failure === undefined,
 			});
 		},
-		open: (instance) => (find(instance) ? success(move(instance)) : unknownApp(instance)),
-		close: () => success(move(null) as { active: null; previous: string | null }),
+		summaries: () => entries,
 	};
 }

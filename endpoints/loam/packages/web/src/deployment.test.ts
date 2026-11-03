@@ -6,44 +6,49 @@ import { webPorts } from './ports.js';
 const page = { baseURI: 'https://shell.example/' } as Document;
 const noView = () => Promise.reject(new Error('No view chunk here'));
 const noMount = () => Promise.reject(new Error('No mount chunk here'));
+const EMPTY = {
+	deployment_version: 2,
+	generation: 'test',
+	workspace: { id: 'personal', name: 'Personal' },
+	sandbox_origin: null,
+};
 
 describe('readOrNotice', () => {
 	it('gives the kernel a checked projection and its ports', () => {
 		const read = readOrNotice(
 			{
-				deployment_version: 1,
-				sandbox_origin: null,
+				...EMPTY,
 				apps: [{ instance: 'hello', app: 'hello', package: 'apps/hello/' }],
 			},
 			page,
 			noView,
 			noMount
 		);
-		if (!read.ok) throw new Error(read.message);
-		expect(read.apps.deployment?.apps[0]?.instance).toBe('hello');
-		expect(read.apps.ports?.baseUrl).toBe('https://shell.example/');
+		if ('refused' in read) throw new Error(read.refused);
+		expect(read.deployment.apps[0]?.instance).toBe('hello');
+		expect(read.ports.baseUrl).toBe('https://shell.example/');
 	});
 
 	it('refuses a projection holding a key that must never reach a page', () => {
 		const read = readOrNotice(
 			{
-				deployment_version: 1,
-				sandbox_origin: null,
+				...EMPTY,
 				apps: [{ instance: 'x', app: 'x', package: 'apps/x/', url: 'http://secret' }],
 			},
 			page,
 			noView,
 			noMount
 		);
-		expect(read.ok).toBe(false);
-		if (read.ok) return;
-		expect(read.message).toContain('DEPLOYMENT_INVALID');
-		expect(read.message).not.toContain('http://secret');
+		if (!('refused' in read)) throw new Error('expected a refusal');
+		expect(read.refused).toContain('DEPLOYMENT_INVALID');
+		expect(read.refused).not.toContain('http://secret');
 	});
 
 	it('refuses what did not parse', () => {
-		const read = readOrNotice(undefined, page, noView, noMount);
-		expect(read.ok).toBe(false);
+		expect('refused' in readOrNotice(undefined, page, noView, noMount)).toBe(true);
+		// Version 1 is not read: `dist` and its projection are written together.
+		const v1 = { deployment_version: 1, sandbox_origin: null, apps: [] };
+		expect('refused' in readOrNotice(v1, page, noView, noMount)).toBe(true);
 	});
 });
 

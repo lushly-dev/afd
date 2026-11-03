@@ -12,9 +12,9 @@ import {
 	probeDefinition,
 	probeDeployment,
 } from '../testing.js';
-import type { LoamKernelV1 } from '../types.js';
+import type { LoamKernelV2 } from '../types.js';
 
-const kernels: LoamKernelV1[] = [];
+const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -33,7 +33,7 @@ async function boot() {
 	return { kernel, journal };
 }
 
-const layoutOf = async (kernel: LoamKernelV1) =>
+const layoutOf = async (kernel: LoamKernelV2) =>
 	(await kernel.call<LayoutStateV0>('layout-get')).data as LayoutStateV0;
 
 describe('per-app layout (4.5)', () => {

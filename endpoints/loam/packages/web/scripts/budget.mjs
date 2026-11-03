@@ -11,8 +11,9 @@
  * specification, 2.4): the kernel's late commands, its `src/apps/` with the readers and validators and
  * classic Zod, the chrome's surfaces, its view host and the console. Each is a static closure, charged
  * what a page has not loaded by then. Hello's and tally's bundles are recorded and not limited. It fails
- * when a measure is over its ceiling, or when first paint holds classic Zod or `toJSONSchema`. `dist/` is
- * rebuilt, so run it after `build` or in its place.
+ * when a measure is over its ceiling, when first paint holds classic Zod or `toJSONSchema`, or when it holds
+ * a chunk of stage B: `late`, `apps`, the readers, `surfaces` (phase 2 specification, 2.2). That first
+ * paint is the same for every deployment. `dist/` is rebuilt, so run it after `build` or in its place.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -30,6 +31,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * measured value plus 10% now that Zod's classic API has left it, `late` added, and `apps` its measured
  * value plus 5%, the one raise, for the bytes that left first paint. Step 3 raised `apps` once more, to
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
+ * Step 2 changed no ceiling: first paint 272,722 and 83,440 gzip, `apps` 376,290 (2.4's table).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -107,6 +109,13 @@ async function measurePage() {
 		.filter((id) => /zod[\\/]v4[\\/](classic[\\/]|core[\\/]to-json-schema)/.test(id));
 	if (classic.length > 0) {
 		throw new Error(`budget: first paint holds what belongs to \`apps\`: ${classic.join(', ')}`);
+	}
+	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
+	const stageB = [...initial].filter((name) =>
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late)-/.test(name)
+	);
+	if (stageB.length > 0) {
+		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
 	}
 	// With what it imports statically and what loaded before it has not, such as the listbox.
 	const closure = (pattern, loaded) => {

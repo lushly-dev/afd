@@ -1,7 +1,7 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV1, ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV1, ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
@@ -10,7 +10,7 @@ import { createFixedEnvironment, createFixturePorts, replayKernel } from '../tes
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
-	LoamKernelV1,
+	LoamKernelV2,
 	McpToolCallResult,
 	MountTransportV1,
 } from '../types.js';
@@ -139,7 +139,13 @@ async function boot(
 		},
 	};
 	const journal = new MemoryJournalSink();
-	const deployment = { deployment_version: 1, sandbox_origin: null, apps: entries } as ProjectionV1;
+	const deployment = {
+		deployment_version: 2,
+		generation: 'test',
+		workspace: { id: 'personal', name: 'Personal' },
+		sandbox_origin: null,
+		apps: entries,
+	} as ProjectionV2;
 	const parts = await createKernelParts({
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -154,7 +160,7 @@ async function boot(
 	return { ...parts, journal, deployment, packages, asked };
 }
 
-async function instance(kernel: LoamKernelV1, name = 'work'): Promise<AppInstanceV1 | undefined> {
+async function instance(kernel: LoamKernelV2, name = 'work'): Promise<AppInstanceV1 | undefined> {
 	const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }

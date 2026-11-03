@@ -6,10 +6,27 @@
 
 import { deploymentRefusals } from './deployment-refusals.js';
 import { keyOf } from './pointers.js';
-import type { DeploymentRead, DeploymentRefusal, DeploymentV1 } from './types.js';
-import { validateDeployment } from './validate-host.generated.js';
+import type {
+	DeploymentRead,
+	DeploymentRefusal,
+	DeploymentV1,
+	DeploymentV2,
+	DeploymentWorkspaceV2,
+} from './types.js';
+import { validateDeployment, validateDeploymentV2 } from './validate-host.generated.js';
 
 type Instance = DeploymentV1['apps'][string];
+
+/** What a version 1 file, or a version 2 file naming none, means (phase 2 specification, 4.2). */
+export const DEFAULT_WORKSPACE_V2: Readonly<DeploymentWorkspaceV2> = Object.freeze({
+	id: 'personal',
+	name: 'Personal',
+});
+
+/** The default name of a workspace: its id, capitalized. */
+export function workspaceNameOf(id: string): string {
+	return `${id.charAt(0).toUpperCase()}${id.slice(1)}`;
+}
 
 const MOUNTED_KEYS = [
 	'prefix',
@@ -141,7 +158,7 @@ function instanceRefusals(id: string, entry: Instance): DeploymentRefusal[] {
 }
 
 /** The origin reaches the shell's CSP and a frame's address, so it must be one origin and no more. */
-function sandboxRefusals({ sandbox }: DeploymentV1): DeploymentRefusal[] {
+function sandboxRefusals({ sandbox }: DeploymentV1 | DeploymentV2): DeploymentRefusal[] {
 	if (sandbox === undefined || canonicalOrigin(sandbox.origin)) return [];
 	return [
 		{
@@ -153,20 +170,48 @@ function sandboxRefusals({ sandbox }: DeploymentV1): DeploymentRefusal[] {
 	];
 }
 
+/** `p` would read as a URL's project segment (phase 2 specification, 6.1). */
+function reservedInstances(deployment: DeploymentV1 | DeploymentV2): DeploymentRefusal[] {
+	return Object.keys(deployment.apps)
+		.filter((id) => id === 'p')
+		.map((id) => ({
+			code: 'DEPLOYMENT_INSTANCE_RESERVED',
+			key: keyOf(`/apps/${id}`),
+			message: `The instance id \`${id}\` is reserved: it would read as a URL's project segment.`,
+			suggestion: 'Name the instance something else, such as `plan`.',
+		}));
+}
+
+/** Reads version 1 and version 2; a version 1 file means the `personal` workspace and `/`. */
 export function readDeployment(json: unknown): DeploymentRead {
-	if (!validateDeployment(json)) {
+	const version = (json as { deployment_version?: unknown } | null)?.deployment_version;
+	const validate = version === 2 ? validateDeploymentV2 : validateDeployment;
+	if (!validate(json)) {
 		return {
 			ok: false,
-			refusals: deploymentRefusals(validateDeployment.errors ?? [], 'deployment'),
+			refusals: deploymentRefusals(
+				validate.errors ?? [],
+				version === 2 ? 'deploymentV2' : 'deployment'
+			),
 			warnings: [],
 		};
 	}
-	const deployment = json as DeploymentV1;
+	const deployment = json as DeploymentV1 | DeploymentV2;
 	const refusals = [
 		...sandboxRefusals(deployment),
+		...(deployment.deployment_version === 2 ? reservedInstances(deployment) : []),
 		...Object.entries(deployment.apps).flatMap(([id, entry]) => instanceRefusals(id, entry)),
 	];
-	return refusals.length > 0
-		? { ok: false, refusals, warnings: [] }
-		: { ok: true, deployment, warnings: [] };
+	if (refusals.length > 0) return { ok: false, refusals, warnings: [] };
+	const named = deployment.deployment_version === 2 ? deployment.workspace : undefined;
+	const id = named?.id ?? DEFAULT_WORKSPACE_V2.id;
+	return {
+		ok: true,
+		deployment,
+		workspace: named?.id
+			? { id, name: named.name ?? workspaceNameOf(id) }
+			: { ...DEFAULT_WORKSPACE_V2, ...(named?.name ? { name: named.name } : {}) },
+		basePath: (deployment.deployment_version === 2 && deployment.site?.base_path) || '/',
+		warnings: [],
+	};
 }

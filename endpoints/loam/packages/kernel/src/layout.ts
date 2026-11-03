@@ -323,3 +323,22 @@ export function layoutAsPatch(state: LayoutStateV0): LayoutPatchV0 {
 	const { version: _version, ...rest } = cloneLayout(state);
 	return rest;
 }
+
+const APP_PARTS: readonly LayoutPart[] = ['sidebar', 'inspector', 'panel'];
+
+/**
+ * An instance's first layout from the parts it declares and its preset (phase 1 specification, 4.5):
+ * the defaults, undeclared parts closed, with the preset over them. Stage A gives it a boot record's
+ * `parts` and `layout`, and stage B a manifest's (phase 2 specification, 2.2). A preset that does not
+ * validate is ignored, so a boot record out of shape costs only its own first shape.
+ */
+export function firstLayoutOf(
+	parts: readonly string[],
+	preset: unknown
+): { initial: LayoutStateV0; declared: Set<LayoutPart> } {
+	const declared = new Set(APP_PARTS.filter((part) => parts.includes(part)));
+	const seeded = validateLayoutPatch(createDefaultLayout(), preset ?? {});
+	const initial = seeded.valid ? seeded.state : createDefaultLayout();
+	for (const part of APP_PARTS) if (!declared.has(part)) initial[part].open = false;
+	return { initial, declared };
+}

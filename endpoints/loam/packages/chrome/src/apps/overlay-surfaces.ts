@@ -8,7 +8,7 @@
  */
 
 import { Updates } from '@lushly-dev/fast-element';
-import type { LoamKernelV1 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { ModalInputV1, OverlayV1, ToastInputV1 } from '@lushly-dev/loam-sdk';
 import { deepActiveElement } from '../elements/events.js';
 import { type LoamModal, MODAL_RESULT_EVENT } from '../elements/modal.js';
@@ -23,7 +23,7 @@ import { focusFallback } from './focus-fallback.js';
 
 export class OverlaySurfaces {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV1;
+	readonly #kernel: LoamKernelV2;
 	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #durations = new Map<string, number>();
 	#waiting = false;
@@ -42,7 +42,7 @@ export class OverlaySurfaces {
 		void this.#kernel.call('overlay-dismiss', { overlayId, result, reason: 'user' });
 	};
 
-	constructor(shell: LoamShell, kernel: LoamKernelV1) {
+	constructor(shell: LoamShell, kernel: LoamKernelV2) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 	}

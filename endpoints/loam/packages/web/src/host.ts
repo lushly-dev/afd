@@ -13,8 +13,8 @@ import {
 import {
 	createKernel,
 	type KernelEnvironmentV0,
-	type KernelOptionsV1,
-	type LoamKernelV1,
+	type KernelOptionsV2,
+	type LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
 
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
@@ -28,18 +28,6 @@ export const OTHER_TAB_NOTICE = {
 	message:
 		'Loam keeps one journal per browser profile. Use the other tab, or close it and reload this one.',
 } as const;
-
-/**
- * A hand-written check, so only a projection that lists apps loads the reader (phase 1 specification,
- * 9.4): this is all the empty shell reads of `deployment.json`.
- */
-export function isEmptyProjection(raw: unknown): boolean {
-	const { deployment_version, apps } = (raw ?? {}) as {
-		deployment_version?: unknown;
-		apps?: unknown;
-	};
-	return deployment_version === 1 && Array.isArray(apps) && apps.length === 0;
-}
 
 /** `window.matchMedia` as the kernel's environment. */
 export function mediaEnvironment(view: Pick<Window, 'matchMedia'>): KernelEnvironmentV0 {
@@ -65,14 +53,18 @@ export interface HostKernelOptions {
 	 * unloads. Default 1,000.
 	 */
 	lockPatienceMs?: number;
-	/** The browser projection, already validated by the host, its ports, or why neither could load. */
-	apps?: Pick<KernelOptionsV1, 'deployment' | 'ports' | 'appsUnavailable'>;
+	/**
+	 * What `readBoot` read of `deployment.json`, and what stage B reads: the kernel resolves after stage
+	 * A, the same for every deployment (phase 2 specification, 2.2).
+	 */
+	boot?: KernelOptionsV2['boot'];
+	appsLoader?: KernelOptionsV2['appsLoader'];
 }
 
 const LOCK_RETRY_MS = 100;
 
 export type HostKernel =
-	| { kind: 'ready'; kernel: LoamKernelV1; journal: IndexedDbJournalSink }
+	| { kind: 'ready'; kernel: LoamKernelV2; journal: IndexedDbJournalSink }
 	| { kind: 'locked'; error: IndexedDbJournalError };
 
 /** Take the journal's writer lock, then create the kernel over the IndexedDB stores. */
@@ -106,9 +98,9 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		auth: new MockAuthAdapter(),
 		environment: options.environment,
 		host: 'browser',
-		// The late commands load after the first frame; with an app to load, they come first.
-		deferLate: options.apps === undefined,
-		...options.apps,
+		// With `boot`, stage B, the late commands and the apps, runs after the first frame (2.2).
+		...(options.boot ? { boot: options.boot } : {}),
+		...(options.appsLoader ? { appsLoader: options.appsLoader } : {}),
 	});
 	return { kind: 'ready', kernel, journal };
 }

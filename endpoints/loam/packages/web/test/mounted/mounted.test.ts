@@ -21,10 +21,10 @@ import {
 	deploymentFile,
 	journal,
 	kernelCall,
+	measureFirstPaint,
 	openApp,
 	openShell,
 	packApp,
-	requestedBeforeFirstPaint,
 	serveDeployment,
 	settle,
 	surfacesIdle,
@@ -71,9 +71,7 @@ describe('E3: hello mounted, and a real Umbel in the console, through a test-onl
 		expect(await page.evaluate(() => document.documentElement.dataset.loamHost)).toBe('web');
 		// Nothing of the mounted path before first paint (9.2): discovery runs after it.
 		expect(
-			(await requestedBeforeFirstPaint(page)).filter((path) =>
-				/\/assets\/mount-|\/mounts\//.test(path)
-			)
+			(await measureFirstPaint(page)).filter((path) => /\/assets\/mount-|\/mounts\//.test(path))
 		).toEqual([]);
 		await untilInstance(page, 'hello', 'ready');
 		await openApp(page, 'hello');

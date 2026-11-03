@@ -17,7 +17,7 @@ import type {
 	AppKindV1,
 	AppPortV1,
 	AppStateV1,
-	AppSummaryV1,
+	AppSummaryV2,
 } from '../types.js';
 import { boundRecorded, type MountedHost } from './mounted.js';
 import type { AppsHost } from './types.js';
@@ -30,6 +30,9 @@ export interface AppRecord {
 	readonly title: string;
 	readonly icon: string;
 	readonly order: number;
+	/** The levels it serves, and whether the rail lists it (phase 2 specification, 2.2). */
+	readonly scopeLevels: Array<'workspace' | 'project'>;
+	readonly rail: boolean;
 	readonly entry: ProjectionAppV1;
 	/** Absent when the manifest was refused or could not be read. */
 	readonly manifest?: ManifestV1;
@@ -61,7 +64,7 @@ export interface AppRecord {
 	readonly statusValues: Map<string, string>;
 }
 
-function summaryOf(record: AppRecord): AppSummaryV1 {
+function summaryOf(record: AppRecord): AppSummaryV2 & { state: AppStateV1 } {
 	return {
 		instance: record.instance,
 		app: record.app,
@@ -71,6 +74,10 @@ function summaryOf(record: AppRecord): AppSummaryV1 {
 		order: record.order,
 		state: record.state,
 		...(record.error !== undefined ? { error: record.error } : {}),
+		scopeLevels: [...record.scopeLevels],
+		rail: record.rail,
+		// No project is active until step 4, so only what serves the workspace can open.
+		available: record.scopeLevels.includes('workspace'),
 	};
 }
 

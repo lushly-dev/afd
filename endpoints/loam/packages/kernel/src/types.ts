@@ -1,22 +1,25 @@
 /**
- * @fileoverview Kernel interface version 1 (phase 1 specification, 9.1), and version 0 (phase 0
- * specification, 6.2), which it extends: the only surface the chrome binds to.
+ * @fileoverview Kernel interface version 2 (phase 2 specification, 11.1), and versions 1 (phase 1
+ * specification, 9.1) and 0 (phase 0 specification, 6.2), which it extends: the only surface the chrome
+ * binds to.
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import type { CommandError, CommandResult, JournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type {
+	BootProjectionV2,
 	ManifestRefusal,
 	ManifestV1,
 	ProjectionMountedV1,
 	ProjectionV1,
+	ProjectionV2,
 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1, AppStoreV1, OverlayResultV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { ShellKeybindingV0 } from './keybindings.js';
 
-export const KERNEL_INTERFACE_VERSION = 1;
+export const KERNEL_INTERFACE_VERSION = 2;
 
 export interface LoamKernelV0 {
 	readonly version: 0;
@@ -190,12 +193,6 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 	 * unread, is listed `failed` with this reason, and nothing else of it is used (D66).
 	 */
 	appsUnavailable?: string;
-	/**
-	 * Resolve before the late commands have loaded, with only the boot commands (phase 2 specification,
-	 * 2.2), and load them when `startApps` is called or a call needs one. A deployment that lists an app
-	 * ignores it: its commands need the late names first. Step 2's `boot` replaces this.
-	 */
-	deferLate?: boolean;
 }
 
 /** A call of one of a view app's commands, for the view its `tool_meta.ui.resourceUri` names (6.2). */
@@ -280,7 +277,8 @@ export interface AppSummaryV1 {
 	error?: CommandError;
 }
 
-export interface AppDetailV1 extends AppSummaryV1 {
+export interface AppDetailV1 extends Omit<AppSummaryV2, 'state'> {
+	state: AppStateV1;
 	version: string;
 	/** "Trusted, not sandboxed", "Sandboxed", or "External". */
 	trust: 'trusted' | 'sandboxed' | 'external';
@@ -322,4 +320,51 @@ export interface ShellInfoV1 extends Omit<ShellInfoV0, 'kernelInterface'> {
 	surfaceCatalog: 1;
 	compositionLibrary: 1;
 	sdk: 1;
+}
+
+// ─── Version 2 ──────────────────────────────────────────────────────────────────
+
+/**
+ * Kernel interface version 2 (phase 2 specification, 11.1). Step 2 adds the version and the boot in two
+ * stages; `startApps`, `appsReady` and `lateFailure` came with step 1, on version 1. Scope in a call's
+ * options and in an event is step 4's.
+ */
+export interface LoamKernelV2 extends Omit<LoamKernelV1, 'version' | 'agent'> {
+	readonly version: 2;
+	readonly agent: Pick<LoamKernelV2, 'call' | 'listCommands'>;
+}
+
+/** What stage B reads: the validated projection and the ports, or why the reader refused it (2.2). */
+export type AppsLoadV2 =
+	| { deployment: ProjectionV2; ports: KernelPortsV1 }
+	| {
+			/** The reader's message: each entry is listed `failed` with `DEPLOYMENT_INVALID`. */
+			refused: string;
+	  };
+
+export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'appsUnavailable'> {
+	/** With no `boot`: the validated projection, and `createKernel` runs stage B before it resolves. */
+	deployment?: ProjectionV2;
+	/** What `readBoot` read. With it, `createKernel` resolves after stage A (2.2). */
+	boot?: BootProjectionV2;
+	/** What stage B reads. Required with `boot` when it lists an app. */
+	appsLoader?: () => Promise<AppsLoadV2>;
+}
+
+/** `disabled` is step 4's, from a `workspace-app` record. */
+export type AppStateV2 = AppStateV1 | 'disabled';
+
+export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {
+	state: AppStateV2;
+	scopeLevels: Array<'workspace' | 'project'>;
+	rail: boolean;
+	/** Whether it can open in the active scope, as the rail shows. */
+	available: boolean;
+}
+
+/** What `shell-info-get` returns from version 2. */
+export interface ShellInfoV2 extends Omit<ShellInfoV1, 'kernelInterface' | 'manifestVersion'> {
+	kernelInterface: 2;
+	/** The manifest version this shell reads up to: version 2 reads both (phase 2 specification, 8.1). */
+	manifestVersion: 2;
 }

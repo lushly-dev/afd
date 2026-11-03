@@ -7,17 +7,17 @@
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import type { ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { ShellState } from '../shell-state.js';
-import type { CallOptionsV1, KernelPortsV1 } from '../types.js';
+import type { CallOptionsV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 
 export interface AppsHost {
-	deployment: ProjectionV1;
+	deployment: ProjectionV2;
 	/** Absent when the host gave none: each app is then refused, and not the kernel. */
 	ports?: KernelPortsV1;
 	store: DataAdapter;
@@ -28,7 +28,7 @@ export interface AppsHost {
 	overlays: OverlayStore;
 	owners(): ReadonlyMap<string, CommandOwner>;
 	isMutation(name: string): boolean;
-	/** The palette registry's commands of `instance`. */
+	/** The palette registry's commands of `instance`, which `loadApps` builds from `palette`. */
 	commandRows(instance: string): AppCommandRowV1[];
 	/** A discovery changed the apps' commands: build the registries again (7.3). */
 	setCommands(commands: readonly ZodCommandDefinition[]): void;
@@ -41,6 +41,18 @@ export interface AppsHost {
 	): Promise<CommandResult<T>>;
 	clock(): number;
 }
+
+/**
+ * What the kernel gives `loadApps`: the host, with the palette registry's commands and their rows in
+ * place of `commandRows`, which is built here so first paint does not hold it (phase 2 specification,
+ * 2.4).
+ */
+export type AppsHostInput = Omit<AppsHost, 'commandRows'> & {
+	palette(): {
+		commands: ReadonlyArray<{ name: string; inputSchema: unknown; destructive?: boolean }>;
+		rows: readonly CommandSummaryV1[];
+	};
+};
 
 /** What a frame's refused request answers with. */
 export interface HandlerRefusal {

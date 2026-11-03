@@ -21,7 +21,9 @@
 		"./schemas/app-manifest.v1.json": "./schemas/app-manifest.v1.json",
 		"./schemas/app-manifest.v2.json": "./schemas/app-manifest.v2.json",
 		"./schemas/deployment.v1.json": "./schemas/deployment.v1.json",
-		"./schemas/projection.v1.json": "./schemas/projection.v1.json"
+		"./schemas/deployment.v2.json": "./schemas/deployment.v2.json",
+		"./schemas/projection.v1.json": "./schemas/projection.v1.json",
+		"./schemas/projection.v2.json": "./schemas/projection.v2.json"
 	},
 	"scripts": {
 		"build": "node scripts/schema-build.mjs && tsc",

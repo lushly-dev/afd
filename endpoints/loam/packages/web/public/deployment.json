@@ -1,1 +1,7 @@
-{ "deployment_version": 1, "sandbox_origin": null, "apps": [] }
+{
+	"deployment_version": 2,
+	"generation": "empty",
+	"workspace": { "id": "personal", "name": "Personal" },
+	"sandbox_origin": null,
+	"apps": []
+}

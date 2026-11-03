@@ -1,12 +1,16 @@
 /**
- * @fileoverview `loam-app-entry`: one app in the rail or the tab bar (phase 1 specification, 4.6). A
+ * @fileoverview `loam-app-entry`: one app in the rail or the tab bar (phase 1 specification, 4.6), in
+ * first paint from phase 2, so the first frame lists the apps from their boot records (phase 2
+ * specification, 2.2). `ICONS_V1` registers with the app surfaces, after the first frame, so an entry
+ * the first frame draws has an empty `icon` and a blank slot of the icon's size until then (2.4). A
  * button with the app's icon, and its label as visible text in the tab bar and as `aria-label` and
  * tooltip in the rail. The active entry has `aria-current="page"`; a `failed` or `refused` one says
  * "(unavailable)" and a press still opens it; a `loading` one has `aria-busy="true"`. The tooltip
  * follows the settings entry's rules (WCAG 1.4.13).
  */
 
-import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';
+import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
+import { entryBase } from './entry-styles.js';
 
 export const APP_OPEN_EVENT = 'loam-app-open';
 
@@ -22,7 +26,15 @@ const template = html<LoamAppEntry>`
 		@click="${(x) => x.press()}"
 		@blur="${(x) => x.resetTip()}"
 	>
-		<violet-icon icon="${(x) => (x.unavailable ? 'system/warning' : x.icon)}" decorative></violet-icon>
+		<span class="icon">
+			${when(
+				(x) => x.icon !== '',
+				html<LoamAppEntry>`<violet-icon
+					icon="${(x) => (x.unavailable ? 'system/warning' : x.icon)}"
+					decorative
+				></violet-icon>`
+			)}
+		</span>
 		<span class="label">${(x) => x.accessibleLabel}</span>
 	</button>
 	<span class="tip" aria-hidden="true">${(x) => x.accessibleLabel}</span>
@@ -38,30 +50,17 @@ const styles = css`
 		display: none;
 	}
 	.entry {
-		box-sizing: border-box;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: var(--size-space-xs);
-		min-inline-size: var(--size-target-comfortable);
-		min-block-size: var(--size-target-comfortable);
-		padding: var(--size-space-xs);
-		border: 1px solid transparent;
 		border-inline-start-width: var(--size-space-xs);
-		border-radius: var(--radius-md);
-		background: transparent;
-		color: var(--color-text-secondary);
-		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
 		cursor: pointer;
 		transition:
 			background-color var(--duration-fast) var(--easing-standard),
 			color var(--duration-fast) var(--easing-standard);
 	}
-	.entry violet-icon {
-		--violet-icon-size: var(--size-line-md);
+	.icon {
+		display: inline-flex;
+		flex: none;
+		inline-size: var(--size-line-md);
+		block-size: var(--size-line-md);
 	}
 	.entry:hover {
 		background: var(--color-action-secondary-hover);
@@ -70,10 +69,6 @@ const styles = css`
 	.entry:active {
 		background: var(--color-action-secondary-pressed);
 		color: var(--color-text-primary);
-	}
-	.entry:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
 	}
 	.entry[aria-current='page'] {
 		background: var(--color-control-selected-background);
@@ -84,19 +79,6 @@ const styles = css`
 		cursor: progress;
 	}
 	.tip {
-		position: absolute;
-		z-index: var(--z-index-popover);
-		display: none;
-		padding-block: var(--size-space-sm);
-		padding-inline: var(--size-space-md);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-floating);
-		background-clip: padding-box;
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		white-space: nowrap;
 		inset-block-start: 0;
 		inset-inline-start: 100%;
 	}
@@ -223,4 +205,8 @@ attr(LoamAppEntry.prototype, 'state');
 attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'current');
 attr(LoamAppEntry.prototype, 'variant');
 
-export const appEntryDefinition = { name: 'loam-app-entry', template, styles } as const;
+export const appEntryDefinition = {
+	name: 'loam-app-entry',
+	template,
+	styles: [entryBase, styles],
+} as const;

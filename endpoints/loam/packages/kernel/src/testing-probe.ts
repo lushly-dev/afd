@@ -6,7 +6,7 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
-import type { ManifestV1, ProjectionV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestV1, ProjectionV2 } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
 	type AppDefinitionV1,
@@ -201,12 +201,18 @@ export const PROBE_SESSION: readonly SessionCall[] = Object.freeze([
 ] satisfies SessionCall[]);
 
 export function probeDeployment(
-	apps: ProjectionV1['apps'] = [
+	apps: ProjectionV2['apps'] = [
 		{ instance: 'probe', app: 'probe', package: 'apps/probe/', config: { greeting: 'hi' } },
 	],
 	sandboxOrigin: string | null = null
-): ProjectionV1 {
-	return { deployment_version: 1, sandbox_origin: sandboxOrigin, apps };
+): ProjectionV2 {
+	return {
+		deployment_version: 2,
+		generation: 'test',
+		workspace: { id: 'personal', name: 'Personal' },
+		sandbox_origin: sandboxOrigin,
+		apps,
+	};
 }
 
 /** One package a fixture serves. */
