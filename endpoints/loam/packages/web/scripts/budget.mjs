@@ -35,8 +35,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 4 changed none either: first paint 277,772 and 85,346 gzip, the kernel alone 110,680, `late`
  * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 5 changed
  * none and added `urlMinified`: the URL's commands and writes are a `url-sync` chunk loaded when stage B
- * ends, 3,540, under 5,000, its measurement plus 10% and 1,000 for steps 7 and 11's shapes (approved by
- * the coordinator); first paint 279,733 and 86,087 gzip, the kernel alone 110,790, `late` 47,975. Step 9 leaves
+ * ends, after `apps` and before `surfaces`, 3,719 of 5,091, its measurement plus 10% and 1,000 for steps
+ * 7 and 11's shapes, unrounded (approved by the coordinator); first paint 279,728 and 86,097 gzip, the
+ * kernel alone 110,790, `late` 48,425. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -45,7 +46,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
-	urlMinified: 5_000,
+	urlMinified: 5_091,
 	appsMinified: 378_993,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
@@ -139,16 +140,17 @@ async function measurePage() {
 	const late = closure(/^assets\/late-/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	const afterLate = new Set([...initial, ...late]);
-	// The URL's chunk loads when stage B ends, beside `apps`, so it is charged after `late` (6.3).
-	const url = closure(/^assets\/url-sync-/, afterLate);
-	if (url.size === 0) throw new Error('budget: the build has no `url-sync` chunk to measure');
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
 	const afterApps = new Set([...afterLate, ...apps]);
-	const surfaces = closure(/^assets\/surfaces-/, afterApps);
+	// The URL's chunk loads when stage B ends, after `apps` and before the surfaces start (6.3).
+	const url = closure(/^assets\/url-sync-/, afterApps);
+	if (url.size === 0) throw new Error('budget: the build has no `url-sync` chunk to measure');
+	const afterUrl = new Set([...afterApps, ...url]);
+	const surfaces = closure(/^assets\/surfaces-/, afterUrl);
 	// What a view app or a console adds when it opens: the surfaces have loaded by then.
-	const afterSurfaces = new Set([...afterApps, ...surfaces]);
+	const afterSurfaces = new Set([...afterUrl, ...surfaces]);
 	const view = closure(/^assets\/view-/, afterSurfaces);
 	if (view.size === 0) throw new Error('budget: the build has no `view` chunk to measure');
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);

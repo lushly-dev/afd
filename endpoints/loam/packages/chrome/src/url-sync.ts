@@ -31,6 +31,8 @@ export interface UrlHostV1 {
 	readonly router: RouterV1 | null;
 	/** The rows `app-list` last gave. */
 	readonly appList: readonly AppSummaryV2[];
+	/** Stage B's own boot of this chunk was tried: an instance made now, after a failed load, starts late. */
+	readonly urlBooted?: boolean;
 	readState(): Promise<MainStateV1>;
 	/** Main's "Nothing here", or what it shows. */
 	route: 'home' | 'not-found';
@@ -185,8 +187,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				if (!set.success && refused && to !== null) {
 					set = await kernel.call('scope-set', { project: null });
 				}
-				// Never apply a route against a state the kernel did not take.
-				if (!set.success) return undefined;
+				// Never apply a route against a state the kernel did not take: main says so, as the URL does.
+				if (!set.success) return false;
 				state = await host.readState();
 			}
 			return !refused && apply(route, state, false);
@@ -234,6 +236,25 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	const bootStarted = new Promise<void>((resolve) => {
 		booted = resolve;
 	});
+
+	/**
+	 * The start of an instance made after stage B's own boot was tried, because this chunk failed to load
+	 * then. What stage A chose in memory is journaled now if `loam.scope` still differs, as `pending` says at
+	 * this moment, so it never runs twice or against a scope that has moved since. No route is applied: the
+	 * navigation or the event that loaded this chunk runs next, and does its own.
+	 */
+	async function resume(): Promise<void> {
+		const state = await host.readState();
+		if (!state.pending) return;
+		await under(async () => {
+			const set = await kernel.call('scope-set', { project: state.scope.project ?? null });
+			return set.success ? undefined : false;
+		});
+	}
+	if (host.urlBooted) {
+		void queued(resume);
+		booted();
+	}
 
 	return {
 		boot() {

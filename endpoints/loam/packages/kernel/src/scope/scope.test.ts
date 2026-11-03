@@ -798,6 +798,104 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		expect(report.diverged).toBe(false);
 	});
 
+	it("P2-E8: the boot's switch from a record naming a restricted or an archived project replays the same", async () => {
+		// The record names Vault, restricted to the person; the reload signs out and the URL names Atlas.
+		const restricted = await reloadAfter(
+			async (kernel) => {
+				await kernel.call('auth-sign-in', {
+					method: 'credentials',
+					email: 'person@example.com',
+					password: 'x',
+				});
+				await kernel.call('project-create', {
+					name: 'Vault',
+					access: { mode: 'restricted', members: [PERSON] },
+				});
+				await kernel.call('scope-set', { project: 'vault' });
+				await kernel.call('app-open', { instance: 'dual' });
+			},
+			{ project: 'atlas' }
+		);
+		const events: KernelEventV2[] = [];
+		restricted.second.kernel.subscribe((event) => events.push(event));
+		const atlas = restricted.second.scopes.atlas.project as string;
+		expect((await restricted.second.kernel.call('scope-set', { project: atlas })).success).toBe(
+			true
+		);
+		// The record's id reaches the shell's listeners and the local journal, as 6.3 records; no name does.
+		const vault = events.find((event) => event.scopeChanged)?.scopeChanged?.from.project;
+		expect(vault).toMatch(/^prj_/);
+		expect(JSON.stringify(events)).not.toContain('Vault');
+		expect((await replayOf(await restricted.journal.read())).report.diverged).toBe(false);
+
+		// The record names Beacon, archived after it was entered.
+		const archived = await reloadAfter(
+			async (kernel) => {
+				await kernel.call('project-archive', { project: 'beacon' });
+				await kernel.call('scope-set', { project: 'beacon' });
+			},
+			{ project: 'atlas' }
+		);
+		expect(await scopeOf(archived.second)).toMatchObject({ pending: true });
+		const set = await archived.second.kernel.call('scope-set', {
+			project: archived.second.scopes.atlas.project as string,
+		});
+		expect(set.data).toMatchObject({ previous: archived.second.scopes.beacon.project });
+		expect((await replayOf(await archived.journal.read())).report.diverged).toBe(false);
+	});
+
+	it('P2-E8: app-route-set and section-open refuse what the URL cannot hold, as APP_ROUTE_INVALID', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('app-open', { instance: 'dual' });
+		for (const path of ['items/', '/items', 'a//b', '..', 'a/./b', 'x'.repeat(1025)]) {
+			const route = await kernel.call('app-route-set', { instance: 'dual', path });
+			expect(route.error?.code, path).toBe('APP_ROUTE_INVALID');
+			const section = await kernel.call('section-open', { section: 'projects', path });
+			expect(section.error?.code, path).toBe('APP_ROUTE_INVALID');
+		}
+		for (const path of ['', 'a/b', 'x'.repeat(1024)]) {
+			expect(
+				(await kernel.call('section-open', { section: 'documents', path })).success,
+				path
+			).toBe(true);
+		}
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			section: 'documents',
+			active: null,
+		});
+	});
+
+	it("P2-E8: app-close lands on a project's home inside one, and closing a section is undone by reopening it", async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('app-open', { instance: 'dual' });
+		const inAtlas = await kernel.call('app-close');
+		expect(inAtlas.undoCommand).toBe('app-open');
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+		await kernel.call('scope-set', { project: null });
+		await kernel.call('section-open', { section: 'documents', path: 'doc_1' });
+		const closed = await kernel.call('app-close');
+		expect(closed.undoCommand).toBe('section-open');
+		expect(closed.undoArgs).toEqual({ section: 'documents', path: 'doc_1' });
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: null,
+			path: '',
+			active: null,
+		});
+		await kernel.call('section-open', closed.undoArgs);
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			section: 'documents',
+			path: 'doc_1',
+		});
+		expect((await replayOf(await entries(workspace))).report.diverged).toBe(false);
+	});
+
 	it("P2-E8: section-get holds main's section, path and active app, unjournaled", async () => {
 		const workspace = await scoped();
 		await workspace.kernel.call('app-open', { instance: 'dual' });

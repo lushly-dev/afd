@@ -119,21 +119,22 @@ export function createRouter(
 	const listener = (event: Event) => {
 		const navigate = event as NavigateEventLike;
 		const next = parseRoute(navigate.destination.url, base);
-		// Another origin, outside the base or a deployment's own file is `not-found`, and the browser loads
-		// it, as it does a form's submission. A reload reloads the document.
+		const own = navigate.info === STATE_INFO;
+		// A link or an address to another origin, outside the base or a deployment's own file is `not-found`,
+		// and the browser loads it, as it does a form's submission. The shell's own write, and Back or
+		// Forward to an entry of this document, stay here, so main shows "Nothing here". A reload reloads.
 		if (
 			!navigate.canIntercept ||
 			navigate.hashChange ||
 			navigate.downloadRequest !== null ||
 			navigate.formData ||
 			navigate.navigationType === 'reload' ||
-			next.kind === 'not-found'
+			(next.kind === 'not-found' && !own && navigate.navigationType !== 'traverse')
 		) {
 			return;
 		}
 		// The shell's own write follows a command, so focus stays where the person has it; a person's
 		// navigation resets it, as the platform does. The document does not scroll: main does.
-		const own = navigate.info === STATE_INFO;
 		navigate.intercept({
 			...(own ? { focusReset: 'manual' } : {}),
 			handler: () => {

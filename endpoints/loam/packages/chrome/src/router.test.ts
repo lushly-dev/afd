@@ -220,6 +220,21 @@ describe('P2-E8: what the router intercepts', () => {
 		expect(router.route).toEqual({ kind: 'project', workspace: 'acme', project: 'atlas' });
 	});
 
+	it("P2-E8: intercepts Back or Forward to this document's not-found entry, so main shows Nothing here", async () => {
+		const { seen, navigate } = routed();
+		const options = navigate(`${BASE}acme/`, { navigationType: 'traverse' });
+		await options?.handler();
+		expect(seen).toEqual([{ kind: 'not-found' }]);
+	});
+
+	it("P2-E8: intercepts the shell's own write even where the route is not-found, and never reloads for it", async () => {
+		const { seen, navigate } = routed();
+		const options = navigate(`${BASE}acme/hello/${'x'.repeat(1100)}`, { info: STATE_INFO });
+		expect(options?.focusReset).toBe('manual');
+		await options?.handler();
+		expect(seen).toEqual([]);
+	});
+
 	it.each([
 		['another origin', 'http://evil.example/loam/acme', {}],
 		['outside the base', `${ORIGIN}/acme`, {}],

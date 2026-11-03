@@ -95,6 +95,14 @@ const mainWithApp = css`
 	:host([data-app]) .landing {
 		display: none;
 	}
+	/* A URL that names nothing here, Back to one among them: "Nothing here" shows, and the app it left does
+	   not (phase 2 specification, 6.3). */
+	:host([data-app][route='not-found']) .landing {
+		display: grid;
+	}
+	:host([route='not-found']) ::slotted(*) {
+		display: none;
+	}
 	::slotted(loam-mount),
 	::slotted(loam-notice),
 	::slotted(loam-view-frame) {

@@ -257,6 +257,8 @@ export class LoamShell extends FASTElement {
 	#pendingQuery = '';
 	/** The router, once the shell has started (phase 2 specification, 6.3). */
 	router: RouterV1 | null = null;
+	/** Set once stage B's own boot of the URL chunk has been tried, whether or not the chunk loaded. */
+	declare urlBooted?: boolean;
 	/** The rows `app-list` last gave, for an app route's checks. */
 	appList: readonly AppSummaryV2[] = [];
 	/** The URL and the state, both ways, in a chunk loaded when stage B ends (6.3). */
@@ -504,8 +506,10 @@ export class LoamShell extends FASTElement {
 		if (listed) await this.#readAppList();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
 		await this.#url((url) => url.boot());
-		// An app the route named that stage B does not hold: main shows "Nothing here" at once.
-		if (this.route === 'not-found') this.releaseMain();
+		// From here, a URL chunk loaded again after a failure starts late, with no boot of its own (6.3).
+		this.urlBooted = true;
+		// An app the route named that stage B does not hold shows "Nothing here" once main is released below,
+		// when the surfaces start; with no apps listed, main was never held.
 		if (!listed) return;
 		if (this.appCount === 0) {
 			this.releaseMain();
@@ -527,7 +531,6 @@ export class LoamShell extends FASTElement {
 
 	// ─── The URL (phase 2 specification, 6.3) ──────────────────────────────────────
 
-	/** Load the URL's chunk once. Only what stage B has made callable needs it. */
 	/**
 	 * Run `task` with the URL's chunk, loaded once. A chunk that fails is reported and forgotten, so the next
 	 * call tries again, and nothing else of stage B waits on it: the app surfaces still start.

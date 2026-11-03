@@ -120,6 +120,19 @@ const flush = (page: Page) =>
 		await shell.kernel.flush();
 	});
 
+/** Main's own heading if it shows one, and whether an app's surface shows in it. */
+const mainShows = (page: Page) =>
+	page.evaluate(() => {
+		const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+		const shown = (element: Element | null | undefined) =>
+			!!element && (element as HTMLElement).getBoundingClientRect().height > 0;
+		const heading = main?.shadowRoot?.querySelector('h1');
+		return {
+			heading: shown(heading) ? (heading?.textContent ?? '') : '',
+			app: [...(main?.children ?? [])].some((child) => shown(child)),
+		};
+	});
+
 const signIn = (page: Page) =>
 	kernelCall(page, 'auth-sign-in', { method: 'credentials', email: 'person@example.com' });
 
@@ -485,6 +498,51 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		).toBe(true);
 		expect(opened.errors.some((error) => /uncaught|unhandled/i.test(error))).toBe(false);
 		await context.close();
+	});
+
+	it('P2-E8: a URL chunk that failed once loads again at the next navigation, which it applies', async () => {
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		let refused = 0;
+		await context.route(/\/assets\/url-sync-[^/]*\.js$/, (route) =>
+			refused++ === 0 ? route.abort() : route.continue()
+		);
+		const opened = await openShell(browser, site.root, {}, context);
+		const { page } = opened;
+		await ready(page);
+		expect(refused).toBe(1);
+		// A person's navigation loads the chunk again, which starts late and applies it, and it settles.
+		await navigate(page, at('personal/hello'));
+		await settle(page);
+		await showsApp(page, 'hello');
+		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
+		expect(refused).toBe(2);
+		// Back runs its command; a later command moves the URL.
+		await traverse(page, 'back');
+		await settle(page);
+		expect(pathOf(page)).toBe(basePath);
+		expect(await stateOf(page)).toMatchObject({ active: null });
+		await openApp(page, 'tally');
+		await expect.poll(() => pathOf(page)).toBe(`${basePath}personal/tally`);
+		expect(opened.violations).toEqual([]);
+		// Only the first load failed, and it was reported.
+		expect(opened.errors.every((error) => /ERR_FAILED|url-sync-/.test(error))).toBe(true);
+		await context.close();
+	});
+
+	it('P2-E8: Back to an entry that names nothing shows "Nothing here", and not the app it left', async () => {
+		const opened = await openShell(browser, at('personal/'));
+		const { page } = opened;
+		await ready(page);
+		expect(await mainShows(page)).toEqual({ heading: 'Nothing here', app: false });
+		await openApp(page, 'hello');
+		await expect.poll(() => pathOf(page)).toBe(`${basePath}personal/hello`);
+		expect((await mainShows(page)).app).toBe(true);
+		await traverse(page, 'back');
+		await settle(page);
+		expect(pathOf(page)).toBe(`${basePath}personal/`);
+		expect(await mainShows(page)).toEqual({ heading: 'Nothing here', app: false });
+		noFailures(opened);
+		await opened.context.close();
 	});
 
 	it('P2-E8: / is replaced for a persisted app, and stays while nothing is persisted', async () => {

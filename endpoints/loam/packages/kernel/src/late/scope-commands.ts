@@ -131,6 +131,23 @@ const sectionInput = z.strictObject({
 	path: z.optional(z.string()),
 });
 const routeInput = z.strictObject({ instance: ref, path: z.string() });
+
+/**
+ * A route the URL can hold (4.3, 6.1): at most 1,024 characters, and no `.`, `..` or empty segment, since
+ * `new URL` would walk a dot segment into another project or app, and the URL holds no empty one. So an app's
+ * route and a section's path always format a URL `parseRoute` reads back.
+ */
+function routeRefusal(path: string): CommandResult<never> | undefined {
+	if (path === '') return undefined;
+	if (path.length <= 1024 && !path.split('/').some((part) => part === '' || /^\.\.?$/.test(part))) {
+		return undefined;
+	}
+	return kernelFailure(
+		'APP_ROUTE_INVALID',
+		'A route has no `.`, `..` or empty segment, and is at most 1,024 characters',
+		"Use a path under the app's own base, with no leading, trailing or doubled `/`"
+	);
+}
 /** Each override, or `null` to clear it, so an undo can restore one that was never set (4.1). */
 const appSetInput = z.strictObject({
 	instance: ref,
@@ -557,6 +574,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			const refused = routeRefusal(input.path ?? '');
+			if (refused) return refused;
 			const previous = state.main().section;
 			const closed = deps.apps().close();
 			if (!closed.success) return closed as CommandResult<never>;
@@ -583,14 +602,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		},
 		async handler(input, context) {
 			const { path } = input;
-			// `new URL` would resolve a dot segment into another project or app (4.3).
-			if (path.length > 1024 || path.split('/').some((part) => part === '.' || part === '..')) {
-				return kernelFailure(
-					'APP_ROUTE_INVALID',
-					'A route has no `.` or `..` segment and is at most 1,024 characters',
-					"Use a path under the app's own base"
-				);
-			}
+			const refused = routeRefusal(path);
+			if (refused) return refused;
 			if (state.activeApp() !== input.instance) {
 				return kernelFailure(
 					'APP_ROUTE_INVALID',

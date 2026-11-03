@@ -43,6 +43,8 @@ interface FixtureOptions {
 	booted?: boolean;
 	route?: RouteV1;
 	lateFailure?: boolean;
+	/** Stage B's own boot of the chunk was tried already: this instance starts late. */
+	urlBooted?: boolean;
 }
 
 /** A shell and a kernel holding `state`; `scope-set` fails for a slug it does not hold. */
@@ -128,6 +130,7 @@ async function fixture(
 		],
 		readState: async () => structuredClone(state),
 		route: 'home',
+		...(options.urlBooted ? { urlBooted: true } : {}),
 	};
 	const sync = createUrlSync(host);
 	if (options.booted !== false) {
@@ -406,7 +409,8 @@ describe('P2-E8: the boot (6.3)', () => {
 		);
 		await sync.boot();
 		expect(commands()).toEqual([['scope-set', { project: ATLAS.id }]]);
-		expect(host.route).toBe('home');
+		// Main says the URL names nothing it can show, rather than show what the URL does not name.
+		expect(host.route).toBe('not-found');
 		expect(moves).toEqual([]);
 	});
 
@@ -421,6 +425,43 @@ describe('P2-E8: the boot (6.3)', () => {
 		// The boot's `/` restores what is persisted, so it closes nothing.
 		expect(commands()).toEqual([]);
 		expect(moves).toEqual([['replace', `${BASE}acme/hello`]]);
+	});
+});
+
+describe('P2-E8: a URL chunk loaded again after it failed', () => {
+	const inAtlas = { scope: { project: ATLAS.id }, project: ATLAS, pending: true, active: 'hello' };
+
+	it("P2-E8: journals stage A's choice once, then runs the navigation that loaded it, and no boot route", async () => {
+		const { commands, moves, sync, timers } = await fixture('acme/hello', inAtlas, {
+			booted: false,
+			urlBooted: true,
+			route: { kind: 'app', workspace: 'acme', instance: 'hello', rest: [] },
+		});
+		await sync.navigated({
+			kind: 'app',
+			workspace: 'acme',
+			project: 'atlas',
+			instance: 'hello',
+			rest: ['x'],
+		});
+		expect(commands()).toEqual([
+			['scope-set', { project: ATLAS.id }],
+			['app-route-set', { instance: 'hello', path: 'x' }],
+		]);
+		await timers();
+		expect(moves).toEqual([['replace', `${BASE}acme/p/atlas/hello/x`]]);
+	});
+
+	it('P2-E8: journals nothing once the scope has moved, and an event then moves the URL', async () => {
+		const { commands, moves, sync, timers } = await fixture(
+			'acme/hello',
+			{ ...inAtlas, pending: false },
+			{ booted: false, urlBooted: true }
+		);
+		sync.changed(event({ command: 'scope-set', scopeChanged: {} as never, mainChanged: 'push' }));
+		await timers();
+		expect(commands()).toEqual([]);
+		expect(moves).toEqual([['push', `${BASE}acme/p/atlas/hello`]]);
 	});
 });
 
