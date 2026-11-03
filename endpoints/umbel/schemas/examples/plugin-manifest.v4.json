@@ -1,0 +1,217 @@
+{
+	"manifest_version": 4,
+	"protocol": 1,
+	"plugin": {
+		"id": "review",
+		"title": "Review",
+		"version": "0.1.0",
+		"description": "Decide pending changes after a person reads a preview: a manifest version 4 example.",
+		"kind": "compiled",
+		"domains": ["review"],
+		"license": "MIT"
+	},
+	"grants": [
+		{
+			"name": "records",
+			"required": true,
+			"reason": "Reads the pending changes."
+		},
+		{
+			"name": "records_write",
+			"required": true,
+			"reason": "Records each decision."
+		}
+	],
+	"commands": [
+		{
+			"name": "review-approve",
+			"description": "Apply a pending change once a person has read its preview.",
+			"effects": ["store-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"change": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["change"],
+				"additionalProperties": false
+			},
+			"confirm_prompt": "Apply this change?",
+			"confirm": "require-human",
+			"confirm_preview": "review-preview",
+			"expose": {
+				"mcp": false,
+				"agent": false,
+				"cli": true
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "change"]
+			}
+		},
+		{
+			"name": "review-reject",
+			"description": "Refuse a pending change, with a reason, once a person has read its preview.",
+			"effects": ["store-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"change": {
+						"type": "string",
+						"minLength": 1
+					},
+					"reason": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["change", "reason"],
+				"additionalProperties": false
+			},
+			"confirm_prompt": "Reject this change?",
+			"confirm": "require-human",
+			"confirm_preview": "review-preview",
+			"expose": {
+				"mcp": false,
+				"agent": false,
+				"cli": true
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "change"]
+			}
+		},
+		{
+			"name": "review-preview",
+			"description": "Render a pending change for the person deciding it.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"change": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["change"],
+				"additionalProperties": false
+			},
+			"returns": {
+				"type": "object",
+				"properties": {
+					"preview": {
+						"type": "string"
+					}
+				},
+				"required": ["preview"],
+				"additionalProperties": false
+			},
+			"expose": {
+				"mcp": false,
+				"agent": false,
+				"cli": true
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "change"]
+			}
+		},
+		{
+			"name": "review-scan",
+			"description": "List the pending changes by id.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": [],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space"]
+			}
+		},
+		{
+			"name": "review-count",
+			"description": "Count the listed changes.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"changes": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"required": ["changes"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space"]
+			}
+		}
+	],
+	"pipelines": [
+		{
+			"name": "review-sweep",
+			"description": "Scan and count, from the CLI only, returning only the count.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": [],
+				"additionalProperties": false
+			},
+			"expose": {
+				"mcp": false,
+				"agent": false,
+				"cli": true
+			},
+			"result": "last",
+			"journal": {
+				"mode": "digest"
+			},
+			"steps": [
+				{
+					"command": "review-scan",
+					"input": {
+						"space": "$input.space"
+					},
+					"as": "scan"
+				},
+				{
+					"command": "review-count",
+					"input": {
+						"space": "$input.space",
+						"changes": "$steps.scan.changes"
+					}
+				}
+			]
+		}
+	]
+}

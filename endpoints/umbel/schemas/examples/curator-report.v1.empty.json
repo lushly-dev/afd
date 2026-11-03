@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"space": "main",
+	"principal": "human:local",
+	"run": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+	"at": "2026-11-08T09:00:00.000Z",
+	"counts": {
+		"read": 0,
+		"settled": 0,
+		"candidates": 0,
+		"drafted": 0,
+		"needsPromotion": 0,
+		"skipped": 0,
+		"rejected": 0,
+		"applied": 0,
+		"withdrawn": 0,
+		"reverify": 0,
+		"remaining": 0
+	},
+	"skipped": [],
+	"inconsistencies": [],
+	"proposals": [],
+	"next": {
+		"overdueAfter": "2026-11-10T09:00:00.000Z"
+	}
+}

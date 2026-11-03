@@ -1,5 +1,5 @@
-//! `umbel-plugin.toml`, manifest versions 1, 2 and 3 (specification section 2, D37; phase 2
-//! section 3.4, D54; phase 3 section 2.3).
+//! `umbel-plugin.toml`, manifest versions 1 to 4 (specification section 2, D37; phase 2 section
+//! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -21,6 +21,10 @@ use super::{
     HOST_DOMAINS, MANIFEST_FILE, MANIFEST_VERSIONS, PLUGIN_PROTOCOL_VERSION, domain_problem,
     is_kebab_id, is_plugin_id, is_semver,
 };
+
+mod v4;
+
+pub use v4::PipelineResult;
 
 /// The largest `component.path` file the host compiles.
 pub const MAX_COMPONENT_BYTES: u64 = 32 * 1024 * 1024;
@@ -395,6 +399,9 @@ pub struct CommandDecl {
     /// `authority_prompt` (manifest version 3): the static prompt the CLI shows before a call
     /// whose memory write would get authority `person` (phase 3 section 3.3, D86).
     pub authority_prompt: Option<String>,
+    /// `confirm_preview` (manifest version 4): the `inspect` command of this plugin whose text the
+    /// CLI shows before the confirmation prompt (phase 4 section 2.2, D97).
+    pub confirm_preview: Option<String>,
     /// `instant`, `fast`, `slow` or `long-running`.
     pub execution_time: Option<String>,
     /// The plugin's default exposure.
@@ -496,6 +503,10 @@ pub struct PipelineDecl {
     /// `journal` (manifest version 3), as declared. A pipeline with a digest step is journaled
     /// as digest with no kept key, whatever it declares (phase 3 section 2.3).
     pub journal: Option<JournalDecl>,
+    /// `expose` (manifest version 4); every surface but the palette before it (D105).
+    pub expose: Expose,
+    /// `result` (manifest version 4): every step's data, or only the last step's (D105).
+    pub result: PipelineResult,
 }
 
 /// `[[packs]]`.
@@ -594,7 +605,7 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
-    /// The `manifest_version` the file declared: 1, 2 or 3.
+    /// The `manifest_version` the file declared: 1 to 4.
     pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
@@ -696,6 +707,7 @@ impl Manifest {
         };
         manifest.check_names()?;
         manifest.check_memory_rules()?;
+        manifest.check_previews(None)?;
         Ok(manifest)
     }
 
@@ -741,6 +753,7 @@ impl Manifest {
             check_config_schema(&schema)
                 .map_err(|problem| bad("config.schema".to_owned(), problem))?;
         }
+        self.check_previews(Some(files))?;
         if let Some(component) = &self.component {
             let size = files
                 .len(&component.path)
@@ -945,6 +958,26 @@ impl<'a> Tbl<'a> {
             }
         }
         Ok(())
+    }
+
+    /// [`check_keys`](Self::check_keys) with the keys each later manifest version adds: known from
+    /// that version on, and named and refused before it, saying which version.
+    fn check_versioned_keys(
+        &self,
+        known: &[&str],
+        reserved: &[(&str, &str)],
+        versioned: &[(u32, &[(&str, &str)])],
+    ) -> Result<(), PluginError> {
+        let mut known = known.to_vec();
+        let mut reserved = reserved.to_vec();
+        for (version, keys) in versioned {
+            if self.manifest_version >= *version {
+                known.extend(keys.iter().map(|(name, _)| *name));
+            } else {
+                reserved.extend_from_slice(keys);
+            }
+        }
+        self.check_keys(&known, &reserved)
     }
 
     /// `manifest_version` and `protocol`: required, and one of the `served` versions.
@@ -1366,21 +1399,15 @@ fn command(
     plugin: &PluginInfo,
     grants: &[GrantDecl],
 ) -> Result<CommandDecl, PluginError> {
-    // A key a later manifest version adds is named and refused, saying which version.
-    let mut known: Vec<&str> = COMMAND_KEYS.to_vec();
-    let mut reserved: Vec<(&str, &str)> = COMMAND_RESERVED.to_vec();
-    let versioned = COMMAND_KEYS_V2
-        .iter()
-        .map(|key| (2, key))
-        .chain(COMMAND_KEYS_V3.iter().map(|key| (3, key)));
-    for (version, key) in versioned {
-        if table.manifest_version >= version {
-            known.push(key.0);
-        } else {
-            reserved.push(*key);
-        }
-    }
-    table.check_keys(&known, &reserved)?;
+    table.check_versioned_keys(
+        COMMAND_KEYS,
+        COMMAND_RESERVED,
+        &[
+            (2, COMMAND_KEYS_V2),
+            (3, COMMAND_KEYS_V3),
+            (4, v4::COMMAND_KEYS_V4),
+        ],
+    )?;
     let input_schema = table
         .schema("input_schema")?
         .ok_or_else(|| table.bad("input_schema", "is required"))?;
@@ -1425,6 +1452,7 @@ fn command(
     let require_human = require_human(table, confirm_prompt.as_deref(), &expose)?;
     let journal = journal(table)?;
     let authority_prompt = table.optional_text("authority_prompt", MAX_AUTHORITY_PROMPT_CHARS)?;
+    let confirm_preview = v4::confirm_preview(table, plugin.kind, confirm_prompt.as_deref())?;
     if plugin.kind == PluginKind::Component {
         for (key, present) in [
             ("journal", journal.is_some()),
@@ -1456,6 +1484,7 @@ fn command(
         output_budget: output_budget(table, plugin.kind)?,
         journal,
         authority_prompt,
+        confirm_preview,
         execution_time,
         expose,
         examples: examples(table)?,
@@ -1671,16 +1700,15 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
     tables
         .iter()
         .map(|table| {
-            if table.manifest_version >= 3 {
-                let known: Vec<&str> = PIPELINE_KEYS
-                    .iter()
-                    .copied()
-                    .chain(PIPELINE_KEYS_V3.iter().map(|(name, _)| *name))
-                    .collect();
-                table.check_keys(&known, &[])?;
-            } else {
-                table.check_keys(PIPELINE_KEYS, PIPELINE_KEYS_V3)?;
-            }
+            v4::refuse_preview(
+                table,
+                "is refused on a pipeline: only a command names a preview, and a pipeline's steps keep theirs",
+            )?;
+            table.check_versioned_keys(
+                PIPELINE_KEYS,
+                &[],
+                &[(3, PIPELINE_KEYS_V3), (4, v4::PIPELINE_KEYS_V4)],
+            )?;
             let input_schema = table
                 .schema("input_schema")?
                 .ok_or_else(|| table.bad("input_schema", "is required"))?;
@@ -1728,6 +1756,8 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
                 input_schema,
                 steps: parsed,
                 journal: journal(table)?,
+                expose: v4::pipeline_expose(table)?,
+                result: v4::pipeline_result(table)?,
             })
         })
         .collect()
@@ -1890,6 +1920,10 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
                 ));
             }
         }
+        v4::refuse_preview(
+            &entry,
+            "is not available to a mounted tool: a preview is a command of the same plugin, and a mount declares none",
+        )?;
         entry.check_keys(MOUNT_TOOL_KEYS, &[])?;
         let tool = entry.required_string("tool")?;
         let name = entry.string("name")?;

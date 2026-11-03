@@ -491,7 +491,7 @@ async fn workspace_show_says_how_far_access_filtering_holds() {
         json!({"principals": "unverified", "exact": ["library"]})
     );
     assert_eq!(data["versions"]["config"], 4);
-    assert_eq!(data["versions"]["manifest"], json!([1, 2, 3]));
+    assert_eq!(data["versions"]["manifest"], json!([1, 2, 3, 4]));
     assert_eq!(data["versions"]["provenance"], 2);
     assert_eq!(data["versions"]["event"], 2);
     assert_eq!(data["versions"]["store"], 2);

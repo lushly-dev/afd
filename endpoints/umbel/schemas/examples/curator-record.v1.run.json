@@ -1,0 +1,52 @@
+{
+	"version": 1,
+	"kind": "run",
+	"id": "r-5e1f0a2b3c4d5e6f7081",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["principal:human:local"],
+	"startedAt": "2026-11-08T09:00:00.000Z",
+	"finishedAt": "2026-11-08T09:00:02.000Z",
+	"report": {
+		"version": 1,
+		"space": "main",
+		"principal": "human:local",
+		"run": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"at": "2026-11-08T09:00:00.000Z",
+		"counts": {
+			"read": 40,
+			"settled": 3,
+			"candidates": 3,
+			"drafted": 1,
+			"needsPromotion": 1,
+			"skipped": 1,
+			"rejected": 0,
+			"applied": 0,
+			"withdrawn": 0,
+			"reverify": 0,
+			"remaining": 0
+		},
+		"skipped": [
+			{
+				"candidate": "c-6f708192a3b4c5d6e7f8",
+				"reason": "target-exists"
+			}
+		],
+		"inconsistencies": [
+			{
+				"kind": "target-exists",
+				"doc": "notes/learned/c-6f708192a3b4c5d6e7f8",
+				"candidate": "c-6f708192a3b4c5d6e7f8"
+			},
+			{
+				"kind": "check-failed",
+				"doc": "handbook/deploy/rollback",
+				"check": "links-resolve"
+			}
+		],
+		"proposals": ["p-1a2b3c4d5e6f708192a3"],
+		"next": {
+			"overdueAfter": "2026-11-10T09:00:00.000Z"
+		}
+	}
+}

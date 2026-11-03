@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"kind": "state",
+	"id": "s-9c8b7a6f5e4d3c2b1a09",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["principal:human:local"],
+	"feedAfter": 2210,
+	"memoryAfter": 118,
+	"scanAfter": {
+		"recordedAt": "2026-11-01T10:00:00.000Z",
+		"id": "mem-3f9a1c0d7b2e4a6f8c1d5e90"
+	},
+	"lastRun": "r-5e1f0a2b3c4d5e6f7081",
+	"lock": null
+}

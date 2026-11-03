@@ -1,0 +1,22 @@
+{
+	"version": 1,
+	"kind": "candidate",
+	"id": "c-4a1b2c3d4e5f60718293",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["space", "principal:human:local"],
+	"class": "semantic",
+	"snapshot": {
+		"sessions": 2,
+		"principals": 1,
+		"authority": "person",
+		"settledAt": "2026-11-08T09:00:00.000Z"
+	},
+	"sensitivity": "internal",
+	"status": "erased",
+	"drafts": 1,
+	"firstSeenAt": "2026-11-03T09:00:00.000Z",
+	"promotedTo": null,
+	"conflictSet": null,
+	"quietUntil": null
+}

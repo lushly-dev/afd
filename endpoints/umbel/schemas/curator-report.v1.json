@@ -1,0 +1,218 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/curator-report.v1.json",
+	"title": "Umbel curator run report, version 1",
+	"description": "What one curator-run did for one space and one caller (phase 4 section 7.2, D96): counts over the caller's own reads and records, candidates and documents by id, never text, so cron mail and CI logs hold none. run is the pipeline call's trace id, as on each drafted proposal's drafter. curator-finish returns it and keeps it in the run record; curator-status returns the caller's last one.",
+	"type": "object",
+	"required": [
+		"version",
+		"space",
+		"principal",
+		"run",
+		"at",
+		"counts",
+		"skipped",
+		"inconsistencies",
+		"proposals",
+		"next"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"principal": {
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"run": {
+			"type": "string",
+			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"at": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"counts": {
+			"type": "object",
+			"required": [
+				"read",
+				"settled",
+				"candidates",
+				"drafted",
+				"needsPromotion",
+				"skipped",
+				"rejected",
+				"applied",
+				"withdrawn",
+				"reverify",
+				"remaining"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"read": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"settled": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"candidates": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"drafted": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"needsPromotion": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"skipped": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"rejected": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"applied": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"withdrawn": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"reverify": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"remaining": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"skipped": {
+			"description": "Candidates skipped this run, by reason.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["candidate", "reason"],
+				"additionalProperties": false,
+				"properties": {
+					"candidate": {
+						"type": "string",
+						"pattern": "^c-[0-9a-f]{20}$"
+					},
+					"reason": {
+						"enum": [
+							"too-many-sources",
+							"conflict-too-large",
+							"target-exists",
+							"sensitivity-higher"
+						]
+					}
+				}
+			}
+		},
+		"inconsistencies": {
+			"description": "What the run reports rather than proposes (sections 4.4 and 6.2): check-failed names the failed check.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["kind"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"enum": ["target-exists", "check-failed", "successor-missing", "conflict-after-draft"]
+					},
+					"doc": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512
+					},
+					"candidate": {
+						"type": "string",
+						"pattern": "^c-[0-9a-f]{20}$"
+					},
+					"check": {
+						"enum": ["links-resolve", "sources-unchanged", "not-flagged"]
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"kind": {
+									"const": "check-failed"
+								}
+							}
+						},
+						"then": {
+							"required": ["doc", "check"]
+						},
+						"else": {
+							"not": {
+								"required": ["check"]
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"kind": {
+									"enum": ["target-exists", "conflict-after-draft"]
+								}
+							}
+						},
+						"then": {
+							"required": ["candidate"]
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"kind": {
+									"const": "successor-missing"
+								}
+							}
+						},
+						"then": {
+							"required": ["doc"]
+						}
+					}
+				]
+			}
+		},
+		"proposals": {
+			"description": "The proposals the run's batch submitted or found, by id.",
+			"type": "array",
+			"maxItems": 50,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^p-[0-9a-f]{20}$"
+			}
+		},
+		"next": {
+			"type": "object",
+			"required": ["overdueAfter"],
+			"additionalProperties": false,
+			"properties": {
+				"overdueAfter": {
+					"description": "When curator-status reports the caller's runs overdue: twice every_hours after this run.",
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			}
+		}
+	}
+}

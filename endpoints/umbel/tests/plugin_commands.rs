@@ -130,14 +130,15 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
         ])
     );
     assert_eq!(shown["versions"]["config"], 4);
-    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3]));
+    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4]));
     assert_eq!(shown["versions"]["provenance"], 2);
     assert_eq!(shown["versions"]["event"], 2);
     assert_eq!(shown["versions"]["store"], 2);
+    assert_eq!(shown["versions"]["proposal"], json!([1, 2]));
     for shape in [
         "document",
         "locator",
-        "proposal",
+        "curator",
         "memory",
         "memoryKeys",
         "capture",

@@ -484,5 +484,6 @@ fn versions_1_and_2_still_load_and_refuse_what_version_3_adds() {
         );
         assert!(error.message().contains("manifest_version = 3"), "{error}");
     }
-    assert_eq!(umbel::MANIFEST_VERSION, 3);
+    // Version 4 (phase 4) is tested in `manifest_v4.rs`.
+    assert!(umbel::MANIFEST_VERSIONS.contains(&3));
 }
