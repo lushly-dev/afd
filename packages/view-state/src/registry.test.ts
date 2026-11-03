@@ -323,6 +323,22 @@ describe('ViewStateRegistry', () => {
 				expect(handler.state).toEqual({ open: false });
 			});
 
+			it('reads the category the registry was given', async () => {
+				const adapter = mockAdapter();
+				const get = adapter.get as ReturnType<typeof vi.fn>;
+				const reg = new ViewStateRegistry({ adapter, category: 'layouts' });
+				const handler = createHandler({ open: false });
+				reg.register('panel', handler);
+
+				get.mockResolvedValue(persisted('panel', { open: true }));
+				await reg.hydrateOne('panel');
+				expect(handler.state).toEqual({ open: false });
+
+				get.mockResolvedValue(persisted('panel', { open: true }, 'layouts'));
+				await reg.hydrateOne('panel');
+				expect(handler.state).toEqual({ open: true });
+			});
+
 			it('does not read for an unregistered ID', async () => {
 				const adapter = mockAdapter();
 				const reg = new ViewStateRegistry({ adapter });
@@ -340,9 +356,12 @@ describe('ViewStateRegistry', () => {
 					return persisted('panel', { open: true });
 				});
 				reg.register('panel', handler);
+				const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 				await reg.hydrateOne('panel');
 				expect(handler.state).toEqual({ open: false });
+				expect(warnSpy).not.toHaveBeenCalled();
+				warnSpy.mockRestore();
 			});
 
 			it('logs a warning and keeps the state when the adapter throws', async () => {
@@ -401,8 +420,11 @@ describe('ViewStateRegistry', () => {
 			const reg = new ViewStateRegistry();
 			const handler = createHandler({ open: false });
 			reg.register('panel', handler);
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			await expect(reg.hydrateOne('panel')).resolves.toBeUndefined();
 			expect(handler.state).toEqual({ open: false });
+			expect(warnSpy).not.toHaveBeenCalled();
+			warnSpy.mockRestore();
 		});
 
 		it('flush is a no-op', async () => {

@@ -141,7 +141,7 @@ reads `ViewStateRegistryOptions['adapter']` remain compatible.
 | `replace(id, state)` | Replace complete state; requires handler `replace` support |
 | `list()` | List all registered states |
 | `hydrate()` | Load persisted states and apply to handlers |
-| `hydrateOne(id)` | The same for one registered ID, leaving the other handlers as they are. An unregistered ID, a missing record or one in another category is ignored. Await it before any `set` on that ID |
+| `hydrateOne(id)` | The same for one registered ID, leaving the other handlers as they are. An unregistered ID, a missing record or one in another category is ignored. Await it before any `set` or `replace` on that ID |
 | `flush()` | Write all pending persistence immediately |
 | `destroy()` | Flush + clear all handlers |
 
