@@ -52,7 +52,7 @@ const rows = html<LoamProjectList>`
 		)}
 		<violet-option value="${() => ALL}">All projects</violet-option>
 	</violet-listbox>
-	<p class="failure" role="alert" tabindex="-1" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
+	<p ${ref('failureLine')} class="failure" role="alert" tabindex="-1" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
 `;
 
 const template = html<LoamProjectList>`
@@ -145,6 +145,7 @@ export class LoamProjectList extends FASTElement {
 	/** Why the last choice was refused, shown in the list: it stays open (7.8). */
 	declare failure: string;
 	declare listbox: VioletListbox;
+	declare failureLine: HTMLElement;
 	declare surface?: VioletPopover;
 	declare dialog?: HTMLDialogElement;
 	kernel: LoamKernelV2 | null = null;
@@ -196,9 +197,10 @@ export class LoamProjectList extends FASTElement {
 		this.addEventListener('mousedown', (event) => this.press(event));
 		// Tab out of it to an element outside closes it, and focus stays where it went. With no such element,
 		// as a press on its own text, an outside press is light dismiss's to close (N2a).
+		// Focus moving inside it never reaches this listener on the host: the event's path stops at the host
+		// when its retargeted `relatedTarget` is the host itself.
 		this.addEventListener('focusout', (event) => {
-			const to = event.relatedTarget as Node | null;
-			if (!this.#open || to === null || this.#holds(to)) return;
+			if (!this.#open || event.relatedTarget === null) return;
 			this.#returnFocus = false;
 			this.hide();
 		});
@@ -217,16 +219,6 @@ export class LoamProjectList extends FASTElement {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		super.disconnectedCallback();
-	}
-
-	/** Whether `node` is inside this list, through its shadow roots. */
-	#holds(node: Node): boolean {
-		for (let at: Node | null = node; at; ) {
-			if (at === this) return true;
-			const root = at.getRootNode();
-			at = at.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
-		}
-		return false;
 	}
 
 	/** The projects the actor may enter, and the active one. */
@@ -278,15 +270,25 @@ export class LoamProjectList extends FASTElement {
 
 	/**
 	 * As the console does: the pressed row is the active one before `handleFocus` moves it (#712). A press on
-	 * what takes no focus, as the popover's padding, leaves focus in the list, not on `body` (R3).
+	 * what takes no focus, as the popover's padding, leaves focus in the list, not on `body` (R3). A press
+	 * outside the pressed element's client area is on its scrollbar, as a modal list's when a long failure
+	 * makes the `dialog` scroll, and goes through, whatever overflows.
 	 */
 	press(event: Event): void {
 		const path = event.composedPath() as HTMLElement[];
+		const [at] = path as [HTMLElement];
+		const box = at.getBoundingClientRect();
+		const press = event as MouseEvent;
 		const row = path.find((node) => node.localName === 'violet-option') as
 			| (HTMLElement & { value: string })
 			| undefined;
 		if (row) this.listbox.activeValue = row.value;
-		else if (!path.some((node) => node === this.listbox || node.localName === 'p')) {
+		else if (
+			press.clientX - box.left - at.clientLeft < at.clientWidth &&
+			press.clientY - box.top - at.clientTop < at.clientHeight &&
+			!path.includes(this.listbox) &&
+			!path.includes(this.failureLine)
+		) {
 			event.preventDefault();
 		}
 	}
@@ -329,9 +331,12 @@ export class LoamProjectList extends FASTElement {
 			// Its rows were stale, or the call moved the scope before it was refused, as an expired session's
 			// does: read again.
 			await this.#read();
-			// It stays open, and says why, as the row it chose stays selected nowhere.
+			// It stays open, and says why, as the row it chose stays selected nowhere. Emptied first, so the
+			// alert speaks again for the same refusal twice.
 			const message = result.error?.message ?? 'The project could not open';
 			const suggestion = result.error?.suggestion;
+			this.failure = '';
+			await Updates.next();
 			this.failure = suggestion
 				? `${message}${/[.!?]$/.test(message) ? '' : '.'} ${suggestion}`
 				: message;
@@ -339,7 +344,7 @@ export class LoamProjectList extends FASTElement {
 			return;
 		}
 		// The app left: focus goes to main's heading, as phase 1 moves it from a surface that left (7.8).
-		const left = result.success && result.data?.app === 'left';
+		const left = result.data?.app === 'left';
 		this.#returnFocus = !left;
 		this.hide();
 		if (left) focusMainHeading(this.shell);

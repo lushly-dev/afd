@@ -127,18 +127,17 @@ export const styles = css`
 		}
 		.project-home {
 			border-color: ButtonText;
+			background: ButtonFace;
 			color: ButtonText;
 		}
-		.project-home:hover,
-		.project-home:active {
+		.project-home:is(:hover, :active) {
 			background: Highlight;
 			color: HighlightText;
 		}
 		.project-home:focus-visible {
 			outline-color: Highlight;
 		}
-		.project-home:hover:focus-visible,
-		.project-home:active:focus-visible {
+		.project-home:is(:hover, :active):focus-visible {
 			outline-color: HighlightText;
 		}
 	}

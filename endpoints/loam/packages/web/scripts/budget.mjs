@@ -41,8 +41,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * project switcher's list, measured at 10,288 against a first estimate of 30,000, so lowered by phase 0's
  * rule to its measurement plus 10%, 11,317; and `tooltipMinified`, the rail's tooltip, 2,841 of 3,126, its
  * measurement plus 10%, which left first paint to meet the step's allowance. First paint, after its
- * reviews and re-checks, 285,309 and 87,959 gzip, the kernel alone 111,055, `late` 49,848, `surfaces`
- * 83,451, `switcher` 11,288. After its reviews the coordinator
+ * reviews and re-checks, 285,302 and 87,964 gzip, the kernel alone 111,055, `late` 49,890, `surfaces`
+ * 83,468, `switcher` 11,316. After its reviews the coordinator
  * approved a third row, `switcherColdMinified` (2.4, 2026-11-03): what a press of the switcher downloads on
  * an empty shell, which never loads `surfaces` (7.8), 41,057 of 45,163, its measurement plus 10%, unrounded,
  * as `urlMinified`'s is. No other ceiling rose. Step 9 leaves

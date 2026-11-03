@@ -179,7 +179,12 @@ export function createLateParts(
 			}
 		},
 		async settle(replaying, run) {
-			if (!replaying && lateScope.activeRefusal()) await run('app-settle', {});
+			// As the apply: a failure fails the settle alone, reported, never the shell's commands.
+			try {
+				if (!replaying && lateScope.activeRefusal()) await run('app-settle', {});
+			} catch (cause) {
+				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+			}
 		},
 		async reload() {
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.

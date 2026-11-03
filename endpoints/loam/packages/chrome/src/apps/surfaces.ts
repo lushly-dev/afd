@@ -310,7 +310,7 @@ export class AppSurfaces implements ShellApps {
 		if (switched) this.#enqueue(() => this.#sync());
 		// A kept app: every surface is recreated in the new scope (7.6). A route is a property (below).
 		else if (rescoped) this.#enqueue(() => this.#sync(true));
-		else if ((event as KernelEventV2).mainChanged && event.success && this.#showing !== null) {
+		else if ((event as KernelEventV2).mainChanged && event.success) {
 			this.#enqueue(() => this.#readRoute());
 		}
 		if (
@@ -887,7 +887,13 @@ export class AppSurfaces implements ShellApps {
 	async #readRoute(): Promise<void> {
 		const showing = this.#showing;
 		const state = await this.#shell.readState();
-		if (showing === null || state.active !== showing || this.#state === null) return;
+		// A call that moved main to another app with no change of scope, as `scope-set` to the project already
+		// active with an `app`, or its undo's `app: null`: the surfaces follow, as for `app-open` (M1).
+		if (state.active !== showing) {
+			this.#enqueue(() => this.#sync());
+			return;
+		}
+		if (showing === null || this.#state === null) return;
 		if (state.path === this.#state.path) return;
 		this.#state = state;
 		const title = this.#summaries.find((app) => app.instance === showing)?.title ?? showing;

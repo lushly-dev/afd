@@ -385,6 +385,55 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await failure.click();
 		expect(await switcher.getAttribute('aria-expanded')).toBe('true');
 		expect((await focused(page)).tag).not.toBe('body');
+		// The same refusal twice is announced twice: the alert is emptied, so hidden, and shown anew.
+		const refuse = () =>
+			list.evaluate((element) =>
+				(
+					element as unknown as { choose(event: CustomEvent<{ value: string }>): Promise<void> }
+				).choose(new CustomEvent('change', { detail: { value: 'prj_missing' } }))
+			);
+		await refuse();
+		const first = await failure.textContent();
+		await failure.evaluate((element) => {
+			const seen: boolean[] = [];
+			(window as unknown as { seen: boolean[] }).seen = seen;
+			new MutationObserver(() => seen.push(element.hasAttribute('hidden'))).observe(element, {
+				attributes: true,
+				attributeFilter: ['hidden'],
+			});
+		});
+		await refuse();
+		expect(await failure.textContent()).toBe(first);
+		await expect
+			.poll(() => page.evaluate(() => (window as unknown as { seen: boolean[] }).seen))
+			.toEqual([true, false]);
+		await opened.context.close();
+	});
+
+	it('P2-E3: a scope-set to the active project with an app shows that app, with no change of scope (M1)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		await combinedOpen(page);
+		expect(await page.locator('loam-shell loam-main').getAttribute('data-app')).toBe('tasks');
+		expect((await stateOf(page)).active).toBe('tasks');
+		await opened.context.close();
+	});
+
+	it('P2-E3: its undo, the same project with app: null, closes the app, with no change of scope (M1)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		const { undoCommand, undoArgs } = await combinedOpen(page);
+		expect(undoArgs).toEqual({ project: expect.stringMatching(/^prj_/), app: null });
+		const undone = (await kernelCall(page, undoCommand as string, undoArgs)) as {
+			success: boolean;
+		};
+		expect(undone.success).toBe(true);
+		await surfacesIdle(page);
+		await expect.poll(() => page.locator('tasks-main').count()).toBe(0);
+		expect(await page.locator('loam-shell loam-main').getAttribute('data-app')).toBeNull();
+		expect(await stateOf(page)).toMatchObject({ active: null, section: 'projects' });
 		await opened.context.close();
 	});
 
@@ -423,6 +472,49 @@ describe('P2-E3: two projects, and an app at each level', () => {
 				)
 			)
 			.not.toBe(before);
+		await opened.context.close();
+	});
+
+	it("P2-E3: a press outside the compact list's client area, where a scrollbar sits, is not cancelled (item 1)", async () => {
+		const opened = await openShell(browser, site.root, { viewport: { width: 320, height: 256 } });
+		const { page } = opened;
+		for (const name of ['Atlas', 'Beacon', 'Citadel'])
+			await kernelCall(page, 'project-create', { name });
+		await page.locator('loam-tabbar loam-project-switcher button').click();
+		const list = page.locator('loam-tabbar loam-project-list');
+		await expect.poll(() => list.locator('dialog[open]').count()).toBe(1);
+		// A long failure makes the modal dialog itself scroll. Headless Chromium's scrollbars take no room
+		// and take no press, so a 12 px border stands where a classic one would: both are outside the client
+		// area, the one test `press` makes. Set through CSSOM, which the page's `style-src 'self'` allows.
+		const points = await list.evaluate(async (element) => {
+			const long = 'This project cannot open now. '.repeat(12);
+			(element as unknown as { failure: string }).failure = long;
+			const root = element.shadowRoot as ShadowRoot;
+			const dialog = root.querySelector('dialog') as HTMLDialogElement;
+			dialog.style.setProperty('border-inline-end', '12px solid gray', 'important');
+			await new Promise(requestAnimationFrame);
+			const box = dialog.getBoundingClientRect();
+			const seen: boolean[] = [];
+			(window as unknown as { seen: boolean[] }).seen = seen;
+			document.addEventListener('mousedown', (event) => seen.push(event.defaultPrevented));
+			return {
+				scrolls: dialog.scrollHeight > dialog.clientHeight,
+				border: box.width - dialog.clientWidth - dialog.clientLeft,
+				outside: { x: box.right - 4, y: box.top + box.height / 2 },
+				padding: { x: box.left + dialog.clientLeft + 2, y: box.top + dialog.clientTop + 2 },
+			};
+		});
+		expect(points.scrolls).toBe(true);
+		expect(points.border).toBeGreaterThanOrEqual(12);
+		for (const point of [points.outside, points.padding]) {
+			await page.mouse.move(point.x, point.y);
+			await page.mouse.down();
+			await page.mouse.up();
+		}
+		expect(await page.evaluate(() => (window as unknown as { seen: boolean[] }).seen)).toEqual([
+			false,
+			true,
+		]);
 		await opened.context.close();
 	});
 
@@ -511,6 +603,16 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await scopeTo(page, 'atlas');
 		const home = page.locator('loam-statusbar .project-home');
 		await page.mouse.move(2, 2);
+		// At rest it is a button on ButtonFace, as loam-status-action is, not the bar's Canvas.
+		const rest = await home.evaluate((button) => {
+			const probe = document.createElement('span');
+			probe.style.background = 'ButtonFace';
+			button.after(probe);
+			const face = getComputedStyle(probe).backgroundColor;
+			probe.remove();
+			return { face, own: getComputedStyle(button).backgroundColor };
+		});
+		expect(rest.own).toBe(rest.face);
 		await home.focus();
 		for (const state of ['focused', 'focused, hovered', 'focused, hovered, active'] as const) {
 			if (state !== 'focused') await home.hover();
@@ -645,6 +747,22 @@ function measureHome(home: ReturnType<Page['locator']>) {
 			focusVisible: button.matches(':focus-visible'),
 		};
 	});
+}
+
+/**
+ * `scope-set { project: 'atlas', app: 'tasks' }` with Atlas already active: its event carries `mainChanged`
+ * and no `scopeChanged` (M1). Resolves once tasks' main is in, with the call's result.
+ */
+async function combinedOpen(page: Page): Promise<{ undoCommand?: string; undoArgs?: unknown }> {
+	const result = (await kernelCall(page, 'scope-set', { project: 'atlas', app: 'tasks' })) as {
+		success: boolean;
+		undoCommand?: string;
+		undoArgs?: unknown;
+	};
+	expect(result.success).toBe(true);
+	await surfacesIdle(page);
+	await page.locator('tasks-main').waitFor();
+	return result;
 }
 
 /** Signed in, Atlas restricted to the person, entered, with `apps` opened in it in turn. */
