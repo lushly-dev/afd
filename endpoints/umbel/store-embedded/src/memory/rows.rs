@@ -11,7 +11,7 @@ use umbel_store::{
     Millis, Rev, Sensitivity, StoreError,
 };
 
-use super::seal::{Part, Seal};
+use super::seal::{Part, RecordKey, Seal};
 use crate::error::{Fail, to_i64, to_u64};
 
 /// The `records` columns, aliased `r`, in [`RecordRow::from_row`]'s order.
@@ -161,9 +161,9 @@ impl RecordRow {
         }
     }
 
-    /// Open the body.
-    pub(crate) fn body(&self, space: &str) -> Result<Body, Fail> {
-        let plain = self.seal(space, Part::Body).open(&self.sealed)?;
+    /// Open the body under the record's key.
+    pub(crate) fn body(&self, space: &str, key: &RecordKey) -> Result<Body, Fail> {
+        let plain = self.seal(space, Part::Body).open(key, &self.sealed)?;
         let invalid = || -> Fail {
             StoreError::SealInvalid {
                 id: self.id.clone(),
@@ -186,11 +186,18 @@ impl RecordRow {
         })
     }
 
-    /// Open a version row of this record.
-    pub(crate) fn version(&self, space: &str, row: VersionRow) -> Result<FullVersion, Fail> {
+    /// Open a version row of this record under the record's key.
+    pub(crate) fn version(
+        &self,
+        space: &str,
+        key: &RecordKey,
+        row: VersionRow,
+    ) -> Result<FullVersion, Fail> {
         let sealed = match &row.sealed {
             Some(blob) => {
-                let plain = self.seal(space, Part::Version(row.number)).open(blob)?;
+                let plain = self
+                    .seal(space, Part::Version(row.number))
+                    .open(key, blob)?;
                 Some(
                     serde_json::from_slice::<Value>(&plain).map_err(|_| -> Fail {
                         StoreError::SealInvalid {
@@ -249,9 +256,10 @@ impl RecordRow {
         &self,
         conn: &Connection,
         space: &str,
+        key: &RecordKey,
         v: FullVersion,
     ) -> Result<MemoryRecord, Fail> {
-        let body = self.body(space)?;
+        let body = self.body(space, key)?;
         Ok(MemoryRecord {
             id: self.id.clone(),
             record_version: v.number,
@@ -278,8 +286,13 @@ impl RecordRow {
     }
 
     /// The listed form at version `v`: subject and tags, no text.
-    pub(crate) fn meta(&self, space: &str, v: &VersionRow) -> Result<MemoryMeta, Fail> {
-        let body = self.body(space)?;
+    pub(crate) fn meta(
+        &self,
+        space: &str,
+        key: &RecordKey,
+        v: &VersionRow,
+    ) -> Result<MemoryMeta, Fail> {
+        let body = self.body(space, key)?;
         let envelope: Envelope = json_text(&v.envelope, "envelope")?;
         Ok(MemoryMeta {
             id: self.id.clone(),
@@ -301,7 +314,12 @@ impl RecordRow {
     }
 
     /// The current version, opened.
-    pub(crate) fn current(&self, conn: &Connection, space: &str) -> Result<FullVersion, Fail> {
+    pub(crate) fn current(
+        &self,
+        conn: &Connection,
+        space: &str,
+        key: &RecordKey,
+    ) -> Result<FullVersion, Fail> {
         let sql = format!(
             "SELECT {VERSION_COLS} FROM versions v WHERE v.id = ?1 AND v.recorded_until IS NULL"
         );
@@ -309,7 +327,7 @@ impl RecordRow {
             .query_row(&sql, [&self.id], |row| Ok(VersionRow::from_row(row, 0)))
             .optional()?
             .ok_or_else(|| corrupt("record without a current version"))??;
-        self.version(space, row)
+        self.version(space, key, row)
     }
 }
 
@@ -395,12 +413,14 @@ impl FullVersion {
 }
 
 /// Insert version `v` of record `id`: the envelope in clear without its sealed fields, and those
-/// fields with the invalidation's note sealed, or null when all are null (section 5.4's table).
+/// fields with the invalidation's note sealed under the record's key, or null when all are null
+/// (section 5.4's table).
 pub(crate) fn insert_version(
     conn: &Connection,
     space: &str,
     owner: &str,
     id: &str,
+    key: &RecordKey,
     v: &FullVersion,
 ) -> Result<(), Fail> {
     let mut clear = v.envelope.clone();
@@ -415,15 +435,19 @@ pub(crate) fn insert_version(
     let all_null = sealed_fields
         .as_object()
         .is_some_and(|o| o.values().all(Value::is_null));
-    let sealed = (!all_null).then(|| {
-        Seal {
-            space,
-            id,
-            owner,
-            part: Part::Version(v.number),
-        }
-        .seal(sealed_fields.to_string().as_bytes())
-    });
+    let sealed = if all_null {
+        None
+    } else {
+        Some(
+            Seal {
+                space,
+                id,
+                owner,
+                part: Part::Version(v.number),
+            }
+            .seal(key, sealed_fields.to_string().as_bytes())?,
+        )
+    };
     let envelope = serde_json::to_string(&clear).map_err(|_| corrupt("envelope"))?;
     let authority = v.authority()?;
     conn.execute(
@@ -524,15 +548,14 @@ pub(crate) fn record_row(conn: &Connection, id: &str) -> Result<Option<RecordRow
 
 /// Remove every row of a record (section 5.4's step 3): its index row first, by rowid, which
 /// needs no key, then derived rows, observations, access rows, versions and the record.
-/// `secure_delete` and FTS5's `secure-delete` overwrite what they free.
-pub(crate) fn erase_rows(conn: &Connection, rec: &RecordRow) -> Result<(), Fail> {
-    conn.execute("DELETE FROM records_fts WHERE rowid = ?1", [rec.rowid])?;
-    for table in [
-        "record_derived",
-        "observations",
-        "record_access",
-        "versions",
-    ] {
+/// `secure_delete` and FTS5's `secure-delete` overwrite what they free. Without `index`, the
+/// database is a restored copy with no `records_fts` or `record_derived` yet.
+pub(crate) fn erase_rows(conn: &Connection, rec: &RecordRow, index: bool) -> Result<(), Fail> {
+    if index {
+        conn.execute("DELETE FROM records_fts WHERE rowid = ?1", [rec.rowid])?;
+        conn.execute("DELETE FROM record_derived WHERE id = ?1", [&rec.id])?;
+    }
+    for table in ["observations", "record_access", "versions"] {
         conn.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [&rec.id])?;
     }
     conn.execute("DELETE FROM records WHERE rowid = ?1", [rec.rowid])?;

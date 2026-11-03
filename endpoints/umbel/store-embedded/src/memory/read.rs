@@ -13,6 +13,7 @@ use umbel_store::{
 };
 
 use super::SqliteMemoryStore;
+use super::keys::{self, Keys};
 use super::rows::{
     RECORD_COLS, RECORD_WIDTH, RecordRow, VERSION_COLS, VersionRow, parse_change_kind,
 };
@@ -39,6 +40,14 @@ fn rows(conn: &Connection, sql: &Sql) -> Result<Vec<(RecordRow, VersionRow)>, Fa
     Ok(out)
 }
 
+/// The key entries of the rows' records, in one `SELECT` on the key file.
+fn keys_of<'a>(kc: &Connection, rows: impl Iterator<Item = &'a RecordRow>) -> Result<Keys, Fail> {
+    let mut ids: Vec<&str> = rows.map(|r| r.id.as_str()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    keys::lookup(kc, &ids)
+}
+
 /// Whether a failure is a body that does not open, which a list or recall counts and skips.
 fn unopenable(fail: &Fail) -> bool {
     matches!(
@@ -57,17 +66,25 @@ impl SqliteMemoryStore {
     ) -> Result<Option<MemoryRecord>, StoreError> {
         refuse_derivation(reader)?;
         self.pool.read(|conn| {
-            let tx = conn.transaction()?;
-            let mut sql = select_records();
-            sql.push(" AND r.id = ").bind(id);
-            sql.and_memory_readable(reader)
-                .and_as_of(as_of)
-                .and_flags(flags);
-            let Some((rec, v)) = rows(&tx, &sql)?.into_iter().next() else {
-                return Ok(None);
-            };
-            let version = rec.version(&self.space, v)?;
-            Ok(Some(rec.record(&tx, &self.space, version)?))
+            self.pool.keys(|kc| {
+                let tx = conn.transaction()?;
+                let mut sql = select_records();
+                sql.push(" AND r.id = ").bind(id);
+                sql.and_memory_readable(reader)
+                    .and_as_of(as_of)
+                    .and_flags(flags);
+                let Some((rec, v)) = rows(&tx, &sql)?.into_iter().next() else {
+                    return Ok(None);
+                };
+                let keys = keys_of(kc, std::iter::once(&rec))?;
+                // A destroyed marker: forgotten, whether or not its rows are gone yet.
+                if keys.destroyed(&rec.id).is_some() {
+                    return Ok(None);
+                }
+                let key = keys.require(&rec.id)?;
+                let version = rec.version(&self.space, key, v)?;
+                Ok(Some(rec.record(&tx, &self.space, key, version)?))
+            })
         })
     }
 
@@ -78,17 +95,25 @@ impl SqliteMemoryStore {
     ) -> Result<Vec<MemoryRecord>, StoreError> {
         refuse_derivation(reader)?;
         self.pool.read(|conn| {
-            let tx = conn.transaction()?;
-            let mut sql = select_records();
-            sql.push(" AND r.id = ").bind(id);
-            sql.and_memory_readable(reader)
-                .push(" ORDER BY v.record_version");
-            let mut out = Vec::new();
-            for (rec, v) in rows(&tx, &sql)? {
-                let version = rec.version(&self.space, v)?;
-                out.push(rec.record(&tx, &self.space, version)?);
-            }
-            Ok(out)
+            self.pool.keys(|kc| {
+                let tx = conn.transaction()?;
+                let mut sql = select_records();
+                sql.push(" AND r.id = ").bind(id);
+                sql.and_memory_readable(reader)
+                    .push(" ORDER BY v.record_version");
+                let found = rows(&tx, &sql)?;
+                let keys = keys_of(kc, found.iter().map(|(r, _)| r))?;
+                let mut out = Vec::new();
+                for (rec, v) in found {
+                    if keys.destroyed(&rec.id).is_some() {
+                        return Ok(Vec::new());
+                    }
+                    let key = keys.require(&rec.id)?;
+                    let version = rec.version(&self.space, key, v)?;
+                    out.push(rec.record(&tx, &self.space, key, version)?);
+                }
+                Ok(out)
+            })
         })
     }
 
@@ -100,54 +125,65 @@ impl SqliteMemoryStore {
         refuse_derivation(reader)?;
         check_limit("list", query.limit, MAX_MEMORY_LIST_LIMIT)?;
         self.pool.read(|conn| {
-            let mut sql = select_records();
-            sql.and_memory_readable(reader)
-                .and_as_of(query.as_of)
-                .and_flags(query.flags)
-                .and_scope(&query.scope)
-                .and_classes(&query.classes)
-                .and_tags(&query.tags)
-                .and_authorities(&query.authorities);
-            if let Some(push) = &query.push {
-                sql.and_push(push, &query.scope.project);
-            }
-            if let Some(after) = &query.after {
-                sql.push(" AND (v.recorded_at < ")
-                    .bind(after.recorded_at)
-                    .push(" OR (v.recorded_at = ")
-                    .bind(after.recorded_at)
-                    .push(" AND r.id > ")
-                    .bind(&after.id)
-                    .push("))");
-            }
-            sql.push(" ORDER BY v.recorded_at DESC, r.id LIMIT ")
-                .bind(i64::from(query.limit) + 1);
-            let mut items = Vec::new();
-            let mut unreadable = 0;
-            let mut more = false;
-            for (rec, v) in rows(conn, &sql)? {
-                if items.len() == query.limit as usize {
-                    more = true;
-                    break;
+            self.pool.keys(|kc| {
+                let mut sql = select_records();
+                sql.and_memory_readable(reader)
+                    .and_as_of(query.as_of)
+                    .and_flags(query.flags)
+                    .and_scope(&query.scope)
+                    .and_classes(&query.classes)
+                    .and_tags(&query.tags)
+                    .and_authorities(&query.authorities);
+                if let Some(push) = &query.push {
+                    sql.and_push(push, &query.scope.project);
                 }
-                match rec.meta(&self.space, &v) {
-                    Ok(meta) => items.push(meta),
-                    Err(fail) if unopenable(&fail) => unreadable += 1,
-                    Err(fail) => return Err(fail),
+                if let Some(after) = &query.after {
+                    sql.push(" AND (v.recorded_at < ")
+                        .bind(after.recorded_at)
+                        .push(" OR (v.recorded_at = ")
+                        .bind(after.recorded_at)
+                        .push(" AND r.id > ")
+                        .bind(&after.id)
+                        .push("))");
                 }
-            }
-            let next = if more {
-                items.last().map(|m| MemoryCursor {
-                    recorded_at: m.recorded_at,
-                    id: m.id.clone(),
+                sql.push(" ORDER BY v.recorded_at DESC, r.id LIMIT ")
+                    .bind(i64::from(query.limit) + 1);
+                let mut items = Vec::new();
+                let mut unreadable = 0;
+                let mut more = false;
+                let found = rows(conn, &sql)?;
+                let keys = keys_of(kc, found.iter().map(|(r, _)| r))?;
+                for (rec, v) in found {
+                    if items.len() == query.limit as usize {
+                        more = true;
+                        break;
+                    }
+                    // A destroyed marker: forgotten, so neither listed nor counted.
+                    if keys.destroyed(&rec.id).is_some() {
+                        continue;
+                    }
+                    match keys
+                        .require(&rec.id)
+                        .and_then(|key| rec.meta(&self.space, key, &v))
+                    {
+                        Ok(meta) => items.push(meta),
+                        Err(fail) if unopenable(&fail) => unreadable += 1,
+                        Err(fail) => return Err(fail),
+                    }
+                }
+                let next = if more {
+                    items.last().map(|m| MemoryCursor {
+                        recorded_at: m.recorded_at,
+                        id: m.id.clone(),
+                    })
+                } else {
+                    None
+                };
+                Ok(MemoryPage {
+                    items,
+                    next,
+                    unreadable,
                 })
-            } else {
-                None
-            };
-            Ok(MemoryPage {
-                items,
-                next,
-                unreadable,
             })
         })
     }
@@ -160,81 +196,90 @@ impl SqliteMemoryStore {
         refuse_derivation(reader)?;
         check_limit("recall", query.limit, MAX_RECALL_LIMIT)?;
         self.pool.read(|conn| {
-            let tx = conn.transaction()?;
-            // One statement: the match, the reader, the intervals, expiry, flags, scope and every
-            // filter, before ranking and the limit (section 5.3). The query text was parsed by
-            // `MemoryQuery::parse`; `fts5()` double-quotes every term.
-            let mut sql = Sql::new(&format!(
-                "SELECT {RECORD_COLS}, {VERSION_COLS}, \
+            self.pool.keys(|kc| {
+                let tx = conn.transaction()?;
+                // One statement: the match, the reader, the intervals, expiry, flags, scope and every
+                // filter, before ranking and the limit (section 5.3). The query text was parsed by
+                // `MemoryQuery::parse`; `fts5()` double-quotes every term.
+                let mut sql = Sql::new(&format!(
+                    "SELECT {RECORD_COLS}, {VERSION_COLS}, \
                  snippet(records_fts, 2, '**', '**', '…', 32) \
                  FROM records_fts JOIN records r ON r.rowid = records_fts.rowid \
                  JOIN versions v ON v.id = r.id \
                  WHERE records_fts MATCH "
-            ));
-            sql.bind(query.query.fts5()).push(" AND r.indexed = 1");
-            sql.and_memory_readable(reader)
-                .and_as_of(query.as_of)
-                .and_flags(query.flags)
-                .and_scope(&query.scope)
-                .and_classes(&query.classes)
-                .and_tags(&query.tags)
-                .and_authorities(&query.authorities);
-            if let Some(push) = &query.push {
-                sql.and_push(push, &query.scope.project);
-            }
-            sql.push(
+                ));
+                sql.bind(query.query.fts5()).push(" AND r.indexed = 1");
+                sql.and_memory_readable(reader)
+                    .and_as_of(query.as_of)
+                    .and_flags(query.flags)
+                    .and_scope(&query.scope)
+                    .and_classes(&query.classes)
+                    .and_tags(&query.tags)
+                    .and_authorities(&query.authorities);
+                if let Some(push) = &query.push {
+                    sql.and_push(push, &query.scope.project);
+                }
+                sql.push(
                 " ORDER BY round(bm25(records_fts, 3.0, 2.0, 1.0), 4), v.recorded_at DESC, r.id \
                  LIMIT ",
             )
             .bind(i64::from(query.limit));
-            let found = {
-                let mut stmt = tx.prepare(&sql.text)?;
-                let mut found = Vec::new();
-                let mut cursor = stmt.query(params_from_iter(sql.params.iter()))?;
-                while let Some(row) = cursor.next()? {
-                    found.push((
-                        RecordRow::from_row(row, 0)?,
-                        VersionRow::from_row(row, RECORD_WIDTH)?,
-                        row.get::<_, String>(RECORD_WIDTH + 12)?,
-                    ));
+                let found = {
+                    let mut stmt = tx.prepare(&sql.text)?;
+                    let mut found = Vec::new();
+                    let mut cursor = stmt.query(params_from_iter(sql.params.iter()))?;
+                    while let Some(row) = cursor.next()? {
+                        found.push((
+                            RecordRow::from_row(row, 0)?,
+                            VersionRow::from_row(row, RECORD_WIDTH)?,
+                            row.get::<_, String>(RECORD_WIDTH + 12)?,
+                        ));
+                    }
+                    found
+                };
+                let mut hits = Vec::new();
+                let mut unreadable = 0;
+                let keys = keys_of(kc, found.iter().map(|(r, _, _)| r))?;
+                for (rec, v, snippet) in found {
+                    // A destroyed marker: forgotten. Its index row may still match until the
+                    // roll-forward removes it; the snippet is never served.
+                    if keys.destroyed(&rec.id).is_some() {
+                        continue;
+                    }
+                    let opened = keys.require(&rec.id).and_then(|key| {
+                        rec.version(&self.space, key, v)
+                            .and_then(|version| rec.record(&tx, &self.space, key, version))
+                    });
+                    match opened {
+                        Ok(record) => hits.push(RecallHit {
+                            rank: u32::try_from(hits.len() + 1).unwrap_or(u32::MAX),
+                            record,
+                            snippet,
+                        }),
+                        Err(fail) if unopenable(&fail) => unreadable += 1,
+                        Err(fail) => return Err(fail),
+                    }
                 }
-                found
-            };
-            let mut hits = Vec::new();
-            let mut unreadable = 0;
-            for (rec, v, snippet) in found {
-                let opened = rec
-                    .version(&self.space, v)
-                    .and_then(|version| rec.record(&tx, &self.space, version));
-                match opened {
-                    Ok(record) => hits.push(RecallHit {
-                        rank: u32::try_from(hits.len() + 1).unwrap_or(u32::MAX),
-                        record,
-                        snippet,
-                    }),
-                    Err(fail) if unopenable(&fail) => unreadable += 1,
-                    Err(fail) => return Err(fail),
-                }
-            }
-            // Readable records in scope that are not indexed can never match: count them too.
-            let mut missing = Sql::new(
-                "SELECT COUNT(*) FROM records r JOIN versions v ON v.id = r.id \
+                // Readable records in scope that are not indexed can never match: count them too.
+                let mut missing = Sql::new(
+                    "SELECT COUNT(*) FROM records r JOIN versions v ON v.id = r.id \
                  WHERE r.indexed = 0",
-            );
-            missing
-                .and_memory_readable(reader)
-                .and_as_of(query.as_of)
-                .and_flags(query.flags)
-                .and_scope(&query.scope)
-                .and_classes(&query.classes);
-            let missing: i64 = tx.query_row(
-                &missing.text,
-                params_from_iter(missing.params.iter()),
-                |r| r.get(0),
-            )?;
-            Ok(RecallPage {
-                hits,
-                unreadable: unreadable + to_u64(missing)?,
+                );
+                missing
+                    .and_memory_readable(reader)
+                    .and_as_of(query.as_of)
+                    .and_flags(query.flags)
+                    .and_scope(&query.scope)
+                    .and_classes(&query.classes);
+                let missing: i64 = tx.query_row(
+                    &missing.text,
+                    params_from_iter(missing.params.iter()),
+                    |r| r.get(0),
+                )?;
+                Ok(RecallPage {
+                    hits,
+                    unreadable: unreadable + to_u64(missing)?,
+                })
             })
         })
     }

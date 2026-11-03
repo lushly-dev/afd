@@ -4,9 +4,10 @@
 //! canary: not the database, not its WAL, not FTS5's shadow tables. The test sees them before the
 //! forget; the control without FTS5's `secure-delete` is in `memory_sqlite.rs`, since the store's
 //! own compaction now clears the index even with it off. A reader held across a forget leaves
-//! `wal: Pending` until a later checkpoint. A forget or purge compacts the index, so no forgotten
-//! word stays whole as an index page's separator, and nothing runs `ANALYZE`. Step 3b adds
-//! markers, retries and destroyed keys to this file.
+//! `wal: Pending` and an unsettled marker until a later writer retries and settles it. A forget or
+//! purge compacts the index, so no forgotten word stays whole as an index page's separator, and
+//! `memory-reindex` clears what an erasure without that compaction leaves. A destroyed key's bytes
+//! leave every file. Nothing runs `ANALYZE`.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -276,6 +277,78 @@ fn with_fts_secure_delete_off_the_compaction_still_leaves_no_canary() {
     assert!(found.is_empty(), "canaries left on disk: {found:?}");
 }
 
+/// `(key is null, settled)` of each id's entry in the key file.
+fn markers(dir: &Path, ids: &[String]) -> Vec<(bool, bool)> {
+    let raw = Connection::open(dir.join("store").join("memory.keys")).expect("the key file");
+    ids.iter()
+        .map(|id| {
+            raw.query_row(
+                "SELECT key IS NULL, settled FROM record_keys WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0)),
+            )
+            .expect("an entry")
+        })
+        .collect()
+}
+
+/// The live keys of `ids`.
+fn keys_of(dir: &Path, ids: &[String]) -> Vec<Vec<u8>> {
+    let raw = Connection::open(dir.join("store").join("memory.keys")).expect("the key file");
+    ids.iter()
+        .map(|id| {
+            raw.query_row("SELECT key FROM record_keys WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .expect("a key")
+        })
+        .collect()
+}
+
+#[test]
+fn a_forget_leaves_no_destroyed_key_in_any_file() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let c = Canaries::new();
+    let ids = write_canaries(&m, &c);
+    let keys = keys_of(dir.path(), &ids);
+    let hex: Vec<String> = keys
+        .iter()
+        .map(|k| k.iter().map(|b| format!("{b:02x}")).collect())
+        .collect();
+    let has = |dir: &Path| -> Vec<PathBuf> {
+        files(dir)
+            .into_iter()
+            .filter(|f| {
+                let bytes = std::fs::read(f).unwrap_or_default();
+                keys.iter()
+                    .any(|k| bytes.windows(k.len()).any(|w| w == &k[..]))
+            })
+            .collect()
+    };
+    assert!(
+        !has(dir.path()).is_empty(),
+        "the test sees the keys before the forget"
+    );
+    assert_eq!(forget(&*m, ids.clone()), WalState::Clean);
+    assert_eq!(
+        markers(dir.path(), &ids),
+        vec![(true, true); 3],
+        "settled markers"
+    );
+    let left = has(dir.path());
+    assert!(
+        left.is_empty(),
+        "destroyed keys on disk: {left:?} ({hex:?})"
+    );
+    assert!(
+        !files(dir.path())
+            .iter()
+            .any(|f| f.to_string_lossy().ends_with("memory.keys-journal")),
+        "the key file's journal is gone after its commit"
+    );
+}
+
 #[test]
 fn a_reader_held_across_a_forget_leaves_the_wal_pending_until_a_checkpoint() {
     let dir = tempfile::tempdir().expect("a temporary directory");
@@ -297,7 +370,7 @@ fn a_reader_held_across_a_forget_leaves_the_wal_pending_until_a_checkpoint() {
         .expect("a read");
     assert_eq!(n, 23);
     assert_eq!(
-        forget(&*m, ids),
+        forget(&*m, ids.clone()),
         WalState::Pending,
         "a reader holds the WAL"
     );
@@ -305,9 +378,47 @@ fn a_reader_held_across_a_forget_leaves_the_wal_pending_until_a_checkpoint() {
         !found_in(dir.path(), &[&c.text]).is_empty(),
         "until the WAL is truncated it may hold the text"
     );
+    assert_eq!(
+        markers(dir.path(), &ids),
+        vec![(true, false); 3],
+        "the keys are destroyed and the markers unsettled"
+    );
+    // A later write retries with no wait, and is busy again while the reader holds the WAL.
+    filler(&*m, 300, 1);
+    assert_eq!(markers(dir.path(), &ids), vec![(true, false); 3]);
+    drop(snapshot);
+    drop(reader);
+    // Once the reader is gone, the next write's retry succeeds and settles them.
+    filler(&*m, 301, 1);
+    assert_eq!(markers(dir.path(), &ids), vec![(true, true); 3], "settled");
+    let found = found_in(dir.path(), &c.all());
+    assert!(found.is_empty(), "canaries left on disk: {found:?}");
+}
+
+#[test]
+fn a_checkpoint_settles_a_pending_forget_once_the_reader_is_gone() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(
+        dir.path(),
+        "main",
+        StoreOptions {
+            lock_timeout_ms: 200,
+        },
+    )
+    .expect("opening");
+    let c = Canaries::new();
+    let ids = write_canaries(&m, &c);
+    let mut reader =
+        Connection::open(dir.path().join("store").join("memory.sqlite3")).expect("a reader");
+    let snapshot = reader.transaction().expect("a read transaction");
+    let _: i64 = snapshot
+        .query_row("SELECT COUNT(*) FROM records", [], |r| r.get(0))
+        .expect("a read");
+    assert_eq!(forget(&*m, ids.clone()), WalState::Pending);
     drop(snapshot);
     drop(reader);
     m.checkpoint().expect("a checkpoint");
+    assert_eq!(markers(dir.path(), &ids), vec![(true, true); 3]);
     let found = found_in(dir.path(), &c.all());
     assert!(found.is_empty(), "canaries left on disk: {found:?}");
 }
@@ -413,6 +524,52 @@ fn a_forget_leaves_no_whole_token_as_an_index_separator() {
         m.info().expect("info").fts_secure_delete,
         "kept by the rebuild"
     );
+}
+
+#[test]
+fn reindex_clears_what_an_erasure_without_the_compaction_leaves() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let m = open_memory(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let prefix = canary('k');
+    let whole = separator_layout(&m, &prefix);
+    // Erase the odd records by hand, with both `secure-delete`s and no compaction: what a forget
+    // whose rebuild could not run leaves behind (section 5.4's stated limit on token prefixes).
+    let raw = Connection::open(dir.path().join("store").join("memory.sqlite3")).expect("raw");
+    raw.query_row("PRAGMA secure_delete = ON", [], |r| r.get::<_, i64>(0))
+        .expect("secure_delete");
+    for n in (1..=400).filter(|n| n % 2 == 1) {
+        let id = samples::memory_id(n);
+        raw.execute(
+            "DELETE FROM records_fts WHERE rowid = (SELECT rowid FROM records WHERE id = ?1)",
+            [&id],
+        )
+        .expect("the index row");
+        for table in [
+            "record_derived",
+            "observations",
+            "record_access",
+            "versions",
+            "records",
+        ] {
+            raw.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [&id])
+                .expect("a row");
+        }
+    }
+    drop(raw);
+    assert!(
+        separators_holding(dir.path(), &whole) >= 1,
+        "FTS5's secure-delete alone keeps a separator"
+    );
+    let receipt = m.reindex(false).expect("reindex");
+    assert_eq!(receipt.reindexed, 250);
+    assert_eq!(separators_holding(dir.path(), &whole), 0);
+    m.checkpoint().expect("checkpoint");
+    let left = found_in(dir.path(), &[&prefix]);
+    assert!(
+        left.is_empty(),
+        "the erased prefix on disk after reindex: {left:?}"
+    );
+    assert_eq!(recall(&*m, "kept"), 200);
 }
 
 #[test]

@@ -23,7 +23,10 @@ use umbel_store::StoreError;
 pub use connection::StoreOptions;
 pub use index::{IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
-pub use memory::{MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryInfo, SqliteMemoryStore};
+pub use memory::{
+    KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryInfo, MemoryKeysInfo, SqliteMemoryStore,
+    is_excluded_from_machine_backup,
+};
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 
 /// The file and directory names under a space's state directory (section 3.2).

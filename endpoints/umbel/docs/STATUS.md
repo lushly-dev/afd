@@ -43,7 +43,7 @@ should never have to scan the codebase to learn what is current.
 | 0. Host skeleton | Done 2026-11-01: exit criterion met | Phase 0 owning agent | [Specification](phases/0-host-skeleton/spec.md) ([#564](https://github.com/lushly-dev/afd/pull/564)); steps [#567](https://github.com/lushly-dev/afd/pull/567), [#570](https://github.com/lushly-dev/afd/pull/570), [#572](https://github.com/lushly-dev/afd/pull/572), [#573](https://github.com/lushly-dev/afd/pull/573), [#574](https://github.com/lushly-dev/afd/pull/574), [#575](https://github.com/lushly-dev/afd/pull/575); exit run [run 41263228249](https://github.com/lushly-dev/afd/actions/runs/41263228249) | None |
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
-| 3. Memory and context | Specification approved and merged ([#685](https://github.com/lushly-dev/afd/pull/685), `e4c91f30`, with D86 to D89 written in after it); step 1 (shapes and configuration) done 2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729), `ed9a8539`; step 2 (the memory trait and suite) done 2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`; step 3a (the embedded memory store) in the step 3a pull request, 2026-11-03 | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685); step 1: [#729](https://github.com/lushly-dev/afd/pull/729); step 2: [#733](https://github.com/lushly-dev/afd/pull/733); step 3a: the step 3a pull request | Merge step 3a, then step 3b of [its plan](phases/3-memory-context/spec.md#14-implementation-plan) |
+| 3. Memory and context | Specification approved and merged ([#685](https://github.com/lushly-dev/afd/pull/685), `e4c91f30`, with D86 to D89 written in after it); step 1 (shapes and configuration) done 2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729), `ed9a8539`; step 2 (the memory trait and suite) done 2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`; step 3a (the embedded memory store) done 2026-11-03 in [#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`; step 3b (sealing and the key file) in the step 3b pull request, 2026-11-03 | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685); step 1: [#729](https://github.com/lushly-dev/afd/pull/729); step 2: [#733](https://github.com/lushly-dev/afd/pull/733); step 3a: [#736](https://github.com/lushly-dev/afd/pull/736); step 3b: the step 3b pull request | Merge step 3b, then step 4 of [its plan](phases/3-memory-context/spec.md#14-implementation-plan) |
 | 4. Curator | Not started | None | None | Phase 3 exit criterion met |
 | 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification; the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) |
 | 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
@@ -1010,7 +1010,8 @@ starts.
   [#685](https://github.com/lushly-dev/afd/pull/685) as `e4c91f30`. The owner's last
   four answers (D86 to D89) follow in their own pull request. Step 1 done
   2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729) (`ed9a8539`); step 2 done
-  2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733) (`b84e0bd5`); step 3a in its pull
+  2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733) (`b84e0bd5`); step 3a done
+  2026-11-03 in [#736](https://github.com/lushly-dev/afd/pull/736) (`b970994e`); step 3b in its pull
   request, 2026-11-03 (below).
   Written 2026-11-01 by the phase 3 owning agent, revised 2026-11-02 after an
   independent review. Last verified 2026-11-02 against `main` at `4a26cc0b`, by
@@ -1087,7 +1088,7 @@ starts.
   - Verified 2026-11-03 against `main` at `ed9a8539`: `cargo fmt --all --check`, clippy `-D warnings` on
     `umbel-store` (all targets and features) and `cargo test -p umbel-store --all-features` (31 tests in
     four suites) in `endpoints/umbel`.
-- **Step 3a, the embedded memory store, in its pull request (2026-11-03):**
+- **Step 3a done (2026-11-03, [#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`), the embedded memory store:**
   - `store-embedded/src/memory/`: `SqliteMemoryStore` over `state/spaces/<space>/store/memory.sqlite3`, a
     database of its own. Created with mode `0600` by the first write only (a read of a store not yet
     provisioned answers `NotProvisioned` and creates nothing); WAL, `synchronous=FULL`, `secure_delete=ON`,
@@ -1118,11 +1119,49 @@ starts.
     38 ms on 10 000 (debug build, macOS, `fullfsync`). A busy rebuild answers `wal: Pending`.
   - The `knowledge` job's commands already run the new test binaries, so `umbel.yml` changed only in a
     comment, and `scripts/affected/suites.mjs` not at all.
-- **Not done:** steps 3b, 4, 5, 6, 7a, 7b, 8, 9 and 10 of the
+- **Step 3b, sealing and the key file, in its pull request (2026-11-03):**
+  - `chacha20poly1305` 0.11.0 (`default-features = false`, `alloc`, `getrandom`, `zeroize`; adds `aead`,
+    `cipher`, `inout`, `poly1305` and `universal-hash` to the lock) and `libc` 0.2.191 as a macOS-only
+    dependency. The lock also re-resolved `getrandom` 0.3.4 to 0.4.3 for `afd`, the host and `tempfile`,
+    and `windows-sys` 0.59 to 0.61.2 in seven places; `afd` and the host accept both `getrandom` versions.
+  - `memory/seal.rs`: XChaCha20-Poly1305 under each record's own 32-byte key, a 24-byte nonce per seal,
+    blob `0x01 ‖ nonce ‖ ciphertext and tag`, the associated data of 5.4; keys, nonces and the store id
+    from the operating system; 3a's unsealed form is gone, and every `sealed` column still goes through it.
+  - `memory/keys.rs`: `memory.keys` (rollback journal, `secure_delete=ON`, `synchronous=EXTRA`, `UMBK`,
+    mode `0600`), created through a temporary file and a rename at provisioning or adopted from a process
+    that died before its `store_id` committed; destroyed markers with their kinds; lookups in one
+    `SELECT`; settle; orphan removal.
+  - Forget in 5.4's order with the erasure point in the key file, a `wal: Pending` answer after it,
+    purges with kind `purge`, roll-forward at the start of every writer (never a read), which repeats the
+    index rebuild and the checkpoint before settling; every crash point of 7.4 and `UMBEL_TEST_FAIL_AT`
+    under a new `testkit` feature; every missing-key error; `reindex` dropping marked rows and counting
+    orphans, removing them only with `removeOrphans`; `backup` through `ATTACH`; the rebuild on open of a
+    restored copy; `key_status`; `memory_restore` in the tests, so the erasure group's copy case runs and
+    nothing in the suite is skipped.
+  - `memory/exclusion.rs`: the Time Machine attribute through `libc`, the crate's only `unsafe` code
+    (its `unsafe_code` lint is `deny`, as `sdk`'s is), set at provisioning and on a writer's open, removed
+    with the setting off; `SqliteMemoryStore::with_machine_backup_exclusion` and
+    `is_excluded_from_machine_backup` for the host and doctor of step 4.
+  - **Cost, `release` profile, development Mac, `fullfsync` on:** about 20 ms per write of one record (two
+    durable commits: the key file's, then the memory database's), 1.3 ms per recall of 10 or 50 hits on
+    1000 records and 3.2 to 3.4 ms on 3000, 37 µs per `get`, and 43 to 53 ms per forget on 3000 records
+    (the index rebuild about 9 ms of it).
+  - New tests: `memory_seal.rs` (5), `memory_keyfile.rs` (20, with two child-process helpers),
+    `memory_backup.rs` (8), `memory_machine_backup.rs` (5 on macOS, 1 elsewhere); `memory_erasure_bytes.rs`
+    grew to 11 with markers, retries, destroyed keys and `memory-reindex`; `memory_conformance.rs` now passes
+    all 44 memory cases and `conformance.rs` skips nothing.
+  - Ten details settled in the specification's
+    [Amendments from step 3b](phases/3-memory-context/spec.md#amendments-from-step-3b), none changing
+    access, authority, forget's guarantees or the trust model.
+  - `umbel.yml`'s `knowledge` job already runs these binaries, and its daily macOS leg runs
+    `memory_machine_backup.rs`; only its comment changed. Verified locally on macOS only: `cargo fmt --all
+    --check`, clippy `-D warnings` on the store crates (all targets and features) and on the workspace
+    without `umbel-store-embedded`, and `cargo test -p umbel-store -p umbel-store-embedded --all-features`.
+- **Not done:** steps 4, 5, 6, 7a, 7b, 8, 9 and 10 of the
   [plan](phases/3-memory-context/spec.md#14-implementation-plan). There is no AFD step 0: the
   journal's `with_redact` already exists.
-- **Next:** merge step 3a, then the plan's order: 3b,
-  then 4. Heavy steps follow the plan's build note. A step that finds a design
+- **Next:** merge step 3b, then the plan's order: 4,
+  then 5. Heavy steps follow the plan's build note. A step that finds a design
   decision stops and amends the specification.
 - **Waiting on the owner:** nothing. These four are decided; do not ask again.
 - **Follow-ups:** the [specification's list](phases/3-memory-context/spec.md#follow-ups).
@@ -1293,3 +1332,4 @@ on another local branch and push to that remote name.
 | 2026-11-02 | Phase 3 specification, last answers | The four owner answers given after the key design's review written into the [phase 3 specification](phases/3-memory-context/spec.md) as D86 to D89, in the follow-up to [#685](https://github.com/lushly-dev/afd/pull/685): `memory-remember`'s `authority_prompt` (manifest version 3) asked only on the path that would give `person`, declining writes nothing (3.3); Time Machine exclusion through the sticky `com_apple_backup_excludeItem` attribute, checked with `tmutil` on the owner's Mac, with the setting `store.exclude_memory_from_machine_backup` and the doctor check `stores.memory_backup` (5.4); `memory-confirm` on own records only (8.7); `memory-reindex`'s default-off `removeOrphans` (8.8). Tests, plan and exit criteria updated. No Rust built |
 | 2026-11-03 | Phase 3 step 2 | The memory trait and suite (the step 2 pull request): `MemoryStore` and its types, the memory query parser, the nine memory conformance groups with their fixture and `MemoryRestore`, the in-memory store with eight faults, `memory_suite_detects.rs` and `memory_query.rs`. Four amendments in the specification's "Amendments from step 2". Written 2026-11-02 while free disk was under the 5 GB floor and built on 2026-11-03 after the owner freed space; the build found only clippy findings |
 | 2026-11-03 | Phase 3 step 3a | The embedded memory store (the step 3a pull request): `SqliteMemoryStore` in `store-embedded/src/memory/` (schema, `0600` file created only by a write, per-connection pragmas, FTS5 with `secure-delete`, reads filtered in one statement, erased prefixes, sweep, quota, the purge before a write and checkpoints outside transactions, sealed columns behind one seam that stores them unsealed until 3b); `Stores.memory` and `memory_restore` with the memory groups in `run_all`; `memory_conformance.rs`, `memory_multiprocess.rs`, `memory_erasure_bytes.rs` and `memory_sqlite.rs`. Marked step 2 done ([#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`). Seven amendments in the specification's "Amendments from step 3a". Finding: on the bundled SQLite 3.54.1 every Status experiment held, but FTS5's `secure-delete` can leave a whole forgotten token in `records_fts_idx` as a page separator, and `optimize` does nothing on a one-segment index; every erasure now rebuilds the index in a transaction of its own (20 to 23 ms per forget on 3000 records), so forget keeps the stated guarantee |
+| 2026-11-03 | Phase 3 step 3b | Sealing and the key file (the step 3b pull request): XChaCha20-Poly1305 per record with keys in `memory.keys`, forget in 5.4's order with markers, roll-forward by every writer that repeats the index rebuild and the checkpoint, the crash points of 7.4 under `testkit`, every missing-key error, `reindex` with opt-in orphan removal, `backup` through `ATTACH`, the rebuild on open, `key_status`, the Time Machine exclusion through `libc` on macOS; `memory_seal.rs`, `memory_keyfile.rs`, `memory_backup.rs`, `memory_machine_backup.rs`, `memory_erasure_bytes.rs` extended, the conformance suite with nothing skipped. Marked step 3a done ([#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`). Ten amendments in the specification's "Amendments from step 3b". Cost in the `release` profile: about 20 ms per write, 1.3 ms per recall on 1000 records, 43 to 53 ms per forget on 3000. Finding: `tmutil isexcluded` reports every file under the system's temporary folders as excluded, so it says nothing about the mark there |
