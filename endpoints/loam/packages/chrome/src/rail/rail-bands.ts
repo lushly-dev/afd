@@ -76,7 +76,8 @@ export class RailBands {
 
 	/** Read again and render; `change` is announced once read. */
 	refresh(change?: ScopeChangeV2): Promise<AppListV2 | undefined> {
-		if (change) this.#change = change;
+		// The latest change's place, and the first app any change still unannounced left (L3).
+		if (change) this.#change = { ...change, left: this.#change?.left ?? change.left };
 		const done = this.#refresh(++this.#started);
 		this.#read = { at: this.#changes, done };
 		return done;

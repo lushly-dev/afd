@@ -298,6 +298,26 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
+	it('P2-E3: No project leaves the project: the state, the URL and the announcement (G4)', async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		await expect.poll(() => new URL(page.url()).pathname).toBe('/personal/p/atlas');
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.click();
+		await page
+			.locator('loam-rail loam-project-list violet-option', { hasText: 'No project' })
+			.click();
+		await expect.poll(async () => (await stateOf(page)).scope.project).toBeUndefined();
+		expect((await stateOf(page)).project).toBeNull();
+		// The workspace with nothing open: the scheme's `/` (6.1, 6.3).
+		await expect.poll(() => new URL(page.url()).pathname).toBe('/');
+		await expect.poll(() => page.locator('loam-shell .announce').textContent()).toBe('No project');
+		expect(await switcher.getAttribute('aria-label')).toBe('Project: none');
+		expect((await focused(page)).label).toBe('Project: none');
+		await opened.context.close();
+	});
+
 	it('P2-E3: All projects opens the projects section, and focus goes to main’s heading when it left an app', async () => {
 		const opened = await withProjects();
 		const { page } = opened;
