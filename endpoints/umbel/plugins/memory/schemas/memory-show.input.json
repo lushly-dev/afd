@@ -1,0 +1,35 @@
+{
+	"type": "object",
+	"required": ["id"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"id": {
+			"type": "string",
+			"description": "The record's id"
+		},
+		"history": {
+			"type": "boolean",
+			"default": false,
+			"description": "Also return every version, oldest first"
+		},
+		"asOf": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "Read as of these instants, RFC 3339; each defaults to now",
+			"properties": {
+				"valid": {
+					"type": "string",
+					"description": "When the statement held"
+				},
+				"recorded": {
+					"type": "string",
+					"description": "When the store believed it"
+				}
+			}
+		}
+	}
+}

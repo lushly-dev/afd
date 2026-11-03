@@ -5,10 +5,10 @@
 
 use serde_json::{Value, json};
 use umbel_sdk::umbel_store::memory::{
-    Confirm, Invalidate, InvalidationReason, MemoryList, Retention,
+    Confirm, DAY_MS, Invalidate, InvalidationReason, MemoryList, Renew, Retention,
 };
 use umbel_sdk::umbel_store::{
-    AsOf, ForgetSelector, MemoryClass, MemoryWrite, ReadFlags, ScopeQuery, Source,
+    AsOf, ForgetSelector, MemoryClass, MemoryWrite, Origin, ReadFlags, ScopeQuery, Source,
 };
 use umbel_sdk::{Cx, HostError, MemoryPath, MemoryWriteRequest, Outcome, Plugin, failure, success};
 use umbel_store::conformance::samples::{self, MEMORY_AT};
@@ -228,6 +228,17 @@ fn entry(args: &Value) -> MemoryWrite {
     if let Some(authority) = text(args, "authority") {
         entry.envelope.authority = Some(authority.to_owned());
     }
+    // What the memory plugin sends (step 5, amendment 1): a renewal on every entry, and no origin
+    // when its input names none; the host keeps the one only for `person` and fills the other.
+    if args.get("renew") == Some(&Value::Bool(true)) {
+        entry.renew = Some(Renew {
+            ttl_ms: 365 * DAY_MS,
+            max_ttl_ms: 365 * DAY_MS,
+        });
+    }
+    if args.get("unspecified") == Some(&Value::Bool(true)) {
+        entry.envelope.origin = Origin::Unspecified;
+    }
     entry
 }
 
@@ -292,6 +303,8 @@ fn show(cx: &Cx, space: &str, id: &str) -> Result<Value, HostError> {
         "confirmation": record.provenance.confirmation.is_some(),
         "text": record.text,
         "validUntil": record.valid_until,
+        "expiresAt": record.expires_at,
+        "origin": record.provenance.origin,
     }))
 }
 

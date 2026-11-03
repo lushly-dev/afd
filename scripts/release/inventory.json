@@ -999,6 +999,27 @@
 					"private": true
 				}
 			]
+		},
+		{
+			"id": "umbel-plugin-memory",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "d945bbbf4f4d6f6cfb69dd417d14d0123dfd8464",
+			"authority": "none: new memory plugin crate and umbel-memory binary authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-memory",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/memory/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

@@ -16,7 +16,7 @@ use umbel_store::memory::{
 };
 use umbel_store::{
     AccessSet, AsOf, Authority, ForgetSelector, MemoryFlag, MemoryRecord, MemoryStore, MemoryWrite,
-    Millis, ReadFlags, ReaderFilter, Rev, StoreError,
+    Millis, Origin, ReadFlags, ReaderFilter, Rev, StoreError,
 };
 
 use super::grants::CallServices;
@@ -215,7 +215,8 @@ impl CallServices {
         AccessSet::new([token]).map_err(|error| invalid("MEMORY_INVALID", error))
     }
 
-    /// Section 6.3 for one record: authority first, then ownership.
+    /// Section 6.3 for one record: authority first, then ownership. Returns the current version
+    /// the caller can read, `None` for a forget of a record it cannot.
     fn may_change(
         &self,
         store: &dyn MemoryStore,
@@ -223,16 +224,16 @@ impl CallServices {
         id: &str,
         principal: &str,
         change: Change,
-    ) -> Result<()> {
+    ) -> Result<Option<MemoryRecord>> {
         let history = match store.history(id, filter) {
             Ok(history) => history,
             Err(StoreError::NotProvisioned) => Vec::new(),
             Err(error) => return Err(host_error(error)),
         };
-        let Some(current) = history.iter().find(|v| v.recorded_until.is_none()) else {
+        let Some(current) = history.into_iter().find(|v| v.recorded_until.is_none()) else {
             if change == Change::Forget {
                 // The store counts it in `notFound`, like every record that is not the caller's.
-                return Ok(());
+                return Ok(None);
             }
             return Err(not_found(id));
         };
@@ -251,7 +252,7 @@ impl CallServices {
                 format!("`{id}` is another principal's record"),
             ));
         }
-        Ok(())
+        Ok(Some(current))
     }
 
     pub(super) fn svc_memory_get(
@@ -394,7 +395,19 @@ impl CallServices {
             entry.scope.agent = agent.clone();
             entry.access = access.clone();
             entry.flags = scanned_flags(entry);
+            // Section 8.2 (step 5, amendment 1): only a `person` observation renews an expiry,
+            // and `origin` defaults by the authority, which only the host knows.
+            if authority != Authority::Person {
+                entry.renew = None;
+            }
             let envelope = &mut entry.envelope;
+            if envelope.origin == Origin::Unspecified {
+                envelope.origin = if authority == Authority::Person {
+                    Origin::UserStated
+                } else {
+                    Origin::AgentInferred
+                };
+            }
             envelope.version = 2;
             envelope.space = space.to_owned();
             envelope.plugin = Some(self.shared.instance.clone());
@@ -406,13 +419,23 @@ impl CallServices {
             envelope.confirmation = None;
             envelope.access = access.tokens().to_vec();
         }
-        let targets: Vec<String> = batch
-            .entries
-            .iter()
-            .flat_map(|entry| entry.supersedes.iter().cloned())
-            .collect();
-        for target in &targets {
-            self.may_change(store.as_ref(), &filter, target, &principal, Change::Replace)?;
+        for entry in &batch.entries {
+            for target in &entry.supersedes {
+                let current =
+                    self.may_change(store.as_ref(), &filter, target, &principal, Change::Replace)?;
+                // Section 8.2 (step 5, amendment 2): a supersede keeps the project and the
+                // access set, so it cannot quietly widen who sees the replacement.
+                if let Some(current) = current
+                    && (current.scope.project != entry.scope.project || current.access != access)
+                {
+                    return Err(invalid(
+                        "MEMORY_SCOPE_MISMATCH",
+                        format!(
+                            "`{target}` is in another project or has another access set than the record replacing it"
+                        ),
+                    ));
+                }
+            }
         }
         let receipt = store.write(batch).map_err(host_error)?;
         if !receipt.replayed

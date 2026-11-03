@@ -1,0 +1,6 @@
+pack_version = 1
+id = "policy"
+plugin = "memory"
+version = "1.0.0"
+title = "Policy"
+description = "How long each class of memory lives and is kept, when a record counts as expiring soon, and the write and storage quota per principal and agent."

@@ -3,7 +3,8 @@
 //! CLI's rows are in `cli_authority_prompt.rs`); the access rule of 3.2, a capture private
 //! whatever it sends; the host's scan; ownership and authority of 6.3; the event's `sources`,
 //! hash and `constraints` nulled and `changes.store`; `replay`; no event on a no-op; the hidden
-//! head; a read creates no file.
+//! head; a read creates no file; renewal and the origin default by the authority, the supersede
+//! scope check and a failed digest call keeping no input value (phase 3 step 5).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -674,4 +675,94 @@ async fn a_non_memory_command_claiming_an_authority_gets_null() {
         events[0]
     );
     assert!(events[0]["provenance"]["confirmation"].is_null());
+}
+
+#[tokio::test]
+async fn only_a_person_renews_and_the_origin_follows_the_authority() {
+    let (_dir, host) = make(&config("", ""));
+    // An agent's entry asks for a renewal and names no origin.
+    let args = json!({ "n": 1, "text": "An agent's note.", "renew": true, "unspecified": true });
+    let id = remember(&host, agent_for("bot", "ada"), args.clone()).await;
+    let first = show(&host, human("ada"), &id).await;
+    assert_eq!(first["origin"], "agent-inferred");
+    let outcome = run(&host, agent_for("bot", "ada"), "mem-remember", args).await;
+    assert!(outcome.success, "{outcome:?}");
+    let observed = show(&host, human("ada"), &id).await;
+    assert_eq!(
+        observed["expiresAt"], first["expiresAt"],
+        "the host dropped an agent's renewal"
+    );
+    // A person's: origin user-stated, and the renewal kept.
+    let args = json!({ "n": 2, "text": "A person's fact.", "renew": true, "unspecified": true });
+    let id = remember(&host, human("ada"), args.clone()).await;
+    let first = show(&host, human("ada"), &id).await;
+    assert_eq!(first["origin"], "user-stated");
+    let outcome = run(&host, human("ada"), "mem-remember", args).await;
+    assert!(outcome.success, "{outcome:?}");
+    let renewed = show(&host, human("ada"), &id).await;
+    assert_eq!(renewed["expiresAt"], json!(NOW + 365 * 86_400_000));
+    assert!(renewed["expiresAt"].as_i64() > first["expiresAt"].as_i64());
+}
+
+#[tokio::test]
+async fn a_supersede_keeps_its_targets_project_and_access() {
+    let (_dir, host) = make(&config("", ""));
+    let ada = human("ada");
+    let target = remember(
+        &host,
+        ada.clone(),
+        json!({ "n": 1, "project": "p", "share": "private" }),
+    )
+    .await;
+    for args in [
+        json!({ "n": 2, "project": "q", "share": "private" }),
+        json!({ "n": 3, "share": "private" }),
+        json!({ "n": 4, "project": "p", "share": "space" }),
+    ] {
+        let mut args = args;
+        args["text"] = json!("A replacement.");
+        args["supersedes"] = json!([target]);
+        let outcome = run(&host, ada.clone(), "mem-remember", args.clone()).await;
+        let (_, message) = refusal(&outcome);
+        assert!(
+            message.contains("MEMORY_SCOPE_MISMATCH"),
+            "{args}: {message}"
+        );
+    }
+    let outcome = run(
+        &host,
+        ada.clone(),
+        "mem-remember",
+        json!({ "n": 5, "project": "p", "share": "private", "text": "A replacement.", "supersedes": [target] }),
+    )
+    .await;
+    assert!(outcome.success, "{outcome:?}");
+    let shown = show(&host, ada, &target).await;
+    assert_eq!(shown["versions"], 2);
+}
+
+#[tokio::test]
+async fn a_failed_digest_call_keeps_no_input_value() {
+    let (dir, host) = make(&config("", ""));
+    let ok = run(&host, human("ada"), "mem-remember", json!({ "n": 1 })).await;
+    assert!(ok.success, "{ok:?}");
+    let refused = run(
+        &host,
+        human("ada"),
+        "mem-remember",
+        json!({ "n": 2, "share": "bogus" }),
+    )
+    .await;
+    assert!(!refused.success);
+    let entries: Vec<_> = support::journal_entries(dir.path())
+        .into_iter()
+        .filter(|entry| entry.command == "mem-remember")
+        .collect();
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    assert_eq!(entries[0].input["keep"], json!({ "space": "main" }));
+    assert_eq!(entries[1].input["keep"], json!({}));
+    assert_eq!(
+        entries[1].result.error.as_ref().map(|e| e.code.as_str()),
+        Some("INVALID")
+    );
 }

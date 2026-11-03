@@ -1,0 +1,30 @@
+# The memory plugin's policy (phase 3 specification, section 8.11). A space overrides this file
+# whole. The host's fixed ceilings, which no override can pass: max_ttl_days 3650,
+# writes_per_hour 100 000 and stored_bytes 32 GiB.
+
+# memory-status counts a record as expiring soon within this many days.
+expiring_soon_days = 14
+
+# Runs and sessions: the least trusted and shortest lived.
+[classes.episodic]
+default_ttl_days = 30
+max_ttl_days = 90
+purge_after_days = 30
+
+# Facts people or agents asserted.
+[classes.semantic]
+default_ttl_days = 180
+max_ttl_days = 730
+purge_after_days = 90
+
+# How something is done.
+[classes.procedural]
+default_ttl_days = 365
+max_ttl_days = 1095
+purge_after_days = 90
+
+[quota]
+writes_per_hour = 600        # records, per (principal, agent)
+bytes_per_hour = 67108864    # 64 MiB, per (principal, agent)
+stored_records = 50000       # per principal, every record not yet purged
+stored_bytes = 2147483648    # 2 GiB, per principal, sealed text plus its index copy

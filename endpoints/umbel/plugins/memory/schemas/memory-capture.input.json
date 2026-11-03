@@ -1,0 +1,147 @@
+{
+	"title": "memory-capture input: the capture contract, version 1",
+	"description": "schemas/capture.v1.json reduced to the keywords the host checks an input against: no pattern, no not, and null-or-string as a type list. The memory plugin checks the patterns itself.",
+	"type": "object",
+	"required": ["version", "harness", "event", "idempotencyKey"],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string"
+		},
+		"harness": {
+			"type": "object",
+			"required": ["name"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64
+				}
+			}
+		},
+		"event": {
+			"enum": ["tool-use", "stop", "pre-compact", "session-end", "manual"]
+		},
+		"session": {
+			"type": ["null", "string"]
+		},
+		"project": {
+			"type": ["null", "string"]
+		},
+		"idempotencyKey": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256
+		},
+		"captureKey": {
+			"description": "The prefix a forget of these records will erase. When absent, a forget leaves no prefix.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256
+		},
+		"window": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"episodes": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["subject", "text"],
+				"additionalProperties": false,
+				"properties": {
+					"subject": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 256
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1
+					},
+					"startedAt": {
+						"type": "string"
+					},
+					"part": {
+						"type": "integer",
+						"minimum": 0
+					},
+					"turns": {
+						"type": "array",
+						"minItems": 2,
+						"maxItems": 2,
+						"items": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				}
+			}
+		},
+		"decisions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["subject", "text"],
+				"additionalProperties": false,
+				"properties": {
+					"subject": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 256
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1
+					},
+					"rationale": {
+						"type": "string"
+					},
+					"origin": {
+						"enum": ["user-stated", "agent-inferred"]
+					},
+					"constraints": {
+						"type": "array",
+						"maxItems": 16,
+						"items": {
+							"type": "string",
+							"maxLength": 200
+						}
+					}
+				}
+			}
+		},
+		"artifacts": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["kind", "resource"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"type": "string"
+					},
+					"resource": {
+						"description": "A relative path or a URL, never an absolute path.",
+						"type": "string",
+						"minLength": 1
+					},
+					"title": {
+						"type": ["null", "string"],
+						"maxLength": 256
+					},
+					"summary": {
+						"type": ["null", "string"]
+					}
+				}
+			}
+		}
+	}
+}

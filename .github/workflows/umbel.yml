@@ -113,7 +113,7 @@ jobs:
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
       - name: Test
-        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge
+        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -208,6 +208,48 @@ jobs:
       - name: Check (MSRV 1.97)
         if: matrix.os == 'ubuntu-latest'
         run: cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge --all-targets
+
+  # The memory stack's crates (phase 3 specification, section 12): from step 5 the memory plugin,
+  # whose tests boot a host with the embedded stores and no loader, so no wasmtime. Later steps add
+  # the context plugin, the first-party binary and the hook adapter to these commands. `cargo fmt`
+  # and the workspace clippy are the `check` job's, which leaves these crates' tests to this job.
+  # The timeout follows the knowledge job's until step 8 measures this one (section 12).
+  memory:
+    name: Umbel memory (${{ matrix.os }})
+    needs: scope
+    if: needs.scope.outputs.host == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: >-
+          ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: endpoints/umbel
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: endpoints/umbel
+          key: memory
+      - name: Clippy
+        run: cargo clippy --locked -p umbel-plugin-memory --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked -p umbel-plugin-memory
+      - name: Install Rust 1.97
+        if: matrix.os == 'ubuntu-latest'
+        run: rustup toolchain install 1.97.0 --profile minimal
+      - name: Check (MSRV 1.97)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo +1.97.0 check --locked -p umbel-plugin-memory --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).
