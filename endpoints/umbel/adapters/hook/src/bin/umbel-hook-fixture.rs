@@ -3,7 +3,9 @@
 //! appends `{ "args", "input" }` to `<dir>/calls.jsonl` and answers as `<dir>/mode` says:
 //! `ok` (the default), `refuse` (`MEMORY_INVALID`), `busy` (`STORE_BUSY`, a lock timeout),
 //! `garbage` (output that is not JSON) or `sleep` (never answers). A bundle's `data.text` is
-//! `<dir>/bundle-text` when that file exists, else `null`.
+//! `<dir>/bundle-text` when that file exists, else `null`. `memory-import` answers every entry
+//! created; `memory-export` answers the page `<dir>/export.json` holds under the input's `after`
+//! (`""` for the first), else an empty last page.
 #![forbid(unsafe_code)]
 
 use std::io::{Read, Write};
@@ -65,6 +67,23 @@ fn main() {
                 .and_then(Value::as_array)
                 .map_or(0, Vec::len);
             json!({ "captureId": "cap-000000000000000000000000", "created": entries, "observed": 0, "replayed": 0, "refused": 0, "flagged": 0, "redactions": [], "records": [] })
+        }
+        "memory-import" => {
+            let entries = input
+                .get("entries")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
+            json!({ "created": entries, "observed": 0, "flagged": 0, "redactions": [], "records": [], "verification": "unverified" })
+        }
+        "memory-export" => {
+            let pages: Value = std::fs::read_to_string(workspace.join("export.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or(Value::Null);
+            let after = input.get("after").and_then(Value::as_str).unwrap_or("");
+            pages.get(after).cloned().unwrap_or_else(
+                || json!({ "records": [], "next": null, "unreadable": 0, "tooLarge": [] }),
+            )
         }
         "context-bundle" => {
             let text = std::fs::read_to_string(workspace.join("bundle-text")).ok();

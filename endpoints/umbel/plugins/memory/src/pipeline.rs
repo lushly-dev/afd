@@ -12,7 +12,7 @@ use umbel_store::memory::{
     memory_content_hash,
 };
 use umbel_store::{
-    AccessSet, DerivedFrom, Envelope, MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS, MemoryClass,
+    AccessSet, ByAt, DerivedFrom, Envelope, MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS, MemoryClass,
     MemoryFlag, MemoryWrite, Origin, Sensitivity, Source,
 };
 
@@ -100,6 +100,9 @@ pub(crate) struct Draft {
     pub(crate) derived_from: Option<Vec<DerivedFrom>>,
     pub(crate) constraints: Option<Vec<String>>,
     pub(crate) supersedes: Vec<String>,
+    /// Who generated the text and when, as an import names it (section 8.9). Sealed on the record;
+    /// the host nulls it in the event (6.2).
+    pub(crate) generated: Option<ByAt>,
 }
 
 impl Draft {
@@ -122,6 +125,7 @@ impl Draft {
             derived_from: None,
             constraints: None,
             supersedes: Vec::new(),
+            generated: None,
         }
     }
 }
@@ -232,6 +236,9 @@ impl Call {
                 }
             }
         }
+        if let Some(generated) = draft.generated.as_mut() {
+            mask(&mut generated.by);
+        }
         if draft.subject.chars().count() > MAX_MEMORY_SUBJECT_CHARS
             || draft
                 .tags
@@ -277,7 +284,7 @@ impl Call {
             confidence: draft.confidence,
             authority: None,
             sources: draft.sources,
-            generated: None,
+            generated: draft.generated,
             content_hash: Some(hash.to_string()),
             derived_from: draft.derived_from,
             access: access.tokens().to_vec(),

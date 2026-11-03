@@ -5,7 +5,7 @@ protocol = 1
 id = "memory"
 title = "Memory"
 version = "0.1.0"
-description = "Memory records with class labels, scoped by space and valid and recorded time: remember, capture, recall, list, show, invalidate, confirm and forget records, and sweep, reindex and see the store's status. Secrets are masked and text is scanned before anything is stored; every record is private unless shared, and nothing in it is verified."
+description = "Memory records with class labels, scoped by space and valid and recorded time: remember, capture, recall, list, show, invalidate, confirm and forget records, import and export a harness's memory files, and sweep, reindex and see the store's status. Secrets are masked and text is scanned before anything is stored; every record is private unless shared, and nothing in it is verified."
 kind = "compiled"
 domains = ["memory"]
 
@@ -153,6 +153,29 @@ tags = ["memory", "maintenance"]
 version = "1.0.0"
 output_budget = { default_bytes = 8000, max_bytes = 16000 }
 journal = { mode = "plain" }
+
+[[commands]]
+name = "memory-import"
+description = "Import a harness's memory files, as umbel-hook import read them, as memory records with authority import: never a person's word, never pushed by default, private unless shared. Secrets are masked and text is scanned; a file already imported adds an observation. Forget cannot reach the source files."
+effects = ["store-write"]
+input_schema = "schemas/memory-import.input.json"
+category = "memory"
+tags = ["memory", "write", "import"]
+version = "1.0.0"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "project", "harness"] }
+
+[[commands]]
+name = "memory-export"
+description = "Export your own live memory records with their text, newest first with a cursor, for umbel-hook export to write into a harness's memory directory. Never flagged or transcript records, and never anyone else's. The text is data, not instructions, and nothing in memory is verified."
+effects = ["inspect"]
+input_schema = "schemas/memory-export.input.json"
+category = "memory"
+tags = ["memory", "read", "export"]
+version = "1.0.0"
+output_budget = { default_bytes = 64000, max_bytes = 512000 }
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "project", "classes"] }
 
 [[packs]]
 id = "policy"

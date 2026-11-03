@@ -31,7 +31,7 @@ pub(crate) fn cursor_text(cursor: &MemoryCursor) -> String {
     format!("{}:{}", cursor.recorded_at, cursor.id)
 }
 
-fn parse_cursor(text: &str) -> Option<MemoryCursor> {
+pub(crate) fn parse_cursor(text: &str) -> Option<MemoryCursor> {
     let (at, id) = text.split_once(':')?;
     let recorded_at = at.parse::<i64>().ok().filter(|at| *at >= 0)?;
     check_memory_id(id).ok()?;
@@ -41,7 +41,7 @@ fn parse_cursor(text: &str) -> Option<MemoryCursor> {
     })
 }
 
-fn cursor_of(meta: &MemoryMeta) -> MemoryCursor {
+pub(crate) fn cursor_of(meta: &MemoryMeta) -> MemoryCursor {
     MemoryCursor {
         recorded_at: meta.recorded_at,
         id: meta.id.clone(),

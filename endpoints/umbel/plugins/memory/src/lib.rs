@@ -21,7 +21,10 @@
 //! - `memory-sweep` purges what is past its purge date and `memory-reindex` rebuilds the lexical
 //!   lane, removing orphan keys only when asked;
 //! - `memory-status` counts what the caller can read, its usage and quota, the key file's state,
-//!   and how many of its records the default push admits.
+//!   and how many of its records the default push admits;
+//! - `memory-import` writes a harness's memory files, as an adapter read them, with authority
+//!   `import`, and `memory-export` returns the caller's own live records, never flagged or
+//!   `transcript` ones, for an adapter to write out. Both are the command line's alone.
 //!
 //! Recorded text is untrusted content: it appears only in JSON string fields labeled `trust:
 //! "content"`, and never in a message, warning, reasoning or log line (D67). Every command is
@@ -32,10 +35,12 @@
 mod budget;
 mod capture;
 mod confirm;
+mod export;
 mod fail;
 mod filters;
 mod forget;
 mod hygiene;
+mod import;
 mod invalidate;
 mod list;
 mod maintain;
@@ -83,6 +88,8 @@ impl Plugin for Memory {
             "memory-sweep" => maintain::sweep(&input, cx),
             "memory-reindex" => maintain::reindex(&input, cx),
             "memory-status" => status::run(&input, cx),
+            "memory-import" => import::run(&input, cx),
+            "memory-export" => export::run(&input, cx),
             other => failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the memory plugin has no command `{other}`"),
