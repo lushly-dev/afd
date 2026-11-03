@@ -1,10 +1,12 @@
-//! Umbel's store traits, version 1 (phase 2 specification, section 3.1).
+//! Umbel's store traits, version 2 (phase 2 specification section 3.1, phase 3 section 5.2).
 //!
-//! Three synchronous, object-safe traits per space: [`DocumentStore`] (documents, plugin records
-//! and the change log, one revision sequence), [`SearchIndex`] (the lexical lane) and
-//! [`GraphStore`] (the structural graph). Every record carries an [`AccessSet`]; every read takes
-//! a [`ReaderFilter`] and applies it inside its own query. The crate holds types and traits only,
-//! and builds for `wasm32-wasip2`. The `conformance` feature adds the suite every backend runs.
+//! Four synchronous, object-safe traits per space: [`DocumentStore`] (documents, plugin records
+//! and the change log, one revision sequence), [`SearchIndex`] (the lexical lane),
+//! [`GraphStore`] (the structural graph) and, from version 2, [`MemoryStore`] (memory records,
+//! their own revision sequence and lexical lane). Every record carries an [`AccessSet`]; every
+//! read takes a [`ReaderFilter`] and applies it inside its own query. The crate holds types and
+//! traits only, and builds for `wasm32-wasip2`. The `conformance` feature adds the suite every
+//! backend runs.
 
 mod access;
 mod canonical;
@@ -13,6 +15,7 @@ mod envelope;
 mod error;
 mod graph;
 mod index;
+pub mod memory;
 mod traits;
 
 #[cfg(feature = "conformance")]
@@ -37,9 +40,12 @@ pub use graph::{
     Subgraph,
 };
 pub use index::{ChunkHit, IndexChunk, IndexFilters, IndexQuery, MAX_QUERY_CHARS, MAX_QUERY_LIMIT};
+pub use memory::{
+    AsOf, ForgetSelector, MemoryBatch, MemoryClass, MemoryFlag, MemoryQuery, MemoryRecord,
+    MemoryStore, MemoryWrite, Millis, PushFilter, ReadFlags, ScopeQuery,
+};
 pub use traits::{DocumentStore, GraphStore, IndexWriterSession, SearchIndex};
 
 /// The store traits' version (`workspace-show`'s `versions.store`). Owned here from phase 2 step
-/// 2; the host re-exports it. Version 2 is phase 3's (section 2): it adds the `MemoryStore`
-/// trait, which phase 3 step 2 defines.
+/// 2; the host re-exports it. Version 2 is phase 3's (section 2): it adds [`MemoryStore`].
 pub const STORE_TRAITS_VERSION: u32 = 2;

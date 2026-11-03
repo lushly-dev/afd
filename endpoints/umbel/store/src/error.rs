@@ -1,4 +1,4 @@
-//! The store's error model (specification section 3.1).
+//! The store's error model (phase 2 specification section 3.1, phase 3 section 5.2).
 
 use std::fmt;
 
@@ -32,6 +32,32 @@ pub enum StoreError {
         /// The newest schema version this build serves.
         supported: u32,
     },
+    /// A memory write met a limit of its quota (`MEMORY_QUOTA_EXCEEDED`, phase 3 section 8.11)
+    /// and wrote nothing. Retryable when the limit is a rate.
+    QuotaExceeded {
+        /// Which limit.
+        limit: crate::memory::QuotaLimit,
+        /// When a rate limit will admit the write again; `None` for the stored limits.
+        retry_after_ms: Option<u64>,
+    },
+    /// The memory store has not been written yet; reads answer this and create nothing.
+    NotProvisioned,
+    /// The memory database is provisioned and its key file does not exist
+    /// (`MEMORY_KEYS_MISSING`, section 5.4).
+    KeysMissing,
+    /// The key file belongs to another database, is not a key file, or exists without its
+    /// database (`MEMORY_KEYS_MISMATCH`).
+    KeysMismatch,
+    /// A readable record's key entry is absent (`MEMORY_KEY_ABSENT`).
+    KeyAbsent {
+        /// The record.
+        id: String,
+    },
+    /// A readable record's sealed blob does not open (`MEMORY_SEAL_INVALID`).
+    SealInvalid {
+        /// The record.
+        id: String,
+    },
 }
 
 impl StoreError {
@@ -56,6 +82,21 @@ impl fmt::Display for StoreError {
                 f,
                 "the store is version {found}; this build serves up to version {supported}"
             ),
+            Self::QuotaExceeded {
+                limit,
+                retry_after_ms,
+            } => {
+                write!(f, "the memory quota's {} is reached", limit.as_str())?;
+                match retry_after_ms {
+                    Some(ms) => write!(f, "; retry after {ms} ms"),
+                    None => Ok(()),
+                }
+            }
+            Self::NotProvisioned => write!(f, "the memory store has not been written yet"),
+            Self::KeysMissing => write!(f, "the memory key file is missing"),
+            Self::KeysMismatch => write!(f, "the memory key file does not belong to this store"),
+            Self::KeyAbsent { id } => write!(f, "the key of memory record {id} is absent"),
+            Self::SealInvalid { id } => write!(f, "memory record {id} does not open"),
         }
     }
 }
