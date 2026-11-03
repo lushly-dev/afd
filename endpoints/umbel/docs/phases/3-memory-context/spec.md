@@ -62,11 +62,13 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 6 to 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s steps 7b to 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
   [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
-  [#740](https://github.com/lushly-dev/afd/pull/740); step 5 is in its pull request, 2026-11-03.
+  [#740](https://github.com/lushly-dev/afd/pull/740), step 5 in
+  [#742](https://github.com/lushly-dev/afd/pull/742), step 6 in
+  [#743](https://github.com/lushly-dev/afd/pull/743); step 7a is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
