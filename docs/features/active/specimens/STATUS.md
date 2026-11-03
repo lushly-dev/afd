@@ -44,6 +44,42 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
 
+### Handoff, 2026-11-02: resume here
+
+Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is left](#what-is-left) first; this section adds how to pick the work up.
+
+**Immediate work: none is in progress.** No Specimens pull request is open and nothing is unmerged. The epic is waiting on the owner's four decisions above, and on nothing else. Start any new work on a fresh branch from `origin/main`.
+
+**To show the owner the review page,** follow [the FAST-AF README](../../../../foundations/fast-af/README.md). A background server stops at its time limit, so say so when handing over the link.
+
+**Then, in order:**
+
+| Work | Notes |
+| --- | --- |
+| Whatever the owner decides | A settled check changes both the runner's timing and the 3 stories it catches, and T06's agreement evidence compares against Storybook's timing, so keep it separate from the existing check |
+| Prebuilt native hosts (G13) | Before publishing. Packaging only: it does not lift quarantine |
+| Full-suite measurement and per-story profile | Under T04's policy, on `random`, in its isolated copy and after the quiet gate |
+| [#707](https://github.com/lushly-dev/afd/issues/707), [#662](https://github.com/lushly-dev/afd/issues/662) | Both raised by Loam |
+| Lushly's move | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) is Lushly's work, in its repository, once the packages can be installed |
+
+**Rules the owner set for this epic:** commit, open pull requests, auto-fix and merge on green, and keep going between tasks without asking. **Still ask the owner about:** publishing or lifting quarantine (the preview label authorized neither), consumer-repository changes the owner owns, physical or host actions, and genuinely new decisions. Do not reopen confirmed values: T01's tolerances, the probe gate and T03's font and browser condition.
+
+**Merging:** run `pnpm verify` on Node 26 before pushing (`fnm exec --using=26`; the shell default is older). Do not enable GitHub auto-merge. Check the exact head's results, run `gh pr merge <n> --squash --match-head-commit <full sha>`, then confirm the landed paths are identical. Commit subjects are lowercase and at most 72 characters. Never use `--no-verify` or `--admin`.
+
+**Shared hosts:** on this Mac, heavy gates run only under one-minute load 20, with `CARGO_BUILD_JOBS=4` and `VITEST_MAX_WORKERS=1`. Do not go below 10 GiB free, and never stop other owners' jobs or clear their output. On `random`, work only under `~/.cache/afd-specimens`, never touch `~/github`, and do not interrupt other sessions. Treat `~/github/lushly` on this Mac as read-only; clone into `~/.cache` to run Lushly.
+
+**Known traps:**
+
+- Any edit under this folder, including this file, changes a hash in `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail. Update the file's `current_import_sha256`, add to its `import_reason`, then put the record's new digest in `provenance.json`. That counts as a Specimen change, so a documents-only edit still runs `test:specimen`, `test:stories` and the Loam suites in `pnpm verify`, about 20 minutes.
+- Strip `GIT_*` from the environment when a tool or test spawns git (`env -u GIT_EDITOR`). Afterwards, confirm `core.bare` is still `false` in the shared repository's configuration.
+- The pre-commit typecheck fails on unbuilt Loam packages: build `@lushly-dev/loam-web...` first.
+- Do not pipe `pnpm verify` into `tail` in a command chain, because the pipe hides its exit code.
+- Loam's E5 `second-app.test.ts` is timing-dependent and not caused by Specimen: [#718](https://github.com/lushly-dev/afd/issues/718).
+
+**Not in the repository:** these sit on this Mac, under `~/.cache/afd-specimens`, and a cache cleanup removes them. `t08-20261102/evidence` has the raw qualifying pairs, whose results are in the [T08 record](t08-cutover.md#qualifying-pairs). `t08-20261102/afd-storybook` is the overlay with warm Storybook caches, and `t08-20261102/lushly` is the Lushly clone. `t05-tools/provenance.mjs` applies the provenance update above, and `t08-20261102/wait-load.sh` holds a command until the load gate opens.
+
+**Branches kept on purpose:** `lush/specimens-t04-pairs-sessions-1-5` on the remote holds T04's superseded sessions, which [the T04 record](resource-budget-validation.md) keeps as evidence. The local `lush/specimens-t04-incumbent` has no pull request and is work in progress; every file it touches is on main, so #584 probably replaced it, but it has not been compared line by line.
+
 ## Keeping this current
 
 - Sessions that change Specimen MUST update the affected state, last verification, remaining work and follow-ups here. Dates MUST be absolute and evidence MUST identify its revision and scope.
@@ -220,3 +256,4 @@ All rows were reconciled on 2026-11-02. Rows marked open have no owner or issue 
 | 2026-10-31 | T03 driver context and lifecycle | Branch evidence, `lush/specimens-t03-drivers`. 3 contexts × 3 drivers on Chromium 156: geometry, units, container and theme agree; static media and locale labelled; reference media needs a driver command and the bench page's body margin. Isolation and failure ownership tested. `TrustedHTML` support: FAST-AF 9/9 and Lushly 7/7 pilot captures DOM partial → complete, repeat comparisons `insufficient-evidence` → `no-change-observed`. Owner chose the font and browser condition. |
 | 2026-11-01 | High-contrast theme context (Loam D53) | Branch `loam-specimen-high-contrast`. `SpecimenContext.theme` gains `high-contrast`, the light color scheme with `prefers-contrast: more`; the native host emulates both over CDP and pins light and dark to `prefers-contrast: no-preference`; captures report a `prefers-contrast` mismatch; the static preview offers the theme and labels the preference. A fourth `contrast` context runs through the bench, static preview and reference driver. Local receipts: `pnpm test:specimen` (165 native, 18 reference, 12 consumer checks), the host's Rust tests (11), integration (7) and CLI (8) suites |
 | 2026-11-02 | Epic reconciliation | Against main `c329e9d1`. Added [where the epic stands](#where-the-epic-stands) and brought the delivery state, workstreams, gaps and follow-ups up to the merged work. Documents only |
+| 2026-11-02 | Handoff | Against main `a5830b4d`. Added the [handoff](#handoff-2026-11-02-resume-here). Documents only |
