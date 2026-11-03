@@ -226,7 +226,18 @@ export const SHELL_DOMAINS_V1: readonly string[] = [
 	'persona',
 	'session',
 	'auth',
+	// Phase 2 specification, 4.3.
+	'workspace',
+	'section',
+	'editor',
+	'new',
 ];
+
+/**
+ * The grants this build serves: phase 1's, and `projects` from phase 2's step 4 (phase 2 specification,
+ * 5). `documents` waits for step 9. A step that serves a grant adds it here.
+ */
+export const SERVED_GRANTS_V2: readonly string[] = ['store', 'clock', 'random', 'projects'];
 
 /** The chords the shell keeps, as `SHELL_KEYBINDINGS_V0` does; the kernel's test holds them equal. */
 export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [

@@ -93,11 +93,12 @@ describe('E9 (kernel unit): replay with apps', () => {
 			{ interface: 'palette', name: 'probe-list' },
 		];
 		const recorded = await recordSession(calls, failing());
-		expect(recorded.entries[1]?.result.error?.code).toBe('APP_NOT_READY');
+		// After stage B's own `workspace-deployment-apply`.
+		expect(recorded.entries[2]?.result.error?.code).toBe('APP_NOT_READY');
 		// Even with a module that loads now: what the page decided then is on the record.
 		const { report } = await replayKernel(recorded.entries, probeOptions());
 		expect(report.diverged).toBe(false);
-		expect(report.recorded).toEqual(recorded.entries.map((entry) => entry.seq));
+		expect(report.recorded).toEqual(recorded.entries.slice(1).map((entry) => entry.seq));
 	});
 
 	it('re-runs a failure an app returned itself, even with a code the page could decide', async () => {
@@ -107,11 +108,8 @@ describe('E9 (kernel unit): replay with apps', () => {
 				...base,
 				handlers: {
 					...base.handlers,
-					'probe-hidden': (async (
-						_input: never,
-						context: { store: { put(k: string, v: unknown): Promise<void> } }
-					) => {
-						await context.store.put('note-1', { text: 'kept' });
+					// A query: its store cannot write (phase 2 specification, 5).
+					'probe-hidden': (async () => {
 						return fails
 							? { success: false, error: { code: 'CALL_ABORTED', message: 'no', suggestion: 'x' } }
 							: { success: true, data: {} };
@@ -180,7 +178,8 @@ describe('E9 (kernel unit): replay with apps', () => {
 
 		it('diverges when the nested input changed', async () => {
 			const recorded = await record((client) => client.call('probe-list', {}));
-			expect(recorded.entries).toHaveLength(2);
+			// Stage B's own, the outer call and the nested one.
+			expect(recorded.entries).toHaveLength(3);
 			const changed = optionsFor((client) => client.call('probe-list', { other: 1 }));
 			await expect(replayKernel(recorded.entries, changed)).rejects.toThrow(LoamKernelError);
 		});
@@ -273,13 +272,19 @@ describe('E9 (kernel unit): replay with apps', () => {
 	});
 
 	it('forgets what a reload forgets, between the sessions of one journal', async () => {
-		const first = await createTestKernel({ ...probeOptions(), clock: createSteppingClock(1000) });
+		const store = new MemoryAdapter();
+		const first = await createTestKernel({
+			...probeOptions(),
+			clock: createSteppingClock(1000),
+			store,
+		});
 		await first.kernel.call('toast-show', { message: 'One' });
 		await first.kernel.call('modal-open', { title: 'T', body: 'B' });
 		const { journal } = first;
 		await first.kernel.dispose();
+		// The same store, as a reload keeps IndexedDB: stage B applies the deployment once.
 		const second = await createKernel({
-			store: new MemoryAdapter(),
+			store,
 			storeKind: 'memory',
 			journal,
 			auth: new MockAuthAdapter(),

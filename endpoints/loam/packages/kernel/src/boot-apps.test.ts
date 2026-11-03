@@ -111,6 +111,8 @@ describe('stage A: the apps from their boot records', () => {
 			'appearance-get',
 			'auth-session-get',
 			'app-list',
+			'scope-get',
+			'section-get',
 		]);
 		expect(() => kernel.appPort('hello')).toThrow(
 			expect.objectContaining({ code: 'APP_NOT_READY', retryable: true })

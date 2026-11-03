@@ -21,6 +21,7 @@ import type { AppDetailV1, AppSummaryV1, LoamKernelV2 } from '../types.js';
 import { packageFile } from './port.js';
 
 const kernels: LoamKernelV2[] = [];
+const WORKSPACE = { workspace: 'personal' };
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -85,14 +86,15 @@ describe('a call the port refuses (5.3, D68)', () => {
 		expect(valid.error?.message.replace('sums-add', 'x')).toBe(
 			missing.error?.message.replace('sums-nothing', 'x')
 		);
-		const entries = await journal.read();
+		// Stage B's own first, then the refusals.
+		const entries = (await journal.read()).slice(1);
 		expect(entries.map((recorded) => recorded.command)).toEqual([
 			'app-call-refuse',
 			'app-call-refuse',
 			'app-call-refuse',
 		]);
-		// Journaled with the caller and the name, never the input.
-		expect(entries[0]?.context).toEqual({ caller: 'probe' });
+		// Journaled with the caller, the scope and the name, never the input.
+		expect(entries[0]?.context).toEqual({ caller: 'probe', scope: WORKSPACE });
 		expect(entries[0]?.input).toEqual({ command: 'sums-add' });
 		expect(JSON.stringify(entries[1]?.input)).not.toContain('nope');
 	});
@@ -117,21 +119,26 @@ describe('a call the port refuses (5.3, D68)', () => {
 	it('runs what is allowed, as the caller, with the owner in the journal', async () => {
 		const { probe, journal } = await boot();
 		expect((await probe.call('shell-info-get')).success).toBe(true);
-		expect((await last(journal)).context).toEqual({ caller: 'probe' });
+		expect((await last(journal)).context).toEqual({ caller: 'probe', scope: WORKSPACE });
 		expect((await probe.call('probe-list')).success).toBe(true);
 		expect((await last(journal)).context).toEqual({
 			app: 'probe',
 			caller: 'probe',
 			instance: 'probe',
+			scope: WORKSPACE,
 		});
 	});
 
 	it('sets no caller for a person or an agent', async () => {
 		const { kernel, journal } = await boot();
 		await kernel.call('probe-list');
-		expect((await last(journal)).context).toEqual({ app: 'probe', instance: 'probe' });
+		expect((await last(journal)).context).toEqual({
+			app: 'probe',
+			instance: 'probe',
+			scope: WORKSPACE,
+		});
 		await kernel.agent.call('layout-get');
-		expect((await last(journal)).context).toBeUndefined();
+		expect((await last(journal)).context).toEqual({ scope: WORKSPACE });
 	});
 
 	it('adds the seq to a person or agent result, never to the journal or an app', async () => {
@@ -482,7 +489,9 @@ describe('a handler context', () => {
 			value: { text: 'hello', nonce: 0.5 },
 			app: 'probe',
 			instance: 'probe',
-			scope: null,
+			workspace: 'personal',
+			scope: WORKSPACE,
+			scopeKey: 'w',
 		});
 		expect(typeof record?.updatedAt).toBe('number');
 		expect((record?.actor as { id?: string } | null)?.id).toBeTruthy();

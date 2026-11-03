@@ -527,7 +527,12 @@ describe('a mounted call', () => {
 		const result = await kernel.call('work-a-read', {});
 		const entries = await journal.read();
 		const entry = entries.find(({ command }) => command === 'work-a-read');
-		expect(entry?.context).toEqual({ app: 'umbel', instance: 'work', replay: 'recorded' });
+		expect(entry?.context).toEqual({
+			app: 'umbel',
+			instance: 'work',
+			replay: 'recorded',
+			scope: { workspace: 'personal' },
+		});
 		expect(result.metadata?.['dev.loam/seq']).toBe(entry?.seq);
 		const refresh = entries.find(({ command }) => command === 'app-instance-refresh');
 		expect(refresh?.context).toMatchObject({ instance: 'work', replay: 'recorded' });

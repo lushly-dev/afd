@@ -11,13 +11,13 @@ export {
 	type GrantEntry,
 	ICONS_V1,
 	NOTICES_V1,
+	SERVED_GRANTS_V2,
 	SHELL_DOMAINS_V1,
 	SHELL_RESERVED_CHORDS_V1,
 	SURFACE_CATALOG_V1,
 	type SurfaceEntry,
 	TRUST_LINES_V1,
 } from './catalogs.js';
-export { forInterfaceOne } from './interface-one.js';
 export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
 // Stage A's reader, in first paint: it holds no validator (phase 2 specification, 2.2).
 export {

@@ -4,7 +4,6 @@ import { defineCommand, success, type ZodCommandDefinition } from '@lushly-dev/a
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { SHELL_COMMAND_NAMES } from './commands.js';
 import { LoamKernelError } from './errors.js';
 import {
 	COMMAND_NAME_SUGGESTION,
@@ -13,6 +12,7 @@ import {
 	redactJournalRecord,
 } from './kernel.js';
 import { createDefaultLayout, type LayoutStateV0 } from './layout.js';
+import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment, createSteppingClock } from './testing.js';
 import type { KernelEventV1, KernelOptionsV2, LoamKernelV2 } from './types.js';
 
@@ -145,7 +145,7 @@ describe('registries and exposure', () => {
 		expect((await k.call('shell-info-get')).data).toEqual({
 			kernelInterface: 2,
 			layoutState: 0,
-			storeInterface: 0,
+			storeInterface: 1,
 			tokenContract: 1,
 			manifestVersion: 2,
 			appProtocol: 1,
@@ -162,6 +162,7 @@ describe('registries and exposure', () => {
 describe('the journal', () => {
 	it('gives both registries one sequence, and events carry seq', async () => {
 		const { kernel: k, journal } = await kernel();
+		const scope = { workspace: 'personal' };
 		const events: KernelEventV1[] = [];
 		const unsubscribe = k.subscribe((event) => events.push(event));
 		await k.call('layout-set', { sidebar: { open: false } });
@@ -171,10 +172,10 @@ describe('the journal', () => {
 		unsubscribe();
 		await k.call('layout-get');
 		expect(events).toEqual([
-			{ command: 'layout-set', interface: 'palette', success: true, mutation: true, seq: 1 },
-			{ command: 'layout-get', interface: 'agent', success: true, mutation: false, seq: 2 },
-			{ command: 'palette-search', interface: 'palette', success: true, mutation: false },
-			{ command: 'layout-set', interface: 'agent', success: false, mutation: true, seq: 3 },
+			{ command: 'layout-set', interface: 'palette', success: true, mutation: true, seq: 1, scope },
+			{ command: 'layout-get', interface: 'agent', success: true, mutation: false, seq: 2, scope },
+			{ command: 'palette-search', interface: 'palette', success: true, mutation: false, scope },
+			{ command: 'layout-set', interface: 'agent', success: false, mutation: true, seq: 3, scope },
 		]);
 		const entries = await journal.read();
 		expect(
@@ -344,7 +345,8 @@ describe('E1 (kernel unit): every layout change goes through the shared validato
 		expect((await k.call('view-state-set', { id: 'nope', state: {} })).error?.code).toBe(
 			'VIEW_STATE_NOT_FOUND'
 		);
-		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(3);
+		// `loam.layout`, `loam.appearance`, `loam.apps` and `loam.scope`.
+		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(4);
 	});
 
 	it('sets, refuses and undoes with layout-set', async () => {

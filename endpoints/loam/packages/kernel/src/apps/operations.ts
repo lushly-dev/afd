@@ -5,7 +5,7 @@
 
 import { type CommandError, type CommandResult, failure, success } from '@lushly-dev/afd-core';
 import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ManifestRefusal, ManifestV1, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
+import type { ManifestRefusal, ManifestV2, ProjectionAppV1 } from '@lushly-dev/loam-manifest';
 import { z } from 'zod';
 import { type AppCommandRowV1, type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
@@ -15,7 +15,7 @@ import type {
 	AppDetailV1,
 	AppInstanceV1,
 	AppKindV1,
-	AppPortV1,
+	AppPortV2,
 	AppStateV1,
 	AppSummaryV2,
 } from '../types.js';
@@ -35,8 +35,8 @@ export interface AppRecord {
 	readonly rail: boolean;
 	readonly entry: ProjectionAppV1;
 	/** Absent when the manifest was refused or could not be read. */
-	readonly manifest?: ManifestV1;
-	port?: AppPortV1;
+	readonly manifest?: ManifestV2;
+	port?: AppPortV2;
 	/** A mounted `http` instance's discovery and calls. */
 	mounted?: MountedHost;
 	state: AppStateV1;
@@ -76,8 +76,8 @@ function summaryOf(record: AppRecord): AppSummaryV2 & { state: AppStateV1 } {
 		...(record.error !== undefined ? { error: record.error } : {}),
 		scopeLevels: [...record.scopeLevels],
 		rail: record.rail,
-		// No project is active until step 4, so only what serves the workspace can open.
-		available: record.scopeLevels.includes('workspace'),
+		// The kernel reads it against the active scope (phase 2 specification, 7.1).
+		available: true,
 	};
 }
 
@@ -187,6 +187,17 @@ export function createOperations(
 						: {}),
 				});
 			}
+		},
+		scopeLevelsOf: (name) => records.get(host.owners().get(name)?.instance as string)?.scopeLevels,
+		resourceKeyOf(name) {
+			const instance = host.owners().get(name)?.instance;
+			const keys =
+				instance === undefined ? undefined : records.get(instance)?.manifest?.app?.resource_keys;
+			const property = keys?.[name];
+			return instance !== undefined && property !== undefined ? { instance, property } : undefined;
+		},
+		clearSelections() {
+			for (const record of records.values()) record.selection = null;
 		},
 		mountedInstances: () =>
 			[...records.values()].filter(startable).map((record) => record.instance),

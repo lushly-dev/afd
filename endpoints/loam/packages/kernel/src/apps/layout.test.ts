@@ -161,11 +161,14 @@ describe('view-state on the layout (4.5)', () => {
 		expect(refused.error?.suggestion).toContain('app-open');
 		expect((await journal.read()).at(-1)?.result.error?.code).toBe('VIEW_STATE_READ_ONLY');
 		const read = await kernel.call('view-state-get', { id: 'loam.apps' });
-		expect(read.data).toEqual({ id: 'loam.apps', state: { active: null } });
+		expect(read.data).toEqual({
+			id: 'loam.apps',
+			state: { active: null, section: null, path: '' },
+		});
 		await kernel.call('app-open', { instance: 'probe' });
 		expect((await kernel.call('view-state-get', { id: 'loam.apps' })).data).toEqual({
 			id: 'loam.apps',
-			state: { active: 'probe' },
+			state: { active: 'probe', section: null, path: '' },
 		});
 	});
 });

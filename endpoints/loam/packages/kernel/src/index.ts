@@ -23,9 +23,9 @@ export {
 } from './appearance.js';
 export { type AppCommandRowV1, type BootAppsOptions, bootApps } from './apps-runtime.js';
 export {
+	BOOT_ONLY,
 	INTERNAL_COMMANDS,
 	PALETTE_SEARCH_LIMIT,
-	SHELL_COMMAND_NAMES,
 	SHELL_EXPOSE,
 } from './commands.js';
 export { KERNEL_CONTEXT_FIELDS } from './context-fields.js';
@@ -66,23 +66,25 @@ export {
 	validateLayoutState,
 } from './layout.js';
 export { SHELL_OWNER, TOAST_CAP } from './overlays.js';
-export {
-	createPaletteIndex,
-	PALETTE_RUN_BONUS,
-	PALETTE_WEIGHTS,
-	PALETTE_WORD_START_BONUS,
-	type PaletteEntry,
-	type PaletteField,
-	type PaletteIndex,
-	type PaletteItem,
+// The index's values are late-only, so they are `@lushly-dev/loam-kernel/palette`'s, out of the root's graph
+// (phase 2 specification, 2.4); its types stay here.
+export type {
+	PaletteEntry,
+	PaletteField,
+	PaletteIndex,
+	PaletteItem,
 } from './palette-index.js';
-export { APPS_VIEW_STATE_ID } from './shell-state.js';
+export { type AccessInputV1, decideAccess, LOCAL_ACTOR } from './scope/access.js';
+export { MCP_CONTEXT_FIELDS, SCOPE_V1 } from './scope/field.js';
+export { SHELL_COMMAND_NAMES } from './shell-command-names.js';
+export { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from './shell-state.js';
 export {
 	APP_CALLABLE_SHELL_COMMANDS_V1,
 	type AppDetailV1,
 	type AppInstanceV1,
 	type AppKindV1,
 	type AppPortV1,
+	type AppPortV2,
 	type AppStateV1,
 	type AppStateV2,
 	type AppSummaryV1,
@@ -90,6 +92,7 @@ export {
 	type AppsLoadV2,
 	type CallOptionsV0,
 	type CallOptionsV1,
+	type CallOptionsV2,
 	type CommandSummaryV0,
 	type CommandSummaryV1,
 	type HandlerFrameV1,
@@ -97,6 +100,8 @@ export {
 	type KernelEnvironmentV0,
 	type KernelEventV0,
 	type KernelEventV1,
+	type KernelEventV2,
+	type KernelMcpOptions,
 	type KernelOptionsV0,
 	type KernelOptionsV1,
 	type KernelOptionsV2,
@@ -108,8 +113,17 @@ export {
 	type McpTool,
 	type McpToolCallResult,
 	type MountTransportV1,
+	type MountTransportV2,
+	type ProjectAccessV1,
+	type ProjectV1,
+	type ScopeChangeV2,
+	type ScopeV1,
 	type ShellInfoV0,
 	type ShellInfoV1,
 	type ShellInfoV2,
+	type SurfaceOptionsV2,
+	type SurfacePortV2,
 	type ViewBrokerV1,
+	type WorkspaceAppV1,
+	type WorkspaceV1,
 } from './types.js';

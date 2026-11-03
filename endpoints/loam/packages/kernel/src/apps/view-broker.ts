@@ -5,8 +5,9 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
-import type { ManifestV1 } from '@lushly-dev/loam-manifest';
-import type { AppPortV1, LinkedCallV1, ViewBrokerV1 } from '../types.js';
+import type { ManifestV2 } from '@lushly-dev/loam-manifest';
+import type { LoamClientV1 } from '@lushly-dev/loam-sdk';
+import type { LinkedCallV1, ViewBrokerV1 } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
 import { asJson, refuseRequest } from './support.js';
 
@@ -14,33 +15,38 @@ import { asJson, refuseRequest } from './support.js';
 const RESOURCE_MIME = 'text/html;profile=mcp-app';
 
 export interface ViewBrokerOptions {
-	manifest: ManifestV1;
+	manifest: ManifestV2;
 	sandboxOrigin: string | null;
-	/** Read when a view calls, since the port is made with this broker on it. */
-	port(): AppPortV1;
 }
 
 export interface ViewHost {
-	broker: ViewBrokerV1;
+	/**
+	 * A broker closed over one caller: the port's, or a surface's, so a view's `tools/call` runs in the
+	 * scope its surface was created in and can name no other (phase 2 specification, 3.6).
+	 */
+	brokerFor(
+		call: LoamClientV1['call'],
+		readResource: (uri: string) => Promise<string>
+	): ViewBrokerV1;
 	/** A command of this app finished: tell whoever listens for the resource it names. */
 	notifyCall(name: string, input: unknown, result: CommandResult, signal?: AbortSignal): void;
 }
 
 /** The resource a command's `tool_meta.ui.resourceUri` names, if any. */
-function linkedResource(manifest: ManifestV1, name: string): string | undefined {
+function linkedResource(manifest: ManifestV2, name: string): string | undefined {
 	const command = manifest.commands?.find((candidate) => candidate.name === name);
 	const uri = (command?.tool_meta?.ui as { resourceUri?: unknown } | undefined)?.resourceUri;
 	return typeof uri === 'string' ? uri : undefined;
 }
 
-export function createViewBroker({ manifest, sandboxOrigin, port }: ViewBrokerOptions): ViewHost {
+export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions): ViewHost {
 	const listeners = new Map<string, Set<(call: LinkedCallV1) => void>>();
 	const own = new Set((manifest.commands ?? []).map((command) => command.name));
 	const refuse = (message: string, suggestion: string) =>
 		refuseRequest({ code: 'VIEW_CALL_REFUSED', rpcCode: -32602, message, suggestion });
 
 	return {
-		broker: {
+		brokerFor: (call, readResource) => ({
 			sandboxOrigin,
 			async toolsCall(params) {
 				const { name, arguments: input } = (params ?? {}) as {
@@ -60,7 +66,15 @@ export function createViewBroker({ manifest, sandboxOrigin, port }: ViewBrokerOp
 				if (json === undefined) {
 					throw refuse("A tool's arguments are JSON", 'Pass arguments with no BigInt and no cycle');
 				}
-				return toolCallResult(await port().call(name, json.value));
+				// `dev.loam/level` is the one scope a view names; `dev.loam/scope` from a frame is ignored (3.2).
+				const level = (params as { _meta?: Record<string, unknown> } | undefined)?._meta?.[
+					'dev.loam/level'
+				];
+				return toolCallResult(
+					await (level === undefined
+						? call(name, json.value)
+						: call(name, json.value, { level } as never))
+				);
 			},
 			async resourcesRead(params) {
 				const { uri } = (params ?? {}) as { uri?: unknown };
@@ -72,11 +86,11 @@ export function createViewBroker({ manifest, sandboxOrigin, port }: ViewBrokerOp
 					);
 				}
 				return {
-					contents: [{ uri, mimeType: RESOURCE_MIME, text: await port().readResource(uri) }],
+					contents: [{ uri, mimeType: RESOURCE_MIME, text: await readResource(uri) }],
 				};
 			},
 			async runBound(command, signal) {
-				return toolCallResult(await port().call(command, {}, { signal }));
+				return toolCallResult(await call(command, {}, { signal }));
 			},
 			onLinkedCall(uri, listener) {
 				const held = listeners.get(uri) ?? new Set();
@@ -86,7 +100,7 @@ export function createViewBroker({ manifest, sandboxOrigin, port }: ViewBrokerOp
 					held.delete(listener);
 				};
 			},
-		},
+		}),
 		notifyCall(name, input, result, signal) {
 			const uri = linkedResource(manifest, name);
 			if (uri === undefined) return;

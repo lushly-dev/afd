@@ -8,6 +8,7 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
@@ -45,6 +46,8 @@ export interface AppsHost {
 		unqueued?: true
 	): Promise<CommandResult<T>>;
 	clock(): number;
+	/** The active scope, for the chrome's port and its store (phase 2 specification, 3.6 and 5). */
+	activeScope(): ScopeV1;
 }
 
 /**

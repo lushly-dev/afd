@@ -5,19 +5,42 @@
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
-import type { CommandError, CommandResult, JournalSink } from '@lushly-dev/afd-core';
+import type {
+	CommandError,
+	CommandMiddleware,
+	CommandResult,
+	JournalSink,
+} from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import type { DirectRegistryOptions } from '@lushly-dev/afd-server/direct';
 import type {
 	BootProjectionV2,
 	ManifestRefusal,
 	ManifestV1,
+	ManifestV2,
 	ProjectionMountedV1,
 	ProjectionV1,
 	ProjectionV2,
 } from '@lushly-dev/loam-manifest';
-import type { AppDefinitionV1, AppStoreV1, OverlayResultV1 } from '@lushly-dev/loam-sdk';
+import type {
+	AppDefinitionV1,
+	AppStoreV1,
+	LoamClientV1,
+	OverlayResultV1,
+	ScopeV1,
+} from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { ShellKeybindingV0 } from './keybindings.js';
+import type { ScopeChangeV2 } from './scope/records.js';
+
+export type {
+	ProjectAccessV1,
+	ProjectV1,
+	ScopeChangeV2,
+	WorkspaceAppV1,
+	WorkspaceV1,
+} from './scope/records.js';
+export type { ScopeV1 };
 
 export const KERNEL_INTERFACE_VERSION = 2;
 
@@ -326,12 +349,94 @@ export interface ShellInfoV1 extends Omit<ShellInfoV0, 'kernelInterface'> {
 
 /**
  * Kernel interface version 2 (phase 2 specification, 11.1). Step 2 adds the version and the boot in two
- * stages; `startApps`, `appsReady` and `lateFailure` came with step 1, on version 1. Scope in a call's
- * options and in an event is step 4's.
+ * stages; `startApps`, `appsReady` and `lateFailure` came with step 1, on version 1. Step 4 adds scope:
+ * in a call's options, in an event, and a surface's own port.
  */
-export interface LoamKernelV2 extends Omit<LoamKernelV1, 'version' | 'agent'> {
+export interface LoamKernelV2
+	extends Omit<LoamKernelV1, 'version' | 'agent' | 'call' | 'subscribe' | 'appPort'> {
 	readonly version: 2;
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: CallOptionsV2
+	): Promise<CommandResult<T>>;
+	subscribe(listener: (event: KernelEventV2) => void): () => void;
 	readonly agent: Pick<LoamKernelV2, 'call' | 'listCommands'>;
+	/**
+	 * The port for one instance, for the chrome to give an app.
+	 *
+	 * @throws LoamKernelError `APP_NOT_FOUND` for an unknown instance, `APP_NOT_READY` for a refused
+	 *   one, which has no manifest to render from
+	 */
+	appPort(instance: string): AppPortV2;
+}
+
+export interface CallOptionsV2 extends CallOptionsV1 {
+	/** Default: the active scope. `'workspace'` is the active workspace with no project (3.2). */
+	scope?: ScopeV1 | 'workspace';
+}
+
+export interface KernelEventV2 extends KernelEventV1 {
+	/** The call's effective scope. */
+	scope?: ScopeV1;
+	/** The active scope changed in this call, by `applyScopeChange` (3.4). */
+	scopeChanged?: ScopeChangeV2;
+	/** What main shows changed, and how the URL should follow (6.3). */
+	mainChanged?: 'push' | 'replace';
+}
+
+/** A surface's port: fixed to the scope it was created in (phase 2 specification, 3.6; D83). */
+export interface SurfaceOptionsV2 {
+	/** Fixed for this surface's life. Only the chrome calls `surface`; an app never holds a port. */
+	scope: ScopeV1;
+	/** An embed: every mutation is `EMBED_READ_ONLY`. */
+	readOnly?: boolean;
+}
+
+export interface SurfacePortV2 {
+	readonly scope: ScopeV1;
+	readonly readOnly: boolean;
+	/** `options.level: 'workspace'` is the only widening. Any other scope is `SCOPE_NOT_GRANTED`. */
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: { signal?: AbortSignal; level?: 'workspace' }
+	): Promise<CommandResult<T>>;
+	/** The view's broker, closed over this surface. Absent for any other kind. */
+	readonly view?: ViewBrokerV1;
+}
+
+/**
+ * The port of interface 2: it holds the manifest as version 2 reads it, and makes a port per surface.
+ * `call` keeps the active scope, for the chrome and tests.
+ */
+export interface AppPortV2 extends Omit<AppPortV1, 'manifest' | 'call'> {
+	readonly manifest: ManifestV2;
+	call: LoamClientV1['call'];
+	surface(options: SurfaceOptionsV2): SurfacePortV2;
+}
+
+/** What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3). */
+export interface KernelMcpOptions {
+	/** Every registered command but `BOOT_ONLY` and `INTERNAL_COMMANDS`, with `expose.mcp` as phase 6 will decide. */
+	commands: readonly ZodCommandDefinition[];
+	/** The auth middleware, the journal's, then the scope middleware (3.4): the kernel's own chain. */
+	middleware: readonly CommandMiddleware[];
+	/** `scope` alone: the other fields are set by trusted code, and a caller must not claim them. */
+	contextFields: readonly ContextFieldV2[];
+}
+
+/** A declared context field, as `createMcpHandler` takes one. */
+export type ContextFieldV2 = NonNullable<DirectRegistryOptions['contextFields']>[number];
+
+/** Interface 2's transport: a command's call carries `_meta` (phase 2 specification, 9.2; step 8). */
+export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool'> {
+	callTool(
+		name: string,
+		args: unknown,
+		signal?: AbortSignal,
+		meta?: Record<string, unknown>
+	): Promise<McpToolCallResult>;
 }
 
 /** What stage B reads: the validated projection and the ports, or why the reader refused it (2.2). */
@@ -349,6 +454,10 @@ export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'a
 	boot?: BootProjectionV2;
 	/** What stage B reads. Required with `boot` when it lists an app. */
 	appsLoader?: () => Promise<AppsLoadV2>;
+	/** The URL's project, by slug, for the first frame (6.3). */
+	initialScope?: { project: string };
+	/** The workspace when no `boot` or `deployment` names one. Default `{ id: 'personal', name: 'Personal' }`. */
+	workspace?: { id: string; name: string };
 }
 
 /** `disabled` is step 4's, from a `workspace-app` record. */
@@ -363,8 +472,11 @@ export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {
 }
 
 /** What `shell-info-get` returns from version 2. */
-export interface ShellInfoV2 extends Omit<ShellInfoV1, 'kernelInterface' | 'manifestVersion'> {
+export interface ShellInfoV2
+	extends Omit<ShellInfoV1, 'kernelInterface' | 'manifestVersion' | 'storeInterface'> {
 	kernelInterface: 2;
 	/** The manifest version this shell reads up to: version 2 reads both (phase 2 specification, 8.1). */
 	manifestVersion: 2;
+	/** The workspace, project and scoped app stores (phase 2 specification, section 4). */
+	storeInterface: 1;
 }

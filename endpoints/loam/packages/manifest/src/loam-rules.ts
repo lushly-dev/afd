@@ -3,7 +3,12 @@
  * has a case in `profile-cases.json`.
  */
 
-import { GRANT_CATALOG_V1, LAYOUT_DEFAULTS_V0, SHELL_RESERVED_CHORDS_V1 } from './catalogs.js';
+import {
+	GRANT_CATALOG_V1,
+	LAYOUT_DEFAULTS_V0,
+	SERVED_GRANTS_V2,
+	SHELL_RESERVED_CHORDS_V1,
+} from './catalogs.js';
 import type { Finding } from './core-rules.js';
 import { keyOf, valueAt } from './pointers.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
@@ -11,9 +16,7 @@ import type { ManifestRefusalCode, ManifestV2 } from './types.js';
 type Ui = NonNullable<ManifestV2['ui']>;
 type Surfaces = NonNullable<Ui['surfaces']>;
 
-const SERVED_GRANTS = GRANT_CATALOG_V1.filter((grant) => grant.servedFrom === 1).map(
-	(grant) => grant.name
-);
+const SERVED_GRANTS = SERVED_GRANTS_V2;
 const CONTROL = /\p{Cc}/u;
 /** Reserved by the HTML standard, though each has a hyphen. */
 const RESERVED_ELEMENTS = new Set([
@@ -73,9 +76,8 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
  * `manifest_version = 2`. **Delete the one line of the step that serves a key**, in the pull request
  * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
  * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
- * that step. `forInterfaceOne` narrows a version 2 manifest for kernel interface 1 on the strength of
- * this list covering every entry of `VERSION_TWO_KEYS`, which a unit test holds until interface 2
- * replaces the narrowing.
+ * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
+ * holds a `ManifestV2`, so nothing narrows a manifest any longer.
  */
 export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
 	// Step 6 serves the `tree` sidebar. Its rules: a `tree` needs a `command` (the schema holds it).
@@ -84,8 +86,6 @@ export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string 
 		value: 'tree',
 		instead: 'Use `shape = "list"` until a later build serves `"tree"`.',
 	},
-	// Step 4 serves `app.resource_keys`. Its rules: `MANIFEST_RESOURCE_KEY_INVALID`, needs `store`, not `mounted`.
-	{ pointer: '/app/resource_keys' },
 	// Step 7 serves `ui.project_summary`. Its rules: `MANIFEST_SUMMARY_INVALID`, not `mounted`.
 	{ pointer: '/ui/project_summary' },
 	// Step 9 serves `ui.documents`. Its rules are the documents specification's 2.1, and `content_schema`'s `MANIFEST_NOT_PACKED`.
@@ -521,6 +521,54 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 	});
 }
 
+/**
+ * `app.resource_keys` (phase 2 specification, 8.3): each names a declared command and a property of its
+ * input schema; the app needs the `store` grant, whose keys they are; a mounted app has no store.
+ */
+function resourceKeyRules(manifest: ManifestV2, found: Findings): void {
+	const keys = manifest.app?.resource_keys;
+	if (keys === undefined) return;
+	const pointer = '/app/resource_keys';
+	const refuse = (at: string, message: string, suggestion: string): void =>
+		found.refuse('MANIFEST_RESOURCE_KEY_INVALID', at, message, suggestion);
+	if (manifest.plugin.kind === 'mounted') {
+		refuse(
+			pointer,
+			'A mounted app has no store, so it names no store keys.',
+			'Remove `app.resource_keys`; the instance pins its own space.'
+		);
+		return;
+	}
+	if (!(manifest.grants ?? []).some((grant) => grant.name === 'store')) {
+		refuse(
+			pointer,
+			'`app.resource_keys` names keys of the `store` grant, which this app does not declare.',
+			'Declare the `store` grant, or remove `app.resource_keys`.'
+		);
+	}
+	for (const [name, property] of Object.entries(keys)) {
+		const command = (manifest.commands ?? []).find((candidate) => candidate.name === name);
+		const schema = command?.input_schema;
+		const properties =
+			typeof schema === 'object' && schema !== null
+				? (schema as { properties?: Record<string, unknown> }).properties
+				: undefined;
+		if (command === undefined) {
+			refuse(
+				`${pointer}/${name}`,
+				`\`${name}\` is not a command of this app.`,
+				'Name a command the manifest declares.'
+			);
+		} else if (typeof schema !== 'string' && !Object.hasOwn(properties ?? {}, property)) {
+			refuse(
+				`${pointer}/${name}`,
+				`The input of \`${name}\` has no property \`${property}\`.`,
+				'Name the property of its input schema that holds a store key.'
+			);
+		}
+	}
+}
+
 /** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
@@ -533,6 +581,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	surfaceRules(manifest, found);
 	layoutRules(manifest, found);
 	compositionRules(manifest, found);
+	resourceKeyRules(manifest, found);
 	textRules(manifest, found);
 	return found;
 }

@@ -4,6 +4,7 @@
  */
 
 import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
+import type { ScopeV1 } from '@lushly-dev/loam-sdk';
 import {
 	kernelFailure,
 	LoamKernelError,
@@ -95,3 +96,7 @@ export function refuseRequest({
 }: HandlerRefusal): LoamKernelError {
 	return new LoamKernelError({ code, message, suggestion, details: { rpcCode } });
 }
+
+/** The call's effective scope, which the scope middleware always sets (phase 2 specification, 3.4). */
+export const scopeOf = (context: CommandContext): ScopeV1 =>
+	(context as { scope?: ScopeV1 }).scope ?? { workspace: '' };

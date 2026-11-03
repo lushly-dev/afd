@@ -22,6 +22,7 @@ import {
 import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
+import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
@@ -33,6 +34,22 @@ export {
 	type ReferenceWorkspace,
 	type ReferenceWorkspaceOptions,
 } from './reference-workspace.js';
+export {
+	createScopedWorkspace,
+	DUAL_DEFINITION,
+	DUAL_MANIFEST,
+	SCOPED_PROJECTS,
+	type ScopedWorkspace,
+	type ScopedWorkspaceOptions,
+	SOLO_DEFINITION,
+	SOLO_MANIFEST,
+	SOMEONE_ELSE,
+	scopedDeployment,
+	scopedPorts,
+	seedProjects,
+	TASKS_DEFINITION,
+	TASKS_MANIFEST,
+} from './scope/fixtures.js';
 export {
 	createFixedEnvironment,
 	createSeededRandom,
@@ -275,6 +292,7 @@ export async function replayKernel(
 		});
 	}
 	const nested = nestedReplay(ordered);
+	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
 	const parts = await createKernelParts(
 		{
 			store: new MemoryAdapter(),
@@ -290,20 +308,25 @@ export async function replayKernel(
 		{
 			answerNested: (parent, name, input) => nested.answer(parent, name, input),
 			nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
+			replaying: true,
+			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
+			actorOf(traceId) {
+				const entry = traceId === undefined ? undefined : byTrace.get(traceId);
+				return entry ? { ...(entry.actor !== undefined ? { actor: entry.actor } : {}) } : undefined;
+			},
 		}
 	);
 	const { kernel } = parts;
 	let kept = false;
 	try {
 		const recorded: number[] = [];
-		const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
 		let session = traceBaseOf(ordered[0]?.traceId);
 		const target: JournalReplayTarget = {
 			async execute(name: string, input: unknown, context: CommandContext = {}) {
 				const base = traceBaseOf(context.traceId);
 				if (base !== session) {
 					session = base;
-					parts.resetSession();
+					await parts.resetSession();
 				}
 				const entry = byTrace.get(context.traceId);
 				if (entry && answeredFromRecord(entry)) {
@@ -318,7 +341,12 @@ export async function replayKernel(
 					return entry.result;
 				}
 				const { registries } = parts;
-				const registry = context.interface === 'agent' ? registries.agent : registries.palette;
+				// Boot's own work is in a registry of its own, which only boot and a replay reach (2.2).
+				const registry = BOOT_ONLY.includes(name)
+					? registries.boot
+					: context.interface === 'agent'
+						? registries.agent
+						: registries.palette;
 				const result = await registry.execute(name, input, context);
 				if (context.traceId !== undefined) nested.finish(context.traceId);
 				return result;
@@ -361,7 +389,7 @@ export async function replayKernel(
 
 // ─── Journal diff (A3) ──────────────────────────────────────────────────────────
 
-export type JournalDiffField = 'command' | 'input' | 'result' | 'success' | 'length';
+export type JournalDiffField = 'command' | 'input' | 'context' | 'result' | 'success' | 'length';
 
 export interface JournalDiff {
 	equal: boolean;
@@ -440,7 +468,8 @@ function firstPath(a: unknown, b: unknown, path = ''): string | undefined {
 }
 
 /**
- * Compare two journals entry by entry on command, input, result and success, ignoring
+ * Compare two journals entry by entry on command, input, the journaled context fields, result and
+ * success, ignoring
  * timestamps and durations (and {@link DIFF_IGNORE}). Entries past the shorter journal count
  * as different, with `field: 'length'`.
  */
@@ -462,6 +491,9 @@ export function diffJournals(
 		else if (left.result.success !== right.result.success) found = { index, field: 'success' };
 		else if (canonicalJson(left.input ?? null) !== canonicalJson(right.input ?? null)) {
 			found = { index, field: 'input', path: firstPath(left.input, right.input) ?? '' };
+		} else if (canonicalJson(left.context ?? null) !== canonicalJson(right.context ?? null)) {
+			// Two sessions that differ only in scope differ (phase 2 specification, 10).
+			found = { index, field: 'context', path: firstPath(left.context, right.context) ?? '' };
 		} else {
 			const leftResult = stripPaths(left.result, ignore);
 			const rightResult = stripPaths(right.result, ignore);

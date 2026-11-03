@@ -3,12 +3,9 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { AJV_OPTIONS, readCore, readSchema } from '../scripts/compile.mjs';
 import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from './catalogs.js';
-import { forInterfaceOne } from './interface-one.js';
-import { NOT_YET_SERVED, VERSION_TWO_KEYS } from './loam-rules.js';
 import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
-import type { ManifestV2 } from './types.js';
 import { validateManifest } from './validate.generated.js';
 import { pointerOf, type ValidatorError } from './validator-errors.js';
 
@@ -109,7 +106,8 @@ describe("Loam's profile", () => {
 				surfaces: { properties: Record<string, unknown> };
 			};
 		};
-		expect($defs.plugin.properties.id.not.enum).toEqual([...SHELL_DOMAINS_V1, 'afd']);
+		// `p` reads as a URL's project segment (phase 2 specification, 4.3).
+		expect($defs.plugin.properties.id.not.enum).toEqual([...SHELL_DOMAINS_V1, 'afd', 'p']);
 		expect($defs.icon.enum).toEqual(ICONS_V1);
 		expect($defs.ui.properties.compositions.items.enum).toEqual(
 			COMPOSITIONS_V1.filter((entry) => entry.servedFrom === 1).map((entry) => entry.name)
@@ -129,9 +127,10 @@ describe("Loam's profile", () => {
 			'ui-documents',
 			'ui-new',
 		]) {
-			// Under version 1, the version is what the author is told; under 2, that no step serves it yet.
+			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
+			// until its step serves it: `app.resource_keys` is step 4's, with its own cases.
 			expect(ids.has(`version-keys-${key}`), key).toBe(true);
-			expect(ids.has(`not-yet-served-${key}`), key).toBe(true);
+			expect(ids.has(`not-yet-served-${key}`), key).toBe(key !== 'app-resource-keys');
 		}
 		for (const item of cases.filter((candidate) => candidate.id.startsWith('version-keys-'))) {
 			if (item.id !== 'version-keys-each-once') expect(item.base).toBe('native');
@@ -156,6 +155,15 @@ describe("Loam's profile", () => {
 			const v1 = validateV1(document);
 			const v1Errors = errorsOf(validateV1.errors);
 			const v2 = validateManifest(document);
+			// Step 4 reserves these ids for the shell (phase 2 specification, 4.3), in both versions.
+			if (
+				['workspace', 'section', 'editor', 'new', 'p'].includes(
+					String(valueAt(document, '/plugin/id'))
+				)
+			) {
+				expect(v2).toBe(false);
+				continue;
+			}
 			if (v1) {
 				validUnderOne++;
 				expect(v2, JSON.stringify(document).slice(0, 80)).toBe(true);
@@ -217,21 +225,6 @@ describe("Loam's profile", () => {
 			).toEqual([['MANIFEST_SURFACE_UNAVAILABLE', key]]);
 			expect(read.refusals[0]?.suggestion, name).toBe('Set manifest_version = 2.');
 		}
-	});
-
-	it('P2-E11: keeps every version 2 key refused while kernel interface 1 narrows a ManifestV2', () => {
-		const served = (key: { pointer: string; value?: unknown }): boolean =>
-			NOT_YET_SERVED.some((line) => line.pointer === key.pointer && line.value === key.value);
-		for (const key of VERSION_TWO_KEYS) {
-			expect(
-				served(key),
-				`${key.pointer} left NOT_YET_SERVED while \`forInterfaceOne\` still narrows a ManifestV2 to a ManifestV1 ` +
-					'(interface 1 would hold a key it does not know). Remove the narrowing with interface 2, in the same step, and this test with it.'
-			).toBe(true);
-		}
-		expect(
-			forInterfaceOne({ ...(bases.native as ManifestV2), manifest_version: 2 }).manifest_version
-		).toBe(1);
 	});
 
 	it('reads what is not a manifest as a refusal, not a throw', () => {

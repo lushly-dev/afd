@@ -6,7 +6,13 @@
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
-import type { AppCallContextV1, AppDefinitionV1, LoamClientV1 } from '@lushly-dev/loam-sdk';
+import {
+	type AppCallContextV1,
+	type AppDefinitionV1,
+	type LoamClientV1,
+	projectsOver,
+	type ScopeV1,
+} from '@lushly-dev/loam-sdk';
 import { LoamKernelError } from '../errors.js';
 import type { KernelPortsV1 } from '../types.js';
 import type { AppRecord } from './operations.js';
@@ -20,6 +26,7 @@ import {
 	readClock,
 	readRandom,
 	resultInvalid,
+	scopeOf,
 } from './support.js';
 import type { AppsHost } from './types.js';
 
@@ -32,8 +39,8 @@ export interface NativeHostOptions {
 	config: Readonly<Record<string, unknown>>;
 	granted: ReadonlySet<string>;
 	commands: readonly string[];
-	/** A handler's `context.client`: its calls carry `parent`. */
-	nestedClient(parent: string): LoamClientV1;
+	/** A handler's `context.client`: its calls carry `parent`, and the call's effective scope (3.2). */
+	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
 }
 
 export interface NativeHost {
@@ -105,12 +112,16 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 		return definition;
 	}
 
-	function callContext(context: CommandContext): AppCallContextV1 {
+	function callContext(name: string, context: CommandContext): AppCallContextV1 {
 		const traceId = context.traceId ?? '';
+		const scope = scopeOf(context);
+		const client = options.nestedClient(traceId, scope);
 		return {
 			traceId,
 			config,
-			client: options.nestedClient(traceId),
+			client,
+			scope,
+			...(granted.has('projects') ? { projects: projectsOver(client, scope.project) } : {}),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
 			...(granted.has('clock') ? { now: () => readClock(context) } : {}),
 			...(granted.has('random') ? { random: () => readRandom(context) } : {}),
@@ -120,6 +131,8 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 							adapter: host.store,
 							app: record.app,
 							instance: record.instance,
+							scope,
+							readOnly: !host.isMutation(name),
 							now: () => readClock(context),
 							...(context.actor !== undefined ? { actor: context.actor } : {}),
 						}),
@@ -157,7 +170,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 			) => Promise<CommandResult>;
 			let result: unknown;
 			try {
-				result = await handler(input, callContext(context));
+				result = await handler(input, callContext(name, context));
 			} catch (cause) {
 				return handlerThrew(name, cause);
 			}

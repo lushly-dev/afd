@@ -72,10 +72,46 @@ describe('createAppTestKernel', () => {
 		expect((await journal.read()).at(-1)?.context).toEqual({
 			app: 'greeter',
 			instance: 'greeter',
+			scope: { workspace: 'personal' },
 		});
 		const { report } = await replay();
 		expect(report.diverged).toBe(false);
-		expect(report.same).toBe(3);
+		// Stage B's own `workspace-deployment-apply`, and the three calls.
+		expect(report.same).toBe(4);
+		await kernel.dispose();
+	});
+
+	it('P2-E4: runs in a project with `scope`, keeping its store apart from the workspace, and replays it', async () => {
+		const { kernel, port, journal, replay } = await createAppTestKernel({
+			manifest: { ...manifest, app: { scope_levels: ['workspace', 'project'] } } as ManifestV1,
+			definition,
+			scope: { project: 'atlas' },
+		});
+		await kernel.call('greeter-greet', { name: 'Ada' });
+		const scoped = (await journal.read()).at(-1)?.context?.scope as { project?: string };
+		expect(scoped.project).toMatch(/^prj_[0-9a-z]{10}$/);
+		// The port follows the active scope, and a call at workspace level sees nothing of Atlas.
+		expect((await port.call<{ items: unknown[] }>('greeter-list')).data?.items).toHaveLength(1);
+		const workspace = await kernel.call<{ items: unknown[] }>(
+			'greeter-list',
+			{},
+			{
+				scope: 'workspace',
+			}
+		);
+		expect(workspace.data?.items).toHaveLength(0);
+		expect((await replay()).report.diverged).toBe(false);
+		await kernel.dispose();
+	});
+
+	it('P2-E4: narrows a workspace-only app to the workspace, with a project active', async () => {
+		const { kernel, journal } = await createAppTestKernel({
+			manifest,
+			definition,
+			scope: { project: 'atlas' },
+		});
+		await kernel.call('greeter-greet', { name: 'Ada' });
+		expect((await journal.read()).at(-1)?.context?.scope).toEqual({ workspace: 'personal' });
 		await kernel.dispose();
 	});
 

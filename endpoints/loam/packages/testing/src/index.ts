@@ -10,7 +10,7 @@
 import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import {
 	type AppDetailV1,
-	type AppPortV1,
+	type AppPortV2,
 	LoamKernelError,
 	type LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
@@ -22,7 +22,7 @@ import {
 	type ReplayKernelResult,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import type { AppDefinitionV1, ManifestV1, ManifestV2 } from '@lushly-dev/loam-sdk';
+import type { AppDefinitionV1, ManifestV2 } from '@lushly-dev/loam-sdk';
 import { type RegistryScope, watchGlobalRegistry } from './global-registry.js';
 
 const SANDBOX_ORIGIN = 'https://sandbox.loam.test';
@@ -57,11 +57,16 @@ export interface AppTestKernelOptions {
 	grants?: readonly string[];
 	/** The deployment entry's `config`. */
 	config?: Record<string, unknown>;
+	/**
+	 * Run in a project: the kit creates it, with this slug, and makes it active, so `port` and every call
+	 * without a scope run there (phase 2 specification, 11.3). Both are journaled, so `replay` holds them.
+	 */
+	scope?: { project?: string };
 }
 
 export interface AppTestKernel {
 	kernel: LoamKernelV2;
-	port: AppPortV1;
+	port: AppPortV2;
 	journal: MemoryJournalSink;
 	/** Replay everything journaled so far on a fresh kernel; it throws on any difference. */
 	replay(): Promise<ReplayKernelResult>;
@@ -84,17 +89,14 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 	const definition = await definitionOf(options.definition);
 	refuseGlobalDefinitions();
 
-	// Kernel interface 1 holds a `ManifestV1` (phase 2 specification, 8.1), as `forInterfaceOne` in
-	// `@lushly-dev/loam-manifest` narrows it: the reader refuses every key only version 2 has until its
-	// step, so setting the version is all the narrowing there is.
-	const read =
+	// Kernel interface 2 holds a `ManifestV2` as the reader returns it (phase 2 specification, 8.1).
+	const manifest =
 		options.grants === undefined
 			? options.manifest
 			: {
 					...options.manifest,
 					grants: options.manifest.grants?.filter((grant) => options.grants?.includes(grant.name)),
 				};
-	const manifest = { ...read, manifest_version: 1 } as ManifestV1;
 	const { kind, id } = manifest.plugin;
 	if (kind === 'mounted') {
 		throw new LoamKernelError({
@@ -132,7 +134,22 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 		clock: createSteppingClock(),
 		random: createSeededRandom(id),
 	});
-	let port: AppPortV1;
+	if (options.scope?.project !== undefined) {
+		const slug = options.scope.project;
+		const created = await kernel.call<{ id: string }>('project-create', { name: slug, slug });
+		const set = created.data
+			? await kernel.call('scope-set', { project: created.data.id })
+			: created;
+		if (!set.success) {
+			await kernel.dispose();
+			throw new LoamKernelError({
+				code: 'VALIDATION_ERROR',
+				message: `The kit could not open the project '${slug}': ${set.error?.message ?? ''}`,
+				suggestion: 'Give `scope.project` a project slug, such as atlas',
+			});
+		}
+	}
+	let port: AppPortV2;
 	try {
 		port = kernel.appPort(id);
 	} catch {

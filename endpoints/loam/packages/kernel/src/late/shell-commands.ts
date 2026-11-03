@@ -9,6 +9,7 @@
  * `literals.test.ts` holds the two equal.
  */
 
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import {
 	defineCommandWithSchema,
 	failure,
@@ -27,7 +28,14 @@ import {
 	type AppearanceV0,
 	validateAppearancePatch,
 } from '../appearance.js';
-import { EMPTY_INPUT_JSON, emptyInput, withResolved } from '../boot-commands.js';
+import type { AppsRuntime } from '../apps-runtime.js';
+import {
+	callScope,
+	EMPTY_INPUT_JSON,
+	emptyInput,
+	takesProject,
+	withResolved,
+} from '../boot-commands.js';
 import { PALETTE_SEARCH_LIMIT } from '../commands.js';
 import { kernelFailure } from '../errors.js';
 import {
@@ -44,7 +52,9 @@ import {
 } from '../layout.js';
 import type { OverlayStore } from '../overlays.js';
 import { createPaletteIndex, type PaletteIndex, type PaletteItem } from '../palette-index.js';
-import { APPS_VIEW_STATE_ID, type ShellState } from '../shell-state.js';
+import { actorKey } from '../scope/access.js';
+import type { ScopeRuntime } from '../scope/runtime.js';
+import { APPS_VIEW_STATE_ID, SCOPE_VIEW_STATE_ID, type ShellState } from '../shell-state.js';
 import type {
 	CommandSummaryV1,
 	KernelEnvironmentV0,
@@ -62,7 +72,32 @@ export interface ShellCommandDeps {
 	/** The palette registry's commands, and a number that changes when they do. */
 	paletteRows(): CommandSummaryV1[];
 	commandSet(): number;
+	scope: ScopeRuntime;
+	apps(): AppsRuntime;
 }
+
+/** The project a view-state id holds after `@`, as `loam.layout.tasks@prj_atlas` does (3.4). */
+const projectOfId = (id: string): string | undefined => {
+	const at = id.lastIndexOf('@');
+	return at < 0 ? undefined : id.slice(at + 1);
+};
+
+/** Whether the call's actor may read the record `id`: one holding `@<project>` is that project's (3.4). */
+const mayRead = (id: string, context: CommandContext, deps: ShellCommandDeps): boolean => {
+	const project = projectOfId(id);
+	return (
+		project === undefined ||
+		deps.scope.allows(actorKey(context), { workspace: deps.scope.workspace.id, project })
+	);
+};
+
+/** The answer for an id that was never registered, which a refused one gives too (3.4). */
+const unregistered = (id: string) =>
+	failure({
+		code: 'VIEW_STATE_NOT_FOUND',
+		message: `View state "${id}" is not registered`,
+		suggestion: 'Use view-state-list to see all registered view states',
+	});
 
 const PIXELS = 'In CSS pixels; the handler checks the range';
 const pixels = () => z.optional(z.number()).check(z.describe(PIXELS));
@@ -137,10 +172,21 @@ function partUndeclared(part: LayoutPart) {
 	);
 }
 
-/** `loam.layout` means the active owner's record; a real id means itself (4.5). */
-function layoutRecordId(id: string, deps: ShellCommandDeps): string {
-	return id === LAYOUT_VIEW_STATE_ID ? deps.state.layoutId() : id;
+/**
+ * `loam.layout` means the active owner's record at the call's scope; a real id means itself (4.5; phase
+ * 2 specification, 3.4).
+ */
+async function layoutRecordId(
+	id: string,
+	context: CommandContext,
+	deps: ShellCommandDeps
+): Promise<string> {
+	return id === LAYOUT_VIEW_STATE_ID ? scopedLayout(context, deps) : id;
 }
+
+/** The record `layout-*` reads and writes: `context.scope`'s, not the active scope's (3.4). */
+const scopedLayout = (context: CommandContext, deps: ShellCommandDeps): Promise<string> =>
+	deps.state.scopedLayoutId(callScope(context).project, takesProject(deps.apps));
 
 /**
  * `view-state-get` reading `loam.layout` from the active owner's record, and answering under the id
@@ -155,7 +201,8 @@ function routeViewStateGet(
 		...command,
 		async handler(input, context) {
 			const { id } = input as { id: string };
-			const result = await original({ id: layoutRecordId(id, deps) }, context);
+			if (!mayRead(id, context, deps)) return unregistered(id);
+			const result = await original({ id: await layoutRecordId(id, context, deps) }, context);
 			return result.success ? { ...result, data: { ...(result.data as object), id } } : result;
 		},
 	};
@@ -180,14 +227,17 @@ function guardViewStateSet(
 				state: Record<string, unknown>;
 				replace?: boolean;
 			};
-			if (id === APPS_VIEW_STATE_ID) {
+			if (id === APPS_VIEW_STATE_ID || id === SCOPE_VIEW_STATE_ID) {
 				return kernelFailure(
 					'VIEW_STATE_READ_ONLY',
-					`'${APPS_VIEW_STATE_ID}' cannot be written through view-state-set`,
-					'Use app-open or app-close, which also apply the overlay and surface rules'
+					`'${id}' cannot be written through view-state-set`,
+					id === SCOPE_VIEW_STATE_ID
+						? 'Use scope-set, which also applies the switch rules'
+						: 'Use app-open or app-close, which also apply the overlay and surface rules'
 				);
 			}
-			const recordId = layoutRecordId(id, deps);
+			if (!mayRead(id, context, deps)) return unregistered(id);
+			const recordId = await layoutRecordId(id, context, deps);
 			if (isLayoutId(recordId)) {
 				const current = deps.state.layoutOf(recordId);
 				if (current) {
@@ -237,16 +287,16 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		executionTime: 'instant',
 		input: layoutPatchInput,
 		jsonSchema: LAYOUT_PATCH_JSON,
-		async handler(input) {
-			const previous = state.layout();
+		async handler(input, context) {
+			const id = await scopedLayout(context, deps);
+			const previous = state.layoutOf(id) as LayoutStateV0;
 			const patch = input as LayoutPatchV0;
 			const checked = validateLayoutPatch(previous, patch);
 			if (!checked.valid) return failure(checked.error);
-			const id = state.layoutId();
 			const undeclared = undeclaredOpening(patch, state.declaredParts(id));
 			if (undeclared) return partUndeclared(undeclared);
 			viewState.set(id, patch as Record<string, unknown>);
-			return success(state.layout(), {
+			return success(state.layoutOf(id) as LayoutStateV0, {
 				undoCommand: 'layout-set',
 				undoArgs: layoutUndoPatch(previous, patch) as Record<string, unknown>,
 			});
@@ -263,13 +313,11 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		async handler() {
-			const previous = state.layout();
-			viewState.replace(
-				state.layoutId(),
-				state.layoutInitial() as unknown as Record<string, unknown>
-			);
-			return success(state.layout(), {
+		async handler(_input, context) {
+			const id = await scopedLayout(context, deps);
+			const previous = state.layoutOf(id) as LayoutStateV0;
+			viewState.replace(id, state.layoutInitial() as unknown as Record<string, unknown>);
+			return success(state.layoutOf(id) as LayoutStateV0, {
 				undoCommand: 'layout-set',
 				undoArgs: layoutAsPatch(previous) as Record<string, unknown>,
 			});
@@ -391,7 +439,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			return success({
 				kernelInterface: 2 as const,
 				layoutState: 0 as const,
-				storeInterface: 0 as const,
+				storeInterface: 1 as const,
 				tokenContract: 1 as const,
 				manifestVersion: 2 as const,
 				appProtocol: 1 as const,
@@ -404,10 +452,22 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
+	const list = viewStateList as unknown as ZodCommandDefinition;
 	return [
 		routeViewStateGet(viewStateGet as unknown as ZodCommandDefinition, deps),
 		guardViewStateSet(viewStateSet as unknown as ZodCommandDefinition, deps),
-		viewStateList as unknown as ZodCommandDefinition,
+		{
+			...list,
+			// A record of a project the actor may not enter is left out (3.4).
+			async handler(input: unknown, context: CommandContext) {
+				const result = (await list.handler(input, context)) as CommandResult<{
+					states: Array<{ id: string }>;
+				}>;
+				if (!result.success || !result.data) return result;
+				const states = result.data.states.filter(({ id }) => mayRead(id, context, deps));
+				return { ...result, data: { states, total: states.length } };
+			},
+		},
 		layoutSet,
 		layoutReset,
 		appearanceSet,

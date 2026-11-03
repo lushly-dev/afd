@@ -12,6 +12,7 @@ import {
 	type AppDefinitionV1,
 	type AppStoreV1,
 	defineApp,
+	type ScopeV1,
 } from '@lushly-dev/loam-sdk';
 import { mulberry32 } from '@lushly-dev/loam-sdk/view';
 import type { LoamKernelError } from './errors.js';
@@ -294,6 +295,7 @@ interface FrameCallContext {
 	randomSeed?: number;
 	config: Readonly<Record<string, unknown>>;
 	grants: string[];
+	scope?: ScopeV1;
 }
 
 /** What `serveHandlers` does over `postMessage`, in process. */
@@ -307,7 +309,7 @@ export function inProcessFrame(definition: AppDefinitionV1): HandlerFrameV1 {
 		},
 		close() {},
 		async call({ callId, command, input, context }) {
-			const { traceId, now, randomSeed, config, grants } = context as FrameCallContext;
+			const { traceId, now, randomSeed, config, grants, scope } = context as FrameCallContext;
 			const request = (op: string, rest: Record<string, unknown>) =>
 				answer('dev.loam/store', { callId, op, ...rest });
 			const store: AppStoreV1 = {
@@ -338,13 +340,17 @@ export function inProcessFrame(definition: AppDefinitionV1): HandlerFrameV1 {
 				return await handler(input, {
 					traceId,
 					config,
+					scope: scope ?? { workspace: '' },
 					client: {
-						async call<T>(name: string, args?: unknown) {
+						async call<T>(name: string, args?: unknown, options?: { level?: 'workspace' }) {
 							try {
 								const reply = (await answer('tools/call', {
 									name,
 									arguments: args ?? {},
-									_meta: { 'dev.loam/call': callId },
+									_meta: {
+										'dev.loam/call': callId,
+										...(options?.level ? { 'dev.loam/level': options.level } : {}),
+									},
 								})) as { structuredContent: CommandResult<T> };
 								return reply.structuredContent;
 							} catch (cause) {

@@ -6,11 +6,13 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { createDirectRegistry } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterAll, describe, expect, it } from 'vitest';
 import { config } from 'zod/v4/core';
 import en from 'zod/v4/locales/en.js';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
+import { createScopeRuntime } from '../scope/runtime.js';
 import { registerShellState } from '../shell-state.js';
 import { createOverlayStore, shellCommandsWithLate } from './index.js';
 
@@ -65,19 +67,27 @@ function registry() {
 	const auth = new MockAuthAdapter();
 	const environment = { matches: () => false, onChange: () => () => {} };
 	const apps = () => EMPTY_APPS;
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
 	return createDirectRegistry(
-		shellCommandsWithLate(createBootCommands({ state, environment, auth, apps }), {
-			viewState,
-			state,
-			environment,
-			auth,
-			host: 'test',
-			storeKind: 'memory',
-			overlays: createOverlayStore(),
-			apps,
-			paletteRows: () => [],
-			commandSet: () => 0,
-		})
+		shellCommandsWithLate(
+			createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] }),
+			{
+				viewState,
+				state,
+				environment,
+				auth,
+				host: 'test',
+				storeKind: 'memory',
+				overlays: createOverlayStore(),
+				apps,
+				paletteRows: () => [],
+				commandSet: () => 0,
+				scope,
+				store: new MemoryAdapter(),
+				generation: () => 'test',
+				isMutation: () => false,
+			}
+		)
 	);
 }
 

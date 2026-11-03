@@ -19,7 +19,7 @@ import type { AppKeybinding } from './keybindings.js';
 import type {
 	AppDetailV1,
 	AppInstanceV1,
-	AppPortV1,
+	AppPortV2,
 	AppSummaryV2,
 	CommandSummaryV1,
 } from './types.js';
@@ -51,7 +51,13 @@ export interface AppsRuntime {
 	 *
 	 * @throws LoamKernelError `APP_NOT_FOUND` or `APP_NOT_READY`
 	 */
-	port(instance: string): AppPortV1;
+	port(instance: string): AppPortV2;
+	/** The levels of the app owning `name`, or undefined for a command no app owns (phase 2 specification, 3.4). */
+	scopeLevelsOf(name: string): ReadonlyArray<'workspace' | 'project'> | undefined;
+	/** The input property `app.resource_keys` names for `name`, with its owner (3.5). */
+	resourceKeyOf(name: string): { instance: string; property: string } | undefined;
+	/** A change of scope clears every selection (4.3). */
+	clearSelections(): void;
 	/** After hydration: close what a record persisted before its manifest dropped a part. */
 	reconcileLayouts(): void;
 	/** The mounted instances, for `startInstances`. */
@@ -83,6 +89,10 @@ export interface AppsRuntime {
 	dispose(): Promise<void>;
 }
 
+/** The rail's order: `order`, then the instance (phase 2 specification, 7.3). */
+export const byOrder = (a: AppSummaryV2, b: AppSummaryV2): number =>
+	a.order - b.order || (a.instance < b.instance ? -1 : 1);
+
 /** The answer for an instance no deployment lists. */
 export function unknownApp(instance: string): CommandResult<never> {
 	return kernelFailure(
@@ -105,6 +115,9 @@ export const EMPTY_APPS: AppsRuntime = Object.freeze({
 		});
 	},
 	reconcileLayouts() {},
+	scopeLevelsOf: () => undefined,
+	resourceKeyOf: () => undefined,
+	clearSelections() {},
 	mountedInstances: () => [],
 	summaries: () => [],
 	detail: unknownApp,
@@ -182,11 +195,11 @@ export function bootApps(boot: BootProjectionV2, options: BootAppsOptions = {}):
 				...(error !== undefined ? { error } : {}),
 				scopeLevels: [...app.scopeLevels],
 				rail: app.rail,
-				// No project is active until step 4.
-				available: app.scopeLevels.includes('workspace'),
+				// The kernel reads it against the active scope (phase 2 specification, 7.1).
+				available: true,
 			};
 		})
-		.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1));
+		.sort(byOrder);
 	return {
 		...EMPTY_APPS,
 		port(instance) {

@@ -4,8 +4,8 @@ import { defineCommand, success, type ZodCommandDefinition } from '@lushly-dev/a
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { SHELL_COMMAND_NAMES } from './commands.js';
 import { createKernel } from './kernel.js';
+import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment } from './testing.js';
 
 // What `readBoot` reads of the empty shell's `deployment.json` (phase 2 specification, 2.2).
@@ -30,7 +30,14 @@ function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
 	};
 }
 
-const BOOT_NAMES = ['layout-get', 'appearance-get', 'auth-session-get', 'app-list'];
+const BOOT_NAMES = [
+	'layout-get',
+	'appearance-get',
+	'auth-session-get',
+	'app-list',
+	'scope-get',
+	'section-get',
+];
 
 describe('stage A and stage B', () => {
 	it('holds only the boot commands until stage B runs', async () => {

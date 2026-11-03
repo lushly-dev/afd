@@ -4,17 +4,22 @@
  * answer an empty list.
  */
 
-import { type CommandContext, success } from '@lushly-dev/afd-core';
+import { type CommandContext, type CommandResult, success } from '@lushly-dev/afd-core';
 import {
 	defineCommandWithSchema,
 	type JsonSchema,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
+import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import * as z from 'zod/mini';
 import type { AppCommandRowV1, AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
+import { kernelFailure } from '../errors.js';
+import type { ScopeRuntime } from '../scope/runtime.js';
+import type { ShellState } from '../shell-state.js';
 import type { AppDetailV1, AppInstanceV1 } from '../types.js';
+import { disabled, setMain } from './main-state.js';
 
 const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
 const instanceInput = z.strictObject({ instance: instanceName });
@@ -37,10 +42,24 @@ const INSTANCE_INPUT_JSON: JsonSchema = {
 
 export interface AppCommandDeps {
 	apps(): AppsRuntime;
+	scope: ScopeRuntime;
+	state: ShellState;
+	viewState: ViewStateRegistry;
 }
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
-	const { apps } = deps;
+	const { apps, scope } = deps;
+	/** A change of what main shows moves the URL (phase 2 specification, 6.3). */
+	const moved = (
+		result: CommandResult<{ active: string | null; previous: string | null }>,
+		context: CommandContext
+	) => {
+		if (result.success && result.data?.active !== result.data?.previous) {
+			setMain(deps.viewState, { section: null, path: '' });
+			scope.note(context.traceId, { mainChanged: 'push' });
+		}
+		return result;
+	};
 
 	const appGet = defineCommandWithSchema<typeof instanceInput, AppDetailV1>({
 		name: 'app-get',
@@ -66,7 +85,24 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: async (input) => apps().open(input.instance),
+		async handler(input, context) {
+			const { instance } = input;
+			const app = apps()
+				.summaries()
+				.find((candidate) => candidate.instance === instance);
+			if (app && disabled(scope, instance)) {
+				return kernelFailure(
+					'APP_DISABLED',
+					`The app '${instance}' is disabled in this workspace`,
+					`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
+				);
+			}
+			// A dimmed entry: a project-only app with no project (phase 2 specification, 7.1).
+			if (app && !app.scopeLevels.includes('workspace') && scope.active().project === undefined) {
+				return kernelFailure('SCOPE_PROJECT_REQUIRED', 'Open a project first', 'Run scope-set');
+			}
+			return moved(apps().open(instance), context);
+		},
 	});
 
 	const appClose = defineCommandWithSchema<
@@ -82,7 +118,8 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		handler: async () => apps().close(),
+		handler: async (_input, context) =>
+			moved(apps().close(), context) as CommandResult<{ active: null; previous: string | null }>,
 	});
 
 	const appCommandList = defineCommandWithSchema<
