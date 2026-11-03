@@ -1,0 +1,33 @@
+{
+	"type": "object",
+	"required": ["id", "reason"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"id": {
+			"type": "string",
+			"description": "The record's id"
+		},
+		"at": {
+			"type": "string",
+			"description": "When the statement stopped holding, RFC 3339, after its validFrom and not after now; default: now"
+		},
+		"reason": {
+			"enum": ["wrong", "outdated", "duplicate", "other"],
+			"description": "wrong: it never held; outdated: it stopped holding; duplicate: another record says it"
+		},
+		"note": {
+			"type": "string",
+			"maxLength": 500,
+			"description": "Why, at most 500 characters. Secrets are masked"
+		},
+		"expectVersion": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "Refuse with MEMORY_CONFLICT unless this is the record's current version"
+		}
+	}
+}

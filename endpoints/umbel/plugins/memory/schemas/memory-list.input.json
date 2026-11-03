@@ -1,0 +1,89 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"project": {
+			"type": "string",
+			"description": "A project label: its records and the records with no project"
+		},
+		"projectOnly": {
+			"type": "boolean",
+			"default": false,
+			"description": "With project: only that project's records, not the records with no project"
+		},
+		"classes": {
+			"type": "array",
+			"maxItems": 3,
+			"items": {
+				"enum": ["episodic", "semantic", "procedural"]
+			},
+			"description": "Only these classes; default: every class"
+		},
+		"tags": {
+			"type": "array",
+			"maxItems": 32,
+			"items": {
+				"type": "string",
+				"minLength": 1,
+				"maxLength": 64
+			},
+			"description": "Only records with every one of these tags"
+		},
+		"session": {
+			"type": "string",
+			"description": "Only this session's records"
+		},
+		"agent": {
+			"type": "string",
+			"description": "Only records written by the agent with this id"
+		},
+		"mine": {
+			"type": "boolean",
+			"default": false,
+			"description": "Only your own records; default: every record you can read"
+		},
+		"authorities": {
+			"type": "array",
+			"maxItems": 5,
+			"items": {
+				"enum": ["person", "agent", "tool", "transcript", "import"]
+			},
+			"description": "Only records with these authorities; how to pull what a session-start bundle left out"
+		},
+		"asOf": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "Read as of these instants, RFC 3339; each defaults to now",
+			"properties": {
+				"valid": {
+					"type": "string",
+					"description": "When the statements held (valid time)"
+				},
+				"recorded": {
+					"type": "string",
+					"description": "When the store believed them (recorded time)"
+				}
+			}
+		},
+		"includeExpired": {
+			"type": "boolean",
+			"default": false,
+			"description": "Also return expired records not yet purged"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 50,
+			"default": 10,
+			"description": "At most this many"
+		},
+		"after": {
+			"type": "string",
+			"description": "The next cursor of the previous page"
+		}
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"removeOrphans": {
+			"type": "boolean",
+			"default": false,
+			"description": "Also remove key entries with no record. Only on the database you mean to keep: on a restored older copy they are the keys of later records"
+		}
+	}
+}

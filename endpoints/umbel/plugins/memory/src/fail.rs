@@ -92,6 +92,12 @@ fn suggestion(code: &str) -> &'static str {
             "Call as an actor with an id, or acting for a person, so the record has an owner."
         }
         "MEMORY_TTL_TOO_LONG" => "Pass a shorter ttlDays, or leave it out.",
+        "MEMORY_CONFIRM_NOT_ALLOWED" => {
+            "Only a person at a terminal confirms, with umbel call memory-confirm and no --yes, no --approve and no agent environment variable; and only their own records."
+        }
+        "MEMORY_FORGET_HUMAN_REQUIRED" => {
+            "Forget by ids, which memory-list returns; a forget by session, project or time needs a person at a terminal, without --yes."
+        }
         "SPACE_NOT_READABLE" => "Ask the workspace owner to add you to the space's readers.",
         "STORE_WRITE_NOT_ALLOWED" => {
             "Allow the memory plugin's memory_write grant for this space in umbel.toml."

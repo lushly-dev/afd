@@ -11,21 +11,37 @@
 //!   identity, the authority (`person` only after the terminal prompt) and the access set;
 //! - `memory-capture` writes one window of a harness session by the capture contract, version 1:
 //!   always private, authority `transcript` or `agent`;
+//! - `memory-recall` ranks what the caller can read against a query, and `memory-list` lists it
+//!   newest first with a cursor, both under the filters and project rule of section 8.4 and the
+//!   two instants of section 4.1;
 //! - `memory-show` reads one record as `memory-record.v1.json`, labeled with its state;
+//! - `memory-invalidate` closes a record's validity with a new version, and `memory-confirm`
+//!   (a person at a terminal, own records only) gives it authority `person`;
+//! - `memory-forget` erases the caller's own records, by id or, for a person, by selector;
+//! - `memory-sweep` purges what is past its purge date and `memory-reindex` rebuilds the lexical
+//!   lane, removing orphan keys only when asked;
 //! - `memory-status` counts what the caller can read, its usage and quota, the key file's state,
 //!   and how many of its records the default push admits.
 //!
 //! Recorded text is untrusted content: it appears only in JSON string fields labeled `trust:
 //! "content"`, and never in a message, warning, reasoning or log line (D67). Every command is
-//! journaled as a digest except `memory-status`, which holds no text.
+//! journaled as a digest except `memory-status`, `memory-sweep` and `memory-reindex`, which hold
+//! no text.
 #![forbid(unsafe_code)]
 
 mod budget;
 mod capture;
+mod confirm;
 mod fail;
+mod filters;
+mod forget;
 mod hygiene;
+mod invalidate;
+mod list;
+mod maintain;
 mod pipeline;
 mod policy;
+mod recall;
 mod remember;
 mod show;
 mod status;
@@ -58,12 +74,19 @@ impl Plugin for Memory {
         match name {
             "memory-remember" => remember::run(&input, cx),
             "memory-capture" => capture::run(&input, cx),
+            "memory-recall" => recall::run(&input, cx),
+            "memory-list" => list::run(&input, cx),
             "memory-show" => show::run(&input, cx),
+            "memory-invalidate" => invalidate::run(&input, cx),
+            "memory-confirm" => confirm::run(&input, cx),
+            "memory-forget" => forget::run(&input, cx),
+            "memory-sweep" => maintain::sweep(&input, cx),
+            "memory-reindex" => maintain::reindex(&input, cx),
             "memory-status" => status::run(&input, cx),
             other => failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the memory plugin has no command `{other}`"),
-                "Call memory-remember, memory-capture, memory-show or memory-status.",
+                "Call one of the memory plugin's commands; memory-guide lists them.",
             ),
         }
     }

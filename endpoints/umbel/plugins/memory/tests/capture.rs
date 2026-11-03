@@ -1,7 +1,7 @@
 //! `memory-capture` (sections 8.3 and 10.1): contract validation, the field map, classes, caps
 //! and whole-call refusal, idempotency, authority `transcript` from the CLI and the library and
 //! `agent` from MCP, always private, a key used first by another owner or authority has no
-//! effect, artifacts without bytes.
+//! effect, artifacts without bytes, and a capture refused under a prefix a forget erased.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -312,4 +312,36 @@ async fn secrets_are_masked_and_injections_flagged_in_captured_text() {
     );
     let episode = fx.record(d["records"][0].as_str().unwrap()).await;
     assert_eq!(episode["flags"], json!(["instruction-like"]));
+}
+
+#[tokio::test]
+async fn a_capture_under_an_erased_prefix_is_refused_and_is_not_an_error() {
+    let fx = Fx::new();
+    let first = fx
+        .person("memory-capture", window("claude-code:s-81:w3:p0"))
+        .await;
+    let ids = data(&first)["records"].clone();
+    let forgotten = fx.person("memory-forget", json!({ "ids": ids })).await;
+    assert_eq!(data(&forgotten)["erased"], 4, "{forgotten}");
+    let events = fx.events("main").len();
+    // The same window again, under a new idempotency key (a tail, or the closed window): the
+    // forget erased its capture key, so nothing is written and the hook treats it as done.
+    let again = fx
+        .person("memory-capture", window("claude-code:s-81:w3:p1"))
+        .await;
+    let d = data(&again);
+    assert_eq!(d["refused"], 4, "{again}");
+    assert_eq!(
+        (d["created"].as_u64(), d["observed"].as_u64()),
+        (Some(0), Some(0))
+    );
+    assert_eq!(d["records"], json!([]));
+    assert!(d["captureId"].as_str().unwrap().starts_with("cap-"));
+    assert_eq!(
+        fx.events("main").len(),
+        events,
+        "a refused capture makes no event"
+    );
+    let status = fx.person("memory-status", json!({})).await;
+    assert_eq!(data(&status)["counts"]["total"], 0, "{status}");
 }

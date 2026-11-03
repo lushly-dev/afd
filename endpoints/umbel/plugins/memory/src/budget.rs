@@ -5,7 +5,7 @@
 //! cuts a JSON value in the middle. AFD's own check after the handler is the backstop: a result
 //! that still does not fit is refused as `OUTPUT_BUDGET_EXCEEDED`, never truncated.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use umbel_sdk::Outcome;
 
 /// The bytes AFD measures: the UTF-8 length of the result's canonical JSON without its
@@ -66,4 +66,16 @@ pub(crate) fn fit_count(
         }
     }
     (low, build(low))
+}
+
+/// `RESULTS_LIMITED` when `omitted` `what` were left out to fit the budget; else unchanged.
+pub(crate) fn limited(outcome: Outcome, omitted: usize, what: &str) -> Outcome {
+    if omitted == 0 {
+        return outcome;
+    }
+    outcome.with_warning_details(
+        "RESULTS_LIMITED",
+        &format!("{omitted} {what} were left out to fit the output budget; ask for fewer"),
+        json!({ "omitted": omitted }),
+    )
 }

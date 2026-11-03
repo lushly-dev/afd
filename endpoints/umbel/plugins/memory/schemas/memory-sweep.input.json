@@ -1,0 +1,17 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 10000,
+			"default": 1000,
+			"description": "Purge at most this many records"
+		}
+	}
+}
