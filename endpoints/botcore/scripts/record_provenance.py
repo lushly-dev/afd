@@ -123,25 +123,7 @@ IMPORT_REASONS = {
         "Ground the file-length target in cohesion rather than context-window size"
     ),
     "src/botcore/skills/skill-manager/SKILL.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/architecture.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/skills-specification.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/linter-rules.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/format.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/resource-scripts.md": (
-        "Align skill body size guidance with the SK009 character threshold"
-    ),
-    "src/botcore/skills/skill-manager/references/hooks.md": (
-        "Restrict the example file-size hook to code files at the error threshold"
+        "Rewrite skill authoring for current models; drop legacy references and trigger lists"
     ),
     "src/botcore/skills/dev-checks/references/troubleshooting.md": (
         "State the configured file-size thresholds instead of a 300-line target"

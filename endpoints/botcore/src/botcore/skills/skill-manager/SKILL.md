@@ -2,228 +2,75 @@
 name: skill-manager
 source: botcore
 description: >
-  Create, maintain, and validate agent skills following the Agent Skills open standard (agentskills.io). Covers SKILL.md format, frontmatter fields (open standard + Claude Code extensions), progressive disclosure, hooks, resource scripts, naming conventions, routing tables, and automated quality checks. Use when creating new skills, auditing existing skills, fixing lint errors, adding hooks to skills, or writing resource scripts for deterministic offloading. Triggers: create skill, new skill, skill lint, audit skills, SKILL.md, hooks, resource scripts, progressive disclosure, Agent Skills, open standard, skill architecture, deterministic offloading.
-
-version: 3.0.0
-triggers:
-  - create skill
-  - new skill
-  - skill lint
-  - audit skills
-  - skill template
-  - skill-manager
-  - SKILL.md
-  - skill best practices
-  - hooks
-  - resource scripts
-  - progressive disclosure
-  - Agent Skills
-  - open standard
-  - deterministic offloading
-  - subagents
+  Write, trim and check agent skills (SKILL.md) so each carries only what an
+  agent would otherwise get wrong. Use when creating, auditing or rewriting a
+  skill, or deciding whether guidance belongs in a skill at all.
+version: 4.0.0
 portable: true
 ---
 
-# Skill Manager
+# Skill manager
 
-Expert guidance for creating, maintaining, and validating agent skills across projects and platforms (Claude Code, VS Code Copilot, Copilot CLI, Cursor, and other Agent Skills-compatible tools).
+A skill earns its place only if it changes what the agent does. Current models already know general engineering practice, so write the difference: what is specific to this codebase, product or workflow, and what the agent gets wrong without being told.
 
-## Capabilities
+## Decide whether it should be a skill
 
-1. **Create Skills** — Generate new skills with proper structure and metadata
-2. **Lint Skills** — Automated validation against quality rules
-3. **Maintain Skills** — Update, refactor, and organize existing skills
-4. **Distributed Architecture** — Manage skills across multiple repositories and scopes
-5. **Hook Integration** — Add guardrail and janitor hooks to skills
-6. **Resource Scripts** — Deterministic offloading for parsing, linting, and API calls
+Belongs in a skill:
+- Facts the agent can't derive: internal APIs, paths, contracts, and house decisions with their reasons.
+- Gotchas that have actually happened. These are usually the most valuable lines.
+- A workflow specific to this repository, with its stop conditions and checkers.
+- Deterministic helpers (scripts, schemas) that replace guesswork.
 
-## Quick Commands
+Belongs somewhere else:
+- **Textbook knowledge** (OWASP lists, REST naming, Git basics, testing pyramids): delete it.
+- **A rule that must hold every time**: make it a hook, permission rule, lint rule or CI check.
+- **A fact every session needs**: put it in AGENTS.md, and keep that file small. Each line there costs every session.
+- **Content another file already owns** (a spec, a design doc, a command's `--help`): link to it. Copies drift.
+- **A copy of a public skill**: install the plugin instead.
 
-Each repo provides a skill linter via its own CLI or MCP server. Check your repo's **AGENTS.md** for the exact command.
+Test each line with one question: would the agent get this wrong without it? If not, cut the line.
 
-```bash
-# Typical patterns (replace <cli> with your repo's command)
-<cli> skill-lint .claude/skills              # Lint all skills
-<cli> skill-lint .claude/skills/my-skill     # Lint single skill
-<cli> skill-lint .claude/skills --strict     # Warnings = errors
-```
+## Write the description
 
-## Routing Logic
+The description is how agents choose a skill, and every description in a repository shares one listing budget. Claude Code allows about 1% of the context window and drops descriptions, starting with the least-used skills, when the listing overflows. Codex does something similar. A long description pushes other skills out of view.
 
-| Request type | Load reference |
-|--------------|----------------|
-| SKILL.md format, frontmatter syntax | [references/format.md](references/format.md) |
-| Routing tables, progressive loading | [references/routing.md](references/routing.md) |
-| Description writing, trigger keywords | [references/descriptions.md](references/descriptions.md) |
-| Reference file organization | [references/reference-files.md](references/reference-files.md) |
-| Skill architecture, folder structure | [references/architecture.md](references/architecture.md) |
-| Multi-repo skill distribution, scopes | [references/distributed-skills.md](references/distributed-skills.md) |
-| Linter rules and fixes | [references/linter-rules.md](references/linter-rules.md) |
-| Full technical specification | [references/skills-specification.md](references/skills-specification.md) |
-| Hook integration (guardrails, janitors) | [references/hooks.md](references/hooks.md) |
-| Resource scripts, deterministic offloading | [references/resource-scripts.md](references/resource-scripts.md) |
+- **Content:** one or two sentences. Say what the skill does, then "Use when ..." with the situations and a phrase or two a user would actually type.
+- **Near-neighbours:** if a similar skill exists, say when not to use this one.
+- **Length:** aim for under 300 characters. The open standard's hard limit is 1,024.
+- **No keyword lists:** no `triggers:` arrays and no "Triggers: a, b, c" strings. Hosts don't read the arrays, and the strings spend budget without improving selection.
 
-## Core Principles
+## Write the body
 
-### 1. Progressive Disclosure (Three Stages)
+**Size and structure**
+- Put the critical content first. After compaction, Claude Code keeps only the first ~5,000 tokens of an invoked skill.
+- Stay under 500 lines.
+- Move lookup material into `references/`, one level deep. Link each file and say when to read it.
 
-Skills load content in stages to optimize context token usage:
+**How much to prescribe**
+- State the goal and the constraints. Give exact steps only where a step is fragile or the order matters.
+- Offer one default rather than a menu.
+- Give the reason in a clause instead of writing ALWAYS, NEVER or MUST in capitals; current models over-apply emphatic rules. Keep absolute wording for real invariants, and enforce those mechanically where possible.
 
-| Stage | What loads | When | Budget |
-|-------|-----------|------|--------|
-| **Discovery** | Frontmatter only (name, description) | Session start — all skills | ~30 tokens per skill |
-| **Brain** | SKILL.md body | When skill is triggered | SK009 warns above 50,000 chars |
-| **Resources** | References, scripts, assets | When explicitly needed | No limit |
+**What to leave out**
+- Persona lines, capability lists that restate the description, and generic checklists.
+- "When to escalate" boilerplate.
+- Instructions to "be thorough" or "verify everything". Current models already do this, and these lines cause over-work.
+- Dated version, model or price tables.
 
-Design for minimal initial context, with deep references on-demand. The total description budget across all skills is ~2% of the context window (~16K chars fallback).
+**Sources and helpers**
+- For facts that change, point at their single source (a command such as `pnpm verify`, a spec, a generated file) rather than copying them.
+- Put deterministic work (parsing, counting, validation) in scripts. Print results to stdout and recovery advice to stderr.
 
-### 2. Distributed Architecture
+## Check that it earns its place
 
-> **Product-specific skills live with their product; general skills live in a shared location.**
+- **Before writing:** run the task without the skill, note what goes wrong, and write only enough to fix that.
+- **After a rewrite:** rerun two or three real tasks with the old and new text. Compare the result, tokens and time, and drop content whose removal changes nothing.
+- **Triggering:** for skills the model invokes itself, try about 20 realistic prompts, half of them near-misses that shouldn't trigger. Anthropic's skill-creator plugin automates trigger evaluation and description tuning.
+- **Retirement:** retire a skill once the model does the task as well without it. It can be rebuilt when it has something specific to say.
 
-Skills resolve by scope priority: Enterprise > Personal (`~/.claude/skills/`) > Project (`.claude/skills/`) > Plugin.
+## Botcore specifics
 
-```
-~/.claude/skills/                 # Personal (all projects)
-├── problem-solver/
-└── researcher/
-
-project-a/.claude/skills/         # Project-specific
-└── domain-logic/
-
-project-b/.claude/skills/         # Project-specific
-└── data-pipeline/
-```
-
-### 3. Naming Convention
-
-**Format rules:**
-
-| Pattern | Example | Rule |
-|---------|---------|------|
-| Lowercase + hyphens | `problem-solver` | Required (open standard) |
-| Match parent directory | `commit/SKILL.md` → `name: commit` | Required |
-| No consecutive hyphens | `my-skill` (not `my--skill`) | Required |
-| Max 64 characters | — | Required |
-| Noun-first | `code-reviewer` (not `review-code`) | Required |
-
-**Naming tiers — the suffix signals what kind of help the skill provides:**
-
-| Suffix | Meaning | Examples |
-|--------|---------|---------|
-| *(bare noun)* | Action — does the thing | `commit`, `pr`, `release`, `hotfix`, `review` |
-| `-role` (`-er`/`-or`) | Agent — works with you actively | `code-reviewer`, `mcp-builder`, `test-writer`, `security-auditor` |
-| `-learn` | Reference — teaches patterns and guidance | `caching-learn`, `authentication-learn`, `concurrency-learn` |
-
-**How to choose:** Pick the noun (domain) first, then the suffix:
-- Will it *perform an action* when invoked? → bare noun (`commit`, `release`)
-- Will it *actively collaborate* on a task? → noun-role (`code-reviewer`, `problem-solver`)
-- Will it *teach patterns and provide reference*? → noun-learn (`caching-learn`, `state-learn`)
-
-### 4. Deterministic Offloading
-
-> **Never rely on the LLM for deterministic work.** Use resource scripts for regex, parsing, math, API pagination, and data transformation.
-
-Scripts output clean Markdown/JSON to stdout. Recovery instructions go to stderr for the AI.
-
-### 5. Quality Gates
-
-Run the skill linter before committing any skill changes (see AGENTS.md for your repo's command).
-
-## Create a New Skill
-
-### Step 1: Choose Location
-
-- **General skill** (applies to multiple projects) → Shared skills directory
-- **Product-specific** (only for one project) → `{project}/.claude/skills/`
-
-### Step 2: Create Structure
-
-```
-{skills-dir}/{skill-name}/
-├── SKILL.md              # Required: Main entry point
-├── references/           # Optional: Deep-dive documents
-│   └── {topic}.md
-├── scripts/              # Optional: Deterministic helpers
-│   └── {helper}.py
-└── hooks/                # Optional: Guardrail/janitor hooks
-    └── {hook}.sh
-```
-
-### Step 3: Use Template
-
-Copy from `templates/skill.template.md` and fill in:
-- `name:` — Must match the parent directory name
-- `description:` — What it does and when to use it (max 1024 chars)
-- `version:` — Start at "1.0.0"
-- `triggers:` — Keywords for routing (array format)
-
-### Step 4: Validate
-
-Run the skill linter (see AGENTS.md for your repo's command) and fix any errors before committing.
-
-## Frontmatter Reference
-
-### Open Standard Fields (agentskills.io)
-
-```yaml
-name: skill-manager
-description: >               # Required. Max 1024 chars. Routing trigger.
-  What this skill does.
-  Use when building X.
-license: MIT                 # Optional. SPDX identifier
-compatibility: >             # Optional. Max 500 chars. Version/platform notes
-  Claude Code 2.x, VS Code Copilot, Cursor
-metadata:                    # Optional. Key-value pairs
-  author: team-name
-allowed-tools:               # Optional (experimental). Restrict tool access
-  - Read
-  - Grep
-```
-
-### Claude Code Extension Fields
-
-```yaml
-version: "1.0.0"            # Track skill evolution
-triggers:                    # Keywords for routing (array format)
-  - keyword1
-  - keyword2
-portable: true               # Skill used across projects
-context: fork                # Isolate in subagent
-user-invocable: true         # Show in slash-command menu (default: true)
-disable-model-invocation: true  # User-only, removed from model context
-agent: general-purpose       # Agent type (Explore, Plan, general-purpose, custom)
-model: opus                  # Model alias (opus, fable); resolves to the latest version
-argument-hint: "file path"   # Hint for argument placeholder
-hooks:                       # Inline hook definitions
-  - event: PreToolUse
-    matcher: Write
-    command: "${CLAUDE_PLUGIN_ROOT}/hooks/check.sh"
-```
-
-## Linter Rules Summary
-
-| ID | Severity | Rule |
-|----|----------|------|
-| SK001 | Error | Frontmatter required |
-| SK002 | Error | `name:` field required |
-| SK003 | Error | `description:` field required |
-| SK004 | Warning | Name must be lowercase-hyphenated, match dir, no consecutive hyphens |
-| SK005 | Warning | Description < 1024 chars |
-| SK006 | Warning | Include triggers (frontmatter or inline) |
-| SK008 | Error | Linked references must exist |
-| SK010 | Error | No placeholder text |
-| SK011 | Info | Use `{baseDir}` for portable skills |
-| SK012 | Warning | Use `SKILL.md` (uppercase) |
-| SK014 | Warning | No orphan reference files |
-| SK015 | Error | No duplicate names |
-| SK017 | Info | Migrate inline triggers to frontmatter |
-
-Full list: [references/linter-rules.md](references/linter-rules.md)
-
-## When to Escalate
-
-- **Cross-team skill conflicts** — Skills with overlapping domains need governance review
-- **Breaking changes** — Renaming or restructuring skills used by other projects
-- **New patterns** — Novel skill capabilities not covered by existing guidance
-- **Hook security** — Hooks that block tool execution need careful review
+- **Linting:** run `botcore skill-lint <skills-dir>` before committing.
+- **Seeding:** `botcore skill-seed --update` refreshes only skills whose frontmatter says `source: botcore`. A skill without that line counts as locally owned and is skipped, so stripping it silently stops updates.
+- **Versions:** bump `version` when you change a canonical skill, so `botcore skill-status` reports drift in consuming repositories.
+- **Renamed projections:** some repositories project Botcore skills under other names, such as AFD with `skills/exports.json`. Edit the canonical source and regenerate, because the projections are overwritten.

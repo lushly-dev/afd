@@ -13,7 +13,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { projectText, syncProfiles } from './skill-profiles.mjs';
+import { listingCharacters, listingFields, projectText, syncProfiles } from './skill-profiles.mjs';
 
 async function fixture(t) {
 	const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'afd-skill-profile-')));
@@ -34,6 +34,7 @@ async function fixture(t) {
 			afd: {
 				root: '.claude/skills',
 				mirror: '.codex/skills',
+				listingBudget: 1000,
 				projections: [{ name: 'review-code', canonical: 'code-reviewer' }],
 				overrides: [{ name: 'do-commit', canonical: 'commit', owner: 'afd' }],
 				local: ['afd'],
@@ -156,6 +157,76 @@ test('rejects traversal, external paths, symlink resources and redirected mirror
 	await assert.rejects(syncProfiles(root, { write: true }), /Symlink in skill tree/);
 });
 
+test('listing fields follow YAML scalar semantics and fail closed outside the supported subset', () => {
+	const doc = (frontmatter) => `---\n${frontmatter}\n---\nBody.\n`;
+	assert.deepEqual(
+		listingFields(
+			doc(
+				'name: x\ndescription: >\n  Folded first\n  line.\n\n  Second.\nwhen_to_use: "Use when \\"quoted\\"."\ntriggers:\n  - ignored'
+			)
+		),
+		{ description: 'Folded first line.\nSecond.\n', when_to_use: 'Use when "quoted".' }
+	);
+	assert.equal(listingFields(doc('description: >\n  Last field.')).description, 'Last field.');
+	assert.equal(
+		listingFields(doc('description: >-\n  Stripped.\nname: x')).description,
+		'Stripped.'
+	);
+	assert.equal(listingFields(doc('description: |\n  a\n  b\nname: x')).description, 'a\nb\n');
+	assert.equal(listingFields(doc("description: 'It''s plain'")).description, "It's plain");
+	assert.equal(
+		listingFields(doc('description: Plain words # comment\n  continue here')).description,
+		'Plain words continue here'
+	);
+	assert.deepEqual(listingFields('No frontmatter.'), {});
+	for (const unsupported of [
+		'description: >2\n  explicit indent',
+		'description: >+\n  keep',
+		'description: "open\n  quote"',
+		'description:\n  nested: map',
+		'description: >\n  folded\n    more indented',
+	])
+		assert.throws(() => listingFields(doc(unsupported)), /Unsupported|Expected a scalar/);
+});
+
+test('listing characters count description and when_to_use, skip user-only skills and cap descriptions', () => {
+	const doc = (frontmatter) => `---\n${frontmatter}\n---\n`;
+	assert.equal(listingCharacters(doc('description: abc\nwhen_to_use: de'), 's'), 5);
+	assert.equal(listingCharacters(doc('description: abc\ndisable-model-invocation: true'), 's'), 0);
+	assert.equal(listingCharacters(doc('description: abc\ndisable-model-invocation: True'), 's'), 0);
+	assert.equal(listingCharacters(doc('description: abc\ndisable-model-invocation: false'), 's'), 3);
+	assert.equal(listingCharacters('Local guidance without frontmatter.', 's'), 0);
+	assert.throws(
+		() => listingCharacters(doc(`description: ${'x'.repeat(1025)}`), 'long'),
+		/Description over 1024 characters: long/
+	);
+});
+
+test('profiles must declare a listing budget, and an over-budget listing fails before writing', async (t) => {
+	const { root, put, manifest, save } = await fixture(t);
+	const listings = [];
+	await syncProfiles(root, { onListing: (...entry) => listings.push(entry) });
+	assert.deepEqual(listings, [['afd', { characters: 11, budget: 1000, skills: 3 }]]);
+	await put(
+		'.claude/skills/afd/SKILL.md',
+		'---\nname: afd\ndescription: Local AFD guidance\n---\n'
+	);
+	manifest.profiles.afd.listingBudget = 20;
+	await save();
+	await assert.rejects(
+		syncProfiles(root, { write: true }),
+		/over budget for afd: 29 description characters exceed listingBudget 20.*\(largest: afd \(18\), review-code \(11\)\)/
+	);
+	await assert.rejects(readFile(path.join(root, '.claude/skills/review-code/SKILL.md')), {
+		code: 'ENOENT',
+	});
+	for (const invalid of [undefined, 0, 1.5, '100']) {
+		manifest.profiles.afd.listingBudget = invalid;
+		await save();
+		await assert.rejects(syncProfiles(root), /listingBudget must be a positive integer: afd/);
+	}
+});
+
 test('rewrites exact skill identifiers and explicit short invocations, preserving ordinary words and commands', () => {
 	const text =
 		'---\nname: hotfix\n---\nUse `commit` first, then `release patch`. Keep the `hotfix` label, git commit, gh pr review and release notes. See ../code-reviewer/SKILL.md and the code-reviewer skill.\n';
@@ -218,6 +289,12 @@ test('CLI JSON reports freshness and actionable drift with nonzero status, bound
 	const current = run('--json');
 	assert.equal(current.status, 0, current.stderr);
 	assert.deepEqual(JSON.parse(current.stdout), { success: true, changed: [], mode: 'check' });
+	const human = run();
+	assert.equal(human.status, 0, human.stderr);
+	assert.equal(
+		human.stdout,
+		'Skill profiles match canonical sources.\nSkill listing (afd): 11 of 1000 description characters across 3 skills.\n'
+	);
 	await put('bundled/code-reviewer/references/guide.md', 'Canonical drift.');
 	const drift = run('--json', '--check');
 	assert.equal(drift.status, 1, drift.stderr);
