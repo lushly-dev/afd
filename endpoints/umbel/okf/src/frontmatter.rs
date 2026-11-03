@@ -8,6 +8,7 @@
 use std::fmt;
 
 use afd::frontmatter::{self, FrontmatterError};
+use chrono::DateTime;
 use serde_json::{Map, Value};
 use umbel_store::{ByAt, Sensitivity, Status, Tier, Verification, validate_token};
 
@@ -298,6 +299,14 @@ pub fn is_datetime_with_offset(text: &str) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether a document whose `stale_after` (RFC 3339) is `stale_after` is past it at `now_ms`, in
+/// epoch milliseconds: at or before counts. An absent or unparseable value is never stale.
+pub fn is_stale(stale_after: Option<&str>, now_ms: i64) -> bool {
+    stale_after
+        .and_then(|time| DateTime::parse_from_rfc3339(time).ok())
+        .is_some_and(|time| time.timestamp_millis() <= now_ms)
 }
 
 fn by_at(value: &Value) -> Option<ByAt> {

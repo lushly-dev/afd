@@ -7,6 +7,7 @@
 
 use chrono::DateTime;
 use serde_json::{Value, json};
+use umbel_okf::is_stale;
 use umbel_sdk::{Cx, HostError, Outcome, success};
 use umbel_store::{Document, ListQuery, Status, Tier};
 
@@ -96,7 +97,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                     continue;
                 };
                 let mut reasons: Vec<&str> = Vec::new();
-                if wants(REASONS[0]) && past_stale(&document, as_of) {
+                if wants(REASONS[0]) && is_stale(document.stale_after.as_deref(), as_of) {
                     reasons.push(REASONS[0]);
                 }
                 if wants(REASONS[1])
@@ -164,14 +165,6 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         Ok(outcome)
     };
     run().unwrap_or_else(|error| fail::host(&error))
-}
-
-fn past_stale(document: &Document, as_of_ms: i64) -> bool {
-    document
-        .stale_after
-        .as_deref()
-        .and_then(|time| DateTime::parse_from_rfc3339(time).ok())
-        .is_some_and(|time| time.timestamp_millis() <= as_of_ms)
 }
 
 /// Whether a deprecated document's `superseded_by` names a document the caller can read.

@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 use chrono::DateTime;
 use serde_json::{Value, json};
+use umbel_okf::is_stale;
 use umbel_sdk::{Cx, HostError, Outcome, failure, success};
 use umbel_store::{ChangeKind, ChunkHit, DocMeta, IndexFilters, IndexQuery};
 
@@ -663,11 +664,4 @@ fn render(
         );
     }
     outcome
-}
-
-/// Whether `stale_after` (RFC 3339) is at or before `now_ms`.
-fn is_stale(stale_after: Option<&str>, now_ms: i64) -> bool {
-    stale_after
-        .and_then(|time| DateTime::parse_from_rfc3339(time).ok())
-        .is_some_and(|time| time.timestamp_millis() <= now_ms)
 }
