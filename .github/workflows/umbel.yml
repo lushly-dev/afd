@@ -143,7 +143,9 @@ jobs:
   # machine (build 83 s, clippy 20 s, tests 75 s, the wasm and MSRV checks 27 s: about 3.4 minutes
   # at -j4 on a loaded host). Three times that is 10 minutes; the timeout is 15 because the hosted
   # runners are slower than that machine and had not run the job when this was set
-  # (specification, "Amendments from step 3", C14).
+  # (specification, "Amendments from step 3", C14). Phase 3 step 3a's embedded memory store is in
+  # `umbel-store-embedded`, so the same `cargo test` runs its `memory_*` tests and `run_all`, which
+  # now holds the memory conformance groups.
   knowledge:
     name: Umbel knowledge (${{ matrix.os }})
     needs: scope
