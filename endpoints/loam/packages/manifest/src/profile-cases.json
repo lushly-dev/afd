@@ -1111,7 +1111,8 @@
 								"title": "Blank",
 								"content": {}
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1165,7 +1166,7 @@
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.surfaces.sidebar.shape",
-			"suggestion": "until phase 2 serves it"
+			"suggestion": "Use `shape = \"list\"`"
 		},
 		{
 			"id": "not-yet-served-ui-project-summary",
@@ -1210,7 +1211,8 @@
 								"title": "Blank",
 								"content": {}
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1262,6 +1264,117 @@
 			"suggestion": "Set manifest_version = 2."
 		},
 		{
+			"id": "version-keys-ui-documents-malformed",
+			"base": "native",
+			"set": {
+				"/ui/documents": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-ui-new-malformed",
+			"base": "native",
+			"set": {
+				"/ui/new": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.new",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-ui-project-summary-malformed",
+			"base": "native",
+			"set": {
+				"/ui/project_summary": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.project_summary",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-sidebar-tree-malformed",
+			"base": "native",
+			"set": {
+				"/ui/surfaces/sidebar": {
+					"shape": "tree"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-app-resource-keys-malformed",
+			"base": "native",
+			"set": {
+				"/app/resource_keys": {
+					"hello-greet": ""
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "app.resource_keys",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-with-unrelated-error",
+			"base": "native",
+			"set": {
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/app/bogus": 1
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.project_summary",
+			"suggestion": "Set manifest_version = 2.",
+			"alsoKeys": ["app.bogus"]
+		},
+		{
+			"id": "documents-without-instance-commands",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].instance_commands"
+		},
+		{
 			"id": "sidebar-tree-without-command",
 			"base": "native",
 			"set": {
@@ -1289,7 +1402,7 @@
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.surfaces.sidebar.shape",
-			"suggestion": "until phase 2 serves it"
+			"suggestion": "Use `shape = \"list\"`"
 		},
 		{
 			"id": "resource-keys-value-bad",
@@ -1352,7 +1465,8 @@
 								"title": "Blank",
 								"content": {}
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1392,7 +1506,8 @@
 						],
 						"panel": {
 							"element": "hello-panel"
-						}
+						},
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1431,7 +1546,8 @@
 								"content": {}
 							}
 						],
-						"autosave_ms": 100
+						"autosave_ms": 100,
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1519,7 +1635,8 @@
 								"content": {}
 							}
 						],
-						"bogus": 1
+						"bogus": 1,
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1558,7 +1675,8 @@
 								"title": "Blank",
 								"content": {}
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1600,7 +1718,8 @@
 						"inspector": {
 							"element": "hello-inspector",
 							"bogus": 1
-						}
+						},
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1639,7 +1758,8 @@
 								"title": "Blank",
 								"content": {}
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},
@@ -1678,7 +1798,8 @@
 								"content": {},
 								"bogus": 1
 							}
-						]
+						],
+						"instance_commands": ["hello-greet"]
 					}
 				]
 			},

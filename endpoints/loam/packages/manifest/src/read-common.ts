@@ -6,7 +6,7 @@ import type { Finding } from './core-rules.js';
 import { keyOf } from './pointers.js';
 import type { ManifestRead, ManifestRefusal, ManifestV2 } from './types.js';
 
-const toRefusal = ({ pointer, ...finding }: Finding): ManifestRefusal => ({
+export const toRefusal = ({ pointer, ...finding }: Finding): ManifestRefusal => ({
 	...finding,
 	key: keyOf(pointer),
 });

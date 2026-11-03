@@ -5,17 +5,34 @@
  */
 
 import { coreRules } from './core-rules.js';
-import { loamRules } from './loam-rules.js';
-import { toRead } from './read-common.js';
+import { loamRules, versionKeyFindings } from './loam-rules.js';
+import { toRead, toRefusal } from './read-common.js';
 import { refusalsFrom } from './refusal-map.js';
 import type { ManifestRead, ManifestV2 } from './types.js';
 import { validateManifest } from './validate.generated.js';
+import { pointerOf } from './validator-errors.js';
 
 export function readManifest(json: unknown): ManifestRead {
 	if (!validateManifest(json)) {
+		// A version 1 manifest holding a version 2 key is told the version, whatever the key's shape
+		// or what else is wrong: phase 1 refused these keys before it looked inside them.
+		const told = versionKeyFindings(json);
+		const toldPointers = told.map((finding) => finding.pointer);
+		const errors = (validateManifest.errors ?? []).filter((error) => {
+			const pointer = pointerOf(error);
+			return !toldPointers.some(
+				(key) =>
+					pointer === key ||
+					pointer.startsWith(`${key}/`) ||
+					// A `tree` sidebar needs no `command` under version 1, where `tree` was refused first.
+					(key === '/ui/surfaces/sidebar/shape' &&
+						error.keyword === 'required' &&
+						pointer === '/ui/surfaces/sidebar/command')
+			);
+		});
 		return {
 			ok: false,
-			refusals: refusalsFrom(validateManifest.errors ?? [], json),
+			refusals: [...refusalsFrom(errors, json), ...told.map(toRefusal)],
 			warnings: [],
 		};
 	}

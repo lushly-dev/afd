@@ -49,12 +49,18 @@ class Findings {
 	}
 }
 
+interface VersionKey {
+	readonly pointer: string;
+	/** A value of a key version 1 also has. */
+	readonly value?: unknown;
+}
+
 /**
  * The keys and values that only a version 2 manifest may hold (phase 2 specification, 8.3). One
  * entry each: `manifest-version-keys` refuses every one under `manifest_version = 1`, so a version 1
  * manifest means what it meant. A pointer with a `value` is a value of a key version 1 also has.
  */
-const VERSION_TWO_KEYS: readonly { pointer: string; value?: unknown }[] = [
+export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/app/resource_keys' },
 	{ pointer: '/ui/surfaces/sidebar/shape', value: 'tree' },
 	{ pointer: '/ui/project_summary' },
@@ -65,12 +71,19 @@ const VERSION_TWO_KEYS: readonly { pointer: string; value?: unknown }[] = [
 /**
  * The version 2 keys no step has served yet, each refused as `MANIFEST_SURFACE_UNAVAILABLE` under
  * `manifest_version = 2`. **Delete the one line of the step that serves a key**, in the pull request
- * of that step, with the tests in `profile-cases.json` that name it (phase 2 specification, 16,
- * step 3). The key then reads as the schema says, and its own rules arrive with that step.
+ * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
+ * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
+ * that step. `forInterfaceOne` narrows a version 2 manifest for kernel interface 1 on the strength of
+ * this list covering every entry of `VERSION_TWO_KEYS`, which a unit test holds until interface 2
+ * replaces the narrowing.
  */
-const NOT_YET_SERVED: readonly { pointer: string; value?: unknown }[] = [
+export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
 	// Step 6 serves the `tree` sidebar. Its rules: a `tree` needs a `command` (the schema holds it).
-	{ pointer: '/ui/surfaces/sidebar/shape', value: 'tree' },
+	{
+		pointer: '/ui/surfaces/sidebar/shape',
+		value: 'tree',
+		instead: 'Use `shape = "list"` until a later build serves `"tree"`.',
+	},
 	// Step 4 serves `app.resource_keys`. Its rules: `MANIFEST_RESOURCE_KEY_INVALID`, needs `store`, not `mounted`.
 	{ pointer: '/app/resource_keys' },
 	// Step 7 serves `ui.project_summary`. Its rules: `MANIFEST_SUMMARY_INVALID`, not `mounted`.
@@ -81,37 +94,42 @@ const NOT_YET_SERVED: readonly { pointer: string; value?: unknown }[] = [
 	{ pointer: '/ui/new' },
 ];
 
-const holds = (manifest: ManifestV2, key: { pointer: string; value?: unknown }): boolean => {
-	const found = valueAt(manifest, key.pointer);
+const holds = (document: unknown, key: VersionKey): boolean => {
+	const found = valueAt(document, key.pointer);
 	return key.value === undefined ? found !== undefined : found === key.value;
 };
 
-const describeKey = (key: { pointer: string; value?: unknown }): string =>
+const describeKey = (key: VersionKey): string =>
 	key.value === undefined
 		? `\`${keyOf(key.pointer)}\``
 		: `\`${keyOf(key.pointer)} = ${JSON.stringify(key.value)}\``;
 
+/**
+ * The version 2 keys a version 1 document holds, each refused with the version. It reads the raw
+ * document, so a key is told the version whatever its shape: phase 1 refused these keys before it
+ * looked inside them, and a version 1 manifest keeps that.
+ */
+export function versionKeyFindings(document: unknown): Finding[] {
+	if (valueAt(document, '/manifest_version') !== 1) return [];
+	return VERSION_TWO_KEYS.filter((key) => holds(document, key)).map((key) => ({
+		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		pointer: key.pointer,
+		message: `${describeKey(key)} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
+		suggestion: 'Set manifest_version = 2.',
+	}));
+}
+
 function versionRules(manifest: ManifestV2, found: Findings): void {
-	const unversioned = manifest.manifest_version === 1;
-	for (const key of VERSION_TWO_KEYS) {
-		if (unversioned && holds(manifest, key)) {
-			found.refuse(
-				'MANIFEST_SURFACE_UNAVAILABLE',
-				key.pointer,
-				`${describeKey(key)} is a key of version 2, and this manifest says \`manifest_version = 1\`.`,
-				'Set manifest_version = 2.'
-			);
-		}
-	}
+	found.refusals.push(...versionKeyFindings(manifest));
 	// A version 1 manifest is told one thing at a time: the version first.
-	if (unversioned) return;
+	if (manifest.manifest_version === 1) return;
 	for (const key of NOT_YET_SERVED) {
 		if (holds(manifest, key)) {
 			found.refuse(
 				'MANIFEST_SURFACE_UNAVAILABLE',
 				key.pointer,
 				`${describeKey(key)} is part of phase 2, and no build serves it yet.`,
-				`Remove ${describeKey(key)} until phase 2 serves it.`
+				key.instead ?? `Remove ${describeKey(key)} until phase 2 serves it.`
 			);
 		}
 	}

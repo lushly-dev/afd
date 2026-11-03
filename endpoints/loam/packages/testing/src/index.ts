@@ -84,17 +84,17 @@ export async function createAppTestKernel(options: AppTestKernelOptions): Promis
 	const definition = await definitionOf(options.definition);
 	refuseGlobalDefinitions();
 
-	// Kernel interface 1 holds a `ManifestV1`; interface 2 (step 4) holds a `ManifestV2` (phase 2
-	// specification, 8.1). The reader refuses every key only version 2 has until its step, so the
-	// two differ in `manifest_version` alone.
-	const manifest = (
+	// Kernel interface 1 holds a `ManifestV1` (phase 2 specification, 8.1), as `forInterfaceOne` in
+	// `@lushly-dev/loam-manifest` narrows it: the reader refuses every key only version 2 has until its
+	// step, so setting the version is all the narrowing there is.
+	const read =
 		options.grants === undefined
 			? options.manifest
 			: {
 					...options.manifest,
 					grants: options.manifest.grants?.filter((grant) => options.grants?.includes(grant.name)),
-				}
-	) as ManifestV1;
+				};
+	const manifest = { ...read, manifest_version: 1 } as ManifestV1;
 	const { kind, id } = manifest.plugin;
 	if (kind === 'mounted') {
 		throw new LoamKernelError({

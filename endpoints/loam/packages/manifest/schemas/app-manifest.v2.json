@@ -207,12 +207,7 @@
 			"type": "object",
 			"properties": {
 				"scope_levels": {
-					"type": "array",
-					"minItems": 1,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["workspace", "project"]
-					}
+					"$ref": "#/$defs/scopeLevels"
 				},
 				"resource_keys": {
 					"type": "object",
@@ -377,27 +372,13 @@
 					"maxLength": 80
 				},
 				"icon": {
-					"enum": [
-						"system/attach",
-						"system/calendar",
-						"system/checkmark",
-						"system/clock",
-						"system/document",
-						"system/folder",
-						"system/search",
-						"system/warning"
-					]
+					"$ref": "#/$defs/icon"
 				},
 				"command": {
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
 				},
 				"scope_levels": {
-					"type": "array",
-					"minItems": 1,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["workspace", "project"]
-					}
+					"$ref": "#/$defs/scopeLevels"
 				}
 			},
 			"required": ["title", "icon", "command"],
@@ -416,16 +397,7 @@
 					"maxLength": 80
 				},
 				"icon": {
-					"enum": [
-						"system/attach",
-						"system/calendar",
-						"system/checkmark",
-						"system/clock",
-						"system/document",
-						"system/folder",
-						"system/search",
-						"system/warning"
-					]
+					"$ref": "#/$defs/icon"
 				},
 				"content_schema": {
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/schemaOrPath"
@@ -452,12 +424,7 @@
 					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
 				},
 				"scope_levels": {
-					"type": "array",
-					"minItems": 1,
-					"uniqueItems": true,
-					"items": {
-						"enum": ["workspace", "project"]
-					}
+					"$ref": "#/$defs/scopeLevels"
 				},
 				"editor": {
 					"$ref": "#/$defs/documentSurface"
@@ -485,6 +452,7 @@
 				"icon",
 				"content_schema",
 				"content_version",
+				"instance_commands",
 				"editor",
 				"binding",
 				"templates"
@@ -594,16 +562,7 @@
 					"maxLength": 80
 				},
 				"icon": {
-					"enum": [
-						"system/attach",
-						"system/calendar",
-						"system/checkmark",
-						"system/clock",
-						"system/document",
-						"system/folder",
-						"system/search",
-						"system/warning"
-					]
+					"$ref": "#/$defs/icon"
 				},
 				"order": {
 					"type": "integer"
@@ -944,6 +903,26 @@
 			"type": "object",
 			"properties": {},
 			"unevaluatedProperties": false
+		},
+		"icon": {
+			"enum": [
+				"system/attach",
+				"system/calendar",
+				"system/checkmark",
+				"system/clock",
+				"system/document",
+				"system/folder",
+				"system/search",
+				"system/warning"
+			]
+		},
+		"scopeLevels": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"enum": ["workspace", "project"]
+			}
 		}
 	}
 }

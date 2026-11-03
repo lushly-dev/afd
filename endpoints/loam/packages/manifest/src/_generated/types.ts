@@ -637,7 +637,7 @@ export interface ManifestV2 {
 				  };
 			content_version: number;
 			autosave_ms?: number;
-			instance_commands?: string[];
+			instance_commands: string[];
 			export_command?: string;
 			import_command?: string;
 			/**
