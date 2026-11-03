@@ -12,6 +12,11 @@
 //!
 //! `umbel-hook print-settings <profile>` prints a harness's settings fragment and writes nothing;
 //! `umbel-hook status` prints the last unresolved failure.
+//!
+//! `umbel-hook import <harness> <dir>` and `umbel-hook export <harness> <dir>` (section 10.5) move
+//! memory between a harness's memory directory, which the person names, and Umbel, through
+//! `memory-import` and `memory-export`. They are a person's commands, not hook events: a failure
+//! exits 1 and records nothing in the state directory.
 #![forbid(unsafe_code)]
 
 use std::ffi::OsString;
@@ -20,8 +25,11 @@ use std::path::PathBuf;
 
 mod child;
 mod claude_code;
+mod export;
 mod failure;
+mod files;
 mod generic;
+mod import;
 mod project;
 mod settings;
 mod state;
@@ -91,12 +99,13 @@ impl Profile {
     }
 }
 
-const USAGE: &str = "usage: umbel-hook <claude-code|generic> <event> [--sweep] | umbel-hook print-settings claude-code | umbel-hook status";
+const USAGE: &str = "usage: umbel-hook <claude-code|generic> <event> [--sweep] | umbel-hook print-settings claude-code | umbel-hook status | umbel-hook import <harness> <dir> [--project p] [--class c] | umbel-hook export <harness> <dir> [--project p]";
 
 /// Run `umbel-hook` with `args` (without the program name) and return its exit code.
 ///
 /// A hook event always returns 0, whatever fails; `print-settings` and `status` return 2 for a
-/// usage error. Library callers, such as the exit test, pass the same arguments the binary gets.
+/// usage error; `import` and `export` return 1 when they fail and 2 for a usage error. Library
+/// callers, such as the exit test, pass the same arguments the binary gets.
 pub fn run(
     args: &[OsString],
     environment: &Environment,
@@ -136,6 +145,26 @@ pub fn run(
             );
             return 0;
         }
+        Some(which @ ("import" | "export")) => {
+            let import = which == "import";
+            let outcome = match files::Args::parse(&args[1..], import) {
+                Ok(parsed) if import => import::run(&parsed, environment, stdout),
+                Ok(parsed) => export::run(&parsed, environment, stdout),
+                Err(failure) => {
+                    let _ = writeln!(stderr, "umbel-hook: {}: {}", failure.code, failure.message);
+                    let _ = writeln!(stderr, "{USAGE}");
+                    return 2;
+                }
+            };
+            let _ = stdout.flush();
+            return match outcome {
+                Ok(()) => 0,
+                Err(failure) => {
+                    let _ = writeln!(stderr, "umbel-hook: {}: {}", failure.code, failure.message);
+                    1
+                }
+            };
+        }
         Some("--help" | "-h" | "help") => {
             let _ = writeln!(stdout, "{USAGE}");
             return 0;
@@ -147,7 +176,7 @@ pub fn run(
     let outcome = match profile {
         None => Err(Failure::new(
             "invalid-arguments",
-            "the first argument is claude-code, generic, print-settings or status",
+            "the first argument is claude-code, generic, print-settings, status, import or export",
         )),
         Some(profile) => {
             let flags = &words[2.min(words.len())..];

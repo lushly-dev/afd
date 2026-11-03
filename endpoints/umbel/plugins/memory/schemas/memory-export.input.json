@@ -1,0 +1,33 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"project": {
+			"type": "string",
+			"description": "A project label: its records and the records with no project"
+		},
+		"classes": {
+			"type": "array",
+			"maxItems": 3,
+			"items": {
+				"enum": ["episodic", "semantic", "procedural"]
+			},
+			"description": "Only these classes; default: every class"
+		},
+		"after": {
+			"type": "string",
+			"description": "The next cursor of the previous page"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 50,
+			"default": 50,
+			"description": "At most this many records per page"
+		}
+	}
+}

@@ -15,9 +15,9 @@ use crate::pipeline::{self, Call, Draft};
 use crate::remember::{event_labels, stored};
 
 /// The most input one call takes, as canonical JSON: 1 MiB.
-const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
 /// The most text one entry takes: 64 KiB.
-const MAX_ENTRY_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_ENTRY_BYTES: usize = 64 * 1024;
 /// The harness events a capture names (section 10.1).
 const EVENTS: [&str; 5] = ["tool-use", "stop", "pre-compact", "session-end", "manual"];
 /// The most characters of a subject.
@@ -125,7 +125,7 @@ fn harness_source(contract: &Contract, part: Option<u64>, turns: Option<[u64; 2]
 }
 
 /// A relative path or a URL, never an absolute path (section 10.1).
-fn relative(resource: &str) -> bool {
+pub(crate) fn relative(resource: &str) -> bool {
     let bytes = resource.as_bytes();
     let drive = bytes.len() >= 3
         && bytes[0].is_ascii_alphabetic()
@@ -135,7 +135,7 @@ fn relative(resource: &str) -> bool {
 }
 
 /// `^[a-z][a-z0-9-]{0,max-1}$`: a harness name or an artifact kind.
-fn name_like(text: &str, max: usize) -> bool {
+pub(crate) fn name_like(text: &str, max: usize) -> bool {
     let mut bytes = text.bytes();
     bytes.next().is_some_and(|b| b.is_ascii_lowercase())
         && text.len() <= max

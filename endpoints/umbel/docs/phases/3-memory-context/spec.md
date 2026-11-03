@@ -62,7 +62,7 @@
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
   step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
-- **Not done:** section [14](#14-implementation-plan)'s steps 9 and 10. Step 2 merged in
+- **Not done:** section [14](#14-implementation-plan)'s step 10. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in
   [#737](https://github.com/lushly-dev/afd/pull/737), step 4 in
@@ -70,7 +70,8 @@
   [#742](https://github.com/lushly-dev/afd/pull/742), step 6 in
   [#743](https://github.com/lushly-dev/afd/pull/743), step 7a in
   [#744](https://github.com/lushly-dev/afd/pull/744), step 7b in
-  [#745](https://github.com/lushly-dev/afd/pull/745); step 8 is in its pull request, 2026-11-03.
+  [#745](https://github.com/lushly-dev/afd/pull/745), step 8 in
+  [#746](https://github.com/lushly-dev/afd/pull/746); step 9 is in its pull request, 2026-11-03.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -2643,6 +2644,61 @@ is unchanged.
     three times that is six minutes, and the timeout stays **15 minutes** because hosted runners are
     slower (C14). The release `umbel-first-party` is 38.8 MB and `umbel-hook` 0.9 MB; a cold check of
     `umbel-hook` takes about 3 s.
+
+### Amendments from step 9
+
+Step 9 settled these details of sections 8.9, 10.5 and 12 that the text left open. None lets an import
+obtain `person` or any authority above `import`, exports another principal's record or a forgotten,
+erased, flagged or `transcript` one, or otherwise changes the trust model: the host already gives every
+`MemoryPath::Import` write `import` and a private access set unless a sharing writer shares it, and
+items 4 and 6 export less than the text did. The host is unchanged.
+
+1. **Section 12's `import_export.rs` row is three files.** The hook crate links no host, so
+   `adapters/hook/tests/import_export.rs` runs against the fixture binary (class mapping, skipped files,
+   splitting, YAML quoting, files replaced, `MEMORY.md` never written). The plugin's side (authority,
+   access, observations, export exclusions, paging) is `plugins/memory/tests/import_export.rs`, and the
+   round trip through the real binary, a forgotten record's file included, is
+   `first-party/tests/import_export.rs`.
+2. **`memory-import`'s limits, result and event.** Over 1 MiB, no entry or more than 256, or an entry
+   over 64 KiB is `MEMORY_INVALID` (8.12 names no import code; `CAPTURE_TOO_LARGE` is the capture
+   contract's). An entry's `path` is relative, one line and at most 1024 characters; `generated` is
+   `{ by, at }`, `by` masked as the other text fields, sealed with the record and nulled in the event
+   (6.2). `origin` is `document-derived` (8.2). The result is `{ created, observed, flagged, redactions,
+   records, verification }` with 8.9's suggestion as AFD's `suggestions`, and the event's record
+   `{ memory-import, <trace id>, <toRev> }` with the access set the host gave the entries. The command has
+   no `authority_prompt`, so a person at a terminal is asked nothing.
+3. **`memory-export`'s shape.** `after` is `memory-list`'s cursor and `limit` 1 to 50, default 50;
+   `project` follows recall's rule (that project and records with none). The result is `{ records, next,
+   unreadable, tooLarge }`, each record recall's concise fields with `tags` and `text`. The query asks for
+   the caller's principal, the authorities `person`, `agent`, `tool` and `import`, and neither flagged nor
+   expired records, valid and recorded now, under the reader filter; each is opened with `memory_get` and
+   checked again (own, unflagged, not `transcript`), and one whose body does not open counts in
+   `unreadable` (5.4).
+4. **A record too large for the budget.** The command line cannot ask for more than a command's default
+   budget, so `memory-export` there has 64 000 bytes, and a record near 64 KiB of text, which an import
+   may hold, does not fit alone. When not even the first record fits, the page holds none, names its id
+   in `tooLarge`, and `next` moves past it, so a pager never asks for the same page twice. Such a record
+   is not exported, and the hook counts it.
+5. **How the hook reads a directory.** Only regular files directly in it: a link, a file over 16 MiB or
+   one that is not UTF-8 is skipped and counted. The subset reader takes top-level `key: value` lines,
+   plain, single- or double-quoted; no closing `---` means no frontmatter. `--class` replaces the default
+   `semantic` only, so a `type` of `feedback` or `episode` keeps its class. The `description`, when
+   present, leads the text, then a blank line and the body, so nothing the file said is lost. A subject is
+   one line, control characters as spaces, at most 256 characters with room for a part's suffix. A part
+   is at most 64 KiB, split at line boundaries and a longer line at character boundaries, and a call's
+   entries are at most 800 KiB as JSON, as step 8's capture counts them. The hook sends no `share` and no
+   `space`, so an import from it is private.
+6. **How the hook writes one.** Every page is read before anything is written, so a failure part way
+   writes nothing. A file is `umbel-<id>.md` only for an id of `mem-` and 24 lowercase hex digits, written
+   as a new `0600` temporary file and renamed. In the `umbel` map `recordedAt` is a quoted instant; the
+   description's date is its UTC day. Then each `umbel-mem-<hex>.md` file the export no longer holds (a
+   forgotten, expired or invalidated record's old copy) is removed, and `umbel-index.md` rewritten with a
+   header saying nothing in it is verified; no other file is touched, `MEMORY.md` never. As a second look
+   the hook refuses a record that says it is flagged or `transcript`, or whose id is not a memory id.
+   Stdout is one JSON summary holding the line to add to `MEMORY.md`.
+7. **`import` and `export` are a person's commands, not hook events.** A failure exits 1 with one stderr
+   line naming its code and records nothing in the state directory; a usage error exits 2. The new codes
+   are `dir-unreadable` and `dir-unwritable`. Each call may take 60 seconds.
 
 ## 15. For the owner
 

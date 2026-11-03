@@ -6,7 +6,8 @@
 pub struct Failure {
     /// A child's error code (`STORE_BUSY`, `MEMORY_INVALID`, ...) or the hook's own, in kebab case:
     /// `invalid-arguments`, `invalid-stdin`, `no-binary`, `child-failed`, `child-timeout`,
-    /// `transcript-unreadable`, `no-state-dir`, `state-unwritable`.
+    /// `transcript-unreadable`, `no-state-dir`, `state-unwritable`; and, for `import` and
+    /// `export`, `dir-unreadable` and `dir-unwritable`.
     pub code: String,
     /// One line for stderr.
     pub message: String,
