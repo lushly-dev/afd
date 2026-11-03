@@ -27,7 +27,8 @@ pub use document::{
     check_identifier, check_record, is_slug, record_target,
 };
 pub use envelope::{
-    Actor, ActorKind, ByAt, DerivedFrom, ENVELOPE_VERSION, Envelope, MAX_ENVELOPE_LIST, Origin,
+    Actor, ActorKind, Authority, ByAt, Confirmation, DerivedFrom, ENVELOPE_VERSION, Envelope,
+    MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS, MAX_ENVELOPE_LIST, MAX_REDACTIONS, Origin, Redaction,
     Sensitivity, Source,
 };
 pub use error::{Result, StoreError};
@@ -38,6 +39,7 @@ pub use graph::{
 pub use index::{ChunkHit, IndexChunk, IndexFilters, IndexQuery, MAX_QUERY_CHARS, MAX_QUERY_LIMIT};
 pub use traits::{DocumentStore, GraphStore, IndexWriterSession, SearchIndex};
 
-/// The store traits' version (`workspace-show`'s `versions.store`). Owned here from step 2; the
-/// host re-exports it.
-pub const STORE_TRAITS_VERSION: u32 = 1;
+/// The store traits' version (`workspace-show`'s `versions.store`). Owned here from phase 2 step
+/// 2; the host re-exports it. Version 2 is phase 3's (section 2): it adds the `MemoryStore`
+/// trait, which phase 3 step 2 defines.
+pub const STORE_TRAITS_VERSION: u32 = 2;

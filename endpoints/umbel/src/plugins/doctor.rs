@@ -19,7 +19,6 @@ use super::packs::check_pack;
 use super::pipelines::PipelineState;
 use super::skills::check_skill;
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
-use super::{GRANTS, RESERVED_GRANTS};
 use crate::doctor::{Check, NEEDS_CONFIG};
 use crate::surfaces::FirstClassPlan;
 use crate::workspace::{ConfigFile, PluginInstance, SpaceId};
@@ -472,6 +471,8 @@ fn grants(loaded: &[Loaded<'_>]) -> Check {
             let name = grant.name.as_str();
             let problem = if entry.instance.deny.iter().any(|denied| denied == name) {
                 Some(PluginError::grant_denied(id, name))
+            } else if let Some(why) = super::unavailable_grant(name) {
+                Some(PluginError::grant_unavailable(id, name, why))
             } else if crate::store::STORE_GRANTS.contains(&name)
                 && manifest.plugin.kind != super::manifest::PluginKind::Compiled
             {
@@ -488,17 +489,8 @@ fn grants(loaded: &[Loaded<'_>]) -> Check {
                     name,
                     "the instance gives it no allow list",
                 ))
-            } else if GRANTS.contains(&name) {
-                None
             } else {
-                let phase = RESERVED_GRANTS
-                    .iter()
-                    .find(|(reserved, _)| *reserved == name)
-                    .map_or_else(
-                        || "is not in this host's catalog".to_owned(),
-                        |(_, phase)| format!("arrives with {phase}"),
-                    );
-                Some(PluginError::grant_unavailable(id, name, phase))
+                None
             };
             if let Some(error) = problem {
                 issues.push(Issue::new(id, fatal, &error));

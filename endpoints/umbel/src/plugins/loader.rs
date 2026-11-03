@@ -33,7 +33,7 @@ use super::packs::{PackSet, PackState};
 use super::pipelines::{self, Known, PipelinePlan, PipelineState};
 use super::skills::{LoadedSkill, read_skill};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
-use super::{GRANTS, HOST_DOMAINS, PluginError, RESERVED_GRANTS};
+use super::{HOST_DOMAINS, PluginError};
 use crate::events::Projector;
 use crate::workspace::{PluginInstance, SpaceId, Workspace};
 
@@ -1042,16 +1042,8 @@ fn decide_grants(
             granted: false,
             withheld: None,
         };
-        let unavailable = if !GRANTS.contains(&name) {
-            Some(
-                RESERVED_GRANTS
-                    .iter()
-                    .find(|(reserved, _)| *reserved == name)
-                    .map_or_else(
-                        || "is not in this host's catalog".to_owned(),
-                        |(_, phase)| format!("arrives with {phase}"),
-                    ),
-            )
+        let unavailable = if let Some(problem) = super::unavailable_grant(name) {
+            Some(problem)
         } else if crate::store::STORE_GRANTS.contains(&name)
             && manifest.plugin.kind != PluginKind::Compiled
         {

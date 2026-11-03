@@ -1,0 +1,464 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/context-bundle.v1.json",
+	"title": "Umbel context bundle, version 1",
+	"description": "The data of context-bundle (phase 3 section 9.5, D76 to D78): budgeted sections of knowledge and memory, each item with provenance and a verification label, and what was left out and why. digest is the SHA-256 of the canonical JSON of task, asOf, sections and omissions, excluding state. text is the rendered block with render = text, else null. Only what the caller can read is ever named or counted.",
+	"type": "object",
+	"required": [
+		"version",
+		"space",
+		"task",
+		"asOf",
+		"digest",
+		"state",
+		"sections",
+		"omissions",
+		"omittedMore",
+		"text"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"task": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"minLength": 1
+				}
+			]
+		},
+		"asOf": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"digest": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"state": {
+			"type": "object",
+			"required": ["indexApplied", "memoryHead"],
+			"additionalProperties": false,
+			"properties": {
+				"indexApplied": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "integer",
+							"minimum": 0
+						}
+					]
+				},
+				"memoryHead": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "integer",
+							"minimum": 0
+						}
+					]
+				}
+			}
+		},
+		"sections": {
+			"type": "array",
+			"maxItems": 4,
+			"items": {
+				"$ref": "#/$defs/section"
+			}
+		},
+		"omissions": {
+			"type": "array",
+			"maxItems": 64,
+			"items": {
+				"$ref": "#/$defs/omission"
+			}
+		},
+		"omittedMore": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"text": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string"
+				}
+			]
+		}
+	},
+	"$defs": {
+		"sectionName": {
+			"enum": ["knowledge", "semantic", "procedural", "episodic"]
+		},
+		"section": {
+			"type": "object",
+			"required": ["name", "items"],
+			"additionalProperties": false,
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/sectionName"
+				},
+				"items": {
+					"type": "array",
+					"maxItems": 24,
+					"items": {
+						"oneOf": [
+							{
+								"$ref": "#/$defs/documentItem"
+							},
+							{
+								"$ref": "#/$defs/memoryItem"
+							}
+						]
+					}
+				}
+			}
+		},
+		"documentItem": {
+			"type": "object",
+			"required": [
+				"kind",
+				"id",
+				"title",
+				"cut",
+				"locator",
+				"status",
+				"verification",
+				"stale",
+				"flags",
+				"trust",
+				"provenance"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "document"
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"title": {
+					"type": "string"
+				},
+				"text": {
+					"description": "Absent once rendered to text: the content is not paid for twice.",
+					"type": "string"
+				},
+				"cut": {
+					"type": "boolean"
+				},
+				"locator": {
+					"type": "string",
+					"pattern": "^umbel:"
+				},
+				"status": {
+					"enum": ["draft", "stable", "deprecated"]
+				},
+				"verification": {
+					"enum": ["unverified", "machine", "human", "owner"]
+				},
+				"stale": {
+					"type": "boolean"
+				},
+				"flags": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"broken-links",
+							"fields-limited",
+							"hidden-text",
+							"instruction-like",
+							"schema-invalid",
+							"type-defaulted"
+						]
+					}
+				},
+				"trust": {
+					"const": "content"
+				},
+				"provenance": {
+					"type": "object",
+					"required": ["origin", "authority", "generated"],
+					"additionalProperties": false,
+					"properties": {
+						"origin": {
+							"enum": ["user-stated", "agent-inferred", "document-derived"]
+						},
+						"authority": {
+							"type": "null"
+						},
+						"generated": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "object",
+									"required": ["by", "at"],
+									"additionalProperties": false,
+									"properties": {
+										"by": {
+											"type": "string",
+											"minLength": 1
+										},
+										"at": {
+											"type": "string",
+											"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+										}
+									}
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"memoryItem": {
+			"type": "object",
+			"required": ["kind", "id", "title", "class", "verification", "flags", "trust", "provenance"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "memory"
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}:mem-[0-9a-f]{24}$"
+				},
+				"title": {
+					"type": "string"
+				},
+				"text": {
+					"description": "Absent once rendered to text: the content is not paid for twice.",
+					"type": "string"
+				},
+				"class": {
+					"enum": ["episodic", "semantic", "procedural"]
+				},
+				"verification": {
+					"const": "unverified"
+				},
+				"flags": {
+					"description": "Always empty in a bundle: a flagged record is never placed.",
+					"type": "array",
+					"maxItems": 0
+				},
+				"trust": {
+					"const": "content"
+				},
+				"provenance": {
+					"type": "object",
+					"required": [
+						"origin",
+						"authority",
+						"confirmation",
+						"principal",
+						"recordedAt",
+						"validFrom",
+						"validUntil",
+						"expiresAt",
+						"confidence",
+						"constraints"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"origin": {
+							"enum": ["user-stated", "agent-inferred", "document-derived"]
+						},
+						"authority": {
+							"enum": ["person", "agent", "tool", "transcript", "import", "document", "external"]
+						},
+						"confirmation": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "object",
+									"required": ["by", "at", "priorAuthority"],
+									"additionalProperties": false,
+									"properties": {
+										"by": {
+											"type": "string",
+											"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+										},
+										"at": {
+											"type": "string",
+											"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+										},
+										"priorAuthority": {
+											"enum": [
+												"person",
+												"agent",
+												"tool",
+												"transcript",
+												"import",
+												"document",
+												"external"
+											]
+										}
+									}
+								}
+							]
+						},
+						"principal": {
+							"type": "string",
+							"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+						},
+						"recordedAt": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"validFrom": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"validUntil": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "string",
+									"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+								}
+							]
+						},
+						"expiresAt": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"confidence": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "number",
+									"minimum": 0,
+									"maximum": 1
+								}
+							]
+						},
+						"constraints": {
+							"oneOf": [
+								{
+									"type": "null"
+								},
+								{
+									"type": "array",
+									"maxItems": 16,
+									"items": {
+										"type": "string",
+										"maxLength": 200
+									}
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		"omission": {
+			"type": "object",
+			"required": ["section", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"section": {
+					"$ref": "#/$defs/sectionName"
+				},
+				"reason": {
+					"enum": [
+						"budget",
+						"flagged",
+						"authority",
+						"verified-only",
+						"no-task",
+						"index-empty",
+						"lane-unavailable",
+						"unreadable"
+					]
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"count": {
+					"type": "integer",
+					"minimum": 1
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"reason": {
+								"const": "budget"
+							}
+						}
+					},
+					"then": {
+						"required": ["id"],
+						"not": {
+							"required": ["count"]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"reason": {
+								"enum": ["flagged", "authority", "unreadable"]
+							}
+						}
+					},
+					"then": {
+						"required": ["count"],
+						"not": {
+							"required": ["id"]
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"reason": {
+								"enum": ["verified-only", "no-task", "index-empty", "lane-unavailable"]
+							}
+						}
+					},
+					"then": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["id"]
+								},
+								{
+									"required": ["count"]
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	}
+}

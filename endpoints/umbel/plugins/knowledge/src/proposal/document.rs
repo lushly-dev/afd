@@ -122,6 +122,9 @@ pub(crate) fn build(
         }]),
         access: access.tokens().to_vec(),
         sensitivity: Some(sensitivity),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     };
     Ok(DocumentWrite {
         version: 1,

@@ -1,5 +1,5 @@
 //! The versioned schema files under `schemas/` (phase 0 specification sections 7 and 10; phase 1
-//! sections 2, 8.2 and 9.1; phase 2 section 2) and the WIT world.
+//! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2) and the WIT world.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::BTreeMap;
@@ -13,18 +13,25 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 18] = [
+const STEMS: [&str; 25] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
+    "workspace-config.v4",
     "plugin-manifest.v1",
     "plugin-manifest.v2",
+    "plugin-manifest.v3",
     "pack-manifest.v1",
     "principal.v0",
     "provenance-envelope.v0",
     "provenance-envelope.v1",
+    "provenance-envelope.v2",
     "event.v0",
     "event.v1",
+    "event.v2",
+    "memory-record.v1",
+    "capture.v1",
+    "context-bundle.v1",
     "cursor.v0",
     "cursor-file.v0",
     "document.v1",
@@ -1072,4 +1079,483 @@ fn the_eval_schemas_refuse_what_the_specification_refuses() {
             edited(&base, |r| r["bogus"] = json!(1)),
         ],
     );
+}
+
+// ── Phase 3 (section 2) ─────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn version_2_provenance_closes_authority_and_shapes_its_new_fields() {
+    let validator = validator("provenance-envelope.v2");
+    let base = example("provenance-envelope.v2", "");
+    assert!(validator.is_valid(&base));
+    assert!(validator.is_valid(&example("provenance-envelope.v2", "document")));
+    // Every field is present on the wire; the reserved ones stay refused.
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !validator.is_valid(&edited(&base, |e| {
+                e.as_object_mut().unwrap().remove(field);
+            })),
+            "version 2 accepted a missing {field}"
+        );
+    }
+    for field in ["delegationChain", "tenant", "bogus"] {
+        assert!(
+            !validator.is_valid(&edited(&base, |e| e[field] = json!("x"))),
+            "version 2 accepted {field}"
+        );
+    }
+    for authority in [
+        "person",
+        "agent",
+        "tool",
+        "transcript",
+        "import",
+        "document",
+        "external",
+    ] {
+        assert!(
+            validator.is_valid(&edited(&base, |e| e["authority"] = json!(authority))),
+            "{authority}"
+        );
+    }
+    assert!(validator.is_valid(&edited(&base, |e| e["authority"] = Value::Null)));
+    assert_refuses(
+        &validator,
+        "provenance-envelope.v2",
+        &[
+            edited(&base, |e| e["version"] = json!(1)),
+            edited(&base, |e| e["authority"] = json!("handbook")),
+            edited(&base, |e| {
+                e["redactions"] = json!([{ "kind": "pem", "count": 0 }])
+            }),
+            edited(&base, |e| e["redactions"] = json!([{ "kind": "pem" }])),
+            edited(&base, |e| {
+                e["redactions"] = json!([{ "kind": "pem", "count": 1, "text": "secret" }])
+            }),
+            edited(&base, |e| e["constraints"] = json!(["x".repeat(201)])),
+            edited(&base, |e| e["constraints"] = json!(vec!["c"; 17])),
+            edited(&base, |e| e["confirmation"] = json!({ "by": "human:ada" })),
+            edited(&base, |e| {
+                e["confirmation"]["priorAuthority"] = json!("handbook")
+            }),
+            edited(&base, |e| e["confirmation"]["by"] = json!("ada")),
+        ],
+    );
+    let many: Vec<Value> = (0..33)
+        .map(|n| json!({ "kind": format!("k{n:02}"), "count": 1 }))
+        .collect();
+    assert!(!validator.is_valid(&edited(&base, |e| e["redactions"] = Value::Array(many))));
+    // Version 1 refuses what version 2 adds, and version 2 refuses version 1's open authority.
+    let v1 = self::validator("provenance-envelope.v1");
+    assert!(!v1.is_valid(&base));
+    assert!(!validator.is_valid(&example("provenance-envelope.v1", "agent")));
+}
+
+#[test]
+fn events_and_envelopes_of_versions_0_1_and_2_sit_side_by_side() {
+    let validators = [
+        validator("event.v0"),
+        validator("event.v1"),
+        validator("event.v2"),
+    ];
+    let lines = [
+        ("v0", example("event.v0", ""), 0),
+        ("v1", example("event.v1", ""), 1),
+        ("v2", example("event.v2", ""), 2),
+        ("v2 document", example("event.v2", "document"), 2),
+    ];
+    for (label, line, version) in &lines {
+        for (index, validator) in validators.iter().enumerate() {
+            assert_eq!(
+                validator.is_valid(line),
+                index == *version,
+                "{label} against event.v{index}"
+            );
+        }
+    }
+    let envelopes = [
+        validator("provenance-envelope.v0"),
+        validator("provenance-envelope.v1"),
+        validator("provenance-envelope.v2"),
+    ];
+    for (version, stem) in [
+        "provenance-envelope.v0",
+        "provenance-envelope.v1",
+        "provenance-envelope.v2",
+    ]
+    .iter()
+    .enumerate()
+    {
+        for (name, envelope) in examples(stem) {
+            for (index, validator) in envelopes.iter().enumerate() {
+                assert_eq!(
+                    validator.is_valid(&envelope),
+                    index == version,
+                    "{name} against envelope v{index}"
+                );
+            }
+        }
+    }
+    let v2 = &validators[2];
+    let new = example("event.v2", "");
+    assert_eq!(new["changes"]["store"], "memory");
+    assert_refuses(
+        v2,
+        "event.v2",
+        &[
+            // A version 2 event carries an envelope version 2.
+            edited(&new, |e| {
+                e["provenance"] = example("provenance-envelope.v1", "")
+            }),
+            edited(&new, |e| e["changes"]["store"] = json!("documents")),
+            edited(&new, |e| e["provenance"]["tenant"] = json!("t")),
+        ],
+    );
+    // Without `store` the range is the document store's, as in version 1; version 1 has no
+    // `store`.
+    assert!(v2.is_valid(&edited(&new, |e| {
+        e["changes"].as_object_mut().unwrap().remove("store");
+    })));
+    let old = example("event.v1", "");
+    assert!(!validators[1].is_valid(&edited(&old, |e| e["changes"]["store"] = json!("memory"))));
+}
+
+#[test]
+fn the_host_reads_and_writes_the_version_2_examples() {
+    for case in ["", "document"] {
+        let value = example("provenance-envelope.v2", case);
+        let envelope: Envelope = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(envelope.version, 2);
+        assert_eq!(
+            serde_json::to_value(&envelope).unwrap(),
+            value,
+            "envelope v2 {case}"
+        );
+        // The store's envelope reads and writes them too, and passes its checks.
+        let stored = umbel_store::Envelope::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&stored).unwrap(), value, "{case}");
+        stored.check("main").unwrap();
+    }
+    for case in ["", "document"] {
+        let value = example("event.v2", case);
+        let event: Event = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(event.version, 2);
+        assert_eq!(
+            serde_json::to_value(&event).unwrap(),
+            value,
+            "event v2 {case}"
+        );
+    }
+    let event: Event = serde_json::from_value(example("event.v2", "")).unwrap();
+    assert_eq!(
+        event.changes.unwrap().store,
+        Some(umbel::events::ChangesStore::Memory)
+    );
+    // A version 1 row in the store is written back without version 2's fields.
+    let v1 = example("provenance-envelope.v1", "agent");
+    let stored = umbel_store::Envelope::from_value(v1.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&stored).unwrap(), v1);
+}
+
+#[test]
+fn the_memory_record_is_unverified_and_refuses_phase_4_fields() {
+    let validator = validator("memory-record.v1");
+    let base = example("memory-record.v1", "");
+    assert!(validator.is_valid(&base));
+    for field in ["promotedTo", "candidate", "settledAt", "score"] {
+        assert!(
+            !validator.is_valid(&edited(&base, |r| r[field] = json!("x"))),
+            "accepted {field}"
+        );
+    }
+    for field in base.as_object().unwrap().keys() {
+        assert!(
+            !validator.is_valid(&edited(&base, |r| {
+                r.as_object_mut().unwrap().remove(field);
+            })),
+            "accepted a missing {field}"
+        );
+    }
+    assert_refuses(
+        &validator,
+        "memory-record.v1",
+        &[
+            edited(&base, |r| r["verification"] = json!("human")),
+            edited(&base, |r| r["id"] = json!("mem-123")),
+            edited(&base, |r| r["class"] = json!("fact")),
+            edited(&base, |r| r["subject"] = json!("two\nlines")),
+            edited(&base, |r| r["subject"] = json!("x".repeat(257))),
+            edited(&base, |r| r["tags"] = json!(vec!["t"; 33])),
+            edited(&base, |r| r["tags"] = json!(["x".repeat(65)])),
+            edited(&base, |r| r["access"] = json!([])),
+            edited(&base, |r| r["flags"] = json!(["schema-invalid"])),
+            edited(&base, |r| r["trust"] = json!("system")),
+            edited(&base, |r| r["scope"]["project"] = json!("/Users/ada/afd")),
+            edited(&base, |r| r["scope"]["principal"] = json!("ada")),
+            edited(&base, |r| r["invalidation"]["reason"] = json!("bored")),
+            edited(&base, |r| {
+                r["validFrom"] = json!("2026-10-30T09:00:00+01:00")
+            }),
+            edited(&base, |r| r["contentHash"] = json!("sha256:00")),
+            // The memory store refuses a record without an authority.
+            edited(&base, |r| r["provenance"]["authority"] = Value::Null),
+            edited(&base, |r| {
+                r["provenance"] = example("provenance-envelope.v1", "agent")
+            }),
+        ],
+    );
+}
+
+#[test]
+fn the_capture_contract_refuses_share_and_the_host_filled_identity() {
+    let validator = validator("capture.v1");
+    let base = example("capture.v1", "");
+    assert!(validator.is_valid(&base));
+    assert!(validator.is_valid(&example("capture.v1", "minimal")));
+    assert_refuses(
+        &validator,
+        "capture.v1",
+        &[
+            // Capture is always private, and the host fills the principal and the agent.
+            edited(&base, |c| c["share"] = json!("space")),
+            edited(&base, |c| c["principal"] = json!("human:ada")),
+            edited(&base, |c| {
+                c["agent"] = json!({ "kind": "agent", "id": "x" })
+            }),
+            edited(&base, |c| c["cwd"] = json!("/Users/ada/afd")),
+            edited(&base, |c| c["event"] = json!("session-start")),
+            edited(&base, |c| c["idempotencyKey"] = json!("k".repeat(257))),
+            edited(&base, |c| {
+                c["artifacts"][0]["resource"] = json!("/etc/passwd")
+            }),
+            edited(&base, |c| c["artifacts"][0]["resource"] = json!("C:\\x")),
+            edited(&base, |c| c["artifacts"][0]["hash"] = json!("sha256:00")),
+            edited(&base, |c| {
+                c["episodes"][0]["endedAt"] = json!("2026-11-02T10:00:00Z")
+            }),
+            edited(&base, |c| {
+                c["decisions"][0]["origin"] = json!("document-derived")
+            }),
+            edited(&base, |c| c["version"] = json!(2)),
+        ],
+    );
+    assert!(
+        validator.is_valid(&edited(&base, |c| c["artifacts"][0]["resource"] =
+            json!("https://example.com/runbook")))
+    );
+}
+
+#[test]
+fn the_context_bundle_labels_every_item_and_names_omissions_by_rule() {
+    let validator = validator("context-bundle.v1");
+    let base = example("context-bundle.v1", "");
+    assert!(validator.is_valid(&base));
+    assert!(validator.is_valid(&example("context-bundle.v1", "empty")));
+    // Rendered: each item's text removed, the block in `text`.
+    assert!(validator.is_valid(&edited(&base, |b| {
+        for section in b["sections"].as_array_mut().unwrap() {
+            for item in section["items"].as_array_mut().unwrap() {
+                item.as_object_mut().unwrap().remove("text");
+            }
+        }
+        b["text"] = json!("Context from Umbel.");
+    })));
+    fn memory(b: &mut Value) -> &mut Value {
+        &mut b["sections"][1]["items"][0]
+    }
+    assert_refuses(
+        &validator,
+        "context-bundle.v1",
+        &[
+            edited(&base, |b| {
+                memory(b).as_object_mut().unwrap().remove("provenance");
+            }),
+            edited(&base, |b| {
+                memory(b).as_object_mut().unwrap().remove("verification");
+            }),
+            edited(&base, |b| memory(b)["verification"] = json!("human")),
+            edited(&base, |b| memory(b)["flags"] = json!(["instruction-like"])),
+            edited(&base, |b| memory(b)["score"] = json!(0.5)),
+            edited(&base, |b| {
+                memory(b)["provenance"]["authority"] = Value::Null
+            }),
+            edited(&base, |b| {
+                b["sections"][0]["items"][0]["provenance"]["authority"] = json!("person")
+            }),
+            edited(&base, |b| b["sections"][0]["name"] = json!("notes")),
+            edited(&base, |b| {
+                b["omissions"][0] = json!({ "section": "semantic", "reason": "budget" })
+            }),
+            edited(
+                &base,
+                |b| {
+                    b["omissions"][1] =
+                        json!({ "section": "semantic", "reason": "authority", "id": "main:mem-1" })
+                },
+            ),
+            edited(
+                &base,
+                |b| {
+                    b["omissions"][3] =
+                        json!({ "section": "procedural", "reason": "lane-unavailable", "count": 1 })
+                },
+            ),
+            edited(&base, |b| b["state"]["head"] = json!(1)),
+            edited(&base, |b| b["digest"] = json!("sha256:ab12")),
+        ],
+    );
+}
+
+#[test]
+fn the_version_3_manifest_schema_refuses_what_the_host_refuses() {
+    let validator = validator("plugin-manifest.v3");
+    let base = example("plugin-manifest.v3", "");
+    assert!(validator.is_valid(&base));
+    let with = |edit: &dyn Fn(&mut Value)| edited(&base, |m| edit(m));
+    let cases = [
+        with(&|m| m["manifest_version"] = json!(2)),
+        with(&|m| m["commands"][0]["journal"] = json!({ "mode": "verbose" })),
+        with(&|m| m["commands"][0]["journal"] = json!({ "keep": ["space"] })),
+        with(&|m| m["commands"][2]["journal"] = json!({ "mode": "plain", "keep": ["space"] })),
+        with(&|m| m["commands"][0]["journal"] = json!({ "mode": "digest", "keep": vec!["k"; 17] })),
+        with(&|m| m["commands"][0]["journal"]["other"] = json!(1)),
+        // A plugin holding memory or memory_write declares journal on every command and pipeline.
+        with(&|m| {
+            m["commands"][2].as_object_mut().unwrap().remove("journal");
+        }),
+        with(&|m| {
+            m["pipelines"][0].as_object_mut().unwrap().remove("journal");
+        }),
+        with(&|m| m["commands"][0]["authority_prompt"] = json!("x".repeat(501))),
+        with(&|m| m["commands"][0]["authority_prompt"] = json!("")),
+        // memory_write beside a document write grant.
+        with(&|m| {
+            m["grants"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({ "name": "records_write", "reason": "x" }))
+        }),
+        // authority_prompt without memory_write.
+        with(&|m| {
+            m["grants"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|g| g["name"] != "memory_write");
+            m["commands"][0]["effects"] = json!(["inspect"]);
+            m["pipelines"][0]["effects"] = json!(["inspect"]);
+        }),
+    ];
+    assert_refuses(&validator, "plugin-manifest.v3", &cases);
+    // The host refuses each of them too.
+    for (index, case) in cases.iter().enumerate() {
+        assert!(
+            Manifest::parse(&as_toml(case), "m").is_err(),
+            "case {index}: the host accepted {case}"
+        );
+    }
+    // A component command and a mounted tool take neither key.
+    let mut component = example("plugin-manifest.v1", "component");
+    component["manifest_version"] = json!(3);
+    assert!(validator.is_valid(&component));
+    for (key, value) in [
+        ("journal", json!({ "mode": "plain" })),
+        ("authority_prompt", json!("Record it?")),
+    ] {
+        let refused = edited(&component, |m| m["commands"][0][key] = value.clone());
+        assert!(!validator.is_valid(&refused), "component {key}");
+        assert!(Manifest::parse(&as_toml(&refused), "c").is_err(), "{key}");
+    }
+    let mut mounted = example("plugin-manifest.v1", "mounted");
+    mounted["manifest_version"] = json!(3);
+    assert!(validator.is_valid(&mounted));
+    mounted["mount"]["tools"] = json!([{ "tool": "a", "journal": { "mode": "digest" } }]);
+    assert!(!validator.is_valid(&mounted));
+    assert!(Manifest::parse(&as_toml(&mounted), "m").is_err());
+    // Version 2 files stay version 2: the version 2 schema refuses what version 3 adds.
+    let v2 = self::validator("plugin-manifest.v2");
+    assert!(!v2.is_valid(&base));
+    assert!(v2.is_valid(&example("plugin-manifest.v2", "")));
+}
+
+#[test]
+fn the_version_3_manifest_examples_are_manifests_to_the_host_too() {
+    let validator = validator("plugin-manifest.v3");
+    let found = examples("plugin-manifest.v3");
+    assert_eq!(found.len(), 2, "a memory plugin, and one without memory");
+    for (name, example) in found {
+        assert!(validator.is_valid(&example), "{name}");
+        let manifest =
+            Manifest::parse(&as_toml(&example), &name).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(manifest.manifest_version, 3, "{name}");
+    }
+    let manifest = Manifest::parse(&as_toml(&example("plugin-manifest.v3", "")), "x").unwrap();
+    assert!(manifest.commands.iter().all(|c| c.journal.is_some()));
+    assert!(manifest.commands[0].authority_prompt.is_some());
+    assert!(manifest.pipelines[0].journal.is_some());
+}
+
+#[test]
+fn the_version_4_config_schema_refuses_what_the_host_refuses() {
+    let validator = validator("workspace-config.v4");
+    let granting = |grants: Value| json!({ "config_version": 4, "spaces": { "main": {} }, "plugins": { "enabled": ["x"], "x": { "grants": grants } } });
+    let ok = [
+        json!({ "config_version": 4 }),
+        json!({ "config_version": 4, "principal": { "on_behalf_of": "local", "agent_env": ["MY_AGENT"] } }),
+        json!({ "config_version": 4, "store": { "exclude_memory_from_machine_backup": false } }),
+        json!({ "config_version": 4, "plugins": { "enabled": ["x"], "x": { "deny": ["memory", "memory_write"] } } }),
+        granting(json!({ "memory_write": { "allow": ["main"] } })),
+        granting(
+            json!({ "memory_write": { "allow": ["*"], "default_access": "space", "writers": ["group:platform", "principal:human:ada", "space"], "agents_may_share": true } }),
+        ),
+    ];
+    for instance in &ok {
+        assert!(validator.is_valid(instance), "{instance}");
+        ConfigFile::parse(&as_toml(instance))
+            .and_then(|file| file.into_config(Path::new("/w/example")))
+            .unwrap_or_else(|e| panic!("{instance}: {e}"));
+    }
+    let bad = [
+        json!({ "config_version": 3, "principal": { "agent_env": ["MY_AGENT"] } }),
+        json!({ "config_version": 5 }),
+        json!({ "config_version": 4, "principal": { "agent_env": ["not a name"] } }),
+        json!({ "config_version": 4, "principal": { "agent_env": "MY_AGENT" } }),
+        json!({ "config_version": 4, "store": { "exclude_memory_from_machine_backup": "yes" } }),
+        json!({ "config_version": 4, "plugins": { "enabled": ["x"], "x": { "deny": ["memory_read"] } } }),
+        // The policy keys go on memory_write only, and allow is still required.
+        granting(json!({ "records_write": { "allow": ["main"], "default_access": "space" } })),
+        granting(json!({ "memory": { "allow": ["main"] } })),
+        granting(json!({ "memory_write": { "default_access": "space" } })),
+        granting(json!({ "memory_write": { "allow": ["main/x"] } })),
+        granting(json!({ "memory_write": { "allow": ["main"], "default_access": "public" } })),
+        granting(json!({ "memory_write": { "allow": ["main"], "writers": ["everyone"] } })),
+        granting(json!({ "memory_write": { "allow": ["main"], "writers": ["space", "space"] } })),
+        granting(json!({ "memory_write": { "allow": ["main"], "agents_may_share": 1 } })),
+        granting(json!({ "memory_write": { "allow": ["main"], "share": true } })),
+    ];
+    for instance in &bad {
+        assert!(
+            !validator.is_valid(instance),
+            "the schema accepted {instance}"
+        );
+        let parsed = ConfigFile::parse(&as_toml(instance))
+            .and_then(|file| file.into_config(Path::new("/w/example")));
+        assert!(parsed.is_err(), "the host accepted {instance}");
+    }
+}
+
+#[test]
+fn the_version_4_config_examples_open_in_the_host_too() {
+    let validator = validator("workspace-config.v4");
+    let found = examples("workspace-config.v4");
+    assert_eq!(found.len(), 3, "minimal, full and reserved");
+    for (name, example) in found {
+        assert!(validator.is_valid(&example), "{name}");
+        ConfigFile::parse(&as_toml(&example))
+            .and_then(|file| file.into_config(Path::new("/w/example")))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+    // The version 3 schema refuses version 4's keys, and still describes version 3 files.
+    let v3 = self::validator("workspace-config.v3");
+    assert!(!v3.is_valid(&example("workspace-config.v4", "full")));
+    assert!(v3.is_valid(&example("workspace-config.v3", "full")));
 }

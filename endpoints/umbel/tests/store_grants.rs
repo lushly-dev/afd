@@ -405,7 +405,7 @@ async fn the_gate_sets_changes_from_what_the_call_wrote_and_the_event_carries_th
     );
     let stream = events(dir.path(), "main");
     assert_eq!(stream.len(), 1);
-    assert_eq!(stream[0]["version"], 1);
+    assert_eq!(stream[0]["version"], 2);
     assert_eq!(
         stream[0]["changes"],
         json!({"fromRev": 1, "toRev": 2, "count": 2})
@@ -443,10 +443,10 @@ async fn host_owned_keys_cannot_be_forged_through_the_gate() {
     assert!(meta.get("dev.umbel/replay").is_none(), "{meta}");
     // The mutation and event version are the host's, whatever the plugin said.
     assert_eq!(meta["dev.umbel/mutation"], json!(true));
-    assert_eq!(meta["dev.umbel/event-version"], json!(1));
+    assert_eq!(meta["dev.umbel/event-version"], json!(2));
     assert_eq!(meta["dev.umbel/plugin"]["id"], "sp");
     let stream = events(dir.path(), "main");
-    assert_eq!(stream[0]["version"], 1);
+    assert_eq!(stream[0]["version"], 2);
     assert!(stream[0].get("changes").is_none(), "{:?}", stream[0]);
 }
 

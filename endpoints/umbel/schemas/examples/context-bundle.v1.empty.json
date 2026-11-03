@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"space": "main",
+	"task": null,
+	"asOf": "2026-11-02T10:15:00.000Z",
+	"digest": "sha256:ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12",
+	"state": {
+		"indexApplied": null,
+		"memoryHead": null
+	},
+	"sections": [],
+	"omissions": [],
+	"omittedMore": 0,
+	"text": null
+}

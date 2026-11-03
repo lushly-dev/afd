@@ -698,6 +698,9 @@ fn tombstone_envelope() -> umbel_store::Envelope {
         derived_from: None,
         access: vec!["space".to_owned()],
         sensitivity: Some(Sensitivity::Internal),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     }
 }
 

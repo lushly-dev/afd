@@ -1,0 +1,51 @@
+{
+	"manifest_version": 3,
+	"protocol": 1,
+	"plugin": {
+		"id": "notes",
+		"title": "Notes",
+		"version": "0.1.0",
+		"description": "A plugin with no memory grant: journal is optional, and plain journals as before.",
+		"kind": "compiled",
+		"domains": ["notes"]
+	},
+	"grants": [
+		{
+			"name": "config",
+			"required": true,
+			"reason": "Reads its settings."
+		}
+	],
+	"commands": [
+		{
+			"name": "notes-find",
+			"description": "Find notes.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "plain"
+			}
+		},
+		{
+			"name": "notes-count",
+			"description": "Count notes.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {},
+				"required": [],
+				"additionalProperties": false
+			}
+		}
+	]
+}

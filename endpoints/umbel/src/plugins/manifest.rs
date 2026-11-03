@@ -1,5 +1,5 @@
-//! `umbel-plugin.toml`, manifest versions 1 and 2 (specification section 2, D37; phase 2
-//! section 3.4, D54).
+//! `umbel-plugin.toml`, manifest versions 1, 2 and 3 (specification section 2, D37; phase 2
+//! section 3.4, D54; phase 3 section 2.3).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -94,6 +94,34 @@ const COMMAND_KEYS: &[&str] = &[
     "examples",
 ];
 const COMMAND_RESERVED: &[(&str, &str)] = &[("scopes", "per-command scopes, phase 5")];
+/// The command keys manifest version 3 adds; versions 1 and 2 name and refuse them.
+const COMMAND_KEYS_V3: &[(&str, &str)] = &[
+    ("journal", "a journal mode needs manifest_version = 3"),
+    (
+        "authority_prompt",
+        "a prompt before a write with authority person needs manifest_version = 3",
+    ),
+];
+/// The pipeline keys manifest version 3 adds.
+const PIPELINE_KEYS_V3: &[(&str, &str)] =
+    &[("journal", "a journal mode needs manifest_version = 3")];
+const JOURNAL_KEYS: &[&str] = &["mode", "keep"];
+/// The most input keys a `journal.keep` list names (phase 3 section 2.3).
+pub const MAX_JOURNAL_KEEP: usize = 16;
+/// The longest `authority_prompt`, in characters.
+pub const MAX_AUTHORITY_PROMPT_CHARS: usize = 500;
+/// The grants that read or write memory: a plugin declaring one must give every command and
+/// pipeline a `journal` mode.
+const MEMORY_GRANTS: &[&str] = &["memory", "memory_write"];
+/// The grants a plugin holding `memory_write` may not also declare in phase 3: an event's
+/// `changes` holds one range.
+const DOCUMENT_WRITE_GRANTS: &[&str] = &[
+    "documents_write",
+    "records_write",
+    "index_write",
+    "graph_write",
+    "content_write",
+];
 /// The command keys manifest version 2 adds; version 1 names and refuses them.
 const COMMAND_KEYS_V2: &[(&str, &str)] = &[
     (
@@ -106,12 +134,14 @@ const COMMAND_KEYS_V2: &[(&str, &str)] = &[
     ),
 ];
 const OUTPUT_BUDGET_KEYS: &[&str] = &["default_bytes", "max_bytes"];
-/// The grants that make a `store-write` command meaningful (phase 2 specification, section 3.4).
+/// The grants that make a `store-write` command meaningful (phase 2 specification, section 3.4;
+/// phase 3 section 6.1 adds `memory_write`).
 const STORE_WRITE_GRANTS: &[&str] = &[
     "documents_write",
     "records_write",
     "index_write",
     "graph_write",
+    "memory_write",
 ];
 /// The grant that makes a `workspace-write` command meaningful.
 const WORKSPACE_WRITE_GRANT: &str = "content_write";
@@ -359,6 +389,13 @@ pub struct CommandDecl {
     pub require_human: bool,
     /// `output_budget` (manifest version 2).
     pub output_budget: Option<OutputBudget>,
+    /// `journal` (manifest version 3): how the call is journaled. Stored only: digest journaling
+    /// is phase 3 step 4's.
+    pub journal: Option<JournalDecl>,
+    /// `authority_prompt` (manifest version 3): the static prompt the CLI shows before a call
+    /// whose memory write would get authority `person`. Stored only: the CLI asks it from phase 3
+    /// step 4.
+    pub authority_prompt: Option<String>,
     /// `instant`, `fast`, `slow` or `long-running`.
     pub execution_time: Option<String>,
     /// The plugin's default exposure.
@@ -376,6 +413,38 @@ pub struct OutputBudget {
     pub default_bytes: u64,
     /// The most a caller may ask for; at least `default_bytes`.
     pub max_bytes: u64,
+}
+
+/// How a command's call is journaled (`journal.mode`, manifest version 3, phase 3 section 7.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JournalMode {
+    /// The entry keeps its metadata and the `keep` input keys, and neither its text nor its
+    /// result data.
+    Digest,
+    /// Journaled as before manifest version 3.
+    Plain,
+}
+
+impl JournalMode {
+    /// The manifest spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Digest => "digest",
+            Self::Plain => "plain",
+        }
+    }
+}
+
+/// `journal = { mode, keep }` of a command or pipeline (manifest version 3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JournalDecl {
+    /// `digest` or `plain`.
+    pub mode: JournalMode,
+    /// With `digest` only: the top-level input keys whose value stays in the entry when it is a
+    /// string, a number, a boolean or a list of at most 100 strings; at most
+    /// [`MAX_JOURNAL_KEEP`].
+    pub keep: Vec<String>,
 }
 
 impl CommandDecl {
@@ -425,6 +494,9 @@ pub struct PipelineDecl {
     pub input_schema: SchemaRef,
     /// The steps, in order.
     pub steps: Vec<PipelineStep>,
+    /// `journal` (manifest version 3), as declared. A pipeline with a digest step inherits
+    /// `digest` from phase 3 step 4, whatever it declares.
+    pub journal: Option<JournalDecl>,
 }
 
 /// `[[packs]]`.
@@ -523,7 +595,7 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
-    /// The `manifest_version` the file declared: 1 or 2.
+    /// The `manifest_version` the file declared: 1, 2 or 3.
     pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
@@ -624,6 +696,7 @@ impl Manifest {
             plugin,
         };
         manifest.check_names()?;
+        manifest.check_memory_rules()?;
         Ok(manifest)
     }
 
@@ -705,6 +778,50 @@ impl Manifest {
         self.mount
             .as_ref()
             .is_some_and(|mount| mount.transport == Transport::Http)
+    }
+
+    /// Phase 3 section 2.3's rules for a plugin that declares `memory` or `memory_write`: no
+    /// document write grant beside `memory_write`, a `journal` on every command and pipeline, and
+    /// `authority_prompt` only with `memory_write`.
+    fn check_memory_rules(&self) -> Result<(), PluginError> {
+        let bad =
+            |key: &str, problem: String| PluginError::manifest_invalid(&self.file, key, problem);
+        let declared = |name: &str| self.grants.iter().any(|grant| grant.name == name);
+        if declared("memory_write")
+            && let Some(other) = DOCUMENT_WRITE_GRANTS.iter().find(|name| declared(name))
+        {
+            return Err(bad(
+                "grants",
+                format!(
+                    "declares memory_write and {other}: in phase 3 a plugin holding memory_write holds no document write grant, because an event's changes hold one range"
+                ),
+            ));
+        }
+        for (index, command) in self.commands.iter().enumerate() {
+            if command.authority_prompt.is_some() && !declared("memory_write") {
+                return Err(bad(
+                    &format!("commands[{index}].authority_prompt"),
+                    "needs the grant memory_write declared in [[grants]]: only a memory write can get authority person".to_owned(),
+                ));
+            }
+        }
+        if let Some(grant) = MEMORY_GRANTS.iter().find(|name| declared(name)) {
+            let missing = |key: String| {
+                bad(
+                    &key,
+                    format!(
+                        "is required: a plugin holding {grant} declares journal = {{ mode = \"digest\" }} or {{ mode = \"plain\" }} on every command and pipeline"
+                    ),
+                )
+            };
+            if let Some(index) = self.commands.iter().position(|c| c.journal.is_none()) {
+                return Err(missing(format!("commands[{index}].journal")));
+            }
+            if let Some(index) = self.pipelines.iter().position(|p| p.journal.is_none()) {
+                return Err(missing(format!("pipelines[{index}].journal")));
+            }
+        }
+        Ok(())
     }
 
     /// Names that must be unique inside one manifest.
@@ -1250,21 +1367,21 @@ fn command(
     plugin: &PluginInfo,
     grants: &[GrantDecl],
 ) -> Result<CommandDecl, PluginError> {
-    if table.manifest_version >= 2 {
-        let known: Vec<&str> = COMMAND_KEYS
-            .iter()
-            .chain(COMMAND_KEYS_V2.iter().map(|(name, _)| name))
-            .copied()
-            .collect();
-        table.check_keys(&known, COMMAND_RESERVED)?;
-    } else {
-        let reserved: Vec<(&str, &str)> = COMMAND_RESERVED
-            .iter()
-            .chain(COMMAND_KEYS_V2.iter())
-            .copied()
-            .collect();
-        table.check_keys(COMMAND_KEYS, &reserved)?;
+    // A key a later manifest version adds is named and refused, saying which version.
+    let mut known: Vec<&str> = COMMAND_KEYS.to_vec();
+    let mut reserved: Vec<(&str, &str)> = COMMAND_RESERVED.to_vec();
+    let versioned = COMMAND_KEYS_V2
+        .iter()
+        .map(|key| (2, key))
+        .chain(COMMAND_KEYS_V3.iter().map(|key| (3, key)));
+    for (version, key) in versioned {
+        if table.manifest_version >= version {
+            known.push(key.0);
+        } else {
+            reserved.push(*key);
+        }
     }
+    table.check_keys(&known, &reserved)?;
     let input_schema = table
         .schema("input_schema")?
         .ok_or_else(|| table.bad("input_schema", "is required"))?;
@@ -1307,6 +1424,21 @@ fn command(
     let expose = expose(table)?;
     let confirm_prompt = table.optional_text("confirm_prompt", 500)?;
     let require_human = require_human(table, confirm_prompt.as_deref(), &expose)?;
+    let journal = journal(table)?;
+    let authority_prompt = table.optional_text("authority_prompt", MAX_AUTHORITY_PROMPT_CHARS)?;
+    if plugin.kind == PluginKind::Component {
+        for (key, present) in [
+            ("journal", journal.is_some()),
+            ("authority_prompt", authority_prompt.is_some()),
+        ] {
+            if present {
+                return Err(table.bad(
+                    key,
+                    "is not available to a component plugin in phase 3: a component holds no memory grant until WIT world umbel:plugin/plugin@1.1.0",
+                ));
+            }
+        }
+    }
     Ok(CommandDecl {
         name: command_name(table, plugin)?,
         description: table.text("description", 1, 500)?,
@@ -1323,6 +1455,8 @@ fn command(
         approval_required: approval,
         require_human,
         output_budget: output_budget(table, plugin.kind)?,
+        journal,
+        authority_prompt,
         execution_time,
         expose,
         examples: examples(table)?,
@@ -1358,6 +1492,41 @@ fn check_effect_grants(
         ));
     }
     Ok(())
+}
+
+/// `journal = { mode, keep }` of a command or pipeline (manifest version 3). `keep` goes with
+/// `digest` only, names at most [`MAX_JOURNAL_KEEP`] input keys, each once.
+fn journal(table: &Tbl<'_>) -> Result<Option<JournalDecl>, PluginError> {
+    let Some(journal) = table.table("journal")? else {
+        return Ok(None);
+    };
+    journal.check_keys(JOURNAL_KEYS, &[])?;
+    let mode = match journal.string("mode")?.as_deref() {
+        Some("digest") => JournalMode::Digest,
+        Some("plain") => JournalMode::Plain,
+        Some(_) => return Err(journal.bad("mode", "must be \"digest\" or \"plain\"")),
+        None => return Err(journal.bad("mode", "is required: \"digest\" or \"plain\"")),
+    };
+    let keep = journal.string_array("keep")?;
+    if keep.is_some() && mode == JournalMode::Plain {
+        return Err(journal.bad(
+            "keep",
+            "goes with mode = \"digest\" only: a plain entry keeps its whole input",
+        ));
+    }
+    let keep = keep.unwrap_or_default();
+    if keep.len() > MAX_JOURNAL_KEEP {
+        return Err(journal.bad(
+            "keep",
+            format!("names {} keys; the limit is {MAX_JOURNAL_KEEP}", keep.len()),
+        ));
+    }
+    for (index, key) in keep.iter().enumerate() {
+        if keep[..index].contains(key) {
+            return Err(journal.bad("keep", format!("names `{key}` twice")));
+        }
+    }
+    Ok(Some(JournalDecl { mode, keep }))
 }
 
 /// `output_budget = { default_bytes, max_bytes }` (manifest version 2). A component plugin's
@@ -1503,7 +1672,16 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
     tables
         .iter()
         .map(|table| {
-            table.check_keys(PIPELINE_KEYS, &[])?;
+            if table.manifest_version >= 3 {
+                let known: Vec<&str> = PIPELINE_KEYS
+                    .iter()
+                    .copied()
+                    .chain(PIPELINE_KEYS_V3.iter().map(|(name, _)| *name))
+                    .collect();
+                table.check_keys(&known, &[])?;
+            } else {
+                table.check_keys(PIPELINE_KEYS, PIPELINE_KEYS_V3)?;
+            }
             let input_schema = table
                 .schema("input_schema")?
                 .ok_or_else(|| table.bad("input_schema", "is required"))?;
@@ -1550,6 +1728,7 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
                     .ok_or_else(|| table.bad("effects", "is required"))?,
                 input_schema,
                 steps: parsed,
+                journal: journal(table)?,
             })
         })
         .collect()
@@ -1704,6 +1883,14 @@ fn mount(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Option<MountDecl>, Plugi
 fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginError> {
     let mut tools: Vec<MountTool> = Vec::new();
     for entry in table.tables("tools")? {
+        for key in ["journal", "authority_prompt"] {
+            if entry.value(key).is_some() {
+                return Err(entry.bad(
+                    key,
+                    "is not available to a mounted tool in phase 3: a mount holds no memory grant",
+                ));
+            }
+        }
         entry.check_keys(MOUNT_TOOL_KEYS, &[])?;
         let tool = entry.required_string("tool")?;
         let name = entry.string("name")?;

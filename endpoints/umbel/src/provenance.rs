@@ -1,12 +1,18 @@
-//! The provenance envelope, versions 0 and 1 (`schemas/provenance-envelope.v0.json`,
-//! `schemas/provenance-envelope.v1.json`).
+//! The provenance envelope, versions 0, 1 and 2 (`schemas/provenance-envelope.v0.json`,
+//! `schemas/provenance-envelope.v1.json`, `schemas/provenance-envelope.v2.json`).
 //!
 //! Every event carries one. The command supplies `origin`, `session`, `validFrom`, `validUntil`,
 //! `confidence`, `authority` and, from version 1, `sources`, `generated`, `contentHash`,
-//! `derivedFrom`, `access` and `sensitivity` in `result.metadata["dev.umbel/provenance"]`; the
-//! host fills the rest from the journal entry: `space`, `plugin`, `agent`, `principal`, `traceId`
-//! and `observedAt`. A value that is not of the documented shape reads as absent; the store
-//! writes of phase 2 refuse what the envelope must hold (`STORE_PROVENANCE_REQUIRED`).
+//! `derivedFrom`, `access` and `sensitivity`, and from version 2 `redactions` and `constraints`,
+//! in `result.metadata["dev.umbel/provenance"]`; the host fills the rest from the journal entry:
+//! `space`, `plugin`, `agent`, `principal`, `traceId` and `observedAt`. A value that is not of
+//! the documented shape reads as absent; the store writes of phase 2 refuse what the envelope
+//! must hold (`STORE_PROVENANCE_REQUIRED`).
+//!
+//! Version 2 (phase 3 specification section 2.1) closes `authority` to [`AUTHORITIES`]: a value
+//! outside it reads as absent. `confirmation` is filled only by the host, for `memory-confirm`
+//! (phase 3 step 6); nothing a command supplies reaches it. An entry is read in the version it was
+//! journaled in, so a version 1 entry keeps its open `authority`.
 
 use afd::{Actor, ActorKind, JournalEntry};
 use serde::ser::SerializeMap;
@@ -21,11 +27,28 @@ pub const PROVENANCE_KEY: &str = "dev.umbel/provenance";
 
 /// The most `sources` or `derivedFrom` entries an envelope holds.
 const MAX_LISTED: usize = 64;
+/// The most `redactions` entries (version 2).
+const MAX_REDACTIONS: usize = 32;
+/// The most `constraints` (version 2).
+const MAX_CONSTRAINTS: usize = 16;
+/// The longest constraint, in characters.
+const MAX_CONSTRAINT_CHARS: usize = 200;
+
+/// The closed set of `authority` in envelope version 2 (D71).
+pub const AUTHORITIES: &[&str] = &[
+    "person",
+    "agent",
+    "tool",
+    "transcript",
+    "import",
+    "document",
+    "external",
+];
 
 /// The fields a command may supply in `dev.umbel/provenance`, each with its documented shape. The
 /// host fills every other field of the envelope (`space`, `plugin`, `agent`, `principal`,
 /// `traceId`, `observedAt`) from the journal entry.
-const SUPPLIED_FIELDS: &[(&str, FieldType)] = &[
+const SUPPLIED_FIELDS_V1: &[(&str, FieldType)] = &[
     ("origin", FieldType::Text),
     ("session", FieldType::Text),
     ("validFrom", FieldType::Text),
@@ -40,9 +63,30 @@ const SUPPLIED_FIELDS: &[(&str, FieldType)] = &[
     ("sensitivity", FieldType::Sensitivity),
 ];
 
+/// Version 2's: `authority` only from the closed set, and `redactions` and `constraints`.
+const SUPPLIED_FIELDS_V2: &[(&str, FieldType)] = &[
+    ("origin", FieldType::Text),
+    ("session", FieldType::Text),
+    ("validFrom", FieldType::Text),
+    ("validUntil", FieldType::Text),
+    ("confidence", FieldType::Number),
+    ("authority", FieldType::Authority),
+    ("sources", FieldType::Sources),
+    ("generated", FieldType::Generated),
+    ("contentHash", FieldType::Hash),
+    ("derivedFrom", FieldType::DerivedFrom),
+    ("access", FieldType::Access),
+    ("sensitivity", FieldType::Sensitivity),
+    ("redactions", FieldType::Redactions),
+    ("constraints", FieldType::Constraints),
+];
+
 #[derive(Clone, Copy)]
 enum FieldType {
     Text,
+    Authority,
+    Redactions,
+    Constraints,
     Number,
     Sources,
     Generated,
@@ -56,6 +100,38 @@ impl FieldType {
     fn accepts(self, field: &Value) -> bool {
         match self {
             Self::Text => field.is_string(),
+            Self::Authority => field
+                .as_str()
+                .is_some_and(|text| AUTHORITIES.contains(&text)),
+            Self::Redactions => field.as_array().is_some_and(|entries| {
+                entries.len() <= MAX_REDACTIONS
+                    && entries.iter().all(|entry| {
+                        entry.as_object().is_some_and(|entry| {
+                            entry.len() == 2
+                                && entry
+                                    .get("kind")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|kind| {
+                                        !kind.is_empty() && !kind.chars().any(char::is_control)
+                                    })
+                                && entry
+                                    .get("count")
+                                    .and_then(Value::as_u64)
+                                    .is_some_and(|count| count >= 1)
+                        })
+                    })
+                    && entries
+                        .windows(2)
+                        .all(|pair| pair[0]["kind"].as_str() < pair[1]["kind"].as_str())
+            }),
+            Self::Constraints => field.as_array().is_some_and(|entries| {
+                entries.len() <= MAX_CONSTRAINTS
+                    && entries.iter().all(|entry| {
+                        entry
+                            .as_str()
+                            .is_some_and(|text| text.chars().count() <= MAX_CONSTRAINT_CHARS)
+                    })
+            }),
             Self::Number => field.is_number(),
             Self::Sources => field.as_array().is_some_and(|entries| {
                 entries.len() <= MAX_LISTED
@@ -171,13 +247,23 @@ pub fn effective_principal(actor: &Actor) -> Option<String> {
     parse_principal(&text).is_ok().then_some(text)
 }
 
-/// What a plugin supplied under [`PROVENANCE_KEY`], reduced to the fields a command may supply,
-/// each of its documented type: everything else is removed, so a plugin, sandboxed or not,
-/// cannot supply the host-filled fields. `None` when nothing is left, or the value is not an
-/// object.
+/// What a plugin supplied under [`PROVENANCE_KEY`], reduced to the fields a command may supply in
+/// the envelope version this host writes, each of its documented type: everything else is
+/// removed, so a plugin, sandboxed or not, cannot supply the host-filled fields. `None` when
+/// nothing is left, or the value is not an object.
 pub fn supplied_fields(value: &Value) -> Option<Value> {
+    supplied_fields_of(value, PROVENANCE_VERSION)
+}
+
+/// [`supplied_fields`] by the rules of envelope `version`: a journal entry is read in its own.
+fn supplied_fields_of(value: &Value, version: u32) -> Option<Value> {
     let map = value.as_object()?;
-    let kept: Map<String, Value> = SUPPLIED_FIELDS
+    let fields = if version >= 2 {
+        SUPPLIED_FIELDS_V2
+    } else {
+        SUPPLIED_FIELDS_V1
+    };
+    let kept: Map<String, Value> = fields
         .iter()
         .filter_map(|(name, kind)| {
             let field = map.get(*name)?;
@@ -213,14 +299,15 @@ impl Origin {
     }
 }
 
-/// The provenance envelope, version 0 or 1. Every field of its version is present on the wire;
+/// The provenance envelope, version 0, 1 or 2. Every field of its version is present on the wire;
 /// absent ones are `null`. Version 0 has no `plugin`, `sources`, `generated`, `contentHash`,
-/// `derivedFrom`, `access` or `sensitivity`: those read as their empty values from a version 0
-/// line and are not written for one.
+/// `derivedFrom`, `access` or `sensitivity`, and versions 0 and 1 have no `redactions`,
+/// `constraints` or `confirmation`: those read as their empty values from an older line and are
+/// not written for one.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Envelope {
-    /// 0, or [`PROVENANCE_VERSION`].
+    /// 0, 1 or [`PROVENANCE_VERSION`].
     pub version: u32,
     /// Where the record came from.
     pub origin: Origin,
@@ -247,7 +334,7 @@ pub struct Envelope {
     pub valid_until: Option<String>,
     /// 0 to 1: the command's value, else the result's `confidence`.
     pub confidence: Option<f64>,
-    /// A string; version 2 closes the set.
+    /// A string; version 2 closes the set to [`AUTHORITIES`].
     pub authority: Option<String>,
     /// Version 1: the OKF `sources` list as the command stated it.
     #[serde(default)]
@@ -267,12 +354,27 @@ pub struct Envelope {
     /// Version 1: how sensitive the record is.
     #[serde(default)]
     pub sensitivity: Option<Sensitivity>,
+    /// Version 2: what hygiene masked, `[{ kind, count }]` sorted by kind. Never the text.
+    #[serde(default)]
+    pub redactions: Option<Vec<Value>>,
+    /// Version 2: limits the source stated on use.
+    #[serde(default)]
+    pub constraints: Option<Vec<String>>,
+    /// Version 2: `{ by, at, priorAuthority }`, filled only by the host for `memory-confirm`
+    /// (phase 3 step 6); `null` until then.
+    #[serde(default)]
+    pub confirmation: Option<Value>,
 }
 
 impl Serialize for Envelope {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let v1 = self.version >= 1;
-        let mut map = serializer.serialize_map(Some(if v1 { 19 } else { 12 }))?;
+        let v2 = self.version >= 2;
+        let mut map = serializer.serialize_map(Some(match (v1, v2) {
+            (_, true) => 22,
+            (true, false) => 19,
+            _ => 12,
+        }))?;
         map.serialize_entry("version", &self.version)?;
         map.serialize_entry("origin", &self.origin)?;
         map.serialize_entry("space", &self.space)?;
@@ -296,19 +398,26 @@ impl Serialize for Envelope {
             map.serialize_entry("access", &self.access)?;
             map.serialize_entry("sensitivity", &self.sensitivity)?;
         }
+        if v2 {
+            map.serialize_entry("redactions", &self.redactions)?;
+            map.serialize_entry("constraints", &self.constraints)?;
+            map.serialize_entry("confirmation", &self.confirmation)?;
+        }
         map.end()
     }
 }
 
 impl Envelope {
-    /// The envelope of the journal entry `entry`, a mutation in `space`, in `version` (0 or 1).
+    /// The envelope of the journal entry `entry`, a mutation in `space`, in `version` (0, 1 or
+    /// 2; a newer one is written as the newest this host knows).
     pub fn from_entry(entry: &JournalEntry, space: &str, version: u32) -> Self {
+        let version = version.min(PROVENANCE_VERSION);
         let metadata = entry.result.metadata.as_ref();
         // The gate has already reduced what a plugin supplied, but the journal is a file: read
         // each field through the same shape check again.
         let reduced = metadata
             .and_then(|metadata| metadata.extra.get(PROVENANCE_KEY))
-            .and_then(supplied_fields);
+            .and_then(|value| supplied_fields_of(value, version));
         let supplied: Option<&Map<String, Value>> = reduced.as_ref().and_then(Value::as_object);
         let field = |name: &str| supplied.and_then(|map| map.get(name));
         let text = |name: &str| field(name).and_then(Value::as_str).map(str::to_owned);
@@ -321,6 +430,7 @@ impl Envelope {
             .or(entry.result.confidence)
             .filter(|value| (0.0..=1.0).contains(value));
         let v1 = version >= 1;
+        let v2 = version >= 2;
         let (agent, principal) = match &entry.actor {
             Some(actor) => (
                 matches!(
@@ -355,7 +465,7 @@ impl Envelope {
             access.push("space".to_owned());
         }
         Self {
-            version: if v1 { PROVENANCE_VERSION } else { 0 },
+            version,
             origin: Origin::from_value(field("origin")),
             space: space.to_owned(),
             plugin: v1.then(|| plugin_id(entry)).flatten(),
@@ -382,6 +492,18 @@ impl Envelope {
                     .and_then(|text| Sensitivity::parse(&text))
                     .unwrap_or_default()
             }),
+            redactions: if v2 { list("redactions") } else { None },
+            constraints: if v2 {
+                list("constraints").map(|entries| {
+                    entries
+                        .into_iter()
+                        .filter_map(|entry| entry.as_str().map(str::to_owned))
+                        .collect()
+                })
+            } else {
+                None
+            },
+            confirmation: None,
         }
     }
 }
@@ -458,6 +580,36 @@ mod tests {
             .map(|n| json!({"resource": format!("/{n}")}))
             .collect();
         assert_eq!(supplied_fields(&json!({ "sources": too_many })), None);
+    }
+
+    #[test]
+    fn version_2_closes_authority_and_admits_redactions_and_constraints() {
+        let good = json!({
+            "authority": "person",
+            "redactions": [{"kind": "aws-key", "count": 1}, {"kind": "pem", "count": 2}],
+            "constraints": ["staging only", ""],
+        });
+        assert_eq!(supplied_fields(&good), Some(good.clone()));
+        let bad = json!({
+            "authority": "root",
+            "redactions": [{"kind": "pem", "count": 1}, {"kind": "aws-key", "count": 1}],
+            "constraints": ["x".repeat(201)],
+            "confirmation": {"by": "human:ada", "at": "2026-11-02T10:15:00Z", "priorAuthority": "agent"},
+        });
+        assert_eq!(supplied_fields(&bad), None);
+        for redactions in [
+            json!([{"kind": "pem", "count": 0}]),
+            json!([{"kind": "pem"}]),
+            json!([{"kind": "pem", "count": 1, "text": "secret"}]),
+            json!([{"kind": "pem", "count": 1}, {"kind": "pem", "count": 1}]),
+        ] {
+            assert_eq!(supplied_fields(&json!({ "redactions": redactions })), None);
+        }
+        let too_many: Vec<Value> = (0..17).map(|n| json!(format!("c{n}"))).collect();
+        assert_eq!(supplied_fields(&json!({ "constraints": too_many })), None);
+        // Read by version 1's rules, an open authority survives and the new fields do not.
+        let v1 = supplied_fields_of(&json!({"authority": "anything", "constraints": []}), 1);
+        assert_eq!(v1, Some(json!({"authority": "anything"})));
     }
 
     #[test]

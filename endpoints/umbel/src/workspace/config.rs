@@ -1,6 +1,8 @@
-//! `umbel.toml`, versions 1, 2 and 3: defaults, key scan and validation (phase 0 specification
+//! `umbel.toml`, versions 1 to 4: defaults, key scan and validation (phase 0 specification
 //! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
-//! adds the collections, readers, access groups and store of version 3).
+//! adds the collections, readers, access groups and store of version 3; phase 3 section 2.4 adds
+//! the `memory_write` grant table, `principal.agent_env` and
+//! `store.exclude_memory_from_machine_backup` of version 4).
 
 use std::net::SocketAddr;
 use std::path::Path;
@@ -12,12 +14,14 @@ use super::access::{AccessToken, ReaderEntry, check_member, is_group_id};
 use super::error::WorkspaceError;
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
+    MEMORY_WRITE_GRANT_KEYS, is_env_name,
 };
 use super::space::SpaceId;
 
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
-/// is version 2 with no plugins, and version 2, which is version 3 with no collections.
-pub const CONFIG_VERSION: u32 = 3;
+/// is version 2 with no plugins, version 2, which is version 3 with no collections, and version 3,
+/// which is version 4 with no memory policy: each reads as version 4 with no change of meaning.
+pub const CONFIG_VERSION: u32 = 4;
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -53,10 +57,14 @@ const COLLECTION_KEYS: &[&str] = &[
 const ACCESS_KEYS: &[&str] = &["groups"];
 const GROUP_KEYS: &[&str] = &["members"];
 const STORE_KEYS: &[&str] = &["lock_timeout_ms"];
+/// `[store]` of version 4.
+const STORE_KEYS_V4: &[&str] = &["lock_timeout_ms", "exclude_memory_from_machine_backup"];
 
 /// A collection's default `max_file_bytes` (1 MiB) and its cap (16 MiB).
 pub const DEFAULT_MAX_FILE_BYTES: u64 = 1_048_576;
 const MAX_FILE_BYTES_CAP: u64 = 16_777_216;
+/// The default `principal.local_id`.
+pub const DEFAULT_LOCAL_ID: &str = "local";
 /// The default `store.lock_timeout_ms`.
 pub const DEFAULT_STORE_LOCK_TIMEOUT_MS: u64 = 5_000;
 const MARKDOWN_INCLUDE: &[&str] = &["**/*.md"];
@@ -83,6 +91,10 @@ const EVENTS_KEYS: &[&str] = &[];
 const EVENTS_RESERVED: &[&str] = &["retention"];
 const LOG_KEYS: &[&str] = &["level", "format"];
 const PRINCIPAL_KEYS: &[&str] = &["local_id", "on_behalf_of"];
+/// `[principal]` of version 4.
+const PRINCIPAL_KEYS_V4: &[&str] = &["local_id", "on_behalf_of", "agent_env"];
+/// The most names `principal.agent_env` lists.
+const MAX_AGENT_ENV: usize = 64;
 
 /// How the MCP surface and the CLI treat `confirm_prompt` commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -188,6 +200,9 @@ pub struct AccessConfig {
 pub struct StoreConfig {
     /// SQLite's busy timeout and the wait for tantivy's writer.
     pub lock_timeout_ms: u64,
+    /// Version 4: whether the memory files are excluded from the machine's backup (Time Machine
+    /// on macOS, D87); `true` by default. The memory store applies it from phase 3 step 3b.
+    pub exclude_memory_from_machine_backup: bool,
 }
 
 /// `[mcp]`.
@@ -257,14 +272,18 @@ pub struct PrincipalConfig {
     pub local_id: String,
     /// The person a local agent acts for.
     pub on_behalf_of: Option<String>,
+    /// Version 4: environment variable names that, when set, mark the CLI's caller as an agent,
+    /// beside the built-in `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT` (phase 3 section
+    /// 3.3). The CLI reads them from phase 3 step 4.
+    pub agent_env: Vec<String>,
 }
 
 /// A validated `umbel.toml` with every default filled in.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Config {
-    /// The `config_version` the file declared: 1, 2 with plugin instances, or 3 with
-    /// collections, access groups and a store.
+    /// The `config_version` the file declared: 1, 2 with plugin instances, 3 with collections,
+    /// access groups and a store, or 4 with the memory policy.
     pub version: u32,
     /// The workspace name.
     pub name: String,
@@ -342,7 +361,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1, 2 and 3.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 4.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -358,21 +377,21 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 3",
+                "is required; set config_version = 4",
             )),
-            Some(Value::Integer(version @ (1..=3))) => {
+            Some(Value::Integer(version @ (1..=4))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1, 2 or 3",
+                "must be the integer 1, 2, 3 or 4",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1, 2 or 3.
+    /// The `config_version` of the file: 1 to 4.
     pub fn version(&self) -> u32 {
         self.version
     }
@@ -380,7 +399,8 @@ impl ConfigFile {
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
         let mut scan = KeyScan::default();
-        let v3 = self.version == 3;
+        let v3 = self.version >= 3;
+        let v4 = self.version >= 4;
         let top: Vec<&str> = TOP_KEYS
             .iter()
             .chain(TOP_KEYS_V3.iter().filter(|_| v3))
@@ -393,11 +413,19 @@ impl ConfigFile {
             ("journal", JOURNAL_KEYS, &[]),
             ("events", EVENTS_KEYS, EVENTS_RESERVED),
             ("log", LOG_KEYS, &[]),
-            ("principal", PRINCIPAL_KEYS, &[]),
+            (
+                "principal",
+                if v4 {
+                    PRINCIPAL_KEYS_V4
+                } else {
+                    PRINCIPAL_KEYS
+                },
+                &[],
+            ),
         ];
         if v3 {
             sections.push(("access", ACCESS_KEYS, &[]));
-            sections.push(("store", STORE_KEYS, &[]));
+            sections.push(("store", if v4 { STORE_KEYS_V4 } else { STORE_KEYS }, &[]));
         }
         for (name, known, reserved) in sections {
             if let Some(Value::Table(table)) = self.table.get(name) {
@@ -473,7 +501,12 @@ impl ConfigFile {
                     for (grant, value) in grants {
                         if let Value::Table(entry) = value {
                             let grant_prefix = format!("{prefix}.grants.{grant}");
-                            scan_table(entry, &grant_prefix, GRANT_KEYS, &[], scan);
+                            let known = if self.version >= 4 && grant == "memory_write" {
+                                MEMORY_WRITE_GRANT_KEYS
+                            } else {
+                                GRANT_KEYS
+                            };
+                            scan_table(entry, &grant_prefix, known, &[], scan);
                         }
                     }
                 }
@@ -494,7 +527,7 @@ impl ConfigFile {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
             return Err(WorkspaceError::config_invalid(
                 &key,
-                if self.version == 3 && key.ends_with(".content_roots") {
+                if self.version >= 3 && key.ends_with(".content_roots") {
                     "was replaced by collections in configuration version 3; declare [spaces.<id>.collections.<cid>] with a root"
                 } else {
                     "is not a known key"
@@ -738,7 +771,7 @@ impl ConfigFile {
         let principal = Reader::new(self.section("principal")?, "principal");
         let local_id = principal
             .string("local_id")?
-            .unwrap_or_else(|| "local".to_owned());
+            .unwrap_or_else(|| DEFAULT_LOCAL_ID.to_owned());
         let length = local_id.chars().count();
         if !(1..=128).contains(&length) || local_id.chars().any(char::is_control) {
             return Err(WorkspaceError::config_invalid(
@@ -753,11 +786,35 @@ impl ConfigFile {
                 "must not be empty",
             ));
         }
+        let agent_env = principal.string_array("agent_env")?.unwrap_or_default();
+        if agent_env.len() > MAX_AGENT_ENV {
+            return Err(WorkspaceError::config_invalid(
+                "principal.agent_env",
+                format!("must name at most {MAX_AGENT_ENV} variables"),
+            ));
+        }
+        for (index, name) in agent_env.iter().enumerate() {
+            if !is_env_name(name) {
+                return Err(WorkspaceError::config_invalid(
+                    "principal.agent_env",
+                    format!("entry `{name}` must be an environment variable name such as MY_AGENT"),
+                ));
+            }
+            if agent_env[..index].contains(name) {
+                return Err(WorkspaceError::config_invalid(
+                    "principal.agent_env",
+                    format!("names `{name}` twice"),
+                ));
+            }
+        }
         let store = Reader::new(self.section("store")?, "store");
         let store = StoreConfig {
             lock_timeout_ms: store
                 .integer("lock_timeout_ms", 100, 600_000)?
                 .unwrap_or(DEFAULT_STORE_LOCK_TIMEOUT_MS),
+            exclude_memory_from_machine_backup: store
+                .boolean("exclude_memory_from_machine_backup")?
+                .unwrap_or(true),
         };
         Ok(Rest {
             mcp,
@@ -766,6 +823,7 @@ impl ConfigFile {
             principal: PrincipalConfig {
                 local_id,
                 on_behalf_of,
+                agent_env,
             },
             access: self.access()?,
             store,
@@ -826,7 +884,7 @@ impl ConfigFile {
         let key = format!("{space_key}.collections");
         let table = match entry.get("collections") {
             None => return Ok(Vec::new()),
-            Some(Value::Table(table)) if self.version == 3 => table,
+            Some(Value::Table(table)) if self.version >= 3 => table,
             Some(Value::Table(_)) => {
                 return Err(WorkspaceError::config_invalid(
                     &key,

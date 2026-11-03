@@ -204,10 +204,10 @@ fn parse_line(path: &Path, line_number: u64, line: &[u8]) -> Result<Event, Event
         EventsError::damaged(path, format!("line {line_number} is not JSON: {error}"))
     })?;
     match value.get("version").and_then(Value::as_u64) {
-        Some(0 | 1) => {}
+        Some(version) if version <= u64::from(EVENT_VERSION) => {}
         other => {
             return Err(EventsError::Damaged(format!(
-                "{} line {line_number} is event version {}; this umbel reads event versions 0 and {EVENT_VERSION}. Upgrade umbel to read it.",
+                "{} line {line_number} is event version {}; this umbel reads event versions 0 to {EVENT_VERSION}. Upgrade umbel to read it.",
                 path.display(),
                 other.map_or_else(|| "unknown".to_owned(), |version| version.to_string())
             )));
@@ -257,6 +257,9 @@ mod tests {
                 derived_from: None,
                 access: Vec::new(),
                 sensitivity: None,
+                redactions: None,
+                constraints: None,
+                confirmation: None,
             },
         }
     }

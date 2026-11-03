@@ -196,7 +196,7 @@ fn another_manifest_version_or_protocol_is_unsupported_and_names_what_is_served(
     for (key, text) in [
         (
             "manifest_version",
-            edited("manifest_version = 1", "manifest_version = 3"),
+            edited("manifest_version = 1", "manifest_version = 4"),
         ),
         ("protocol", edited("protocol = 1", "protocol = 2")),
         ("protocol", edited("protocol = 1", "protocol = 0")),
@@ -207,17 +207,17 @@ fn another_manifest_version_or_protocol_is_unsupported_and_names_what_is_served(
         assert!(
             error
                 .message()
-                .contains("manifest versions 1 and 2, protocol 1"),
+                .contains("manifest versions 1, 2 and 3, protocol 1"),
             "{error}"
         );
         assert!(
             error
                 .suggestion()
-                .contains("manifest versions 1 and 2, protocol 1")
+                .contains("manifest versions 1, 2 and 3, protocol 1")
         );
     }
     // A newer manifest may have keys this host cannot know: the version is judged first.
-    let future = "manifest_version = 3\nprotocol = 1\nsomething_new = true\n";
+    let future = "manifest_version = 4\nprotocol = 1\nsomething_new = true\n";
     assert_eq!(
         parse(future).unwrap_err().code(),
         "PLUGIN_PROTOCOL_UNSUPPORTED"

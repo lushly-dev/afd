@@ -332,8 +332,10 @@ pub fn schema_validator(stem: &str) -> Validator {
         "principal.v0",
         "provenance-envelope.v0",
         "provenance-envelope.v1",
+        "provenance-envelope.v2",
         "event.v0",
         "event.v1",
+        "event.v2",
         "cursor.v0",
         "cursor-file.v0",
     ]

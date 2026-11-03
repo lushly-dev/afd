@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
+use super::GRANTS;
 use super::compiled::CompiledPlugin;
 use super::error::PluginError;
 use super::files::{DirFiles, PluginFiles};
@@ -23,7 +24,6 @@ use super::loader::{InstanceReport, Status, embedded_id};
 use super::manifest::{Manifest, PluginKind, Transport};
 use super::packs::check_pack;
 use super::skills::check_skill;
-use super::{GRANTS, RESERVED_GRANTS};
 use crate::doctor::{Check, CheckStatus};
 use crate::{HostBuilder, HostError};
 
@@ -197,16 +197,9 @@ fn grants(manifest: &Manifest) -> Check {
     let mut warned = false;
     for grant in &manifest.grants {
         let name = grant.name.as_str();
-        if GRANTS.contains(&name) {
+        let Some(why) = super::unavailable_grant(name) else {
             continue;
-        }
-        let why = RESERVED_GRANTS
-            .iter()
-            .find(|(reserved, _)| *reserved == name)
-            .map_or_else(
-                || "is not in this host's catalog".to_owned(),
-                |(_, phase)| format!("arrives with {phase}"),
-            );
+        };
         let error = PluginError::grant_unavailable(id, name, why);
         warned |= !grant.required;
         problems.push((grant.required, error));

@@ -194,11 +194,11 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
 
 #[test]
 fn config_parse_fails_for_another_version_and_names_the_supported_one() {
-    let (_dir, root) = with_config("config_version = 4\n");
+    let (_dir, root) = with_config("config_version = 5\n");
     let report = doctor::run(&root);
     let parse = check(&report, "config.parse");
     assert_eq!(parse.status, CheckStatus::Fail);
-    assert!(parse.message.contains("versions 1, 2 and 3"));
+    assert!(parse.message.contains("versions 1 to 4"));
     assert!(parse.suggestion.is_some());
 }
 

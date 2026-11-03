@@ -38,6 +38,9 @@ pub fn envelope(access: &[&str], trace: &str, at: &str) -> Envelope {
             .map(|set| set.tokens().to_vec())
             .unwrap_or_default(),
         sensitivity: Some(Sensitivity::Internal),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     }
 }
 

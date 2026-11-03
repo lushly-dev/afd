@@ -1,6 +1,8 @@
-//! The event, versions 0 and 1 (`schemas/event.v0.json`, `schemas/event.v1.json`): a projection
-//! of one journal entry. A new event is version 1 when the host that journaled the call stamped
-//! it so; an older entry projects as version 0, as it was first written.
+//! The event, versions 0, 1 and 2 (`schemas/event.v0.json`, `schemas/event.v1.json`,
+//! `schemas/event.v2.json`): a projection of one journal entry. An entry projects in the version
+//! the host that journaled the call stamped on it, and an unstamped one as version 0, as it was
+//! first written. Version 2 carries a provenance envelope version 2 and may name the store its
+//! `changes` range belongs to (phase 3 specification section 2.2).
 
 use super::cursor::Cursor;
 use crate::middleware::{EVENT_VERSION_KEY, MUTATION_KEY, SPACE_KEY};
@@ -54,11 +56,23 @@ impl RecordRef {
 /// specification, section 3.3 rule 6).
 pub(crate) const CHANGES_KEY: &str = "dev.umbel/changes";
 
+/// The store a `changes` range belongs to (event version 2). Absent means the document store, so
+/// version 1's meaning is unchanged; memory revisions are a sequence of their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChangesStore {
+    /// The memory store (phase 3).
+    Memory,
+}
+
 /// The store revisions one call wrote (event version 1): the lowest and highest, and how many.
 /// Other processes may write between them, so `to_rev - from_rev + 1` can exceed `count`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Changes {
+    /// Version 2: the store, when it is not the document store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store: Option<ChangesStore>,
     /// The lowest revision the call wrote.
     pub from_rev: u64,
     /// The highest.
@@ -68,10 +82,20 @@ pub struct Changes {
 }
 
 impl Changes {
-    fn from_value(value: &Value) -> Option<Self> {
+    /// `{ store?, fromRev, toRev, count }` from the gate's stamp; `store` is read in event
+    /// version 2 only, and a value other than `memory` makes the range unreadable.
+    fn from_value(value: &Value, version: u32) -> Option<Self> {
         let object = value.as_object()?;
         let number = |name: &str| object.get(name)?.as_u64().filter(|n| *n >= 1);
+        let store = match object.get("store") {
+            Some(store) if version >= 2 => match store.as_str() {
+                Some("memory") => Some(ChangesStore::Memory),
+                _ => return None,
+            },
+            _ => None,
+        };
         let changes = Self {
+            store,
             from_rev: number("fromRev")?,
             to_rev: number("toRev")?,
             count: number("count")?,
@@ -84,7 +108,8 @@ impl Changes {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
-    /// 0 for a line written before event version 1, else [`EVENT_VERSION`].
+    /// 0 for a line written before event version 1; 1 or [`EVENT_VERSION`] as the journaling host
+    /// stamped it.
     pub version: u32,
     /// `<space>:<seq>`, unique in the deployment.
     pub id: String,
@@ -116,8 +141,8 @@ pub struct Event {
 }
 
 impl Event {
-    /// The event for journal entry `entry`, number `seq` of `space`: version 1 for an entry the
-    /// host stamped `dev.umbel/event-version = 1`, version 0 for any other.
+    /// The event for journal entry `entry`, number `seq` of `space`: the version the host stamped
+    /// in `dev.umbel/event-version` (1 or 2), version 0 for an unstamped entry.
     pub fn from_entry(entry: &JournalEntry, space: &SpaceId, seq: u64) -> Self {
         let extra = entry
             .result
@@ -135,7 +160,7 @@ impl Event {
         let changes = (version >= 1)
             .then(|| extra.and_then(|extra| extra.get(CHANGES_KEY)))
             .flatten()
-            .and_then(Changes::from_value);
+            .and_then(|value| Changes::from_value(value, version));
         let record = entry
             .result
             .metadata

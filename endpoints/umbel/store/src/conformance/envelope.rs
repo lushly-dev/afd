@@ -118,7 +118,7 @@ fn malformed(env: &Env<'_>) -> CaseResult {
 }
 
 fn reserved(_: &Env<'_>) -> CaseResult {
-    for field in ["redactions", "delegationChain", "tenant", "surprise"] {
+    for field in ["delegationChain", "tenant", "surprise"] {
         let mut value = serde_json::to_value(base()).map_err(|e| e.to_string())?;
         value[field] = json!("x");
         expect_err(

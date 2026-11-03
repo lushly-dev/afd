@@ -82,6 +82,9 @@ fn bookkeeping(sensitivity: Sensitivity, now: &str) -> Envelope {
         derived_from: None,
         access: vec!["space".to_owned()],
         sensitivity: Some(sensitivity),
+        redactions: None,
+        constraints: None,
+        confirmation: None,
     }
 }
 

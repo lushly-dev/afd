@@ -1,0 +1,148 @@
+{
+	"manifest_version": 3,
+	"protocol": 1,
+	"plugin": {
+		"id": "memory",
+		"title": "Memory",
+		"version": "0.1.0",
+		"description": "Remember and recall what people and agents said: a manifest version 3 example.",
+		"kind": "compiled",
+		"domains": ["memory"],
+		"homepage": "https://afd.dev/umbel",
+		"license": "MIT"
+	},
+	"grants": [
+		{
+			"name": "memory",
+			"required": true,
+			"reason": "Reads the records the caller may read."
+		},
+		{
+			"name": "memory_write",
+			"required": true,
+			"reason": "Writes remembered and captured records."
+		},
+		{
+			"name": "clock",
+			"required": true,
+			"reason": "Stamps validity and expiry."
+		}
+	],
+	"commands": [
+		{
+			"name": "memory-remember",
+			"description": "Remember a fact, a procedure or an episode.",
+			"effects": ["store-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"class": {
+						"enum": ["episodic", "semantic", "procedural"]
+					},
+					"subject": {
+						"type": "string",
+						"minLength": 1
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1
+					},
+					"project": {
+						"type": "string"
+					},
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": ["class", "subject", "text"],
+				"additionalProperties": false
+			},
+			"first_class": true,
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "project", "class"]
+			},
+			"authority_prompt": "You are recording this as your own word, authority person, which session start pushes. A record with no project reaches every repository. To record it as an unconfirmed note, answer n and run it again with --yes."
+		},
+		{
+			"name": "memory-recall",
+			"description": "Find records the caller may read.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"minLength": 1
+					},
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"output_budget": {
+				"default_bytes": 8000,
+				"max_bytes": 32000
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space"]
+			}
+		},
+		{
+			"name": "memory-status",
+			"description": "Counts, quotas and the key file's state.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					}
+				},
+				"required": [],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "plain"
+			}
+		}
+	],
+	"pipelines": [
+		{
+			"name": "memory-note",
+			"description": "Remember a semantic note in one call.",
+			"effects": ["store-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"subject": {
+						"type": "string",
+						"minLength": 1
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["subject", "text"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest"
+			},
+			"steps": [
+				{
+					"command": "memory-remember",
+					"input": {
+						"class": "semantic",
+						"subject": "$input.subject",
+						"text": "$input.text"
+					}
+				}
+			]
+		}
+	]
+}

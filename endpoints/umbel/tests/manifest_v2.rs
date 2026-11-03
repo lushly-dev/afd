@@ -69,24 +69,28 @@ fn v2(grants: &[&str], command: &str) -> String {
 // ── Versions ───────────────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn a_host_reads_manifest_versions_1_and_2_and_no_other() {
+fn a_host_reads_manifest_versions_1_and_2_and_version_3_beside_them() {
     let one = parse(&head(1, "compiled")).unwrap();
     assert_eq!(one.manifest_version, 1);
     let two = parse(&head(2, "compiled")).unwrap();
     assert_eq!(two.manifest_version, 2);
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2]);
-    for other in [0, 3] {
+    // Version 3 (phase 3) is tested in `manifest_v3.rs`.
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3]);
+    for other in [0, 4] {
         let error = parse(&head(other, "compiled")).unwrap_err();
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{other}");
         assert!(error.message().contains("manifest_version"), "{error}");
-        assert!(error.suggestion().contains("versions 1 and 2"), "{error}");
+        assert!(
+            error.suggestion().contains("versions 1, 2 and 3"),
+            "{error}"
+        );
     }
     let text = head(2, "compiled").replace("manifest_version = 2", "manifest_version = \"2\"");
     invalid(&text, "manifest_version");
     let missing = head(2, "compiled").replace("manifest_version = 2\n", "");
     let error = invalid(&missing, "manifest_version");
     assert!(
-        error.message().contains("set manifest_version = 2"),
+        error.message().contains("set manifest_version = 3"),
         "{error}"
     );
 }

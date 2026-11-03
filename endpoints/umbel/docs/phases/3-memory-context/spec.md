@@ -14,7 +14,7 @@
   revised 2026-11-02 after an independent review ("approve after must-fixes"). It adds
   decisions [D68 to D89](../../decisions.md) and the architecture amendments they need, in
   [#685](https://github.com/lushly-dev/afd/pull/685). Section [15](#15-for-the-owner) records
-  the owner's decisions. No implementation has started. Phase 2 closed in
+  the owner's decisions. Implementation started with step 1 on 2026-11-02. Phase 2 closed in
   [#687](https://github.com/lushly-dev/afd/pull/687).
 - **Last verified:** 2026-11-02 against `main` at `4a26cc0b`. Read in `endpoints/umbel`:
   `store/src/{traits,envelope,access,index}.rs`, `store-embedded/src/{lib,schema,connection,inspect}.rs`,
@@ -58,8 +58,10 @@
   [D86 to D89](../../decisions.md): the remember prompt for `person` (3.3), Time Machine exclusion with the
   file-copy limit stated (5.4), own records only for `memory-confirm` (8.7), and opt-in orphan removal
   (5.4, 8.8). The exclusion attribute was checked with `tmutil` on the owner's Mac; nothing was built.
-- **Done:** this specification.
-- **Not done:** everything in section [14](#14-implementation-plan), starting at step 1.
+- **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
+  step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
+  records a question for the owner on the envelope version of document and record writes (2.1).
+- **Not done:** section [14](#14-implementation-plan)'s steps 2 to 10.
 - **Prerequisite, done:** `umbel batch` no longer takes `request.context`, so a request cannot
   forge `dev.umbel/human-confirmed` ([#688](https://github.com/lushly-dev/afd/pull/688)). The
   same rule protects `dev.umbel/human-present` (3.3).
@@ -226,8 +228,13 @@ and two new fields. `delegationChain` and `tenant` stay reserved and refused.
 | `constraints` | **New.** `null` or at most 16 strings of at most 200 characters: limits the source stated on use ("staging only", "until the launch"). Scanned like the record's text. Phase 4 must carry them through consolidation; research finding S16 is why they exist from the first write |
 | `confirmation` | **New.** `null` or `{ by, at, priorAuthority }`, filled only by the host, for `memory-confirm` (8.7). A plugin's value is overwritten |
 
-Every new store write and event uses version 2. Stored rows and lines of
-version 0 and 1 stay as written and are read in their own version. The gate's
+Every memory write and every event uses version 2. **Document and record writes keep version 1 in
+phase 3**, because `document.v1.json` and `proposal.v1.json` nest envelope version 1 and an embedded
+shape versions with its parent (D36); their `authority` is `null` either way, so a version 2 would
+change no meaning. An event version 2 carries a document's version 1 envelope lifted into version 2,
+with `redactions`, `constraints` and `confirmation` null. (Settled by step 1, 2026-11-02, which found
+the two shapes nesting version 1.) Stored rows and lines of version 0 and 1 stay as written and are
+read in their own version. The gate's
 `supplied_fields` admits `constraints` and `redactions`, and admits `authority`
 only from the closed set.
 
