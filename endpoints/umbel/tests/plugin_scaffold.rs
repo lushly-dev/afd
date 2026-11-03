@@ -429,7 +429,7 @@ async fn a_reserved_grant_and_a_missing_returns_schema_are_reported() {
 
     // A grant the host does not provide yet fails.
     let with_reserved =
-        format!("{without_returns}\n[[grants]]\nname = \"memory\"\nreason = \"Reads memory.\"\n");
+        format!("{without_returns}\n[[grants]]\nname = \"secrets\"\nreason = \"Reads a token.\"\n");
     std::fs::write(&manifest, with_reserved).unwrap();
     let report = check(ws.path(), &dir, &[]).await;
     assert!(!report.healthy());
