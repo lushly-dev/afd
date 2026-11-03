@@ -1,0 +1,56 @@
+{
+	"manifest_version": 4,
+	"protocol": 1,
+	"plugin": {
+		"id": "notes",
+		"title": "Notes",
+		"version": "0.1.0",
+		"description": "A version 4 manifest using none of its keys: the pipeline is exposed everywhere and returns every step.",
+		"kind": "compiled",
+		"domains": ["notes"]
+	},
+	"commands": [
+		{
+			"name": "notes-find",
+			"description": "Find notes.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			}
+		}
+	],
+	"pipelines": [
+		{
+			"name": "notes-lookup",
+			"description": "Find notes in one call.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"steps": [
+				{
+					"command": "notes-find",
+					"input": {
+						"query": "$input.query"
+					}
+				}
+			]
+		}
+	]
+}

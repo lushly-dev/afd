@@ -1,0 +1,628 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/curator-record.v1.json",
+	"title": "Umbel curator records, version 1",
+	"description": "The curator instance's records, kept in its own namespace through records_write (phase 4 section 2.3, D90): candidate, run, consent and state, each per space and principal. No curator record holds memory text, and no envelope of one holds a memory hash. Ids are content-free: a candidate's is c- and 20 hex of SHA-256 of <space>\\0<principal>\\0<lowest source memory id>; a run's r- and 20 hex of the run's trace id; a consent's n- and the candidate id's hex; the state's s- and 20 hex of SHA-256 of <space>\\0<principal>. When a source is erased the candidate keeps no contentHash, subjectKey, reason or sources and is erased, and its consent record is removed. Rules that need more than a schema, such as each id matching its derivation, the access set containing principal:<caller>, and a candidate's sources sharing one content hash and class, are checked by the curator.",
+	"type": "object",
+	"required": ["version", "kind", "id", "space", "principal", "access"],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"kind": {
+			"enum": ["candidate", "run", "consent", "state"]
+		},
+		"id": {
+			"description": "c-, r-, n- or s- and 20 hex, by kind; never derived from content.",
+			"type": "string",
+			"pattern": "^[crns]-[0-9a-f]{20}$"
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"principal": {
+			"description": "The caller whose reads and records these are: a run reads and writes only its effective principal's records.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"access": {
+			"description": "An access set. A candidate's is the intersection of its sources' sets with principal:<caller> added; every other kind's is principal:<caller> alone.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+			}
+		},
+		"class": {
+			"enum": ["semantic", "procedural"]
+		},
+		"contentHash": {
+			"description": "The sources' common content hash. Removed when a source is erased.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"subjectKey": {
+			"description": "sha256 of the subject key of section 4.4 (the subject lowercased, runs of whitespace and ASCII punctuation each one space, trimmed), so equal keys compare and no subject text is kept. Removed when a source is erased.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"sources": {
+			"description": "Candidate: the readable sources at their versions. Consent: each source and version consented to, with its content hash.",
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32
+		},
+		"snapshot": {
+			"description": "Fixed when the candidate first becomes ready; the rationale is rendered from it.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["sessions", "principals", "authority", "settledAt"],
+					"additionalProperties": false,
+					"properties": {
+						"sessions": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"principals": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"authority": {
+							"enum": ["person", "agent", "tool", "import"]
+						},
+						"settledAt": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						}
+					}
+				}
+			]
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"]
+		},
+		"status": {
+			"enum": [
+				"settling",
+				"ready",
+				"drafted",
+				"needs-promotion",
+				"skipped",
+				"rejected",
+				"applied",
+				"erased"
+			]
+		},
+		"reason": {
+			"description": "skipped: the reason code; rejected: the approver's reason (content, never in a message); otherwise null. Removed when a source is erased.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 2000
+				}
+			]
+		},
+		"drafts": {
+			"description": "How many times the candidate was drafted; the idempotency key is curator/<candidate id>/<drafts>.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"firstSeenAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"promotedTo": {
+			"description": "The document an applied draft created.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				}
+			]
+		},
+		"conflictSet": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^k-[0-9a-f]{20}$"
+				}
+			]
+		},
+		"quietUntil": {
+			"description": "Set when a draft is rejected: the same content is not drafted again before it.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"startedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"finishedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"report": {
+			"$ref": "curator-report.v1.json"
+		},
+		"by": {
+			"description": "The owner of every source, at a terminal.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"at": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+		},
+		"feedAfter": {
+			"description": "The record store's change revision knowledge-proposal-feed continues after.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"memoryAfter": {
+			"description": "The memory revision memory_changes continues after.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"scanAfter": {
+			"description": "The rotating memory_list cursor: the last item's recordedAt and id; null starts again from the newest.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["recordedAt", "id"],
+					"additionalProperties": false,
+					"properties": {
+						"recordedAt": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"id": {
+							"type": "string",
+							"pattern": "^mem-[0-9a-f]{24}$"
+						}
+					}
+				}
+			]
+		},
+		"lastRun": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^r-[0-9a-f]{20}$"
+				}
+			]
+		},
+		"lock": {
+			"description": "Taken by curator-plan by compare-and-set, released by curator-finish only for its own run; an expired lock is taken over.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["trace", "until"],
+					"additionalProperties": false,
+					"properties": {
+						"trace": {
+							"type": "string",
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+						},
+						"until": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						}
+					}
+				}
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "candidate"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"required": [
+					"version",
+					"kind",
+					"id",
+					"space",
+					"principal",
+					"access",
+					"class",
+					"snapshot",
+					"sensitivity",
+					"status",
+					"drafts",
+					"firstSeenAt",
+					"promotedTo",
+					"conflictSet",
+					"quietUntil"
+				],
+				"propertyNames": {
+					"enum": [
+						"version",
+						"kind",
+						"id",
+						"space",
+						"principal",
+						"access",
+						"class",
+						"snapshot",
+						"sensitivity",
+						"status",
+						"drafts",
+						"firstSeenAt",
+						"promotedTo",
+						"conflictSet",
+						"quietUntil",
+						"contentHash",
+						"subjectKey",
+						"sources",
+						"reason"
+					]
+				},
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^c-[0-9a-f]{20}$"
+					},
+					"sources": {
+						"items": {
+							"type": "object",
+							"required": ["id", "recordVersion"],
+							"additionalProperties": false,
+							"properties": {
+								"id": {
+									"type": "string",
+									"pattern": "^mem-[0-9a-f]{24}$"
+								},
+								"recordVersion": {
+									"type": "integer",
+									"minimum": 1
+								}
+							}
+						}
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"const": "erased"
+								}
+							}
+						},
+						"then": {
+							"not": {
+								"anyOf": [
+									{
+										"required": ["contentHash"]
+									},
+									{
+										"required": ["subjectKey"]
+									},
+									{
+										"required": ["sources"]
+									},
+									{
+										"required": ["reason"]
+									}
+								]
+							}
+						},
+						"else": {
+							"required": ["contentHash", "subjectKey", "sources", "reason"]
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"const": "skipped"
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"reason": {
+									"enum": [
+										"too-many-sources",
+										"conflict-too-large",
+										"target-exists",
+										"sensitivity-higher"
+									]
+								}
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"const": "rejected"
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"quietUntil": {
+									"type": "string",
+									"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+								}
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"enum": ["settling", "ready", "drafted", "needs-promotion", "applied"]
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"reason": {
+									"type": "null"
+								}
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"const": "applied"
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"promotedTo": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"status": {
+									"enum": ["ready", "drafted", "needs-promotion", "rejected", "applied"]
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"snapshot": {
+									"type": "object"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "run"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"required": [
+					"version",
+					"kind",
+					"id",
+					"space",
+					"principal",
+					"access",
+					"startedAt",
+					"finishedAt",
+					"report"
+				],
+				"propertyNames": {
+					"enum": [
+						"version",
+						"kind",
+						"id",
+						"space",
+						"principal",
+						"access",
+						"startedAt",
+						"finishedAt",
+						"report"
+					]
+				},
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^r-[0-9a-f]{20}$"
+					}
+				},
+				"allOf": [
+					{
+						"properties": {
+							"access": {
+								"maxItems": 1,
+								"items": {
+									"type": "string",
+									"pattern": "^principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "consent"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"required": [
+					"version",
+					"kind",
+					"id",
+					"space",
+					"principal",
+					"access",
+					"by",
+					"at",
+					"sources"
+				],
+				"propertyNames": {
+					"enum": ["version", "kind", "id", "space", "principal", "access", "by", "at", "sources"]
+				},
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^n-[0-9a-f]{20}$"
+					},
+					"sources": {
+						"items": {
+							"type": "object",
+							"required": ["id", "recordVersion", "contentHash"],
+							"additionalProperties": false,
+							"properties": {
+								"id": {
+									"type": "string",
+									"pattern": "^mem-[0-9a-f]{24}$"
+								},
+								"recordVersion": {
+									"type": "integer",
+									"minimum": 1
+								},
+								"contentHash": {
+									"type": "string",
+									"pattern": "^sha256:[0-9a-f]{64}$"
+								}
+							}
+						}
+					}
+				},
+				"allOf": [
+					{
+						"properties": {
+							"access": {
+								"maxItems": 1,
+								"items": {
+									"type": "string",
+									"pattern": "^principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "state"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"required": [
+					"version",
+					"kind",
+					"id",
+					"space",
+					"principal",
+					"access",
+					"feedAfter",
+					"memoryAfter",
+					"scanAfter",
+					"lastRun",
+					"lock"
+				],
+				"propertyNames": {
+					"enum": [
+						"version",
+						"kind",
+						"id",
+						"space",
+						"principal",
+						"access",
+						"feedAfter",
+						"memoryAfter",
+						"scanAfter",
+						"lastRun",
+						"lock"
+					]
+				},
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^s-[0-9a-f]{20}$"
+					}
+				},
+				"allOf": [
+					{
+						"properties": {
+							"access": {
+								"maxItems": 1,
+								"items": {
+									"type": "string",
+									"pattern": "^principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+								}
+							}
+						}
+					}
+				]
+			}
+		}
+	]
+}

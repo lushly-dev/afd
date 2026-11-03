@@ -1,6 +1,10 @@
 //! The versioned schema files under `schemas/` (phase 0 specification sections 7 and 10; phase 1
-//! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2) and the WIT world.
+//! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2; phase 4 section 2, in
+//! `schemas/phase4.rs`) and the WIT world.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+#[path = "schemas/phase4.rs"]
+mod phase4;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -13,7 +17,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 25] = [
+const STEMS: [&str; 29] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -21,6 +25,7 @@ const STEMS: [&str; 25] = [
     "plugin-manifest.v1",
     "plugin-manifest.v2",
     "plugin-manifest.v3",
+    "plugin-manifest.v4",
     "pack-manifest.v1",
     "principal.v0",
     "provenance-envelope.v0",
@@ -37,6 +42,9 @@ const STEMS: [&str; 25] = [
     "document.v1",
     "locator.v1",
     "proposal.v1",
+    "proposal.v2",
+    "curator-record.v1",
+    "curator-report.v1",
     "eval-queries.v1",
     "eval-report.v1",
 ];

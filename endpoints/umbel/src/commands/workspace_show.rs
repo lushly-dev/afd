@@ -6,9 +6,9 @@ use crate::plugins::{
     LoadedPlugins, MANIFEST_VERSIONS, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
 };
 use crate::versions::{
-    BUNDLE_VERSION, CAPTURE_VERSION, CURSOR_VERSION, DOCUMENT_VERSION, EVENT_VERSION,
-    LOCATOR_VERSION, MEMORY_KEYS_VERSION, MEMORY_VERSION, PRINCIPAL_VERSION, PROPOSAL_VERSION,
-    PROVENANCE_VERSION, STORE_VERSION,
+    BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSION, DOCUMENT_VERSION,
+    EVENT_VERSION, LOCATOR_VERSION, MEMORY_KEYS_VERSION, MEMORY_VERSION, PRINCIPAL_VERSION,
+    PROPOSAL_VERSIONS, PROVENANCE_VERSION, STORE_VERSION,
 };
 use crate::workspace::{CONFIG_VERSION, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, success};
@@ -71,11 +71,12 @@ impl CommandHandler for Handler {
                 "store": STORE_VERSION,
                 "document": DOCUMENT_VERSION,
                 "locator": LOCATOR_VERSION,
-                "proposal": PROPOSAL_VERSION,
+                "proposal": PROPOSAL_VERSIONS,
                 "memory": MEMORY_VERSION,
                 "memoryKeys": MEMORY_KEYS_VERSION,
                 "capture": CAPTURE_VERSION,
                 "bundle": BUNDLE_VERSION,
+                "curator": CURATOR_VERSION,
             },
             // How far access filtering holds (phase 2 specification, section 6, owner decision 1
             // of 2026-11-01): nothing verifies who a stdio or loopback HTTP caller is until

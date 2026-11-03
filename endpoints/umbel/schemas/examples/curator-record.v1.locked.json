@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"kind": "state",
+	"id": "s-9c8b7a6f5e4d3c2b1a09",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["principal:human:local"],
+	"feedAfter": 0,
+	"memoryAfter": 0,
+	"scanAfter": null,
+	"lastRun": null,
+	"lock": {
+		"trace": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"until": "2026-11-08T09:10:00.000Z"
+	}
+}

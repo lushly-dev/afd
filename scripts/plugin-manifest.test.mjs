@@ -713,18 +713,32 @@ for (const path of umbelVersions) {
 		assert.deepEqual(added('mount').sort(), ['bearer', 'command', 'cwd', 'env']);
 		assert.deepEqual(added('mountTool'), ['bind_space']);
 		// Manifest version 3 adds `journal` to commands and pipelines and `authority_prompt` to
-		// commands (spec/plugin-manifest.md, P3).
-		const v3 = Number(path.match(/\.v(\d+)\.json$/)[1]) >= 3;
+		// commands; version 4 adds `confirm_preview` to commands and `expose` and `result` to
+		// pipelines (spec/plugin-manifest.md, P3).
+		const version = Number(path.match(/\.v(\d+)\.json$/)[1]);
 		for (const definition of ['plugin', 'grant', 'context', 'skill', 'config']) {
 			assert.deepEqual(added(definition), [], definition);
 		}
-		assert.deepEqual(added('pipeline'), v3 ? ['journal'] : [], 'pipeline');
+		assert.deepEqual(
+			added('pipeline').sort(),
+			[...(version >= 3 ? ['journal'] : []), ...(version >= 4 ? ['expose', 'result'] : [])].sort(),
+			'pipeline'
+		);
 		assert.deepEqual(
 			added('command')
 				.filter((key) => key !== 'confirm')
 				.sort(),
-			v3 ? ['authority_prompt', 'journal'] : []
+			[
+				...(version >= 3 ? ['authority_prompt', 'journal'] : []),
+				...(version >= 4 ? ['confirm_preview'] : []),
+			].sort()
 		);
+		if (version >= 4) {
+			// A pipeline's exposure has a command's meanings and no palette.
+			const pipelineExpose = profile.$defs.pipeline.properties.expose;
+			assert.deepEqual(Object.keys(pipelineExpose.properties).sort(), ['agent', 'cli', 'mcp']);
+			assert.equal(pipelineExpose.additionalProperties, false);
+		}
 		const { expose } = profile.$defs.command.properties;
 		assert.deepEqual(Object.keys(expose.properties).sort(), ['agent', 'cli', 'mcp', 'palette']);
 	});
