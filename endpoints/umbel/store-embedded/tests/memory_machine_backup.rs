@@ -10,8 +10,11 @@
 
 mod support;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 
+#[cfg(target_os = "macos")]
 use support::open_memory;
 use umbel_store::MemoryStore;
 use umbel_store::conformance::samples;
