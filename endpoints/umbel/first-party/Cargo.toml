@@ -25,10 +25,24 @@ umbel-plugin-memory = { path = "../plugins/memory" }
 umbel-plugin-sources-filesystem = { path = "../plugins/sources-filesystem" }
 
 [dev-dependencies]
+# The leak and poisoning probes call the commands as library actors (section 12).
+afd = { path = "../../../packages/rust", default-features = false }
+# `context-bundle` is validated against `context-bundle.v1.json`.
+jsonschema = { version = "0.60", default-features = false }
+# `forget_bytes.rs` holds a reader open across a forget and reads the key file's markers.
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde_json = "1"
 tempfile = "3"
+# `cargo test` builds the binary with `testkit`, so the exit test has the frozen clock
+# (`UMBEL_TEST_CLOCK`) and the person at a terminal (`UMBEL_TEST_HUMAN_PRESENT`) of section 12;
+# a normal build has neither.
+umbel = { path = "..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
 # `umbel_hook::run` drives this binary as the `umbel-hook` binary does (section 12).
 umbel-hook = { path = "../adapters/hook" }
+# The digest across write orders (section 9.6): two stores written through the store API with
+# fixed ids and a fixed clock.
+umbel-store = { path = "../store", features = ["conformance"] }
+umbel-store-embedded = { path = "../store-embedded" }
 
 [lints]
 workspace = true
