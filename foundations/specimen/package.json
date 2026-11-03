@@ -39,7 +39,8 @@
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run --config vitest.unit.config.ts",
 		"build:host": "cd host && cargo build --release --locked",
-		"test:browser": "pnpm run build:host && vitest run && vitest run --config vitest.reference.config.ts"
+		"test:browser": "pnpm run build:host && vitest run && vitest run --config vitest.reference.config.ts",
+		"stage:host": "node host/stage.mjs"
 	},
 	"engines": {
 		"node": ">=22.12.0"
@@ -57,6 +58,12 @@
 		"playwright": "^1.64.0",
 		"vite": "^8.3.0",
 		"zod": "^4.6.6"
+	},
+	"optionalDependencies": {
+		"@lushly-dev/specimen-host-darwin-arm64": "workspace:*",
+		"@lushly-dev/specimen-host-darwin-x64": "workspace:*",
+		"@lushly-dev/specimen-host-linux-arm64-gnu": "workspace:*",
+		"@lushly-dev/specimen-host-linux-x64-gnu": "workspace:*"
 	},
 	"devDependencies": {
 		"@storybook/addon-a11y": "10.6.2",

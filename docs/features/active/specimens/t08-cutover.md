@@ -71,6 +71,9 @@ Made on 2026-11-02, in answer to this record's first version.
 | Lushly's migration | An issue for Lushbot | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), in Lushly's repository, where the work lands |
 | Where AFD's FAST-AF stories run (G12) | The owner asked for a recommendation | Here, on Specimen, in AFD's FAST-AF gates. Upstream's Storybook configuration was never imported, and these stories are the ones AFD owns |
 | Human review of the index | The owner reviews it when ready | On AFD's own stories, once they run here |
+| Publishing (2026-11-02) | A prerelease of the core and CLI, after the review of the index | Lifting quarantine, a named publisher and release admission stay the owner's. The prebuilt hosts it needs are packaged (G13) |
+| The FAST-AF plugin's distribution (2026-11-02) | Publish it with Specimen | It stops being private for the prerelease, so Lushly can install it |
+| A settled accessibility check (2026-11-02) | Add it and fix the 3 stories | Kept separate from the check that matches Storybook's timing, which T06's agreement evidence uses |
 
 ## Native helpers and types
 

@@ -1,0 +1,33 @@
+{
+	"name": "@lushly-dev/specimen-host-linux-x64-gnu",
+	"version": "2.2.0",
+	"description": "Specimen's prebuilt native host for linux-x64",
+	"os": [
+		"linux"
+	],
+	"cpu": [
+		"x64"
+	],
+	"libc": [
+		"glibc"
+	],
+	"bin": {
+		"specimen-host": "bin/specimen-host"
+	},
+	"files": [
+		"bin/specimen-host",
+		"README.md"
+	],
+	"scripts": {
+		"prepack": "node ../../host/stage.mjs --check linux-x64-gnu"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "foundations/specimen/packages/host-linux-x64-gnu"
+	},
+	"license": "MIT"
+}

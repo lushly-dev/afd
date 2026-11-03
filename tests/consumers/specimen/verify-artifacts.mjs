@@ -32,14 +32,29 @@ const artifacts = join(consumers, 'artifacts');
 await mkdir(artifacts, { recursive: true });
 await mkdir(output, { recursive: true });
 const fixtures = join(repository, 'foundations/specimen/fixtures');
-// Packaging prebuilt native hosts is publication work; packed consumers use the built one.
-process.env.SPECIMEN_HOST_BINARY ??= join(
-	repository,
-	'foundations/specimen/host/target/release/specimen-host'
-);
+// The prebuilt host for this platform: the source build (or SPECIMEN_HOST_BINARY) staged into its
+// package, which every consumer below installs. No consumer sees SPECIMEN_HOST_BINARY, so each
+// render proves the packaged host is found.
+const hostBinary =
+	process.env.SPECIMEN_HOST_BINARY ??
+	join(repository, 'foundations/specimen/host/target/release/specimen-host');
 assert(
-	existsSync(process.env.SPECIMEN_HOST_BINARY),
-	'build the Specimen host first: cargo build --release --locked in foundations/specimen/host'
+	existsSync(hostBinary),
+	'build the Specimen host first: pnpm -F @lushly-dev/specimen build:host'
+);
+delete process.env.SPECIMEN_HOST_BINARY;
+// `pnpm` scripts put the workspace's hoisted store on NODE_PATH, where its own packages resolve.
+delete process.env.NODE_PATH;
+const hostSuffix = `${process.platform}-${process.arch}${process.platform === 'linux' ? '-gnu' : ''}`;
+const hostPackage = `@lushly-dev/specimen-host-${hostSuffix}`;
+const hostPackages = ['darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu'].map(
+	(suffix) => `@lushly-dev/specimen-host-${suffix}`
+);
+assert(hostPackages.includes(hostPackage), `no prebuilt host package for ${hostSuffix}`);
+execFileSync(
+	process.execPath,
+	[join(repository, 'foundations/specimen/host/stage.mjs'), hostSuffix, '--binary', hostBinary],
+	{ stdio: 'inherit' }
 );
 const tsc = join(repository, 'node_modules/typescript/bin/tsc');
 const typeRoots = join(repository, 'node_modules/@types');
@@ -47,6 +62,7 @@ const sources = [
 	'packages/core',
 	'packages/server',
 	'foundations/specimen',
+	`foundations/specimen/packages/host-${hostSuffix}`,
 	'integrations/specimen-afd',
 	'endpoints/specimen-cli',
 ];
@@ -60,7 +76,9 @@ const passed = (name) => {
 const packs = {};
 for (const path of sources) {
 	const manifest = JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
-	assert(existsSync(join(repository, path, 'dist')), `${path} is not built`);
+	// The host package carries a binary, which its prepack checks, rather than a dist.
+	const built = manifest.name === hostPackage ? 'bin/specimen-host' : 'dist';
+	assert(existsSync(join(repository, path, built)), `${path} is not built`);
 	execFileSync('pnpm', ['pack', '--pack-destination', artifacts], {
 		cwd: join(repository, path),
 		stdio: 'pipe',
@@ -77,18 +95,30 @@ const packedManifest = (name) =>
 		execFileSync('tar', ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
 	);
 
-async function install(name, dependencies, { expected = true, overrides = false } = {}) {
+// The other platforms' hosts are not packed here, so their optional dependencies are removed.
+const otherHosts = Object.fromEntries(
+	hostPackages.filter((name) => name !== hostPackage).map((name) => [name, '-'])
+);
+async function install(
+	name,
+	dependencies,
+	{ expected = true, overrides = false, optional = true } = {}
+) {
 	const root = join(consumers, name);
 	await mkdir(root, { recursive: true });
 	const manifest = { name, private: true, type: 'module', dependencies };
 	manifest.pnpm = {
-		overrides: overrides
-			? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
-			: {
-					// Keep the server's dependency local before the candidate is published,
-					// while preserving the root peer versions tested by the negative cases.
-					'@lushly-dev/afd-server>@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
-				},
+		overrides: {
+			...otherHosts,
+			...(overrides
+				? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
+				: {
+						// Keep the server's dependency local before the candidate is published,
+						// while preserving the root peer versions tested by the negative cases.
+						'@lushly-dev/afd-server>@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
+						[hostPackage]: file(hostPackage),
+					}),
+		},
 	};
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 	const result = spawnSync(
@@ -99,6 +129,7 @@ async function install(name, dependencies, { expected = true, overrides = false 
 			'--prefer-offline',
 			'--strict-peer-dependencies',
 			'--config.auto-install-peers=false',
+			...(optional ? [] : ['--no-optional']),
 		],
 		{ cwd: root, encoding: 'utf8' }
 	);
@@ -139,7 +170,10 @@ const native = packedManifest('@lushly-dev/specimen');
 assert.equal(native.version, '2.2.0');
 assert.equal(native.bin, undefined);
 assert.equal(native.peerDependencies, undefined);
-assert.equal(native.optionalDependencies, undefined);
+assert.deepEqual(
+	native.optionalDependencies,
+	Object.fromEntries(hostPackages.map((name) => [name, '2.2.0']))
+);
 assert.deepEqual(Object.keys(native.exports), [
 	'.',
 	'./types',
@@ -158,7 +192,24 @@ assert.deepEqual(integration.peerDependencies, {
 });
 const cli = packedManifest('@lushly-dev/specimen-cli');
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
-for (const manifest of [native, integration, cli])
+const host = packedManifest(hostPackage);
+assert.equal(host.version, native.version);
+assert.equal(host.scripts?.install ?? host.scripts?.postinstall, undefined);
+const hostFiles = execFileSync('tar', ['-tvzf', packs[hostPackage]], { encoding: 'utf8' })
+	.trim()
+	.split('\n');
+assert.deepEqual(hostFiles.map((line) => line.split(/\s+/).at(-1)).sort(), [
+	'package/LICENSE',
+	'package/README.md',
+	'package/bin/specimen-host',
+	'package/package.json',
+]);
+assert.match(
+	hostFiles.find((line) => line.endsWith('bin/specimen-host')),
+	/^-rwx/,
+	'the packed host is executable'
+);
+for (const manifest of [native, integration, cli, host])
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 const nativeFiles = execFileSync('tar', ['-tzf', packs['@lushly-dev/specimen']], {
 	encoding: 'utf8',
@@ -167,6 +218,7 @@ const nativeFiles = execFileSync('tar', ['-tzf', packs['@lushly-dev/specimen']],
 	.split('\n');
 assert(!nativeFiles.some((path) => /(?:commands|cli|bin)\.(?:js|d\.ts)$/.test(path)));
 passed('packed manifests: native has no cross-family edge, peers declare ^2.2.0, no workspace:');
+passed(`packed ${hostPackage}: an executable host at Specimen's version, and nothing else`);
 
 // Native only: integration and every other family absent.
 const { root: nativeRoot } = await install('native-only', {
@@ -174,6 +226,11 @@ const { root: nativeRoot } = await install('native-only', {
 });
 const installed = await readdir(join(nativeRoot, 'node_modules/.pnpm'));
 assert(!installed.some((name) => forbiddenFamilies.test(name)), installed.join('\n'));
+assert.deepEqual(
+	installed.filter((name) => name.includes('specimen-host')).map((name) => name.split('@')[1]),
+	[`lushly-dev+specimen-host-${hostSuffix}`],
+	'only this platform’s host is installed'
+);
 await cp(fixtures, join(nativeRoot, 'fixtures'), { recursive: true });
 passed(
 	'native-only install graph contains no AFD, FAST-AF, Violet or Specimen integration/endpoint'
@@ -249,6 +306,28 @@ for (const runtimeIsolation of ['in-process', 'process']) {
 );
 execFileSync(process.execPath, ['runtime.mjs'], { cwd: nativeRoot, stdio: 'inherit' });
 passed('native exports, schemas, in-process and process-worker render/reuse/build/close');
+
+// Without optional dependencies there is no host: rendering names the package to install.
+const { root: hostlessRoot } = await install(
+	'native-without-host',
+	{ '@lushly-dev/specimen': file('@lushly-dev/specimen') },
+	{ optional: false }
+);
+await cp(fixtures, join(hostlessRoot, 'fixtures'), { recursive: true });
+await writeFile(
+	join(hostlessRoot, 'hostless.mjs'),
+	`import assert from 'node:assert/strict';
+import { createSpecimenBench } from '@lushly-dev/specimen';
+const bench = await createSpecimenBench({ root: new URL('./fixtures/', import.meta.url).pathname });
+try {
+	await assert.rejects(bench.render({ id: bench.list()[0].id }), /${hostPackage.replace('/', '\\/')} is not installed; reinstall without omitting optional dependencies/);
+} finally {
+	await bench.close();
+}
+`
+);
+execFileSync(process.execPath, ['hostless.mjs'], { cwd: hostlessRoot, stdio: 'inherit' });
+passed('without optional dependencies, rendering fails naming the host package to install');
 
 // A retained story with Specimen's helpers and types, where no Storybook is installed.
 assert(!installed.some((name) => /^(?:@storybook\+|storybook@)/.test(name)), installed.join('\n'));
@@ -471,6 +550,7 @@ const receipt = {
 	publicTypes,
 	limitations: [
 		'Local tarballs only; no registry installation or publication authorization',
+		`Only this platform's prebuilt host (${hostSuffix}); the others are checked by specimen.yml's host-packages job`,
 		'Third-party dependencies resolved from the configured registry/store at run time',
 		'No hosted CI receipt unless run by specimen.yml',
 		'No visual equivalence, axe, token, event-history or Storybook-removal claim',

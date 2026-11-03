@@ -6,18 +6,59 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+/** The systems and architectures with a prebuilt host; Linux builds link glibc. */
+const HOST_PLATFORMS = new Set(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']);
+
 /**
- * The native host binary (`host/`): `SPECIMEN_HOST_BINARY`, or the release build beside this
- * package. Packaging prebuilt hosts is publication work, not part of this source.
+ * The prebuilt host package for a system and architecture, or undefined where none is built.
+ * Linux hosts link glibc, as Playwright's headless shell does.
+ */
+export function hostPackageName(
+	platform: string = process.platform,
+	arch: string = process.arch
+): string | undefined {
+	const key = `${platform}-${arch}`;
+	if (!HOST_PLATFORMS.has(key)) return undefined;
+	return `@lushly-dev/specimen-host-${key}${platform === 'linux' ? '-gnu' : ''}`;
+}
+
+/**
+ * The native host binary: `SPECIMEN_HOST_BINARY`; in a source checkout, the release build in
+ * `host/`; otherwise the prebuilt platform package `@lushly-dev/specimen` installs as an
+ * optional dependency. A fresh source build is preferred over a staged package.
  */
 export function hostBinaryPath(moduleUrl = import.meta.url): string {
 	const configured = process.env.SPECIMEN_HOST_BINARY;
-	const path = configured
-		? resolve(configured)
-		: fileURLToPath(new URL('../host/target/release/specimen-host', moduleUrl));
+	if (configured) {
+		const path = resolve(configured);
+		if (!existsSync(path))
+			throw new Error(`Specimen host is missing at ${path}, where SPECIMEN_HOST_BINARY points`);
+		return path;
+	}
+	const built = fileURLToPath(new URL('../host/target/release/specimen-host', moduleUrl));
+	if (existsSync(built)) return built;
+	const name = hostPackageName();
+	if (!name)
+		throw new Error(
+			`Specimen has no prebuilt host for ${process.platform}-${process.arch}; build foundations/specimen/host with \`cargo build --release --locked\` and set SPECIMEN_HOST_BINARY`
+		);
+	let manifest: string;
+	try {
+		manifest = createRequire(moduleUrl).resolve(`${name}/package.json`);
+	} catch {
+		const report = process.platform === 'linux' ? process.report?.getReport() : undefined;
+		const glibc = (report as { header?: { glibcVersionRuntime?: string } } | undefined)?.header
+			?.glibcVersionRuntime;
+		throw new Error(
+			report && !glibc
+				? `Specimen's prebuilt Linux hosts need glibc; build foundations/specimen/host with \`cargo build --release --locked\` and set SPECIMEN_HOST_BINARY`
+				: `Specimen's host package ${name} is not installed; reinstall without omitting optional dependencies, or set SPECIMEN_HOST_BINARY`
+		);
+	}
+	const path = join(dirname(manifest), 'bin', 'specimen-host');
 	if (!existsSync(path))
 		throw new Error(
-			`Specimen host is missing at ${path}; run \`cargo build --release --locked\` in foundations/specimen/host or set SPECIMEN_HOST_BINARY`
+			`${name} has no host binary at ${path}; in a source checkout, run \`pnpm -F @lushly-dev/specimen build:host\``
 		);
 	return path;
 }
