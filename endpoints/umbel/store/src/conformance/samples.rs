@@ -1,11 +1,15 @@
-//! Builders for the documents and envelopes the suite writes. Public so a backend's own tests
-//! write the same shapes.
+//! Builders for the documents, envelopes and memory entries the suite writes. Public so a
+//! backend's own tests write the same shapes.
 
 use serde_json::Map;
 
+use crate::memory::{
+    DAY_MS, MemoryBatch, MemoryClass, MemoryScope, MemoryWrite, Millis, Quota, Retention,
+    format_instant,
+};
 use crate::{
-    AccessSet, ContentHash, DocumentWrite, Envelope, Flag, IndexChunk, Origin, Sensitivity, Status,
-    Tier, Verification,
+    AccessSet, Authority, ContentHash, DocumentWrite, Envelope, Flag, IndexChunk, Origin,
+    Sensitivity, Status, Tier, Verification,
 };
 
 use super::SPACE;
@@ -123,5 +127,94 @@ pub fn chunk(doc: &str, ordinal: u32, title: &str, body: &str, access: &[&str]) 
         meta: serde_json::Map::new(),
         access: AccessSet::new(access.iter().copied())
             .unwrap_or_else(|_| unreachable!("the caller passes valid access tokens")),
+    }
+}
+
+/// The memory suite's base instant, 2026-11-02T10:00:00.000Z.
+pub const MEMORY_AT: Millis = 1_793_613_600_000;
+
+/// The `n`th suite id: `mem-` and `n` as 24 hex digits.
+#[must_use]
+pub fn memory_id(n: u64) -> String {
+    format!("mem-{n:024x}")
+}
+
+/// A semantic memory entry `memory_id(n)` owned by `owner`, readable by `access`, with
+/// authority `agent`, valid from [`MEMORY_AT`] with no end, expiring 180 days later, no project
+/// or session, and an envelope version 2 that agrees with it. Edit fields, then call
+/// [`agree`] so the envelope follows.
+///
+/// # Panics
+/// When `access` holds an invalid token.
+#[must_use]
+pub fn memory_entry(
+    n: u64,
+    owner: &str,
+    access: &[&str],
+    subject: &str,
+    text: &str,
+) -> MemoryWrite {
+    let access_set = AccessSet::new(access.iter().copied())
+        .unwrap_or_else(|_| unreachable!("the caller passes valid access tokens"));
+    let mut envelope = envelope(access, "suite", &format_instant(MEMORY_AT));
+    envelope.version = 2;
+    envelope.origin = Origin::AgentInferred;
+    envelope.authority = Some(Authority::Agent.as_str().to_owned());
+    let mut entry = MemoryWrite {
+        id: memory_id(n),
+        class: MemoryClass::Semantic,
+        scope: MemoryScope {
+            space: SPACE.to_owned(),
+            project: None,
+            principal: owner.to_owned(),
+            agent: None,
+            session: None,
+        },
+        subject: subject.to_owned(),
+        text: text.to_owned(),
+        tags: Vec::new(),
+        access: access_set,
+        sensitivity: Sensitivity::Internal,
+        flags: Vec::new(),
+        valid_from: MEMORY_AT,
+        valid_until: None,
+        expires_at: MEMORY_AT + 180 * DAY_MS,
+        supersedes: Vec::new(),
+        renew: None,
+        envelope,
+    };
+    agree(&mut entry);
+    entry
+}
+
+/// Make an entry's envelope agree with its fields: principal, agent, session, intervals,
+/// access and sensitivity.
+pub fn agree(entry: &mut MemoryWrite) {
+    let e = &mut entry.envelope;
+    e.space = entry.scope.space.clone();
+    e.principal = Some(entry.scope.principal.clone());
+    e.agent = entry.scope.agent.clone();
+    e.session = entry.scope.session.clone();
+    e.valid_from = Some(format_instant(entry.valid_from));
+    e.valid_until = entry.valid_until.map(format_instant);
+    e.access = entry.access.tokens().to_vec();
+    e.sensitivity = Some(entry.sensitivity);
+}
+
+/// Set an entry's authority.
+pub fn set_authority(entry: &mut MemoryWrite, authority: Authority) {
+    entry.envelope.authority = Some(authority.as_str().to_owned());
+}
+
+/// A batch at `at` with no keys, no quota and the default retention.
+#[must_use]
+pub fn memory_batch(at: Millis, entries: Vec<MemoryWrite>) -> MemoryBatch {
+    MemoryBatch {
+        idempotency: None,
+        capture_key: None,
+        at,
+        quota: Quota::unlimited(),
+        retention: Retention::default(),
+        entries,
     }
 }

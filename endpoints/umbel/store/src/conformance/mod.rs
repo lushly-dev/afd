@@ -1,5 +1,7 @@
 //! The conformance suite (specification section 3.1, D10): `run_all` runs every case group
-//! against a backend and reports; phase 6's second backend runs the same function.
+//! against a backend and reports; phase 6's second backend runs the same function. The memory
+//! groups (phase 3 section 5.5) run through [`run_memory`] on a memory factory of their own until
+//! `Stores` carries the memory store (phase 3 step 3a), which then folds them into `run_all`.
 //!
 //! A backend's own test supplies a **factory**, which opens (creating when empty) the stores of
 //! space [`SPACE`] under a directory, and, for the multi-process cases, a **`spawn_writer`**: a
@@ -19,6 +21,7 @@ mod envelope;
 mod fixture;
 mod graph;
 mod index;
+mod memory;
 mod records;
 pub mod samples;
 
@@ -32,6 +35,10 @@ use crate::{DocumentStore, GraphStore, SearchIndex, StoreError};
 
 pub use child::{
     ENV_COUNT, ENV_ID, ENV_WRITER, WROTE_PREFIX, run_child, wait_for_start, write_documents,
+};
+pub use memory::{
+    MEMORY_GROUPS, MemoryFactory, MemoryRestore, run_memory, run_memory_child, run_memory_groups,
+    write_memories,
 };
 
 /// The space every suite store serves.
@@ -328,7 +335,7 @@ pub fn run_groups(
     Report { groups }
 }
 
-fn run_case(env: &Env<'_>, case: CaseFn) -> Outcome {
+fn run_case<E>(env: &E, case: fn(&E) -> CaseResult) -> Outcome {
     match catch_unwind(AssertUnwindSafe(|| case(env))) {
         Ok(Ok(Verdict::Pass)) => Outcome::Passed,
         Ok(Ok(Verdict::Skip(why))) => Outcome::Skipped(why),
