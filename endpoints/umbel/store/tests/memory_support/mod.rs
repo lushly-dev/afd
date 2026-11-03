@@ -1374,12 +1374,12 @@ impl Corpus {
         let hit = |t: &Term| fields.weighted(t) > 0.0;
         let musts: Vec<&Term> = terms.iter().filter(|t| t.occur == Occur::Must).collect();
         if terms.iter().any(|t| t.occur == Occur::MustNot && hit(t))
-            || !musts.iter().all(|t| hit(*t))
+            || !musts.iter().all(|t| hit(t))
         {
             return None;
         }
         let positive: Vec<&Term> = terms.iter().filter(|t| t.occur != Occur::MustNot).collect();
-        if musts.is_empty() && !positive.iter().any(|t| hit(*t)) {
+        if musts.is_empty() && !positive.iter().any(|t| hit(t)) {
             return None;
         }
         let n = self.rows.len() as f64;

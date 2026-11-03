@@ -9,6 +9,11 @@ use crate::memory::{
 };
 use crate::{Actor, ActorKind, Authority, MemoryClass, Origin, Sensitivity, StoreError};
 
+/// One change to a write.
+type WriteEdit = dyn Fn(&mut MemoryWrite);
+/// One change to a write, as a plain function.
+type WriteFn = fn(&mut MemoryWrite);
+
 pub(super) const CASES: &[(&str, super::MemoryCaseFn)] = &[
     ("a_write_creates_version_one", creates),
     (
@@ -190,7 +195,7 @@ fn observes(env: &MemoryEnv<'_>) -> CaseResult {
         samples::set_authority(e, Authority::Person);
         e.envelope.origin = Origin::UserStated;
     };
-    let keyed: [(&str, &dyn Fn(&mut MemoryWrite)); 4] = [
+    let keyed: [(&str, &WriteEdit); 4] = [
         ("authority", &person),
         ("access", &|e| {
             e.access = crate::AccessSet::new(["space"]).unwrap_or_else(|_| unreachable!())
@@ -378,7 +383,7 @@ fn envelope_refusals(env: &MemoryEnv<'_>) -> CaseResult {
     let f = env.fresh()?;
     let m = &*f.memory;
     write(m, T0, vec![note(10, "provisioned")])?;
-    let edits: [(&str, fn(&mut MemoryWrite)); 13] = [
+    let edits: [(&str, WriteFn); 13] = [
         ("a null authority", |e| e.envelope.authority = None),
         ("an authority outside the set", |e| {
             e.envelope.authority = Some("robot".into())
@@ -436,7 +441,7 @@ fn size_caps(env: &MemoryEnv<'_>) -> CaseResult {
     at_cap.subject = "s".repeat(256);
     at_cap.tags = (0..32).map(|n| format!("{n:0>64}")).collect();
     write(m, T0, vec![at_cap]).map_err(|e| format!("every field at its cap: {e}"))?;
-    let edits: [(&str, fn(&mut MemoryWrite)); 12] = [
+    let edits: [(&str, WriteFn); 12] = [
         ("a subject of 257 characters", |e| {
             e.subject = "s".repeat(257)
         }),

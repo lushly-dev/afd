@@ -69,7 +69,7 @@ fn per_reader(env: &MemoryEnv<'_>) -> CaseResult {
             .iter()
             .filter(|x| x.readable(&tokens))
             .collect();
-        readable.sort_by(|a, b| b.n.cmp(&a.n));
+        readable.sort_by_key(|a| std::cmp::Reverse(a.n));
         let want: Vec<String> = readable.iter().map(|x| x.id()).collect();
         let what = |w: &str| format!("{name}: {w}");
         ensure_eq(
@@ -335,7 +335,7 @@ fn push_rule(env: &MemoryEnv<'_>) -> CaseResult {
                 .filter(|x| x.readable(&tokens) && project.admits(x.project.as_deref()))
                 .filter(|x| x.pushed(&push, &project))
                 .collect();
-            want.sort_by(|a, b| b.n.cmp(&a.n));
+            want.sort_by_key(|a| std::cmp::Reverse(a.n));
             let want: Vec<String> = want.iter().map(|x| x.id()).collect();
             let mut query = list_query(NOW);
             query.scope.project = project.clone();

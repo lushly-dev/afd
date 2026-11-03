@@ -9,6 +9,9 @@ use crate::conformance::{CaseResult, Ctx, ensure, ensure_eq, invalid, pass, samp
 use crate::memory::{MemoryStore, MemoryWrite, ProjectMatch};
 use crate::{Actor, ActorKind, Authority, MemoryClass, MemoryQuery, StoreError};
 
+/// One change to a recall query.
+type QueryEdit = dyn Fn(&mut crate::memory::RecallQuery);
+
 pub(super) const CASES: &[(&str, super::MemoryCaseFn)] = &[
     ("every_query_form_returns_its_hit_set", forms),
     ("a_required_term_beside_a_plain_one", plus_a_b),
@@ -300,7 +303,7 @@ fn filters(env: &MemoryEnv<'_>) -> CaseResult {
         Ok(recall_ids(m, &q, &ada())?.into_iter().collect())
     };
     ensure_eq(run(&|_| {})?, ids(&[1, 2, 4]), "no filter")?;
-    let cases: [(&str, &dyn Fn(&mut crate::memory::RecallQuery), &[u64]); 9] = [
+    let cases: [(&str, &QueryEdit, &[u64]); 9] = [
         (
             "Exact",
             &|q| q.scope.project = ProjectMatch::Exact("afd".into()),

@@ -570,12 +570,12 @@ object-safe, and `STORE_TRAITS_VERSION` becomes 2. Every read takes a
 | --- | --- |
 | `write(batch: MemoryBatch) -> Result<MemoryReceipt>` | `MemoryBatch { idempotency: Option<String>, capture_key: Option<String>, at, quota: Quota, entries: Vec<MemoryWrite> }`. **First, outside the write's transaction**, since a checkpoint cannot run inside one: roll forward any unsettled marker (5.4), then purge at most 16 records past their purge date (8.8), each in its own committed transactions. A `Busy` there does not fail the call and is left for the next writer. A purge stays committed whatever the write answers, and its revisions are not in the receipt. **Then one `BEGIN IMMEDIATE` transaction, all or nothing.** In order: (1) a used `(owner, authority, idempotency)` returns the first receipt with `replayed: true` and writes no record; (2) a `capture_key` under one of the owner's **erased prefixes** (7.2) writes no record and returns `refused: "erased"`; (3) check the quota, over it is `QuotaExceeded { limit, retry_after_ms }` and writes no record; (4) for each entry: when a **live** record with the same `owner`, `project`, `class`, `contentHash`, `authority` and access set exists, add an observation (`Observed`), and renew it if the entry says so (8.2); otherwise generate its key, seal it, insert the record, version 1, its access rows, derived row and FTS row (`Created`), and invalidate each `supersedes` target. A row with a destroyed marker is not live. Takes one revision per created, observed or superseded record |
 | `invalidate(req: Invalidate, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1. `req.expect_version` mismatch is `Conflict`. An unreadable or absent id, or a row with a destroyed marker, is `NotFound`; an absent key entry is `KeyAbsent` |
-| `confirm(req: Confirm, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1, with the checks of 8.7 |
-| `get(id, as_of: AsOf, flags: ReadFlags, reader) -> Result<Option<MemoryRecord>>` | `None` for absent, purged, forgotten or unreadable alike. `KeyAbsent` or `SealInvalid` for a readable record that cannot be opened |
+| `confirm(req: Confirm, reader) -> Result<MemoryVersionMeta>` | Closes and inserts as in 4.1, with the checks of 8.7. A hash prefix that does not match is `Conflict` (`MEMORY_CONFIRM_MISMATCH`); a record that may not be confirmed is `Invalid` (`MEMORY_CONFIRM_NOT_ALLOWED`) |
+| `get(id, as_of: AsOf, flags: ReadFlags, reader) -> Result<Option<MemoryRecord>>` | The version matching both instants of `as_of`. `None` for absent, purged, forgotten or unreadable alike, and for a record not valid at `as_of.valid`, so `memory-show` reads an invalidated record through `history`. `KeyAbsent` or `SealInvalid` for a readable record that cannot be opened |
 | `history(id, reader) -> Result<Vec<MemoryRecord>>` | All versions, oldest first; empty when unreadable |
 | `list(query: MemoryList, reader) -> Result<MemoryPage>` | `MemoryList { scope: ScopeQuery, classes, tags, authorities, push: Option<PushFilter>, as_of, flags, order: Recorded, after, limit ≤ 500 }`, newest recorded first, then id. `MemoryMeta` has `subject` and no `text`. `MemoryPage` carries `unreadable`, a count |
 | `recall(query: RecallQuery, reader) -> Result<RecallPage>` | `RecallQuery { query: MemoryQuery, scope, classes, tags, authorities, push, as_of, flags, limit ≤ 200 }`. Matches and filters in one statement, and returns hits in rank order: BM25 rounded to four places, then `recordedAt` descending, then id ascending. A hit carries its rank, its record and a `snippet` (FTS5's `snippet()` over `text`, matches in `**`; the plugin cuts it to 240 characters at a character boundary), **and no score** (D70). A hit whose body does not open is left out and counted in `unreadable`, which also counts the readable records in scope with `indexed = 0` (5.3), since those can never match |
-| `left_out(scope, classes, push, as_of, reader) -> Result<LeftOut>` | Counts per class of readable, current records that `push` or the flag rule keeps out of a bundle: `{ authority, flagged }`. A separate query, so omission reporting never takes a candidate's place. Reads no key |
+| `left_out(scope, classes, push, as_of, now, reader) -> Result<LeftOut>` | Counts per class of readable, current records that `push` or the flag rule keeps out of a bundle: `{ authority, flagged }`. A separate query, so omission reporting never takes a candidate's place. Expiry is measured at `now`. Reads no key |
 | `forget(req: Forget) -> Result<ForgetReceipt>` | Erases by `ids`, or by `owner` with `session`, `project`, or `before`, in the order of 5.4. `ForgetReceipt { erased, ids (at most 100), not_found, wal: Clean \| Pending }`. `Pending` means the keys are destroyed and steps 3 to 5 have not all finished. Idempotent |
 | `sweep(req: Sweep) -> Result<SweepReceipt>` | Section 8.8. At most `limit` records per call, reports `remaining` |
 | `reindex(remove_orphans: bool) -> Result<ReindexReceipt>` | Section 5.4. `{ reindexed, unreadable, orphans, orphans_removed }`; `orphans_removed` is 0 unless `remove_orphans` |
@@ -584,7 +584,7 @@ object-safe, and `STORE_TRAITS_VERSION` becomes 2. Every read takes a
 | `changes(after, limit ≤ 1000, reader, trace) -> Result<Vec<MemoryChange>>` | `{ rev, kind: Created \| Observed \| Invalidated \| Confirmed \| Erased \| Purged, id, recordVersion, trace_id, at }`, filtered by the access the record had at that change. No text |
 | `head() -> Result<Rev>` | The last memory revision, 0 when empty. A true count, so hidden from plugins (6.1) |
 | `usage(owner, agent, since) -> Result<MemoryUsage>` | Stored records and bytes for the owner, and writes and bytes in the window for the pair. Used by `memory-status` and the quota |
-| `counts(reader) -> Result<MemoryCounts>` | By class and state, including `flagged`, `expiringSoon` and `unreadable`, over what `reader` can read |
+| `counts(now, expiring_within_ms, reader) -> Result<MemoryCounts>` | By class and state at `now`, including `flagged`, `expiringSoon` (within `expiring_within_ms`) and `unreadable`, over what `reader` can read |
 | `checkpoint()` | Best effort, as phase 2's |
 
 `ScopeQuery { project: ProjectMatch, principal: Option, agent: Option, session: Option }`,
@@ -2126,6 +2126,19 @@ and 7b. 9 needs 6 and 8. 10 needs all. Split step 4 if the digest and grants wor
 phase 2's C14: a cold `umbel-store-embedded` build about 640 MB, and 1.1 GB for the `knowledge` job's steps. Plugin tests build with no wasmtime.
 `umbel-hook` builds in seconds on serde alone. Steps 3a to 6 and 8 each rebuild SQLite and tantivy once when cold, so share `CARGO_TARGET_DIR`, run them
 one at a time, use `-p <crate>`, keep the full `--workspace` for each step's final check, and start only under load 20 with `-j4`.
+
+### Amendments from step 2
+
+Step 2 settled four details of 5.2 and 5.5 that the text left open. None changes access, authority, forget or the trust model.
+
+1. The memory groups run through their own entry points, `run_memory` and `run_memory_groups`, so the phase 2 stores need no change
+   until step 3a gives them a memory store. Step 3a folds the groups into `run_all`.
+2. The store does not read a clock or the configuration. `left_out` takes `now`; `counts` takes `now` and the expiring-soon window;
+   `MemoryBatch` and `Sweep` carry the classes' purge ages as a `Retention`. The host supplies all three (section 6).
+3. `confirm` answers a hash prefix that does not match with `Conflict` and a record that may not be confirmed with `Invalid`; the
+   plugin maps them to `MEMORY_CONFIRM_MISMATCH` and `MEMORY_CONFIRM_NOT_ALLOWED` (8.7).
+4. `get` filters by both instants of `as_of`, so a record invalidated or not yet valid at `as_of.valid` is `None`; `memory-show`
+   reads such a record through `history` (8.1).
 
 ## 15. For the owner
 
