@@ -1,61 +1,59 @@
 /**
- * @fileoverview The app commands' definitions (phase 1 specification, 9.1), in the first-paint chunk:
- * they hold no reader, and {@link AppsRuntime} does the work. With no app deployed they answer an empty
- * list.
+ * @fileoverview The app commands' definitions (phase 1 specification, 9.1), but `app-list`, which is a
+ * boot command: they hold no reader, and {@link AppsRuntime} does the work. With no app deployed they
+ * answer an empty list.
  */
 
 import { type CommandContext, success } from '@lushly-dev/afd-core';
-import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import { z } from 'zod';
-import type { AppCommandRowV1, AppsRuntime } from './apps-runtime.js';
-import type { KernelFieldContext } from './context-fields.js';
-import type { ShellState } from './shell-state.js';
-import type { AppDetailV1, AppInstanceV1, AppSummaryV1 } from './types.js';
+import {
+	defineCommandWithSchema,
+	type JsonSchema,
+	type ZodCommandDefinition,
+} from '@lushly-dev/afd-server/define';
+import * as z from 'zod/mini';
+import type { AppCommandRowV1, AppsRuntime } from '../apps-runtime.js';
+import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
+import type { KernelFieldContext } from '../context-fields.js';
+import type { AppDetailV1, AppInstanceV1 } from '../types.js';
 
-export type { AppCommandRowV1 } from './apps-runtime.js';
-
-const empty = z.strictObject({});
-const instanceInput = z.strictObject({ instance: z.string().min(1).max(64) });
+const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
+const instanceInput = z.strictObject({ instance: instanceName });
 const selectionInput = z.strictObject({
-	instance: z.string().min(1).max(64),
-	id: z.string().max(256).nullable(),
+	instance: instanceName,
+	id: z.nullable(z.string().check(z.maxLength(256))),
 });
 const statusInput = z.strictObject({
-	id: z.string().min(1).max(64),
-	value: z.string().max(40),
+	id: z.string().check(z.minLength(1), z.maxLength(64)),
+	value: z.string().check(z.maxLength(40)),
 });
+
+const INSTANCE_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 64 };
+const INSTANCE_INPUT_JSON: JsonSchema = {
+	type: 'object',
+	properties: { instance: INSTANCE_JSON },
+	required: ['instance'],
+	additionalProperties: false,
+};
 
 export interface AppCommandDeps {
 	apps(): AppsRuntime;
-	state: ShellState;
 }
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
-	const { state, apps } = deps;
+	const { apps } = deps;
 
-	const appList = defineCommand<typeof empty, { active: string | null; apps: AppSummaryV1[] }>({
-		name: 'app-list',
-		description: 'List the deployed apps with their state, and which one is active',
-		category: 'app',
-		mutation: false,
-		executionTime: 'instant',
-		input: empty,
-		async handler() {
-			return success({ active: state.activeApp(), apps: apps().summaries() });
-		},
-	});
-
-	const appGet = defineCommand<typeof instanceInput, AppDetailV1>({
+	const appGet = defineCommandWithSchema<typeof instanceInput, AppDetailV1>({
 		name: 'app-get',
 		description: "Get one app's state, trust line, surfaces, grants and notices",
 		category: 'app',
 		mutation: false,
 		executionTime: 'instant',
 		input: instanceInput,
+		jsonSchema: INSTANCE_INPUT_JSON,
 		handler: async (input) => apps().detail(input.instance),
 	});
 
-	const appOpen = defineCommand<
+	const appOpen = defineCommandWithSchema<
 		typeof instanceInput,
 		{ active: string | null; previous: string | null }
 	>({
@@ -67,10 +65,14 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		undoable: true,
 		executionTime: 'instant',
 		input: instanceInput,
+		jsonSchema: INSTANCE_INPUT_JSON,
 		handler: async (input) => apps().open(input.instance),
 	});
 
-	const appClose = defineCommand<typeof empty, { active: null; previous: string | null }>({
+	const appClose = defineCommandWithSchema<
+		typeof emptyInput,
+		{ active: null; previous: string | null }
+	>({
 		name: 'app-close',
 		title: 'Close the active app',
 		description: 'Return to the shell with no app active',
@@ -78,11 +80,12 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		mutation: true,
 		undoable: true,
 		executionTime: 'instant',
-		input: empty,
+		input: emptyInput,
+		jsonSchema: EMPTY_INPUT_JSON,
 		handler: async () => apps().close(),
 	});
 
-	const appCommandList = defineCommand<
+	const appCommandList = defineCommandWithSchema<
 		typeof instanceInput,
 		{ commands: AppCommandRowV1[]; hidden: number }
 	>({
@@ -92,20 +95,25 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		mutation: false,
 		executionTime: 'instant',
 		input: instanceInput,
+		jsonSchema: INSTANCE_INPUT_JSON,
 		handler: async (input) => apps().commandList(input.instance),
 	});
 
-	const appInstanceList = defineCommand<typeof empty, { instances: AppInstanceV1[] }>({
+	const appInstanceList = defineCommandWithSchema<
+		typeof emptyInput,
+		{ instances: AppInstanceV1[] }
+	>({
 		name: 'app-instance-list',
 		description: 'List the mounted instances with their state; never a location or a credential',
 		category: 'app',
 		mutation: false,
 		executionTime: 'instant',
-		input: empty,
+		input: emptyInput,
+		jsonSchema: EMPTY_INPUT_JSON,
 		handler: async () => success({ instances: apps().instances() }),
 	});
 
-	const appInstanceRefresh = defineCommand<typeof instanceInput, unknown>({
+	const appInstanceRefresh = defineCommandWithSchema<typeof instanceInput, unknown>({
 		name: 'app-instance-refresh',
 		title: 'Refresh a mounted instance',
 		description: "Discover a mounted instance's commands again; its answer is recorded",
@@ -113,20 +121,22 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		mutation: true,
 		executionTime: 'slow',
 		input: instanceInput,
+		jsonSchema: INSTANCE_INPUT_JSON,
 		handler: (input) => apps().refreshInstance(input.instance),
 	});
 
-	const appSelectionGet = defineCommand<typeof instanceInput, { id: string | null }>({
+	const appSelectionGet = defineCommandWithSchema<typeof instanceInput, { id: string | null }>({
 		name: 'app-selection-get',
 		description: "Get an app's selected id, which leaving the app clears",
 		category: 'app',
 		mutation: false,
 		executionTime: 'instant',
 		input: instanceInput,
+		jsonSchema: INSTANCE_INPUT_JSON,
 		handler: async (input) => apps().selection(input.instance),
 	});
 
-	const appSelectionSet = defineCommand<typeof selectionInput, { id: string | null }>({
+	const appSelectionSet = defineCommandWithSchema<typeof selectionInput, { id: string | null }>({
 		name: 'app-selection-set',
 		title: 'Select an item',
 		description: "Set an app's selected id; main and the inspector follow it",
@@ -135,10 +145,19 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		undoable: true,
 		executionTime: 'instant',
 		input: selectionInput,
+		jsonSchema: {
+			type: 'object',
+			properties: {
+				instance: INSTANCE_JSON,
+				id: { anyOf: [{ type: 'string', maxLength: 256 }, { type: 'null' }] } as JsonSchema,
+			},
+			required: ['instance', 'id'],
+			additionalProperties: false,
+		},
 		handler: async (input) => apps().setSelection(input.instance, input.id),
 	});
 
-	const statusItemSet = defineCommand<typeof statusInput, { id: string; value: string }>({
+	const statusItemSet = defineCommandWithSchema<typeof statusInput, { id: string; value: string }>({
 		name: 'status-item-set',
 		title: 'Set a status item',
 		description: "Set the value of one of the calling app's status items",
@@ -146,12 +165,20 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		mutation: true,
 		executionTime: 'instant',
 		input: statusInput,
+		jsonSchema: {
+			type: 'object',
+			properties: {
+				id: { type: 'string', minLength: 1, maxLength: 64 },
+				value: { type: 'string', maxLength: 40 },
+			},
+			required: ['id', 'value'],
+			additionalProperties: false,
+		},
 		handler: async (input, context: CommandContext) =>
 			apps().setStatusItem((context as KernelFieldContext).caller, input.id, input.value),
 	});
 
 	return [
-		appList,
 		appGet,
 		appOpen,
 		appClose,

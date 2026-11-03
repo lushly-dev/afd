@@ -6,7 +6,6 @@
  * `@lushly-dev/loam-kernel/testing`. No DOM dependency.
  */
 
-export type { AppCommandRowV1 } from './app-commands.js';
 export {
 	APPEARANCE_DENSITIES,
 	APPEARANCE_QUERIES,
@@ -22,6 +21,7 @@ export {
 	resolveTheme,
 	validateAppearancePatch,
 } from './appearance.js';
+export type { AppCommandRowV1 } from './apps-runtime.js';
 export {
 	INTERNAL_COMMANDS,
 	PALETTE_SEARCH_LIMIT,

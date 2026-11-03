@@ -48,9 +48,9 @@ registry.list();                               // [{ id: 'design-panel', state: 
 ## With AFD commands
 
 The command factory lives in the `@lushly-dev/afd-view-state/commands` subpath.
-It defines the commands with `@lushly-dev/afd-server/define`, which loads
-neither the MCP SDK nor any Node.js builtin, so it can run in the browser next to
-the UI it controls.
+It defines the commands with `@lushly-dev/afd-server/define` on Zod Mini, which
+loads neither the MCP SDK, any Node.js builtin nor classic Zod, so it can run in the
+browser next to the UI it controls.
 
 ### MCP tools
 

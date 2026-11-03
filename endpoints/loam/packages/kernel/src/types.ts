@@ -96,6 +96,12 @@ export interface LoamKernelV1 {
 	listCommands(): CommandSummaryV1[];
 	subscribe(listener: (event: KernelEventV1) => void): () => void;
 	readonly agent: Pick<LoamKernelV1, 'call' | 'listCommands'>;
+	/** Runs stage B once. The chrome calls it after the first frame; a call may start it sooner. */
+	startApps(): Promise<void>;
+	/** Resolves when stage B has ended, however it ended. Never rejects. */
+	readonly appsReady: Promise<void>;
+	/** Set when the late commands could not load. */
+	readonly lateFailure?: CommandError;
 	/**
 	 * The port for one instance, for the chrome to give an app.
 	 *
@@ -184,6 +190,12 @@ export interface KernelOptionsV1 extends Omit<KernelOptionsV0, 'commands'> {
 	 * unread, is listed `failed` with this reason, and nothing else of it is used (D66).
 	 */
 	appsUnavailable?: string;
+	/**
+	 * Resolve before the late commands have loaded, with only the boot commands (phase 2 specification,
+	 * 2.2), and load them when `startApps` is called or a call needs one. A deployment that lists an app
+	 * ignores it: its commands need the late names first. Step 2's `boot` replaces this.
+	 */
+	deferLate?: boolean;
 }
 
 /** A call of one of a view app's commands, for the view its `tool_meta.ui.resourceUri` names (6.2). */

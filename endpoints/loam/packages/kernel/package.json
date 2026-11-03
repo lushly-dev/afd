@@ -5,6 +5,7 @@
 	"description": "Loam's kernel: registries, shell commands, layout model, palette index, journal and replay; no DOM dependency",
 	"license": "MIT",
 	"type": "module",
+	"sideEffects": false,
 	"engines": {
 		"node": ">=22.12.0"
 	},

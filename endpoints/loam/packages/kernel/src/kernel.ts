@@ -7,6 +7,7 @@
 import { createAuthMiddleware } from '@lushly-dev/afd-auth';
 import {
 	type CommandContext,
+	type CommandError,
 	type CommandMiddleware,
 	type CommandResult,
 	failure,
@@ -22,14 +23,14 @@ import {
 	type JournalMiddlewareOptions,
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import { createAppCommands } from './app-commands.js';
 import {
 	type AppCommandRowV1,
 	type AppsRuntime,
 	EMPTY_APPS,
 	unavailableApps,
 } from './apps-runtime.js';
-import { createShellCommands, INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
+import { createBootCommands } from './boot-commands.js';
+import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { LoamKernelError } from './errors.js';
 import {
@@ -38,8 +39,7 @@ import {
 	needsInput,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
-import { createOverlayCommands, createOverlayStore } from './overlays.js';
-import { createPaletteIndex, type PaletteIndex } from './palette-index.js';
+import type { OverlayStore } from './overlays.js';
 import { registerShellState } from './shell-state.js';
 import type {
 	CallOptionsV1,
@@ -169,11 +169,12 @@ export async function createKernelParts(
 	const { environment } = options;
 	const viewState = new ViewStateRegistry({ adapter: options.store });
 	const state = registerShellState(viewState);
-	const overlays = createOverlayStore();
+	// Only late commands and apps use the store, so it loads with the former.
+	let overlays: OverlayStore | undefined;
 
 	let apps: AppsRuntime = EMPTY_APPS;
 	let keybindings: KeybindingRegistry = createKeybindings(SHELL_KEYBINDINGS_V0, []);
-	let index: { active: string | null; index: PaletteIndex } | undefined;
+	let commandSet = 0;
 
 	const summarize = (registry: DirectCommandRegistry): CommandSummaryV1[] =>
 		registry
@@ -193,39 +194,20 @@ export async function createKernelParts(
 				};
 			});
 
-	const shell = [
-		...createShellCommands({
-			viewState,
-			state,
-			environment,
-			auth: options.auth,
-			host: options.host,
-			storeKind: options.storeKind,
-			overlays,
-			search: (query, limit) => {
-				// Shell commands and the active app's: an inactive app's stay callable by name (9.1).
-				const active = state.activeApp();
-				if (index?.active !== active) {
-					const shown = summarize(registries.palette).filter(
-						(command) => command.instance === undefined || command.instance === active
-					);
-					index = { active, index: createPaletteIndex(shown) };
-				}
-				return index.index.search(query, limit);
-			},
-		}),
-		...createAppCommands({ apps: () => apps, state }),
-		...createOverlayCommands({ overlays, activeApp: () => state.activeApp() }),
-	];
+	const boot = createBootCommands({
+		state,
+		environment,
+		auth: options.auth,
+		apps: () => apps,
+	});
 	const extra = options.commands ?? [];
 
 	// Name refusal comes first: a bad name never reaches a registry.
-	checkNames([...shell, ...extra]);
+	checkNames([...boot, ...extra]);
 
-	const fixed: ZodCommandDefinition[] = [
-		...shell.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } })),
-		...extra,
-	];
+	const shellExposed = (commands: readonly ZodCommandDefinition[]): ZodCommandDefinition[] =>
+		commands.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } }));
+	let fixed: ZodCommandDefinition[] = [...shellExposed(boot), ...extra];
 	const seqs = new Map<string, number>();
 	// One journal middleware, shared by every registry, so they share one journal sequence.
 	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
@@ -254,7 +236,64 @@ export async function createKernelParts(
 				...(random ? { random } : {}),
 			});
 		registries = { palette: build('palette'), agent: build('agent') };
-		index = undefined;
+		commandSet += 1;
+	}
+
+	let lateFailure: CommandError | undefined;
+	const lateUnavailable = (): CommandError => ({
+		code: 'LATE_COMMANDS_UNAVAILABLE',
+		message: 'The late commands did not load',
+		suggestion: 'Reload to try again, and check that the deployment serves its assets',
+		retryable: true,
+	});
+
+	/** The late commands join `fixed`. A chunk that fails is `lateFailure`; a name they repeat rejects. */
+	async function loadLate(): Promise<void> {
+		let shell: ZodCommandDefinition[];
+		try {
+			const { createOverlayStore, shellCommandsWithLate } = await import('./late/index.js');
+			overlays = createOverlayStore();
+			shell = shellCommandsWithLate(boot, {
+				viewState,
+				state,
+				environment,
+				auth: options.auth,
+				host: options.host,
+				storeKind: options.storeKind,
+				overlays,
+				apps: () => apps,
+				paletteRows: () => summarize(registries.palette),
+				commandSet: () => commandSet,
+			});
+		} catch (cause) {
+			reportKernelError(cause);
+			lateFailure = lateUnavailable();
+			return;
+		}
+		checkNames([...shell, ...extra]);
+		fixed = [...shellExposed(shell), ...extra];
+	}
+
+	let stageB: Promise<void> | undefined;
+	let stageBEnded = false;
+	let waiting = 0;
+	let endStageB: () => void = () => {};
+	const appsReady = new Promise<void>((resolve) => {
+		endStageB = resolve;
+	});
+	/** Stage B, once: so far only the late commands (phase 2 specification, 2.2). It never rejects. */
+	function startApps(): Promise<void> {
+		stageB ??= loadLate()
+			.then(() => setAppCommands(apps.commands))
+			.catch((cause: unknown) => {
+				reportKernelError(cause);
+				lateFailure = { ...lateUnavailable(), message: String((cause as Error)?.message ?? cause) };
+			})
+			.finally(() => {
+				stageBEnded = true;
+				endStageB();
+			});
+		return stageB;
 	}
 
 	const listeners = new Set<(event: KernelEventV1) => void>();
@@ -269,6 +308,13 @@ export async function createKernelParts(
 		callOptions: CallOptionsV1 = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
+		// A name stage A does not hold waits for stage B, so a chord or an agent's first call runs a moment
+		// later, and so does any call after it, so calls still run in the order they were made.
+		if (!disposed && !stageBEnded && (waiting > 0 || !mutations.has(name))) {
+			waiting += 1;
+			await startApps();
+			waiting -= 1;
+		}
 		if (disposed) {
 			return failure({
 				code: 'KERNEL_DISPOSED',
@@ -277,6 +323,7 @@ export async function createKernelParts(
 				retryable: false,
 			});
 		}
+		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
 		if (fields.parent !== undefined) {
 			const answered = internals.answerNested?.(fields.parent, name, input);
 			if (answered) return answered as CommandResult<T>;
@@ -320,9 +367,18 @@ export async function createKernelParts(
 
 	// `apps/` loads only for a deployment that lists an app, so the empty shell never fetches it.
 	const listed = options.deployment as NonNullable<KernelOptionsV1['deployment']> | undefined;
-	if (options.appsUnavailable !== undefined) {
-		apps = unavailableApps(listed, state, options.appsUnavailable);
-	} else if (listed && listed.apps.length > 0) {
+	const listsApps = listed !== undefined && listed.apps.length > 0;
+	// Until step 2's `boot`, only a host with no app to load can resolve before stage B.
+	if (options.deferLate !== true || listsApps) {
+		await loadLate();
+		stageBEnded = true;
+		stageB = appsReady;
+		endStageB();
+	}
+	const unavailable = options.appsUnavailable ?? (listsApps ? lateFailure?.message : undefined);
+	if (unavailable !== undefined) {
+		apps = unavailableApps(listed, state, unavailable);
+	} else if (listsApps) {
 		try {
 			const { loadApps } = await import('./apps/index.js');
 			apps = await loadApps({
@@ -332,7 +388,7 @@ export async function createKernelParts(
 				taken: new Set(fixed.map((command) => command.name)),
 				state,
 				viewState,
-				overlays,
+				overlays: overlays as OverlayStore,
 				owners: () => apps.owners,
 				isMutation: (name) => mutations.get(name) === true,
 				setCommands: setAppCommands,
@@ -379,6 +435,11 @@ export async function createKernelParts(
 			call: (name, input, callOptions) => run('agent', name, input, callOptions),
 			listCommands: () => summarize(registries.agent),
 		},
+		startApps,
+		appsReady,
+		get lateFailure() {
+			return lateFailure;
+		},
 		appPort: (instance) => apps.port(instance),
 		listKeybindings: () => keybindings.list(state.activeApp()),
 		async startInstances() {
@@ -394,6 +455,9 @@ export async function createKernelParts(
 		async dispose() {
 			if (disposed) return;
 			disposed = true;
+			// Stage B will not run now, so nothing waiting on it is left waiting.
+			stageB ??= appsReady;
+			endStageB();
 			listeners.clear();
 			await apps.dispose();
 			await viewState.destroy();
@@ -407,7 +471,7 @@ export async function createKernelParts(
 		setAppCommands,
 		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
 		resetSession() {
-			overlays.reset();
+			overlays?.reset();
 			apps.resetSession();
 		},
 	};
@@ -416,7 +480,8 @@ export async function createKernelParts(
 /**
  * Create the kernel: check every command name, read the deployment's packages, build the palette and
  * agent registries over the same commands and journal, and hydrate the view state from `store` before
- * resolving. A bad app never rejects it: it is reported in `app-list`.
+ * resolving. A bad app never rejects it: it is reported in `app-list`. With `deferLate` and no app listed
+ * it resolves with only the boot commands, and `startApps` adds the rest.
  *
  * @throws LoamKernelError `COMMAND_NAME_INVALID` for a name that is not domain-action kebab-case,
  *   `COMMAND_NAME_DUPLICATE` for a name given twice
