@@ -29,14 +29,16 @@ async function ok(url: string): Promise<Response> {
 	return response;
 }
 
+/** `base` is the deployment's root, absolute, which every relative URL a port receives resolves against. */
 export function webPorts(
 	document: Document,
+	base: string,
 	sandboxOrigin: string | null,
 	loadView: () => Promise<ViewChunk>,
 	loadMount: () => Promise<MountChunk>
 ): KernelPortsV1 {
 	return {
-		baseUrl: document.baseURI,
+		baseUrl: base,
 		fetchJson: async (url) => (await ok(url)).json(),
 		fetchText: async (url) => (await ok(url)).text(),
 		async importNative(url) {

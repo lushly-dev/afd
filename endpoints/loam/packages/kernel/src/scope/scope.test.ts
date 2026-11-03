@@ -171,7 +171,11 @@ describe("P2-E4: 4.3's switch rules, in applyScopeChange", () => {
 		await kernel.call('app-open', { instance: 'tasks' });
 		const left = await kernel.call('scope-set', { project: null });
 		expect(left.data).toMatchObject({ active: null, app: 'left', previous: ATLAS.project });
-		expect((await kernel.call('section-get')).data).toEqual({ section: 'projects', path: '' });
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
 		// Its undo goes back, and opens the app it left.
 		expect(left.undoCommand).toBe('scope-set');
 		expect(left.undoArgs).toEqual({ project: ATLAS.project, app: 'tasks' });
@@ -496,9 +500,11 @@ describe('P2-E4: replay with scope', () => {
 			auth: new MockAuthAdapter(),
 			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
 		});
-		expect((await second.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(
-			WORKSPACE
-		);
+		expect((await second.kernel.call('scope-get')).data).toMatchObject({
+			scope: WORKSPACE,
+			project: null,
+			pending: true,
+		});
 		expect((await second.kernel.call('scope-set', { project: null })).data).toMatchObject({
 			previous: expect.stringMatching(/^prj_/),
 		});
@@ -507,6 +513,7 @@ describe('P2-E4: replay with scope', () => {
 			id: 'loam.scope',
 			state: { project: null },
 		});
+		expect((await second.kernel.call('scope-get')).data).toMatchObject({ pending: false });
 		const { report } = await replayOf(await journal.read());
 		expect(report.diverged).toBe(false);
 		await second.kernel.flush();
@@ -619,5 +626,65 @@ describe('P2-E1 (kernel unit): a project layout a person wrote', () => {
 		await kernel.startApps();
 		const after = await kernel.call<LayoutStateV0>('layout-get');
 		expect(after.data?.sidebar.width).toBe(333);
+	});
+});
+
+describe("P2-E8: stage A's scope from the URL (6.3)", () => {
+	type Scoped = { scope: ScopeV1; project: ProjectV1 | null; pending: boolean };
+	const scopeOf = async (workspace: ScopedWorkspace) =>
+		(await workspace.kernel.call<Scoped>('scope-get')).data as Scoped;
+
+	/** A first session that created the projects and left `loam.scope` at `persisted`, then a reload. */
+	async function reload(persisted: string | null, initialScope?: { project: string }) {
+		const store = new MemoryAdapter();
+		const first = await scoped({ store });
+		if (persisted !== null) await first.kernel.call('scope-set', { project: persisted });
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		const second = await scoped({
+			store,
+			auth: new MockAuthAdapter(),
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			...(initialScope ? { initialScope } : {}),
+		});
+		return second;
+	}
+
+	it("P2-E8: enters the URL's project in memory, and says the record differs until scope-set", async () => {
+		const second = await reload(null, { project: 'beacon' });
+		const read = await scopeOf(second);
+		expect(read).toMatchObject({ scope: second.scopes.beacon, pending: true });
+		expect(read.project?.slug).toBe('beacon');
+		// Unjournaled: stage A's choice reaches the journal only as the chrome's scope-set.
+		expect((await entries(second)).some((entry) => entry.command === 'scope-get')).toBe(false);
+		const set = await second.kernel.call('scope-set', { project: read.scope.project as string });
+		expect(set.data).toMatchObject({ previous: null, scope: second.scopes.beacon });
+		expect(await scopeOf(second)).toMatchObject({ pending: false });
+	});
+
+	it('P2-E8: falls back to the persisted record for a slug that is missing or refused, alike', async () => {
+		for (const slug of ['nowhere', 'citadel']) {
+			const second = await reload('atlas', { project: slug });
+			expect(await scopeOf(second)).toMatchObject({ scope: second.scopes.atlas, pending: false });
+		}
+		const none = await reload(null, { project: 'citadel' });
+		expect(await scopeOf(none)).toEqual({
+			scope: WORKSPACE,
+			workspace: { id: 'personal', name: 'Personal' },
+			project: null,
+			pending: false,
+		});
+	});
+
+	it("P2-E8: section-get holds main's section, path and active app, unjournaled", async () => {
+		const workspace = await scoped();
+		await workspace.kernel.call('app-open', { instance: 'dual' });
+		await workspace.kernel.call('app-route-set', { instance: 'dual', path: 'items/a b' });
+		expect((await workspace.kernel.call('section-get')).data).toEqual({
+			section: null,
+			path: 'items/a b',
+			active: 'dual',
+		});
+		expect((await entries(workspace)).some((entry) => entry.command === 'section-get')).toBe(false);
 	});
 });

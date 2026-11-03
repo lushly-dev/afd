@@ -33,7 +33,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
  * Step 2 changed no ceiling: first paint 273,179 and 83,564 gzip, `apps` 377,811 (2.4's table).
  * Step 4 changed none either: first paint 277,772 and 85,346 gzip, the kernel alone 110,680, `late`
- * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 9 leaves
+ * 47,868 with the `store` chunk it shares with `apps`, and `apps` 377,547 (2.4's table). Step 5 changed
+ * none: first paint 279,697 and 86,072 gzip, with the URL's commands and writes in a `url-sync` chunk
+ * loaded when stage B ends (2,931 bytes, no row of its own), and the kernel alone 110,770. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({

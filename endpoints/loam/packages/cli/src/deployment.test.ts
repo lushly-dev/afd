@@ -7,6 +7,7 @@ import { runCli } from './cli.js';
 import {
 	analyzeDeployment,
 	checkedProjection,
+	withBasePath,
 	withFrameSrc,
 	writeDeployment,
 } from './deployment.js';
@@ -626,6 +627,62 @@ describe('deployment write, version 2 (phase 2 specification, 2.2 and 4.2)', () 
 			layout: { inspector: { open: true } },
 			refusal: null,
 		});
+	});
+
+	it("P2-E8: writes index.html's asset URLs under base_path, and 404.html as its copy", async () => {
+		const page = (assets: string) =>
+			`<!doctype html>\n<html><head>\n<meta\n\thttp-equiv="Content-Security-Policy"\n\tcontent="${CSP}"\n/>\n<script type="module" crossorigin src="${assets}index-a1.js"></script>\n<link rel="stylesheet" crossorigin href="${assets}index-b2.css">\n</head><body><a href="./elsewhere">x</a></body></html>`;
+		for (const [site, assets] of [
+			['', '/assets/'],
+			['\n[site]\nbase_path = "/"\n', '/assets/'],
+			['\n[site]\nbase_path = "/loam/team-a/"\n', '/loam/team-a/assets/'],
+		] as const) {
+			const paths = await layout(`${HELLO}${site}`, helloWith({}));
+			await write(paths.root, 'dist/index.html', page('./assets/'));
+			const written = await write_(paths);
+			expect(written.ok).toBe(true);
+			const served = readFileSync(join(paths.out, 'index.html'), 'utf8');
+			expect(served).toBe(withFrameSrc(page(assets), "'none'"));
+			// Only the page's own assets move; every other relative URL stays as it was.
+			expect(served).toContain('href="./elsewhere"');
+			expect(readFileSync(join(paths.out, '404.html'), 'utf8')).toBe(served);
+		}
+		// `vite build`'s own `dist` keeps `./`, servable from any directory at its root.
+		const paths = await layout(HELLO.replace('= 2', '= 1'), helloWith({}));
+		await write(paths.root, 'dist/index.html', page('./assets/'));
+		expect((await write_(paths)).ok).toBe(true);
+		expect(readFileSync(join(paths.dist, 'index.html'), 'utf8')).toBe(page('./assets/'));
+		expect(readFileSync(join(paths.out, 'index.html'), 'utf8')).toBe(
+			withFrameSrc(page('/assets/'), "'none'")
+		);
+	});
+
+	it('P2-E8: refuses a base_path that could leave the origin or climb, before writing', async () => {
+		for (const base of [
+			'//evil.example/',
+			'/loam',
+			'loam/',
+			'/a/../',
+			'/./',
+			'/a b/',
+			'/%2e%2e/',
+			'/a"/',
+		]) {
+			const paths = await layout(
+				`${HELLO}\n[site]\nbase_path = ${JSON.stringify(base)}\n`,
+				helloWith({})
+			);
+			const written = await write_(paths);
+			expect(written.ok, base).toBe(false);
+			if (written.ok) continue;
+			expect(written.refusals.map((refusal) => refusal.code)).toEqual([
+				'DEPLOYMENT_BASE_PATH_INVALID',
+			]);
+			expect(existsSync(paths.out)).toBe(false);
+		}
+		expect(withBasePath('<script src="./assets/x.js"></script>', '/loam/')).toBe(
+			'<script src="/loam/assets/x.js"></script>'
+		);
 	});
 
 	it("carries a refused package's reason in its boot record, and keeps it listed", async () => {

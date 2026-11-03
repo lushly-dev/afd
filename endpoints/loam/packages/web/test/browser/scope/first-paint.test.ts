@@ -72,8 +72,8 @@ function budgetRow(): number {
 }
 
 /** What a page requested before the mark, by path, with the bytes the server sent. */
-async function firstPaint(site: { origin: string; log: LoggedRequest[] }) {
-	const opened = await openPage(browser, site.origin);
+async function firstPaint(site: { origin: string; log: LoggedRequest[] }, path = '/') {
+	const opened = await openPage(browser, `${site.origin}${path}`);
 	const paths = await measureFirstPaint(opened.page);
 	const bytes = Object.fromEntries(
 		site.log
@@ -108,21 +108,25 @@ describe('P2-E1: one first paint', () => {
 		];
 		const measured = [];
 		for (const site of sites) measured.push(await firstPaint(site));
+		// Step 5's deep link: an app's URL in a project that does not exist loads the same chunks (6.2).
+		measured.push(await firstPaint(sites[1] as DeploymentSite, '/personal/p/atlas/hello/items'));
 		const assets = measured.map(({ bytes }) =>
 			Object.fromEntries(Object.entries(bytes).filter(([path]) => path.startsWith('/assets/')))
 		);
 		expect(assets[1]).toEqual(assets[0]);
 		expect(assets[2]).toEqual(assets[0]);
+		expect(assets[3]).toEqual(assets[0]);
 		const deploymentJson = measured.map(({ bytes }) => bytes['/deployment.json']);
 		expect(deploymentJson.every((size) => typeof size === 'number' && size > 0)).toBe(true);
 		expect(new Set(deploymentJson).size).toBe(3);
+		expect(deploymentJson[3]).toBe(deploymentJson[1]);
 		for (const { paths } of measured) {
 			expect(paths.filter((path) => path.endsWith('app-manifest.json'))).toEqual([]);
 			expect(paths.filter((path) => STAGE_B_CHUNK.test(path))).toEqual([]);
 			// Only the page, its assets and the projection.
 			expect(
 				paths.filter(
-					(path) => !path.startsWith('/assets/') && path !== '/' && path !== '/deployment.json'
+					(path) => !path.startsWith('/assets/') && path !== paths[0] && path !== '/deployment.json'
 				)
 			).toEqual([]);
 		}

@@ -41,13 +41,20 @@ export interface HeldRequests {
 	readonly held: string[];
 }
 
-/** Serves a directory over loopback HTTP, so the page's CSP applies as deployed. */
+/**
+ * Serves a directory over loopback HTTP, so the page's CSP applies as deployed. With `base`, under that
+ * path only, as a deployment's `base_path`; with `fallback`, a `GET` asking for `text/html` of a path with
+ * no file answers `index.html` with `200`, as a deployer's host must for a deep link (phase 2
+ * specification, 6.2), so a route segment with a dot still works.
+ */
 async function serveDirectory(
 	root: string,
 	options: {
 		only?: string;
 		headers?: () => Record<string, string>;
 		relay?: () => MountRelay | undefined;
+		base?: string;
+		fallback?: boolean;
 	} = {}
 ): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> } & HeldRequests> {
 	const log: LoggedRequest[] = [];
@@ -61,7 +68,14 @@ async function serveDirectory(
 			held.push(path);
 			await new Promise<void>((resume) => waiting.push(resume));
 		}
-		const file = normalize(join(root, path === '/' ? 'index.html' : path));
+		const base = options.base ?? '/';
+		if (!path.startsWith(base)) {
+			log.push({ path, bytes: 0, status: 404 });
+			response.writeHead(404).end();
+			return;
+		}
+		const inside = `/${path.slice(base.length)}`;
+		const file = normalize(join(root, inside === '/' ? 'index.html' : inside));
 		if (
 			(file !== root && !file.startsWith(root + sep)) ||
 			(options.only !== undefined && !path.startsWith(options.only))
@@ -69,11 +83,20 @@ async function serveDirectory(
 			response.writeHead(403).end();
 			return;
 		}
+		const page =
+			options.fallback === true &&
+			request.method === 'GET' &&
+			(request.headers.accept ?? '').includes('text/html');
 		try {
-			const body = await readFile(file);
+			let served = file;
+			const body = await readFile(file).catch((error: unknown) => {
+				if (!page) throw error;
+				served = join(root, 'index.html');
+				return readFile(served);
+			});
 			log.push({ path, bytes: body.length, status: 200 });
 			response.writeHead(200, {
-				'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
+				'content-type': TYPES[extname(served)] ?? 'application/octet-stream',
 				...options.headers?.(),
 			});
 			response.end(body);
@@ -150,6 +173,8 @@ export function packApp(
 
 export interface DeploymentSite extends HeldRequests {
 	origin: string;
+	/** The shell's root: the origin and the base path, with its trailing slash. */
+	root: string;
 	log: LoggedRequest[];
 	/** The directory `writeDeployment` wrote. */
 	out: string;
@@ -174,6 +199,8 @@ export async function serveDeployment(options: {
 	mounts?: true;
 	/** Serve this in place of the projection `writeDeployment` wrote: a hostile or lying one (E1). */
 	rewrite?: (projection: ProjectionV2) => unknown;
+	/** `site.base_path`, written into the file and served as the site's prefix (6.2). Default `/`. */
+	basePath?: string;
 }): Promise<DeploymentSite> {
 	const directory = await mkdtemp(join(tmpdir(), 'loam-deployment-'));
 	const config = join(directory, 'loam.deployment.toml');
@@ -188,9 +215,11 @@ export async function serveDeployment(options: {
 		: undefined;
 	await writeFile(
 		config,
-		sandbox
-			? `${options.config}\n[sandbox]\norigin = ${JSON.stringify(sandbox.origin)}\n`
-			: options.config
+		[
+			options.config,
+			...(sandbox ? [`[sandbox]\norigin = ${JSON.stringify(sandbox.origin)}`] : []),
+			...(options.basePath ? [`[site]\nbase_path = ${JSON.stringify(options.basePath)}`] : []),
+		].join('\n\n')
 	);
 	const written = await writeDeployment({ config, dist: DIST, out });
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
@@ -199,11 +228,16 @@ export async function serveDeployment(options: {
 		await writeFile(join(out, 'deployment.json'), `${JSON.stringify(served, null, '\t')}\n`);
 	}
 	const relay = options.mounts ? createMountRelay(written.mounts) : undefined;
-	const site = await serveDirectory(out, { relay: () => relay });
+	const site = await serveDirectory(out, {
+		relay: () => relay,
+		fallback: true,
+		...(options.basePath ? { base: options.basePath } : {}),
+	});
 	shellOrigin = site.origin;
 	relay?.setOrigin(site.origin);
 	return {
 		...site,
+		root: `${site.origin}${options.basePath ?? '/'}`,
 		out,
 		projection: written.projection,
 		...(sandbox ? { sandbox: { origin: sandbox.origin, log: sandbox.log } } : {}),

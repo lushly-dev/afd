@@ -403,7 +403,8 @@ describe('E2: what a hostile view can reach', () => {
 		expect(reached.fetchShell).toBe('TypeError');
 		expect(reached.topNavigation).not.toBe('reached');
 		expect(reached.parentNavigation).not.toBe('reached');
-		expect(page.url()).toBe(`${site.origin}/`);
+		// Opening the app moved the URL to it (phase 2 specification, 6.3); the view moved it nowhere.
+		expect(page.url()).toBe(`${site.origin}/personal/fixture`);
 
 		// The only violation is the one this test provoked, in the view's frame. A `srcdoc` document
 		// holds the proxy's policy as well as its own, so each reports it.
@@ -586,6 +587,31 @@ describe('E2: what a hostile view can reach', () => {
 		// `frame-src 'self'` lets it through, and `frame-ancestors` lists the shell alone, so the proxy's
 		// own page does not render inside itself.
 		await expect.poll(() => inner.url()).toMatch(/^chrome-error:/);
+		await opened.context.close();
+	});
+
+	it("P2-E8: a view's app-route-set with a dot segment is APP_ROUTE_INVALID, and the URL stays", async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const path = () => new URL(page.url()).pathname;
+		await expect.poll(path).toBe('/personal/fixture');
+		const { inner } = await viewFrames(page);
+		const route = (instance: string, to: string) =>
+			rpc(inner, 'tools/call', { name: 'app-route-set', arguments: { instance, path: to } });
+		for (const to of ['..', '../tally', 'a/../../p/x', '.', 'a/./b']) {
+			const answer = await route('fixture', to);
+			expect(answer.result?.isError, to).toBe(true);
+			expect(answer.result?.structuredContent?.error?.code, to).toBe('APP_ROUTE_INVALID');
+		}
+		await surfacesIdle(page);
+		expect(path()).toBe('/personal/fixture');
+		// Another app's route is not this view's to set.
+		expect((await route('tally', 'x')).result?.isError).toBe(true);
+		// Its own route without one moves the URL, under its own segment.
+		expect((await route('fixture', 'items/a b')).result?.isError).not.toBe(true);
+		await expect.poll(path).toBe('/personal/fixture/items/a%20b');
+		expect(opened.violations).toEqual([]);
 		await opened.context.close();
 	});
 

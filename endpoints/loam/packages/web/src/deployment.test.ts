@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { readOrNotice } from './deployment.js';
 import { webPorts } from './ports.js';
 
-const page = { baseURI: 'https://shell.example/' } as Document;
+const page = {} as Document;
+/** The deployment's root, from the entry's URL, which a deep link does not move (phase 2 specification, 6.2). */
+const BASE = 'https://shell.example/loam/';
 const noView = () => Promise.reject(new Error('No view chunk here'));
 const noMount = () => Promise.reject(new Error('No mount chunk here'));
 const EMPTY = {
@@ -21,12 +23,13 @@ describe('readOrNotice', () => {
 				apps: [{ instance: 'hello', app: 'hello', package: 'apps/hello/' }],
 			},
 			page,
+			BASE,
 			noView,
 			noMount
 		);
 		if ('refused' in read) throw new Error(read.refused);
 		expect(read.deployment.apps[0]?.instance).toBe('hello');
-		expect(read.ports.baseUrl).toBe('https://shell.example/');
+		expect(read.ports.baseUrl).toBe(BASE);
 	});
 
 	it('refuses a projection holding a key that must never reach a page', () => {
@@ -36,6 +39,7 @@ describe('readOrNotice', () => {
 				apps: [{ instance: 'x', app: 'x', package: 'apps/x/', url: 'http://secret' }],
 			},
 			page,
+			BASE,
 			noView,
 			noMount
 		);
@@ -45,10 +49,10 @@ describe('readOrNotice', () => {
 	});
 
 	it('refuses what did not parse', () => {
-		expect('refused' in readOrNotice(undefined, page, noView, noMount)).toBe(true);
+		expect('refused' in readOrNotice(undefined, page, BASE, noView, noMount)).toBe(true);
 		// Version 1 is not read: `dist` and its projection are written together.
 		const v1 = { deployment_version: 1, sandbox_origin: null, apps: [] };
-		expect('refused' in readOrNotice(v1, page, noView, noMount)).toBe(true);
+		expect('refused' in readOrNotice(v1, page, BASE, noView, noMount)).toBe(true);
 	});
 });
 
@@ -57,7 +61,7 @@ describe('webPorts', () => {
 		const frame = {} as HandlerFrameV1;
 		const openHandlerFrame = vi.fn(() => frame);
 		const loadView = vi.fn(async () => ({ openHandlerFrame }));
-		const ports = webPorts(page, 'https://sandbox.example', loadView, noMount);
+		const ports = webPorts(page, BASE, 'https://sandbox.example', loadView, noMount);
 		expect(loadView).not.toHaveBeenCalled();
 		await expect(ports.openHandlerFrame('hello', '<p>')).resolves.toBe(frame);
 		expect(openHandlerFrame).toHaveBeenCalledWith({
@@ -69,7 +73,7 @@ describe('webPorts', () => {
 	});
 
 	it('loads the mount chunk only when asked, and rejects what cannot be served', async () => {
-		const ports = webPorts(page, null, noView, noMount);
+		const ports = webPorts(page, BASE, null, noView, noMount);
 		await expect(ports.openHandlerFrame('x', '')).rejects.toThrow(/sandbox origin/);
 		await expect(ports.mountTransport({} as never, '')).rejects.toThrow(/No mount chunk/);
 		const fetched = globalThis.fetch;

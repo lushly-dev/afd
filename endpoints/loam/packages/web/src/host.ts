@@ -59,6 +59,8 @@ export interface HostKernelOptions {
 	 */
 	boot?: KernelOptionsV2['boot'];
 	appsLoader?: KernelOptionsV2['appsLoader'];
+	/** The URL's project, by slug (phase 2 specification, 6.3). */
+	initialScope?: KernelOptionsV2['initialScope'];
 }
 
 const LOCK_RETRY_MS = 100;
@@ -101,6 +103,7 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		// With `boot`, stage B, the late commands and the apps, runs after the first frame (2.2).
 		...(options.boot ? { boot: options.boot } : {}),
 		...(options.appsLoader ? { appsLoader: options.appsLoader } : {}),
+		...(options.initialScope ? { initialScope: options.initialScope } : {}),
 	});
 	return { kind: 'ready', kernel, journal };
 }

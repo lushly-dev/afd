@@ -182,6 +182,18 @@ export function checkedProjection(
 			};
 }
 
+/**
+ * `index.html`'s `src` and `href` from `./assets/` to `<base_path>assets/` (phase 2 specification, 4.2 and
+ * 6.2), so a deep link such as `/acme/p/atlas/hello` loads the same files: `<base>` cannot do it under
+ * `base-uri 'none'`. `basePath` has passed the deployment's pattern, both slashes and no dot segment.
+ */
+export function withBasePath(html: string, basePath: string): string {
+	return html.replace(
+		/(\s(?:src|href)=["'])\.\/assets\//g,
+		(_all, lead: string) => `${lead}${basePath}assets/`
+	);
+}
+
 /** `frame-src` becomes the sandbox origin or `'none'`, and nothing else in the CSP changes. */
 export function withFrameSrc(html: string, frameSrc: string): string | undefined {
 	const meta = /<meta\b(?=[^>]*http-equiv=["']Content-Security-Policy["'])[^>]*>/i.exec(html);
@@ -341,8 +353,8 @@ export async function writeDeployment(
 	if (changed) warnings.push(changed);
 	const anyView = analysis.instances.some(({ rawKind }) => rawKind === 'view');
 	const frameSrc = anyView && projection.sandbox_origin ? projection.sandbox_origin : "'none'";
-	const page = withFrameSrc(await readFile(join(dist, 'index.html'), 'utf8'), frameSrc);
-	if (page === undefined) {
+	const framed = withFrameSrc(await readFile(join(dist, 'index.html'), 'utf8'), frameSrc);
+	if (framed === undefined) {
 		return stop([
 			pathRefusal(
 				'--dist',
@@ -351,6 +363,8 @@ export async function writeDeployment(
 			),
 		]);
 	}
+
+	const page = withBasePath(framed, analysis.basePath ?? '/');
 
 	const host = await planCopy(dist, '--dist');
 	const packages = await Promise.all(
@@ -369,6 +383,8 @@ export async function writeDeployment(
 	for (const { id, copies } of packages) await copyListed(copies, join(out, 'apps', id));
 	await writeFile(join(out, 'deployment.json'), `${JSON.stringify(projection, null, '\t')}\n`);
 	await writeFile(join(out, 'index.html'), page);
+	// For a static host that answers a missing path with `404.html` and nothing else (6.2).
+	await writeFile(join(out, '404.html'), page);
 	await writeFile(join(out, OUTPUT_MARKER), 'Written by loam deployment write.\n');
 	if (options.mountsOut) {
 		await mkdir(dirname(resolve(options.mountsOut)), { recursive: true });
