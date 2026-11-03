@@ -198,7 +198,7 @@
 					}
 				},
 				"layout": {
-					"type": "object"
+					"$ref": "https://afd.dev/loam/schemas/app-manifest.v2.json#/$defs/layout"
 				},
 				"refusal": {
 					"type": ["object", "null"],

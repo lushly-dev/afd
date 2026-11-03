@@ -641,7 +641,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			const now = host.clock();
 			if (now - lastAutomatic >= AUTO_DISCOVERY_MS) {
 				lastAutomatic = now;
-				await host.runAs('app-instance-refresh', { instance }, undefined, {});
+				// Unqueued: this runs inside a call that may itself be queued behind stage B.
+				await host.runAs('app-instance-refresh', { instance }, undefined, {}, true);
 			}
 		}
 		return result;

@@ -321,6 +321,16 @@ describe('readProjection', () => {
 		['an unknown part', { parts: ['tray'] }, 'apps[0].boot.parts[0]'],
 		['an unknown level', { scope_levels: ['team'] }, 'apps[0].boot.scope_levels[0]'],
 		[
+			'a layout with a key it does not hold',
+			{ layout: { tray: { open: true } } },
+			'apps[0].boot.layout.tray',
+		],
+		[
+			'a layout value out of shape',
+			{ layout: { sidebar: { width: 'wide' } } },
+			'apps[0].boot.layout.sidebar.width',
+		],
+		[
 			'a refusal with a key it does not hold',
 			{ refusal: { code: 'A', message: '', suggestion: '', url: 'x' } },
 			'apps[0].boot.refusal.url',

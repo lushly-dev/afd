@@ -106,7 +106,10 @@ export function compileValidators() {
 /** Follows a reference within the core or a schema document. */
 function resolveRef(ref, document, core) {
 	const [id, fragment = ''] = ref.split('#');
-	const from = id === core.$id ? core : id === '' ? document : undefined;
+	// A version 2 projection's boot record holds a manifest's layout (phase 2 specification, 2.2).
+	const manifest = readSchema('app-manifest', 2);
+	const from =
+		id === core.$id ? core : id === '' ? document : id === manifest.$id ? manifest : undefined;
 	if (!from) throw new Error(`Unresolved $ref ${ref}`);
 	const target = fragment
 		.split('/')

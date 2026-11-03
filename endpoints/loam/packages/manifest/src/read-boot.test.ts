@@ -139,6 +139,23 @@ describe('readBoot (phase 2 specification, 2.2)', () => {
 		]);
 	});
 
+	it('keeps the first of each repeated level and part, as the schema no longer refuses repeats', () => {
+		const read = readBoot(
+			projection([
+				{
+					...hello,
+					boot: {
+						...hello.boot,
+						scope_levels: ['project', 'project'],
+						parts: ['panel', 'sidebar', 'panel'],
+					},
+				},
+			])
+		);
+		expect(read?.apps[0]?.scopeLevels).toEqual(['project']);
+		expect(read?.apps[0]?.parts).toEqual(['panel', 'sidebar']);
+	});
+
 	it('keeps markup in a title as text: it is for display, and never parsed', () => {
 		const title = '<img src=x onerror=alert(1)>';
 		const read = readBoot(projection([{ ...hello, boot: { ...hello.boot, title } }]));

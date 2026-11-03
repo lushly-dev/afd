@@ -473,6 +473,23 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		],
 		"/apps/*/boot/scope_levels": [],
 		"/apps/*/boot/parts": [],
+		"/apps/*/boot/layout": [
+			"sidebar",
+			"inspector",
+			"panel"
+		],
+		"/apps/*/boot/layout/sidebar": [
+			"open",
+			"width"
+		],
+		"/apps/*/boot/layout/inspector": [
+			"open",
+			"width"
+		],
+		"/apps/*/boot/layout/panel": [
+			"open",
+			"height"
+		],
 		"/apps/*/boot/refusal": [
 			"code",
 			"message",

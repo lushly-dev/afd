@@ -59,12 +59,10 @@ const integer = (value: unknown): number | undefined =>
 const oneOf = (value: unknown, allowed: string): string | undefined =>
 	typeof value === 'string' && allowed.split(' ').includes(value) ? value : undefined;
 
-/** A list of unique values from `allowed`, or undefined when it is anything else. */
+/** The first of each value from `allowed`, or undefined when the list holds anything else. */
 function members(value: unknown, allowed: string): string[] | undefined {
-	return Array.isArray(value) &&
-		value.every((item) => oneOf(item, allowed)) &&
-		new Set(value).size === value.length
-		? (value as string[])
+	return Array.isArray(value) && value.every((item) => oneOf(item, allowed))
+		? [...new Set(value as string[])]
 		: undefined;
 }
 
@@ -92,7 +90,7 @@ function appOf(value: unknown): BootAppV2 | undefined {
 		icon: typeof boot.icon === 'string' && ICON.test(boot.icon) ? boot.icon : 'system/folder',
 		order: integer(boot.order) ?? integer(entry?.order) ?? 100,
 		scopeLevels: (members(boot.scope_levels, 'workspace project')?.length
-			? boot.scope_levels
+			? members(boot.scope_levels, 'workspace project')
 			: ['workspace']) as BootAppV2['scopeLevels'],
 		rail: typeof boot.rail === 'boolean' ? boot.rail : true,
 		parts: members(boot.parts, 'sidebar inspector panel') ?? [],

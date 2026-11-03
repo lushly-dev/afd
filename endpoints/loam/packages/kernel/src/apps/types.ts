@@ -32,12 +32,17 @@ export interface AppsHost {
 	commandRows(instance: string): AppCommandRowV1[];
 	/** A discovery changed the apps' commands: build the registries again (7.3). */
 	setCommands(commands: readonly ZodCommandDefinition[]): void;
-	/** Run a command on the palette registry with fields set by trusted code. */
+	/**
+	 * Run a command on the palette registry with fields set by trusted code. It joins the calls queued
+	 * behind stage B, as a person's call does, unless it is nested (`fields.parent`) or `unqueued`, which
+	 * only a handler's own follow-up may ask for: it would otherwise wait behind the call that made it.
+	 */
 	runAs<T>(
 		name: string,
 		input: unknown,
 		options: CallOptionsV1 | undefined,
-		fields: KernelCallFields
+		fields: KernelCallFields,
+		unqueued?: true
 	): Promise<CommandResult<T>>;
 	clock(): number;
 }

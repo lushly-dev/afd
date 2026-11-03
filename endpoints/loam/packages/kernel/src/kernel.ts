@@ -167,6 +167,8 @@ export interface KernelParts {
 	applyCatalog(instance: string, catalog: unknown): void;
 	/** Forget what a page holds only in memory, as a reload does: overlays, selections, status values. */
 	resetSession(): void;
+	/** Boot's own journaled work, with `BOOT_FIELDS`: never queued behind stage B (step 4 calls it). */
+	runBoot(name: string, input: unknown): Promise<CommandResult>;
 }
 
 /** What only `replayKernel` asks of a kernel. */
@@ -305,6 +307,12 @@ export async function createKernelParts(
 	 * would not: the journal appends after hashing the context with WebCrypto, which finishes in any order.
 	 */
 	let queue: Promise<unknown> | undefined;
+	/**
+	 * The fields of boot's own journaled work, an object no caller can name (phase 2 specification, 2.2).
+	 * Step 4 runs `workspace-deployment-apply` with them from inside stage B, so they never join the queue,
+	 * which waits for stage B and would never drain.
+	 */
+	const BOOT_FIELDS: KernelCallFields = {};
 	let endStageB: () => void = () => {};
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;
@@ -381,10 +389,10 @@ export async function createKernelParts(
 					commands: registries.palette.listCommands(),
 					rows: summarize(registries.palette),
 				}),
-				// Trusted host code, never queued: a port exists only once stage B has ended, and a mounted
-				// handler's own refresh would otherwise wait behind the call that made it.
-				runAs: (name, input, callOptions, fields) =>
-					execute('palette', name, input, callOptions ?? {}, fields),
+				runAs: (name, input, callOptions, fields, unqueued) =>
+					unqueued
+						? execute('palette', name, input, callOptions ?? {}, fields)
+						: run('palette', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
 			});
 			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
@@ -432,7 +440,10 @@ export async function createKernelParts(
 	 * A name stage A does not hold waits for stage B, so a chord or an agent's first call runs a moment
 	 * later, and so does any call made while one waits, so calls run and are journaled in the order they
 	 * were made. `NEEDS_STAGE_B`'s names are all late, so stage A never registers them and they wait here
-	 * too. A nested call runs inside its parent, which already holds the queue, so it never joins it.
+	 * too. A nested call (an app's, through `runAs`) runs inside its parent, which may hold the queue, so
+	 * it never joins it, and nor does boot's own work (`BOOT_FIELDS`), which stage B runs from inside
+	 * `startApps`. The trade-off: while the queue drains, one slow call holds every call behind it. Once
+	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2.
 	 */
 	function run<T>(
 		iface: KernelInterfaceV0,
@@ -442,7 +453,12 @@ export async function createKernelParts(
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
-		if (disposed || fields.parent || !(queue || (!stageBEnded && !mutations.has(name))))
+		if (
+			disposed ||
+			fields.parent ||
+			fields === BOOT_FIELDS ||
+			!(queue || (!stageBEnded && !mutations.has(name)))
+		)
 			return go();
 		const mine = (queue ?? startApps()).then(go);
 		const drained = () => {
@@ -584,6 +600,7 @@ export async function createKernelParts(
 			overlays?.reset();
 			apps.resetSession();
 		},
+		runBoot: (name, input) => run('palette', name, input, {}, BOOT_FIELDS),
 	};
 }
 

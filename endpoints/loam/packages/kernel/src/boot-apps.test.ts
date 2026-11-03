@@ -4,11 +4,14 @@
  * own failure, and the first paint, are in `web`'s Chromium suite.
  */
 
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { BootAppV2, BootProjectionV2 } from '@lushly-dev/loam-manifest';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from './errors.js';
-import { NEEDS_STAGE_B } from './kernel.js';
-import { createTestKernel } from './testing.js';
+import { createKernelParts, NEEDS_STAGE_B } from './kernel.js';
+import { createFixedEnvironment, createTestKernel } from './testing.js';
 import type { AppDetailV1, AppSummaryV2, AppsLoadV2, LoamKernelV2 } from './types.js';
 
 const kernels: LoamKernelV2[] = [];
@@ -46,6 +49,21 @@ async function boot(apps: BootAppV2[], appsLoader?: () => Promise<AppsLoadV2>) {
 	});
 	kernels.push(kernel);
 	return { kernel, journal };
+}
+
+async function partsOf(apps: BootAppV2[], appsLoader: () => Promise<AppsLoadV2>) {
+	const parts = await createKernelParts({
+		store: new MemoryAdapter(),
+		storeKind: 'memory',
+		journal: new MemoryJournalSink(),
+		auth: new MockAuthAdapter(),
+		environment: createFixedEnvironment(),
+		host: 'test',
+		boot: bootOf(apps),
+		appsLoader,
+	});
+	kernels.push(parts.kernel);
+	return parts;
 }
 
 const listOf = async (kernel: LoamKernelV2) =>
@@ -105,15 +123,28 @@ describe('stage A: the apps from their boot records', () => {
 	});
 
 	it('holds none of NEEDS_STAGE_B in stage A, so each waits for stage B', async () => {
-		const { kernel } = await boot([record('hello')], () => new Promise(() => {}));
-		const held = kernel.listCommands().map((row) => row.name);
+		const parts = await partsOf([record('hello')], () => new Promise(() => {}));
+		// The registry's own names, internal ones included, so the check cannot pass by filtering.
+		const held = parts.registries.palette.listCommands().map((command) => command.name);
+		expect(held).toContain('app-list');
 		expect(NEEDS_STAGE_B.filter((name) => held.includes(name))).toEqual([]);
 		let answered = false;
-		void kernel.call('app-get', { instance: 'hello' }).then(() => {
+		void parts.kernel.call('app-get', { instance: 'hello' }).then(() => {
 			answered = true;
 		});
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(answered).toBe(false);
+	});
+
+	it("runs boot's own work with BOOT_FIELDS past a queue that has not drained", async () => {
+		// Stage B never ends here, so anything that joined the queue would never run.
+		const parts = await partsOf([record('hello')], () => new Promise(() => {}));
+		let queued = false;
+		void parts.kernel.call('app-get', { instance: 'hello' }).then(() => {
+			queued = true;
+		});
+		expect(await parts.runBoot('layout-get', {})).toMatchObject({ success: true });
+		expect(queued).toBe(false);
 	});
 
 	it("gives a persisted active app its boot record's first layout before stage B", async () => {

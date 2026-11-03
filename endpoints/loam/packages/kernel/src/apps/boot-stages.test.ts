@@ -180,6 +180,32 @@ describe('stage B corrects a boot record', () => {
 		}
 	});
 
+	it("queues an app port's call behind stage B's queue, so it cannot overtake it in the journal", async () => {
+		const subtle = globalThis.crypto.subtle;
+		const digest = subtle.digest.bind(subtle);
+		let hashes = 0;
+		const spy = vi.spyOn(subtle, 'digest').mockImplementation(async (algorithm, data) => {
+			const first = ++hashes === 1;
+			const result = await digest(algorithm, data);
+			if (first) await new Promise((resolve) => setTimeout(resolve, 30));
+			return result;
+		});
+		try {
+			const { kernel, journal } = await boot([LIAR]);
+			const first = kernel.call('app-get', { instance: 'probe' });
+			await kernel.appsReady;
+			// Stage B has ended, and the first call is still on its way: the port's call joins the queue.
+			const fromPort = kernel.appPort('probe').call('app-selection-get', { instance: 'probe' });
+			await Promise.all([first, fromPort]);
+			expect((await journal.read()).map((entry) => entry.command)).toEqual([
+				'app-get',
+				'app-selection-get',
+			]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it('runs a call that needs stage B after it, in the order calls were made', async () => {
 		const { kernel, journal } = await boot([LIAR]);
 		const detail = kernel.call<{ title: string }>('app-get', { instance: 'probe' });

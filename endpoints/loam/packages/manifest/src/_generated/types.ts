@@ -931,7 +931,18 @@ export interface ProjectionV2 {
 			rail: boolean;
 			parts: ('sidebar' | 'inspector' | 'panel')[];
 			layout: {
-				[k: string]: unknown;
+				sidebar?: {
+					open?: boolean;
+					width?: number;
+				};
+				inspector?: {
+					open?: boolean;
+					width?: number;
+				};
+				panel?: {
+					open?: boolean;
+					height?: number;
+				};
 			};
 			refusal: {
 				code: string;

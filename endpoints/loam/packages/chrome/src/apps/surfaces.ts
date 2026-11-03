@@ -148,8 +148,6 @@ export class AppSurfaces implements ShellApps {
 	constructor(shell: LoamShell, kernel: LoamKernelV2) {
 		this.#shell = shell;
 		this.#kernel = kernel;
-		// The entries the first frame drew from the boot records are these surfaces' from now on.
-		for (const [instance, entries] of shell.bootEntries) this.#entries.set(instance, entries);
 		this.#overlays = new OverlaySurfaces(shell, kernel);
 		this.#cleanup.push(kernel.subscribe((event) => this.#onEvent(event)));
 		this.#listen(APP_OPEN_EVENT, ({ instance }) => {
@@ -333,6 +331,10 @@ export class AppSurfaces implements ShellApps {
 
 	#renderNav(active: string | null, apps: AppSummaryV2[]): void {
 		this.#summaries = apps;
+		// The entries the first frame drew from the boot records are these surfaces' from now on.
+		for (const [instance, entries] of this.#shell.bootEntries) {
+			if (!this.#entries.has(instance)) this.#entries.set(instance, entries);
+		}
 		// A boot record stage B did not confirm, or an app the rail does not list, has no entry.
 		const listed = new Set(apps.filter((app) => app.rail).map((app) => app.instance));
 		for (const [instance, entries] of this.#entries) {
@@ -944,6 +946,8 @@ export class AppSurfaces implements ShellApps {
 export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV2): Promise<ShellApps> {
 	await defineAppElements();
 	const surfaces = new AppSurfaces(shell, kernel);
+	// The chunk may load beside stage B; what it renders is what stage B read, never stage A's list.
+	await kernel.appsReady;
 	if (shell.appCount > 0) await surfaces.prepare();
 	return surfaces;
 }

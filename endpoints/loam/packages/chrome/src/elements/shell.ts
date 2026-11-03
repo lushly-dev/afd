@@ -41,7 +41,7 @@ import type { ResizeDetail } from '../resize.js';
 import { createRouter, type RouterV0, type RouteV0 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
-import type { LoamAppEntry } from './app-entry.js';
+import { APP_OPEN_EVENT, type LoamAppEntry } from './app-entry.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
 import { focusPart } from './focus.js';
 import { defineNotice } from './notice-loader.js';
@@ -318,7 +318,7 @@ export class LoamShell extends FASTElement {
 	appCount = 0;
 	/**
 	 * The rail's and tab bar's entries the first frame drew, by instance, for the app surfaces to adopt.
-	 * Each is `loading` until then, and a press does nothing, as its busy state says.
+	 * A press before the surfaces attach queues `app-open` behind stage B.
 	 */
 	readonly bootEntries = new Map<string, LoamAppEntry[]>();
 	/** The app surfaces, once their chunk has loaded. */
@@ -428,6 +428,13 @@ export class LoamShell extends FASTElement {
 		this.#listen(this, ACTION_EVENT, (event) =>
 			this.#onAction((event as CustomEvent<ChromeAction>).detail)
 		);
+		// A press of a first-frame entry before the app surfaces attach: `app-open` queues behind stage B. On
+		// the shadow root, so it is heard before the surfaces' listener on the host, which takes over.
+		this.#listen(this.shadowRoot as ShadowRoot, APP_OPEN_EVENT, (event) => {
+			if (this.apps) return;
+			event.stopPropagation();
+			void kernel.call('app-open', (event as CustomEvent<{ instance: string }>).detail);
+		});
 		this.#listen(this, 'resize-preview', (event) => this.#onResize(event, false));
 		this.#listen(this, 'resize-commit', (event) => this.#onResize(event, true));
 
@@ -496,6 +503,8 @@ export class LoamShell extends FASTElement {
 
 	/** The first frame's rail and tab bar, from the boot records: text, an icon and a state. */
 	#renderBootEntries({ active, apps }: { active: string | null; apps: AppSummaryV2[] }): void {
+		// Stage B may have ended first, and the app surfaces then draw the rail themselves.
+		if (this.apps) return;
 		for (const app of apps) {
 			if (!app.rail || this.bootEntries.has(app.instance)) continue;
 			const entries = (['rail', 'tabbar'] as const).map((variant) => {
@@ -549,11 +558,16 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		await this.#loadApps();
-		if (!this.apps) {
+		try {
+			if (!this.apps) throw new Error('The app surfaces did not load');
+			await this.apps.start();
+		} catch (cause) {
+			reportError(cause);
 			this.releaseMain(true);
 			return;
 		}
-		await this.apps.start();
+		// The owner's surface is in, so a heading the 15-second timer set no longer holds.
+		if (this.landing === COULD_NOT_LOAD) this.landing = 'Choose an app';
 		this.releaseMain();
 	}
 

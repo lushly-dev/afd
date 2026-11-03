@@ -125,7 +125,9 @@ describe('E5: a second app lands with no shell change', () => {
 		const opened = await openShell(browser, site.origin);
 		const paths = await measureFirstPaint(opened.page);
 		expect(
-			paths.filter((path) => /surfaces-|\/apps-|validate\.generated-|deployment-|late-/.test(path))
+			paths.filter((path) =>
+				/surfaces-|\/apps-|validate\.generated-|deployment-|\/late-/.test(path)
+			)
 		).toEqual([]);
 		expect(
 			site.log.filter(({ path }) => /surfaces-|\/apps-|validate\.generated-|deployment-/.test(path))

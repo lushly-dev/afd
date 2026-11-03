@@ -31,7 +31,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * measured value plus 10% now that Zod's classic API has left it, `late` added, and `apps` its measured
  * value plus 5%, the one raise, for the bytes that left first paint. Step 3 raised `apps` once more, to
  * its new measured value plus 5%, for manifest version 2's validator (about 40 KB of generated code).
- * Step 2 changed no ceiling: first paint 272,722 and 83,440 gzip, `apps` 376,290 (2.4's table).
+ * Step 2 changed no ceiling: first paint 273,063 and 83,534 gzip, `apps` 377,811 (2.4's table).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
