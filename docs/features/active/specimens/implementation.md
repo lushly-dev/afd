@@ -2,13 +2,13 @@
 
 | Field | Current value |
 | --- | --- |
-| State | Active native implementation; complete workstream 0 acceptance remains open |
-| Last reconciled | 2026-11-01, main `67434086` including [#517](https://github.com/lushly-dev/afd/pull/517), T01 ([#521](https://github.com/lushly-dev/afd/pull/521)), T02 ([#525](https://github.com/lushly-dev/afd/pull/525)) T03 ([#536](https://github.com/lushly-dev/afd/pull/536)), T04 round 1 ([#558](https://github.com/lushly-dev/afd/pull/558)), the T04 measurements ([#584](https://github.com/lushly-dev/afd/pull/584)) and the T04 optimization rounds ([#616](https://github.com/lushly-dev/afd/pull/616)) |
+| State | Done through T08 for AFD's FAST-AF stories and marked as a preview; Lushly's move and publishing remain open, and T09–T11 are optional |
+| Last reconciled | 2026-11-02, main `c329e9d1`; [where the epic stands](STATUS.md#where-the-epic-stands) has each task's state and pull requests |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
 | Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
 
-This plan describes the next implementation work. The status ledger owns current progress; the dated validation documents retain the actual observations and their limits. Native feasibility is implemented. Consumer migration, Storybook retirement and package publication remain open gates.
+This plan describes the epic's tasks and their acceptance. The status ledger owns current progress; the dated validation documents retain the actual observations and their limits. T01–T07 are done, and T08 is done for AFD's FAST-AF stories. Lushly's migration, its Storybook retirement and package publication remain open gates.
 
 ## Package architecture and current contract
 
@@ -18,7 +18,7 @@ This plan describes the next implementation work. The status ledger owns current
 | [`@lushly-dev/specimen-afd`](../../../../integrations/specimen-afd/README.md), `integrations/specimen-afd` | AFD definitions and validated `CommandResult` adapters over the native operations | list/render/diff/build; composable into an MCP host; not an application-command scenario runner |
 | [`@lushly-dev/specimen-cli`](../../../../endpoints/specimen-cli/README.md), `endpoints/specimen-cli` | The `specimen` JSON binary and embedding API | Same four commands through the integration; stdout envelope and exit status contract |
 
-The [split transition](../platform-monorepo/specimen-transition.md) governs moved imports and the CLI. All three units remain quarantined; version 2.2.0 and successful local tarball checks do not admit publication. FAST-AF and Violet source now live in this monorepo, while Lushly remains a separate consumer. Future plugins MUST follow the family boundaries and release inventory; their names alone MUST NOT imply an implemented or published capability.
+The [split transition](../platform-monorepo/specimen-transition.md) governs moved imports and the CLI. All four units, with the FAST-AF plugin, remain quarantined; version 2.2.0 and successful local tarball checks do not admit publication. FAST-AF and Violet source now live in this monorepo, while Lushly remains a separate consumer. Future plugins MUST follow the family boundaries and release inventory; their names alone MUST NOT imply an implemented or published capability.
 
 ```mermaid
 flowchart LR
@@ -58,15 +58,17 @@ T04 [measured the representative incumbent and every budget](resource-budget-val
 
 T05's [five steps](t05-compatibility.md) meet its acceptance, all merged. Specimen discovers retained stories with the identities Storybook 10.6.2's index gives them, composes and runs them (play, then axe under their `a11y` policy), and offers the four plugin points, the FAST-AF plugin, `specimen-validate`, `specimen-inspect` and the preview-first `specimen-migrate`. Storybook's own indexer and Vitest addon are the reference in CI over the `compat/` fixtures, positive and deliberately failing. On the consumers, every identity matches their own indexes (Lushly `0eede7f0`: 873; FAST-AF `24e4eb86`: 407), and T04's representative selections end the same way in both runners (8 and 19 stories), including FAST-AF's after the codemod.
 
+T06 is [complete](t06-full-runner.md). Step 1 brought both consumers' whole retained suites to exact agreement: every story in Lushly `0eede7f0` (873) and FAST-AF `24e4eb86` (407) ends the same way in both runners. Step 2 added suites with filters, worker limits and the once-only retry. Step 3 added `specimen-a11y` and native accessibility exceptions. Step 4 added `specimen-profile` and baselines. Step 5 added `specimen-matrix` and declared event history. Step 6 met the budgets on both consumers' full builds, verified every index link and confirmed the CEM check, typecheck and scaffold. Step 7 added the declared baseline and the rest of the capture manifest.
+
+[T07](t07-coverage.md) is complete: step 1 added `specimen-coverage`, step 2 added claims and waivers, step 3 replaced Fastbot's story rules beside Fastbot itself, and step 4 added `specimen-suggest` and the adapter.
+
 T08 is [done for AFD's FAST-AF stories and open for Lushly](t08-cutover.md). Those stories run only on Specimen, with three qualifying pairs agreeing exactly on main, and Specimen is marked as a preview. Lushly's move is [its issue](https://github.com/lushly-dev/lushly/issues/2116), blocked until the packages can be installed.
 
-T06 is [complete](t06-full-runner.md). Step 1 brought both consumers' whole retained suites to exact agreement: every story in Lushly `0eede7f0` (873) and FAST-AF `24e4eb86` (407) ends the same way in both runners. Step 2 added suites with filters, worker limits and the once-only retry. Step 3 added `specimen-a11y` and native accessibility exceptions. Step 4 added `specimen-profile` and baselines. Step 5 added `specimen-matrix` and declared event history. Step 6 met the budgets on both consumers' full builds, verified every index link and confirmed the CEM check, typecheck and scaffold. Step 7 added the declared baseline and the rest of the capture manifest. [T07](t07-coverage.md) has started: step 1 added `specimen-coverage`, step 2 added claims and waivers, step 3 replaced Fastbot's story rules beside Fastbot itself, and step 4 added `specimen-suggest` and the adapter, which completes it. [T08](t08-cutover.md) is rehearsed and waits on the owner: parity holds three times over on both consumers, and full suites use more CPU than Storybook on a first measurement.
-
-The last native code change (#517) passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
+At #517 the native code passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. Lushly's stories and Storybook are unchanged; [AFD's own FAST-AF stories](t08-cutover.md#afds-fast-af-stories) moved to Specimen in #717.
 
 ## Ordered implementation queue
 
-Each task MUST record state, last verification, completed work, remaining work and follow-ups in [STATUS.md](STATUS.md), with links to its source and receipts. Next-task ownership is unassigned. This queue does not waive proposal exit criteria.
+Each task MUST record state, last verification, completed work, remaining work and follow-ups in [STATUS.md](STATUS.md), with links to its source and receipts. [Where the epic stands](STATUS.md#where-the-epic-stands) has each task's state. Next-task ownership is unassigned. This queue does not waive proposal exit criteria.
 
 | Task | Depends on | Bounded deliverable and acceptance |
 | --- | --- | --- |
