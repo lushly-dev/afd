@@ -26,7 +26,7 @@
 		"test:coverage": "pnpm -r --no-bail test --coverage",
 		"test:watch": "pnpm -r --parallel test:watch",
 		"typecheck": "pnpm -r typecheck",
-		"check": "npx lefthook run check",
+		"check": "lefthook run check",
 		"check:all": "node scripts/affected.mjs check --all",
 		"affected": "node scripts/affected.mjs list",
 		"verify": "node scripts/affected.mjs verify",

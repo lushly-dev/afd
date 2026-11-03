@@ -314,9 +314,9 @@
       "path": "endpoints/violet-server/package.json",
       "upstream_path": "packages/server/package.json",
       "upstream_sha256": "5f34f53cbff0550a001eb43a3b9540352aa49984e4ce3f11c4f2a633bd72912e",
-      "current_import_sha256": "a5682ff02ce052a3612f885e9eca0a9ae0968e7dc70de72b7af78bd426be6ae5",
+      "current_import_sha256": "0ade65141409bc58593dfa8410354894e8eb8721b80439fe83c3128ea6f7f6a0",
       "classification": "adapted",
-      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses.",
+      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines. @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy. Vitest and @vitest/coverage-v8 move from ^3.2.7 to ^4.1.12, the version every other workspace unit uses. The violet-mcp bin moves to publishConfig: its target is built, so a top-level bin makes pnpm warn at every install, and the packed manifest is unchanged.",
       "candidate": {
         "path": "packages/server/package.json",
         "sha256": "5d41d6c4cfa4452ac78bca816f4e7af42b70d7d08ef93df7c55518738b9b8556",

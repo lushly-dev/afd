@@ -51,6 +51,10 @@ export function saveIntent(root, selectedUnits, path = intentFile) {
 	writeFileSync(destination, `${JSON.stringify(record, null, '\t')}\n`);
 	return record;
 }
+/** The release pull request commits the intent, so it has to pass the repository's lint. */
+export function formatIntent(root, path = intentFile) {
+	run(process.execPath, ['node_modules/@biomejs/biome/bin/biome', 'format', '--write', path], root);
+}
 export function readIntent(root, path = intentFile) {
 	const { record, intentDigest } = committedIntent(root, path);
 	if (

@@ -3,7 +3,8 @@ name: CI
 # Pull requests and pushes build, typecheck and test only the workspace packages the change
 # affects (scripts/affected.mjs: owning packages, their dependents, and lockfile changes by
 # importer); lint and the repository-wide checks always run. The daily schedule and manual runs
-# check the whole workspace, catching anything the change analysis cannot see.
+# check the whole workspace, catching anything the change analysis cannot see. A pull request checks
+# out its merge ref, whose first parent is main as merged, not the older pull_request.base.sha.
 on:
   push:
     branches: [main]
@@ -35,7 +36,7 @@ jobs:
           && '["22.x", "24.x", "26.x"]' || '["26.x"]') }}
 
     env:
-      AFD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
       AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
 
     steps:
