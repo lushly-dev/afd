@@ -190,16 +190,20 @@ const template = html<LoamShell>`
 				<loam-status-item slot="start" class="workspace-status" label="Workspace"
 					>${(x) => x.workspaceName}</loam-status-item
 				>
-				<button
+				<loam-status-item
 					slot="start"
-					class="project-home"
-					type="button"
-					aria-label="${(x) => `Project: ${x.projectName}`}"
+					class="project-status"
+					label="Project"
 					?hidden="${(x) => !x.projectName}"
-					@click="${(x) => x.kernel?.call('section-open', { section: 'projects' })}"
+					><button
+						class="project-home"
+						type="button"
+						aria-label="${(x) => `Project: ${x.projectName}, home`}"
+						@click="${(x) => x.kernel?.call('section-open', { section: 'projects' })}"
+					>
+						${(x) => x.projectName}
+					</button></loam-status-item
 				>
-					<span class="label">Project</span>${(x) => x.projectName}
-				</button>
 				<loam-status-item slot="start" class="actor-status"
 					>${(x) => (x.account ? `Signed in as ${x.account}` : 'Signed out')}</loam-status-item
 				>

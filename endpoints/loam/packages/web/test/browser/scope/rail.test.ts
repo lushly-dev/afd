@@ -6,6 +6,8 @@
  * expectation that reads it is marked `D29`, here and in `first-paint.test.ts` and `chrome/src/rail/bands.test.ts`.
  */
 
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -279,7 +281,8 @@ describe('P2-E3: two projects, and an app at each level', () => {
 			'Personal'
 		);
 		const home = page.locator('loam-statusbar .project-home');
-		expect(await home.getAttribute('aria-label')).toBe('Project: Atlas');
+		// Told apart from the switcher's "Project: Atlas", its visible text kept in its name (N3a).
+		expect(await home.getAttribute('aria-label')).toBe('Project: Atlas, home');
 		const box = await home.boundingBox();
 		expect(box?.height).toBeGreaterThanOrEqual(24);
 		await home.click();
@@ -341,6 +344,68 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await settle(page);
 		const added = (await journal(page)).filter(({ command }) => command === 'tally-add').at(-1);
 		expect(added?.context?.scope).toEqual({ workspace: 'personal' });
+		await opened.context.close();
+	});
+
+	it('P2-E3: a refused choice stays open and says why, and a press on that text keeps it open (N2a)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await restrictedAtlas(page);
+		await scopeTo(page, null);
+		const switcher = page.locator('loam-rail loam-project-switcher button');
+		await switcher.click();
+		const list = page.locator('loam-rail loam-project-list');
+		await expect.poll(() => texts(list.locator('violet-option'))).toContain('Atlas');
+		// Signed out while it is open: Atlas, still listed, is now refused.
+		await agentCall(page, 'auth-sign-out');
+		await list.locator('violet-option', { hasText: 'Atlas' }).click();
+		const failure = list.locator('p.failure');
+		await expect.poll(() => failure.textContent()).toContain('No project with that name');
+		expect(await failure.textContent()).not.toContain('..');
+		await failure.click();
+		expect(await switcher.getAttribute('aria-expanded')).toBe('true');
+		expect((await focused(page)).tag).not.toBe('body');
+		await opened.context.close();
+	});
+
+	it("P2-E3: the project item's text keeps 4.5:1 when hovered, and leaving an app it focuses main's h1 (A4, N5a)", async () => {
+		const opened = await withProjects();
+		const { page } = opened;
+		await scopeTo(page, 'atlas');
+		await openApp(page, 'hello');
+		const home = page.locator('loam-statusbar .project-home');
+		await home.hover();
+		const ratios = await home.evaluate((button) => {
+			const rgb = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
+			const luminance = ([r = 0, g = 0, b = 0]: number[]) => {
+				const channel = (c: number) => {
+					const v = c / 255;
+					return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+				};
+				return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+			};
+			const over = (top: number[], under: number[]) => {
+				const alpha = top[3] ?? 1;
+				return [0, 1, 2].map((i) => (top[i] ?? 0) * alpha + (under[i] ?? 0) * (1 - alpha));
+			};
+			const ratio = (a: number[], b: number[]) => {
+				const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+				return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+			};
+			const item = button.parentElement as HTMLElement;
+			const bar = getComputedStyle(item.closest('loam-statusbar') as Element).backgroundColor;
+			const background = over(rgb(getComputedStyle(button).backgroundColor), rgb(bar));
+			const label = item.shadowRoot?.querySelector('.label') as Element;
+			return {
+				value: ratio(rgb(getComputedStyle(button).color), background),
+				label: ratio(rgb(getComputedStyle(label).color), rgb(bar)),
+			};
+		});
+		expect(ratios.value).toBeGreaterThanOrEqual(4.5);
+		expect(ratios.label).toBeGreaterThanOrEqual(4.5);
+		await home.click();
+		await expect.poll(async () => (await stateOf(page)).active).toBeNull();
+		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
 		await opened.context.close();
 	});
 
@@ -406,7 +471,75 @@ describe('P2-E3: nothing of one project stays under another (7.6)', () => {
 	});
 });
 
+/** Signed in, Atlas restricted to the person, entered, with `apps` opened in it in turn. */
+async function restrictedAtlas(page: Page, ...apps: string[]): Promise<void> {
+	await kernelCall(page, 'auth-sign-in', {
+		method: 'credentials',
+		email: 'person@example.com',
+		password: 'x',
+	});
+	await kernelCall(page, 'project-create', {
+		name: 'Atlas',
+		access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+	});
+	await scopeTo(page, 'atlas');
+	for (const app of apps) await openApp(page, app);
+}
+
+/** The Mock's session expires, with no command: the next call moves the scope (3.4). */
+const expire = (page: Page) => page.clock.setFixedTime(Date.now() + 2 * 3600_000);
+
 describe('P2-E3: a change of scope a call did not ask for (7.6, 3.4)', () => {
+	it('P2-E3: makes a kept app again when the call that moved the scope is a refused app-open (N1)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await restrictedAtlas(page, 'hello');
+		await mark(page, 'hello-main');
+		await expire(page);
+		// A press of tasks, project-only: the middleware leaves Atlas, keeping hello, then refuses the open.
+		await entry(page, 'tasks').locator('button').click();
+		await surfacesIdle(page);
+		const refused = (await journal(page)).filter(({ command }) => command === 'app-open').at(-1);
+		expect(refused?.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		await page.locator('hello-main').waitFor();
+		expect(await marked(page, 'hello-main')).toBe(false);
+		expect(
+			await page.locator('hello-main').evaluate((element) => (element as { scope?: unknown }).scope)
+		).toEqual({ workspace: 'personal' });
+		await opened.context.close();
+	});
+
+	it('P2-E3: makes a kept app again when that call is an app-instance-refresh (N1)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await restrictedAtlas(page, 'hello');
+		await mark(page, 'hello-main');
+		await expire(page);
+		await kernelCall(page, 'app-instance-refresh', { instance: 'hello' });
+		await surfacesIdle(page);
+		await page.locator('hello-main').waitFor();
+		expect(await marked(page, 'hello-main')).toBe(false);
+		await opened.context.close();
+	});
+
+	it('P2-E3: reads the overlays again after a failed call moved the scope, so a cancelled modal goes (N2)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await restrictedAtlas(page, 'hello');
+		void kernelCall(page, 'modal-open', { title: 'Sure?', body: 'Say so.' });
+		const dialog = page.locator('loam-modal dialog');
+		await expect
+			.poll(() => dialog.evaluate((element) => (element as HTMLDialogElement).open))
+			.toBe(true);
+		await expire(page);
+		// Its dismiss is the call that moves the scope, which cancels the shell's modal first, so the
+		// dismiss itself is refused: the modal must go all the same.
+		await page.locator('loam-modal button.cancel').click();
+		await surfacesIdle(page);
+		await expect.poll(() => page.locator('loam-modal dialog[open]').count()).toBe(0);
+		await opened.context.close();
+	});
+
 	it('P2-E3: drops a restricted project’s surfaces when an expired session’s own call is refused', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
@@ -540,6 +673,64 @@ describe('P2-E3: a mounted instance with projects (7.1, 9.1)', () => {
 		await expect.poll(() => work.getAttribute('aria-disabled')).toBeNull();
 		await opened.context.close();
 		await mounted.close();
+	});
+
+	it('P2-E8: a deep link to it in a project it does not list switches nothing, and shows "Nothing here" (N4)', async () => {
+		// A server that never answers, so the instance stays `loading`, which the chrome lets through: only
+		// the kernel knows it does not list Beacon.
+		const silent = createServer(() => {});
+		await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+		const { port } = silent.address() as AddressInfo;
+		const mounted = await serveDeployment({
+			mounts: true,
+			config: deploymentFile(
+				[
+					'[apps.work]',
+					'app = "hello"',
+					`package = ${JSON.stringify(await packApp('hello', 'mounted'))}`,
+					'title = "Work"',
+					'prefix = "work"',
+					'audience = "person"',
+					'transport = "http"',
+					`url = "http://127.0.0.1:${port}/mcp"`,
+					'projects = ["atlas"]',
+				].join('\n')
+			),
+		});
+		const opened = await openShell(browser, mounted.root);
+		const { page } = opened;
+		for (const name of ['Atlas', 'Beacon']) await kernelCall(page, 'project-create', { name });
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { flush(): Promise<void> };
+			};
+			await shell.kernel.flush();
+		});
+		await page.goto(`${mounted.root}personal/p/beacon/work`);
+		await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				ready: Promise<void>;
+				kernel: { appsReady: Promise<void> };
+			};
+			await shell.ready;
+			await shell.kernel.appsReady;
+		});
+		await settle(page);
+		await expect.poll(() => page.locator('loam-main').getAttribute('route')).toBe('not-found');
+		expect((await stateOf(page)).scope.project).toBeUndefined();
+		const sets = (await journal(page)).filter(({ command }) => command === 'scope-set');
+		expect(
+			sets.find(
+				({ input, success }) => success && (input as { project?: unknown }).project !== null
+			)
+		).toBeUndefined();
+		expect(sets.at(-2)).toMatchObject({ input: { app: 'work' }, success: false });
+		expect(sets.at(-2)?.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		await opened.context.close();
+		await mounted.close();
+		silent.closeAllConnections();
+		silent.close();
 	});
 });
 

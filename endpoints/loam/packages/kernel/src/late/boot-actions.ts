@@ -63,10 +63,7 @@ export function withBootActions(
 		open(instance) {
 			const entry = find(instance);
 			if (!entry) return unknownApp(instance);
-			if (!entry.scopeLevels.includes('workspace')) {
-				// As 3.4's third line answers it.
-				return kernelFailure('SCOPE_PROJECT_REQUIRED', 'Open a project first', 'Run scope-set');
-			}
+			// Whether it opens in this scope is `canOpen`'s, which `app-open` and `scope-set` ask first.
 			const refused = state.activeApp() === instance ? undefined : busy();
 			return refused ?? success(move(instance));
 		},

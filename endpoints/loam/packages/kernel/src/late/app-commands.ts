@@ -15,11 +15,10 @@ import * as z from 'zod/mini';
 import type { AppCommandRowV1, AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
-import { kernelFailure } from '../errors.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { AppDetailV1, AppInstanceV1, SelectionV2 } from '../types.js';
-import { disabled, setMain } from './main-state.js';
+import { canOpen, setMain } from './main-state.js';
 
 const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
 const instanceInput = z.strictObject({ instance: instanceName });
@@ -119,29 +118,10 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		jsonSchema: INSTANCE_INPUT_JSON,
 		async handler(input, context) {
 			const { instance } = input;
-			const app = apps()
-				.summaries()
-				.find((candidate) => candidate.instance === instance);
-			if (app && disabled(scope, instance)) {
-				return kernelFailure(
-					'APP_DISABLED',
-					`The app '${instance}' is disabled in this workspace`,
-					`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
-				);
-			}
-			// A dimmed entry: a project-only app with no project, or an instance that does not list this
-			// project (phase 2 specification, 7.1, 9.1).
-			const project = scope.active().project;
-			if (app && !scope.opensIn(instance, app.scopeLevels, project)) {
-				return kernelFailure(
-					'SCOPE_PROJECT_REQUIRED',
-					project === undefined
-						? 'Open a project first'
-						: `The app '${instance}' is not available in this project`,
-					'Run scope-set'
-				);
-			}
-			return moved(apps().open(instance), context);
+			// A disabled app, or a dimmed entry: a project-only app with no project, or an instance that does
+			// not list this project (phase 2 specification, 4.1, 7.1, 9.1).
+			const refused = canOpen(apps(), scope, instance, scope.active().project);
+			return refused ?? moved(apps().open(instance), context);
 		},
 	});
 

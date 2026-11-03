@@ -34,7 +34,7 @@ import type { MainStateV1 } from '../url-sync.js';
 import type { LoamViewFrame } from '../view/view-frame.js';
 import { crumbsOf } from './crumbs.js';
 import { defineAppElements } from './define-elements.js';
-import { focusFallback } from './focus-fallback.js';
+import { focusFallback, focusMainHeading } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
 import { type Parked, park, restore } from './parking.js';
@@ -309,15 +309,18 @@ export class AppSurfaces implements ShellApps {
 		else if ((event as KernelEventV2).mainChanged && event.success && this.#showing !== null) {
 			this.#enqueue(() => this.#readRoute());
 		}
-		if (!event.success) return;
 		if (
 			switched ||
+			// A change of scope cancels a shell modal or closes a left app's overlays, even under a call
+			// that then failed (3.4).
+			rescoped ||
 			(event.mutation && /^(toast|modal|overlay)-/.test(command)) ||
 			// A modal of the palette's or a drawer's closing lets a toast go on, or its timer restart.
 			(this.#overlays.waiting && /^(palette-(open|close)|layout-)/.test(command))
 		) {
 			this.#enqueue(() => this.#overlays.read());
 		}
+		if (!event.success) return;
 		if (command === 'app-selection-set') this.#selectionWritten = true;
 		const showing = this.#showing;
 		if (showing === null) return;
@@ -371,16 +374,24 @@ export class AppSurfaces implements ShellApps {
 		const newlyFailed =
 			!changed && active !== null && nowFailed && now?.kind !== 'mounted' && !wasFailed(active);
 		this.#summaries = apps;
-		if (!changed && !newlyFailed && !(recreate && active !== null)) {
+		// Whatever event queued this read, a change of scope since the last render makes the kept app again:
+		// an `app-open` or `app-instance-refresh` refused after the middleware moved the scope, or an
+		// `app-open` of the app already showing (7.6).
+		const recreating = (recreate || this.#rescoped) && active !== null;
+		if (!changed && !newlyFailed && !recreating) {
 			if (this.#rescoped) this.#leave();
 			return;
 		}
+		// The status bar's project item left the app: main's heading, as the switcher's All projects (7.8).
+		const fromHome =
+			deepActiveElement(this.#shell.ownerDocument)?.classList.contains('project-home') === true;
 		const focusLeaves = this.#leave();
 		this.#showing = active;
 		if (changed) this.#selectionWritten = false;
 		await this.#shell.readLayout();
 		await Updates.next();
-		if (focusLeaves) focusFallback(this.#shell);
+		if (fromHome && active === null) focusMainHeading(this.#shell);
+		else if (focusLeaves) focusFallback(this.#shell);
 		if (active === null) {
 			this.#overlays.announce('No app is open');
 			return;

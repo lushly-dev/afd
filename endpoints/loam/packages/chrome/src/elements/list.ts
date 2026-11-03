@@ -46,9 +46,9 @@ const itemTemplate = html<LoamListItem>`
 		data-item="${(x) => x.id}"
 		data-depth="${(x) => (x.depth ? String(Math.min(x.depth, 7)) : null)}"
 	>
-		<span class="item-title">${(x) => x.title}</span>
-		${when(
-			(x) => x.depth !== undefined,
+		<span class="item-title">${(x) => x.title}</span>${when(
+			// Below the top: its level and parent, with no space before the comma (7.4).
+			(x) => (x.depth ?? 0) > 0,
 			html<LoamListItem>`<span class="visually-hidden"
 				>${(x) => `, level ${(x.depth ?? 0) + 1}${x.parent ? `, in ${x.parent}` : ''}`}</span
 			>`

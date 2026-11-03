@@ -72,9 +72,21 @@ export interface AppRecord {
 
 const unselect = (record: AppRecord): void => record.selections.clear();
 
-/** The selection made in `project`'s scope; none reads at the workspace's level. */
+/**
+ * The selection made in `project`'s scope. None reads at the level a selection there defaults to: the
+ * project's for an app that takes one in a project, the workspace's for an app that takes it, else the
+ * project's, so a first selection's undo names a level the app has (7.4).
+ */
 const selectionOf = (record: AppRecord, project: string | undefined): SelectionV2 =>
-	record.selections.get(statusKey(record, project, '')) ?? { id: null, level: 'workspace' };
+	record.selections.get(statusKey(record, project, '')) ?? {
+		id: null,
+		level:
+			project !== undefined && record.scopeLevels.includes('project')
+				? 'project'
+				: record.scopeLevels.includes('workspace')
+					? 'workspace'
+					: 'project',
+	};
 
 /**
  * A status value's key: the project, for an app that takes one, then the item's id. An app that does not

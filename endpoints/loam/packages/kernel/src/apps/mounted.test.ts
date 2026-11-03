@@ -1047,6 +1047,13 @@ describe('P2-E3 (kernel unit): an instance that lists projects opens only in the
 		const left = await kernel.call<{ app: string }>('scope-set', { project: beacon.data?.id });
 		expect(left.data?.app).toBe('left');
 		expect((await kernel.call<{ active: string | null }>('app-list')).data?.active).toBeNull();
+		// scope-set { app } into a project it does not list is refused before any switch (N3).
+		await kernel.call('scope-set', { project: atlas.data?.id });
+		const into = await kernel.call('scope-set', { project: beacon.data?.id, app: 'work' });
+		expect(into.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect(
+			(await kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
+		).toBe(atlas.data?.id);
 		await kernel.dispose();
 	});
 });

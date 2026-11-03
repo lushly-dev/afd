@@ -26,6 +26,7 @@ import '@lushly-dev/violet-elements/dist/option/violet-option.js';
 import '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
 import type { VioletListbox } from '@lushly-dev/violet-elements/dist/listbox/violet-listbox.js';
 import type { VioletPopover } from '@lushly-dev/violet-elements/dist/popover/violet-popover.js';
+import { focusMainHeading } from '../apps/focus-fallback.js';
 import { registerAppIcons } from '../apps/icons.js';
 import type { LoamProjectSwitcher } from '../elements/project-switcher.js';
 import type { LoamShell } from '../elements/shell.js';
@@ -52,7 +53,7 @@ const rows = html<LoamProjectList>`
 		)}
 		<violet-option value="${() => ALL}">All projects</violet-option>
 	</violet-listbox>
-	<p class="failure" role="alert" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
+	<p class="failure" role="alert" tabindex="-1" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
 `;
 
 const template = html<LoamProjectList>`
@@ -158,6 +159,8 @@ export class LoamProjectList extends FASTElement {
 	/** Its watch on the kernel's events, for a change of scope. */
 	unsubscribe: (() => void) | undefined;
 	#open = false;
+	/** Its own choice is running: the change of scope it makes is not one to close on. */
+	#choosing = false;
 	/** When a press outside last closed it: the switcher's own press that did so does not reopen it. */
 	#closedAt = -Infinity;
 	/** It is closing itself: by Escape, a choice or a second press, so no press outside closed it. */
@@ -196,11 +199,18 @@ export class LoamProjectList extends FASTElement {
 			},
 			true
 		);
-		// Tab out of it closes it, and focus stays where it went.
-		this.addEventListener('focusout', () => {
-			if (!this.#open) return;
+		// Tab out of it to an element outside closes it, and focus stays where it went. With no such element,
+		// as a press on its own text, an outside press is light dismiss's to close (N2a).
+		this.addEventListener('focusout', (event) => {
+			const to = event.relatedTarget as Node | null;
+			if (!this.#open || to === null || this.#holds(to)) return;
 			this.#returnFocus = false;
 			this.hide();
+		});
+		// A change of scope from anywhere closes it, its rows read in the scope it left; not while its own
+		// choice runs, which moves focus itself (N6).
+		this.unsubscribe = this.kernel?.subscribe((event) => {
+			if (event.scopeChanged && !this.#choosing) this.hide();
 		});
 		// The keyboard's row has the focus ring, as `loam-list`'s does.
 		void Updates.next().then(() =>
@@ -210,7 +220,18 @@ export class LoamProjectList extends FASTElement {
 
 	override disconnectedCallback(): void {
 		this.unsubscribe?.();
+		this.unsubscribe = undefined;
 		super.disconnectedCallback();
+	}
+
+	/** Whether `node` is inside this list, through its shadow roots. */
+	#holds(node: Node): boolean {
+		for (let at: Node | null = node; at; ) {
+			if (at === this) return true;
+			const root = at.getRootNode();
+			at = at.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
+		}
+		return false;
 	}
 
 	/** Read the projects, show the list, and put focus on the active row. */
@@ -274,7 +295,15 @@ export class LoamProjectList extends FASTElement {
 
 	async choose(event: CustomEvent<{ value: string }>): Promise<void> {
 		event.stopPropagation();
-		const value = event.detail?.value ?? '';
+		this.#choosing = true;
+		try {
+			await this.#choose(event.detail?.value ?? '');
+		} finally {
+			this.#choosing = false;
+		}
+	}
+
+	async #choose(value: string): Promise<void> {
 		const kernel = this.kernel as LoamKernelV2;
 		if (value === ALL) {
 			// Opening the section leaves an open app, and focus then goes to main's heading (7.8).
@@ -294,7 +323,11 @@ export class LoamProjectList extends FASTElement {
 		});
 		if (!result.success) {
 			// It stays open, and says why, as the row it chose stays selected nowhere.
-			this.failure = `${result.error?.message ?? 'The project could not open'}${result.error?.suggestion ? `. ${result.error.suggestion}` : ''}`;
+			const message = result.error?.message ?? 'The project could not open';
+			const suggestion = result.error?.suggestion;
+			this.failure = suggestion
+				? `${message}${/[.!?]$/.test(message) ? '' : '.'} ${suggestion}`
+				: message;
 			this.listbox.value = this.active;
 			return;
 		}
@@ -309,21 +342,6 @@ observable(LoamProjectList.prototype, 'projects');
 observable(LoamProjectList.prototype, 'active');
 observable(LoamProjectList.prototype, 'modal');
 observable(LoamProjectList.prototype, 'failure');
-
-/** Main's `h1`, wherever it is now: the landing's, or what an app or a section renders. */
-function focusMainHeading(shell: LoamShell | null): void {
-	const main = shell?.shadowRoot?.querySelector<HTMLElement>('loam-main');
-	void Updates.next().then(() => {
-		const heading =
-			main?.querySelector<HTMLElement>('h1') ?? main?.shadowRoot?.querySelector<HTMLElement>('h1');
-		if (!heading) {
-			main?.focus();
-			return;
-		}
-		heading.tabIndex = -1;
-		heading.focus();
-	});
-}
 
 let defined: Promise<void> | null = null;
 
@@ -347,10 +365,6 @@ export async function openSwitcher(shell: LoamShell, switcher: LoamProjectSwitch
 		list.shell = shell;
 		list.switcher = switcher;
 		list.modal = switcher.variant === 'tabbar';
-		// A change of scope from anywhere closes it: its rows were read in the scope it left.
-		list.unsubscribe = shell.kernel?.subscribe((event) => {
-			if (event.scopeChanged) list?.hide();
-		});
 		root.append(list);
 		await Updates.next();
 	}

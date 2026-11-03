@@ -32,7 +32,7 @@ import type {
 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
-import { setMain } from './main-state.js';
+import { canOpen, setMain } from './main-state.js';
 import type { ShellStores } from './stores.js';
 
 export interface ScopeCommandDeps {
@@ -535,11 +535,20 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			// The persisted record's, not memory's: stage A may already hold the URL's project (6.3).
 			const previous = state.scopeProject();
 			const before = state.activeApp();
+			// Asked first, so a refusal leaves the scope where it was: the switch and the open are one (N3).
+			const cannot =
+				input.app === undefined ? undefined : canOpen(deps.apps(), scope, input.app, to.project);
+			if (cannot) return cannot;
 			const refused = lateScope.applyScopeChange(to, 'scope-set', context);
 			if (refused) return refused;
 			if (input.app !== undefined) {
 				const opened = deps.apps().open(input.app);
 				if (!opened.success) return opened as CommandResult<never>;
+				// As `app-open`: main shows the app, with no section and no path (4.3).
+				if (opened.data?.active !== opened.data?.previous) {
+					setMain(deps.viewState, { section: null, path: '' });
+				}
+				scope.note(context.traceId, { mainChanged: 'push' });
 			}
 			const active = state.activeApp();
 			const left = before !== null && active !== before;

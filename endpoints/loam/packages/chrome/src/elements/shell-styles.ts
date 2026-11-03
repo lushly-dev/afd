@@ -6,6 +6,12 @@
 
 import { css } from '@lushly-dev/fast-element';
 
+/*
+ * From phase 2's step 6 (written here, not in the stylesheet, which ships what it holds): `.announce` is the
+ * live region of a change of scope, heard and not seen (7.8); `.project-home` is the status bar's project
+ * item, a button to the project's home inside `loam-status-item`, whose muted label stays off the button's
+ * hover and press so its contrast holds, a 24-pixel target in `loam-status-action`'s states (7.4).
+ */
 export const styles = css`
 	:host {
 		display: grid;
@@ -84,31 +90,23 @@ export const styles = css`
 		align-self: end;
 		block-size: clamp(40dvh, var(--_panel-height), 80dvh);
 	}
-	/* Heard, not seen: the live region of a change of scope (phase 2 specification, 7.8). */
 	.announce {
 		position: absolute;
 		inline-size: 1px;
 		block-size: 1px;
 		overflow: hidden;
 		clip-path: inset(50%);
+		white-space: nowrap;
 	}
-	/* The status bar's project item, a button to the project's home, as loam-status-action is (7.4). */
 	.project-home {
 		min-block-size: var(--size-target-compact);
-		padding-inline: var(--space-inline-sm);
+		padding-inline: var(--size-space-xs);
 		border: 1px solid transparent;
 		border-radius: var(--radius-sm);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: inherit;
 		font: inherit;
-		font-size: var(--type-caption-xs-size);
-		line-height: var(--type-caption-xs-line);
-		white-space: nowrap;
 		cursor: pointer;
-	}
-	.project-home .label {
-		margin-inline-end: var(--size-space-sm);
-		color: var(--color-text-muted);
 	}
 	.project-home:hover {
 		background: var(--color-action-secondary-hover);
@@ -126,10 +124,14 @@ export const styles = css`
 			background: Canvas;
 			color: CanvasText;
 		}
-		.project-home,
-		.project-home .label {
+		.project-home {
 			border-color: ButtonText;
 			color: ButtonText;
+		}
+		.project-home:hover,
+		.project-home:active {
+			background: Highlight;
+			color: HighlightText;
 		}
 		.project-home:focus-visible {
 			outline-color: Highlight;

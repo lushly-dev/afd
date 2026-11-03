@@ -115,7 +115,14 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			const project = route.kind === 'workspace' ? undefined : route.project;
 			const here = state.scope.project === undefined ? undefined : (state.project?.slug ?? '');
 			if (project !== here) {
-				if (!(await kernel.call('scope-set', { project: project ?? null })).success) return false;
+				// An app route switches and opens in one `scope-set`, which the kernel refuses before any
+				// switch when the app cannot open there (`canOpen`): an instance that does not list the
+				// project, a disabled one (N3, N4).
+				const input =
+					route.kind === 'app'
+						? { project: project ?? null, app: route.instance }
+						: { project: project ?? null };
+				if (!(await kernel.call('scope-set', input)).success) return false;
 				state = await host.readState();
 			}
 		}
@@ -169,11 +176,24 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		const route: RouteV1 = host.route === 'home' ? router.route : { kind: 'not-found' };
 		// An app here that cannot open, or not at this level: as 6.3's `not-found`, the scope goes back to the
 		// record's rather than stage A's choice being journaled, as an in-page navigation checks first.
-		const refused = route.kind === 'app' && !supports(host.appList, route.instance, route.project);
+		let refused = route.kind === 'app' && !supports(host.appList, route.instance, route.project);
 		const found = await under(async () => {
 			if (state.pending) {
 				// What stage A chose in memory is journaled, with the persisted record as its `previous` (10).
 				let to = state.scope.project ?? null;
+				// An app route asks the kernel to switch and open in one call; refused, the switch never
+				// happened, and the scope goes back to the record's as for any app that cannot open (N4).
+				if (route.kind === 'app' && !refused) {
+					const both = await kernel.call('scope-set', { project: to, app: route.instance });
+					if (both.success) {
+						state = await host.readState();
+						return apply(route, state, false);
+					}
+					// A project the kernel refuses stops here, as any refused scope-set does; the app's refusal
+					// is the record's scope again.
+					if (both.error?.code === 'PROJECT_NOT_FOUND') return false;
+					refused = true;
+				}
 				if (refused) {
 					const record = await kernel.call<{ state: { project: string | null } }>(
 						'view-state-get',
