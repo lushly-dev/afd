@@ -1,9 +1,16 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { readSchema } from '../scripts/compile.mjs';
+import { AJV_OPTIONS, readCore, readSchema } from '../scripts/compile.mjs';
 import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from './catalogs.js';
+import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
+import { validateManifest } from './validate.generated.js';
+import { pointerOf, type ValidatorError } from './validator-errors.js';
+
+const require = createRequire(import.meta.url);
+const Ajv2020 = require('ajv/dist/2020').default;
 
 interface ProfileCase {
 	id: string;
@@ -79,7 +86,7 @@ describe("Loam's profile", () => {
 	});
 
 	it('has a refusal for every closed object, at its depth (P1)', () => {
-		const profile = readSchema('app-manifest');
+		const profile = readSchema('app-manifest', 2);
 		const defined = Object.entries(profile.$defs)
 			.filter(
 				([, schema]) =>
@@ -91,7 +98,7 @@ describe("Loam's profile", () => {
 	});
 
 	it('keeps the vocabularies in the schema equal to the catalogs', () => {
-		const { $defs } = readSchema('app-manifest') as unknown as {
+		const { $defs } = readSchema('app-manifest', 2) as unknown as {
 			$defs: {
 				plugin: { properties: { id: { not: { enum: string[] } } } };
 				rail: { properties: { icon: { enum: string[] } } };
@@ -108,6 +115,67 @@ describe("Loam's profile", () => {
 			entry.place.startsWith('ui.surfaces.')
 		).map((entry) => entry.id);
 		expect(Object.keys($defs.surfaces.properties).sort()).toEqual(underSurfaces.sort());
+	});
+
+	it('P2-E11: profile-cases.json covers each version 2 key and its two refusals', () => {
+		const ids = new Set(cases.map((item) => item.id));
+		for (const key of [
+			'app-resource-keys',
+			'sidebar-tree',
+			'ui-project-summary',
+			'ui-documents',
+			'ui-new',
+		]) {
+			// Under version 1, the version is what the author is told; under 2, that no step serves it yet.
+			expect(ids.has(`version-keys-${key}`), key).toBe(true);
+			expect(ids.has(`not-yet-served-${key}`), key).toBe(true);
+		}
+		for (const item of cases.filter((candidate) => candidate.id.startsWith('version-keys-'))) {
+			if (item.id !== 'version-keys-each-once') expect(item.base).toBe('native');
+			expect(item.suggestion).toBe('Set manifest_version = 2.');
+		}
+	});
+
+	it('P2-E11: reads every document of version 1 as it did: valid under 1 is valid under 2, with the same errors otherwise (D76)', () => {
+		const ajv = new Ajv2020({ ...AJV_OPTIONS });
+		ajv.addSchema(readCore());
+		const validateV1 = ajv.compile(readSchema('app-manifest', 1));
+		const versionTwo = ['/app/resource_keys', '/ui/project_summary', '/ui/documents', '/ui/new'];
+		const errorsOf = (errors: readonly ValidatorError[] | null | undefined): string[] =>
+			(errors ?? [])
+				.filter((error) => error.keyword !== 'if')
+				.map((error) => `${error.keyword} ${pointerOf(error)}`)
+				.sort();
+		const documents = [
+			...Object.values(bases).map((base) => [base, true] as const),
+			...cases.map((item) => [manifestOf(item), item.accepted] as const),
+		];
+		let validUnderOne = 0;
+		let invalidUnderBoth = 0;
+		for (const [document, accepted] of documents) {
+			const v1 = validateV1(document);
+			const v1Errors = errorsOf(validateV1.errors);
+			const v2 = validateManifest(document);
+			if (v1) {
+				validUnderOne++;
+				expect(v2, JSON.stringify(document).slice(0, 80)).toBe(true);
+				const read = readManifest(document);
+				// What a version 1 manifest meant, it still means: same document, same findings.
+				if (accepted && read.ok) expect(read.manifest).toEqual(document);
+				continue;
+			}
+			const holdsVersionTwo =
+				valueAt(document, '/manifest_version') !== 1 ||
+				versionTwo.some((pointer) => valueAt(document, pointer) !== undefined) ||
+				valueAt(document, '/ui/surfaces/sidebar/shape') === 'tree';
+			if (holdsVersionTwo) continue;
+			expect(v2).toBe(false);
+			expect(errorsOf(validateManifest.errors)).toEqual(v1Errors);
+			invalidUnderBoth++;
+		}
+		// The comparison ran over a real corpus, not an empty one.
+		expect(validUnderOne).toBeGreaterThan(20);
+		expect(invalidUnderBoth).toBeGreaterThan(100);
 	});
 
 	it('reads what is not a manifest as a refusal, not a throw', () => {

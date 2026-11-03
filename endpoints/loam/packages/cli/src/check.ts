@@ -6,7 +6,7 @@
  */
 
 import { defaultExpose } from '@lushly-dev/afd-server/define';
-import { type ManifestV1, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
+import { type ManifestV2, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
 import { keyOf, readManifest } from '@lushly-dev/loam-manifest/validate';
 import { parse as parseToml } from 'smol-toml';
 import { type AppTree, builtFileFindings, type FileFinding, inlineSchemas } from './file-rules.js';
@@ -60,7 +60,7 @@ export interface AppCheckReport {
 	ok: boolean;
 	kind?: 'native' | 'view' | 'mounted';
 	/** The manifest with its schemas inlined, when it was read. */
-	manifest?: ManifestV1;
+	manifest?: ManifestV2;
 	refusals: Finding[];
 	warnings: Finding[];
 	/** The effective flags of each command, a flag left out taking AFD's default (L3). */
@@ -101,7 +101,7 @@ function kindOf(raw: Record<string, unknown>): AppCheckReport['kind'] {
 	return kind === 'native' || kind === 'view' || kind === 'mounted' ? kind : undefined;
 }
 
-function exposureOf(manifest: ManifestV1): AppCheckReport['exposure'] {
+function exposureOf(manifest: ManifestV2): AppCheckReport['exposure'] {
 	return Object.fromEntries(
 		(manifest.commands ?? []).map((command) => [
 			command.name,
@@ -112,7 +112,7 @@ function exposureOf(manifest: ManifestV1): AppCheckReport['exposure'] {
 
 /** Surface findings warn, but for an injection finding in a description, which fails. */
 function surfaceFindings(
-	manifest: ManifestV1,
+	manifest: ManifestV2,
 	surface: SurfaceCheck
 ): { refusals: Finding[]; warnings: Finding[] } {
 	const commands = manifest.commands ?? [];
@@ -199,7 +199,7 @@ export function checkApp(
 	const warnings: Finding[] = [...read.warnings, ...built.warnings.map(asFinding)];
 	const kind = kindOf(raw);
 	const trust = trustOf(kind);
-	const report = (manifest?: ManifestV1): AppCheckReport => ({
+	const report = (manifest?: ManifestV2): AppCheckReport => ({
 		ok: refusals.length === 0,
 		...(kind ? { kind } : {}),
 		...(manifest ? { manifest } : {}),

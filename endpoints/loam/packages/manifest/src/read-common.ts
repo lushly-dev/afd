@@ -4,7 +4,7 @@
 
 import type { Finding } from './core-rules.js';
 import { keyOf } from './pointers.js';
-import type { ManifestRead, ManifestRefusal, ManifestV1 } from './types.js';
+import type { ManifestRead, ManifestRefusal, ManifestV2 } from './types.js';
 
 const toRefusal = ({ pointer, ...finding }: Finding): ManifestRefusal => ({
 	...finding,
@@ -12,7 +12,7 @@ const toRefusal = ({ pointer, ...finding }: Finding): ManifestRefusal => ({
 });
 
 export function toRead(
-	manifest: ManifestV1,
+	manifest: ManifestV2,
 	refusals: readonly Finding[],
 	warnings: readonly Finding[]
 ): ManifestRead {

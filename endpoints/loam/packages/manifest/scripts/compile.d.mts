@@ -1,7 +1,10 @@
 export const packageRoot: string;
 export const AJV_OPTIONS: { strict: boolean; allErrors: boolean; inlineRefs: boolean };
 export function readCore(): { $id: string; $defs: Record<string, unknown> };
-export function readSchema(name: 'app-manifest' | 'deployment' | 'projection'): {
+export function readSchema(
+	name: 'app-manifest' | 'deployment' | 'projection',
+	version?: number
+): {
 	$id: string;
 	$defs: Record<string, unknown>;
 	properties: Record<string, unknown>;

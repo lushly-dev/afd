@@ -8,7 +8,7 @@ import { coreRules } from './core-rules.js';
 import { loamRules } from './loam-rules.js';
 import { toRead } from './read-common.js';
 import { refusalsFrom } from './refusal-map.js';
-import type { ManifestRead, ManifestV1 } from './types.js';
+import type { ManifestRead, ManifestV2 } from './types.js';
 import { validateManifest } from './validate.generated.js';
 
 export function readManifest(json: unknown): ManifestRead {
@@ -19,7 +19,7 @@ export function readManifest(json: unknown): ManifestRead {
 			warnings: [],
 		};
 	}
-	const manifest = json as ManifestV1;
+	const manifest = json as ManifestV2;
 	const core = coreRules(json as Parameters<typeof coreRules>[0]);
 	const loam = loamRules(manifest);
 	return toRead(

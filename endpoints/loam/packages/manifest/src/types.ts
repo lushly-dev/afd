@@ -3,9 +3,9 @@
  * specification, 2.5).
  */
 
-import type { DeploymentV1, ManifestV1, ProjectionV1 } from './_generated/types.js';
+import type { DeploymentV1, ManifestV1, ManifestV2, ProjectionV1 } from './_generated/types.js';
 
-export type { DeploymentV1, ManifestV1, ProjectionV1 };
+export type { DeploymentV1, ManifestV1, ManifestV2, ProjectionV1 };
 
 /** One entry of a projection. */
 export type ProjectionAppV1 = ProjectionV1['apps'][number];
@@ -85,7 +85,7 @@ export type ManifestRefusal = Refusal<ManifestRefusalCode>;
 export type DeploymentRefusal = Refusal<DeploymentRefusalCode>;
 
 export type ManifestRead =
-	| { ok: true; manifest: ManifestV1; warnings: ManifestRefusal[] }
+	| { ok: true; manifest: ManifestV2; warnings: ManifestRefusal[] }
 	| { ok: false; refusals: ManifestRefusal[]; warnings: ManifestRefusal[] };
 
 export type DeploymentRead =

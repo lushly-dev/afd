@@ -27,6 +27,7 @@ export type {
 	ManifestRefusal,
 	ManifestRefusalCode,
 	ManifestV1,
+	ManifestV2,
 	ProjectionAppV1,
 	ProjectionMountedV1,
 	ProjectionRead,

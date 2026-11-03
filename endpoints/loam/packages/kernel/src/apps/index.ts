@@ -8,6 +8,7 @@ import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/af
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import {
 	type ManifestV1,
+	type ManifestV2,
 	NOTICES_V1,
 	type ProjectionAppV1,
 	SHELL_DOMAINS_V1,
@@ -325,11 +326,18 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 		}
 	}
 
+	/**
+	 * Kernel interface 1 holds a `ManifestV1`; interface 2 (step 4) holds a `ManifestV2` (phase 2
+	 * specification, 8.1). Until then every key only version 2 has is refused by the reader, so a
+	 * version 2 manifest that reaches here differs from version 1 in `manifest_version` alone.
+	 */
+	const asInterfaceOne = (manifest: ManifestV2): ManifestV1 => manifest as ManifestV1;
+
 	/** One entry, in deployment order. */
 	const loadEntry = (entry: ProjectionAppV1, index: number) => {
 		const raw = raws[index] as { raw?: unknown; unavailable?: string };
 		const read = raw.unavailable === undefined ? readManifest(raw.raw) : undefined;
-		const manifest = read?.ok ? read.manifest : undefined;
+		const manifest = read?.ok ? asInterfaceOne(read.manifest) : undefined;
 		const { initial, declared } = firstLayout(manifest);
 		host.state.registerAppLayout(entry.instance, initial, declared);
 		// Every entry claims its domain, whatever else refuses it, as `deployment check` has it (D66).
@@ -357,14 +365,15 @@ export async function loadApps(host: AppsHost): Promise<AppsRuntime> {
 			settle(record, 'refused', refusalError(read.refusals));
 			return;
 		}
-		const record = baseRecord(entry, read.manifest, undefined);
+		const admitted = asInterfaceOne(read.manifest);
+		const record = baseRecord(entry, admitted, undefined);
 		record.warnings.push(...read.warnings);
-		const refusal = kindRefusal(entry, read.manifest) ?? claim;
+		const refusal = kindRefusal(entry, admitted) ?? claim;
 		if (refusal) {
 			settle(record, 'refused', refusal);
 			return;
 		}
-		admit(record, entry, read.manifest);
+		admit(record, entry, admitted);
 	};
 	deployment.apps.forEach((entry, index) => {
 		try {

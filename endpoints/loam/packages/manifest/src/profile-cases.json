@@ -1008,37 +1008,684 @@
 			"suggestion": "bind_space"
 		},
 		{
-			"id": "later-ui-documents",
+			"id": "version-three",
 			"base": "native",
 			"set": {
-				"/ui/documents": {}
+				"/manifest_version": 3
+			},
+			"accepted": false,
+			"code": "MANIFEST_VERSION_UNSUPPORTED",
+			"key": "manifest_version",
+			"suggestion": "manifest_version = 2"
+		},
+		{
+			"id": "version-two-native",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2
+			},
+			"accepted": true
+		},
+		{
+			"id": "version-two-view",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2
+			},
+			"accepted": true
+		},
+		{
+			"id": "version-two-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2
+			},
+			"accepted": true
+		},
+		{
+			"id": "version-keys-app-resource-keys",
+			"base": "native",
+			"set": {
+				"/app/resource_keys": {
+					"hello-greet": "name"
+				}
 			},
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.documents",
-			"suggestion": "phase 2"
+			"key": "app.resource_keys",
+			"suggestion": "Set manifest_version = 2."
 		},
 		{
-			"id": "later-ui-new",
+			"id": "version-keys-sidebar-tree",
 			"base": "native",
 			"set": {
-				"/ui/new": {}
+				"/ui/surfaces/sidebar": {
+					"shape": "tree",
+					"command": "hello-list"
+				},
+				"/ui/compositions": []
 			},
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.new",
-			"suggestion": "phase 2"
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "Set manifest_version = 2."
 		},
 		{
-			"id": "later-ui-project_summary",
+			"id": "version-keys-ui-project-summary",
 			"base": "native",
 			"set": {
-				"/ui/project_summary": {}
+				"/ui/project_summary": {
+					"command": "hello-list"
+				}
 			},
 			"accepted": false,
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.project_summary",
-			"suggestion": "phase 2"
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-ui-documents",
+			"base": "native",
+			"set": {
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "version-keys-ui-new",
+			"base": "native",
+			"set": {
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.new",
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "not-yet-served-app-resource-keys",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-greet": "name"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "app.resource_keys",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "not-yet-served-sidebar-tree",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/sidebar": {
+					"shape": "tree",
+					"command": "hello-list"
+				},
+				"/ui/compositions": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "not-yet-served-ui-project-summary",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.project_summary",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "not-yet-served-ui-documents",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "not-yet-served-ui-new",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.new",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "version-keys-each-once",
+			"base": "native",
+			"set": {
+				"/app/resource_keys": {
+					"hello-greet": "name"
+				},
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "app.resource_keys",
+			"alsoKeys": ["ui.project_summary", "ui.new"],
+			"suggestion": "Set manifest_version = 2."
+		},
+		{
+			"id": "sidebar-tree-without-command",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/sidebar": {
+					"shape": "tree"
+				},
+				"/ui/compositions": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.surfaces.sidebar.command"
+		},
+		{
+			"id": "sidebar-tree-on-view",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/surfaces/sidebar": {
+					"shape": "tree",
+					"command": "hello-list"
+				},
+				"/ui/compositions": []
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.surfaces.sidebar.shape",
+			"suggestion": "until phase 2 serves it"
+		},
+		{
+			"id": "resource-keys-value-bad",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"hello-greet": ""
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "app.resource_keys[\"hello-greet\"]"
+		},
+		{
+			"id": "resource-keys-name-bad",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/app/resource_keys": {
+					"Hello_Greet": "name"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "app.resource_keys.Hello_Greet",
+			"alsoKeys": ["app.resource_keys"]
+		},
+		{
+			"id": "project-summary-without-command",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.project_summary.command"
+		},
+		{
+			"id": "documents-without-binding",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].binding"
+		},
+		{
+			"id": "documents-panel-refused",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"panel": {
+							"element": "hello-panel"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"key": "ui.documents[0].panel",
+			"suggestion": "A later version adds it"
+		},
+		{
+			"id": "documents-autosave-bound",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"autosave_ms": 100
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].autosave_ms"
+		},
+		{
+			"id": "new-without-command",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.new[0].command"
+		},
+		{
+			"id": "closed-projectSummary",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list",
+					"bogus": 1
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.project_summary.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-newItem",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "G",
+						"icon": "system/document",
+						"command": "hello-list",
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.new[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-documentType",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"bogus": 1
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.documents[0].bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-documentSurface",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor",
+							"bogus": 1
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.documents[0].editor.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-documentInspector",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"inspector": {
+							"element": "hello-inspector",
+							"bogus": 1
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.documents[0].inspector.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-documentBinding",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins",
+							"bogus": 1
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.documents[0].binding.bogus",
+			"suggestion": "Admitted keys"
+		},
+		{
+			"id": "closed-documentTemplate",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {},
+								"bogus": 1
+							}
+						]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_UNKNOWN_KEY",
+			"key": "ui.documents[0].templates[0].bogus",
+			"suggestion": "Admitted keys"
 		},
 		{
 			"id": "later-ui-account",
@@ -1127,19 +1774,6 @@
 			"code": "MANIFEST_SURFACE_UNAVAILABLE",
 			"key": "ui.surfaces.palette",
 			"suggestion": "expose.palette"
-		},
-		{
-			"id": "sidebar-tree",
-			"base": "native",
-			"set": {
-				"/ui/surfaces/sidebar": {
-					"shape": "tree"
-				}
-			},
-			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.surfaces.sidebar.shape",
-			"suggestion": "phase 2"
 		},
 		{
 			"id": "sidebar-shape-bogus",
@@ -1435,17 +2069,6 @@
 			"code": "MANIFEST_DOMAIN_INVALID",
 			"key": "plugin.domains",
 			"suggestion": "[plugin.id]"
-		},
-		{
-			"id": "version-two",
-			"base": "native",
-			"set": {
-				"/manifest_version": 2
-			},
-			"accepted": false,
-			"code": "MANIFEST_VERSION_UNSUPPORTED",
-			"key": "manifest_version",
-			"suggestion": "manifest_version = 1"
 		},
 		{
 			"id": "protocol-two",

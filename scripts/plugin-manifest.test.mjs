@@ -784,7 +784,9 @@ test('the comparison notices a profile that widens the core', () => {
 
 // ─── Loam's profile conforms to the core ─────────────────────────────────────
 
-const loamProfile = json('endpoints/loam/packages/manifest/schemas/app-manifest.v1.json');
+// Version 2 is the profile the reader validates with (phase 2 specification, 8.1); version 1 stays
+// committed beside it, and the package's own test holds every valid version 1 document valid here.
+const loamProfile = json('endpoints/loam/packages/manifest/schemas/app-manifest.v2.json');
 // Where a core definition has a closing definition of the same name in Loam's profile.
 const LOAM_CLOSES = [
 	'plugin',
@@ -799,7 +801,7 @@ const LOAM_CLOSES = [
 	'mountTool',
 ];
 
-test("Loam's profile adds only the keys its profile owns", () => {
+test("P2-E11: Loam's profile adds only the keys its profile owns", () => {
 	const top = Object.keys(loamProfile.properties).filter(
 		(key) => !(key in core.$defs.manifest.properties)
 	);
@@ -812,7 +814,7 @@ test("Loam's profile adds only the keys its profile owns", () => {
 	}
 });
 
-test("Loam's profile closes every object it admits, by P1's shape", () => {
+test("P2-E11: Loam's profile closes every object it admits, by P1's shape", () => {
 	const walk = (node, at) => {
 		if (typeof node !== 'object' || node === null) return;
 		if (node.properties) {
@@ -839,17 +841,17 @@ test("Loam's profile closes every object it admits, by P1's shape", () => {
 	assert.equal(loamProfile.$defs.command.properties.output_budget, false);
 });
 
-test("Loam's profile compiles under Ajv strict mode", () => {
+test("P2-E11: Loam's profile compiles under Ajv strict mode", () => {
 	const ajv = new Ajv2020({ strict: true, allErrors: true });
 	ajv.addSchema(core);
 	assert.equal(typeof ajv.compile(loamProfile), 'function');
 });
 
-test("Loam's profile admits nothing the core refuses", () => {
+test("P2-E11: Loam's profile admits nothing the core refuses", () => {
 	assert.deepEqual(widenings(loamProfile, loamProfile, core.$defs.manifest, 'manifest'), []);
 });
 
-test("Loam's profile refuses every core refusal, naming the same key", () => {
+test("P2-E11: Loam's profile refuses every core refusal, naming the same key", () => {
 	const ajv = new Ajv2020({ strict: false, allErrors: true, logger: false });
 	ajv.addSchema(core);
 	ajv.addSchema(loamProfile);
@@ -870,7 +872,7 @@ test("Loam's profile refuses every core refusal, naming the same key", () => {
 	assert.deepEqual(missed, []);
 });
 
-test('the comparison notices a profile that widens the core, closing by $ref', () => {
+test('P2-E11: the comparison notices a profile that widens the core, closing by $ref', () => {
 	const widened = structuredClone(loamProfile);
 	widened.$defs.plugin.properties.title = { type: 'string', maxLength: 81 };
 	widened.$defs.grant.properties = { allow: { type: 'array' } };
