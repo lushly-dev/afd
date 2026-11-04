@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import semver from 'semver';
-import { assertAdmission, loadInventory, safePath } from '../release/control.mjs';
+import { assertAdmission, loadInventory, releaseChannel, safePath } from '../release/control.mjs';
 import { hash, readRegistry, run, sourceDigest } from './shared.mjs';
 export const intentFile = '.release/npm-intent.json';
 
@@ -25,8 +25,9 @@ export function committedIntent(root, path = intentFile) {
 }
 export function saveIntent(root, selectedUnits, path = intentFile) {
 	const inventory = loadInventory(root);
+	const { route } = releaseChannel(inventory, selectedUnits);
 	const distributions = selectedUnits.flatMap((unit) =>
-		assertAdmission({ root, inventory, unit, route: 'npm-main' })
+		assertAdmission({ root, inventory, unit, route })
 	);
 	const record = {
 		schemaVersion: 1,
@@ -57,19 +58,17 @@ export function formatIntent(root, path = intentFile) {
 }
 export function readIntent(root, path = intentFile) {
 	const { record, intentDigest } = committedIntent(root, path);
+	const inventory = loadInventory(root);
 	if (
 		record.schemaVersion !== 1 ||
 		!record.selectedUnits?.length ||
 		record.inventoryHash !==
-			hash(
-				JSON.stringify(
-					loadInventory(root).units.filter((unit) => record.selectedUnits.includes(unit.id))
-				)
-			)
+			hash(JSON.stringify(inventory.units.filter((unit) => record.selectedUnits.includes(unit.id))))
 	)
 		throw new Error('Release intent is stale or unsupported');
+	const { route } = releaseChannel(inventory, record.selectedUnits);
 	const current = record.selectedUnits.flatMap((unit) =>
-		assertAdmission({ root, unit, route: 'npm-main' })
+		assertAdmission({ root, inventory, unit, route })
 	);
 	if (
 		record.sourceDigest !==

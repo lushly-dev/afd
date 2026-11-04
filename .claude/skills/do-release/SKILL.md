@@ -9,7 +9,7 @@ argument-hint: npm | python | rust | cpp | botcore
 
 # Do Release
 
-AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the five admitted units in `scripts/release/inventory.json`; the fifth is `botcore`, which publishes `lushly-botcore` alone. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask.
+AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the admitted units in `scripts/release/inventory.json`; `botcore` publishes `lushly-botcore` alone, and Specimen's four units and `fast-element` publish an npm prerelease under `preview`. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask.
 
 **Publishing is irreversible and is the maintainer's job.** An agent prepares the release PR: version, changelog and docs. It does not push tags, create GitHub Releases, merge the npm version PR (merging it publishes), run a publish workflow, or change repository or registry settings. The one exception is when the session's user, in the current turn, names that irreversible step ("push the `rust-v0.2.2` tag", "merge the version PR"); a request to cut, ship or prepare a release is not that. Then run only the named step, on the reviewed merge commit.
 
@@ -18,6 +18,7 @@ AFD's four implementations each follow semver on their own API, with their own v
 | Track | Version lives in | Changelog | Tag | Published by |
 |---|---|---|---|---|
 | npm: the nine `afd-npm` packages | each `package.json`, set by Changesets | `packages/*/CHANGELOG.md`, by Changesets | `@lushly-dev/<package>@X.Y.Z`, by the release finalizer | `release.yml` to npm |
+| npm preview: Specimen's eight packages and `fast-element` | each `package.json`, set by Changesets as `X.Y.Z-preview.N` | each package's `CHANGELOG.md`, by Changesets | `@lushly-dev/<package>@X.Y.Z-preview.N`, by the release finalizer | `release.yml` to npm under `preview`, with GitHub prereleases |
 | Python `afd` | `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py` | `python/CHANGELOG.md` | `python-vX.Y.Z` | `publish-python.yml` to PyPI |
 | Rust `afd` crate | `packages/rust/Cargo.toml` | `packages/rust/CHANGELOG.md` | `rust-vX.Y.Z` | `publish-rust.yml` to crates.io |
 | C++ `afd-cpp` | `project(afd VERSION …)` in `packages/cpp/CMakeLists.txt` | `packages/cpp/CHANGELOG.md` | `cpp-vX.Y.Z` | Nothing: consumers fetch the tag with CMake |
@@ -49,6 +50,8 @@ Read current versions from those manifests, and published ones from the registri
 4. **The version PR starts without CI.** `release.yml` opens it with `GITHUB_TOKEN`, whose events start no workflows. A person closes and reopens it, and every check must pass before merge (#470 tracks a fix).
 5. **Maintainer** merges it; `release.yml` then runs `pnpm check:all`, publishes the approved plan with provenance and pushes the tags. [Platform release controls](../../../docs/operations/platform-releases.md) explains intent, claims and holds.
 6. Verify all nine versions at `https://registry.npmjs.org/<name>` rather than a cached `npm view` (listing all nine can take minutes), each tag's target, and a fresh consumer install.
+
+**The preview route** (`npm-prerelease`) shares this version PR, one release at a time, and goes first. Its fragments version from the seed, so `2.2.0-preview` becomes `2.2.0-preview.0`, then `.1`; npm sets up a trusted publisher only for a package that exists, so a new name starts with a placeholder the maintainer publishes, which holds `latest` until the maintainer moves it (`release.yml` never changes `latest`). Changesets edits imported Specimen and FAST-AF files in the version PR, so record them with each family's provenance before it can pass. [Platform release controls](../../../docs/operations/platform-releases.md#npm-workflow) explains the seed and the route.
 
 Keep `workspace:^` on internal peer dependencies and `onlyUpdatePeerDependentsWhenOutOfRange` in `.changeset/config.json`: without both, a minor bump became a major one across all nine.
 

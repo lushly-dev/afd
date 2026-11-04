@@ -24,6 +24,7 @@ export const testFiles = [
 	'scripts/violet-provenance.test.mjs',
 	'scripts/plugin-manifest.test.mjs',
 	'scripts/release-control.test.mjs',
+	'scripts/release-prerelease.test.mjs',
 	'scripts/release/changeset.test.mjs',
 	'scripts/release/control.test.mjs',
 	'scripts/release/fragments.test.mjs',
