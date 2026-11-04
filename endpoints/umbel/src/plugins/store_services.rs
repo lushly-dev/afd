@@ -373,6 +373,21 @@ impl CallServices {
         Ok(meta)
     }
 
+    /// The change log's hashes of a record's earlier versions, forgotten (phase 4 section 9.1):
+    /// a write grant on the instance's own namespace, as `record_put` needs.
+    pub(super) fn svc_record_forget_history(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<u64> {
+        let stores = self.writing("records_write", space, None)?;
+        stores
+            .documents
+            .forget_record_history(&self.shared.instance, kind, id)
+            .map_err(host_error)
+    }
+
     pub(super) fn svc_index_search(
         &self,
         space: &str,
@@ -495,6 +510,43 @@ impl CallServices {
     /// Best-effort maintenance after a run that wrote: the instance must hold a write grant
     /// allowed for the space (a `Reader`'s view holds none).
     pub(super) fn svc_checkpoint(&self, space: &str) -> Result<()> {
+        self.maintaining(space)?;
+        self.stores(space)?
+            .documents
+            .checkpoint()
+            .map_err(host_error)
+    }
+
+    /// A reporting checkpoint (phase 4 section 9.1): `wal_checkpoint(TRUNCATE)` on the space's
+    /// `store.sqlite3` with no lock wait, answering `Clean` or `Pending`, under the same rules as
+    /// [`Self::svc_checkpoint`]. A redaction says with it whether the removed bytes are gone.
+    pub(super) fn svc_truncate_wal(&self, space: &str) -> Result<umbel_sdk::WalCheckpoint> {
+        self.maintaining(space)?;
+        let stores = self.stores(space)?;
+        #[cfg(feature = "store-embedded")]
+        {
+            use umbel_store_embedded::WalCheckpoint as Embedded;
+            stores
+                .sqlite
+                .truncate_wal()
+                .map(|state| match state {
+                    Embedded::Clean => umbel_sdk::WalCheckpoint::Clean,
+                    Embedded::Pending => umbel_sdk::WalCheckpoint::Pending,
+                })
+                .map_err(host_error)
+        }
+        #[cfg(not(feature = "store-embedded"))]
+        {
+            let _ = stores;
+            Err(ServiceError::Io(
+                "this build of umbel links no store backend (feature store-embedded)".to_owned(),
+            ))
+        }
+    }
+
+    /// Store maintenance needs a writable call holding a write grant allowed for `space`, in one
+    /// of the call's spaces.
+    fn maintaining(&self, space: &str) -> Result<()> {
         self.writable()?;
         let held = WRITE_GRANTS.iter().any(|grant| {
             self.shared.granted.contains(*grant)
@@ -519,10 +571,7 @@ impl CallServices {
             )));
         }
         self.note_use();
-        self.stores(space)?
-            .documents
-            .checkpoint()
-            .map_err(host_error)
+        Ok(())
     }
 
     pub(super) fn svc_as_reader(&self, principal: &str) -> Result<Reader> {

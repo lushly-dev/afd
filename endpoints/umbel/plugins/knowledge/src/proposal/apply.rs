@@ -205,6 +205,15 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
         record,
         area,
     } = gate(caller, id)?;
+    // A redacted draft (an approved one whose source was forgotten before its apply landed)
+    // holds nothing to apply (phase 4 section 9.1; step 3b, amendment 12).
+    if proposal.redacted.is_some() {
+        return Err(failure(
+            "PROPOSAL_SOURCE_GONE",
+            "a memory record this draft cited was forgotten, and its text was redacted; nothing is applied",
+            "Nothing to do: the drafter drafts again from what is still remembered.",
+        ));
+    }
     if !matches!(proposal.state, State::Pending | State::Approved) {
         return Err(common::wrong_state(
             &proposal,
@@ -358,7 +367,9 @@ fn apply(
         .as_ref()
         .map_or("document", |info| info.default_type.as_str())
         .to_owned();
-    let doc_origin = if proposal.proposer.actor.kind == "human" {
+    // A person's own proposal is their statement; an agent's, or any drafted one (whoever ran
+    // the drafter's pipeline), is an inference (phase 4 section 8.2, D102).
+    let doc_origin = if proposal.proposer.actor.kind == "human" && proposal.drafter.is_none() {
         Origin::UserStated
     } else {
         Origin::AgentInferred
@@ -580,7 +591,10 @@ fn reject_inner(caller: &Caller<'_>, id: &str, reason: &str) -> Result<Outcome, 
         "dev.umbel/record",
         json!({ "kind": "proposal", "id": proposal.id, "version": meta.rev }),
     )
-    .with_metadata("dev.umbel/provenance", common::provenance_meta(&envelope)))
+    .with_metadata(
+        "dev.umbel/provenance",
+        common::record_provenance_meta(&proposal, &envelope),
+    ))
 }
 
 /// Apply a proposal the caller just submitted as their own verification: no self-approval

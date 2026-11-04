@@ -3,16 +3,22 @@
 //! record; a person at a terminal approves or rejects it; applying one writes the file through
 //! the `content_write` grant and puts the document with the proposal as its lineage. Before
 //! approve's and reject's prompts the command line shows `knowledge-proposal-preview` (phase 4
-//! section 8.1).
+//! section 8.1). A drafter's pipeline step submits and withdraws through
+//! `knowledge-propose-batch` and reads its decisions with `knowledge-proposal-feed` (phase 4
+//! sections 3.2, 7.1 and 9.1).
 
 mod apply;
 mod area;
+mod attest;
+mod batch;
 mod common;
 mod diff;
 mod document;
+mod feed;
 mod model;
 mod preview;
 mod propose;
+mod redact;
 mod review;
 mod verify;
 
@@ -23,6 +29,8 @@ use umbel_sdk::{Cx, Outcome};
 pub(crate) fn dispatch(name: &str, input: &Value, cx: &mut Cx) -> Option<Outcome> {
     Some(match name {
         "knowledge-propose" => propose::run(input, cx),
+        "knowledge-propose-batch" => batch::run(input, cx),
+        "knowledge-proposal-feed" => feed::run(input, cx),
         "knowledge-proposal-list" => review::list(input, cx),
         "knowledge-proposal-show" => review::show(input, cx),
         "knowledge-proposal-preview" => preview::run(input, cx),

@@ -166,6 +166,14 @@ is required for a document to be proposed. To apply a proposal the instance also
 `documents_write` and `content_write` allowed for the collection. An approved document is searchable
 after the next `knowledge-refresh`.
 
+`knowledge-propose-batch` submits up to 50 proposals in one call, with a result for each. Called as a
+step of a drafter's pipeline (the curator's `curator-run`, from phase 4), the host attests the drafter,
+and the knowledge instance accepts it only when `[plugins.knowledge.config] drafters` lists that
+instance (default none). A drafter's claims are verified, not trusted: until that verification lands,
+a draft citing memory, or claiming content, is refused with `PROPOSAL_DRAFT_UNVERIFIABLE`. The same
+pipeline withdraws its own drafts, and redacts one whose memory source was forgotten, and reads the
+decisions on them with `knowledge-proposal-feed`.
+
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
 

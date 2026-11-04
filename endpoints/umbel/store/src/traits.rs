@@ -105,6 +105,15 @@ pub trait DocumentStore: Send + Sync {
         reader: &ReaderFilter,
     ) -> Result<Page<Record>>;
 
+    /// Forget the content hashes the change log keeps for one record's earlier versions (phase 4
+    /// section 9.1): after a redaction, no hash of a body that held forgotten text remains. The
+    /// current version's change keeps its hash; every change keeps its revision, trace id and
+    /// time. Answers how many changes lost their hash (0 when none had one left).
+    ///
+    /// # Errors
+    /// `NotFound` when the record does not exist, `Busy`, `Io`.
+    fn forget_record_history(&self, ns: &str, kind: &str, id: &str) -> Result<u64>;
+
     /// Best-effort maintenance after a run that wrote (the embedded backend's WAL checkpoint,
     /// section 3.2). A busy result is not an error. The default does nothing.
     ///

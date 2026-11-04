@@ -3,7 +3,8 @@
 //! replaced document's canaries are absent from the raw bytes of every file in the store
 //! directory after a `wal_checkpoint(TRUNCATE)`; a reader holding the log leaves the checkpoint
 //! `Pending`, and a later checkpoint finishes it. The control, a connection with `secure_delete`
-//! off, shows that the scan finds what an overwrite without it leaves.
+//! off, shows that the scan finds what an overwrite without it leaves. A record's earlier hashes,
+//! forgotten by the change log after a redaction, are gone from the files after the checkpoint.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -271,4 +272,103 @@ fn the_control_without_secure_delete_keeps_the_canary() {
         !files_holding(dir.path(), &record).is_empty(),
         "without secure_delete the replaced bytes stay in a freed cell, and the scan finds them"
     );
+}
+
+#[test]
+fn a_records_earlier_hashes_leave_the_change_log_and_the_files() {
+    // Phase 4 step 3b, amendment 13: after a redaction the change log keeps no hash of a body
+    // that held the forgotten text, in the database file or its write-ahead log.
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let store = open_with(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let (first, second) = (body_with(&canary()), body_with(&canary()));
+    let put = |body: &serde_json::Value, trace: &str, expect: Expect| {
+        store
+            .put_record(
+                "knowledge",
+                "proposal",
+                "p-1",
+                body.clone(),
+                envelope(trace),
+                expect,
+            )
+            .expect("a version")
+    };
+    let one = put(&first, "t1", Expect::Absent);
+    let two = put(&second, "t2", Expect::Hash(one.content_hash.clone()));
+    let three = put(
+        &json!({ "redacted": true }),
+        "t3",
+        Expect::Hash(two.content_hash.clone()),
+    );
+    // Another record's history is not touched.
+    store
+        .put_record(
+            "knowledge",
+            "proposal",
+            "p-2",
+            body_with(&canary()),
+            envelope("t4"),
+            Expect::Absent,
+        )
+        .expect("another record");
+    assert_eq!(
+        store.truncate_wal().expect("a checkpoint"),
+        WalCheckpoint::Clean
+    );
+    let old = [one.content_hash.to_string(), two.content_hash.to_string()];
+    for hash in &old {
+        assert!(
+            !files_holding(dir.path(), hash).is_empty(),
+            "the scan sees {hash}"
+        );
+    }
+
+    assert_eq!(
+        store
+            .forget_record_history("knowledge", "proposal", "p-1")
+            .expect("forgetting"),
+        2
+    );
+    let hashes: Vec<(String, Option<String>)> = store
+        .changes(0, 100, &umbel_store::ReaderFilter::derivation(), None)
+        .expect("the changes")
+        .into_iter()
+        .map(|change| (change.target, change.content_hash))
+        .collect();
+    assert_eq!(
+        hashes[..3],
+        [
+            ("knowledge/proposal/p-1".to_owned(), None),
+            ("knowledge/proposal/p-1".to_owned(), None),
+            (
+                "knowledge/proposal/p-1".to_owned(),
+                Some(three.content_hash.to_string())
+            ),
+        ]
+    );
+    assert_eq!(hashes[3].0, "knowledge/proposal/p-2");
+    assert!(hashes[3].1.is_some(), "p-2 keeps its hash");
+    // Idempotent, and an absent record is NotFound.
+    assert_eq!(
+        store
+            .forget_record_history("knowledge", "proposal", "p-1")
+            .expect("again"),
+        0
+    );
+    assert!(matches!(
+        store.forget_record_history("knowledge", "proposal", "p-9"),
+        Err(umbel_store::StoreError::NotFound)
+    ));
+
+    assert_eq!(
+        store.truncate_wal().expect("a checkpoint"),
+        WalCheckpoint::Clean
+    );
+    for hash in &old {
+        assert_eq!(
+            files_holding(dir.path(), hash),
+            Vec::<PathBuf>::new(),
+            "{hash}"
+        );
+    }
 }

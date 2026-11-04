@@ -38,8 +38,9 @@ libc = "0.2.191"
 [features]
 # `UMBEL_TEST_CRASH_AT` and `UMBEL_TEST_FAIL_AT` (section 7.4): a process aborts, or a step answers
 # an I/O error, at a named point of provisioning, writing, forgetting, purging, backing up or the
-# rebuild. `cargo test` enables it through the dev-dependency on this crate; a build without it
-# has no such points.
+# rebuild. It also adds `SqliteStore::hold_reader`, a reader holding the write-ahead log, for tests
+# in crates that do not link SQLite (phase 4 section 9.1). `cargo test` enables it through the
+# dev-dependency on this crate; a build without it has no such points.
 testkit = []
 
 [dev-dependencies]

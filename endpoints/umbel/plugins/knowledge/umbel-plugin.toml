@@ -47,7 +47,7 @@ reason = "Reads proposals, the decision traces it keeps as records."
 
 [[grants]]
 name = "records_write"
-reason = "Stores a proposal when it is submitted and each time it is decided, withdrawn or applied."
+reason = "Stores a proposal when it is submitted and each time it is decided, withdrawn, redacted or applied."
 
 [[grants]]
 name = "content"
@@ -209,6 +209,27 @@ category = "knowledge"
 tags = ["knowledge", "proposal"]
 version = "1.0.0"
 examples = [{ title = "Propose an update", input = { idempotency_key = "run-17/step-2", change = { op = "update", doc = "handbook/deploy/rollback", baseHash = "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8", content = "---\ntitle: Rolling back\n---\nRoll back with the previous release tag.\n" }, rationale = "The release tag procedure changed.", evidence = [{ kind = "text", ref = "release notes 2026-10" }] } }]
+
+[[commands]]
+name = "knowledge-propose-batch"
+description = "Submit up to 50 proposals and 50 withdrawals in one call, with a result for each. Each proposal is knowledge-propose's. Called by a step of a drafter's pipeline that this instance lists in drafters, the host attests the drafter and its claims are verified; any other call is an ordinary batch by its caller, without drafter fields or withdrawals."
+effects = ["store-write"]
+input_schema = "schemas/knowledge-propose-batch.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+journal = { mode = "digest", keep = ["space"] }
+
+[[commands]]
+name = "knowledge-proposal-feed"
+description = "The decisions on a drafter's proposals after a store revision: rejected with the approver's reason, or applied. Answers only a step of a pipeline the host attests to a listed drafter, for its proposer's own proposals."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-proposal-feed.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "after"] }
 
 [[commands]]
 name = "knowledge-proposal-list"

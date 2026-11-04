@@ -18,7 +18,11 @@ const REASON_CANARY: &str = "bilbyreason";
 const PLAIN_CANARY: &str = "dingoplain";
 
 /// The digest set and the input keys each keeps.
-const DIGEST: [(&str, &[&str]); 6] = [
+const DIGEST: [(&str, &[&str]); 8] = [
+    // Phase 4 step 3b: the drafted path. The batch has no proposal input, and the feed's `after`
+    // is a store revision.
+    ("knowledge-propose-batch", &["space"]),
+    ("knowledge-proposal-feed", &["space", "after"]),
     (
         "knowledge-proposal-list",
         &["space", "state", "area", "after", "limit"],
@@ -178,6 +182,26 @@ async fn a_canary_in_a_drafted_proposal_never_reaches_the_journal_or_the_events(
         )
         .await;
     assert_eq!(data(&plain)["created"], true, "{plain}");
+
+    // The batch and the feed (step 3b). A batch's proposals are digested whoever sends them; a
+    // feed outside a drafter's pipeline is refused, and journaled as a digest all the same.
+    let batched = fx
+        .as_actor(
+            agent("x"),
+            "knowledge-propose-batch",
+            json!({ "proposals": [{
+                "idempotency_key": "batched",
+                "change": { "op": "create", "doc": "handbook/batched", "content": format!("---\ntitle: Batched\n---\n{CANARY}\n") },
+                "rationale": format!("Batched {CANARY}."),
+                "evidence": [{ "kind": "text", "ref": "notes", "excerpt": CANARY }],
+            }] }),
+        )
+        .await;
+    assert_eq!(data(&batched)["results"][0]["created"], true, "{batched}");
+    let fed = fx
+        .cli("knowledge-proposal-feed", json!({ "after": 0 }))
+        .await;
+    assert_eq!(code(&fed), "PROPOSAL_DRAFTER_NOT_ALLOWED", "{fed}");
 
     let journal = records::journal(&fx);
     assert!(journal.contains(PLAIN_CANARY), "the control is journaled");

@@ -164,6 +164,18 @@ impl fmt::Display for HostError {
 
 impl std::error::Error for HostError {}
 
+/// What a reporting checkpoint of the document store achieved ([`HostServices::truncate_wal`],
+/// phase 4 specification section 9.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WalCheckpoint {
+    /// Every frame is in the database file and the write-ahead log is empty, so with
+    /// `secure_delete` on no replaced or removed bytes remain in either.
+    Clean,
+    /// A reader holds the write-ahead log, or a lock was busy: the earlier bytes stay in it until
+    /// a later checkpoint (a later write's, or `store-check`'s) truncates it.
+    Pending,
+}
+
 /// A log level (WIT `log.level`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -508,6 +520,32 @@ pub trait HostServices: Send + Sync {
     /// is held but not allowed for the space), [`HostError::Io`].
     fn checkpoint(&self, _space: &str) -> Result<(), HostError> {
         not_granted("index_write")
+    }
+    /// A reporting checkpoint of the space's document store: `wal_checkpoint(TRUNCATE)` with no
+    /// lock wait, answering whether the write-ahead log is now empty (phase 4 section 9.1). A
+    /// command that removed text, such as a proposal's redaction, says whether the removed bytes
+    /// are gone or wait for a later checkpoint. The same grants as [`HostServices::checkpoint`].
+    /// Compiled plugins only: WIT world 1.0.0 has no such function.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`] (the message names `STORE_WRITE_NOT_ALLOWED` when a write grant
+    /// is held but not allowed for the space), [`HostError::Io`], [`HostError::Corrupt`].
+    fn truncate_wal(&self, _space: &str) -> Result<WalCheckpoint, HostError> {
+        not_granted("records_write")
+    }
+    /// Grant `records_write`: forget the content hashes the change log keeps for the earlier
+    /// versions of one record of the instance's own namespace (phase 4 section 9.1), after a
+    /// redaction. Answers how many changes lost their hash. Compiled plugins only.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], [`HostError::NotFound`], [`HostError::Busy`], [`HostError::Io`].
+    fn record_forget_history(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+    ) -> Result<u64, HostError> {
+        not_granted("records_write")
     }
     /// The read methods as another principal (`knowledge-eval`). Only in a command exposed to
     /// the CLI alone, when the call's actor is a human.
