@@ -67,6 +67,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".codex/skills",
+			"listingBudget": 39100,
 			"projections": [
 				{
 					"name": "architect-systems",
@@ -217,6 +218,10 @@
 					"canonical": "project-manager"
 				},
 				{
+					"name": "manage-skills",
+					"canonical": "skill-manager"
+				},
+				{
 					"name": "manage-state",
 					"canonical": "state-learn"
 				},
@@ -306,12 +311,6 @@
 					"name": "manage-documentation",
 					"owner": "afd",
 					"canonical": "docs-manager",
-					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
-				},
-				{
-					"name": "manage-skills",
-					"owner": "afd",
-					"canonical": "skill-manager",
 					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
 				},
 				{

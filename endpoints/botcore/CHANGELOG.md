@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: skill-manager rewritten for current models** -- the skill now covers what belongs
+  in a skill (context an agent can't derive, observed gotchas, repository workflows) and what
+  belongs in a hook, script, AGENTS.md or the owning doc instead; descriptions of a sentence
+  or two without trigger lists, sized against the shared listing budget; goal-and-constraint
+  bodies with reasons instead of capitalised rules; and with/without and trigger evaluations.
+  Its references, templates, README and CI example (a removed PowerShell linter) are
+  deleted; the 13,000-word reference set restated the open standard. Skill version 4.0.0.
 - **skills: mcp-builder token guidance** -- the skill and its `token-budget`/`troubleshooting`
   references replaced the fixed "under 10 tools" and "under 50 tokens per description" caps
   with measuring the serialized `tools/list` payload and keeping it small, dropped

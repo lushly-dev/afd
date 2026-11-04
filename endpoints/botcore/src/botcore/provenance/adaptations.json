@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "cec5bcb89894b90d1fb4eb63431b2fb989f0176b395f73734c63dae0e42899b6",
+      "current_import_sha256": "643c695f2dccf383153a450c9ebe2d59f1c76dc02333dffb4aaf9876664c39b8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "ae0921a21afe9522ffef31186f11ebacce5c35fc082f04f0269c6e80d9e47d44",
+      "current_import_sha256": "b393f01612fc111b75b988f0596472783b1c4ac73b0d11b6ab055b711c8b369d",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -4537,151 +4537,151 @@
       "path": "src/botcore/skills/skill-manager/README.md",
       "upstream_sha256": "23388022b41484ab283d4dfd5a880e248c9feed21b414182042c2033a465f811",
       "staged_sha256": "23388022b41484ab283d4dfd5a880e248c9feed21b414182042c2033a465f811",
-      "current_import_sha256": "23388022b41484ab283d4dfd5a880e248c9feed21b414182042c2033a465f811",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/SKILL.md",
       "upstream_sha256": "cc580bcb3e441ff31934ae249b3aaef38b3411501685302233e31b30a705e66b",
       "staged_sha256": "cc580bcb3e441ff31934ae249b3aaef38b3411501685302233e31b30a705e66b",
-      "current_import_sha256": "c828b35fd4f1a3849e742f692a67247696572a1dc7662ee8f0c096f86d17afa4",
+      "current_import_sha256": "a0618de6ae1e16069815932e82ffc806f920cb598f52416f0b06f5522295e012",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_reason": "Rewrite skill authoring for current models; drop legacy references and trigger lists"
     },
     {
       "path": "src/botcore/skills/skill-manager/examples/skill-lint.yml",
       "upstream_sha256": "d215899557965ebee9fbcbaf46f9b6af45393b12fe1ea6ecd23bdc45c4b5ebaf",
       "staged_sha256": "d215899557965ebee9fbcbaf46f9b6af45393b12fe1ea6ecd23bdc45c4b5ebaf",
-      "current_import_sha256": "d215899557965ebee9fbcbaf46f9b6af45393b12fe1ea6ecd23bdc45c4b5ebaf",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/architecture.md",
       "upstream_sha256": "a9af1f1c7f4898ab63f7f8a16e36f5b868d4300b6c5f32975f54cde5650905ad",
       "staged_sha256": "a9af1f1c7f4898ab63f7f8a16e36f5b868d4300b6c5f32975f54cde5650905ad",
-      "current_import_sha256": "eb1462613d438fbe841bed21ddeb027ef056be4eabbe97186da4ab1a3dc4ff6f",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/descriptions.md",
       "upstream_sha256": "011768dbaf121d0867222cc57fae9c1ff9af57cc39acd24fb1c3bb37df052d53",
       "staged_sha256": "011768dbaf121d0867222cc57fae9c1ff9af57cc39acd24fb1c3bb37df052d53",
-      "current_import_sha256": "011768dbaf121d0867222cc57fae9c1ff9af57cc39acd24fb1c3bb37df052d53",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/distributed-skills.md",
       "upstream_sha256": "e979802a8a795534deeb8e1197057a0718cda7f91b2289e6de73b295433b13ba",
       "staged_sha256": "e979802a8a795534deeb8e1197057a0718cda7f91b2289e6de73b295433b13ba",
-      "current_import_sha256": "e979802a8a795534deeb8e1197057a0718cda7f91b2289e6de73b295433b13ba",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/format.md",
       "upstream_sha256": "83cbd270e4f6d07c75683539903ffacfb6f6b5b6872542c741e9213792b4afaa",
       "staged_sha256": "83cbd270e4f6d07c75683539903ffacfb6f6b5b6872542c741e9213792b4afaa",
-      "current_import_sha256": "c2fd72a81dc3a9de8c574de92c0298247b3e32ba8f78623eb7c23875afb38ee4",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/hooks.md",
       "upstream_sha256": "fadd77c7cb4b425ed070a5b48cdb10e6eddeab546206a1feee98b896ce54ba85",
       "staged_sha256": "fadd77c7cb4b425ed070a5b48cdb10e6eddeab546206a1feee98b896ce54ba85",
-      "current_import_sha256": "26e0c993ef8175004aff7ccd527b0a157ca53aa0510f6df5461caf68da1a381d",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Restrict the example file-size hook to code files at the error threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/linter-rules.md",
       "upstream_sha256": "c98cf14b578e64c0ec6eac2d374484652a4b096e30747589a532fbf1424b7c7f",
       "staged_sha256": "c98cf14b578e64c0ec6eac2d374484652a4b096e30747589a532fbf1424b7c7f",
-      "current_import_sha256": "8b12c84cce398fb5846ece71777dd703ca8a7dce421e635e2a7a1fa910c036de",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/reference-files.md",
       "upstream_sha256": "4701f8ae24df3ac3dfe67cfd60fa8881354a8bafa7d67a6044c11dada5b4393f",
       "staged_sha256": "4701f8ae24df3ac3dfe67cfd60fa8881354a8bafa7d67a6044c11dada5b4393f",
-      "current_import_sha256": "4701f8ae24df3ac3dfe67cfd60fa8881354a8bafa7d67a6044c11dada5b4393f",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/resource-scripts.md",
       "upstream_sha256": "1381ebb5644aaa295e96454d2dffca270f5d97341c8b3e0d20c9962002ec9650",
       "staged_sha256": "1381ebb5644aaa295e96454d2dffca270f5d97341c8b3e0d20c9962002ec9650",
-      "current_import_sha256": "43e643a4e4cd90761f16c53caec66306d42679932df465e0be7495e88a810431",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/routing.md",
       "upstream_sha256": "afb095846b1357f3ea2ea3132406b82e06421a9708dcbf77fda70f2315134379",
       "staged_sha256": "afb095846b1357f3ea2ea3132406b82e06421a9708dcbf77fda70f2315134379",
-      "current_import_sha256": "afb095846b1357f3ea2ea3132406b82e06421a9708dcbf77fda70f2315134379",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/references/skills-specification.md",
       "upstream_sha256": "ecce047f214cbad427a3fb95b261d88303eba3fdce0cd7ff4256fc66c7d00049",
       "staged_sha256": "ecce047f214cbad427a3fb95b261d88303eba3fdce0cd7ff4256fc66c7d00049",
-      "current_import_sha256": "76e1dab28aeb731da65f15e43d5020bfae9a07d03ee59d6900d0f4b6b840260d",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Align skill body size guidance with the SK009 character threshold"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/templates/reference.template.md",
       "upstream_sha256": "fa98b4ea37a3c19a60c91fc159bdf3bd947ca575a7624c3162eaba0277ef7185",
       "staged_sha256": "fa98b4ea37a3c19a60c91fc159bdf3bd947ca575a7624c3162eaba0277ef7185",
-      "current_import_sha256": "fa98b4ea37a3c19a60c91fc159bdf3bd947ca575a7624c3162eaba0277ef7185",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/templates/skill.template.md",
       "upstream_sha256": "356fa439b51c62f4fb41406093d8596242cbc98b661a5bc5621c4c3d74b27228",
       "staged_sha256": "356fa439b51c62f4fb41406093d8596242cbc98b661a5bc5621c4c3d74b27228",
-      "current_import_sha256": "356fa439b51c62f4fb41406093d8596242cbc98b661a5bc5621c4c3d74b27228",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/spec-writer/SKILL.md",

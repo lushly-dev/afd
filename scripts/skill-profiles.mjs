@@ -60,6 +60,133 @@ function escapeRegex(value) {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Hosts list every model-invocable skill's description in a shared budget (Claude Code
+// about 1% of the context window, Codex about 2%) and drop entries once it overflows.
+const listedFields = ['description', 'when_to_use'];
+const maxDescription = 1024;
+
+function blockScalar(indicator, lines, field, terminated) {
+	const header = indicator.match(/^([>|])([-+]?)$/);
+	if (!header || header[2] === '+')
+		throw new Error(`Unsupported ${field} block scalar: ${indicator}`);
+	// Clipping keeps the final line break only when the content has one.
+	const broken = terminated || (lines.length > 0 && !lines.at(-1).trim());
+	while (lines.length && !lines.at(-1).trim()) lines.pop();
+	const indent = Math.min(
+		...lines.filter((line) => line.trim()).map((line) => line.match(/^ */)[0].length)
+	);
+	if (!lines.length) return '';
+	const body = lines.map((line) => line.slice(indent));
+	if (header[1] === '>' && body.some((line) => /^\s/.test(line)))
+		throw new Error(`Unsupported indented ${field} folding`);
+	const text =
+		header[1] === '|'
+			? body.join('\n')
+			: body.reduce(
+					(result, line, index) =>
+						index === 0
+							? line
+							: result + (line === '' ? '\n' : body[index - 1] === '' ? '' : ' ') + line,
+					''
+				);
+	return header[2] === '-' || !broken ? text : `${text}\n`;
+}
+
+function scalar(value, lines, field, terminated) {
+	if (/^[>|]/.test(value))
+		return blockScalar(value.replace(/\s+#.*$/, ''), lines, field, terminated);
+	if (/^[[{&*!%@`]/.test(value) || /^(?:~|null|Null|NULL)$/.test(value))
+		throw new Error(`Unsupported ${field} value: ${value}`);
+	if (value.startsWith('"') || value.startsWith("'")) {
+		const quote = value[0];
+		if (lines.length || value.length < 2 || !value.endsWith(quote))
+			throw new Error(`Unsupported multi-line quoted ${field}`);
+		return quote === '"' ? JSON.parse(value) : value.slice(1, -1).replaceAll("''", "'");
+	}
+	if (lines.some((line) => /^\s*(?:- |#|[\w-]+:\s)/.test(line)))
+		throw new Error(`Unsupported multi-line plain ${field}`);
+	const text = [value.replace(/(?:^|\s+)#.*$/, ''), ...lines.map((line) => line.trim())]
+		.filter((part, index) => index === 0 || part)
+		.join(' ')
+		.trim();
+	// An empty value is YAML null: the host treats the field as omitted.
+	return text || undefined;
+}
+
+function flag(value, lines, field) {
+	if (lines.length) throw new Error(`Unsupported multi-line ${field}`);
+	// Only an unquoted YAML boolean disables listing; anything else stays listed.
+	return /^(?:true|True|TRUE)$/.test(value.replace(/\s+#.*$/, ''));
+}
+
+const listedKeys = [...listedFields, 'disable-model-invocation'];
+
+/** The listed frontmatter scalars; any syntax outside this narrow subset fails closed. */
+export function listingFields(text) {
+	const match = text.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+	if (!match) return {};
+	const lines = match[1].split(/\r?\n/);
+	const fields = {};
+	let previous;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index];
+		if (/^-(?:\s|$)/.test(line)) {
+			// A block sequence belongs to the key above it; a listed field is never a list.
+			if (listedKeys.includes(previous)) throw new Error(`Unsupported ${previous} list`);
+			continue;
+		}
+		if (!line.trim() || /^(?:\s|#)/.test(line)) continue;
+		const key = line.match(/^([A-Za-z_][\w-]*):(?:[ \t]+(.*))?$/);
+		if (!key) throw new Error(`Unsupported frontmatter line: ${line}`);
+		const continuation = [];
+		while (index + 1 < lines.length && /^(?:\s|$)/.test(lines[index + 1]))
+			continuation.push(lines[++index]);
+		const [, field, raw = ''] = key;
+		previous = field;
+		if (!listedKeys.includes(field)) continue;
+		if (Object.hasOwn(fields, field)) throw new Error(`Duplicate frontmatter key: ${field}`);
+		const value = raw.trim();
+		fields[field] =
+			field === 'disable-model-invocation'
+				? flag(value, continuation, field)
+				: scalar(value, continuation, field, index + 1 < lines.length);
+	}
+	return fields;
+}
+
+// A skill without a description is listed by its first body paragraph.
+function firstParagraph(text) {
+	const source = text.replace(/^\uFEFF/, '');
+	const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+	const paragraph = [];
+	for (const line of body.split(/\r?\n/)) {
+		const trimmed = line.trim();
+		if (!trimmed) {
+			if (paragraph.length) break;
+			continue;
+		}
+		if (!paragraph.length && (trimmed.startsWith('#') || /^<!--.*-->$/.test(trimmed))) continue;
+		paragraph.push(trimmed);
+	}
+	return paragraph.join(' ');
+}
+
+/** Characters a skill adds to the host listing; user-only skills are not listed. */
+export function listingCharacters(text, skill) {
+	let fields;
+	try {
+		fields = listingFields(text);
+	} catch (error) {
+		throw new Error(`${error.message} (${skill})`);
+	}
+	if ((fields.description?.length ?? 0) > maxDescription)
+		throw new Error(`Description over ${maxDescription} characters: ${skill}`);
+	if (fields['disable-model-invocation']) return 0;
+	// An empty description is listed like an omitted one.
+	const description = fields.description || firstParagraph(text);
+	return description.length + (fields.when_to_use?.length ?? 0);
+}
+
 export function projectText(text, { name, canonical, rewrites = {} }, aliases, file) {
 	// Paths and long skill identifiers are unambiguous. Ordinary words such as
 	// commit/release/review are rewritten only by explicit per-file literals.
@@ -96,8 +223,11 @@ export function projectText(text, { name, canonical, rewrites = {} }, aliases, f
 	return text;
 }
 
-/** Preflight all trees before writing; unknown consumer resources are never deleted. */
-export async function syncProfiles(root, { write = false } = {}) {
+/**
+ * Preflight all trees before writing; unknown consumer resources are never deleted.
+ * Each profile's listing must fit its declared listingBudget (description characters).
+ */
+export async function syncProfiles(root, { write = false, onListing } = {}) {
 	root = path.resolve(root);
 	if ((await lstat(root)).isSymbolicLink())
 		throw new Error('Repository root must not be a symlink');
@@ -142,6 +272,9 @@ export async function syncProfiles(root, { write = false } = {}) {
 			.map((entry) => [entry.canonical, entry.name]);
 		if (new Set(aliases.map(([source]) => source)).size !== aliases.length)
 			throw new Error(`Duplicate canonical alias: ${profileName}`);
+		if (!Number.isSafeInteger(profile.listingBudget) || profile.listingBudget <= 0)
+			throw new Error(`Profile listingBudget must be a positive integer: ${profileName}`);
+		const listing = new Map();
 		// The established Codex mirror is verified, never traversed or rewritten.
 		if (profile.mirror) {
 			const mirror = path.join(root, relativePath(profile.mirror));
@@ -167,6 +300,16 @@ export async function syncProfiles(root, { write = false } = {}) {
 			const text = await readFile(source, 'utf8');
 			if (!/^source: afd$/m.test(text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? ''))
 				throw new Error(`Local override must declare source: afd: ${override.name}`);
+			listing.set(override.name, listingCharacters(text, override.name));
+		}
+		for (const name of profile.local) {
+			let text = '';
+			try {
+				text = await readFile(await inside(root, `${profile.root}/${name}/SKILL.md`), 'utf8');
+			} catch (error) {
+				if (error.code !== 'ENOENT') throw error;
+			}
+			listing.set(name, listingCharacters(text, name));
 		}
 		for (const entry of profile.projections) {
 			const source = await inside(root, `${manifest.canonical.root}/${entry.canonical}`);
@@ -185,6 +328,8 @@ export async function syncProfiles(root, { write = false } = {}) {
 				const expected = textExtensions.has(path.extname(file))
 					? Buffer.from(projectText(original.toString('utf8'), entry, aliases, file))
 					: original;
+				if (file === 'SKILL.md')
+					listing.set(entry.name, listingCharacters(expected.toString('utf8'), entry.name));
 				const target = path.join(destination, file);
 				let current;
 				try {
@@ -195,6 +340,18 @@ export async function syncProfiles(root, { write = false } = {}) {
 				if (!current?.equals(expected)) changes.push({ path: target, content: expected });
 			}
 		}
+		const characters = [...listing.values()].reduce((total, size) => total + size, 0);
+		if (characters > profile.listingBudget) {
+			const largest = [...listing]
+				.filter(([, size]) => size > 0)
+				.sort(([, a], [, b]) => b - a)
+				.slice(0, 3)
+				.map(([name, size]) => `${name} (${size})`);
+			throw new Error(
+				`Skill listing over budget for ${profileName}: ${characters} description characters exceed listingBudget ${profile.listingBudget}. Shorten descriptions (largest: ${largest.join(', ')}) or remove skills that add no unique context.`
+			);
+		}
+		onListing?.(profileName, { characters, budget: profile.listingBudget, skills: listing.size });
 	}
 	if (write)
 		for (const change of changes) {
@@ -214,7 +371,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 		)
 			throw new Error('Usage: node scripts/skill-profiles.mjs [--check|--write] [--json]');
 		const write = args.includes('--write');
-		const changes = await syncProfiles(fileURLToPath(new URL('..', import.meta.url)), { write });
+		const listings = [];
+		const changes = await syncProfiles(fileURLToPath(new URL('..', import.meta.url)), {
+			write,
+			onListing: (profile, { characters, budget, skills }) =>
+				listings.push(
+					`Skill listing (${profile}): ${characters} of ${budget} description characters across ${skills} skills.`
+				),
+		});
 		if (args.includes('--json')) {
 			console.log(
 				JSON.stringify({
@@ -228,6 +392,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 				`${write ? 'Generated' : 'Stale'} skill resources (${changes.length}):\n${changes.join('\n')}`
 			);
 		} else console.log('Skill profiles match canonical sources.');
+		if (!args.includes('--json')) for (const line of listings) console.log(line);
 		if (changes.length && !write) process.exitCode = 1;
 	} catch (error) {
 		console.error(error.message);
