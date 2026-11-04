@@ -203,9 +203,49 @@ fn the_ids_are_content_free_derivations_pinned_byte_for_byte() {
         candidate
     );
     assert_eq!(
-        document_id("notes", "learned/", &candidate),
+        document_id("notes", Some("learned"), &candidate),
         "notes/learned/c-43315d53cc285fb704d6"
     );
+    assert_eq!(
+        document_id("notes", Some("learned/facts"), &set),
+        "notes/learned/facts/k-4c1bc3f4cad010fa1cd6"
+    );
+    assert_eq!(
+        document_id("notes", None, &candidate),
+        "notes/c-43315d53cc285fb704d6"
+    );
+}
+
+#[test]
+fn a_target_prefix_is_a_safe_relative_path_of_plain_segments() {
+    for good in [
+        "learned",
+        "learned/facts",
+        "a/b/c/d/e/f/g/h",
+        "2026_q4-facts",
+        &"x".repeat(63),
+    ] {
+        assert!(draft::is_safe_prefix(good), "{good}");
+    }
+    for bad in [
+        "",
+        "/learned",
+        "learned/",
+        "learned//facts",
+        "..",
+        "learned/../x",
+        ".hidden",
+        "Learned",
+        "learned facts",
+        "learned\\facts",
+        "-learned",
+        "_learned",
+        "a/b/c/d/e/f/g/h/i",
+        &"x".repeat(64),
+        "staging uses blue-green",
+    ] {
+        assert!(!draft::is_safe_prefix(bad), "{bad}");
+    }
 }
 
 #[test]

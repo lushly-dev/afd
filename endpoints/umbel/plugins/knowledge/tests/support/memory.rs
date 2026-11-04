@@ -148,7 +148,7 @@ pub fn evidence(record: &MemoryRecord, principals: usize) -> Value {
 /// How a draft is placed: the target collection and prefix, the draft count, the conflict set.
 pub struct Place<'a> {
     pub collection: &'a str,
-    pub prefix: &'a str,
+    pub prefix: Option<&'a str>,
     pub drafts: u32,
     pub conflict_set: Option<&'a str>,
 }
@@ -157,7 +157,7 @@ impl Default for Place<'_> {
     fn default() -> Self {
         Self {
             collection: "handbook",
-            prefix: "learned/",
+            prefix: Some("learned"),
             drafts: 0,
             conflict_set: None,
         }

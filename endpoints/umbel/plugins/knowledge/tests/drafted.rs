@@ -676,8 +676,8 @@ async fn a_drafted_document_is_agent_inferred_and_its_runner_is_not_its_author()
 /// `drafter::config` with the handbook area allowing self-approval.
 fn self_approving(local_id: &str) -> String {
     drafter::config(&["curator"], local_id).replace(
-        "collection = \"handbook\"\n",
-        "collection = \"handbook\"\nallow_self_approval = true\n",
+        "space = \"main\"\ncollection = \"handbook\"\n",
+        "space = \"main\"\ncollection = \"handbook\"\nallow_self_approval = true\n",
     )
 }
 

@@ -41,6 +41,11 @@ fn shared(fx: &Fx, n: u64) -> MemoryRecord {
     mem::record(fx, &mem::id(n))
 }
 
+/// `main`'s record `mem-<n>` as the store holds it now, alone.
+fn read(fx: &Fx, n: u64) -> Vec<MemoryRecord> {
+    vec![mem::record(fx, &mem::id(n))]
+}
+
 /// Every stored proposal record's body in `main`.
 fn stored(fx: &Fx) -> Vec<Value> {
     use umbel_store::{DocumentStore, ReaderFilter};
@@ -433,7 +438,7 @@ async fn candidate_and_document_are_the_derivations_of_the_lowest_source() {
 
 #[tokio::test]
 async fn conflict_set_members_share_the_document_and_subject_and_differ_in_content() {
-    let fx = fixture();
+    let mut fx = fixture();
     mem::write(
         &fx,
         vec![
@@ -462,31 +467,148 @@ async fn conflict_set_members_share_the_document_and_subject_and_differ_in_conte
             ),
         ],
     );
-    let read = |n: u64| vec![mem::record(&fx, &mem::id(n))];
-    let candidates = [mem::candidate(&read(1)), mem::candidate(&read(2))];
+    let candidates = [mem::candidate(&read(&fx, 1)), mem::candidate(&read(&fx, 2))];
     let set = umbel_okf::draft::conflict_set_id("main", CALLER, candidates.iter().min().unwrap());
     let place = Place {
         conflict_set: Some(&set),
         ..Place::default()
     };
     // Two alternatives on the set's document are both stored.
-    assert_eq!(one(&fx, drafted(&read(1), &place)).await["ok"], true);
-    assert_eq!(one(&fx, drafted(&read(2), &place)).await["ok"], true);
-    // Another subject, the same content as a member, or another document: refused.
-    refused(&fx, drafted(&read(3), &place), "conflict-set").await;
-    refused(&fx, drafted(&read(4), &place), "conflict-set").await;
-    let other = Place {
-        prefix: "other/",
-        conflict_set: Some(&set),
-        ..Place::default()
-    };
-    refused(&fx, drafted(&read(5), &other), "conflict-set").await;
+    assert_eq!(one(&fx, drafted(&read(&fx, 1), &place)).await["ok"], true);
+    assert_eq!(one(&fx, drafted(&read(&fx, 2), &place)).await["ok"], true);
+    // Another subject, or the same content as a member: refused.
+    refused(&fx, drafted(&read(&fx, 3), &place), "conflict-set").await;
+    refused(&fx, drafted(&read(&fx, 4), &place), "conflict-set").await;
     // A conflict set not of the form k-<20 hex>.
     let malformed = Place {
         conflict_set: Some("k-STAGINGUSESBLUEGREEN"),
         ..Place::default()
     };
-    refused(&fx, drafted(&read(5), &malformed), "conflict-set").await;
+    refused(&fx, drafted(&read(&fx, 5), &malformed), "conflict-set").await;
+    // The target moved since the members were drafted: a new alternative would be on another
+    // document than theirs.
+    fx.reopen(&config().replace("prefix = \"learned\"", "prefix = \"facts\""));
+    let moved = Place {
+        prefix: Some("facts"),
+        conflict_set: Some(&set),
+        ..Place::default()
+    };
+    refused(&fx, drafted(&read(&fx, 5), &moved), "conflict-set").await;
+}
+
+// ── 3.2: Document, against the configured target (step 3c, amendment 14) ──────────────────
+
+#[tokio::test]
+async fn the_document_is_exactly_the_configured_targets_path() {
+    let mut fx = fixture();
+    mem::write(
+        &fx,
+        (1..=3)
+            .map(|n| mem::entry(n, ADA, &["space"], SUBJECT, &format!("Target fact {n}.")))
+            .collect(),
+    );
+    let proposal = drafted(&read(&fx, 1), &Place::default());
+    let candidate = proposal["drafter"]["candidate"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for doc in [
+        format!("handbook/learned/extra/{candidate}"),
+        format!("handbook/extra/learned/{candidate}"),
+        format!("handbook/{candidate}"),
+        format!("handbook/learnedx/{candidate}"),
+        format!("code/learned/{candidate}"),
+    ] {
+        let mut elsewhere = proposal.clone();
+        elsewhere["change"]["doc"] = json!(doc);
+        refused(&fx, elsewhere, "document").await;
+    }
+    // The exact path is accepted.
+    let accepted = one(&fx, proposal).await;
+    assert_eq!(
+        accepted["proposal"]["doc"],
+        format!("handbook/learned/{candidate}")
+    );
+
+    // A target without a prefix: <collection>/<id>, exactly.
+    fx.reopen(&config().replace("prefix = \"learned\"\n", ""));
+    let flat = Place {
+        prefix: None,
+        ..Place::default()
+    };
+    let accepted = one(&fx, drafted(&read(&fx, 2), &flat)).await;
+    assert_eq!(accepted["ok"], true, "{accepted}");
+    refused(&fx, drafted(&read(&fx, 3), &Place::default()), "document").await;
+
+    // A drafter listed with no target drafts no create; its verify and deprecate drafts stand.
+    fx.reopen(&config().replace(drafter::TARGET, ""));
+    let result = one(&fx, drafted(&read(&fx, 3), &Place::default())).await;
+    assert_eq!(item_code(&result), "PROPOSAL_DRAFT_MISMATCH", "{result}");
+    assert_eq!(result["error"]["details"], json!({ "check": "document" }));
+    fx.handbook(
+        "runbook.md",
+        "---\ntitle: Rolling back\n---\nUse the previous tag.\n",
+    );
+    fx.refresh("main").await;
+    let listed = fx
+        .as_actor(
+            member(),
+            "knowledge-list",
+            json!({ "prefix": "handbook/runbook" }),
+        )
+        .await;
+    let base = data(&listed)["documents"][0]["contentHash"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let verified = one(&fx, drafter::verify("v1", "handbook/runbook", &base)).await;
+    assert_eq!(verified["ok"], true, "{verified}");
+
+    // A target naming a collection the space lacks, or one that is not markdown.
+    for collection in ["notes", "code"] {
+        fx.reopen(&config().replace(
+            "collection = \"handbook\"\nprefix",
+            &format!("collection = \"{collection}\"\nprefix"),
+        ));
+        let place = Place {
+            collection,
+            ..Place::default()
+        };
+        let result = one(&fx, drafted(&read(&fx, 3), &place)).await;
+        assert_eq!(
+            item_code(&result),
+            "PROPOSAL_DRAFTER_TARGET_INVALID",
+            "{collection}: {result}"
+        );
+    }
+}
+
+#[test]
+fn an_unsafe_target_prefix_is_refused_when_the_configuration_loads() {
+    for prefix in [
+        "../escape",
+        "learned/",
+        "/learned",
+        "learned/.hidden",
+        "Learned",
+        "learned//x",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let config = config().replace(
+            "prefix = \"learned\"",
+            &format!("prefix = {}", serde_json::to_string(prefix).unwrap()),
+        );
+        std::fs::write(dir.path().join("umbel.toml"), config).unwrap();
+        for root in ["main/handbook", "main/code", "beta/notes"] {
+            std::fs::create_dir_all(dir.path().join("spaces").join(root)).unwrap();
+        }
+        let sealed = support::plugins(umbel::HostBuilder::open(dir.path()).unwrap(), true).seal();
+        let error = sealed
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(error.contains("PLUGIN_CONFIG_INVALID"), "{prefix}: {error}");
+    }
 }
 
 // ── 3.2: Widening and mode ──────────────────────────────────────────────────────────────────

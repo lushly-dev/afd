@@ -21,6 +21,7 @@ use umbel_okf::draft::{self, Draft, Rationale};
 use umbel_sdk::{Outcome, PipelineAttestation};
 use umbel_store::{DerivedFrom, MemoryRecord};
 
+use super::attest::Target as DrafterTarget;
 use super::common::{Caller, Target};
 use super::model::{Drafter, MODE_SCHEDULED, Op, Proposal};
 use super::propose::{self, Submission, unavailable};
@@ -81,6 +82,8 @@ pub(crate) struct Draftable<'x, 'c, 'a> {
     pub(crate) derived_from: Option<&'x [DerivedFrom]>,
     /// The open proposals already in the claimed conflict set.
     pub(crate) members: &'x [Member],
+    /// The drafter's configured target in the batch's space, if it has one (amendment 14).
+    pub(crate) target: Option<&'x DrafterTarget>,
 }
 
 /// One source: the entry the drafter wrote and the record the store holds.
@@ -343,12 +346,18 @@ fn check_ids(
     {
         return Err(mismatch("conflict-set"));
     }
+    // Exactly the configured target's path for the derived id: no drafter-chosen text in it
+    // (step 3c, amendment 14).
     let doc = &submission.change.doc;
+    let Some(target) = item.target else {
+        return Err(no_target());
+    };
+    let info = propose::collection_info(item.caller.cx, &item.caller.space, &target.collection);
+    if !info.is_some_and(|info| info.kind == "markdown") {
+        return Err(target_invalid());
+    }
     let id = item.conflict_set.unwrap_or(&candidate);
-    let in_collection = doc
-        .split_once('/')
-        .is_some_and(|(collection, path)| !collection.is_empty() && path.ends_with(id));
-    if !in_collection {
+    if *doc != draft::document_id(&target.collection, target.prefix.as_deref(), id) {
         return Err(mismatch("document"));
     }
     if item.conflict_set.is_some() {
@@ -364,6 +373,25 @@ fn check_ids(
         }
     }
     Ok(())
+}
+
+/// A listed drafter with no target in the batch's space: it drafts no create there (amendment 14).
+fn no_target() -> Outcome {
+    umbel_sdk::failure(
+        "PROPOSAL_DRAFT_MISMATCH",
+        "the drafter has no target configured in this space, so it may not draft a create here (check document); the draft is not stored",
+        "Name the drafter's target as [plugins.knowledge.config.drafters.<instance>.targets.<space>] collection (and prefix) in umbel.toml, the same one the drafter's own configuration names.",
+    )
+    .with_error_details(serde_json::json!({ "check": "document" }))
+}
+
+/// A configured target whose collection the space does not have as a markdown collection.
+fn target_invalid() -> Outcome {
+    umbel_sdk::failure(
+        "PROPOSAL_DRAFTER_TARGET_INVALID",
+        "the drafter's configured target names a collection this space does not have, or one that is not markdown; the draft is not stored",
+        "Fix [plugins.knowledge.config.drafters.<instance>.targets.<space>] collection in umbel.toml: a markdown collection of the space that the knowledge instance writes (content_write and documents_write allowed for it).",
+    )
 }
 
 /// Section 5.1 against the target collection: never more sensitive; widening only as a

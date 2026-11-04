@@ -1673,7 +1673,8 @@ on another local branch and push to that remote name.
     changed, so the tooling tests were not rerun.
 - **Step 3b done (2026-11-03, merged in [#763](https://github.com/lushly-dev/afd/pull/763) as `4a6b2de4`),
   knowledge: the drafted path:**
-  - `[plugins.knowledge.config] drafters` (default `[]`), read in `plugins/knowledge/src/proposal/attest.rs`: a
+  - `[plugins.knowledge.config] drafters` (default `[]`; a table with each drafter's targets since step 3c's
+    amendment 14), read in `plugins/knowledge/src/proposal/attest.rs`: a
     call's `CallContext.pipeline` is accepted only from a listed instance; an attested step of any other is
     `PROPOSAL_DRAFTER_NOT_ALLOWED` for the whole call.
   - `knowledge-propose-batch` (every surface, `store-write`, digest keeping `space`), in `src/proposal/batch.rs`: up
@@ -1777,22 +1778,32 @@ on another local branch and push to that remote name.
     (`source-erased` otherwise), which can never keep forgotten text.
   - The preview's "verified against memory at submission" label now covers only fields a 3.2 check verified; the
     sessions and settling instant stay "drafter's policy".
-  - Tests: `okf/tests/draft.rs` (9) and `plugins/knowledge/tests/verify_drafts.rs` (18: each row of 3.2 and the added
-    checks, a faithful draft and its preview, widening by the owner accepted and by others refused, the tampered
+  - Tests: `okf/tests/draft.rs` (10) and `plugins/knowledge/tests/verify_drafts.rs` (20: each row of 3.2 and the added
+    checks, the exact target path and an unsafe prefix refused at load, a faithful draft and its preview, widening by the owner accepted and by others refused, the tampered
     replay, the source half of `PROPOSAL_ALREADY_OPEN`, the withheld grant, the "erased" claim, approve's repeat after a
     source or the target changes), with `tests/support/memory.rs`, which writes memory records through the store.
     `drafted.rs` (11): the 3b refusal test now holds what stays refused, and approve's authorship from the store.
     `journal_modes.rs` approves a verified draft and holds the `plain` journals and the optional grant. `redaction.rs`
     redacts a verified draft after its source is forgotten, and refuses to redact a memory-free draft as erased. The
     knowledge crate's tests enable `umbel-store`'s `conformance` feature for its memory samples; no crate is added.
-  - Thirteen [amendments](phases/4-curator/spec.md#amendments-from-step-3c), none weakening the trust model.
+  - **The drafter's target (amendment 14, settled under owner decision 10).** `drafters` is now a table keyed by
+    instance, with `targets` per space: `[plugins.knowledge.config.drafters.curator.targets.main]` with `collection`
+    and an optional `prefix`. The configuration schema holds the shape and a safe prefix at load
+    (`PLUGIN_CONFIG_INVALID`; `umbel_okf::draft::is_safe_prefix`), and every drafted create checks the collection is
+    a markdown collection of the space (`PROPOSAL_DRAFTER_TARGET_INVALID`). A drafted create must be exactly
+    `<collection>/<prefix>/<derived id>` (`umbel_okf::draft::document_id`); anything else, and a create from a drafter
+    with no target, is `PROPOSAL_DRAFT_MISMATCH`, check `document`. No drafter-chosen text survives in the path. The
+    curator's configuration (step 4) must name the same target; knowledge's entry is the one enforced. Whether the
+    knowledge instance may write the collection is not visible to a plugin, so it is not checked at load; an approval
+    there stops with `PROPOSAL_APPLY_UNAVAILABLE`.
+  - Fourteen [amendments](phases/4-curator/spec.md#amendments-from-step-3c), none weakening the trust model.
   - **No host `src/`, `wit/`, `schemas/` or SDK file changed**, and no script or workflow: only `umbel-okf` and the
     knowledge plugin, so no `Plugin-isolation-exempt:` line is needed. The knowledge manifest's grant change is the
     optional read-only `memory` grant.
   - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; the knowledge job's clippy
     (`-p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p
-    umbel-plugin-knowledge --all-targets -- -D warnings`) and `cargo test` (527 tests in 64 suites, `eval_gate` with the
-    baseline untouched); `-p umbel-plugin-knowledge --no-default-features` clippy and tests (221 in 27); and `cargo
+    umbel-plugin-knowledge --all-targets -- -D warnings`) and `cargo test` (530 tests in 64 suites, `eval_gate` with the
+    baseline untouched); `-p umbel-plugin-knowledge --no-default-features` clippy and tests (223 in 27); and `cargo
     test -p umbel-first-party` (13 in 7), whose binary links the knowledge plugin. Not run here: the job's MSRV 1.97
     check (the toolchain is not installed on this machine) and the full gate, which is the owner's. No script or
     workflow changed, so the tooling tests were not rerun.
@@ -1801,14 +1812,11 @@ on another local branch and push to that remote name.
 - **Next:** merge step 3c, then step 4 (curator: candidates): the `umbel-plugin-curator` crate, its pack, skill and
   configuration, candidates, conflicts and drafting through `umbel_okf::draft`, the access rule, `curator-candidates`
   and `curator-promote`, per-principal records, and the `memory` job gaining the crate.
-- **Waiting on the owner:** one question from step 3c, not settled in the specification. Section 3.2's document row
-  says `change.doc` is "the curator's configured target, ending in the candidate id". The knowledge plugin checks the
-  ending (and that it is a create in a collection an area governs), but it cannot read the curator's configured
-  collection and prefix, which are curator configuration in another instance's namespace. A faulty drafter could
-  therefore put text in the path between the collection and the id, and a document id outlives a redaction. Every
-  other drafter-chosen value that outlives a redaction (the key, the `run`, the candidate and conflict-set ids) is now
-  checked. Options: knowledge's own configuration names each drafter's targets and checks them exactly; or the path
-  is the collection and the id alone; or the deployer's prefix is accepted as configuration. Step 3b's two questions
+- **Waiting on the owner:** nothing. Step 3c's one question (section 3.2's document row named "the curator's
+  configured target", which the knowledge plugin cannot read, so a faulty drafter could have put text in the path)
+  was settled on 2026-11-03 under owner decision 10 (attest and verify) as
+  [amendment 14](phases/4-curator/spec.md#amendments-from-step-3c): the knowledge instance's own configuration names
+  each drafter's target, and the path is checked exactly.
   (forgotten text in drafts that are not open; the change log's record hashes) were decided by the owner on
   2026-11-03 for the stronger guarantee and are implemented in step 3b
   ([amendments 12 and 13](phases/4-curator/spec.md#amendments-from-step-3b)).
@@ -1957,4 +1965,4 @@ on another local branch and push to that remote name.
 | 2026-11-03 | Phase 4 step 2 | Host (the step 2 pull request, from `e7aeff70`; step 1 merged in [#751](https://github.com/lushly-dev/afd/pull/751)). Pipeline attestation: fresh random step trace ids keyed in the host's `PipelineAttestations` table, read by `CallServices::pipeline()` and the SDK's `CallContext.pipeline`, never from `extra`. A version 4 pipeline's `expose` checked at seal against every step, and `result = "last"`. The CLI's confirmation preview before the gated prompt (declared properties only, fresh trace, no marks, sanitised and capped, `CONFIRMATION_PREVIEW_FAILED`). `secure_delete=ON` and a reporting `truncate_wal` on `store.sqlite3`. Ten amendments in the specification, none on the trust model. `cargo fmt --all --check`, the workspace clippy and the three `--no-default-features` library clippies passed. The four new suites (26 tests), `manifest_v4` (14), five new unit tests and five related suites passed. No plugin changed. Step 3a is next |
 | 2026-11-03 | Phase 4 step 3a | Knowledge: record and journal (the step 3a pull request, from `83639abb`; step 2 merged in [#753](https://github.com/lushly-dev/afd/pull/753)). Proposal record version 2 written, with envelope version 2 on the body and the stored record, `decision.channel = "terminal"` and a proposer's `withdrawal`; version 1 records read, retried, decided, withdrawn and applied in their own version. The knowledge manifest at version 4; section 11.2's digest set (`-proposal-list`, `-proposal-show`, `-proposal-preview`, `-approve`, `-reject`, `-withdraw`); `knowledge-proposal-preview`, declared as `confirm_preview` by approve and reject, which closes phase 2's "must do before real use". A fault in step 1's `proposal.v2.json` fixed (a `null` withdrawal matched the drafter-withdrawal rule), so the pull request needs a `Plugin-isolation-exempt:` line. Twelve amendments, none on the trust model. No host `src/` change. `cargo fmt --all --check`, the knowledge job's clippy and tests (477 in 60 suites, `eval_gate` with the baseline untouched), the no-default-features knowledge clippy and tests (181 in 24) and the host's `schemas` test passed; `proposals_v2` 4, `preview` 8 and `journal_modes` 2 new. Step 3b is next |
 | 2026-11-03 | Phase 4 step 3b | Knowledge: the drafted path (the step 3b pull request, from `37af26c9`; step 3a merged in [#754](https://github.com/lushly-dev/afd/pull/754)). `drafters`; `knowledge-propose-batch` (per-item results, withdrawals first, caps, `PROPOSAL_ALREADY_OPEN`, a retry repeating the drafter's claims) and `knowledge-proposal-feed`, both on the host's attestation; a drafter's withdrawal and redaction, with the checkpoint's `pending` state carried through a new compiled-only host service, `truncate_wal`. Owner decision 10's sequencing held: a listed drafter's memory evidence, memory `derivedFrom`, candidate, promotion, conflict set and draft content are refused with `PROPOSAL_DRAFT_UNVERIFIABLE` until step 3c verifies them. Thirteen amendments, none weakening the trust model. The step's two questions were decided by the owner for the stronger guarantee and done in it: every draft that was not applied is redacted when its source is erased (by id, or by a new `erased` notice; `proposal.v2.json` widened), and the change log forgets a redacted record's earlier hashes (`DocumentStore::forget_record_history` and a `record_forget_history` service), with drafted reject and withdraw results no longer carrying the record hash. Host `src/`, `sdk/src/`, `store/src/`, `store-embedded/src/` and `schemas/` changed, so the pull request needs a `Plugin-isolation-exempt:` line. `cargo fmt --all --check`, the knowledge job's clippy and tests (499 in 62 suites, `eval_gate` with the baseline untouched), the no-default-features knowledge clippy and tests (202 in 26), the host, SDK and store clippies and the host's `schemas` (47), `store_truncate_wal` (3) and `store_grants` (23) passed; `drafted` 10 and `redaction` 11 new. Step 3c is next |
-| 2026-11-03 | Phase 4 step 3c | Knowledge: verifying drafts (the step 3c pull request, from `4a6b2de4`; step 3b merged in [#763](https://github.com/lushly-dev/afd/pull/763)). `umbel_okf::draft`: the fixed rendering, the rationale, `subject_key` and the id and key derivations, pinned byte for byte. The knowledge plugin declares `memory`, read only and optional, and a `plain` journal on every command and pipeline outside the digest set. Every check of section 3.2 against the memory store (read once per batch, under the caller's filter) and the shared rendering, refusing with `PROPOSAL_DRAFT_MISMATCH` naming the check, plus six it did not name (`source-authority`, `evidence`, `derived-from`, `rationale`, `key`, `run`); step 3b's `PROPOSAL_DRAFT_UNVERIFIABLE` kept only for what cannot be verified (memory without the grant or off a create, content citing no memory). A tampered replay is a mismatch, not a reused key. Approve re-checks the target and each source (`PROPOSAL_ACCESS_WIDENED`, `PROPOSAL_SOURCE_GONE`) and takes authorship from the store, so the runner is no longer the author. The "erased" claim is checked. Thirteen amendments, none weakening the trust model; one question for the owner (the document id's prefix). No host, schema, SDK or workflow change. Tests: `okf/tests/draft.rs` (9), `verify_drafts.rs` (18); the knowledge job 527 in 64 suites, without `code` 221 in 27, `umbel-first-party` 13 |
+| 2026-11-03 | Phase 4 step 3c | Knowledge: verifying drafts (the step 3c pull request, from `4a6b2de4`; step 3b merged in [#763](https://github.com/lushly-dev/afd/pull/763)). `umbel_okf::draft`: the fixed rendering, the rationale, `subject_key` and the id and key derivations, pinned byte for byte. The knowledge plugin declares `memory`, read only and optional, and a `plain` journal on every command and pipeline outside the digest set. Every check of section 3.2 against the memory store (read once per batch, under the caller's filter) and the shared rendering, refusing with `PROPOSAL_DRAFT_MISMATCH` naming the check, plus six it did not name (`source-authority`, `evidence`, `derived-from`, `rationale`, `key`, `run`); step 3b's `PROPOSAL_DRAFT_UNVERIFIABLE` kept only for what cannot be verified (memory without the grant or off a create, content citing no memory). A tampered replay is a mismatch, not a reused key. Approve re-checks the target and each source (`PROPOSAL_ACCESS_WIDENED`, `PROPOSAL_SOURCE_GONE`) and takes authorship from the store, so the runner is no longer the author. The "erased" claim is checked. Fourteen amendments, none weakening the trust model; the fourteenth settles the step's question under owner decision 10: the knowledge instance's `drafters` table names each drafter's target per space, and a drafted create's path is checked exactly. No host, schema, SDK or workflow change. Tests: `okf/tests/draft.rs` (10), `verify_drafts.rs` (20); the knowledge job 530 in 64 suites, without `code` 223 in 27, `umbel-first-party` 13 |

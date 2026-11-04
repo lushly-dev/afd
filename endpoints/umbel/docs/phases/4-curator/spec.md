@@ -96,7 +96,9 @@
     read-only `memory` grant and a `journal` on every command and pipeline; every check of 3.2, with
     `PROPOSAL_DRAFT_MISMATCH` naming it, in place of step 3b's refusals, which stay only for claims this instance cannot
     verify; approve's re-checks and authorship from the store (8.2); the "erased" claim checked. Its
-    [amendments](#amendments-from-step-3c) settle thirteen details and change no trust-model point.
+    [amendments](#amendments-from-step-3c) settle fourteen details and change no trust-model point; the
+    fourteenth, the drafter's target held and enforced by the knowledge instance, settles the question the step found,
+    under owner decision 10.
 - **Not done:** steps 4 to 7 of section [15](#15-implementation-plan); step 4 (curator: candidates) is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
@@ -359,9 +361,12 @@ evidence, memory `derivedFrom`, a `conflictSet` or withdrawals, and is otherwise
 by its caller. **The knowledge instance accepts an attestation only from instances it lists**:
 
 ```toml
-[plugins.knowledge.config]
-drafters = ["curator"]          # default []: an attested submission is PROPOSAL_DRAFTER_NOT_ALLOWED
+[plugins.knowledge.config.drafters.curator.targets.main]   # no drafters: PROPOSAL_DRAFTER_NOT_ALLOWED
+collection = "notes"            # where the curator's creates go in the space main
+prefix = "learned"              # optional; a create is exactly notes/learned/<derived id>
 ```
+
+(This is step 3c's amendment 14; the approved text read `drafters = ["curator"]`, and named no target.)
 
 **Listing an instance is not trusting it.** The host attests who drafted (`plugin`, `instance`, `pipeline`,
 `run`). The knowledge plugin then **verifies every other claim itself**, through its read-only `memory` grant
@@ -378,7 +383,7 @@ the one item with `PROPOSAL_DRAFT_MISMATCH`, whose `details.check` names the che
 | Excerpt | Each `excerpt` is the record's text cut at 1000 characters | `excerpt` |
 | Content | `change.content` is byte-equal to `umbel_okf::draft::render` over the verified sources, the instance and `generated.at` | `content` |
 | Candidate | `candidate` equals `umbel_okf::draft::candidate_id(space, caller principal, lowest source id)` | `candidate` |
-| Document id | `change.doc` is the curator's configured target, ending in the candidate id, or in the conflict set id when `conflictSet` is set | `document` |
+| Document id | `change.doc` is exactly the drafter's target, as this instance's own configuration names it (step 3c, amendment 14), followed by the candidate id, or the conflict set id when `conflictSet` is set | `document` |
 | Conflict set | `conflictSet`, when set, has the `k-` form; every open proposal sharing it targets the same document, and their sources share `umbel_okf::draft::subject_key` of the subject and differ in content hash | `conflict-set` |
 | Widening and mode | Knowledge computes whether the target's access is wider than the sources' (5.1). If it is not, `mode` must be `scheduled` and `promotedBy` absent. If it is, `mode` must be `promoted`, and the caller's effective principal must be the principal of **every** source; `promotedBy` must equal it. Higher sensitivity is always refused | `mode`, `promoted-by`, `sensitivity` |
 | `generated.at` | At or after every source's current `recordedAt`, and at or before `now` | `generated-at` |
@@ -473,11 +478,12 @@ Per space, the curator configuration names where promotions go:
 ```toml
 [plugins.curator.config.spaces.main]
 collection = "notes"            # a markdown collection with an area
-prefix = "learned/"
+prefix = "learned"              # optional; plain segments, no trailing / (step 3c, amendment 14)
 ```
 
-- **Document id:** `<collection>/<prefix><candidate id>`, or `<prefix><conflict set id>` for alternatives.
-  Opaque and content-free.
+- **Document id:** `<collection>/<prefix>/<candidate id>`, or `<collection>/<prefix>/<conflict set id>` for
+  alternatives (`<collection>/<id>` without a prefix). Opaque and content-free. The knowledge instance's drafter
+  entry names the same target and is the one enforced (step 3c, amendment 14).
 - **Existing document:** the candidate is `skipped` with reason `target-exists`.
 - **Content:** fixed, as below.
 
@@ -849,6 +855,7 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `CURATOR_PROMOTE_NOT_ALLOWED` | A source is not the caller's own, or its hash changed | No |
 | `CURATOR_MODEL_UNAVAILABLE` | `config.model` is set (8.5) | No |
 | `PROPOSAL_DRAFTER_NOT_ALLOWED` | An attested submission from an instance not in `drafters` | No |
+| `PROPOSAL_DRAFTER_TARGET_INVALID` | A drafter's configured target names a collection the space lacks, or one that is not markdown (step 3c, amendment 14) | No |
 | `PROPOSAL_EVIDENCE_INVALID` (extended) | Memory evidence, memory `derivedFrom`, a `conflictSet` or a withdrawal without an accepted attestation | No |
 | `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2, and step 3c's amendment 4); `details.check` names the check. Also at approve, for a copied field that no longer matches (8.2), and for an "erased" claim the store contradicts (step 3c, amendment 11) | No |
 | `PROPOSAL_DRAFT_UNVERIFIABLE` | A listed drafter's claim this instance cannot verify: memory without the `memory` grant or on an op other than `create`, or content citing no memory record (step 3b, amendment 1; step 3c, amendments 2 and 3); `details.claim` names it. Also at approve, for a memory draft without the grant | No |
@@ -892,8 +899,9 @@ The exit criterion is met when `umbel.yml` is green on `main` with every test be
 - the real `umbel-first-party` binary, run as a child process;
 - `testkit`'s frozen clock and stand-in person;
 - a space `alpha` with a `notes` collection and an area over it;
-- `drafters = ["curator"]`;
-- the target `notes/learned/`;
+- the curator listed in `drafters`, with its target `notes` and prefix `learned` (step 3c, amendment 14);
+- the target `notes/learned/` (collection `notes`, prefix `learned`), named alike in the curator's and the
+  knowledge instance's configuration;
 - memory records written as `human:ada` through the store API into the binary's workspace (as phase 3's
   `support/stores.rs`), while the CLI is `human:local`.
 
@@ -1349,7 +1357,8 @@ they now stand.
 
 ### Amendments from step 3c
 
-Step 3c settled these details of sections 2.1, 3.2, 4.5, 8.1, 8.2, 9.1, 10.3, 11.2 and 11.3 that the text left open.
+Step 3c settled these details of sections 2.1, 3.2, 4.5, 8.1, 8.2, 9.1, 10.3, 11.2, 11.3 and 13 that the text left
+open.
 None accepts a drafter's claim unverified, reads memory beyond the caller's reader filter, or changes who may draft,
 approve or read anything. Every one refuses where the text was silent, or reads the store where the text allowed
 trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amendment 10 said it would.
@@ -1422,7 +1431,8 @@ trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amend
    - `generated-at`'s lower bound is each source's current `recordedAt`.
 6. **Document and conflict set.**
    - Document: `change.doc` is a `create` at `<collection>/<path>` whose path ends in the candidate id, or in the
-     conflict set id when one is set. Submit already requires a collection an area governs.
+     conflict set id when one is set. Submit already requires a collection an area governs. **Superseded by
+     amendment 14**: the path is exactly the configured target's.
    - Conflict set: it has the form `k-` and 20 hex digits. Every *open* proposal sharing it targets the same document,
      the `subject_key` of its title (the verified rendering's subject) equals this draft's, and none cites this draft's
      content hash.
@@ -1479,8 +1489,8 @@ trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amend
     - A draft citing no memory still reads "checked at submission: it cites no memory record".
     - Records a library embedder writes are trusted, as before (D14).
 13. **Tests.**
-    - `okf/tests/draft.rs` (9 tests).
-    - `plugins/knowledge/tests/verify_drafts.rs` (18), with `tests/support/memory.rs`, which writes memory records
+    - `okf/tests/draft.rs` (10 tests, with amendment 14's).
+    - `plugins/knowledge/tests/verify_drafts.rs` (20, with amendment 14's), with `tests/support/memory.rs`, which writes memory records
       through the store and builds drafts through `umbel_okf::draft`. It enables `umbel-store`'s `conformance` feature
       for the knowledge crate's tests, for the suite's memory samples; no crate is added.
     - `drafted.rs` gains approve's authorship from the store, and its step 3b refusal test becomes the test of what
@@ -1490,6 +1500,38 @@ trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amend
     - `redaction.rs` redacts a verified draft after its source is forgotten, and holds that a draft citing no memory is
       not redacted as erased.
     - The 400-source cap stays in `drafted.rs`.
+14. **The drafter's target, held and enforced by the knowledge instance** (settled 2026-11-03 as the faithful
+    application of the owner's decision 10, attest and verify, closing the question this step found). 3.2's
+    document row named "the curator's configured target", which lives in the curator's namespace and which knowledge
+    cannot read, so a faulty drafter could have put text in the path before the id, and a document id outlives a
+    redaction.
+    - **Configuration.** `drafters` becomes a table keyed by instance, each entry with its `targets` by space:
+      `[plugins.knowledge.config.drafters.curator.targets.main]` with `collection` and an optional `prefix`. A table
+      rather than a sibling map, so a target can never name an instance that is not listed. A drafter listed with no
+      target in a space (`[plugins.knowledge.config.drafters.<instance>]` alone) drafts no create there; its `verify`
+      and `deprecate` drafts are unaffected. Targets are per space because collections are.
+    - **Validated at load**, by the configuration schema the host checks (`PLUGIN_CONFIG_INVALID`): the shapes, a
+      collection id, and a prefix of one to eight plain segments joined by `/`, each a lowercase letter or digit then
+      letters, digits, `-` or `_` (`umbel_okf::draft::is_safe_prefix`): no `.` or `..`, no empty segment, no leading
+      or trailing `/`. **Checked at use**, on every drafted create, because a plugin's schema cannot see the
+      workspace's collections: the collection must be a markdown collection of the space, else
+      **`PROPOSAL_DRAFTER_TARGET_INVALID`** (11.3). That the knowledge instance writes it (`content_write` and
+      `documents_write` allowed for it) is not visible to a plugin at all; an approval of a draft there stops with
+      `PROPOSAL_APPLY_UNAVAILABLE`, as for any proposal.
+    - **The check.** A drafter's create must be exactly `umbel_okf::draft::document_id(collection, prefix, id)`,
+      `<collection>/<prefix>/<id>` (its file `<prefix>/<id>.md`), or `<collection>/<id>` without a prefix, where `id`
+      is the verified candidate id or the conflict set id. Anything else, and a create with no target, is
+      `PROPOSAL_DRAFT_MISMATCH` with `check = "document"`. With the key, the `run`, the candidate and the conflict
+      set already checked, no drafter-chosen text survives in a drafted proposal's path, id or key.
+    - **The curator (step 4)** reads its own target from its configuration (4.5, where the prefix loses its trailing
+      `/`). The curator's configuration and knowledge's drafter entry must agree; **knowledge's entry is the one
+      enforced**, so a curator configured otherwise has its creates refused, never written elsewhere.
+    - Tests: `okf/tests/draft.rs` (`a_target_prefix_is_a_safe_relative_path_of_plain_segments`, and the derivation
+      with and without a prefix); `verify_drafts.rs` (`the_document_is_exactly_the_configured_targets_path`: an extra
+      or a different path segment, no prefix where one is configured, and the wrong collection refused; the exact path
+      accepted, with and without a prefix; a drafter with no target refused its create and accepted its verify; a
+      target naming a missing or a code collection; and `an_unsafe_target_prefix_is_refused_when_the_configuration_loads`).
+      The conflict-set test's "another document" case now reaches the check by moving the target between drafts.
 
 ## 16. For the owner
 

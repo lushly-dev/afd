@@ -8,7 +8,8 @@
 //! - [`render`]: a draft's file, from its memory sources, the drafter and the settling instant;
 //! - [`Rationale`]: a draft's fixed rationale and its exact inverse;
 //! - [`subject_key`] and [`subject_key_digest`]: the normalised subject a conflict set groups on;
-//! - [`candidate_id`], [`conflict_set_id`], [`document_id`] and [`idempotency_key`];
+//! - [`candidate_id`], [`conflict_set_id`], [`document_id`] (with [`is_safe_prefix`]) and
+//!   [`idempotency_key`];
 //! - [`excerpt`]: the first [`EXCERPT_CHARS`] characters of a record's text;
 //! - [`settled_at`]: the settling instant a rendering carries in `generated.at`.
 
@@ -270,11 +271,40 @@ pub fn is_conflict_set_id(id: &str) -> bool {
     has_form(id, "k-")
 }
 
-/// A draft's document id (section 4.5): `<collection>/<prefix><id>`, where `id` is the candidate
-/// id, or the conflict set id for alternatives. Opaque and content-free.
+/// The most segments a target's prefix holds.
+pub const MAX_PREFIX_SEGMENTS: usize = 8;
+
+/// Whether `prefix` is a safe, fixed target prefix (phase 4 step 3c, amendment 14): one to
+/// [`MAX_PREFIX_SEGMENTS`] segments joined by `/`, each a lowercase ASCII letter or digit then up
+/// to 62 more of those, `-` or `_`. So no empty, `.` or `..` segment, no leading or trailing `/`,
+/// no hidden directory and nothing a document id or a file path would read otherwise.
 #[must_use]
-pub fn document_id(collection: &str, prefix: &str, id: &str) -> String {
-    format!("{collection}/{prefix}{id}")
+pub fn is_safe_prefix(prefix: &str) -> bool {
+    let segments: Vec<&str> = prefix.split('/').collect();
+    !prefix.is_empty()
+        && segments.len() <= MAX_PREFIX_SEGMENTS
+        && segments.iter().all(|segment| {
+            let bytes = segment.as_bytes();
+            !bytes.is_empty()
+                && bytes.len() <= 63
+                && matches!(bytes[0], b'a'..=b'z' | b'0'..=b'9')
+                && bytes
+                    .iter()
+                    .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_'))
+        })
+}
+
+/// A draft's document id (section 4.5, with phase 4 step 3c's amendment 14):
+/// `<collection>/<prefix>/<id>`, or `<collection>/<id>` without a prefix, where `id` is the
+/// candidate id, or the conflict set id for alternatives; its file is `<prefix>/<id>.md` in the
+/// collection. The collection and prefix are the drafter's configured target, which the knowledge
+/// instance holds and enforces, so no drafter-chosen text is in the path.
+#[must_use]
+pub fn document_id(collection: &str, prefix: Option<&str>, id: &str) -> String {
+    match prefix {
+        Some(prefix) => format!("{collection}/{prefix}/{id}"),
+        None => format!("{collection}/{id}"),
+    }
 }
 
 /// A draft's idempotency key (section 4.5): `<instance>/<candidate id>/<drafts>`, so a rerun

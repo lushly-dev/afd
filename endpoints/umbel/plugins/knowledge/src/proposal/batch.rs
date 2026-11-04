@@ -306,6 +306,7 @@ fn one(
         .as_deref()
         .map(|set| open.members(set))
         .unwrap_or_default();
+    let target = attest::target(caller.cx, &attestation.instance, &caller.space);
     let draftable = Draftable {
         caller,
         attestation,
@@ -314,6 +315,7 @@ fn one(
         conflict_set: claims.conflict_set.as_deref(),
         derived_from: claims.derived_from.as_deref(),
         members: &members,
+        target: target.as_ref(),
     };
     let verify = |submission: &propose::Submission| checks::verify(&draftable, submission);
     let already_open = |change: &Change, conflict_set: Option<&str>, evidence: &[Value]| {

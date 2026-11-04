@@ -168,8 +168,11 @@ after the next `knowledge-refresh`.
 
 `knowledge-propose-batch` submits up to 50 proposals in one call, with a result for each. Called as a
 step of a drafter's pipeline (the curator's `curator-run`, from phase 4), the host attests the drafter,
-and the knowledge instance accepts it only when `[plugins.knowledge.config] drafters` lists that
-instance (default none). A drafter's claims are verified, not trusted: through its read-only `memory`
+and the knowledge instance accepts it only when its configuration lists that instance as
+`[plugins.knowledge.config.drafters.<instance>]` (default none), with the target its creates go to in each
+space: a markdown `collection` and an optional `prefix` of plain segments. A drafted create must be exactly
+`<collection>/<prefix>/<derived id>`; a drafter with no target in a space drafts no create there. The
+drafter's own configuration names the same target, and the knowledge instance's is the one enforced. A drafter's claims are verified, not trusted: through its read-only `memory`
 grant, under the caller's reader filter, the knowledge instance reads every memory record a draft
 cites and checks that it is live, at the cited version, and copied field by field, and that the
 content, rationale, candidate, key and document id are the curator's fixed rendering and derivations
@@ -255,6 +258,13 @@ space = "main"
 collection = "handbook"
 approvers = ["principal:human:ada"]
 allow_self_approval = true              # a one-person workspace; leave it out otherwise
+
+# Drafted proposals (phase 4): accept the curator's pipeline, and send its creates in the space
+# main exactly to handbook/learned/<derived id>. The curator's own configuration names the same
+# target; this one is enforced. Leave it out if you run no curator.
+[plugins.knowledge.config.drafters.curator.targets.main]
+collection = "handbook"
+prefix = "learned"
 ```
 
 Then put Markdown under `spaces/main/handbook` and source files under `spaces/main/src`, and:
