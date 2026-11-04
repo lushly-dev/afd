@@ -1064,6 +1064,27 @@
 			]
 		},
 		{
+			"id": "umbel-plugin-curator",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7e52e33754d9b2585d0f6d546c85001322b62839",
+			"authority": "none: new curator plugin crate authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-plugin-curator",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/plugins/curator/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel-first-party",
 			"family": "umbel",
 			"protocol": "language-tag-v1",

@@ -9,11 +9,11 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use umbel_sdk::{HostError as ServiceError, HostServices, Reader};
+use umbel_sdk::{CollectionMeta, HostError as ServiceError, HostServices, Reader};
 use umbel_store::{
-    Actor, ActorKind, Change, ChunkHit, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
-    Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
-    Page, ReaderFilter, Record, RecordMeta, Rev, Subgraph,
+    AccessSet, Actor, ActorKind, Change, ChunkHit, Direction, DocMeta, Document, DocumentWrite,
+    Edge, EdgeKey, Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession,
+    ListQuery, Node, Page, ReaderFilter, Record, RecordMeta, Rev, Subgraph,
 };
 
 use super::grants::CallServices;
@@ -253,6 +253,38 @@ impl CallServices {
             .documents
             .get_document(id, &filter)
             .map_err(host_error)
+    }
+
+    /// The space's collections whose default access set the caller's reader filter admits, as
+    /// metadata only (phase 4 step 4, amendment 1): under `documents`, since it says of a
+    /// collection only who reads the documents in it, which reading them under the same filter
+    /// already says. Nothing of a collection's root, globs or files.
+    pub(super) fn svc_readable_collections(&self, space: &str) -> Result<Vec<CollectionMeta>> {
+        self.scoped("documents", space)?;
+        let filter = self.filter(space)?;
+        self.note_use();
+        let config = self.shared.workspace.config();
+        let declared = config
+            .spaces
+            .iter()
+            .find(|declared| declared.id.as_str() == space)
+            .ok_or_else(|| {
+                ServiceError::NotFound(format!("the space `{space}` is not declared"))
+            })?;
+        Ok(declared
+            .collections
+            .iter()
+            .filter(|collection| {
+                AccessSet::new(collection.access.iter().map(String::as_str))
+                    .is_ok_and(|access| filter.admits(&access))
+            })
+            .map(|collection| CollectionMeta {
+                id: collection.id.clone(),
+                kind: collection.kind.as_str().to_owned(),
+                access: collection.access.clone(),
+                sensitivity: collection.sensitivity.clone(),
+            })
+            .collect())
     }
 
     pub(super) fn svc_reader_tokens(&self, space: &str) -> Result<Vec<String>> {

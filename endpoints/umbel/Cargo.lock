@@ -3954,10 +3954,13 @@ dependencies = [
  "tokio",
  "umbel",
  "umbel-hook",
+ "umbel-okf",
  "umbel-plugin-context",
+ "umbel-plugin-curator",
  "umbel-plugin-knowledge",
  "umbel-plugin-memory",
  "umbel-plugin-sources-filesystem",
+ "umbel-sdk",
  "umbel-store",
  "umbel-store-embedded",
 ]
@@ -4022,6 +4025,24 @@ version = "0.1.0"
 dependencies = [
  "afd",
  "chrono",
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-okf",
+ "umbel-sdk",
+ "umbel-store",
+ "umbel-store-embedded",
+]
+
+[[package]]
+name = "umbel-plugin-curator"
+version = "0.1.0"
+dependencies = [
+ "afd",
  "jsonschema",
  "serde",
  "serde_json",

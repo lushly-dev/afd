@@ -52,6 +52,22 @@ pub struct CollectionInfo {
     pub max_file_bytes: u64,
 }
 
+/// One collection of a space as a reader of its documents sees it (phase 4 step 4, amendment 1):
+/// its id, kind, default access set and sensitivity, and nothing else. No root, no glob, no file
+/// name and no file byte: it says who reads what the collection holds, which is what a document
+/// read already reveals of each document, not what it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionMeta {
+    /// The collection id.
+    pub id: String,
+    /// `markdown` or `code`.
+    pub kind: String,
+    /// The default access set of its documents (tokens): who can read a document created there.
+    pub access: Vec<String>,
+    /// The default sensitivity of its documents.
+    pub sensitivity: String,
+}
+
 /// The read methods as another principal, from [`Cx::as_reader`]: the same filter the host
 /// builds for that principal in the call's spaces, and nothing that writes.
 pub struct Reader {
@@ -143,6 +159,18 @@ macro_rules! reads {
             pub fn reader_tokens(&self, space: &str) -> Result<Vec<String>, HostError> {
                 self.guard(space)?;
                 self.services()?.reader_tokens(space)
+            }
+            /// Grant `documents`: the space's collections whose readers include the caller, as
+            /// metadata only (phase 4 step 4, amendment 1).
+            ///
+            /// # Errors
+            /// See [`HostServices::readable_collections`].
+            pub fn readable_collections(
+                &self,
+                space: &str,
+            ) -> Result<Vec<CollectionMeta>, HostError> {
+                self.guard(space)?;
+                self.services()?.readable_collections(space)
             }
             /// Grant `records`: one record of the instance's own namespace.
             ///

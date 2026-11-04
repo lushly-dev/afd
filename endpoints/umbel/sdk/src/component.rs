@@ -47,6 +47,8 @@ pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallCo
         interface: context.interface,
         // WIT world 1.0.0 has no attestation: a component never sees one.
         pipeline: None,
+        // Nor the host's terminal check.
+        person: false,
     };
     let outcome = match serde_json::from_str::<Value>(input) {
         Ok(input) => {

@@ -98,8 +98,16 @@
     verify; approve's re-checks and authorship from the store (8.2); the "erased" claim checked. Its
     [amendments](#amendments-from-step-3c) settle fourteen details and change no trust-model point; the
     fourteenth, the drafter's target held and enforced by the knowledge instance, settles the question the step found,
-    under owner decision 10.
-- **Not done:** steps 4 to 7 of section [15](#15-implementation-plan); step 4 (curator: candidates) is next.
+    under owner decision 10. Merged in [#765](https://github.com/lushly-dev/afd/pull/765) as `7e52e337`.
+  - Step 4 (curator: candidates), 2026-11-03, in its pull request, from `7e52e337`: the `umbel-plugin-curator` crate
+    with its manifest, `settle` pack, `curator-guide` skill and configuration; eligible records, groups, settling,
+    conflict sets and section 5.1's rule as a pure, public core; drafting through `umbel_okf::draft`, proven against
+    the real knowledge plugin's verification; `curator-candidates` and `curator-promote`; per-principal candidate and
+    consent records; the `memory` job gains the crate. Its [amendments](#amendments-from-step-4) settle twelve
+    details and change no trust-model point; the first adds a host service, `readable_collections` under `documents`,
+    for the metadata of collections the caller reads (in place of the `content` grant, for least privilege), and the
+    ninth a host field, `CallContext.person`, so `curator-promote` makes `memory-confirm`'s person check.
+- **Not done:** steps 5 to 7 of section [15](#15-implementation-plan); step 5 (curator: runs) is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1532,6 +1540,116 @@ trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amend
       accepted, with and without a prefix; a drafter with no target refused its create and accepted its verify; a
       target naming a missing or a code collection; and `an_unsafe_target_prefix_is_refused_when_the_configuration_loads`).
       The conflict-set test's "another document" case now reaches the check by moving the target between drafts.
+
+### Amendments from step 4
+
+Step 4 settled these details of sections 2.3, 4, 5, 10.3, 11.1, 11.3 and 13 that the text left open. None reads memory
+beyond the caller's reader filter, writes memory, widens a reader without the owner's promotion at a terminal, settles a
+`transcript` record or changes what the knowledge plugin verifies. The first adds a host service under the `documents`
+grant the curator already holds, for the metadata of collections the caller reads, in place of the `content` grant; the
+ninth gives `curator-promote` the host's own person check, as `memory-confirm` has it.
+
+1. **The target's readers: `readable_collections`, under `documents` (host and SDK).** Section 5.1 compares the target
+   collection's resolved access set and sensitivity with each source's, and none of D90's grants gave them. The
+   `content` grant's collection list does, but `content` also carries `content_read` of every file of every collection
+   in the space, outside any reader filter, and `content_replace` wherever an allow list permits: far more than the
+   rule needs. So the host gains a narrow, read-only service, **`readable_collections(space)`**, returning for each
+   collection only its id, kind, default access set and sensitivity (the SDK's `CollectionMeta`), and only for
+   collections whose access set the caller's reader filter admits; it lists and reads no file and returns no root or
+   glob. Compiled plugins only, as `CallContext.pipeline` and `person` are; WIT world 1.0.0 and the schemas are
+   unchanged, and a component or mounted server answers `NotGranted`.
+   - **Why `documents` and not a new grant.** `documents` already means "read the space's documents under the caller's
+     reader filter", and holds `reader_tokens`. A collection's default access set and sensitivity are what reading
+     its documents under the same filter already reveals of each of them, and the filter is the same one, so the
+     service adds no reach the grant did not have. A new grant would add a catalog name, a manifest and configuration
+     surface and a deny to reason about, for metadata a `documents` holder can already infer. `content` is untouched.
+   - **Readers only.** A collection the caller cannot read is left out, so the curator answers
+     `CURATOR_TARGET_UNCONFIGURED` with `details.reason = "collection-missing"` for it, the same answer as for one that
+     does not exist, and shows none of its readers or sensitivity. **5.1 still works**: the caller reads every source,
+     so a target within every source's readers that the caller cannot read is possible (a source shared with `space`
+     and `group:<g>`, a target for `group:<g>` alone, a caller outside the group), and refusing it is the stronger
+     answer. Its proposal would carry the target's access set, so the run's caller could not read it: not follow it in
+     the feed, retry it, withdraw it, or redact it when a source is forgotten (step 3b's amendment 12 reaches only
+     drafts the caller can read). A target the caller reads is unaffected, and its readers can use it.
+   - The curator declares no `content` grant. `documents` is required, so denying it fails the instance at load
+     (`PLUGIN_GRANT_DENIED`) and no command runs on a guess; the handler's own answer to a withheld service is
+     `collection-unknown`, fail closed. The other reasons are `unconfigured` (no `spaces.<space>` target, or a prefix
+     that is not `umbel_okf::draft::is_safe_prefix`) and `not-markdown`. `graph` is not declared in this step, which
+     reads no graph; step 5 declares it with re-verification, which does.
+   - Tests: `tests/readable_collections.rs` (metadata and never file data, filtered by readers, refused without
+     `documents` and not carried by `content`, refused outside the call's spaces); the curator's `config.rs` (an
+     unreadable target is missing, its readers use it, the denied grant fails the load) and `target.rs`'s unit test
+     (`collection-unknown`).
+2. **When a group settles.** A candidate's members are every eligible record the caller can read with one content hash
+   and class (eligible: semantic or procedural, live, unflagged, an authority the pack admits, and at least
+   `min_confidence` when set, a record asserting none failing a set gate). It has settled when **every** member's current
+   version has stood for the class's window and the members' sessions sum to `min_sessions`. A member still in its
+   window holds the group back rather than splitting it, so the id, which derives from the lowest member, does not move
+   as members settle. **`settledAt` is the latest member's `recordedAt` plus the window**, the instant the stability rule
+   first held for every member: a pure function of the records, so `curator-candidates`, which writes nothing, and a run
+   agree, and it lies within knowledge's `generated-at` bounds. A run's recorded snapshot is kept while its `settledAt`
+   still bounds every member's current version; a confirmation or another new version re-settles it.
+3. **`curator-candidates` computes; it writes nothing.** It is `inspect`, so it computes the caller's candidates at the
+   call's `now` (section 4.6) and merges the caller's recorded candidates. It shows, per candidate, the id, status, skip
+   reason, class, authority, source count, sessions, principals, `own`, `contentHash` (own candidates only), the candidate
+   record's access set, sensitivity, conflict set, document, mode, `stableAt` (when the window ends), `settledAt`,
+   `drafts`, `quietUntil` and `promotedTo`; the target's collection, prefix, readers and sensitivity; counts by status and
+   of what was listed, eligible, read, left unread by `max_gets` and unopened; `more` when `max_records` stopped the list.
+   It filters by `status` and pages by `after` and `limit` (at most 500). A recorded outcome whose sources the caller no
+   longer reads is listed from its record. **No subject, text, tag, constraint or rejection reason** is in the result or
+   the journal. The list itself runs newest first, as the store orders it, up to `max_records`; of the eligible records
+   it found, the oldest are read in full first, so `max_gets` leaves out the newest, which are furthest from settling.
+   Step 5's rotating scan (`scanAfter`) is what reaches records past `max_records` across runs.
+4. **A caller with no principal** has no curator records and no candidate id: `CURATOR_PRINCIPAL_UNKNOWN`. The effective
+   principal is derived as the knowledge plugin derives it, so the candidate ids agree.
+5. **The status order and a run's records.** First that holds: a recorded `applied` or `erased` (never drafted again);
+   `too-many-sources`; `sensitivity-higher` (even while settling, as it cannot change); `settling`; `conflict-too-large`;
+   a recorded `drafted`, or `rejected` inside `quietUntil`; `target-exists` (`doc_get` under the caller's filter);
+   `ready` with `scheduled`; `ready` with `promoted` when a consent covers the candidate; `needs-promotion`. A run's
+   `drafts` count and conflict set are kept. Only records whose `principal` and `space` are the caller's are read as
+   theirs, whoever else they are readable by.
+6. **Conflict sets.** A candidate skipped for too many sources or higher sensitivity can never be drafted, so it joins no
+   set and takes no alternative's place. Every other candidate with the subject key joins; the set's id is the lowest id
+   a member was recorded with, else derived from the lowest member; members past `max_alternatives` that are settling or
+   ready are skipped, and every member carries the id.
+7. **Section 5.1 compares tokens.** The target's readers are within a source's when each of the target's tokens is in
+   the source's access set, token for token, as the knowledge plugin compares them: `space` does not stand for
+   `group:<g>`. Sensitivity is compared first.
+8. **`curator-promote`'s details.** The `contentHash` is `sha256:` and 16 to 64 hex digits, or the hex alone, as
+   `memory-confirm` takes it. Refusals, in order after `CURATOR_CANDIDATE_NOT_FOUND`, carry `details.reason`:
+   `not-a-person` (amendment 9), `not-own`, `content-hash`, and `status` with the status, for anything but
+   `needs-promotion` (a recorded outcome included); `not-own` comes before the hash, so nothing is learned of another
+   person's records. A consent covering exactly the candidate's sources is `created: false`; one for earlier versions is
+   replaced by compare-and-set (`CURATOR_CONFLICT`, retryable, if it changed meanwhile). A consent covers a candidate only
+   for exactly its sources at their versions and hashes, given by the caller, who owns every one. Its record's access is
+   `principal:<caller>`, its envelope `user-stated` with no hash or `derivedFrom`.
+9. **`CallContext.person` (host).** `memory-confirm` mirrors D88 on two host mechanisms: the `require-human` gate, and the
+   memory service's own person check, which also withholds the person from a caller with an agent's environment variable
+   (D86). A plugin cannot see that check, so the SDK's `CallContext` gains `person`, filled by the host for a compiled
+   plugin's command from the same function (`CallServices::person`, which the memory services now share); a component
+   (WIT world 1.0.0 unchanged) and a mounted server see `false`. `curator-promote` refuses a call without it, so an agent
+   that answers the prompt in a pseudo-terminal with an agent variable set is refused as `memory-confirm` refuses it. Not
+   an attestation (D86). `tests/call_person.rs` holds it.
+10. **Configuration and pack.** The schema accepts `model` with any value, so a configured model is refused by every
+    command with `CURATOR_MODEL_UNAVAILABLE` (before anything is read; `curator-promote`'s terminal prompt comes first,
+    as the host asks before any handler) rather than failing the load. The prefix has the knowledge plugin's pattern and
+    is refused at load. The pack holds sections 4, 6 and 7's defaults, including step 5's (`quiet_days`, `every_hours`,
+    `[reverify]`), with ceilings: `max_records` at most 5000, `max_gets` 500, `max_proposals` 50 (the batch's cap),
+    `max_alternatives` 2 to 8, windows 1 to 3650 days, `min_sessions` 1 to 1000; `authorities` lists only `person`,
+    `agent`, `tool` and `import`.
+11. **Records.** This step writes only `consent` records. The `candidate` record's body (`records::candidate_body`) and
+    its reading are here, valid against `curator-record.v1.json` in every status, for step 5's run to write. A call reads
+    at most 5000 records of a kind. New codes beside 11.3's: `CURATOR_INVALID` (input), `CURATOR_PRINCIPAL_UNKNOWN`,
+    `CURATOR_CONFLICT` (retryable) and `CURATOR_FAILED` (a store failure).
+12. **Tests, and the proof against knowledge.** The curator crate depends on no plugin crate, so its `draft.rs` re-derives
+    every row of 3.2 from the store's records beside the curator's own drafting, byte for byte. The strongest check is
+    in `first-party/tests/curator_drafts.rs`: the curator's own `evaluate` and `draft` code drafts from records the store
+    holds, and a pipeline step the host attests to the instance `curator` submits them to the real
+    `knowledge-propose-batch`. A scheduled draft, both alternatives of a conflict set and a promotion of the caller's own
+    record are stored, a rerun returns them (`created: false`), and the same draft with its copied authority changed, or
+    the promotion claiming `scheduled`, is `PROPOSAL_DRAFT_MISMATCH` (`copied-authority`, `mode`). The pipeline belongs to
+    a stand-in with the plugin id `curator` until step 5 ships `curator-run`. `umbel-first-party` takes the curator as a
+    dev-dependency only; step 7 links it into the binary.
 
 ## 16. For the owner
 

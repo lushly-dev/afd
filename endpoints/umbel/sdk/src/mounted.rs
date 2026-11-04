@@ -304,6 +304,7 @@ impl<P: Plugin> CommandHandler for Handler<P> {
             interface: "mcp".to_owned(),
             // A mounted server is outside the host, which attests nothing to it.
             pipeline: None,
+            person: false,
         };
         let services = Services {
             shared: Arc::clone(&self.shared),
