@@ -82,8 +82,14 @@
     written and version 1 read and kept, the knowledge manifest at version 4, the digest set of 11.2, and
     `knowledge-proposal-preview` declared as `confirm_preview` by approve and reject; its
     [amendments](#amendments-from-step-3a) settle eleven details, fix one fault in step 1's schema, and change no
-    trust-model point.
-- **Not done:** steps 3b to 7 of section [15](#15-implementation-plan); step 3b (knowledge: the drafted path) is
+    trust-model point. Merged in [#754](https://github.com/lushly-dev/afd/pull/754) as `37af26c9`.
+  - Step 3b (knowledge: the drafted path), 2026-11-03, in its pull request, from `37af26c9`: `drafters`,
+    `knowledge-propose-batch` and `knowledge-proposal-feed` on the host's attestation, `PROPOSAL_ALREADY_OPEN`,
+    a drafter's withdrawal and redaction with the checkpoint's state carried through a new `truncate_wal` host
+    service; a listed drafter's memory claims refused until step 3c (`PROPOSAL_DRAFT_UNVERIFIABLE`). Its
+    [amendments](#amendments-from-step-3b) settle eleven details and change no trust-model point; two questions
+    for the owner are recorded in STATUS.md.
+- **Not done:** steps 3c to 7 of section [15](#15-implementation-plan); step 3c (knowledge: verifying drafts) is
   next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
@@ -838,6 +844,7 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `PROPOSAL_DRAFTER_NOT_ALLOWED` | An attested submission from an instance not in `drafters` | No |
 | `PROPOSAL_EVIDENCE_INVALID` (extended) | Memory evidence, memory `derivedFrom`, a `conflictSet` or a withdrawal without an accepted attestation | No |
 | `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2); `details.check` names the check | No |
+| `PROPOSAL_DRAFT_UNVERIFIABLE` | A listed drafter's claim this instance cannot yet verify (step 3b, amendment 1); `details.claim` names it | No |
 | `PROPOSAL_ALREADY_OPEN` | A drafted proposal for a document or source that has an open proposal | No |
 | `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals, 50 withdrawals or 400 cited sources | No |
 | `PROPOSAL_ACCESS_WIDENED` | Approve's re-check of 5.1 fails | No |
@@ -845,6 +852,7 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation | No |
 | `CONFIRMATION_PREVIEW_FAILED` | The preview failed; nothing ran | No |
 | `CURATOR_CANDIDATES_SKIPPED` (warning) | A run skipped candidates; details hold counts by reason | |
+| `PROPOSAL_REDACTION_PENDING` (warning) | A redaction's checkpoint found a reader holding the write-ahead log (step 3b, amendment 8) | |
 
 ## 12. Security
 
@@ -1170,6 +1178,115 @@ schema. None changes who may draft, verify, approve or read anything, or what th
     library embedder can (D14). So the preview, show, list and the digest set are tested on them before step 3b's
     batch writes them. Approve's re-checks of a drafted proposal (8.2) and `agent-inferred` for its document stay
     steps 3b and 3c's.
+
+### Amendments from step 3b
+
+Step 3b settled these details of sections 2.1, 3.1, 3.2, 7.1, 8.2, 9.1, 11.2 and 11.3 that the text left open.
+None lets a non-drafter submit drafted proposals, weakens the attestation or leaves more forgotten text readable
+than the text alone; the first holds owner decision 10 in place until step 3c can verify, and the sixth removes
+more than 9.1 lists. Two questions this step found are for the owner and are not amended here: they are under
+"Waiting on the owner" in [STATUS.md](../../STATUS.md#phase-4-curator).
+
+1. **A listed drafter's memory claims are refused until step 3c verifies them.** Owner decision 10 is attest
+   *and verify*, and the checks of 3.2 that read the memory store and `umbel_okf::draft` are step 3c's. So in
+   step 3b `knowledge-propose-batch` refuses, from an attested, listed drafter, every claim 3.2 would verify
+   that way, item by item, with a new code, **`PROPOSAL_DRAFT_UNVERIFIABLE`** (not retryable), whose
+   `details.claim` names the claim and never the content:
+   - `memory-evidence`: a `memory` evidence entry;
+   - `derived-from`: a `derivedFrom` (which 2.1 makes memory only);
+   - `candidate`: `drafter.candidate` (its derivation needs the sources);
+   - `promotion`: `mode = "promoted"` or a `promotedBy` (the widening check needs the sources);
+   - `conflict-set`: a `conflictSet` (its consistency check reads the sources' subject keys);
+   - `content`: a `create` or `update` (3.2's content row compares it byte for byte with the fixed rendering).
+
+   What a listed drafter can store in step 3b is therefore a `verify` or `deprecate` draft citing `document`,
+   `url`, `text` or `record` evidence, with `mode = "scheduled"`, which this plugin computes (nothing is
+   widened) rather than takes on trust. `PROPOSAL_EVIDENCE_INVALID` and `PROPOSAL_DRAFT_MISMATCH` did not fit:
+   the first means "no accepted attestation", and the second that a check ran and failed. The preview labels a
+   draft that cites no memory record "Drafter, checked at submission: it cites no memory record, so it widens
+   no one's readers", never "verified against memory at submission". So no proposal carrying that label can
+   be stored before the verification exists. Step 3c lifts each refusal as its check lands, and settles
+   whether the code stays for an instance whose `memory` grant is withheld. `drafted.rs`
+   (`a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified`) holds each claim refused and
+   nothing stored.
+2. **The batch's shapes.** An item is `knowledge-propose`'s input without `space`, plus `drafter: { mode?,
+   candidate?, promotedBy? }` (the claims only: `plugin`, `instance`, `pipeline` and `run` come from the
+   attestation and are never input), `conflictSet` and `derivedFrom`; an evidence entry may have 2.1's
+   memory shape. AFD's schema subset has no `pattern` or `oneOf`, so the host's schema checks types, enums
+   and lengths, and the handler the rest. The lists carry no `maxItems`, so the caps answer
+   `PROPOSAL_BATCH_TOO_LARGE` rather than `VALIDATION_ERROR`; the 400 counts distinct memory record ids
+   across the batch, before any item, whoever calls. The result is `{ space, drafter, results, withdrawals,
+   counts, checkpoint }`: `drafter` the attestation or `null`; `results[i]` `{ index, ok: true, created,
+   rev?, proposal }` (the summary) or `{ index, ok: false, error }`; `withdrawals[i]` `{ index, ok: true,
+   withdrawn, redacted, proposal }` or `{ index, ok: false, proposal: <id>, error }`; `counts` `{ created,
+   existing, refused, withdrawn, redacted, withdrawalsRefused }`. Only `PROPOSAL_DRAFTER_NOT_ALLOWED`,
+   `PROPOSAL_BATCH_TOO_LARGE` and a missing space refuse the whole call. Without an attestation, a non-null
+   `drafter`, `conflictSet` or `derivedFrom`, a memory entry, or any withdrawal is `PROPOSAL_EVIDENCE_INVALID`
+   for its item. 3.1's `finish` step reads `$steps.submit.results`; step 5 also passes
+   `$steps.submit.withdrawals` and `$steps.submit.checkpoint`.
+3. **Withdrawals run first**, then the proposals, so a run that withdraws a stale draft and submits its
+   replacement for the same document (7.3's recovery) is not refused as already open.
+4. **`PROPOSAL_ALREADY_OPEN`.** "Open" is `pending` or `approved` (an apply that stopped). The caller's
+   readable proposals are read once per attested batch and the set is kept up to date as items are stored,
+   so a batch's second draft for a document is refused. The idempotent retry is checked first, so a rerun
+   gets its own existing proposal back (`created: false`). Members of one conflict set do not block each
+   other on their shared document (3.2's conflict-set row; step 3c passes the set). An ordinary batch and
+   `knowledge-propose` are not held to it, as phase 2 allows several proposals per document. The
+   memory-source half is in place and is first exercised in step 3c, since no draft cites memory before it.
+5. **A retry repeats the drafter's claims.** The same key with the same change hash returns the existing
+   proposal only when its drafter's `plugin`, `instance`, `pipeline`, `mode`, `candidate` and `promotedBy`
+   and its conflict set are the ones asked for, and drafted and undrafted never match; anything else is
+   `PROPOSAL_KEY_REUSED`. The `run` is not compared, since a later run renders the same draft (7.3).
+6. **What a redaction removes, beyond 9.1's list.** Also the rationale, replaced by a fixed sentence (a
+   drafter's rationale is its own text, which 3.2 bounds only by its counts); every evidence `excerpt`, not
+   only memory entries'; a verify's `verification.note`; and `derivedFrom` in the stored record's envelope as
+   well as the body's. The id, the document id, the idempotency key, `flags` and `confidence` stay.
+7. **Who withdraws and redacts, and in which states.** A drafter's withdrawal needs the proposal's `drafter`
+   to name the attested plugin and instance and its proposer to be the batch's caller, since a run re-checks
+   only its caller's open drafts; otherwise `PROPOSAL_NOT_PROPOSER`. Its reasons are `source-erased`,
+   `source-changed` and `superseded-alternative` (the schema refuses `retracted`), and `redact: true` goes
+   exactly with `source-erased` (`PROPOSAL_INVALID` otherwise), as `redacted.reason` is always
+   `source-erased`. A `pending` draft is withdrawn, and redacted with it. One the drafter already withdrew
+   for another reason is redacted in place, its reason becoming `source-erased` and its `at` kept, as
+   `proposal.v2.json` requires of a redacted record; this is 9.1's "the next run redacts it if the feed
+   shows `Erased`". A redacted one is left as it is (idempotent: `withdrawn` and `redacted` false, no write,
+   no checkpoint), as is one already withdrawn when no redaction is asked. A draft its proposer withdrew
+   (`retracted`), and an approved, applied or rejected one, is `PROPOSAL_STATE_INVALID`: the schema admits a
+   redaction only beside a drafter's withdrawal, and 9.1 never retracts an applied proposal.
+8. **The checkpoint's state, carried through (step 2's amendment 9).** A new host service,
+   `HostServices::truncate_wal` (SDK `Cx::truncate_wal`, answering `WalCheckpoint::Clean` or `Pending`), runs
+   step 2's `SqliteStore::truncate_wal` under the rules of `checkpoint` (a write grant allowed for the space,
+   in one of the call's spaces). It is compiled-only, as `CallContext.pipeline` is; WIT world 1.0.0 is
+   unchanged. After a batch that redacted anything, the plugin runs it once and reports `checkpoint: "clean"`
+   or `"pending"` (`null` when nothing was redacted; an error reads as `pending`). `pending` adds the warning
+   **`PROPOSAL_REDACTION_PENDING`**, which suggests `store-check`, whose checkpoint finishes it, as does a
+   later write's best-effort checkpoint. A pipeline with `result = "last"` returns only the last step's data
+   (step 2's amendment 5), so a step's warnings do not reach the pipeline's result; the batch's `checkpoint`
+   field is what reaches `curator-finish`, and the step's digest journal entry keeps the warning's code.
+   Step 5 surfaces it in the run's answer.
+9. **The feed.** Its input is `{ space, after }`, `after` a required integer. A call without an attestation,
+   or with one of an unlisted instance, is `PROPOSAL_DRAFTER_NOT_ALLOWED` (11.3 names it for submissions; 11.2
+   says the feed refuses such a call). It reads the store's change log after `after` under the caller's
+   reader filter, in pages of 500 and at most 5000 changes per call, and reports each readable proposal of
+   this instance whose `drafter` names the attested plugin and instance, whose proposer is the caller, and
+   which is `rejected` or `applied` at a revision after `after`, once per call, in revision order: `{
+   proposal, state, doc, candidate, conflictSet, rev, decidedAt, decidedBy, channel }`, with `reason` for a
+   rejection and `contentHash` for an apply. A withdrawal is not a decision and is not reported. `next` is the
+   last revision read, for `feedAfter`; `more` says the bound stopped it. A rejection's reason is an
+   approver's text, so the data carries `trust: "content"`, as the result's metadata does. Its journal keeps
+   `space` and `after`; the batch's keeps `space`.
+10. **Drafted proposals are `agent-inferred`**, in the body's provenance, the stored record's envelope and the
+    document an approval writes, whoever ran the pipeline (8.2). Approve's authorship rule for a draft, which
+    compares the approver with every source's principal read from the memory store and with `promotedBy`,
+    comes with step 3c's `memory` grant, as do 8.2's re-checks. Until then a draft keeps phase 2's rule: the
+    runner approving it is self-approval. That is stricter than 8.2, under which a `verify` or `deprecate`
+    draft needs no exception, and never looser.
+11. **Test support.** `plugins/knowledge/tests/support/drafter.rs` holds two stand-in drafters, `curator`
+    (listed) and `scribe` (not): compiled plugins whose pipelines' only steps are the batch and the feed, so
+    the host attests them as it will the curator's. `umbel-store-embedded`'s `testkit` feature gains
+    `SqliteStore::hold_reader`, a reader holding the write-ahead log, so `redaction.rs` sees `pending` without
+    linking SQLite into the plugin's tests; the knowledge crate's dev-dependency enables that feature, and no
+    crate is added.
 
 ## 16. For the owner
 
