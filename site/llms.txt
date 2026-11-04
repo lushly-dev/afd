@@ -65,7 +65,7 @@ Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quicks
 
 ## For coding agents
 
-The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient, afd-contracts. Add one to a project with:
+The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient. Add one to a project with:
 
 ```bash
 npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd

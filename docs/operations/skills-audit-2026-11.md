@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: research and audit complete; owner decisions recorded 2026-11-03 (see the end); Batch 0 in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batch 0 merged in #755; Batch 1 in progress.
 
 ## Summary
 
@@ -175,7 +175,10 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 **Batch 1: removals (AFD and Botcore).**
 - Delete the 36 generic Botcore skills, the commit chain, canonical `release` and `spec-writer`. Also delete AFD's `afd-contracts`, `run-dev-checks`, and the stale `integrate-llms` and `humanize-content` overrides.
 - Move the few salvaged lines to the files that own their topics.
-- Update `skills/exports.json` and lower `listingBudget`, then `botcore.toml`, the Botcore README, the package smoke test's skill count, and the provenance rows.
+- Update `skills/exports.json` and lower `listingBudget`, then the Botcore README, the package smoke test's skill count, and the provenance rows.
+- Retire, don't just delete. `RETIRED_SKILLS` lists the removed skills under their current and earlier names, and rename entries whose target was retired are dropped.
+  - `skill-seed` removes botcore-managed copies in consuming repositories, unless `[skills]` include/skip keeps seed away from the name. It reports the copies it keeps.
+  - `skill-status` reports them as `retired`.
 - Edit `do-prepare-pr`'s commit step.
 - Most of this is mechanical; the biggest effect is on the listing.
 
@@ -194,6 +197,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
   - Warn on bodies over 500 lines.
   - Accept current Claude Code fields.
   - Add a listing-budget rule for consuming repositories such as Lushly.
+- Record the merged skills (`review`, `docs-update`, `content-humanizer`) as renames to their merge targets, so seeding migrates them.
 - Move Botcore's tracking fields (`source`, `version`, `portable`) under the standard `metadata:` map.
   - `skill-seed`, `skill-adopt`, `skill-status` and `skill-list` read them there, falling back to the top level for older copies.
   - This is what lets seeding keep working with runtime-clean frontmatter.

@@ -35,7 +35,7 @@ Review code changes with structured feedback. Two modes based on argument.
 
 ## Self-Review Mode
 
-Review your own changes before committing. A natural precursor to `commit`.
+Review your own changes before committing.
 
 ### Step 1: Gather Changes
 
@@ -85,7 +85,7 @@ Format:
 - [PRAISE] file.ts:80 — What's good about it
 ```
 
-If no blockers found, indicate the changes are ready for `commit`.
+If no blockers found, indicate the changes are ready to commit.
 
 ## PR Review Mode
 

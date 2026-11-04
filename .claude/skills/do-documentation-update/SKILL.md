@@ -22,7 +22,7 @@ user-invocable: true
 
 Run a documentation update pass — CHANGELOG, AGENTS.md, README.md, skill files.
 
-This skill is standalone. Invoke it directly whenever code changes need documentation, not only as part of `do-commit`. Agents should run this after any feature, fix, refactor, or structural change.
+This skill is standalone. Invoke it directly whenever code changes need documentation, not only when committing. Agents should run this after any feature, fix, refactor, or structural change.
 
 ## Bot Commands
 
@@ -77,7 +77,7 @@ Each implementation has its own release version and changelog. The root `CHANGEL
 
 The private root `package.json` version is not the TypeScript distribution version. Do not use it for README badges, package releases, or changelog headings. Follow `do-release` for the track-specific version, tag and publication steps.
 
-For dependency upgrades, use the `manage-dependencies` skill: review release notes across the upgrade, classify production/dev/optional dependencies, update the relevant manifests and lockfiles, and run the affected security and compatibility checks. Keep unrelated major upgrades separate. A dependency-only change does not automatically require a product version bump; use the affected package's release path when its published files or runtime behavior change.
+For dependency upgrades, review release notes across the upgrade, classify production/dev/optional dependencies, update the relevant manifests and lockfiles, and run the affected security and compatibility checks. Keep unrelated major upgrades separate. A dependency-only change does not automatically require a product version bump; use the affected package's release path when its published files or runtime behavior change.
 
 **Every user-visible change gets a changelog entry.** This is the most commonly skipped step — do not skip it.
 

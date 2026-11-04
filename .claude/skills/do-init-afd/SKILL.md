@@ -184,5 +184,5 @@ AFD session ready:
 
 ## Workflow chain
 
-`do-init-afd` → build (gates per `run-dev-checks`) → `do-prepare-pr` →
+`do-init-afd` → build (gates per AGENTS.md) → `do-prepare-pr` →
 `do-end-session`.

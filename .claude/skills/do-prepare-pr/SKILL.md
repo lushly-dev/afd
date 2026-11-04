@@ -97,7 +97,7 @@ landed (do not open a duplicate PR).
      that skill in the same PR.
    - **Package READMEs** for new or changed public surface.
 
-4. **Commit.** Run `do-commit` (it delegates to `write-commits`). commitlint
+4. **Commit.** Commit with a message that explains why. commitlint
    enforces Conventional Commits: the scope must come from `scope-enum` in
    `commitlint.config.js` (`core`, `server`, `python`, `rust`, `alfred`, …) or be
    omitted for cross-cutting work, and the subject is at most 72 characters. Stage
@@ -208,5 +208,5 @@ evidence for the exact unchanged diff and base. Otherwise run Full.
 
 `do-init-afd` → build → `do-prepare-pr` → `do-end-session`.
 
-Standalone phases: `do-review` (review only), `do-commit` (commit only), `do-pr`
-(PR mechanics only), `do-release` (versioning and publish, after merge).
+Standalone phases: `do-review` (review only) and `do-release` (versioning and
+publish, after merge).

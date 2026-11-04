@@ -119,14 +119,8 @@ IMPORT_REASONS = {
     "src/botcore/skills/plugin-builder/references/server-factory.md": (
         "Document the run input guard and the shared output budget"
     ),
-    "src/botcore/skills/systems-architect/references/agent-maintainable-design.md": (
-        "Ground the file-length target in cohesion rather than context-window size"
-    ),
     "src/botcore/skills/skill-manager/SKILL.md": (
         "Rewrite skill authoring for current models; drop legacy references and trigger lists"
-    ),
-    "src/botcore/skills/dev-checks/references/troubleshooting.md": (
-        "State the configured file-size thresholds instead of a 300-line target"
     ),
     "src/botcore/skills/mcp-builder/SKILL.md": (
         "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
@@ -137,6 +131,18 @@ IMPORT_REASONS = {
     "src/botcore/skills/mcp-builder/references/troubleshooting.md": (
         "Describe schema failures model-neutrally; re-test before adding the execute fallback"
     ),
+    "README.md": ("List the bundled skills that remain after the generic ones were retired"),
+    "src/botcore/commands/skill/renames.py": (
+        "Add the retired-skill list; drop renames whose target was retired"
+    ),
+    "src/botcore/commands/skill/seed.py": (
+        "Remove managed copies of retired skills; report copies seed must keep"
+    ),
+    "src/botcore/commands/skill/status.py": ("Report local copies of retired skills as retired"),
+    "tests/test_skill_seed.py": ("Cover retired-skill removal, reporting and include/skip"),
+    "tests/test_skill_status.py": ("Cover the retired skill status"),
+    "src/botcore/skills/review/SKILL.md": ("Drop the pointer to the retired commit skill"),
+    "src/botcore/skills/docs-update/SKILL.md": ("Drop the pointer to the retired commit skill"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),

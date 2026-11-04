@@ -8,7 +8,7 @@ This file provides guidance to AI coding agents working with code in this reposi
 
 For development-agent model and effort choices, see
 [model routing](docs/operations/model-routing.md). Keep that routing separate
-from application LLM selection in `integrate-llms`.
+from the models an application built with AFD selects.
 
 ## Commands
 
@@ -95,7 +95,7 @@ endpoints/loam/             # AFD Loam — application shell; private, quarantin
 
 **Verify locally, not on remote CI.** A local run is the faster loop (every workflow uses standard GitHub-hosted runners, which are free for this public repository, so speed is the reason, not billing), so the dev loop runs on this machine: `pnpm verify` runs `pnpm check` and then, for each path-filtered workflow the change triggers (read from its `pull_request.paths` and `Affected units` gates), the same suites locally (`scripts/affected/suites.mjs`; it needs Chromium, `uv`, `cargo` or `cmake` as the plan requires). Pass it before pushing, so remote CI confirms a green result instead of finding failures one push at a time. It prints what stays remote-only: other operating systems, Node and Python versions, Firefox and WebKit, sanitizers. Each pull-request workflow cancels its run when a newer push supersedes it, and `ci.yml` tests only the `.nvmrc` Node version on pull requests and pushes; its daily and manual runs add Node 22 and 24.
 
-**Only affected packages are built and tested.** `scripts/affected.mjs` diffs against the merge base with `origin/main` (`AFD_BASE` in CI) and selects the packages owning changed files, their dependents, and, for `pnpm-lock.yaml`, the importers whose resolved dependencies changed; builds add the scope's dependencies. Root manifests and configs (`package.json`, `tsconfig.json`, `pnpm-workspace.yaml`, `.nvmrc`, `lefthook.yml`, `ci.yml`), lockfile settings or root-importer changes, and the scope scripts (not the local suite list, `suites.mjs`) select the whole workspace. A Violet-only change builds and tests only Violet. Lint and the repository-wide checks always run whole. A package test that reads a file outside its package must be declared in `EXTRA_INPUTS` (`scripts/affected/scope.mjs`). See the [run-dev-checks skill](.claude/skills/run-dev-checks/).
+**Only affected packages are built and tested.** `scripts/affected.mjs` diffs against the merge base with `origin/main` (`AFD_BASE` in CI) and selects the packages owning changed files, their dependents, and, for `pnpm-lock.yaml`, the importers whose resolved dependencies changed; builds add the scope's dependencies. Root manifests and configs (`package.json`, `tsconfig.json`, `pnpm-workspace.yaml`, `.nvmrc`, `lefthook.yml`, `ci.yml`), lockfile settings or root-importer changes, and the scope scripts (not the local suite list, `suites.mjs`) select the whole workspace. A Violet-only change builds and tests only Violet. Lint and the repository-wide checks always run whole. A package test that reads a file outside its package must be declared in `EXTRA_INPUTS` (`scripts/affected/scope.mjs`).
 
 Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred, Health (`endpoints/health/`), Umbel (`endpoints/umbel/`), Specimen's Chromium suite (`pnpm check` runs only its browser-free subset), FAST-AF's browser suites (`pnpm check` builds both packages and runs only fast-element's browser-free test), the Health dashboard's Chromium suite (`pnpm check` builds it and runs its browser-free units), Loam's Chromium suite, theme check and token-only lint (`pnpm check` builds the packages and runs their browser-free units), Loam's mounted suite (`test:mounted`, which also needs the Rust toolchain and Umbel) or Violet's store suites, upstream lint and consumers (`pnpm check` builds the five Violet packages and runs their store-free suites). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
 
@@ -160,10 +160,8 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | [afd-cpp](.claude/skills/afd-cpp/) | C++ implementation patterns (afd-cpp), embedding constraints, host integrations |
 | [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
-| [afd-contracts](.claude/skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
 | [optimistic-mutations](.claude/skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
 | [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
-| [run-dev-checks](.claude/skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
 | [do-init-afd](.claude/skills/do-init-afd/) | Session start: preflight, refresh base, adopt task, report state |
 | [do-prepare-pr](.claude/skills/do-prepare-pr/) | Ship: base sync, independent review, docs/changeset, gates, PR, authorized merge |
 | [do-end-session](.claude/skills/do-end-session/) | Session close: verify landing, file findings, capture knowledge, archive report |

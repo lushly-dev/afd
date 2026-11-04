@@ -11,7 +11,12 @@ from botcore.commands.skill._discovery import (
     discover_local_skills,
     filter_skills,
 )
-from botcore.commands.skill.renames import locally_owned_rename_suggestion, resolve_rename
+from botcore.commands.skill.renames import (
+    RETIRED_SKILLS,
+    locally_owned_rename_suggestion,
+    resolve_rename,
+    retired_suggestion,
+)
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
 
@@ -28,6 +33,7 @@ async def skill_status(
     - missing: source skill not installed locally
     - conflict: local skill has a different source: than expected
     - renamed: local skill uses a retired name; see renamed_to and suggestion
+    - retired: botcore no longer ships the local skill; see suggestion
     """
     ws = find_workspace()
     if not ws:
@@ -148,6 +154,26 @@ async def skill_status(
                 }
             )
             continue
+        if dir_name in RETIRED_SKILLS and dir_name not in available:
+            owner = local_manifest.source if local_manifest else None
+            statuses.append(
+                {
+                    "name": dir_name,
+                    "source": owner,
+                    "source_version": None,
+                    "local_version": local_manifest.version if local_manifest else None,
+                    "status": "retired",
+                    "suggestion": retired_suggestion(
+                        dir_name,
+                        config.skills.source_dir,
+                        owner,
+                        filtered=not filter_skills(
+                            {dir_name: None}, config.skills.include, config.skills.skip
+                        ),
+                    ),
+                }
+            )
+            continue
         if name not in available and dir_name not in {s["name"] for s in statuses}:
             statuses.append(
                 {
@@ -161,7 +187,7 @@ async def skill_status(
 
     summary = {
         s: len([x for x in statuses if x["status"] == s])
-        for s in ("ok", "stale", "unmanaged", "missing", "conflict", "renamed")
+        for s in ("ok", "stale", "unmanaged", "missing", "conflict", "renamed", "retired")
     }
 
     return success(data={"skills": statuses, "summary": summary})

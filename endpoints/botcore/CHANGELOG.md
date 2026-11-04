@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: generic skills retired** -- 43 bundled skills whose content was general
+  engineering guidance that current models already know are removed, leaving 12 with
+  botcore- or ecosystem-specific content. The retired set is every `-learn` skill, the
+  commit/PR/hotfix/release/cleanup workflow chain, and api-designer, component-tester,
+  content-designer, dependency-manager, design-implementer, dev-checks,
+  duplication-finder, git-manager, license-auditor, persona-creator, problem-solver,
+  project-manager, prompt-creator, research, spec-writer, storybook-builder,
+  systems-architect and test-writer. `RETIRED_SKILLS` lists them under their current and
+  earlier names. `skill_seed` removes botcore-managed copies, unless `[skills]`
+  include/skip keeps seed away from the name. It reports copies it keeps in
+  `retired_locally_owned`, and `skill_status` reports them as `retired`. Renames whose
+  target was retired are dropped.
 - **skills: skill-manager rewritten for current models** -- the skill now covers what belongs
   in a skill (context an agent can't derive, observed gotchas, repository workflows) and what
   belongs in a hook, script, AGENTS.md or the owning doc instead; descriptions of a sentence
