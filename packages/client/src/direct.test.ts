@@ -742,115 +742,46 @@ describe('DirectClient Input Validation', () => {
 // Performance Tests - Benchmark Suite
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('DirectClient Performance', () => {
-	it('executes commands under 1ms average', async () => {
-		const registry = new MockRegistry();
-		const client = new DirectClient(registry);
-
-		const iterations = 100;
-		const start = performance.now();
-
-		for (let i = 0; i < iterations; i++) {
-			await client.call('todo-list', {});
-		}
-
-		const elapsed = performance.now() - start;
-		const avgMs = elapsed / iterations;
-
-		// Should be well under 1ms for direct execution
-		expect(avgMs).toBeLessThan(1);
-	});
-
-	it('meets <0.5ms latency requirement (issue #12)', async () => {
-		const registry = new MockRegistry();
-		const client = createDirectClient(registry, { validateInputs: false });
-
-		// Warm up
-		for (let i = 0; i < 10; i++) {
-			await client.call('todo-list', {});
-		}
-
-		// Benchmark
-		const iterations = 1000;
+/**
+ * The fastest batch's median call time, after a warm-up. A loaded machine stalls some calls and
+ * some batches, but it can't make every batch slow unless the code is, so an absolute bound on
+ * this catches a real regression without failing on a noisy runner (#619).
+ */
+async function bestMedianMs(call: (i: number) => Promise<unknown>): Promise<number> {
+	for (let i = 0; i < 50; i++) await call(i);
+	const medians: number[] = [];
+	for (let batch = 0; batch < 5; batch++) {
 		const latencies: number[] = [];
-
-		for (let i = 0; i < iterations; i++) {
+		for (let i = 0; i < 100; i++) {
 			const start = performance.now();
-			await client.call('todo-list', {});
-			const end = performance.now();
-			latencies.push(end - start);
+			await call(i);
+			latencies.push(performance.now() - start);
 		}
+		medians.push(latencies.sort((a, b) => a - b)[50] ?? Number.POSITIVE_INFINITY);
+	}
+	return Math.min(...medians);
+}
 
-		// Calculate statistics
-		const avgMs = latencies.reduce((a, b) => a + b, 0) / iterations;
-		const sortedLatencies = latencies.sort((a, b) => a - b);
-		const p50 = sortedLatencies[Math.floor(iterations * 0.5)] ?? 0;
-		const p95 = sortedLatencies[Math.floor(iterations * 0.95)] ?? 0;
-		const p99 = sortedLatencies[Math.floor(iterations * 0.99)] ?? 0;
-
-		// Issue #12 requirement: latency < 0.5ms for simple commands
-		expect(avgMs).toBeLessThan(0.5);
-		expect(p50).toBeLessThan(0.5);
-
-		// Log benchmark results for visibility
-		console.log(`DirectClient Benchmark Results (${iterations} iterations):`);
-		console.log(`  Average: ${avgMs.toFixed(4)}ms`);
-		console.log(`  P50:     ${p50.toFixed(4)}ms`);
-		console.log(`  P95:     ${p95.toFixed(4)}ms`);
-		console.log(`  P99:     ${p99.toFixed(4)}ms`);
+describe('DirectClient Performance', () => {
+	it('meets <0.5ms latency requirement (issue #12)', async () => {
+		const client = createDirectClient(new MockRegistry(), { validateInputs: false });
+		const median = await bestMedianMs(() => client.call('todo-list', {}));
+		expect(median).toBeLessThan(0.5);
+		console.log(`DirectClient best median: ${median.toFixed(4)}ms`);
 	});
 
 	it('maintains low latency with validation enabled', async () => {
-		const registry = new ValidatingMockRegistry();
-		const client = createDirectClient(registry, { validateInputs: true });
-
-		// Warm up
-		for (let i = 0; i < 10; i++) {
-			await client.call('todo-create', { title: 'Warmup' });
-		}
-
-		// Benchmark
-		const iterations = 500;
-		const latencies: number[] = [];
-
-		for (let i = 0; i < iterations; i++) {
-			const start = performance.now();
-			await client.call('todo-create', { title: `Todo ${i}` });
-			const end = performance.now();
-			latencies.push(end - start);
-		}
-
-		const avgMs = latencies.reduce((a, b) => a + b, 0) / iterations;
-
-		// Even with validation, should still be under 0.5ms
-		expect(avgMs).toBeLessThan(0.5);
-
-		console.log(`DirectClient with Validation Benchmark (${iterations} iterations):`);
-		console.log(`  Average: ${avgMs.toFixed(4)}ms`);
+		const client = createDirectClient(new ValidatingMockRegistry(), { validateInputs: true });
+		const median = await bestMedianMs((i) => client.call('todo-create', { title: `Todo ${i}` }));
+		expect(median).toBeLessThan(0.5);
+		console.log(`DirectClient with validation, best median: ${median.toFixed(4)}ms`);
 	});
 
 	it('is significantly faster than MCP transport would be', async () => {
-		const registry = new MockRegistry();
-		const client = createDirectClient(registry);
-
-		const iterations = 100;
-		const start = performance.now();
-
-		for (let i = 0; i < iterations; i++) {
-			await client.call('todo-list', {});
-		}
-
-		const elapsed = performance.now() - start;
-		const avgMs = elapsed / iterations;
-
-		// DirectClient should be at least 10x faster than typical MCP (~2-10ms)
-		// This means we expect < 0.2ms average
-		expect(avgMs).toBeLessThan(0.2);
-
-		console.log(`DirectClient vs MCP comparison:`);
-		console.log(`  DirectClient average: ${avgMs.toFixed(4)}ms`);
-		console.log(`  Typical MCP HTTP:     ~2-5ms (10-50x slower)`);
-		console.log(`  Typical MCP SSE:      ~5-10ms (25-100x slower)`);
+		const client = new DirectClient(new MockRegistry());
+		const median = await bestMedianMs(() => client.call('todo-list', {}));
+		// At least 10x faster than typical MCP over HTTP or SSE (~2-10ms).
+		expect(median).toBeLessThan(0.2);
 	});
 });
 

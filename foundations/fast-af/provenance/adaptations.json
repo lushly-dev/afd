@@ -8385,11 +8385,11 @@
       "upstream_sha256": "478f988a68d6c21fff1b41b7a36bdf26d126182f6b47984b4c9ad62d9864404d",
       "staged_path": "packages/violet-elements/src/menu/violet-menu.spec.ts",
       "staged_sha256": "478f988a68d6c21fff1b41b7a36bdf26d126182f6b47984b4c9ad62d9864404d",
-      "current_import_sha256": "478f988a68d6c21fff1b41b7a36bdf26d126182f6b47984b4c9ad62d9864404d",
+      "current_import_sha256": "3f9e29c27911d363e583877db7709b40b26a788790dc342cc335bdd635628244",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Waits for open state and focus instead of a fixed number of frames, asserting the same behavior: open follows the native toggle event, which frames do not order (#505)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu.stories.ts",

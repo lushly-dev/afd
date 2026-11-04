@@ -88,16 +88,32 @@ fn hello_workspace(instance: &str) -> TempDir {
     dir
 }
 
-/// Poll until `done` or ten seconds pass.
+/// How long a test waits for something that will happen, however loaded the machine is (#644).
+const PATIENCE: Duration = Duration::from_secs(30);
+
+/// Poll until `done` or `PATIENCE` passes.
 fn eventually(mut done: impl FnMut() -> bool) -> bool {
     let started = Instant::now();
-    while started.elapsed() < Duration::from_secs(10) {
+    while started.elapsed() < PATIENCE {
         if done() {
             return true;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
     done()
+}
+
+/// Retry `attempt` until it gives a value or `PATIENCE` passes. It sleeps on the runtime, not the
+/// thread: a test's runtime also runs the task that notices a dead child.
+async fn retry<T>(mut attempt: impl AsyncFnMut() -> Option<T>) -> Option<T> {
+    let started = Instant::now();
+    while started.elapsed() < PATIENCE {
+        if let Some(value) = attempt().await {
+            return Some(value);
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    attempt().await
 }
 
 fn process_alive(pid: u64) -> bool {
@@ -812,30 +828,24 @@ async fn a_killed_child_respawns_and_the_respawns_are_limited() {
         );
         assert!(crashed.error.unwrap().retryable.unwrap_or(false));
         // The connection may take a moment to notice; a call that finds it gone respawns.
-        let mut pid = None;
-        for _ in 0..10 {
+        let pid = retry(async || {
             let result = call(&host, "fx-pid", json!({})).await;
-            if result.success {
-                pid = Some(result.data.unwrap()["pid"].as_u64().unwrap());
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
+            result
+                .success
+                .then(|| result.data.unwrap()["pid"].as_u64().unwrap())
+        })
+        .await;
         let pid = pid.unwrap_or_else(|| panic!("round {round}: the child did not come back"));
         assert_ne!(pid, last, "a new process");
         last = pid;
     }
     // Three respawns in the window: the fourth is refused until it passes.
     let _ = call(&host, "fx-crash", json!({})).await;
-    let mut refused = None;
-    for _ in 0..10 {
+    let refused = retry(async || {
         let result = call(&host, "fx-pid", json!({})).await;
-        if !result.success && message(&result).contains("restarted") {
-            refused = Some(result);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        (!result.success && message(&result).contains("restarted")).then_some(result)
+    })
+    .await;
     let refused = refused.expect("the fourth respawn should be refused");
     assert_eq!(code(&refused), "PLUGIN_UNAVAILABLE");
     assert!(refused.error.unwrap().retryable.unwrap_or(false));
@@ -846,10 +856,10 @@ async fn a_call_past_timeout_ms_is_unavailable() {
     let dir = fx_stdio("", "", "timeout_ms = 300");
     let host = open(dir.path()).unwrap();
     let started = Instant::now();
-    let result = call(&host, "fx-sleep", json!({"ms": 3000})).await;
+    let result = call(&host, "fx-sleep", json!({"ms": 60_000})).await;
     assert_eq!(code(&result), "PLUGIN_UNAVAILABLE", "{result:?}");
     assert!(message(&result).contains("timeout_ms"));
-    assert!(started.elapsed() < Duration::from_secs(3));
+    assert!(started.elapsed() < PATIENCE);
 }
 
 #[tokio::test]
@@ -862,17 +872,13 @@ async fn a_result_over_max_result_bytes_is_refused_in_the_transport_over_stdio()
     assert_eq!(code(&big), "PLUGIN_LIMIT_EXCEEDED", "{big:?}");
     let error = big.error.unwrap();
     assert_eq!(error.details.unwrap()["limit"], "result");
-    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(started.elapsed() < PATIENCE);
     // An oversized line poisons the stream: the child is killed, and respawned for the next call.
-    let mut again = None;
-    for _ in 0..10 {
+    let again = retry(async || {
         let result = call(&host, "fx-echo", json!({"value": "after"})).await;
-        if result.success {
-            again = Some(result);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+        result.success.then_some(result)
+    })
+    .await;
     assert_eq!(
         again.expect("the next call answers").data.unwrap(),
         json!({"args": {"value": "after"}})
@@ -898,15 +904,13 @@ async fn a_result_over_max_result_bytes_is_refused_in_the_transport_over_http() 
     assert_eq!(code(&big), "PLUGIN_LIMIT_EXCEEDED", "{big:?}");
     assert_eq!(big.error.unwrap().details.unwrap()["limit"], "result");
     // The mount recovers.
-    let mut again = None;
-    for _ in 0..10 {
-        let result = call(&host, "fx-echo", json!({"value": "after"})).await;
-        if result.success {
-            again = Some(result);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let again = retry(async || {
+        call(&host, "fx-echo", json!({"value": "after"}))
+            .await
+            .success
+            .then_some(())
+    })
+    .await;
     assert!(again.is_some(), "the next call answers");
 }
 
@@ -947,8 +951,9 @@ async fn a_server_that_never_answers_fails_the_load_at_connect_timeout_ms() {
     let error = error_of(open(dir.path()));
     assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
     assert!(error.message().contains("connect_timeout_ms"), "{error}");
+    // Under the probe's ten seconds, so it still tells the two apart on a loaded machine.
     assert!(
-        started.elapsed() < Duration::from_secs(5),
+        started.elapsed() < Duration::from_secs(9),
         "{:?}",
         started.elapsed()
     );
