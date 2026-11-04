@@ -1615,6 +1615,7 @@ follows owner decisions 4 and 8.
 | 2026-11-03 | Edits that need judgment (6.2's reported kinds) | A new owner decision on a model |
 | 2026-11-03 | Exact session counts need session ids the store does not return (4.3) | When it matters |
 | 2026-11-03 | A doctor API for plugins, so `overdue` reaches `workspace-doctor` (7.3) | When a second plugin needs one |
+| 2026-11-03 | A host hook for plugin configuration checks that need the workspace: a knowledge drafter target's collection exists, is markdown and is one the instance may write. Today these fail closed per draft, with `PROPOSAL_DRAFTER_TARGET_INVALID` or `PROPOSAL_APPLY_UNAVAILABLE`, not at load (step 3c, amendment 14). Pair it with the doctor API above | Phase 4 step 5 or 7, before real use |
 | 2026-11-03 | A `MemoryMeta` projection with `contentHash` and `observations`, if `max_gets` proves too small (4.1) | When a deployer asks |
 | 2026-11-03 | A memory retrieval eval before ranking candidates beyond fixed rules | After phase 4 |
 | 2026-11-03 | Phase 3's follow-up on sharing writers closing others' records bears on 9.2's listed invalidations | Owner, before phase 5 |
