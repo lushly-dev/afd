@@ -31,8 +31,14 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
-	/** A replay's recorded actor by trace ID: undefined when the journal has no such entry (10). */
-	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+	/**
+	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
+	 * entry, and `replaying`.
+	 */
+	internals?: {
+		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+		replaying?: boolean;
+	};
 }
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
@@ -211,7 +217,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 */
 		before(call, name) {
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
-			const recorded = deps.actorOf?.(call.traceId);
+			const recorded = deps.internals?.actorOf?.(call.traceId);
 			if (recorded) {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
@@ -230,6 +236,15 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			}
 		},
 		async run(name, input, call, next) {
+			// A replay runs a nested call its journal does not answer, so validation answers as it did live;
+			// a recorded one that gets here stops, before its handler could reach a server (10 and 12).
+			if (deps.internals?.replaying && call.parent !== undefined && call.replay === 'recorded') {
+				return kernelFailure(
+					'REPLAY_NOT_RECORDED',
+					`The journal does not record '${name}' under this call, so the replay does not run it`,
+					'Replay the whole journal the session recorded'
+				);
+			}
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;

@@ -105,9 +105,17 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		// The status values of the call's scope, the active one for a person (phase 2 specification, 7.6).
-		handler: async (input, context) =>
-			apps().detail(input.instance, (context as KernelFieldContext).scope?.project),
+		// The status values of the call's scope, the active one for a person (phase 2 specification, 7.6),
+		// and a disabled instance's `APP_DISABLED` notice, as `app-instance-list` carries it (4.1).
+		handler: async (input, context) => {
+			const found = apps().detail(input.instance, (context as KernelFieldContext).scope?.project);
+			return found.data
+				? {
+						...found,
+						data: { ...found.data, notices: noticesOf(input.instance, found.data.notices) },
+					}
+				: found;
+		},
 	});
 
 	const appOpen = defineCommandWithSchema<
@@ -174,7 +182,7 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		handler: async () =>
+		handler: async (_input, context) =>
 			success({
 				instances: apps()
 					.instances()
@@ -183,14 +191,24 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 						// Disabled: never discovered, so its state stays as discovery left it, and the row says why
 						// (4.1). `AppInstanceV1.state` is version 1's, so this is a notice and not a state.
 						notices: noticesOf(row.instance, row.notices),
-						// A slug no project has yet: the instance is unavailable there until one has it (9.1).
+						// A listed slug of no project the caller may enter (9.1): one that does not exist yet and one
+						// restricted to others look the same, so a non-member learns of no restricted project.
 						warnings: [
 							...row.warnings,
 							...(scope.workspaceApps.get(row.instance)?.projects ?? [])
-								.filter((slug) => !scope.project(slug))
+								.filter((slug) => {
+									const project = scope.project(slug);
+									return (
+										!project ||
+										!scope.allows(scope.actorKey(context), {
+											workspace: scope.workspace.id,
+											project: project.id,
+										})
+									);
+								})
 								.map((slug) => ({
 									code: 'INSTANCE_PROJECT_UNKNOWN',
-									message: `No project has the slug \`${slug}\` yet, so this instance serves none there`,
+									message: `No project you can open has the slug \`${slug}\`, so this instance serves you none there`,
 								})),
 						],
 					})),

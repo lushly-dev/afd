@@ -5,7 +5,7 @@
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import { createAuthMutationCommands } from '@lushly-dev/afd-auth/commands';
-import type { Actor, CommandMiddleware } from '@lushly-dev/afd-core';
+import type { CommandMiddleware } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
@@ -16,7 +16,7 @@ import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createPortRefusals } from './port-refusals.js';
-import { createLateScope } from './scope-change.js';
+import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
@@ -31,8 +31,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		/** The projection's generation this page booted with. */
 		generation(): string;
 		isMutation(name: string): boolean;
-		/** A replay's recorded actor by trace ID (phase 2 specification, 10). */
-		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+		/** What only a replay sets: its recorded actor by trace ID, and `replaying` (phase 2 specification, 10). */
+		internals?: LateScopeDeps['internals'];
 	};
 
 /**

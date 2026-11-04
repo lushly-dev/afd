@@ -4,7 +4,7 @@
  * learns of its scope.
  */
 
-import { decideAccess } from './access.js';
+import { actorKey, decideAccess } from './access.js';
 import { createRecordCache, type RecordCache } from './cache.js';
 import {
 	PROJECT_TABLE,
@@ -40,6 +40,8 @@ export interface ScopeRuntime {
 	project(ref: string): ProjectV1 | undefined;
 	/** `decideAccess`, with the project read from the cache. */
 	allows(actor: string, scope: ScopeV1): boolean;
+	/** The actor `decideAccess` reads from a call's context: its id, or `local`. */
+	actorKey(context: { actor?: { id?: string } }): string;
 	/**
 	 * Whether an app can open in a scope with `project`, or none (phase 2 specification, 7.1 and 9.1): with
 	 * no project, if its levels hold the workspace; in a project, always, by narrowing, unless the instance
@@ -68,6 +70,7 @@ export function createScopeRuntime(workspace: { id: string; name: string }): Sco
 			active = scope;
 		},
 		project,
+		actorKey,
 		allows: (actor, scope) =>
 			decideAccess({
 				actor,

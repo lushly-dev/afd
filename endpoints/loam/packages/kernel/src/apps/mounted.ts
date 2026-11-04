@@ -631,9 +631,9 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		// The effective scope, after the middleware's lines 1 to 6: ids, never a name (9.2).
 		const { scope } = context as KernelFieldContext;
 		const slug = scope?.project && host.scope.projects.get(scope.project)?.slug;
-		// `actorKey`, as `decideAccess` reads the actor; through the runtime, so this chunk imports nothing
-		// of first paint's and the bundler parts its shared chunks as before.
-		const actor = context.actor?.id ?? 'local';
+		// Through the runtime, so this chunk imports nothing of first paint's and the bundler parts its
+		// shared chunks as before.
+		const actor = host.scope.actorKey(context);
 		const refused = unlistedProject(entry, slug, (listed) => {
 			const project = host.scope.projects.all().find((candidate) => candidate.slug === listed);
 			return (

@@ -11,6 +11,7 @@ import {
 	createFixedEnvironment,
 	createFixturePorts,
 	type KernelReplayReport,
+	nestedReplay,
 	replayKernel,
 } from '../testing.js';
 import type {
@@ -1227,6 +1228,7 @@ describe('P2-E6 (kernel unit): a mounted call carries its scope, and stays in it
 			runAs: async () => ({ success: true }),
 			scope: {
 				active: () => ({ workspace: 'personal' }),
+				actorKey: () => 'local',
 				allows: () => true,
 				projects: { get: () => undefined, all: () => [] },
 				workspaceApps: { get: () => undefined },
@@ -1453,12 +1455,28 @@ describe('4.1: a disabled mounted instance is not discovered, and enabling one d
 			message:
 				'The app \'work\' is disabled in this workspace. Enable it with workspace-app-set { instance: "work", enabled: true }.',
 		});
+		// `app-get` carries the same notice, beside `app-list`'s `disabled` (N-A).
+		const detail = await kernel.call<{ notices: Array<{ code: string; message: string }> }>(
+			'app-get',
+			{ instance: 'work' }
+		);
+		expect(detail.data?.notices).toContainEqual(
+			row?.notices.find(({ code }) => code === 'APP_DISABLED')
+		);
+		const listed = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
+			'app-list'
+		);
+		expect(listed.data?.apps.find(({ instance: name }) => name === 'work')?.state).toBe('disabled');
 		// Its commands were never discovered, so none is registered: the registry's own answer.
 		expect((await kernel.call('work-a-read', {})).error?.code).toBe('COMMAND_NOT_FOUND');
 		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
 		const enabled = await instance(kernel);
 		expect(enabled?.state).toBe('ready');
 		expect(enabled?.notices.map(({ code }) => code)).not.toContain('APP_DISABLED');
+		const enabledDetail = await kernel.call<{ notices: Array<{ code: string }> }>('app-get', {
+			instance: 'work',
+		});
+		expect(enabledDetail.data?.notices.map(({ code }) => code)).not.toContain('APP_DISABLED');
 		// Discovered, then disabled: its commands are registered, and the gate answers them (4.1).
 		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
 		expect((await kernel.call('work-a-read', {})).error?.code).toBe('APP_DISABLED');
@@ -1516,17 +1534,130 @@ describe('9.1: INSTANCE_PROJECT_UNKNOWN', () => {
 		expect(await codes()).toEqual([
 			[
 				'INSTANCE_PROJECT_UNKNOWN',
-				'No project has the slug `atlas` yet, so this instance serves none there',
+				'No project you can open has the slug `atlas`, so this instance serves you none there',
 			],
 			[
 				'INSTANCE_PROJECT_UNKNOWN',
-				'No project has the slug `borealis` yet, so this instance serves none there',
+				'No project you can open has the slug `borealis`, so this instance serves you none there',
 			],
 		]);
 		await kernel.call('project-create', { name: 'Atlas' });
 		expect((await codes()).map(([, message]) => message)).toEqual([
-			'No project has the slug `borealis` yet, so this instance serves none there',
+			'No project you can open has the slug `borealis`, so this instance serves you none there',
 		]);
 		await kernel.dispose();
+	});
+});
+
+describe('9.1: INSTANCE_PROJECT_UNKNOWN per caller (the boundary re-check, item 4)', () => {
+	it('warns a non-member of a restricted listed project as of a missing one, and not a member', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({}) }, [
+			work({ projects: ['vault', 'later'] }),
+		]);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		const warned = async () =>
+			((await instance(kernel))?.warnings ?? [])
+				.filter(({ code }) => code === 'INSTANCE_PROJECT_UNKNOWN')
+				.map(({ message }) => message);
+		const missing = (slug: string) =>
+			`No project you can open has the slug \`${slug}\`, so this instance serves you none there`;
+		expect(await warned()).toEqual([missing('later')]);
+		await kernel.call('auth-sign-out');
+		// Vault exists and is restricted to someone else: it reads exactly as a slug no project has.
+		expect(await warned()).toEqual([missing('vault'), missing('later')]);
+		await kernel.dispose();
+	});
+});
+
+describe('10: a replay and a nested call its journal does not hold (the boundary re-check, items 2 and 3)', () => {
+	const recordedEntry = (seq: number, input: unknown, data: unknown): JournalEntry =>
+		({
+			seq,
+			traceId: `t-${seq}`,
+			command: 'work-a-read',
+			input,
+			context: { parent: 'outer-1', instance: 'work', replay: 'recorded' },
+			result: { success: true, data },
+		}) as unknown as JournalEntry;
+
+	it('answers two nested calls a handler made together, recorded in the other order', () => {
+		// The journal gives a call its seq when it finishes, so the second call made can finish first.
+		const nested = nestedReplay([
+			recordedEntry(1, { n: 2 }, 'second'),
+			recordedEntry(2, { n: 1 }, 'first'),
+		]);
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })?.data).toBe('first');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 2 })?.data).toBe('second');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		nested.finish('outer-1');
+		expect([...nested.problems]).toEqual([]);
+	});
+
+	it('refuses a recorded call past validation, and lets validation answer as it did live, with no transport', async () => {
+		const live = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await live.kernel.startInstances();
+		const refresh = (await live.journal.read()).find(
+			({ command }) => command === 'app-instance-refresh'
+		);
+		expect(refresh).toBeDefined();
+		const { catalog } = (refresh as JournalEntry).result.data as { catalog: unknown };
+		await live.kernel.dispose();
+		let made = 0;
+		const parts = await createKernelParts(
+			{
+				store: new MemoryAdapter(),
+				storeKind: 'memory',
+				journal: new MemoryJournalSink(),
+				auth: new MockAuthAdapter(),
+				environment: createFixedEnvironment(),
+				host: 'test',
+				deployment: live.deployment,
+				ports: {
+					...createFixturePorts(live.packages),
+					async mountTransport() {
+						made++;
+						return fakeTransport({ 'a-read': { mutation: false } });
+					},
+				},
+			},
+			{ replaying: true }
+		);
+		parts.applyCatalog('work', catalog);
+		const nestedIn = (traceId: string) =>
+			({
+				traceId,
+				parent: 'outer-1',
+				app: 'umbel',
+				instance: 'work',
+				replay: 'recorded',
+			}) as never;
+		// What the registry refuses before the middleware answers the same as live: never journaled.
+		const invalid = await parts.registries.palette.execute(
+			'work-a-read',
+			'not an object',
+			nestedIn('t-1')
+		);
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+		const call = await parts.registries.palette.execute('work-a-read', {}, nestedIn('t-2'));
+		expect(call.error).toMatchObject({
+			code: 'REPLAY_NOT_RECORDED',
+			suggestion: 'Replay the whole journal the session recorded',
+		});
+		const discovery = await parts.registries.palette.execute(
+			'app-instance-refresh',
+			{ instance: 'work' },
+			nestedIn('t-3')
+		);
+		expect(discovery.error?.code).toBe('REPLAY_NOT_RECORDED');
+		expect(made).toBe(0);
+		await parts.kernel.dispose();
 	});
 });

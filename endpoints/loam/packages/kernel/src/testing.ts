@@ -23,7 +23,7 @@ import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { BOOT_ONLY } from './commands.js';
-import { kernelFailure, LoamKernelError, PAGE_DECIDED } from './errors.js';
+import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { CALL_MARK } from './scope/runtime.js';
@@ -176,7 +176,8 @@ function sameCall(recorded: unknown, given: unknown): boolean {
  * A handler's nested calls during a replay: answered from the entries with that `parent`, in order, and
  * what differs from them is kept against the outer call, whose result may not show it.
  */
-function nestedReplay(entries: readonly JournalEntry[]) {
+/** @internal Exported for its unit test alone. */
+export function nestedReplay(entries: readonly JournalEntry[]) {
 	const byParent = new Map<string, JournalEntry[]>();
 	for (const entry of entries) {
 		const parent = entry.context?.parent;
@@ -186,26 +187,17 @@ function nestedReplay(entries: readonly JournalEntry[]) {
 	const problems = new Map<string, string>();
 	return {
 		problems,
-		answer(
-			parent: string,
-			name: string,
-			input: unknown,
-			recorded: boolean
-		): CommandResult | undefined {
-			const queue = byParent.get(parent);
-			const next = queue?.[0];
-			if (next?.command === name && sameCall(next.input, input)) {
-				queue?.shift();
-				return next.result;
-			}
-			if (!recorded) return undefined;
-			// A recorded call never runs in a replay, whatever ports it was given: it would reach a server.
-			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
-			return kernelFailure(
-				'REPLAY_NOT_RECORDED',
-				`The journal does not record '${name}' under this call, so the replay does not run it`,
-				'Replay the whole journal the session recorded'
-			);
+		/**
+		 * The first entry under `parent` with this name and input, not only the queue's head: the journal
+		 * gives a call its `seq` when it finishes, so two calls a handler made together can be recorded in
+		 * the other order. Undefined runs the call, as `KernelPartsInternals.answerNested` says.
+		 */
+		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
+			const queue = byParent.get(parent) ?? [];
+			const at = queue.findIndex((entry) => entry.command === name && sameCall(entry.input, input));
+			if (at < 0) return undefined;
+			const [entry] = queue.splice(at, 1);
+			return entry?.result;
 		},
 		unrecorded(parent: string, name: string): void {
 			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
@@ -321,8 +313,7 @@ export async function replayKernel(
 			...(options.ports !== undefined ? { ports: options.ports } : {}),
 		},
 		{
-			answerNested: (parent, name, input, owned) =>
-				nested.answer(parent, name, input, owned.replay === 'recorded'),
+			answerNested: (parent, name, input) => nested.answer(parent, name, input),
 			nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 			replaying: true,
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
