@@ -9,7 +9,7 @@ pnpm changeset
 ```
 
 This creates a changeset file describing the change and its semver impact.
-The Release workflow runs `pnpm check` before Changesets can act. At release time,
+The Release workflow runs `pnpm check:all` before an approved publication (`ci.yml` gates every change before that). At release time,
 `pnpm version-packages` selects complete admitted units, consumes only their
 compatible fragments, and updates their manifests/changelogs in a disposable
 workspace. The reviewed release PR records `.release/npm-intent.json`; guarded

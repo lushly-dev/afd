@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 2b merged in #755, #757, #761 and #774; Batch 3 in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 3 merged in #755, #757, #761, #774 and #776; Batch 4 in progress.
 
 ## Summary
 

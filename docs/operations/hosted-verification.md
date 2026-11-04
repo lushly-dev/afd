@@ -9,8 +9,44 @@ prove registry installation. Verify published artifacts in separate fresh consum
 
 The next execution is planned in [the hosted verification round](hosted-verification-round.md),
 including proposed services, local preparation, cost controls and closure gates.
-The repeatable package/dependency update process lives in
-[the release skill](../../.claude/skills/do-release/references/next-round.md).
+The repeatable package and dependency update process is
+[below](#updating-sdks-and-dependencies); releases follow
+[the release skill](../../.claude/skills/do-release/SKILL.md).
+
+## Updating SDKs and dependencies
+
+1. Refresh `origin/main`, use a clean owned worktree and record the base SHA.
+2. Classify the diff: fixture, docs or tooling only; a dependency update; or
+   published API or runtime behaviour. These fixtures are development
+   infrastructure excluded from registry payloads, so changing only them needs
+   no SDK release.
+3. Keep the installed dependency versions while establishing hosted behaviour.
+   A dependency upgrade is a separate candidate with its own regression evidence.
+4. File or reuse an issue for any reproduced SDK defect, and give each
+   implementation lane named ownership. Integrate the fixes and independently
+   review the full final diff. A fixture workaround is not an SDK repair.
+
+A documentation or package-description correction that changes no API, runtime
+or dependency is recorded in source without a standalone SDK release; it reaches
+the registries with the next planned release. Never claim an already published
+artifact was replaced.
+
+When updating a dependency:
+
+- Before choosing a version, read the vendor's migration notes, peer
+  constraints, advisories and supported runtimes.
+- Use a filtered update, keep the pinned pnpm and runtime, and review the
+  manifest and lockfile diff. Never run a repository-wide `--latest` upgrade as
+  part of a verification run; private fixtures have locked dependencies too.
+- Preserve optional-peer declarations and workspace ranges. Keep application SDK
+  versions distinct from a provider's administrative CLI version: if the pinned
+  Convex CLI lacks a provisioning command, use its supported dashboard or setup
+  path, or a separately pinned administration tool, rather than silently
+  upgrading the SDK under test.
+- Run `pnpm test:hosted:local` and `pnpm verify`, and record the resolved
+  versions again in the hosted receipt.
+- Decide on a release from the change's effect on the published package; a
+  dependency-only change doesn't bump every language.
 
 ## Credential-free local gate
 

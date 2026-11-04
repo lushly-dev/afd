@@ -20,7 +20,7 @@ were removed. Final Render billing readback was $0.02 current/projected charges;
 invoicing may lag usage. No paid test resources remain. The remaining sections
 preserve the provisioning recipe and gates for future authorized rounds.
 Use [the existing handoff](hosted-verification.md) for fixture contracts and
-[the package update process](../../.claude/skills/do-release/references/next-round.md)
+[the package update process](hosted-verification.md#updating-sdks-and-dependencies)
 for subsequent SDK/dependency changes.
 
 ## Executed scope
@@ -269,4 +269,5 @@ Keep #362 open until H1, H2 including OAuth, H3, and external cleanup are review
 Do not infer upstream OAuth token rotation, immediate old-Convex-JWT revocation,
 other browser engines, arbitrary third-party-cookie support, simultaneous lock
 acquisition, offline queues or exactly-once writes. No SDK release is needed for
-fixture-only preparation; any discovered SDK repair follows the next-round guide.
+fixture-only preparation; any discovered SDK repair follows
+[the update process](hosted-verification.md#updating-sdks-and-dependencies).

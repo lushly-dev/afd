@@ -3,7 +3,7 @@
 Updated 2026-10-13. npm 2.1.0 and Python 0.9.0 contain the October stabilization
 fixes; see [published receipts](stabilization-release.md). C++ 0.1.0 is now
 published; Rust 0.1.0 is published on crates.io. Both implement contract
-`1.0-rc`.
+`1.0-rc`. Rust 0.2.0 and 0.2.1 and C++ 0.2.0 followed on 2026-10-27; see [later releases](#later-releases).
 
 | Platform | Tracker | Publication status and remaining work |
 |---|---|---|
@@ -49,12 +49,39 @@ The GitHub trusted publisher was created and read back for crate `afd`, owner
 [Tag workflow 38359125471](https://github.com/lushly-dev/afd/actions/runs/38359125471)
 passed its version and Rust gates and correctly skipped the existing 0.1.0 upload.
 That skip verifies the first-release workflow path; a future new version must
-still demonstrate the OIDC exchange and upload. The bootstrap token was removed from local Cargo storage and revoked by the
+still demonstrate the OIDC exchange and upload. Rust 0.2.0 demonstrated it ([later releases](#later-releases)). The bootstrap token was removed from local Cargo storage and revoked by the
 maintainer on crates.io; a refreshed token list confirmed no active API tokens.
 
 The published archive retains the pre-publication README wording from the reviewed
 source. The repository README now recommends `cargo add afd`; docs-only follow-up
 does not require replacing or republishing the immutable 0.1.0 artifact.
+
+## Bootstrapping a new crate
+
+crates.io offers trusted publishing only for a crate that already exists, so a
+new crate's first version is published by hand, once. This is how `afd` 0.1.0
+was bootstrapped (the name was free on crates.io on 2026-09-27); never repeat it
+for `afd`.
+
+1. In the release pull request, also:
+   - add exact-version registry instructions to the crate's README, explicitly
+     conditional on publication; the README is packaged into the crate.
+   - keep usable git and path instructions, and a truthful unpublished status,
+     in the README, the language skill and `docs/language-parity.md` until the
+     registry is verified.
+2. The maintainer, on the merge commit and with a crates.io API token that can
+   publish new crates, runs `cargo login`, then `cargo publish` in the crate's
+   directory.
+3. The maintainer adds a GitHub trusted publisher under the crate's
+   Settings → Trusted Publishing (for `afd`: owner `lushly-dev`, repository
+   `afd`, workflow `publish-rust.yml`, environment `crates-io`), then revokes the
+   API token.
+4. The maintainer pushes the tag for the same commit. The publish workflow runs
+   its checks and skips the upload, because crates.io already has the version;
+   later versions publish through the workflow.
+5. Download the published crate and verify fresh consumers. Then change the
+   default installation to `cargo add <crate>` and the Distribution row to
+   crates.io.
 
 ## Candidate acceptance
 
@@ -86,8 +113,7 @@ and fresh consumers after publication; do not repeat the successful 0.1.0 upload
 C++ has no registry upload. Its first tag, GitHub Release and fresh tagged-consumer
 checks are complete; future releases follow the same reviewed-merge procedure.
 
-C++ package/skill/site installation snippets now pin `cpp-v0.1.0`; the public tag
-badge reports 0.1.0, distribution status is published and the feature record is
+C++ package/skill/site installation snippets pin the latest published tag (`cpp-v0.2.0` as of 2026-11-04); distribution status is published and the feature record is
 under `docs/features/complete/cpp-support/`. Rust package/skill/site installation
 now recommends the published crate. Rust remains a preview in-process library;
 publication does not provide the historical proposal's general-purpose MCP
@@ -96,3 +122,31 @@ transports or distribution framework.
 No hosted provisioning is needed to publish these core libraries. #362 remains
 an independent auth/persistence verification task; local fixture preparation
 does not certify hosted providers.
+
+## Later releases
+
+### Rust 0.2.0 and 0.2.1
+
+0.2.0 was published on 2026-10-27 from #454's merge commit
+`ddb42ad294e79fcbb096d03d7351f45d56f6c2ce`
+([Publish Rust Crate run 40472313107](https://github.com/lushly-dev/afd/actions/runs/40472313107)),
+the first version uploaded through crates.io trusted publishing. Its docs.rs
+build failed with E0658: `doc(cfg)` badges without
+`#![cfg_attr(docsrs, feature(doc_cfg))]`. 0.2.1
+([run 40616779408](https://github.com/lushly-dev/afd/actions/runs/40616779408),
+#456's merge commit `87fd19bdcede7712e2f6fb5a1abff15c19b952d6`) fixed that with
+no code change and documents on docs.rs. #457 then added `rust.yml`'s `docs-rs`
+job, which builds the docs the way docs.rs does and which `publish-rust.yml`
+runs before uploading. It passes `--cfg docsrs` to rustdoc only: as `RUSTFLAGS`
+it reaches dependencies whose docsrs paths no longer build on nightly.
+
+### C++ 0.2.0
+
+`cpp-v0.2.0` was published on 2026-10-27 from
+`ddb42ad294e79fcbb096d03d7351f45d56f6c2ce` (#454). Its GitHub Release was
+created with `--latest=false`, so the npm release kept "Latest". Fresh
+`FetchContent` and installed `find_package(afd 0.2)` consumers built and ran
+from the tag. Because the CMake package uses `SameMinorVersion` compatibility,
+the minor bump also had to change `find_package(afd 0.2 …)` in
+`packages/cpp/tests/consumer/CMakeLists.txt`; the `C++ (package, …)` jobs
+failed until it did.
