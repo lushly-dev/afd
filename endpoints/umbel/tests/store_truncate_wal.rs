@@ -2,7 +2,9 @@
 //! command that removed text, as the knowledge plugin's redaction does, learns whether the removed
 //! bytes are gone from `store.sqlite3` and its write-ahead log (`Clean`) or wait for a later
 //! checkpoint because a reader holds the log (`Pending`). It needs what `checkpoint` needs: a write
-//! grant allowed for the space, in one of the call's spaces.
+//! grant allowed for the space, in one of the call's spaces. And `record_forget_history`, which
+//! drops the change log's hashes of a redacted record's earlier versions, for the instance's own
+//! records under `records_write` (phase 4 step 3b, amendment 13).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -114,4 +116,86 @@ async fn a_reporting_checkpoint_needs_a_write_grant_allowed_for_the_space() {
             .contains("STORE_WRITE_NOT_ALLOWED"),
         "the space beta is not allowed"
     );
+}
+
+#[tokio::test]
+async fn forgetting_a_records_history_needs_records_write_and_its_own_namespace() {
+    let (dir, host) = make(&config("", "", ALLOW_ALL), StoreProbe::new());
+    let put = |n: u32| json!({ "kind": "note", "id": "r1", "body": { "n": n } });
+    for n in 0..3 {
+        assert!(
+            run(&host, "sp-write", "main", "record-put", put(n))
+                .await
+                .success
+        );
+    }
+    let forget = json!({ "kind": "note", "id": "r1" });
+    assert_eq!(
+        result(
+            &run(
+                &host,
+                "sp-write",
+                "main",
+                "record-forget-history",
+                forget.clone()
+            )
+            .await
+        ),
+        json!(2)
+    );
+    assert_eq!(
+        result(
+            &run(
+                &host,
+                "sp-write",
+                "main",
+                "record-forget-history",
+                forget.clone()
+            )
+            .await
+        ),
+        json!(0)
+    );
+    // The change log keeps the revisions, and the hash of the current version only.
+    use umbel_store::{DocumentStore, ReaderFilter};
+    let store = umbel_store_embedded::SqliteStore::open(
+        &dir.path().join("state/spaces/main"),
+        "main",
+        umbel_store_embedded::StoreOptions::default(),
+    )
+    .unwrap();
+    let hashes: Vec<bool> = store
+        .changes(0, 100, &ReaderFilter::derivation(), None)
+        .unwrap()
+        .into_iter()
+        .filter(|change| change.target == "sp/note/r1")
+        .map(|change| change.content_hash.is_some())
+        .collect();
+    assert_eq!(hashes, [false, false, true]);
+    // The call names only a kind and an id: the namespace is the instance's own, and an absent
+    // record is NOT_FOUND.
+    let absent = run(
+        &host,
+        "sp-write",
+        "main",
+        "record-forget-history",
+        json!({ "kind": "note", "id": "r9" }),
+    )
+    .await;
+    assert_eq!(absent.error.unwrap().code, "NOT_FOUND");
+
+    // Without records_write it is refused.
+    let (_dir, read_only) = make(
+        &config("", "", ""),
+        StoreProbe::with_grants(&["documents", "records"], true),
+    );
+    let refused = run(
+        &read_only,
+        "sp-read",
+        "main",
+        "record-forget-history",
+        forget,
+    )
+    .await;
+    assert_eq!(refused.error.unwrap().code, "NOT_GRANTED");
 }

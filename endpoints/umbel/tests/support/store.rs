@@ -224,6 +224,9 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
         "graph-applied" => cx.graph_applied(space).map(|rev| json!(rev)),
         "derive-head" => cx.derive_head(space).map(|rev| json!(rev)),
         "checkpoint" => cx.checkpoint(space).map(|()| json!("checkpointed")),
+        "record-forget-history" => cx
+            .record_forget_history(space, text(args, "kind"), text(args, "id"))
+            .map(|forgotten| json!(forgotten)),
         "truncate-wal" => cx.truncate_wal(space).map(|state| match state {
             umbel_sdk::WalCheckpoint::Clean => json!("clean"),
             umbel_sdk::WalCheckpoint::Pending => json!("pending"),

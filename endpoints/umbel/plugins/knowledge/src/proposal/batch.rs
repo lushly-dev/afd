@@ -12,7 +12,9 @@
 //! amendment 1). A drafted proposal for a document, or a memory source, that already has an open
 //! proposal is `PROPOSAL_ALREADY_OPEN`, alternatives of one conflict set apart.
 //!
-//! Withdrawals run first, so a draft replacing a withdrawn one is not refused as already open.
+//! Withdrawals run first, then the `erased` notice (the memory records the drafter saw erased,
+//! whose drafts are redacted in every state but applied), so a draft replacing a withdrawn one is
+//! not refused as already open.
 //! After a redaction the batch runs a reporting checkpoint and says whether the removed bytes are
 //! gone (`checkpoint: "clean"`) or wait for a later one (`"pending"`, with the warning
 //! `PROPOSAL_REDACTION_PENDING`).
@@ -97,16 +99,21 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
             sources.len()
         )));
     }
+    let erased = erased_sources(input)?;
+    if !erased.is_empty() && attestation.is_none() {
+        return Err(redact::unattested());
+    }
 
     // Withdrawals first: a draft that replaces a withdrawn one must not find it open.
     let mut withdrawn_results = Vec::with_capacity(withdrawals.len());
-    let (mut withdrawn, mut redacted) = (0usize, 0usize);
+    let (mut withdrawn, mut redacted, mut forgotten) = (0usize, 0usize, 0u64);
     for (index, item) in withdrawals.iter().enumerate() {
         let id = item.get("proposal").cloned().unwrap_or(Value::Null);
         withdrawn_results.push(match redact::withdraw(caller, attestation.as_ref(), item) {
             Ok(done) => {
                 withdrawn += usize::from(done.withdrawn);
                 redacted += usize::from(done.redacted);
+                forgotten += done.forgotten;
                 json!({
                     "index": index,
                     "ok": true,
@@ -118,6 +125,18 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
             Err(outcome) => refused(index, Some(id), &outcome),
         });
     }
+
+    // Then the drafts citing an erased source, whatever their state but applied (amendment 12).
+    let swept = match &attestation {
+        Some(attestation) if !erased.is_empty() => {
+            let swept = redact::sweep(caller, attestation, &erased)?;
+            withdrawn += swept.withdrawn.len();
+            redacted += swept.redacted.len();
+            forgotten += swept.forgotten;
+            Some(swept)
+        }
+        _ => None,
+    };
 
     let mut open = match &attestation {
         Some(_) if !proposals.is_empty() => Some(Open::collect(caller)?),
@@ -151,7 +170,7 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
         }
     }
 
-    let checkpoint = if redacted > 0 {
+    let checkpoint = if redacted > 0 || forgotten > 0 {
         Some(match cx.truncate_wal(&caller.space) {
             Ok(WalCheckpoint::Clean) => "clean",
             Ok(WalCheckpoint::Pending) | Err(_) => "pending",
@@ -167,6 +186,12 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
         })),
         "results": results,
         "withdrawals": withdrawn_results,
+        "erased": swept.as_ref().map(|swept| json!({
+            "sources": erased.len(),
+            "redacted": swept.redacted,
+            "withdrawn": swept.withdrawn,
+            "refused": swept.refused,
+        })),
         "counts": {
             "created": created,
             "existing": existing,
@@ -187,6 +212,36 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
         );
     }
     Ok(outcome)
+}
+
+/// The memory record ids of the `erased` notice: each `mem-` and 24 hex digits, at most
+/// [`MAX_SOURCES`] distinct.
+fn erased_sources(input: &Value) -> Result<BTreeSet<String>, Outcome> {
+    let ids = list(input, "erased")?;
+    let mut erased = BTreeSet::new();
+    for id in ids {
+        let id = id.as_str().unwrap_or_default();
+        let hex = id.strip_prefix("mem-").unwrap_or_default();
+        if hex.len() != 24
+            || !hex
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(failure(
+                "PROPOSAL_INVALID",
+                "the batch was refused: an erased source is a memory record id, mem- and 24 hex digits",
+                "Name the records the memory store's changes feed reported erased.",
+            ));
+        }
+        erased.insert(id.to_owned());
+    }
+    if erased.len() > MAX_SOURCES {
+        return Err(too_large(&format!(
+            "{} erased sources, more than {MAX_SOURCES}",
+            erased.len()
+        )));
+    }
+    Ok(erased)
 }
 
 /// An item's refusal: its index, the proposal a withdrawal named, and the failure's error.

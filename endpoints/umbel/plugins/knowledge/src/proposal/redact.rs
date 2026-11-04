@@ -1,45 +1,69 @@
 //! A drafter's withdrawals and the redaction of a forgotten source's text (phase 4 specification,
-//! section 9.1; D103), the `withdraw` items of `knowledge-propose-batch`.
+//! section 9.1; D103): the `withdraw` items and the `erased` notice of `knowledge-propose-batch`.
 //!
-//! A drafter withdraws only one of its own proposals: one whose `drafter` names the attested
-//! step's plugin and instance and whose proposer is the batch's caller, since a run re-checks
-//! only its caller's open drafts. Its reasons are `source-erased`, `source-changed` and
-//! `superseded-alternative`; `retracted` is a proposer's own (`knowledge-withdraw`).
+//! A drafter touches only its own drafts: ones whose `drafter` names the attested step's plugin
+//! and instance and whose proposer is the batch's caller, since a run works for its caller. Its
+//! withdrawal reasons are `source-erased`, `source-changed` and `superseded-alternative`;
+//! `retracted` is a proposer's own (`knowledge-withdraw`).
 //!
-//! **A redaction** is the withdrawal with `redact: true`, always for `source-erased`. It removes
-//! every text the draft carried and every hash of it: `change.content` (so the title, which is the
-//! content's frontmatter), a verify's note, the diff, the rationale (replaced by a fixed
-//! sentence), every evidence excerpt, and each memory entry's copied fields, which become
-//! `{ kind, ref, erased: true }`; the change hash and the envelope's `contentHash` become the
-//! redacted hash, and `derivedFrom` becomes null, in the body and in the stored envelope. The id,
-//! the document id and the idempotency key are content-free and stay. It sets `redacted`, and it
-//! is idempotent: a redacted proposal is left as it is.
+//! **A redaction** removes every text the draft carried and every hash of it: `change.content`
+//! (so the title, which is the content's frontmatter), a verify's note, the diff, the rationale
+//! (replaced by a fixed sentence), every evidence excerpt, a rejection's reason, and each memory
+//! entry's copied fields, which become `{ kind, ref, erased: true }`; the change hash and the
+//! envelope's `contentHash` become the redacted hash, and `derivedFrom` becomes null, in the body
+//! and in the stored envelope. Then the change log forgets the hashes of the record's earlier
+//! versions. The id, the document id, the idempotency key and the decision or withdrawal (who,
+//! when, the outcome) stay, and `redacted` is set.
 //!
-//! A pending proposal is withdrawn and redacted at once. One the drafter already withdrew for
-//! another reason (a source absent at the re-check may have been erased, which the next run's
-//! feed shows) is redacted in place, its reason becoming `source-erased`. The document store's
-//! connections run with `secure_delete`, and the batch checkpoints after a redaction
-//! ([`super::batch`]).
+//! **Every draft that was not applied is redacted** when its source is erased (step 3b, amendment
+//! 12): a pending one is withdrawn by the drafter with `source-erased` and redacted; a withdrawn
+//! one (by the drafter for another reason, or by its proposer), a rejected one and an approved one
+//! whose apply never landed are redacted in place, keeping their state. An applied proposal is
+//! never retracted (owner decision 7). A drafter reaches them in two ways: naming a draft in a
+//! `withdraw` item with `redact: true`, or naming the erased memory records in `erased`, which
+//! redacts each of its own drafts citing one. Both are idempotent: a redacted draft is written
+//! again only if the change log still holds an earlier hash of it.
+//!
+//! The document store's connections run with `secure_delete`, and the batch checkpoints after a
+//! redaction ([`super::batch`]).
+
+use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
 use umbel_sdk::{HostError, Outcome, PipelineAttestation, failure};
-use umbel_store::{ContentHash, Expect, canonical_json};
+use umbel_store::{ContentHash, Expect, Record, canonical_json};
 
 use super::common::{self, Caller};
-use super::model::{DRAFTER_REASONS, Proposal, Redacted, SOURCE_ERASED, State, Withdrawal};
+use super::model::{DRAFTER_REASONS, KIND, Proposal, Redacted, SOURCE_ERASED, State, Withdrawal};
 use crate::fail;
 
 /// The rationale a redacted proposal keeps: fixed text, naming no source.
 pub(crate) const REDACTED_RATIONALE: &str =
     "Redacted: a memory record this draft cited was forgotten, so its text was removed.";
 
-/// What one withdrawal did.
+/// The records read from the store at a time when sweeping for an `erased` notice.
+const PAGE: u32 = 100;
+
+/// What one withdrawal or redaction did.
 pub(crate) struct Done {
     pub(crate) proposal: Proposal,
     /// Whether this call moved it to `withdrawn`.
     pub(crate) withdrawn: bool,
     /// Whether this call redacted it.
     pub(crate) redacted: bool,
+    /// How many of the change log's earlier hashes of it this call removed.
+    pub(crate) forgotten: u64,
+}
+
+impl Done {
+    fn unchanged(proposal: Proposal) -> Self {
+        Self {
+            proposal,
+            withdrawn: false,
+            redacted: false,
+            forgotten: 0,
+        }
+    }
 }
 
 fn invalid(why: &str) -> Outcome {
@@ -50,11 +74,11 @@ fn invalid(why: &str) -> Outcome {
     )
 }
 
-/// A withdrawal in a batch without an accepted attestation (phase 4 section 11.3).
+/// A withdrawal or an `erased` notice in a batch without an accepted attestation (11.3).
 pub(crate) fn unattested() -> Outcome {
     failure(
         "PROPOSAL_EVIDENCE_INVALID",
-        "a withdrawal in knowledge-propose-batch is accepted only from an attested drafter",
+        "withdrawals and erased sources in knowledge-propose-batch are accepted only from an attested drafter",
         "A proposer takes a proposal back with knowledge-withdraw; a drafter withdraws through its own pipeline.",
     )
 }
@@ -65,6 +89,15 @@ fn not_drafter() -> Outcome {
         "only the drafter that drafted a proposal, in a run of its proposer, may withdraw or redact it",
         "A proposer takes a proposal back with knowledge-withdraw; an approver can reject it with knowledge-reject.",
     )
+}
+
+/// Whether `proposal` is the attested drafter's own, for the caller.
+fn owns(caller: &Caller<'_>, attestation: &PipelineAttestation, proposal: &Proposal) -> bool {
+    proposal
+        .drafter
+        .as_ref()
+        .is_some_and(|drafter| drafter.is(attestation))
+        && proposal.proposer.principal == caller.principal
 }
 
 /// The withdrawal `item` (`{ proposal, reason, redact? }`) by the attested drafter.
@@ -104,87 +137,163 @@ pub(crate) fn withdraw(
         Ok(None) => return Err(common::not_found()),
         Err(error) => return Err(fail::host(&error)),
     };
-    let own = proposal
-        .drafter
-        .as_ref()
-        .is_some_and(|drafter| drafter.is(attestation))
-        && proposal.proposer.principal == caller.principal;
-    if !own {
+    if !owns(caller, attestation, &proposal) {
         return Err(not_drafter());
     }
-    let by_drafter = proposal
-        .withdrawal
-        .as_ref()
-        .is_some_and(Withdrawal::is_drafters);
-    let already = proposal.redacted.is_some();
-    let (withdrawn, redacted) = match (proposal.state, by_drafter) {
-        (State::Pending, _) => {
+    match proposal.state {
+        State::Applied => Err(common::wrong_state(
+            &proposal,
+            "an applied proposal is never retracted",
+        )),
+        _ if redact => erase(caller, proposal, &record),
+        State::Pending => {
             proposal.state = State::Withdrawn;
             proposal.withdrawal = Some(Withdrawal::by_drafter(reason, &caller.now));
-            (true, redact)
+            proposal.updated_at.clone_from(&caller.now);
+            save(caller, &proposal, &record)?;
+            Ok(Done {
+                proposal,
+                withdrawn: true,
+                redacted: false,
+                forgotten: 0,
+            })
         }
-        // Idempotent: a redacted proposal stays as it is.
-        (State::Withdrawn, _) if already => (false, false),
-        (State::Withdrawn, true) => {
-            if redact && let Some(withdrawal) = proposal.withdrawal.as_mut() {
-                SOURCE_ERASED.clone_into(&mut withdrawal.reason);
+        State::Withdrawn => Ok(Done::unchanged(proposal)),
+        State::Approved | State::Rejected => Err(common::wrong_state(
+            &proposal,
+            "only a pending proposal is withdrawn; a decided draft is only redacted, when its source is erased",
+        )),
+    }
+}
+
+/// What an `erased` notice did.
+#[derive(Default)]
+pub(crate) struct Swept {
+    /// The drafts this call redacted.
+    pub(crate) redacted: Vec<String>,
+    /// The pending drafts among them, which it also withdrew.
+    pub(crate) withdrawn: Vec<String>,
+    /// The drafts it could not redact, each with its error.
+    pub(crate) refused: Vec<Value>,
+    pub(crate) forgotten: u64,
+}
+
+/// The `erased` notice: redact every draft of the attested drafter, for the caller, that was not
+/// applied and cites one of the memory records `erased` names.
+///
+/// # Errors
+/// The host's failures while reading the proposals.
+pub(crate) fn sweep(
+    caller: &Caller<'_>,
+    attestation: &PipelineAttestation,
+    erased: &BTreeSet<String>,
+) -> Result<Swept, Outcome> {
+    let mut swept = Swept::default();
+    let mut after: Option<String> = None;
+    loop {
+        let page = caller
+            .cx
+            .record_list(&caller.space, KIND, after.as_deref(), PAGE)
+            .map_err(|error| fail::host(&error))?;
+        for record in &page.items {
+            let Some(proposal) = Proposal::from_value(&record.body) else {
+                continue;
+            };
+            let cites = proposal
+                .memory_sources()
+                .iter()
+                .any(|id| erased.contains(id));
+            if !cites || proposal.state == State::Applied || !owns(caller, attestation, &proposal) {
+                continue;
             }
-            (false, redact)
+            let id = proposal.id.clone();
+            match erase(caller, proposal, record) {
+                Ok(done) => {
+                    swept.forgotten += done.forgotten;
+                    if done.redacted {
+                        swept.redacted.push(id.clone());
+                    }
+                    if done.withdrawn {
+                        swept.withdrawn.push(id);
+                    }
+                }
+                Err(outcome) => swept.refused.push(json!({
+                    "proposal": id,
+                    "error": outcome.as_value().get("error").cloned().unwrap_or(Value::Null),
+                })),
+            }
         }
-        (State::Withdrawn, false) if !redact => (false, false),
-        // Proposal record version 2 redacts only a drafter's withdrawal (step 1's schema, 9.1).
-        (State::Withdrawn, false) => {
-            return Err(common::wrong_state(
-                &proposal,
-                "its proposer withdrew it, and only a drafter's withdrawal is redacted",
-            ));
+        match page.next {
+            Some(next) => after = Some(next),
+            None => return Ok(swept),
         }
-        _ => {
-            return Err(common::wrong_state(
-                &proposal,
-                "only a pending proposal is withdrawn, and only a withdrawn draft is redacted; an applied proposal is never retracted",
-            ));
-        }
-    };
-    if !withdrawn && !redacted {
+    }
+}
+
+/// Redact one of the drafter's own drafts that was not applied: a pending one is withdrawn with
+/// `source-erased` first; any other keeps its state, decision and withdrawal. A redacted one is
+/// left as it is, but the change log still forgets any earlier hash of it.
+fn erase(caller: &Caller<'_>, mut proposal: Proposal, record: &Record) -> Result<Done, Outcome> {
+    if proposal.redacted.is_some() {
+        let forgotten = forget_history(caller, &proposal.id)?;
         return Ok(Done {
-            proposal,
-            withdrawn,
-            redacted,
+            forgotten,
+            ..Done::unchanged(proposal)
         });
     }
-    proposal.updated_at.clone_from(&caller.now);
-    if redacted {
-        redact_body(&mut proposal, &caller.now);
+    let withdrawn = proposal.state == State::Pending;
+    if withdrawn {
+        proposal.state = State::Withdrawn;
+        proposal.withdrawal = Some(Withdrawal::by_drafter(SOURCE_ERASED, &caller.now));
     }
+    proposal.updated_at.clone_from(&caller.now);
+    redact_body(&mut proposal, &caller.now);
+    save(caller, &proposal, record)?;
+    let forgotten = forget_history(caller, &proposal.id)?;
+    Ok(Done {
+        proposal,
+        withdrawn,
+        redacted: true,
+        forgotten,
+    })
+}
+
+/// Store `proposal` over `record`, compare-and-set; a redacted body's envelope keeps no
+/// `derivedFrom`.
+fn save(caller: &Caller<'_>, proposal: &Proposal, record: &Record) -> Result<(), Outcome> {
     let mut envelope = record.envelope.clone();
     envelope.observed_at.clone_from(&caller.now);
     envelope.content_hash =
         Some(ContentHash::of(canonical_json(&proposal.to_value()).as_bytes()).to_string());
-    if redacted {
+    if proposal.redacted.is_some() {
         envelope.derived_from = None;
     }
     match common::save(
         caller,
-        &proposal,
+        proposal,
         envelope,
         Expect::Hash(record.content_hash.clone()),
     ) {
-        Ok(_) => Ok(Done {
-            proposal,
-            withdrawn,
-            redacted,
-        }),
+        Ok(_) => Ok(()),
         Err(HostError::Conflict { .. }) => Err(failure(
             "PROPOSAL_CONFLICT",
-            "the proposal changed while it was being withdrawn",
+            "the proposal changed while it was being withdrawn or redacted",
             "Run the drafter again; its next run re-checks the proposal.",
         )),
         Err(error) => Err(fail::host(&error)),
     }
 }
 
-/// Section 9.1's redaction of `proposal`'s body at `at`.
+/// The change log forgets the hashes of the record's earlier versions, each a hash of a body
+/// that held the forgotten text (step 3b, amendment 13).
+fn forget_history(caller: &Caller<'_>, id: &str) -> Result<u64, Outcome> {
+    caller
+        .cx
+        .record_forget_history(&caller.space, KIND, id)
+        .map_err(|error| fail::host(&error))
+}
+
+/// Section 9.1's redaction of `proposal`'s body at `at`, with step 3b's amendments 6 and 12.
 pub(crate) fn redact_body(proposal: &mut Proposal, at: &str) {
     proposal.change.content = None;
     if let Some(verification) = proposal.change.verification.as_mut() {
@@ -193,6 +302,9 @@ pub(crate) fn redact_body(proposal: &mut Proposal, at: &str) {
     proposal.diff = String::new();
     REDACTED_RATIONALE.clone_into(&mut proposal.rationale);
     proposal.evidence = proposal.evidence.iter().map(redacted_entry).collect();
+    if let Some(decision) = proposal.decision.as_mut() {
+        decision.reason = None;
+    }
     let hash = super::model::redacted_hash(&proposal.id);
     proposal.change_hash.clone_from(&hash);
     if let Some(provenance) = proposal.provenance.as_object_mut() {

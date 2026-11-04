@@ -533,6 +533,20 @@ pub trait HostServices: Send + Sync {
     fn truncate_wal(&self, _space: &str) -> Result<WalCheckpoint, HostError> {
         not_granted("records_write")
     }
+    /// Grant `records_write`: forget the content hashes the change log keeps for the earlier
+    /// versions of one record of the instance's own namespace (phase 4 section 9.1), after a
+    /// redaction. Answers how many changes lost their hash. Compiled plugins only.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], [`HostError::NotFound`], [`HostError::Busy`], [`HostError::Io`].
+    fn record_forget_history(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+    ) -> Result<u64, HostError> {
+        not_granted("records_write")
+    }
     /// The read methods as another principal (`knowledge-eval`). Only in a command exposed to
     /// the CLI alone, when the call's actor is a human.
     ///

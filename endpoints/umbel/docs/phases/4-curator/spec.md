@@ -86,9 +86,10 @@
   - Step 3b (knowledge: the drafted path), 2026-11-03, in its pull request, from `37af26c9`: `drafters`,
     `knowledge-propose-batch` and `knowledge-proposal-feed` on the host's attestation, `PROPOSAL_ALREADY_OPEN`,
     a drafter's withdrawal and redaction with the checkpoint's state carried through a new `truncate_wal` host
-    service; a listed drafter's memory claims refused until step 3c (`PROPOSAL_DRAFT_UNVERIFIABLE`). Its
-    [amendments](#amendments-from-step-3b) settle eleven details and change no trust-model point; two questions
-    for the owner are recorded in STATUS.md.
+    service; a listed drafter's memory claims refused until step 3c (`PROPOSAL_DRAFT_UNVERIFIABLE`); every draft
+    that was not applied redacted when its source is erased, and the change log's earlier hashes of it
+    forgotten. Its [amendments](#amendments-from-step-3b) settle thirteen details and change no trust-model
+    point; 12 and 13 record the owner's decisions on its two questions, for the stronger guarantee.
 - **Not done:** steps 3c to 7 of section [15](#15-implementation-plan); step 3c (knowledge: verifying drafts) is
   next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
@@ -1184,8 +1185,9 @@ schema. None changes who may draft, verify, approve or read anything, or what th
 Step 3b settled these details of sections 2.1, 3.1, 3.2, 7.1, 8.2, 9.1, 11.2 and 11.3 that the text left open.
 None lets a non-drafter submit drafted proposals, weakens the attestation or leaves more forgotten text readable
 than the text alone; the first holds owner decision 10 in place until step 3c can verify, and the sixth removes
-more than 9.1 lists. Two questions this step found are for the owner and are not amended here: they are under
-"Waiting on the owner" in [STATUS.md](../../STATUS.md#phase-4-curator).
+more than 9.1 lists. The two questions this step found were put to the owner, who decided both for the stronger
+forget guarantee, with no accepted residue (2026-11-03): amendments 12 and 13 close them, and 7 and 8 are written as
+they now stand.
 
 1. **A listed drafter's memory claims are refused until step 3c verifies them.** Owner decision 10 is attest
    *and verify*, and the checks of 3.2 that read the memory store and `umbel_okf::draft` are step 3c's. So in
@@ -1216,9 +1218,10 @@ more than 9.1 lists. Two questions this step found are for the owner and are not
    and lengths, and the handler the rest. The lists carry no `maxItems`, so the caps answer
    `PROPOSAL_BATCH_TOO_LARGE` rather than `VALIDATION_ERROR`; the 400 counts distinct memory record ids
    across the batch, before any item, whoever calls. The result is `{ space, drafter, results, withdrawals,
-   counts, checkpoint }`: `drafter` the attestation or `null`; `results[i]` `{ index, ok: true, created,
+   erased, counts, checkpoint }`: `drafter` the attestation or `null`; `results[i]` `{ index, ok: true, created,
    rev?, proposal }` (the summary) or `{ index, ok: false, error }`; `withdrawals[i]` `{ index, ok: true,
-   withdrawn, redacted, proposal }` or `{ index, ok: false, proposal: <id>, error }`; `counts` `{ created,
+   withdrawn, redacted, proposal }` or `{ index, ok: false, proposal: <id>, error }`; `erased` (amendment 12)
+   `{ sources, redacted: [ids], withdrawn: [ids], refused: [{ proposal, error }] }` or `null`; `counts` `{ created,
    existing, refused, withdrawn, redacted, withdrawalsRefused }`. Only `PROPOSAL_DRAFTER_NOT_ALLOWED`,
    `PROPOSAL_BATCH_TOO_LARGE` and a missing space refuse the whole call. Without an attestation, a non-null
    `drafter`, `conflictSet` or `derivedFrom`, a memory entry, or any withdrawal is `PROPOSAL_EVIDENCE_INVALID`
@@ -1242,23 +1245,24 @@ more than 9.1 lists. Two questions this step found are for the owner and are not
    only memory entries'; a verify's `verification.note`; and `derivedFrom` in the stored record's envelope as
    well as the body's. The id, the document id, the idempotency key, `flags` and `confidence` stay.
 7. **Who withdraws and redacts, and in which states.** A drafter's withdrawal needs the proposal's `drafter`
-   to name the attested plugin and instance and its proposer to be the batch's caller, since a run re-checks
-   only its caller's open drafts; otherwise `PROPOSAL_NOT_PROPOSER`. Its reasons are `source-erased`,
-   `source-changed` and `superseded-alternative` (the schema refuses `retracted`), and `redact: true` goes
-   exactly with `source-erased` (`PROPOSAL_INVALID` otherwise), as `redacted.reason` is always
-   `source-erased`. A `pending` draft is withdrawn, and redacted with it. One the drafter already withdrew
-   for another reason is redacted in place, its reason becoming `source-erased` and its `at` kept, as
-   `proposal.v2.json` requires of a redacted record; this is 9.1's "the next run redacts it if the feed
-   shows `Erased`". A redacted one is left as it is (idempotent: `withdrawn` and `redacted` false, no write,
-   no checkpoint), as is one already withdrawn when no redaction is asked. A draft its proposer withdrew
-   (`retracted`), and an approved, applied or rejected one, is `PROPOSAL_STATE_INVALID`: the schema admits a
-   redaction only beside a drafter's withdrawal, and 9.1 never retracts an applied proposal.
+   to name the attested plugin and instance and its proposer to be the batch's caller, since a run works for
+   its caller; otherwise `PROPOSAL_NOT_PROPOSER`. Its reasons are `source-erased`, `source-changed` and
+   `superseded-alternative` (the schema refuses `retracted`), and `redact: true` goes exactly with
+   `source-erased` (`PROPOSAL_INVALID` otherwise), as `redacted.reason` is always `source-erased`. A `pending`
+   draft is withdrawn, and with `redact` withdrawn with `source-erased` and redacted. With `redact`, any other
+   draft that was not applied is redacted in place, keeping its state and its withdrawal or decision
+   (amendment 12). Without it, a withdrawn draft is left as it is, and an approved or rejected one is
+   `PROPOSAL_STATE_INVALID`, as only a pending proposal is withdrawn. An applied one is always
+   `PROPOSAL_STATE_INVALID`: 9.1 never retracts it. A redacted draft is not written again (idempotent:
+   `withdrawn` and `redacted` false), though the change log still forgets any earlier hash of it (amendment
+   13).
 8. **The checkpoint's state, carried through (step 2's amendment 9).** A new host service,
    `HostServices::truncate_wal` (SDK `Cx::truncate_wal`, answering `WalCheckpoint::Clean` or `Pending`), runs
    step 2's `SqliteStore::truncate_wal` under the rules of `checkpoint` (a write grant allowed for the space,
    in one of the call's spaces). It is compiled-only, as `CallContext.pipeline` is; WIT world 1.0.0 is
-   unchanged. After a batch that redacted anything, the plugin runs it once and reports `checkpoint: "clean"`
-   or `"pending"` (`null` when nothing was redacted; an error reads as `pending`). `pending` adds the warning
+   unchanged. After a batch that redacted anything, or made the change log forget a hash (amendment 13), the
+   plugin runs it once and reports `checkpoint: "clean"` or `"pending"` (`null` otherwise; an error reads as
+   `pending`). `pending` adds the warning
    **`PROPOSAL_REDACTION_PENDING`**, which suggests `store-check`, whose checkpoint finishes it, as does a
    later write's best-effort checkpoint. A pipeline with `result = "last"` returns only the last step's data
    (step 2's amendment 5), so a step's warnings do not reach the pipeline's result; the batch's `checkpoint`
@@ -1271,7 +1275,9 @@ more than 9.1 lists. Two questions this step found are for the owner and are not
    this instance whose `drafter` names the attested plugin and instance, whose proposer is the caller, and
    which is `rejected` or `applied` at a revision after `after`, once per call, in revision order: `{
    proposal, state, doc, candidate, conflictSet, rev, decidedAt, decidedBy, channel }`, with `reason` for a
-   rejection and `contentHash` for an apply. A withdrawal is not a decision and is not reported. `next` is the
+   rejection and `contentHash` for an apply, and `redacted`. A withdrawal is not a decision and is not
+   reported. A redaction writes the record again, so a redacted rejection is reported once more, with
+   `redacted: true` and no reason. `next` is the
    last revision read, for `feedAfter`; `more` says the bound stopped it. A rejection's reason is an
    approver's text, so the data carries `trust: "content"`, as the result's metadata does. Its journal keeps
    `space` and `after`; the batch's keeps `space`.
@@ -1287,6 +1293,53 @@ more than 9.1 lists. Two questions this step found are for the owner and are not
     `SqliteStore::hold_reader`, a reader holding the write-ahead log, so `redaction.rs` sees `pending` without
     linking SQLite into the plugin's tests; the knowledge crate's dev-dependency enables that feature, and no
     crate is added.
+12. **Every draft that was not applied is redacted when its source is erased** (the owner's decision of
+    2026-11-03, closing step 3b's first question). 9.1 and step 1's schema redacted only a draft the drafter
+    withdrew, so a rejected draft, one its proposer withdrew with `knowledge-withdraw`, and one approved whose
+    apply never landed kept their memory-derived text readable by the target's readers after the source was
+    forgotten. Now:
+    - **`proposal.v2.json`** allows `redacted` beside `withdrawn` (whoever withdrew it), `rejected` and
+      `approved`, and never beside `pending` or `applied`; it no longer requires a redacted record's withdrawal
+      to be a drafter's for `source-erased`. A redacted record keeps no `verification.note`, no
+      `decision.reason` and no evidence `excerpt` of any kind, beside 9.1's fields. The schema changed, with
+      `tests/schemas/phase4.rs`.
+    - **The redaction** keeps the decision (who, when, the channel and the outcome) or the withdrawal as it was,
+      and removes the rest as amendment 6 says, now including a rejection's reason, which is an approver's text
+      and may quote the draft. A pending draft is withdrawn by the drafter with `source-erased` first. An
+      applied proposal is never retracted (owner decision 7).
+    - **How it reaches drafts that are not open.** The curator re-checks only its open drafts (9.1), so the
+      batch gains an **`erased`** notice: up to 400 memory record ids (`mem-` and 24 hex digits) the drafter saw
+      `Erased` in the memory store's changes feed. The knowledge plugin redacts each of that drafter's own drafts
+      for the caller that cites one of them and was not applied, whatever its state, and answers which it
+      redacted and withdrew. The notice needs an accepted attestation (`PROPOSAL_EVIDENCE_INVALID` for the whole
+      call otherwise; `PROPOSAL_INVALID` for a malformed id; `PROPOSAL_BATCH_TOO_LARGE` over 400). A `withdraw`
+      item with `redact: true` reaches the same states by id. Step 3c may check that a named source is in fact
+      gone before redacting; nothing is lost by redacting early, since a redaction only removes text.
+    - **Approve** refuses a redacted draft with `PROPOSAL_SOURCE_GONE` (8.2's code) before anything else, since
+      nothing is left to apply.
+    - **Limit, stated:** proposals are read under the caller's reader filter, so a draft its own proposer can no
+      longer read (the proposer removed from the record's readers since) is reached by neither path. Its readers
+      are then only those the record still admits.
+13. **No earlier body hash of a redacted draft is left in the change log** (the owner's decision of 2026-11-03,
+    closing step 3b's second question). `store.sqlite3`'s `changes` table kept every version's record hash, a
+    hash of a body that held the forgotten text, which may confirm a guess as the change hash 9.1 redacts would.
+    Now:
+    - **The store:** `DocumentStore::forget_record_history(ns, kind, id)` sets `content_hash` to null on the
+      record's earlier changes (the current version's keeps its hash; revisions, trace ids and times stay) and
+      answers how many it changed; the embedded store does it in one `BEGIN IMMEDIATE` transaction, under
+      `secure_delete`, and the batch's checkpoint (amendment 8) truncates the write-ahead log after it. `NotFound`
+      for an absent record. `store-embedded/tests/secure_delete.rs` holds that the old hashes are gone from the
+      database file and its log after the checkpoint.
+    - **The host:** a compiled-only service, `HostServices::record_forget_history(space, kind, id)` (SDK
+      `Cx::record_forget_history`), under `records_write` for the space and only in the instance's own
+      namespace. `tests/store_truncate_wal.rs` holds its rules.
+    - **The plugin** calls it after every redaction, and again for a redacted draft a later notice or item names,
+      so an interrupted run leaves nothing behind.
+    - **The journal and the events.** A decision or withdrawal of a drafted proposal (`knowledge-reject`,
+      `knowledge-withdraw`) no longer puts the record's hash in `dev.umbel/provenance`'s `contentHash`, since
+      those keys enter both. Undrafted proposals keep it. `redaction.rs`
+      (`no_earlier_body_hash_of_a_redacted_draft_remains`) holds, for a draft the batch stored and a person
+      rejected, that neither earlier hash is left in the change log, the files, the journal or the events.
 
 ## 16. For the owner
 

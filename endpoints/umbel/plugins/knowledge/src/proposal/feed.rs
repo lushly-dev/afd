@@ -134,6 +134,7 @@ fn decided(proposal: &Proposal, rev: u64) -> Option<Value> {
         "decidedAt": decision.at,
         "decidedBy": decision.principal,
         "channel": decision.channel,
+        "redacted": proposal.redacted.is_some(),
     });
     match proposal.state {
         State::Rejected => entry["reason"] = json!(decision.reason),

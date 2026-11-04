@@ -456,6 +456,20 @@ impl Cx {
         self.host()?.checkpoint(space)
     }
 
+    /// Grant `records_write`: forget the change log's hashes of a record's earlier versions.
+    ///
+    /// # Errors
+    /// See [`HostServices::record_forget_history`].
+    pub fn record_forget_history(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<u64, HostError> {
+        self.check_space(space)?;
+        self.host()?.record_forget_history(space, kind, id)
+    }
+
     /// A reporting checkpoint of the document store after a write that removed text.
     ///
     /// # Errors

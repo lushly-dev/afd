@@ -235,11 +235,6 @@ impl Withdrawal {
             at: at.to_owned(),
         }
     }
-
-    /// Whether the drafter withdrew it.
-    pub(crate) fn is_drafters(&self) -> bool {
-        self.by == "drafter"
-    }
 }
 
 /// A drafter's reasons for a withdrawal; `retracted` is a proposer's only (phase 4 section 2.1).
@@ -248,7 +243,9 @@ pub(crate) const DRAFTER_REASONS: [&str; 3] =
 /// The reason a redaction records, and the only withdrawal reason that redacts.
 pub(crate) const SOURCE_ERASED: &str = "source-erased";
 
-/// When a forgotten source's text was removed (version 2, phase 4 section 9.1).
+/// When a forgotten source's text was removed (version 2, phase 4 section 9.1): beside a
+/// withdrawal, a rejection or an approval whose apply never landed, never on a pending or an
+/// applied proposal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Redacted {

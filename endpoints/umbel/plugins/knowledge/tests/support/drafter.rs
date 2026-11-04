@@ -42,7 +42,7 @@ effects = ["store-write"]
 input_schema = {{ type = "object" }}
 result = "last"
 steps = [
-  {{ command = "knowledge-propose-batch", input = {{ space = "$input.space", proposals = "$input.proposals", withdraw = "$input.withdraw" }}, as = "submit" }},
+  {{ command = "knowledge-propose-batch", input = {{ space = "$input.space", proposals = "$input.proposals", withdraw = "$input.withdraw", erased = "$input.erased" }}, as = "submit" }},
 ]
 
 [[pipelines]]
@@ -131,6 +131,17 @@ pub async fn submit_as(
 /// A run of `curator-submit`.
 pub async fn submit(fx: &Fx, proposals: Value, withdraw: Option<Value>) -> (Value, String) {
     submit_as(fx, "curator", proposals, withdraw).await
+}
+
+/// A run of `curator-submit` with only an `erased` notice: the memory records it saw erased.
+pub async fn notice(fx: &Fx, erased: Value) -> Value {
+    run(
+        fx,
+        "curator-submit",
+        json!({ "proposals": [], "erased": erased }),
+    )
+    .await
+    .0
 }
 
 /// A run of `<drafter>-feed` after `after`.

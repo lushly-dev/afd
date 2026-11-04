@@ -4,7 +4,10 @@
 //! its write-ahead log after the checkpoint, from the journal, the events and every result; the
 //! checkpoint's `pending` answer carried to the batch's result while a reader holds the log, and a
 //! later checkpoint finishing it; idempotent; applied proposals untouched; only the drafter of its
-//! own proposals withdraws or redacts.
+//! own proposals withdraws or redacts. Every draft that was not applied is redacted when its source
+//! is erased, by name or by the `erased` notice, keeping its decision or withdrawal, and no earlier
+//! hash of its body is left in the change log, the files, the journal or the events (step 3b,
+//! amendments 12 and 13).
 //!
 //! The memory-derived drafts are written straight into the store, as 3a's test support does,
 //! since no command stores memory evidence before step 3c; the batch's own drafts, which cite
@@ -16,7 +19,7 @@ mod support;
 use std::path::PathBuf;
 
 use serde_json::{Value, json};
-use support::drafter::{self, item, item_code, submit, submit_as, verify};
+use support::drafter::{self, feed_as, item, item_code, notice, submit, submit_as, verify};
 use support::records::{self, Draft};
 use support::*;
 use umbel_store::{ContentHash, canonical_json};
@@ -72,6 +75,68 @@ fn expected(body: &Value) -> Value {
     redacted
 }
 
+/// `body` redacted at [`NOW`] in its own state: a pending one withdrawn by the drafter; any other
+/// keeping its state, withdrawal and decision, but not a decision's reason.
+fn expected_kept(body: &Value) -> Value {
+    let mut wanted = expected(body);
+    if body["state"] != "pending" {
+        wanted["state"] = body["state"].clone();
+        wanted["withdrawal"] = body["withdrawal"].clone();
+    }
+    if let Some(decision) = wanted["decision"].as_object_mut() {
+        decision.remove("reason");
+    }
+    wanted
+}
+
+/// A person's decision at a terminal, with or without a reason.
+fn decision(reason: Option<&str>) -> Value {
+    let mut decision = json!({
+        "by": { "kind": "human", "id": "bo" }, "principal": "human:bo", "at": NOW,
+        "traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9", "proposerKind": "human",
+        "channel": "terminal",
+    });
+    if let Some(reason) = reason {
+        decision["reason"] = json!(reason);
+    }
+    decision
+}
+
+/// `draft(candidate, canary)` in `state`: decided by `human:bo`, or withdrawn by its drafter or
+/// its proposer.
+fn in_state(candidate: &str, canary: &str, state: &str) -> Value {
+    let mut body = draft(candidate, canary);
+    let withdrawal = |by: &str, reason: &str| json!({ "by": by, "reason": reason, "at": NOW });
+    match state {
+        "pending" => {}
+        "drafter-withdrawn" => {
+            body["state"] = json!("withdrawn");
+            body["withdrawal"] = withdrawal("drafter", "source-changed");
+        }
+        "proposer-withdrawn" => {
+            body["state"] = json!("withdrawn");
+            body["withdrawal"] = withdrawal("proposer", "retracted");
+        }
+        "rejected" => {
+            body["state"] = json!("rejected");
+            body["decision"] = decision(Some(&format!("Wrong: {canary}.")));
+        }
+        "approved" => {
+            body["state"] = json!("approved");
+            body["decision"] = decision(None);
+            body["result"] = json!({ "error": "the file changed while the proposal was applied" });
+        }
+        "applied" => {
+            body["state"] = json!("applied");
+            body["decision"] = decision(None);
+            body["result"] = json!({ "rev": 7, "contentHash": format!("sha256:{}", "7a".repeat(32)), "path": "learned/x.md" });
+        }
+        other => panic!("no state {other}"),
+    }
+    records::assert_valid("proposal.v2", &body);
+    body
+}
+
 #[tokio::test]
 async fn a_forgotten_source_withdraws_and_redacts_the_draft() {
     let fx = fixture().await;
@@ -111,7 +176,8 @@ async fn a_forgotten_source_withdraws_and_redacts_the_draft() {
 
     // After the checkpoint, nothing of the source remains: not in the database file or its
     // write-ahead log, the journal, the events or the result.
-    for needle in [canary, records::SOURCE_HASH] {
+    let earlier = seeded.content_hash.to_string();
+    for needle in [canary, records::SOURCE_HASH, earlier.as_str()] {
         assert_eq!(
             files_holding(&fx, needle),
             Vec::<PathBuf>::new(),
@@ -179,53 +245,289 @@ async fn a_draft_withdrawn_for_another_reason_is_redacted_when_its_source_is_era
     assert_eq!(withdrawn["redacted"], Value::Null);
     assert!(withdrawn.to_string().contains(canary), "kept until erased");
 
-    // The next run's feed shows it erased: redacted in place.
+    // The next run's feed shows it erased: redacted in place, its withdrawal kept as it was.
     let (erased, _) = submit(&fx, json!([]), Some(erase(id))).await;
     let done = item(data(&erased), "withdrawals", 0);
     assert_eq!(done["withdrawn"], false, "{erased}");
     assert_eq!(done["redacted"], true);
     let record = records::read(&fx, id).body;
     records::assert_valid("proposal.v2", &record);
-    assert_eq!(record, expected(&body));
+    assert_eq!(record, expected_kept(&withdrawn));
     assert_eq!(files_holding(&fx, canary), Vec::<PathBuf>::new());
 }
 
 #[tokio::test]
-async fn an_applied_or_decided_proposal_is_never_retracted() {
+async fn an_applied_proposal_is_never_retracted() {
     let fx = fixture().await;
-    for (candidate, state) in [
-        ("4c2d3e4f5061728394a5", "applied"),
-        ("5c2d3e4f5061728394a5", "rejected"),
+    let canary = "potoroocanary";
+    let body = in_state("4c2d3e4f5061728394a5", canary, "applied");
+    let seeded = records::seed(&fx, &body);
+    let id = body["id"].as_str().unwrap();
+    for withdraw in [
+        erase(id),
+        json!([{ "proposal": id, "reason": "source-changed" }]),
     ] {
-        let mut body = draft(candidate, "potoroocanary");
-        body["state"] = json!(state);
-        body["decision"] = json!({
-            "by": { "kind": "human", "id": "bo" }, "principal": "human:bo", "at": NOW,
-            "traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9", "proposerKind": "human",
-            "channel": "terminal",
-        });
-        if state == "applied" {
-            body["result"] = json!({ "rev": 7, "contentHash": format!("sha256:{}", "7a".repeat(32)), "path": "learned/x.md" });
-        } else {
-            body["decision"]["reason"] = json!("No.");
-        }
-        records::assert_valid("proposal.v2", &body);
-        let seeded = records::seed(&fx, &body);
+        let (result, _) = submit(&fx, json!([]), Some(withdraw)).await;
+        assert_eq!(
+            item_code(item(data(&result), "withdrawals", 0)),
+            "PROPOSAL_STATE_INVALID",
+            "{result}"
+        );
+    }
+    // Nor by the notice naming its source.
+    let noticed = notice(&fx, json!([records::SOURCE_ID])).await;
+    assert_eq!(data(&noticed)["erased"]["redacted"], json!([]), "{noticed}");
+    let after = records::read(&fx, id);
+    assert_eq!(after.content_hash, seeded.content_hash, "untouched");
+    assert_eq!(after.body, body);
+    assert!(
+        !files_holding(&fx, canary).is_empty(),
+        "D85's disclosed residue"
+    );
+}
+
+#[tokio::test]
+async fn every_draft_that_was_not_applied_is_redacted_when_its_source_is_erased() {
+    let fx = fixture().await;
+    let (canary, kept) = ("numbatcanary", "quendacanary");
+    let states = [
+        "pending",
+        "drafter-withdrawn",
+        "proposer-withdrawn",
+        "rejected",
+        "approved",
+    ];
+    let redactable: Vec<Value> = states
+        .iter()
+        .enumerate()
+        .map(|(n, state)| in_state(&format!("a{n}000000000000000000"), canary, state))
+        .collect();
+    let applied = in_state("b000000000000000000a", kept, "applied");
+    // Not this drafter's, not this caller's, or citing another source: untouched.
+    let mut scribes = in_state("b100000000000000000a", kept, "rejected");
+    scribes["drafter"]["plugin"] = json!("scribe");
+    scribes["drafter"]["instance"] = json!("scribe");
+    let mut zeds = in_state("b200000000000000000a", kept, "pending");
+    zeds["proposer"] =
+        json!({ "actor": { "kind": "human", "id": "zed" }, "principal": "human:zed" });
+    let mut elsewhere = in_state("b300000000000000000a", kept, "rejected");
+    let other = "mem-000000000000000000000abc";
+    elsewhere["evidence"][0]["ref"] = json!(format!("{other}@1"));
+    elsewhere["provenance"]["derivedFrom"][0]["id"] = json!(other);
+    let untouched = [&applied, &scribes, &zeds, &elsewhere];
+    let mut seeded = Vec::new();
+    for body in redactable.iter().chain(untouched) {
+        records::assert_valid("proposal.v2", body);
+        seeded.push(records::seed(&fx, body).content_hash.to_string());
+    }
+
+    let result = notice(&fx, json!([records::SOURCE_ID])).await;
+    let batch = data(&result);
+    let swept = &batch["erased"];
+    assert_eq!(swept["sources"], 1, "{result}");
+    let mut ids: Vec<&str> = swept["redacted"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|id| id.as_str().unwrap())
+        .collect();
+    ids.sort_unstable();
+    let mut wanted: Vec<&str> = redactable
+        .iter()
+        .map(|body| body["id"].as_str().unwrap())
+        .collect();
+    wanted.sort_unstable();
+    assert_eq!(ids, wanted, "{result}");
+    assert_eq!(swept["withdrawn"], json!([redactable[0]["id"]]));
+    assert_eq!(swept["refused"], json!([]));
+    assert_eq!(batch["counts"]["redacted"], 5);
+    assert_eq!(batch["checkpoint"], "clean");
+
+    for (state, body) in states.iter().zip(&redactable) {
+        let record = records::read(&fx, body["id"].as_str().unwrap()).body;
+        records::assert_valid("proposal.v2", &record);
+        assert_eq!(record, expected_kept(body), "{state}");
+    }
+    for body in untouched {
+        assert_eq!(records::read(&fx, body["id"].as_str().unwrap()).body, *body);
+    }
+    // Nothing of the forgotten source's drafts remains in the files; the others' text does.
+    assert_eq!(files_holding(&fx, canary), Vec::<PathBuf>::new());
+    for hash in &seeded[..redactable.len()] {
+        assert_eq!(files_holding(&fx, hash), Vec::<PathBuf>::new(), "{hash}");
+    }
+    assert!(!files_holding(&fx, kept).is_empty());
+
+    // The approved draft has nothing left to apply.
+    let approved = redactable[4]["id"].as_str().unwrap();
+    let refused = fx
+        .at_terminal("knowledge-approve", json!({ "proposal": approved }))
+        .await;
+    assert_eq!(code(&refused), "PROPOSAL_SOURCE_GONE", "{refused}");
+    // The feed reports the redacted rejection again, with no reason, marked redacted.
+    let feed = feed_as(&fx, "curator", 0).await;
+    let rejection = data(&feed)["decisions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|decision| decision["proposal"] == redactable[3]["id"])
+        .cloned()
+        .unwrap();
+    assert_eq!(rejection["redacted"], true, "{feed}");
+    assert_eq!(rejection["reason"], Value::Null);
+    never_mentions(&feed, &[canary]);
+    // A second notice does nothing.
+    let again = notice(&fx, json!([records::SOURCE_ID])).await;
+    assert_eq!(data(&again)["erased"]["redacted"], json!([]), "{again}");
+    assert_eq!(data(&again)["checkpoint"], Value::Null);
+}
+
+#[tokio::test]
+async fn a_named_redaction_reaches_every_draft_that_was_not_applied() {
+    let fx = fixture().await;
+    let canary = "mulgaracanary";
+    let states = [
+        "drafter-withdrawn",
+        "proposer-withdrawn",
+        "rejected",
+        "approved",
+    ];
+    for (n, state) in states.iter().enumerate() {
+        let body = in_state(&format!("c{n}000000000000000000"), canary, state);
+        records::seed(&fx, &body);
         let id = body["id"].as_str().unwrap();
-        for withdraw in [
-            erase(id),
-            json!([{ "proposal": id, "reason": "source-changed" }]),
-        ] {
-            let (result, _) = submit(&fx, json!([]), Some(withdraw)).await;
+        if matches!(*state, "rejected" | "approved") {
+            // A decided draft is not withdrawn: it is only redacted.
+            let (changed, _) = submit(
+                &fx,
+                json!([]),
+                Some(json!([{ "proposal": id, "reason": "source-changed" }])),
+            )
+            .await;
             assert_eq!(
-                item_code(item(data(&result), "withdrawals", 0)),
+                item_code(item(data(&changed), "withdrawals", 0)),
                 "PROPOSAL_STATE_INVALID",
-                "{state}: {result}"
+                "{state}"
             );
         }
-        let after = records::read(&fx, id);
-        assert_eq!(after.content_hash, seeded.content_hash, "{state} untouched");
-        assert_eq!(after.body, body);
+        let (result, _) = submit(&fx, json!([]), Some(erase(id))).await;
+        let done = item(data(&result), "withdrawals", 0);
+        assert_eq!(done["ok"], true, "{state}: {result}");
+        assert_eq!(done["withdrawn"], false);
+        assert_eq!(done["redacted"], true);
+        let record = records::read(&fx, id).body;
+        records::assert_valid("proposal.v2", &record);
+        assert_eq!(record, expected_kept(&body), "{state}");
+    }
+    assert_eq!(files_holding(&fx, canary), Vec::<PathBuf>::new());
+}
+
+#[tokio::test]
+async fn an_erased_notice_needs_an_attestation_and_memory_record_ids() {
+    let fx = fixture().await;
+    let body = draft("d000000000000000000a", "kultarrcanary");
+    records::seed(&fx, &body);
+    let unattested = fx
+        .as_actor(
+            agent("x"),
+            "knowledge-propose-batch",
+            json!({ "proposals": [], "erased": [records::SOURCE_ID] }),
+        )
+        .await;
+    assert_eq!(
+        code(&unattested),
+        "PROPOSAL_EVIDENCE_INVALID",
+        "{unattested}"
+    );
+    let malformed = notice(&fx, json!(["mem-zzzzzzzzzzzzzzzzzzzzzzzz"])).await;
+    assert_eq!(code(&malformed), "PROPOSAL_INVALID", "{malformed}");
+    let many: Vec<String> = (0..401).map(|n| format!("mem-{n:024x}")).collect();
+    assert_eq!(
+        code(&notice(&fx, json!(many)).await),
+        "PROPOSAL_BATCH_TOO_LARGE"
+    );
+    assert_eq!(records::read(&fx, body["id"].as_str().unwrap()).body, body);
+}
+
+#[tokio::test]
+async fn no_earlier_body_hash_of_a_redacted_draft_remains() {
+    // A draft the batch stored, rejected by a person at a terminal, then redacted: none of its
+    // record's earlier hashes is left in the change log, the files, the journal or the events.
+    let mut fx = fixture().await;
+    let canary = "ningauicanary";
+    let base = data(
+        &fx.as_actor(
+            member(),
+            "knowledge-list",
+            json!({ "prefix": "handbook/runbook" }),
+        )
+        .await,
+    )["documents"][0]["contentHash"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut proposal = verify("v1", "handbook/runbook", &base);
+    proposal["change"]["verification"] = json!({ "note": format!("Checked {canary}.") });
+    let (created, _) = submit(&fx, json!([proposal]), None).await;
+    let id = item(data(&created), "results", 0)["proposal"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut earlier = vec![records::read(&fx, &id).content_hash.to_string()];
+    fx.reopen(&drafter::config(&["curator"], "bo"));
+    let rejected = fx
+        .at_terminal(
+            "knowledge-reject",
+            json!({ "proposal": id, "reason": format!("Not {canary}.") }),
+        )
+        .await;
+    assert_eq!(data(&rejected)["rejected"], true, "{rejected}");
+    earlier.push(records::read(&fx, &id).content_hash.to_string());
+    for hash in &earlier {
+        assert!(!files_holding(&fx, hash).is_empty(), "the scan sees {hash}");
+    }
+
+    let (result, _) = submit(&fx, json!([]), Some(erase(&id))).await;
+    assert_eq!(
+        item(data(&result), "withdrawals", 0)["redacted"],
+        true,
+        "{result}"
+    );
+    assert_eq!(data(&result)["checkpoint"], "clean");
+    let record = records::read(&fx, &id);
+    assert_eq!(record.body["state"], "rejected");
+    assert_eq!(record.body["decision"]["principal"], "human:bo");
+    assert!(record.body["decision"].get("reason").is_none());
+    let target = format!("knowledge/proposal/{id}");
+    let hashes: Vec<Option<String>> = {
+        use umbel_store::{DocumentStore, ReaderFilter};
+        records::store(&fx, "main")
+            .changes(0, 1000, &ReaderFilter::derivation(), None)
+            .unwrap()
+            .into_iter()
+            .filter(|change| change.target == target)
+            .map(|change| change.content_hash)
+            .collect()
+    };
+    assert_eq!(
+        hashes,
+        [None, None, Some(record.content_hash.to_string())],
+        "only the redacted version keeps its hash"
+    );
+    for needle in earlier.iter().map(String::as_str).chain([canary]) {
+        assert_eq!(
+            files_holding(&fx, needle),
+            Vec::<PathBuf>::new(),
+            "{needle}"
+        );
+        assert!(
+            !records::journal(&fx).contains(needle),
+            "{needle} in the journal"
+        );
+        assert!(
+            !records::events(&fx).contains(needle),
+            "{needle} in the events"
+        );
     }
 }
 
@@ -263,8 +565,8 @@ async fn only_the_drafter_of_its_callers_own_proposal_withdraws_or_redacts_it() 
         )
         .await;
     let plain = data(&own)["proposal"]["id"].as_str().unwrap().to_owned();
-    // A draft its proposer took back with knowledge-withdraw: withdrawn, but not by the drafter,
-    // so version 2 cannot record a redaction of it.
+    // A draft its proposer took back with knowledge-withdraw: still the drafter's to redact
+    // (amendment 12), keeping the proposer's withdrawal.
     let retracted = draft("8c2d3e4f5061728394a5", "dibblercanary");
     records::seed(&fx, &retracted);
     let took_back = fx
@@ -286,7 +588,8 @@ async fn only_the_drafter_of_its_callers_own_proposal_withdraws_or_redacts_it() 
     )
     .await;
     let batch = data(&result);
-    let codes: Vec<&str> = (0..6)
+    let codes: Vec<&str> = [0, 1, 3, 4, 5]
+        .into_iter()
         .map(|index| item_code(item(batch, "withdrawals", index)))
         .collect();
     assert_eq!(
@@ -294,7 +597,6 @@ async fn only_the_drafter_of_its_callers_own_proposal_withdraws_or_redacts_it() 
         [
             "PROPOSAL_NOT_PROPOSER",
             "PROPOSAL_NOT_PROPOSER",
-            "PROPOSAL_STATE_INVALID",
             "PROPOSAL_INVALID",
             "PROPOSAL_INVALID",
             "PROPOSAL_NOT_FOUND",
@@ -302,7 +604,12 @@ async fn only_the_drafter_of_its_callers_own_proposal_withdraws_or_redacts_it() 
         "{result}"
     );
     assert_eq!(item(batch, "withdrawals", 0)["proposal"], zeds["id"]);
-    assert_eq!(batch["checkpoint"], Value::Null);
+    assert_eq!(item(batch, "withdrawals", 2)["redacted"], true, "{result}");
+    let taken_back = records::read(&fx, retracted["id"].as_str().unwrap()).body;
+    records::assert_valid("proposal.v2", &taken_back);
+    assert_eq!(taken_back["withdrawal"]["by"], "proposer");
+    assert_eq!(taken_back["withdrawal"]["reason"], "retracted");
+    assert_eq!(batch["checkpoint"], "clean");
     // `retracted` is a proposer's reason: the input schema refuses it.
     let (proposer_reason, _) = submit(
         &fx,

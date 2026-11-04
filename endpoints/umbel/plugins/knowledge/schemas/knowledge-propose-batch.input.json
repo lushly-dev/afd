@@ -241,11 +241,20 @@
 					"redact": {
 						"type": "boolean",
 						"default": false,
-						"description": "Remove the draft's text and hashes (phase 4 section 9.1): true exactly for source-erased"
+						"description": "Remove the draft's text and hashes (phase 4 section 9.1): true exactly for source-erased; a rejected, approved or withdrawn draft is redacted in place"
 					}
 				},
 				"required": ["proposal", "reason"],
 				"additionalProperties": false
+			}
+		},
+		"erased": {
+			"type": "array",
+			"description": "Memory records the drafter saw erased (mem- and 24 hex digits), at most 400: each of its own drafts for the caller citing one, unless applied, is redacted (phase 4 section 9.1). Only from a listed drafter's attested step",
+			"items": {
+				"type": "string",
+				"minLength": 28,
+				"maxLength": 28
 			}
 		}
 	},

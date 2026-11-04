@@ -232,5 +232,8 @@ pub(crate) fn withdraw(input: &Value, cx: &mut Cx) -> Outcome {
             "dev.umbel/record",
             json!({ "kind": "proposal", "id": proposal.id, "version": meta.rev }),
         )
-        .with_metadata("dev.umbel/provenance", common::provenance_meta(&envelope))
+        .with_metadata(
+            "dev.umbel/provenance",
+            common::record_provenance_meta(&proposal, &envelope),
+        )
 }

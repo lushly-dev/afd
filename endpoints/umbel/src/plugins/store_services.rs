@@ -373,6 +373,21 @@ impl CallServices {
         Ok(meta)
     }
 
+    /// The change log's hashes of a record's earlier versions, forgotten (phase 4 section 9.1):
+    /// a write grant on the instance's own namespace, as `record_put` needs.
+    pub(super) fn svc_record_forget_history(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<u64> {
+        let stores = self.writing("records_write", space, None)?;
+        stores
+            .documents
+            .forget_record_history(&self.shared.instance, kind, id)
+            .map_err(host_error)
+    }
+
     pub(super) fn svc_index_search(
         &self,
         space: &str,

@@ -430,6 +430,31 @@ impl DocumentStore for SqliteStore {
         })
     }
 
+    fn forget_record_history(&self, ns: &str, kind: &str, id: &str) -> Result<u64, StoreError> {
+        let target = record_target(ns, kind, id);
+        self.pool().with(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let current: Option<i64> = tx
+                .query_row(
+                    "SELECT rev FROM records WHERE ns = ?1 AND kind = ?2 AND id = ?3",
+                    params![ns, kind, id],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            let Some(current) = current else {
+                return Err(StoreError::NotFound.into());
+            };
+            // `secure_delete` overwrites the replaced cells, so the hashes leave the file once
+            // the write-ahead log is checkpointed (phase 4 section 9.1).
+            let forgotten = tx.execute(
+                "UPDATE changes SET content_hash = NULL WHERE kind = 'record' AND target = ?1 AND rev < ?2 AND content_hash IS NOT NULL",
+                params![target, current],
+            )?;
+            tx.commit()?;
+            Ok(forgotten as u64)
+        })
+    }
+
     fn checkpoint(&self) -> Result<(), StoreError> {
         let timeout = self.pool().timeout();
         // Best effort: a busy checkpoint (a reader holds the WAL) is not an error, and the next
