@@ -414,7 +414,12 @@ export const Good = {
 			page.on('response', (response) => loaded.push(new URL(response.url()).pathname.slice(1)));
 			await page.goto(server.url);
 			expect(await page.getByRole('heading', { name: 'Specimens' }).count()).toBe(1);
-			expect(await page.getByRole('link', { name: /Feasibility\/Baseline/ }).count()).toBe(1);
+			expect(
+				await page
+					.getByRole('region', { name: 'Feasibility' })
+					.getByRole('link', { name: 'Baseline' })
+					.count()
+			).toBe(1);
 			await page.goto(`${server.url}/specimen.html?id=baseline`);
 			await page.frameLocator('iframe').getByRole('button', { name: 'Save' }).waitFor();
 			expect(errors).toEqual([]);
@@ -435,7 +440,7 @@ export const Good = {
 			await page.getByRole('combobox', { name: 'Theme' }).selectOption('light');
 			await Promise.all([
 				page.waitForURL(/[?&]theme=light(?:&|$)/),
-				page.getByRole('button', { name: 'Apply context' }).click(),
+				page.getByRole('button', { name: 'Apply' }).click(),
 			]);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const lightFrame = page.frames().find((candidate) => candidate.parentFrame());
@@ -447,7 +452,7 @@ export const Good = {
 			await page.getByRole('combobox', { name: 'Theme' }).selectOption('high-contrast');
 			await Promise.all([
 				page.waitForURL(/[?&]theme=high-contrast(?:&|$)/),
-				page.getByRole('button', { name: 'Apply context' }).click(),
+				page.getByRole('button', { name: 'Apply' }).click(),
 			]);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const contrastFrame = page.frames().find((candidate) => candidate.parentFrame());

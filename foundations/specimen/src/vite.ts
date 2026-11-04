@@ -10,6 +10,8 @@ const ENTRY = '/__specimen_entry__.js';
 /** Every story's identity and loader: sized by the consumer, so never in the entry's chunk. */
 const CATALOG = '\0specimen-catalog';
 const SHELL_BUDGET = 50_000;
+/** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
+const STYLE_BUDGET = 8_000;
 /** The proposal's category ceilings, in minified UTF-8 JavaScript bytes. */
 const TOTAL_BUDGET = 1_300_000;
 const CATEGORY_BUDGETS = {
@@ -284,6 +286,16 @@ async function buildStatic(
 	};
 	const total = Object.values(categoryBytes).reduce((sum, bytes) => sum + bytes, 0);
 	const files = result.output.map((output) => output.fileName);
+	// Its emitted, minified file. A build without it would publish an unstyled index, so it fails.
+	const stylesheet = join(runtimeDirectory, 'page.css');
+	const styles = result.output.find(
+		(output) =>
+			output.type === 'asset' &&
+			output.originalFileNames.some((name) => resolve(root, name) === stylesheet)
+	);
+	if (styles?.type !== 'asset')
+		throw new Error(`The bench pages' stylesheet was not emitted from ${stylesheet}`);
+	const styleBytes = Buffer.byteLength(styles.source);
 	const report = { directory, shellBytes, budget: SHELL_BUDGET, files };
 	await writeFile(
 		join(directory, 'specimen-build.json'),
@@ -296,6 +308,7 @@ async function buildStatic(
 					url: `specimen.html?id=${encodeURIComponent(entry.id)}`,
 				})),
 				total: { bytes: total, budget: TOTAL_BUDGET },
+				styles: { file: styles.fileName, bytes: styleBytes, budget: STYLE_BUDGET },
 				categories: Object.fromEntries(
 					Object.entries(categoryBytes).map(([category, bytes]) => [
 						category,
@@ -325,6 +338,8 @@ async function buildStatic(
 		if (bytes > budget)
 			throw new Error(`Bench ${category} code exceeds budget: ${bytes} > ${budget} bytes`);
 	}
+	if (styleBytes > STYLE_BUDGET)
+		throw new Error(`Bench page styles exceed budget: ${styleBytes} > ${STYLE_BUDGET} bytes`);
 	if (total > TOTAL_BUDGET)
 		throw new Error(`Bench JavaScript exceeds budget: ${total} > ${TOTAL_BUDGET} bytes`);
 	return report;
