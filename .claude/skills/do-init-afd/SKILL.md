@@ -37,12 +37,15 @@ name exists, ask) or a unique `<prefix>/<task-slug>` (recent branches use `lush/
 Never force-create or repoint a branch, reset to `main` or stash to attach HEAD;
 each can lose detached commits or dirty files. Stay detached if asked to.
 
-**Runtime.** Use the `.nvmrc` Node, the only one pull-request CI runs. The shell's
-default may be older and a selection does not survive between tool calls, so select
-it per command (`fnm exec --using "$(cat .nvmrc)" -- <cmd>`). If `pnpm` is missing
-(hooks call it bare; Node 26 bundles no corepack), fix `PATH` for the session only,
-never shell profiles, `core.hooksPath` or hook shims. Repair a PATH or Node mismatch
-before reading any failure as a code result.
+**Runtime.** Use the `.nvmrc` Node, the only one `ci.yml` runs on pull requests. The
+shell's default may be older and a selection does not survive between tool calls, so
+select it per command (`fnm exec --using "$(cat .nvmrc)" -- <cmd>`). The hooks call
+`pnpm` bare, and Node 26 bundles no corepack, so `pnpm` comes from an older Node's
+corepack or a system install, which runs the `packageManager` version. If it is
+missing, put such a `pnpm` on `PATH` for the session only (keep the older Node's `bin`
+after the `.nvmrc` Node's). Never install packages globally, enable corepack, or edit
+shell profiles, `core.hooksPath` or hook shims. Repair a PATH or Node mismatch before
+reading any failure as a code result.
 
 ## 2. Refresh the base
 
@@ -64,10 +67,10 @@ harness has its own base-sync tool, merge with that instead.
   checkpoints instead.
 
 Then run `pnpm install --frozen-lockfile`, and in a fresh worktree even if nothing
-moved. A moved base can change the lockfile, which the type checker cannot see. The hooks neither install nor
-build, and without `node_modules` the pre-commit hook's `npx biome` reaches the npm
-registry (one session ran an unrelated package named `biome`), so run tools as
-`pnpm exec <tool>`. `pnpm verify --list` prints each uv project's `uv sync` line.
+moved. A moved base can change the lockfile, which the type checker cannot see. The
+hooks neither install nor build, and without `node_modules` the pre-commit hook's
+`npx biome` reaches the npm registry (one session ran an unrelated package named
+`biome`), so run tools as `pnpm exec <tool>`. `pnpm verify --list` prints each uv project's `uv sync` line.
 
 ### Landing check
 
@@ -109,8 +112,10 @@ Adopt the task the invocation or conversation carries instead of asking what to 
 - **Gate plan:** before choosing what to touch, run
   `pnpm verify --list --files <paths>`. A docs-only edit can widen it: a README
   under `packages/rust/` pulls in five workflows, Umbel among them. `pnpm verify`
-  aborts before running anything if `uv`, `cargo`, `cmake` or `openssl` is missing
-  (it does not check Chromium). Before an Umbel or Loam mounted run, check free
+  aborts before running anything if `uv`, `cargo`, `cmake` or `openssl` is missing,
+  so check the ones the plan needs now (`command -v uv cargo cmake openssl`). It
+  does not check Chromium, which a Loam, Specimen or FAST-AF suite needs. Before an
+  Umbel or Loam mounted run, check free
   disk: one Umbel build took its target directory to 14 GB
   (`endpoints/umbel/docs/STATUS.md`).
 

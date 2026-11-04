@@ -1,10 +1,10 @@
 ---
 name: do-prepare-pr
 description: >
-  Ships an AFD branch: base sync, independent review, changeset and docs, commit,
-  `pnpm verify`, PR, readiness and an authorized merge. `inspect` reports without
-  changing anything; `quick` reruns only gates and the PR. Use when the user says
-  ship it, open a PR or prepare the PR.
+  Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
+  PR and readiness, merging only when separately authorized. `inspect` changes
+  nothing; `quick` reruns gates and the PR. Use when the user says ship it, open a
+  PR or prepare the PR.
 argument-hint: inspect | quick
 ---
 
@@ -44,16 +44,16 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
 
 3. **Docs.**
    - **Changeset** for a user-facing change to a `@lushly-dev/*` npm package; write the fragment in `.changeset/` by hand (`pnpm changeset` prompts). Bump by impact on that package: `major` breaking, `minor` capability, `patch` fix. Only the nine `afd-npm` packages share a version (`fixed` in `.changeset/config.json`), so a bump to one moves all nine; other families are independent, and a quarantined unit's fragment waits for admission. None for Python, Rust, C++, alfred, example, docs or tooling changes.
-   - **Changelogs:** the root `CHANGELOG.md` is an index; never add entries there. Python, Rust and C++ changes go under unreleased in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md` or `packages/cpp/CHANGELOG.md`. Correct an existing entry rather than stacking a contradictory one.
+   - **Changelogs:** the root `CHANGELOG.md` is an index; never add entries there. Python, Rust and C++ changes go under unreleased in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md` or `packages/cpp/CHANGELOG.md`. A quarantined imported unit (Botcore, Violet, FAST-AF, Specimen, Health) keeps its own `CHANGELOG.md` and provenance records; editing its files means updating both, and its provenance tests fail until you do. Correct an existing entry rather than stacking a contradictory one.
    - **Feature plans:** update the tracking plan under `docs/features/`; when the work ships, move its folder to `complete/` and update `docs/features/README.md`.
    - Never add a `CLAUDE.md`. Update any skill or package README the change makes wrong, in the same PR.
 
 4. **Commit** with a message that says why: type and scope from `commitlint.config.js` (no scope for cross-cutting work), subject at most 72 characters. Stage only intended files.
 
-5. **Gates on the final tree.** Run `pnpm verify` on the `.nvmrc` Node, 26: check `node --version`, and if the shell default is older run it under 26 (for example `fnm exec --using=26 pnpm verify`). It runs `pnpm check`, then each triggered workflow's local suite, and prints what only CI covers.
+5. **Gates on the final tree.** Run `pnpm verify` on the `.nvmrc` Node (see `do-init-afd`'s Runtime; for example `fnm exec --using "$(cat .nvmrc)" -- pnpm verify`). It runs `pnpm check`, then each triggered workflow's local suite, and prints what only CI covers. It stops at the first failure; `--keep-going` runs the rest so one pass shows every failure.
    - **Missing tool.** It preflights `uv`, `cargo`, `cmake` and `openssl` and aborts before running anything if a planned suite lists a missing one, even one its planned steps don't use (a `python/README.md` change plans conformance, which lists `cmake`). Then run `pnpm check` and each `--list` step yourself, in its directory, one command per step: brace-expanding `test:conformance:{ts,py}` runs only the first script and passes the rest as ignored arguments. Chromium isn't preflighted; a missing browser fails mid-run. Report what could not run as not run, never as passed.
-   - **Wide plans.** A docs-only edit can trigger heavy suites: a `packages/rust` README change runs Loam and Umbel (Chromium, a Rust build, about 15 GB of Umbel target directory). Read `--list` before choosing what to touch, and check `df -h` before an Umbel run.
-   - **Fresh worktree.** The hooks and `pnpm verify` call `npx biome`, `npx commitlint` and `npx lefthook`; before `pnpm install --frozen-lockfile`, `npx` falls through to the registry, and once ran an unrelated package named `biome`. Run tools by hand as `pnpm exec <tool>`.
+   - **Wide plans.** A docs-only edit can trigger heavy suites: a `packages/rust` README change runs Loam and Umbel (Chromium, a Rust build, about 14 GB of Umbel target directory). Read `--list` before choosing what to touch, and check `df -h` before an Umbel run.
+   - **Fresh worktree.** Install first (`do-init-afd` explains the `npx` trap), and run tools by hand as `pnpm exec <tool>`.
 
 6. **Push.** `git push -u origin <branch>`; on a hook failure, fix and push again. Never `--no-verify` without the user's explicit approval and separate gate evidence for that exact commit.
 
@@ -74,4 +74,8 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8>
    ```
 
-   A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and check landing by content: `git diff HEAD origin/main` should show only other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `do-init-afd`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+
+## Report
+
+A few lines: base (`origin/main` SHA, merged or current); review (passes, findings fixed, dispositions, or why it did not run); docs (changeset and changelog, or why none); gates run and their results, and gates not run with the reason; PR number, head SHA, mergeability and checks; merged or the next action.

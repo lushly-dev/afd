@@ -11,7 +11,7 @@ argument-hint: npm | python | rust | cpp
 
 AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are the four admitted units in `scripts/release/inventory.json`. Every other unit there is quarantined and has no release path: stop and ask.
 
-**Publishing is irreversible and is the maintainer's job.** An agent prepares the release PR: version, changelog and docs. It does not push tags, create GitHub Releases, merge the npm version PR (merging it publishes), run a publish workflow, or change repository or registry settings, unless the maintainer explicitly asks for that step; then it runs only that step, on the reviewed merge commit.
+**Publishing is irreversible and is the maintainer's job.** An agent prepares the release PR: version, changelog and docs. It does not push tags, create GitHub Releases, merge the npm version PR (merging it publishes), run a publish workflow, or change repository or registry settings. The one exception is when the session's user, in the current turn, names that irreversible step ("push the `rust-v0.2.2` tag", "merge the version PR"); a request to cut, ship or prepare a release is not that. Then run only the named step, on the reviewed merge commit.
 
 ## Tracks
 

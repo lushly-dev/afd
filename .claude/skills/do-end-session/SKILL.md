@@ -26,6 +26,10 @@ both.
 
 ## 1. Audit
 
+Audit every branch the session pushed, not only the current one: list the session's
+PRs (`gh pr list --author @me --state all --limit 20`) and run the checks below for
+each branch.
+
 ```bash
 git status --short
 git fetch origin '+refs/heads/main:refs/remotes/origin/main'
