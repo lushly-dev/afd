@@ -236,9 +236,15 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			}
 		},
 		async run(name, input, call, next) {
-			// A replay runs a nested call its journal does not answer, so validation answers as it did live;
-			// a recorded one that gets here stops, before its handler could reach a server (10 and 12).
-			if (deps.internals?.replaying && call.parent !== undefined && call.replay === 'recorded') {
+			// A replay answers a recorded call from its entry before the registry, so a recorded command that
+			// gets here, past validation, is one the journal does not hold as recorded: nested and unanswered,
+			// or a top-level entry whose context lost the mark, or a command a redeploy made mounted. It stops
+			// before its handler could reach a server (10 and 12). Recorded is the kernel's own word, never the
+			// context's: `app-instance-refresh`, or a command a mounted instance owns.
+			if (
+				deps.internals?.replaying &&
+				(name === 'app-instance-refresh' || deps.apps().owners.get(name)?.recorded)
+			) {
 				return kernelFailure(
 					'REPLAY_NOT_RECORDED',
 					`The journal does not record '${name}' under this call, so the replay does not run it`,

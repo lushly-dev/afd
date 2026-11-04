@@ -1578,10 +1578,11 @@ describe('9.1: INSTANCE_PROJECT_UNKNOWN per caller (the boundary re-check, item 
 });
 
 describe('10: a replay and a nested call its journal does not hold (the boundary re-check, items 2 and 3)', () => {
-	const recordedEntry = (seq: number, input: unknown, data: unknown): JournalEntry =>
+	/** A nested entry: `seq` given when the call finished, `call` the trace ID's number when it started. */
+	const recordedEntry = (seq: number, input: unknown, data: unknown, call = seq): JournalEntry =>
 		({
 			seq,
-			traceId: `t-${seq}`,
+			traceId: `loam-mgw0-${call}`,
 			command: 'work-a-read',
 			input,
 			context: { parent: 'outer-1', instance: 'work', replay: 'recorded' },
@@ -1589,16 +1590,43 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 		}) as unknown as JournalEntry;
 
 	it('answers two nested calls a handler made together, recorded in the other order', () => {
-		// The journal gives a call its seq when it finishes, so the second call made can finish first.
+		// The journal gives a call its seq when it finishes, so the second call made can finish first; its
+		// trace ID's number says the order the calls were made in.
 		const nested = nestedReplay([
-			recordedEntry(1, { n: 2 }, 'second'),
-			recordedEntry(2, { n: 1 }, 'first'),
+			recordedEntry(1, { n: 2 }, 'second', 8),
+			recordedEntry(2, { n: 1 }, 'first', 7),
 		]);
 		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })?.data).toBe('first');
 		expect(nested.answer('outer-1', 'work-a-read', { n: 2 })?.data).toBe('second');
 		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
 		nested.finish('outer-1');
 		expect([...nested.problems]).toEqual([]);
+	});
+
+	it('R2: never answers a call with an entry recorded for another input, so the replay diverges', () => {
+		// Made in the other order from the one recorded: the head is the first call made, so the first
+		// call here, for another input, takes no entry, where a search of the queue took the second's.
+		const reordered = nestedReplay([
+			recordedEntry(1, { n: 1 }, 'one', 3),
+			recordedEntry(2, { n: 2 }, 'two', 4),
+		]);
+		expect(reordered.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		const other = nestedReplay([recordedEntry(1, { n: 1 }, 'one')]);
+		expect(other.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		other.finish('outer-1');
+		expect([...other.problems.values()]).toEqual([
+			"The handler did not call 'work-a-read', which the journal records",
+		]);
+		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The head
+		// takes it, as a schema's default may fill an input in, and the call that follows cannot match.
+		const swapped = nestedReplay([
+			recordedEntry(1, { n: 1 }, 'one', 3),
+			recordedEntry(2, {}, 'empty', 4),
+		]);
+		swapped.answer('outer-1', 'work-a-read', {});
+		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		swapped.finish('outer-1');
+		expect(swapped.problems.size).toBe(1);
 	});
 
 	it('refuses a recorded call past validation, and lets validation answer as it did live, with no transport', async () => {
@@ -1657,7 +1685,96 @@ describe('10: a replay and a nested call its journal does not hold (the boundary
 			nestedIn('t-3')
 		);
 		expect(discovery.error?.code).toBe('REPLAY_NOT_RECORDED');
+		// R1: the context's word does not decide. An entry that carries no mark, as a native command's
+		// does when a redeploy has made its owner a mounted instance, stops all the same.
+		const unmarked = await parts.registries.palette.execute('work-a-read', {}, {
+			traceId: 't-4',
+			app: 'umbel',
+			instance: 'work',
+		} as never);
+		expect(unmarked.error?.code).toBe('REPLAY_NOT_RECORDED');
+		const topLevelRefresh = await parts.registries.palette.execute(
+			'app-instance-refresh',
+			{ instance: 'work' },
+			{ traceId: 't-5' } as never
+		);
+		expect(topLevelRefresh.error?.code).toBe('REPLAY_NOT_RECORDED');
 		expect(made).toBe(0);
 		await parts.kernel.dispose();
+	});
+});
+
+describe('R1 and R3: a replay reaches no port, and a kept kernel is live again', () => {
+	async function liveJournal() {
+		const live = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await live.kernel.startInstances();
+		expect((await live.kernel.call('work-a-read', {})).success).toBe(true);
+		const entries: JournalEntry[] = await live.journal.read();
+		await live.kernel.dispose();
+		return { ...live, entries };
+	}
+	const counting = (packages: Parameters<typeof createFixturePorts>[0]) => {
+		const ports = {
+			made: 0,
+			...createFixturePorts(packages),
+			async mountTransport() {
+				ports.made++;
+				return fakeTransport({ 'a-read': { mutation: false } });
+			},
+		};
+		return ports;
+	};
+
+	/** The journal with the `replay: 'recorded'` mark removed from the entries of `command`. */
+	const unmark = (entries: JournalEntry[], command: string) =>
+		entries.map((entry) => {
+			if (entry.command !== command) return entry;
+			const { replay: _replay, ...context } = entry.context as Record<string, unknown>;
+			return { ...entry, context } as JournalEntry;
+		});
+	const replayed = async (entries: JournalEntry[], deployment: ProjectionV2, ports: object) =>
+		replayKernel(entries, { deployment, ports: ports as KernelPortsV1 }).then(
+			() => undefined,
+			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error
+		);
+	const differing = (refusal: { details?: { report?: KernelReplayReport } } | undefined) =>
+		(refusal?.details?.report?.entries ?? []).filter(({ status }) => status !== 'same');
+
+	it('R1: an unmarked top-level discovery makes no transport, and diverges', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const refusal = await replayed(unmark(entries, 'app-instance-refresh'), deployment, ports);
+		// The reviewer's probe: with the context's mark trusted, this discovery ran, and made one.
+		expect(ports.made).toBe(0);
+		expect(refusal?.code).toBe('REPLAY_DIVERGED');
+		const refresh = entries.find(({ command }) => command === 'app-instance-refresh');
+		expect(differing(refusal).map(({ seq }) => seq)).toContain(refresh?.seq);
+		expect(JSON.stringify(differing(refusal))).toContain('REPLAY_NOT_RECORDED');
+	});
+
+	it('R1: an unmarked top-level mounted call stops before its handler, and diverges', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const refusal = await replayed(unmark(entries, 'work-a-read'), deployment, ports);
+		expect(ports.made).toBe(0);
+		const call = entries.find(({ command }) => command === 'work-a-read');
+		expect(differing(refusal).map(({ seq }) => seq)).toEqual([call?.seq]);
+		// Not the handler's MOUNT_UNREACHABLE: the guard answered, so the handler never ran.
+		expect(JSON.stringify(differing(refusal))).toContain('REPLAY_NOT_RECORDED');
+	});
+
+	it('R3: a kept kernel discovers and calls live once the replay has ended', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const { kernel } = await replayKernel(entries, { deployment, ports, keep: true });
+		expect(ports.made).toBe(0);
+		if (!kernel) throw new Error('No kept kernel');
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		const enabled = await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		expect(enabled.warnings).toBeUndefined();
+		expect(ports.made).toBe(1);
+		expect((await kernel.call('app-instance-refresh', { instance: 'work' })).success).toBe(true);
+		expect((await kernel.call('work-a-read', {})).success).toBe(true);
+		await kernel.dispose();
 	});
 });
