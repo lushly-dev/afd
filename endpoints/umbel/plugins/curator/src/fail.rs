@@ -51,13 +51,14 @@ pub(crate) fn model_unavailable() -> Outcome {
 }
 
 /// `CURATOR_TARGET_UNCONFIGURED` (section 11.3): the space has no usable target. `reason` is
-/// `unconfigured`, `collection-missing`, `not-markdown` or `collection-unknown` (the `content`
-/// grant withheld; step 4, amendment 1).
+/// `unconfigured`, `collection-missing` (absent, or not readable by the caller: one answer),
+/// `not-markdown` or `collection-unknown` (the collection metadata service withheld; step 4,
+/// amendment 1).
 pub(crate) fn target_unconfigured(reason: &str, message: &str) -> Outcome {
     failure(
         "CURATOR_TARGET_UNCONFIGURED",
         &format!("the space has no usable curator target: {message}"),
-        "Name a markdown collection of the space as [plugins.curator.config.spaces.<space>] collection (and prefix), the same target [plugins.knowledge.config.drafters.<instance>.targets.<space>] names, and do not deny the curator's content grant.",
+        "Name a markdown collection of the space as [plugins.curator.config.spaces.<space>] collection (and prefix), the same target [plugins.knowledge.config.drafters.<instance>.targets.<space>] names, one whose readers include you.",
     )
     .with_error_details(json!({ "reason": reason }))
 }

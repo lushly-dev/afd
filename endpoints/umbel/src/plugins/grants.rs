@@ -26,7 +26,7 @@ use super::packs::{PackCopy, PackSet};
 use crate::events::Projector;
 use crate::store::Hub;
 use crate::workspace::{SpaceId, Workspace};
-use umbel_sdk::{CollectionInfo, ContentEntry, Reader};
+use umbel_sdk::{CollectionInfo, CollectionMeta, ContentEntry, Reader};
 #[cfg(feature = "store-embedded")]
 use umbel_store::memory;
 use umbel_store::{
@@ -479,6 +479,10 @@ impl HostServices for CallServices {
 
     fn reader_tokens(&self, space: &str) -> Result<Vec<String>, ServiceError> {
         self.svc_reader_tokens(space)
+    }
+
+    fn readable_collections(&self, space: &str) -> Result<Vec<CollectionMeta>, ServiceError> {
+        self.svc_readable_collections(space)
     }
 
     fn doc_put(

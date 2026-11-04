@@ -104,9 +104,9 @@
     conflict sets and section 5.1's rule as a pure, public core; drafting through `umbel_okf::draft`, proven against
     the real knowledge plugin's verification; `curator-candidates` and `curator-promote`; per-principal candidate and
     consent records; the `memory` job gains the crate. Its [amendments](#amendments-from-step-4) settle twelve
-    details and change no trust-model point; the first gives the curator an optional `content` grant for the target
-    collection's readers, which D90's list lacked, and the ninth a host field, `CallContext.person`, so
-    `curator-promote` makes `memory-confirm`'s person check.
+    details and change no trust-model point; the first adds a host service, `readable_collections` under `documents`,
+    for the metadata of collections the caller reads (in place of the `content` grant, for least privilege), and the
+    ninth a host field, `CallContext.person`, so `curator-promote` makes `memory-confirm`'s person check.
 - **Not done:** steps 5 to 7 of section [15](#15-implementation-plan); step 5 (curator: runs) is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
@@ -1545,18 +1545,41 @@ trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amend
 
 Step 4 settled these details of sections 2.3, 4, 5, 10.3, 11.1, 11.3 and 13 that the text left open. None reads memory
 beyond the caller's reader filter, writes memory, widens a reader without the owner's promotion at a terminal, settles a
-`transcript` record or changes what the knowledge plugin verifies. The first adds a read grant D90's list did not name,
-for workspace metadata only; the ninth gives `curator-promote` the host's own person check, as `memory-confirm` has it.
+`transcript` record or changes what the knowledge plugin verifies. The first adds a host service under the `documents`
+grant the curator already holds, for the metadata of collections the caller reads, in place of the `content` grant; the
+ninth gives `curator-promote` the host's own person check, as `memory-confirm` has it.
 
-1. **The target's readers: an optional `content` grant.** Section 5.1 compares the target collection's resolved access
-   set and sensitivity with each source's, and only the workspace's collection list says what they are
-   (`content_collections`, under the `content` grant), as it is for the knowledge plugin's own widening check. None of
-   D90's grants gives them. The curator declares `content` with `required = false` and calls only the collection list:
-   it reads no file, and the grant's reason says so. Without it the curator cannot apply 5.1, so every command answers
-   `CURATOR_TARGET_UNCONFIGURED` with `details.reason = "collection-unknown"`: fail closed, never a draft on a guess.
-   The other reasons are `unconfigured` (no `spaces.<space>` target, or a prefix that is not
-   `umbel_okf::draft::is_safe_prefix`), `collection-missing` and `not-markdown`. `graph` is not declared in this step,
-   which reads no graph; step 5 declares it with re-verification, which does.
+1. **The target's readers: `readable_collections`, under `documents` (host and SDK).** Section 5.1 compares the target
+   collection's resolved access set and sensitivity with each source's, and none of D90's grants gave them. The
+   `content` grant's collection list does, but `content` also carries `content_read` of every file of every collection
+   in the space, outside any reader filter, and `content_replace` wherever an allow list permits: far more than the
+   rule needs. So the host gains a narrow, read-only service, **`readable_collections(space)`**, returning for each
+   collection only its id, kind, default access set and sensitivity (the SDK's `CollectionMeta`), and only for
+   collections whose access set the caller's reader filter admits; it lists and reads no file and returns no root or
+   glob. Compiled plugins only, as `CallContext.pipeline` and `person` are; WIT world 1.0.0 and the schemas are
+   unchanged, and a component or mounted server answers `NotGranted`.
+   - **Why `documents` and not a new grant.** `documents` already means "read the space's documents under the caller's
+     reader filter", and holds `reader_tokens`. A collection's default access set and sensitivity are what reading
+     its documents under the same filter already reveals of each of them, and the filter is the same one, so the
+     service adds no reach the grant did not have. A new grant would add a catalog name, a manifest and configuration
+     surface and a deny to reason about, for metadata a `documents` holder can already infer. `content` is untouched.
+   - **Readers only.** A collection the caller cannot read is left out, so the curator answers
+     `CURATOR_TARGET_UNCONFIGURED` with `details.reason = "collection-missing"` for it, the same answer as for one that
+     does not exist, and shows none of its readers or sensitivity. **5.1 still works**: the caller reads every source,
+     so a target within every source's readers that the caller cannot read is possible (a source shared with `space`
+     and `group:<g>`, a target for `group:<g>` alone, a caller outside the group), and refusing it is the stronger
+     answer. Its proposal would carry the target's access set, so the run's caller could not read it: not follow it in
+     the feed, retry it, withdraw it, or redact it when a source is forgotten (step 3b's amendment 12 reaches only
+     drafts the caller can read). A target the caller reads is unaffected, and its readers can use it.
+   - The curator declares no `content` grant. `documents` is required, so denying it fails the instance at load
+     (`PLUGIN_GRANT_DENIED`) and no command runs on a guess; the handler's own answer to a withheld service is
+     `collection-unknown`, fail closed. The other reasons are `unconfigured` (no `spaces.<space>` target, or a prefix
+     that is not `umbel_okf::draft::is_safe_prefix`) and `not-markdown`. `graph` is not declared in this step, which
+     reads no graph; step 5 declares it with re-verification, which does.
+   - Tests: `tests/readable_collections.rs` (metadata and never file data, filtered by readers, refused without
+     `documents` and not carried by `content`, refused outside the call's spaces); the curator's `config.rs` (an
+     unreadable target is missing, its readers use it, the denied grant fails the load) and `target.rs`'s unit test
+     (`collection-unknown`).
 2. **When a group settles.** A candidate's members are every eligible record the caller can read with one content hash
    and class (eligible: semantic or procedural, live, unflagged, an authority the pack admits, and at least
    `min_confidence` when set, a record asserting none failing a set gate). It has settled when **every** member's current

@@ -4,9 +4,10 @@
 //! drafter entry must name the same target and is the one enforced, so a curator configured
 //! otherwise has its creates refused, never written elsewhere.
 //!
-//! The collection's access set and sensitivity are the workspace's, learned through the optional
-//! `content` grant's collection list (no file is read; step 4, amendment 1): section 5.1's rule
-//! compares them with each source's.
+//! The collection's access set and sensitivity are the workspace's, learned through the host's
+//! `readable_collections` under the `documents` grant: metadata only, and only of collections the
+//! caller can read (step 4, amendment 1). Section 5.1's rule compares them with each source's. A
+//! target the caller cannot read is reported as missing, the same answer, so nothing of it leaks.
 
 use serde_json::Value;
 use umbel_sdk::{Cx, HostError, Outcome};
@@ -74,20 +75,22 @@ fn configured(config: &Value, space: &str) -> Result<(String, Option<String>), O
 /// access set and sensitivity.
 pub(crate) fn resolve(cx: &Cx, config: &Value, space: &str) -> Result<Target, Outcome> {
     let (collection, prefix) = configured(config, space)?;
-    let collections = match cx.content_collections(space) {
+    let collections = match cx.readable_collections(space) {
         Ok(collections) => collections,
         Err(HostError::NotGranted(_)) => {
             return Err(fail::target_unconfigured(
                 "collection-unknown",
-                "the content grant is withheld, so the target collection's readers cannot be learned",
+                "the documents grant is withheld, so the target collection's readers cannot be learned",
             ));
         }
         Err(error) => return Err(fail::host(&error)),
     };
+    // A collection the caller cannot read is left out by the host: missing and unreadable are one
+    // answer.
     let Some(info) = collections.into_iter().find(|info| info.id == collection) else {
         return Err(fail::target_unconfigured(
             "collection-missing",
-            "the space declares no such collection",
+            "the space declares no such collection that you can read",
         ));
     };
     if info.kind != "markdown" {
@@ -133,6 +136,18 @@ mod tests {
             configured(&none, "main").ok(),
             Some(("notes".to_owned(), None))
         );
+    }
+
+    #[test]
+    fn without_the_service_the_target_fails_closed() {
+        let cx = Cx::without_grants(umbel_sdk::CallContext {
+            spaces: vec!["main".into()],
+            ..umbel_sdk::CallContext::default()
+        });
+        let config = json!({ "spaces": { "main": { "collection": "notes" } } });
+        let refused = resolve(&cx, &config, "main").unwrap_err().into_value();
+        assert_eq!(refused["error"]["code"], "CURATOR_TARGET_UNCONFIGURED");
+        assert_eq!(refused["error"]["details"]["reason"], "collection-unknown");
     }
 
     #[test]

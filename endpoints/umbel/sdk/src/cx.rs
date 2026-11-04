@@ -10,7 +10,7 @@ use umbel_store::{
 };
 
 use crate::memory::{LeftOutQuery, MemoryWriteRequest};
-use crate::store::{CollectionInfo, ContentEntry, Reader};
+use crate::store::{CollectionInfo, CollectionMeta, ContentEntry, Reader};
 use umbel_store::memory::{
     Confirm, ForgetReceipt, Invalidate, KeyFileState, LeftOut, MemoryChange, MemoryCounts,
     MemoryList, MemoryPage, MemoryReceipt, MemoryUsage, MemoryVersionMeta, RecallPage, RecallQuery,
@@ -329,6 +329,18 @@ pub trait HostServices: Send + Sync {
     /// # Errors
     /// As [`HostServices::doc_get`].
     fn reader_tokens(&self, _space: &str) -> Result<Vec<String>, HostError> {
+        not_granted("documents")
+    }
+    /// Grant `documents`: the collections of the space whose default access set the caller's
+    /// reader filter admits, in configuration order, as metadata only: id, kind, access set and
+    /// sensitivity (phase 4 step 4, amendment 1). It lists and reads no file, and a collection the
+    /// caller could not read a document of is left out, so it says nothing the caller's document
+    /// reads would not. Compiled plugins only: a component and a mounted server answer
+    /// `NotGranted`.
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_get`].
+    fn readable_collections(&self, _space: &str) -> Result<Vec<CollectionMeta>, HostError> {
         not_granted("documents")
     }
     /// Grant `documents_write`: write a document. The host fills the envelope's identity fields

@@ -1,6 +1,8 @@
 //! The curator's configuration, pack and manifest (phase 4 specification, sections 4.5, 8.5, 10.3,
 //! 11.1 and 11.3): a target per space, checked against the workspace (unconfigured, missing, not
-//! markdown, unknown without the `content` grant) and refused at load when its prefix is unsafe;
+//! markdown, a collection the caller cannot read reported as missing, and the instance refused
+//! when the `documents` grant that carries the collection metadata is denied) and refused at load
+//! when its prefix is unsafe;
 //! the settle pack per space; a configured model refused; a caller with no principal refused; the
 //! grants (memory read only, no write to memory or knowledge); every command CLI only and
 //! digest-journaled with `keep = ["space"]`.
@@ -40,14 +42,20 @@ async fn a_space_needs_a_markdown_collection_as_its_target() {
         );
         assert_eq!(refused["error"]["details"]["reason"], reason);
     }
-    // Without the content grant the collection's readers cannot be learned: fail closed.
-    fx.reconfigure(&config_with(TARGET, "").replace(
-        "source = \"compiled:curator\"",
-        "source = \"compiled:curator\"\ndeny = [\"content\"]",
-    ));
+    // A collection the caller cannot read is missing to them, the same answer: nothing of its
+    // readers or sensitivity is shown. Its readers can still use it as their target.
+    let adas = "[spaces.main.collections.adas]\nroot = \"spaces/main/adas\"\naccess = [\"principal:human:ada\"]\n";
+    std::fs::create_dir_all(fx.path("spaces/main/adas")).unwrap();
+    fx.reconfigure(&config_with(&TARGET.replace("\"notes\"", "\"adas\""), adas));
     let refused = fx.candidates().await;
     assert_eq!(code(&refused), "CURATOR_TARGET_UNCONFIGURED");
-    assert_eq!(refused["error"]["details"]["reason"], "collection-unknown");
+    assert_eq!(refused["error"]["details"]["reason"], "collection-missing");
+    never_mentions(&refused.to_string(), &["principal:human:ada", "adas"]);
+    let ada = fx.candidates_as(human("ada"), json!({})).await;
+    assert_eq!(
+        data(&ada)["target"],
+        json!({ "collection": "adas", "prefix": "learned", "access": ["principal:human:ada"], "sensitivity": "internal" })
+    );
     // Without a prefix, drafts go straight into the collection.
     fx.reconfigure(&config_with(
         "[plugins.curator.config.spaces.main]\ncollection = \"notes\"\n",
@@ -99,6 +107,33 @@ fn an_unsafe_target_prefix_is_refused_when_the_configuration_loads() {
             .unwrap_or_default();
         assert!(error.contains("PLUGIN_CONFIG_INVALID"), "{prefix}: {error}");
     }
+}
+
+#[test]
+fn denying_the_grant_that_carries_the_collection_metadata_fails_closed() {
+    // `documents` is required: denied, the instance does not load, so no command can run on a
+    // guess at the target's readers. (The handler's own answer to a withheld service,
+    // `collection-unknown`, is the crate's unit test.)
+    let dir = tempfile::tempdir().unwrap();
+    let config = config("").replace(
+        "source = \"compiled:curator\"",
+        "source = \"compiled:curator\"\ndeny = [\"documents\"]",
+    );
+    std::fs::write(dir.path().join("umbel.toml"), config).unwrap();
+    let sealed = umbel::HostBuilder::open(dir.path())
+        .unwrap()
+        .with_compiled(std::sync::Arc::new(umbel::plugins::sdk(
+            umbel_plugin_curator::plugin(),
+        )))
+        .seal();
+    let error = sealed
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    assert!(
+        error.contains("PLUGIN_GRANT_DENIED") && error.contains("documents"),
+        "{error}"
+    );
 }
 
 #[tokio::test]
@@ -220,7 +255,6 @@ fn the_manifest_reads_memory_and_writes_only_its_own_records() {
         ("clock", true),
         ("memory", true),
         ("documents", true),
-        ("content", false),
         ("records", true),
         ("records_write", true),
     ]

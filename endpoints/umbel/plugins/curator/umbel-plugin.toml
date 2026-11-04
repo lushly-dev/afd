@@ -27,12 +27,7 @@ reason = "Lists and reads, never writes, the memory records the caller can read,
 
 [[grants]]
 name = "documents"
-reason = "Reads, under the caller's reader filter, whether a candidate's target document already exists."
-
-[[grants]]
-name = "content"
-required = false
-reason = "Learns the target collection's kind, access set and sensitivity from the workspace, to apply the access rule; it reads no file. Without it every command answers CURATOR_TARGET_UNCONFIGURED."
+reason = "Reads, under the caller's reader filter, whether a candidate's target document already exists, and the target collection's kind, readers and sensitivity (collection metadata only, for the access rule; no file is listed or read)."
 
 [[grants]]
 name = "records"
