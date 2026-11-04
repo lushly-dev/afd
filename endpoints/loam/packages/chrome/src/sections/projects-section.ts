@@ -204,11 +204,11 @@ const home = html<LoamProjectsSection>`
 		(x) => x.loaded && x.cards.length === 0,
 		html<LoamProjectsSection>`<p class="empty">No app summarizes this project yet</p>`
 	)}
-	<div class="cards" data-ref="cards" aria-busy="${(x) => String(!x.loaded)}"></div>
+	<div class="cards" data-ref="cards"></div>
 `;
 
 const template = html<LoamProjectsSection>`
-	<section class="section" aria-labelledby="heading">
+	<section class="section" aria-labelledby="heading" aria-busy="${(x) => String(!x.loaded)}">
 		${when((x) => x.view === 'list', list)}
 		${when((x) => x.view === 'home' && x.project !== null, home)}
 		<p class="failure" role="alert" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
@@ -274,6 +274,10 @@ export class LoamProjectsSection extends FASTElement {
 	/** Whether the empty list opened its form already, so a person's Cancel keeps it closed (A3). */
 	#emptyOpened = false;
 	#filterTimer: ReturnType<typeof setTimeout> | undefined;
+	/** What the section's own archive said, kept across the scope move it causes, which clears the rest. */
+	#carried = '';
+	/** Whether this home's first read says what it found, once it ends with focus in the section. */
+	#announce = false;
 
 	constructor() {
 		super();
@@ -345,7 +349,9 @@ export class LoamProjectsSection extends FASTElement {
 			this.formOpen = false;
 			this.cards = [];
 			this.loaded = false;
-			this.status = '';
+			this.status = this.#carried;
+			this.#carried = '';
+			this.#announce = view === 'home';
 			this.failure = '';
 			this.actionError = '';
 			this.#emptyOpened = false;
@@ -394,6 +400,13 @@ export class LoamProjectsSection extends FASTElement {
 		}
 		this.loaded = true;
 		await this.paint();
+		// The read's result, heard where focus alone would say nothing of it: "4 summaries".
+		if (this.#announce && this.view === 'home') {
+			this.#announce = false;
+			const count = this.cards.length;
+			if (!this.status && this.matches(':focus-within'))
+				this.status = count === 1 ? '1 summary' : `${numberOf(count)} summaries`;
+		}
 		if (this.#created !== null) {
 			const id = this.#created;
 			this.#created = null;
@@ -515,7 +528,10 @@ export class LoamProjectsSection extends FASTElement {
 		// From anyone: a project changed, an app was enabled or disabled, or the actor changed.
 		if (!event.success || !event.mutation) return;
 		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3).
-		if (event.command.startsWith('auth-')) this.status = '';
+		if (event.command.startsWith('auth-')) {
+			this.status = '';
+			this.#carried = '';
+		}
 		if (/^(project-|workspace-app-set$|auth-)/.test(event.command)) void this.read();
 	}
 
@@ -614,6 +630,8 @@ export class LoamProjectsSection extends FASTElement {
 			this.#clearErrors();
 			// A filter that would hide the new row is cleared, so its row can take focus (A4).
 			this.filter = '';
+			// Clearing the filter starts its timer, which would replace what create said (N3).
+			clearTimeout(this.#filterTimer);
 			this.status = `${created.name} created`;
 			// Its row takes focus once the list has read it.
 			this.#created = created.id;
@@ -664,8 +682,11 @@ export class LoamProjectsSection extends FASTElement {
 				return;
 			}
 			const done = result.data?.project ?? project;
-			this.status =
+			const said =
 				command === 'project-archive' ? `${done.name} archived` : `${done.name} restored`;
+			// An archive of the home's project moves the scope (4.3); the list it shows says this still.
+			if (command === 'project-archive' && this.view === 'home') this.#carried = said;
+			this.status = said;
 			if (this.view === 'home' && this.project?.id === done.id) this.project = done;
 		} finally {
 			this.busy = false;

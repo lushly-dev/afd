@@ -119,6 +119,8 @@ const appErrors = (opened: ShellPage) => opened.errors.filter((error) => error !
 
 const section = (page: Page) => page.locator('loam-main loam-projects-section');
 const heading = (page: Page) => section(page).locator('h1');
+/** The section's region, which is busy while it reads. */
+const region = (page: Page) => section(page).locator('section.section');
 
 /** What `scope-get` and `section-get` say, unjournaled. */
 const stateOf = (page: Page) =>
@@ -234,6 +236,10 @@ describe('P2-E9: the projects section', () => {
 		await expect.poll(() => heading(page).textContent()).toBe('Projects');
 		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
 		expect(await section(page).locator('tbody tr').count()).toBe(0);
+		// What the archive did is said across the scope move it caused, which shows the list (N1).
+		await expect
+			.poll(() => section(page).locator('.said').textContent())
+			.toBe('Atlas North archived');
 		// Asked in the archived project, by an explicit scope: refused before the handler (3.4, line 6).
 		const archived = (await page.evaluate(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {
@@ -276,14 +282,18 @@ describe('P2-E9: the projects section', () => {
 		await kernelCall(page, 'tasks-complete', { task: 't-1' });
 		await kernelCall(page, 'section-open', { section: 'projects' });
 		await expect.poll(() => heading(page).textContent()).toBe('Atlas');
+		// The region is busy while it reads: the slow summary holds the read for its two seconds.
+		expect(await region(page).getAttribute('aria-busy')).toBe('true');
+		expect(await section(page).locator('.cards').getAttribute('aria-busy')).toBeNull();
+		await heading(page).focus();
 		const cards = section(page).locator('.card');
 		// In the rail's order; the slow one's deadline is two seconds.
 		await expect
 			.poll(() => cards.locator('h2').allTextContents(), { timeout: 10_000 })
 			.toEqual(['Tasks', 'Slow', 'Boom', 'Wide'].map((title) => expect.stringContaining(title)));
-		await expect
-			.poll(() => section(page).locator('.cards').getAttribute('aria-busy'))
-			.toBe('false');
+		await expect.poll(() => region(page).getAttribute('aria-busy')).toBe('false');
+		// The read ended with focus in the section, so the status line says what it found.
+		await expect.poll(() => section(page).locator('.said').textContent()).toBe('4 summaries');
 		const card = (title: string) => cards.filter({ has: page.locator('h2', { hasText: title }) });
 		const tasks = card('Tasks');
 		// The home may have read before the last task: it reads again when main is asked for it.
@@ -425,12 +435,12 @@ describe('P2-E9: the reviews of step 7 (T1)', () => {
 		await answer('time');
 		await expect.poll(() => section(page).locator('.card').count()).toBe(2);
 		expect(await section(page).locator('.card .counts').textContent()).toContain('One');
-		expect(await section(page).locator('.cards').getAttribute('aria-busy')).toBe('false');
+		expect(await region(page).getAttribute('aria-busy')).toBe('false');
 		await answer('throw');
 		await expect
 			.poll(() => section(page).locator('p.failure[role="alert"]:visible').textContent())
 			.toBe('The projects could not be read: broken');
-		expect(await section(page).locator('.cards').getAttribute('aria-busy')).toBe('false');
+		expect(await region(page).getAttribute('aria-busy')).toBe('false');
 		expect(await section(page).locator('p.muted', { hasText: 'Loading' }).count()).toBe(0);
 		await opened.context.close();
 	}, 30_000);
@@ -621,6 +631,10 @@ describe('the accessibility review of step 7 (A3 to A11)', () => {
 		await create(page, 'Beacon');
 		await expect.poll(async () => (await focused(page)).label).toBe('Beacon');
 		expect(await section(page).locator('tbody tr').count()).toBe(2);
+		// The cleared filter's timer, 500 ms, leaves what create said alone (N3).
+		expect(await section(page).locator('.said').textContent()).toBe('Beacon created');
+		await page.waitForTimeout(800);
+		expect(await section(page).locator('.said').textContent()).toBe('Beacon created');
 		// Every project archived, with no filter: the list says why it shows none.
 		for (const slug of ['atlas', 'beacon'])
 			await kernelCall(page, 'project-archive', { project: slug });

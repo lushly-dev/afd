@@ -16,9 +16,12 @@ export const dateOf = (at: number): string => {
 
 export const REPORT = "Report this to the app's owner";
 
-/** A message and its suggestion as two sentences, as a field's refusal reads (A6). */
+/** `text` less one trailing period, so "failure(...)." keeps its ellipsis (N4). */
+const once = (text: string): string => text.replace(/\.$/, '');
+
+/** A message and its suggestion as two sentences, as a field's refusal reads (A6): one period each. */
 export const sentences = (message: string, suggestion?: string): string =>
-	`${message}.${suggestion ? ` ${suggestion}.` : ''}`.replace(/\.\./g, '.');
+	`${once(message)}.${suggestion ? ` ${once(suggestion)}.` : ''}`;
 
 export const numberOf = (value: number): string => new Intl.NumberFormat().format(value);
 
