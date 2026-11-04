@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batch 0 merged in #755; Batch 1 in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batch 0 merged in #755 and Batch 1 in #757; Batch 2 in progress.
 
 ## Summary
 
@@ -182,14 +182,17 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Edit `do-prepare-pr`'s commit step.
 - Most of this is mechanical; the biggest effect is on the listing.
 
-**Batch 2: surviving Botcore skills and the skill tooling (AFD).**
-- Rewrites:
-  - `review-code`, absorbing do-review.
-  - `manage-documentation`, the three-way merge.
-  - `audit-security`, `build-mcp-servers` and `build-botcore-plugins`.
-  - `automate-browsers`, plus its coverage test.
-  - `configure-botcore` and `agent-config`.
-- Verify each API claim against `endpoints/botcore` source.
+**Batch 2: surviving Botcore skills (AFD).**
+- Rewrite each surviving skill as a single SKILL.md, verifying every API claim against `endpoints/botcore` source:
+  - `code-reviewer` (`review-code`), absorbing `review`;
+  - `docs-manager` (`manage-documentation`), absorbing `docs-update` and `content-humanizer`;
+  - `security-auditor`, `mcp-builder` and `plugin-builder`;
+  - `browser-automation`, plus a test that it names every exported cdp command;
+  - `botcore-config` and `agent-config`.
+- Record the merged skills as renames to their merge targets, so seeding migrates them.
+- Make every AFD override a projection again.
+
+**Batch 2b: skill tooling (AFD).**
 - Merge the two linters into one rule set:
   - Drop the trigger requirement.
   - Make a description over 1,024 characters an error, and warn above about 300.
@@ -197,7 +200,6 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
   - Warn on bodies over 500 lines.
   - Accept current Claude Code fields.
   - Add a listing-budget rule for consuming repositories such as Lushly.
-- Record the merged skills (`review`, `docs-update`, `content-humanizer`) as renames to their merge targets, so seeding migrates them.
 - Move Botcore's tracking fields (`source`, `version`, `portable`) under the standard `metadata:` map.
   - `skill-seed`, `skill-adopt`, `skill-status` and `skill-list` read them there, falling back to the top level for older copies.
   - This is what lets seeding keep working with runtime-clean frontmatter.

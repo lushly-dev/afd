@@ -56,7 +56,7 @@ landed (do not open a duplicate PR).
    worktrees. Preserve uncommitted work with a WIP commit if needed. Review runs
    after this so conflicts and stale assumptions are reviewed in final context.
 
-2. **Review.** Run `do-review` (self-review) against the full branch diff
+2. **Review.** Self-review with `review-code` against the full branch diff
    (`git diff origin/main...HEAD` plus uncommitted work), then dispatch a fresh,
    independent reviewer that did not write the code: a subagent in Claude Code, or
    the equivalent in Codex. Give it the diff, the task's acceptance criteria and
@@ -208,5 +208,5 @@ evidence for the exact unchanged diff and base. Otherwise run Full.
 
 `do-init-afd` → build → `do-prepare-pr` → `do-end-session`.
 
-Standalone phases: `do-review` (review only) and `do-release` (versioning and
+Standalone phases: `review-code` (review only) and `do-release` (versioning and
 publish, after merge).

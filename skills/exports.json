@@ -8,12 +8,9 @@
 			"botcore-config",
 			"browser-automation",
 			"code-reviewer",
-			"content-humanizer",
 			"docs-manager",
-			"docs-update",
 			"mcp-builder",
 			"plugin-builder",
-			"review",
 			"security-auditor",
 			"skill-manager"
 		],
@@ -24,7 +21,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".codex/skills",
-			"listingBudget": 13300,
+			"listingBudget": 10200,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -35,6 +32,10 @@
 					"canonical": "browser-automation"
 				},
 				{
+					"name": "build-botcore-plugins",
+					"canonical": "plugin-builder"
+				},
+				{
 					"name": "build-mcp-servers",
 					"canonical": "mcp-builder"
 				},
@@ -43,8 +44,8 @@
 					"canonical": "botcore-config"
 				},
 				{
-					"name": "do-review",
-					"canonical": "review"
+					"name": "manage-documentation",
+					"canonical": "docs-manager"
 				},
 				{
 					"name": "manage-skills",
@@ -55,26 +56,7 @@
 					"canonical": "code-reviewer"
 				}
 			],
-			"overrides": [
-				{
-					"name": "build-botcore-plugins",
-					"owner": "afd",
-					"canonical": "plugin-builder",
-					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
-				},
-				{
-					"name": "do-documentation-update",
-					"owner": "afd",
-					"canonical": "docs-update",
-					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
-				},
-				{
-					"name": "manage-documentation",
-					"owner": "afd",
-					"canonical": "docs-manager",
-					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
-				}
-			],
+			"overrides": [],
 			"local": [
 				"afd",
 				"afd-auth",

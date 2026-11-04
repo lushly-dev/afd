@@ -18,6 +18,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: the remaining skills rewritten and merged** -- nine bundled skills remain. Each
+  is a single SKILL.md (2.0.0) whose API claims were checked against the code.
+  - **Merges.** `review` merged into `code-reviewer`; `docs-update` and `content-humanizer`
+    merged into `docs-manager`. All three are now renames, so `skill_seed` migrates
+    managed copies.
+  - **Code reviewer.** It no longer treats phased delivery as a blocker or requires web
+    research on every review.
+  - **Plugins.** `plugin-builder` documents the managed host, command policies,
+    `error(code, message, ...)` and fail-closed discovery.
+  - **MCP servers.** `mcp-builder` documents the MCP SDK and managed raw Python, and
+    gives the correct client config locations.
+  - **Security.** `security-auditor` covers MCP, command and agent security against
+    Botcore's real boundaries.
+  - **Browser automation.** `browser-automation` documents the trace commands and the
+    CDP commands' actual behaviour. A test checks it names every exported command.
+  - **Configuration.** `botcore-config` and `agent-config` state only settings the code
+    reads, and `agent-config` gains the `state` block.
+  - **Help text.** The `docs` help topic now describes what `docs_lint`,
+    `docs_check_changelog` and `docs_check_agents` check.
 - **skills: generic skills retired** -- 43 bundled skills whose content was general
   engineering guidance that current models already know are removed, leaving 12 with
   botcore- or ecosystem-specific content. The retired set is every `-learn` skill, the

@@ -14,11 +14,14 @@ SKILL_RENAMES: dict[str, str] = {
     "build-mcp-servers": "mcp-builder",
     "configure-agents": "agent-config",
     "configure-botcore": "botcore-config",
+    "content-humanizer": "docs-manager",
     "do-documentation-update": "docs-update",
     "do-review": "review",
+    "docs-update": "docs-manager",
     "humanize-content": "content-humanizer",
     "manage-documentation": "docs-manager",
     "manage-skills": "skill-manager",
+    "review": "code-reviewer",
     "review-code": "code-reviewer",
 }
 

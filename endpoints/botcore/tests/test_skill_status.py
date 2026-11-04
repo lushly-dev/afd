@@ -241,11 +241,11 @@ async def test_status_renamed_locally_owned(tmp_path: Path, owner: str | None) -
     from botcore.commands.skill.frontmatter import read_skill_manifest
 
     source = tmp_path / "source"
-    _make_skill(source, "review", "2.0.0")
-    m = read_skill_manifest(source / "review")
+    _make_skill(source, "code-reviewer", "2.0.0")
+    m = read_skill_manifest(source / "code-reviewer")
     available = {
-        "review": DiscoveredSkill(
-            name="review", source="botcore", source_path=source / "review", manifest=m
+        "code-reviewer": DiscoveredSkill(
+            name="code-reviewer", source="botcore", source_path=source / "code-reviewer", manifest=m
         )
     }
 
@@ -258,11 +258,11 @@ async def test_status_renamed_locally_owned(tmp_path: Path, owner: str | None) -
     data = assert_success(result)
     old = next(s for s in data["skills"] if s["name"] == "do-review")
     assert old["status"] == "renamed"
-    assert old["renamed_to"] == "review"
+    assert old["renamed_to"] == "code-reviewer"
     assert old["source"] == owner
     assert ".claude/skills/do-review" in old["suggestion"]
     if owner is None:
-        assert "skill_adopt('review')" in old["suggestion"]
+        assert "skill_adopt('code-reviewer')" in old["suggestion"]
     else:
         assert f"source: {owner}" in old["suggestion"]
     assert data["summary"]["renamed"] == 1

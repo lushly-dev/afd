@@ -55,7 +55,7 @@ graph TB
     BC --> C["📁 Repo C"]
 
     P["🔌 Plugins"] --> BC
-    S["📚 12 Skills"] --> BC
+    S["📚 9 Skills"] --> BC
     CMD["⚡ 38+ Commands"] --> BC
 
     style BC fill:#16213e,stroke:#22c55e,stroke-width:2px,color:#eee
@@ -127,7 +127,7 @@ Adding a command to botcore or a plugin automatically makes it available — no 
 graph LR
     Core["⚡ Core Commands<br/><em>38 built-in</em>"]
     Plugins["🔌 Plugins<br/><em>entry-point discovery</em>"]
-    Skills["📚 Skills<br/><em>12 bundled</em>"]
+    Skills["📚 Skills<br/><em>9 bundled</em>"]
 
     Core --> NS["🔀 Namespace Merge"]
     Plugins --> NS
@@ -167,7 +167,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | **Research** | `research_query`, `research_stream` | GPT web research with streamed output |
 | **Undo** | `undo_status`, `undo_clear` | Command history and rollback |
 
-### Bundled Skills (12)
+### Bundled Skills (9)
 
 Skills are markdown knowledge packs for agents. botcore bundles only skills whose content is
 specific to botcore or its ecosystem; general engineering guidance that current models already
@@ -177,8 +177,8 @@ locally owned ones.
 | Category | Skills |
 |----------|--------|
 | **botcore** | `agent-config`, `botcore-config`, `browser-automation`, `mcp-builder`, `plugin-builder` |
-| **Review and security** | `code-reviewer`, `review`, `security-auditor` |
-| **Documentation** | `content-humanizer`, `docs-manager`, `docs-update`, `skill-manager` |
+| **Review and security** | `code-reviewer`, `security-auditor` |
+| **Documentation** | `docs-manager`, `skill-manager` |
 
 ## Plugin System
 
@@ -313,7 +313,7 @@ result = await client.call("skill_seed", {"update": True})
 ### Manage Skills
 
 ```bash
-# Copy the 12 bundled skills into .claude/skills/
+# Copy the 9 bundled skills into .claude/skills/
 botcore skill-seed
 
 # Check for version drift
@@ -348,7 +348,7 @@ ruff check src/ --fix
 - [x] Command extraction (38+ commands across 8 domains)
 - [x] CDP browser automation (28 commands)
 - [x] Skill registry (seed, lint, track, adopt, index)
-- [x] 12 bundled skills
+- [x] 9 bundled skills
 - [x] MCP server factory (meta-tool pattern)
 - [x] Multi-language dispatch (Python, TypeScript, Rust)
 - [x] Skill ownership tiers (botcore, plugin, local)
