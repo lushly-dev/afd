@@ -8,7 +8,6 @@
 	--specimen-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	--specimen-surface: light-dark(#fff, #16181d);
 	--specimen-raised: light-dark(#f5f6f8, #1f2229);
-	--specimen-stage: light-dark(#e9ebef, #0d0f13);
 	--specimen-text: light-dark(#1b1d22, #e7e9ee);
 	--specimen-muted: light-dark(#575d6b, #a6acba);
 	--specimen-border: light-dark(#d5d9e0, #363a46);
@@ -45,7 +44,8 @@ body {
 }
 #specimen-root {
 	box-sizing: border-box;
-	max-width: 84rem;
+	/* The Wide preset's 1920px frame and its border, so the bar and the frame end together. */
+	max-width: calc(1922px + 3rem);
 	margin: 0 auto;
 	padding: 1.5rem;
 }
@@ -229,10 +229,7 @@ button {
 }
 .specimen-stage {
 	margin: 0;
-	padding: 1.5rem;
 	overflow: auto;
-	border-radius: var(--specimen-radius);
-	background: var(--specimen-stage);
 }
 /* At the stage's start, so a dragged corner follows the pointer; a wider frame scrolls the stage. */
 .specimen-viewport {
@@ -241,12 +238,10 @@ button {
 	min-height: 80px;
 	overflow: hidden;
 	resize: both;
-	box-shadow:
-		0 0 0 1px var(--specimen-border),
-		0 4px 16px rgb(0 0 0 / 0.12);
+	border: 1px solid var(--specimen-border);
 }
 .specimen-stage figcaption {
-	margin-top: 0.75rem;
+	margin-top: 0.5rem;
 	color: var(--specimen-muted);
 	font-size: 0.85rem;
 }
@@ -263,8 +258,5 @@ button {
 	.specimen-tag,
 	button {
 		border: 1px solid;
-	}
-	.specimen-viewport {
-		outline: 1px solid;
 	}
 }
