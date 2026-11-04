@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 4 (all AFD and Botcore work) merged in #755, #757, #761, #774, #776 and #777. Batches 5 to 7 are in Lushly; Batch 5 waits on the delivery decision below.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 4 (all AFD and Botcore work) merged in #755, #757, #761, #774, #776 and #777. Batches 5 to 7 are in Lushly. The delivery decision is made: AFD now publishes `lushly-botcore` (see `docs/features/active/platform-monorepo/botcore-handoff.md`), so Batch 5 starts once 0.6.0 is released from AFD.
 
 ## Summary
 
@@ -217,7 +217,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Evaluate by replaying two or three recent sessions against the old and new text before merging. These are the most-used skills.
 
 **Batch 5: Lushly plumbing and removals** (after Batches 1 and 2).
-- Decide first how Lushly receives the cleaned skills. It pins `lushly-botcore[all]==0.3.5` from PyPI, and AFD's Botcore is quarantined from publishing, so `skill-seed` there still delivers the old set. The options are a Botcore release, or seeding from AFD's source (for example `uvx --from 'git+https://github.com/lushly-dev/afd#subdirectory=endpoints/botcore'`). This is an owner decision.
+- Lushly receives the cleaned skills by moving its `lushly-botcore` pin to the first release published from AFD (0.6.0 or later), then re-seeding.
 - Re-adopt the surviving canonical skills with `metadata:` ownership, so `skill-seed --update` refreshes them again.
 - Delete the copies Botcore removed and the Lushly removals listed above.
 - Register Lushly's session skills as local.
@@ -238,6 +238,8 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Rename and trim `lushly-design`.
 - Repoint the `ensure-accessibility` references.
 
+**After Batch 7: review every remaining Lushly skill.** Check all of Lushly's skills, seeded and local, against the rewritten `skill-manager` guidance, including any the batches above didn't touch. Run `botcore skill-lint` with Lushly's `listing_budget`, and rewrite, merge or remove whatever still falls short.
+
 Batches 3–4 and 5–7 are independent of each other once Batches 0–2 land.
 
 Still to confirm: whether Codex discovers these skills through `.codex/skills`. Its current docs name only `.agents/skills`.
@@ -253,7 +255,7 @@ Still to confirm: whether Codex discovers these skills through `.codex/skills`. 
   - #781: the `pnpm verify` preflight.
 
 Still open for the owner:
-- **Lushly delivery.** How Lushly receives the cleaned Botcore skills: a release, or installing from AFD's source (see Batch 5).
+- **Lushly delivery.** Decided 2026-11-04: AFD publishes `lushly-botcore`; the handoff's owner steps are in `docs/features/active/platform-monorepo/botcore-handoff.md`.
 - **loam-design.** Whether it should become a router to `endpoints/loam/docs/design.md`. That would reverse Loam's D26 (see Batch 3).
 
 ## Owner decisions (2026-11-03)
