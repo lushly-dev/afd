@@ -40,6 +40,13 @@ export interface ScopeRuntime {
 	project(ref: string): ProjectV1 | undefined;
 	/** `decideAccess`, with the project read from the cache. */
 	allows(actor: string, scope: ScopeV1): boolean;
+	/**
+	 * Whether an app can open in a scope with `project`, or none (phase 2 specification, 7.1 and 9.1): with
+	 * no project, if its levels hold the workspace; in a project, always, by narrowing, unless the instance
+	 * lists `projects` and this one's slug is not among them. The rail's `available`, `app-open`'s refusal and
+	 * a switch's keep or leave all read it.
+	 */
+	opensIn(instance: string, levels: readonly string[], project: string | undefined): boolean;
 	/** By trace ID: what the handler and the middleware leave for `run`'s event. */
 	readonly seen: Map<string, ScopeSeen>;
 	note(traceId: string | undefined, seen: ScopeSeen): void;
@@ -67,6 +74,11 @@ export function createScopeRuntime(workspace: { id: string; name: string }): Sco
 				scope,
 				project: scope.project === undefined ? undefined : projects.get(scope.project),
 			}).allowed,
+		opensIn(instance, levels, inProject) {
+			if (inProject === undefined) return levels.includes('workspace');
+			const listed = workspaceApps.get(instance)?.projects;
+			return !listed || listed.includes(projects.get(inProject)?.slug as string);
+		},
 		seen,
 		// Only for a call `run` made, which deletes its entry: a server's call leaves nothing behind.
 		note(traceId, extra) {

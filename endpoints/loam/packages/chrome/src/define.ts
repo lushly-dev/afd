@@ -6,13 +6,19 @@
 
 import type { FASTElement } from '@lushly-dev/fast-element';
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
-import { appEntryDefinition, LoamAppEntry } from './elements/app-entry.js';
+import {
+	appEntryDefinition,
+	LoamAppEntry,
+	LoamSectionEntry,
+	sectionEntryDefinition,
+} from './elements/app-entry.js';
 import { LoamRail, LoamTabbar, railDefinition, tabbarDefinition } from './elements/app-nav.js';
 import { emptyStateDefinition, LoamEmptyState } from './elements/empty-state.js';
 import { LoamMain, mainDefinition } from './elements/main.js';
 import type { LoamNotice } from './elements/notice.js';
 import { defineNotice } from './elements/notice-loader.js';
 import { LoamPanel, panelDefinition } from './elements/panel.js';
+import { LoamProjectSwitcher, projectSwitcherDefinition } from './elements/project-switcher.js';
 import { type JournalReader, LoamShell, shellDefinition } from './elements/shell.js';
 import {
 	inspectorDefinition,
@@ -29,6 +35,9 @@ const ELEMENTS: [typeof FASTElement, { name: string }][] = [
 	[LoamEmptyState, emptyStateDefinition],
 	// In first paint, so the rail lists the apps from their boot records (phase 2 specification, 2.2).
 	[LoamAppEntry, appEntryDefinition],
+	// The rail's bands (phase 2 specification, 7.2): the sections and the switcher's button.
+	[LoamSectionEntry, sectionEntryDefinition],
+	[LoamProjectSwitcher, projectSwitcherDefinition],
 	[LoamStatusItem, statusItemDefinition],
 	[LoamTitlebar, titlebarDefinition],
 	[LoamRail, railDefinition],
@@ -54,6 +63,8 @@ export const CHROME_ELEMENTS: readonly string[] = Object.freeze([
 	'loam-toast-region',
 	'loam-toast',
 	'loam-modal',
+	'loam-tooltip',
+	'loam-project-list',
 ]);
 
 let defined: Promise<void> | null = null;

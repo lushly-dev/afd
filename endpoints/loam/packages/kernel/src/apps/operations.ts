@@ -18,6 +18,7 @@ import type {
 	AppPortV2,
 	AppStateV1,
 	AppSummaryV2,
+	SelectionV2,
 } from '../types.js';
 import { boundRecorded, type MountedHost } from './mounted.js';
 import { type AppsHost, layoutNamesOf } from './types.js';
@@ -59,9 +60,49 @@ export interface AppRecord {
 	commands: readonly string[];
 	/** The status items the manifest declares. */
 	readonly statusItemIds: ReadonlySet<string>;
-	/** Not persisted: `app-selection-set` sets it, and leaving the app clears it (4.4). */
-	selection: string | null;
+	/**
+	 * Not persisted: `app-selection-set` sets one per scope, keyed as {@link statusKey} keys a status value,
+	 * so a late call of a surface made in Atlas cannot select under Beacon; leaving the app, or any change of
+	 * scope, clears them (4.4; phase 2 specification, 7.4).
+	 */
+	readonly selections: Map<string, SelectionV2>;
+	/** Keyed by {@link statusKey}: a value is per instance and scope (7.6). */
 	readonly statusValues: Map<string, string>;
+}
+
+const unselect = (record: AppRecord): void => record.selections.clear();
+
+/**
+ * The selection made in `project`'s scope. None reads at the level a selection there defaults to: the
+ * project's for an app that takes one in a project, the workspace's for an app that takes it, else the
+ * project's, so a first selection's undo names a level the app has (7.4).
+ */
+const selectionOf = (record: AppRecord, project: string | undefined): SelectionV2 =>
+	record.selections.get(statusKey(record, project, '')) ?? {
+		id: null,
+		level:
+			project !== undefined && record.scopeLevels.includes('project')
+				? 'project'
+				: record.scopeLevels.includes('workspace')
+					? 'workspace'
+					: 'project',
+	};
+
+/**
+ * A status value's key: the project, for an app that takes one, then the item's id. An app that does not
+ * take a project keeps one value, as its calls are narrowed to the workspace (3.4).
+ */
+const statusKey = (record: AppRecord, project: string | undefined, id: string): string =>
+	`${record.scopeLevels.includes('project') ? (project ?? '') : ''}/${id}`;
+
+/** The values set in `project`'s scope, by item id. */
+function statusOf(record: AppRecord, project: string | undefined): Record<string, string> {
+	const prefix = statusKey(record, project, '');
+	return Object.fromEntries(
+		[...record.statusValues]
+			.filter(([key]) => key.startsWith(prefix))
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
 }
 
 function summaryOf(record: AppRecord): AppSummaryV2 & { state: AppStateV1 } {
@@ -139,7 +180,7 @@ export function createOperations(
 		if (previous !== null) {
 			overlays.closeForSwitch(previous);
 			const record = records.get(previous);
-			if (record) record.selection = null;
+			if (record) unselect(record);
 		}
 		return undefined;
 	}
@@ -199,7 +240,7 @@ export function createOperations(
 			return instance !== undefined && property !== undefined ? { instance, property } : undefined;
 		},
 		clearSelections() {
-			for (const record of records.values()) record.selection = null;
+			for (const record of records.values()) unselect(record);
 		},
 		mountedInstances: () =>
 			[...records.values()].filter(startable).map((record) => record.instance),
@@ -207,7 +248,7 @@ export function createOperations(
 			[...records.values()]
 				.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1))
 				.map(summaryOf),
-		detail(instance) {
+		detail(instance, project) {
 			const record = records.get(instance);
 			if (!record) return unknownApp(instance);
 			return success({
@@ -215,7 +256,7 @@ export function createOperations(
 				...record.detail,
 				warnings: [...record.warnings],
 				notices: [...record.notices],
-				statusItems: Object.fromEntries(record.statusValues),
+				statusItems: statusOf(record, project),
 			});
 		},
 		open(instance) {
@@ -225,7 +266,7 @@ export function createOperations(
 			if (previous !== instance) {
 				const refused = leaveActive();
 				if (refused) return refused;
-				record.selection = null;
+				unselect(record);
 				state.setActiveApp(instance);
 			}
 			return success(
@@ -301,27 +342,41 @@ export function createOperations(
 				}
 			);
 		},
-		selection(instance) {
+		selection(instance, project) {
 			const record = records.get(instance);
-			return record ? success({ id: record.selection }) : unknownApp(instance);
+			return record ? success(selectionOf(record, project)) : unknownApp(instance);
 		},
 		resetSession() {
 			for (const record of records.values()) {
-				record.selection = null;
+				unselect(record);
 				record.statusValues.clear();
 			}
 		},
-		setSelection(instance, id) {
+		setSelection(instance, id, level, project) {
 			const record = records.get(instance);
 			if (!record) return unknownApp(instance);
-			const previous = record.selection;
-			record.selection = id;
+			if (!record.scopeLevels.includes(level)) {
+				return kernelFailure(
+					'VALIDATION_ERROR',
+					`The app '${instance}' has no ${level} level to select at`,
+					`Select at ${record.scopeLevels.map((each) => `'${each}'`).join(' or ')}`
+				);
+			}
+			if (level === 'project' && project === undefined) {
+				return kernelFailure(
+					'SCOPE_PROJECT_REQUIRED',
+					'Open a project first',
+					"Run scope-set, or select at 'workspace'"
+				);
+			}
+			const previous = selectionOf(record, project);
+			record.selections.set(statusKey(record, project, ''), { id, level });
 			return success(
-				{ id },
-				{ undoCommand: 'app-selection-set', undoArgs: { instance, id: previous } }
+				{ id, level },
+				{ undoCommand: 'app-selection-set', undoArgs: { instance, ...previous } }
 			);
 		},
-		setStatusItem(caller, id, value) {
+		setStatusItem(caller, id, value, project) {
 			const record = caller === undefined ? undefined : records.get(caller);
 			if (!record?.statusItemIds.has(id)) {
 				return kernelFailure(
@@ -332,7 +387,7 @@ export function createOperations(
 					'Declare the item under `ui.surfaces.status.items`, and set it from that app'
 				);
 			}
-			record.statusValues.set(id, value);
+			record.statusValues.set(statusKey(record, project, id), value);
 			return success({ id, value });
 		},
 	};

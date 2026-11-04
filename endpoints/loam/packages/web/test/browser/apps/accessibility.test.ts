@@ -129,6 +129,8 @@ describe('E11: axe with apps', () => {
 		const layout = await parts(page);
 		expect(layout.tabbar.present).toBe(true);
 		expect(await page.locator('loam-tabbar loam-app-entry').count()).toBe(2);
+		// Amended by phase 2's step 6: the tab bar holds the bands' sections and switcher too (7.2).
+		expect(await page.locator('loam-tabbar loam-section-entry').count()).toBe(3);
 		expect(await axe(page)).toEqual([]);
 		await page.locator('loam-tabbar loam-app-entry[instance="hello"] button').click();
 		await page.locator('hello-main').waitFor();
@@ -150,6 +152,13 @@ describe('E11: the keyboard with apps', () => {
 		await page.keyboard.press('F6');
 		await page.keyboard.press('F6');
 		expect((await focused(page)).part).toBe('rail');
+		// Amended by phase 2's step 6: the top band opens with Projects, the switcher and Documents (7.1).
+		await page.keyboard.press('Tab');
+		expect((await focused(page)).label).toBe('Projects');
+		await page.keyboard.press('Tab');
+		expect((await focused(page)).label).toBe('Project: none');
+		await page.keyboard.press('Tab');
+		expect((await focused(page)).label).toBe('Documents');
 		await page.keyboard.press('Tab');
 		expect((await focused(page)).label).toBe('Hello');
 		await page.keyboard.press('Enter');
@@ -181,7 +190,8 @@ describe('E11: the keyboard with apps', () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
 		const entry = page.locator('loam-rail loam-app-entry[instance="hello"]');
-		const tip = entry.locator('.tip');
+		// Amended by phase 2's step 6: one `loam-tooltip` in the rail's shadow root, in the top layer (7.5).
+		const tip = page.locator('loam-rail loam-tooltip');
 		// Seen, not only displayed: the rail's list must not clip what shows beside it.
 		const tipShows = () =>
 			tip.evaluate((element) => {
@@ -192,7 +202,7 @@ describe('E11: the keyboard with apps', () => {
 					root.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === element
 				);
 			});
-		expect(await tipShows()).toBe(false);
+		expect(await tip.count()).toBe(0);
 		await entry.hover();
 		await expect.poll(tipShows).toBe(true);
 		expect(await tip.textContent()).toBe('Hello');

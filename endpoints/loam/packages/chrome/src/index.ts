@@ -15,6 +15,12 @@ export {
 	type NoticeOptions,
 	renderNotice,
 } from './define.js';
+export {
+	APP_OPEN_EVENT,
+	LoamAppEntry,
+	LoamSectionEntry,
+	SECTION_OPEN_EVENT,
+} from './elements/app-entry.js';
 export { LoamAppNav, LoamRail, LoamTabbar, SETTINGS_TOOLTIP } from './elements/app-nav.js';
 export { LoamEmptyState } from './elements/empty-state.js';
 export { ACTION_EVENT, type ChromeAction } from './elements/events.js';
@@ -29,6 +35,7 @@ export type {
 	PaletteResult,
 } from './elements/palette.js';
 export { LoamPanel } from './elements/panel.js';
+export { LoamProjectSwitcher, SWITCHER_OPEN_EVENT } from './elements/project-switcher.js';
 export type { LoamResizeHandle } from './elements/resize-handle.js';
 export {
 	type JournalReader,
@@ -40,6 +47,8 @@ export { LoamInspector, LoamSidebar, LoamSidePart } from './elements/side-part.j
 export { LoamStatusItem } from './elements/status-item.js';
 export { LoamStatusbar } from './elements/statusbar.js';
 export { LoamTitlebar } from './elements/titlebar.js';
+// As the palette's: it loads when one is needed (7.5).
+export type { LoamTooltip, TipTarget } from './elements/tooltip.js';
 export {
 	type ChordEvent,
 	chordMatches,
@@ -60,6 +69,7 @@ export {
 	presentLayout,
 	type SideMode,
 } from './layout-class.js';
+export { bandFor, dimmedTip, type RailBand, type RailPlacement, railOrder } from './rail/bands.js';
 export {
 	clampSize,
 	DRAG_THRESHOLD,

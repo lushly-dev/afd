@@ -1021,3 +1021,39 @@ describe('what a hostile server cannot do with its size or its shape (9.9)', () 
 		expect(error).toEqual({ code: 'NOPE', message: 'No' });
 	});
 });
+
+describe('P2-E3 (kernel unit): an instance that lists projects opens only in them (7.1, 9.1)', () => {
+	it('is unavailable elsewhere, refuses app-open there, journaled, and leaves on a switch into one', async () => {
+		const { kernel, journal } = await boot({ work: () => fakeTransport({}) }, [
+			work({ projects: ['atlas'] }),
+		]);
+		const atlas = await kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+		const beacon = await kernel.call<{ id: string }>('project-create', { name: 'Beacon' });
+		const available = async () =>
+			(await kernel.call<{ apps: Array<{ available: boolean }> }>('app-list')).data?.apps[0]
+				?.available;
+		expect(await available()).toBe(false);
+		await kernel.call('scope-set', { project: beacon.data?.id });
+		expect(await available()).toBe(false);
+		const refused = await kernel.call('app-open', { instance: 'work' });
+		expect(refused.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect((await journal.read()).at(-1)).toMatchObject({
+			command: 'app-open',
+			result: { success: false, error: { code: 'SCOPE_PROJECT_REQUIRED' } },
+		});
+		await kernel.call('scope-set', { project: atlas.data?.id });
+		expect(await available()).toBe(true);
+		expect((await kernel.call('app-open', { instance: 'work' })).success).toBe(true);
+		const left = await kernel.call<{ app: string }>('scope-set', { project: beacon.data?.id });
+		expect(left.data?.app).toBe('left');
+		expect((await kernel.call<{ active: string | null }>('app-list')).data?.active).toBeNull();
+		// scope-set { app } into a project it does not list is refused before any switch (N3).
+		await kernel.call('scope-set', { project: atlas.data?.id });
+		const into = await kernel.call('scope-set', { project: beacon.data?.id, app: 'work' });
+		expect(into.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect(
+			(await kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
+		).toBe(atlas.data?.id);
+		await kernel.dispose();
+	});
+});

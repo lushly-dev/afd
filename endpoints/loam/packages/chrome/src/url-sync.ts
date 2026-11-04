@@ -14,8 +14,9 @@ import type { RouterV1, RouteV1 } from './router.js';
 /** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
 export interface MainStateV1 {
 	scope: { project?: string };
-	workspace: { id: string };
-	project: { slug: string } | null;
+	workspace: { id: string; name?: string };
+	/** The active project's record, when the actor may read it: the rail reads its name and icon too. */
+	project: { slug: string; name?: string; icon?: string } | null;
 	/** Stage A's active scope is not the one `loam.scope` records. */
 	pending?: boolean;
 	section: string | null;
@@ -114,7 +115,14 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			const project = route.kind === 'workspace' ? undefined : route.project;
 			const here = state.scope.project === undefined ? undefined : (state.project?.slug ?? '');
 			if (project !== here) {
-				if (!(await kernel.call('scope-set', { project: project ?? null })).success) return false;
+				// An app route switches and opens in one `scope-set`, which the kernel refuses before any
+				// switch when the app cannot open there (`canOpen`): an instance that does not list the
+				// project, a disabled one (N3, N4).
+				const input =
+					route.kind === 'app'
+						? { project: project ?? null, app: route.instance }
+						: { project: project ?? null };
+				if (!(await kernel.call('scope-set', input)).success) return false;
 				state = await host.readState();
 			}
 		}
@@ -168,11 +176,24 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		const route: RouteV1 = host.route === 'home' ? router.route : { kind: 'not-found' };
 		// An app here that cannot open, or not at this level: as 6.3's `not-found`, the scope goes back to the
 		// record's rather than stage A's choice being journaled, as an in-page navigation checks first.
-		const refused = route.kind === 'app' && !supports(host.appList, route.instance, route.project);
+		let refused = route.kind === 'app' && !supports(host.appList, route.instance, route.project);
 		const found = await under(async () => {
 			if (state.pending) {
 				// What stage A chose in memory is journaled, with the persisted record as its `previous` (10).
 				let to = state.scope.project ?? null;
+				// An app route asks the kernel to switch and open in one call; refused, the switch never
+				// happened, and the scope goes back to the record's as for any app that cannot open (N4).
+				if (route.kind === 'app' && !refused) {
+					const both = await kernel.call('scope-set', { project: to, app: route.instance });
+					if (both.success) {
+						state = await host.readState();
+						return apply(route, state, false);
+					}
+					// A project the kernel refuses stops here, as any refused scope-set does; the app's refusal
+					// is the record's scope again.
+					if (both.error?.code === 'PROJECT_NOT_FOUND') return false;
+					refused = true;
+				}
 				if (refused) {
 					const record = await kernel.call<{ state: { project: string | null } }>(
 						'view-state-get',
@@ -275,7 +296,10 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			});
 		},
 		changed(event) {
-			if (!event.success || !(event.scopeChanged || event.mainChanged) || applying > 0) return;
+			// A change of actor moves the scope before a call that may then fail (3.4): the URL follows it all
+			// the same, and a failed call's `mainChanged` alone moved nothing.
+			const moved = event.scopeChanged !== undefined || (event.success && event.mainChanged);
+			if (!moved || applying > 0) return;
 			const history = event.mainChanged ?? 'push';
 			void bootStarted.then(() => queued(() => follow(history)));
 		},

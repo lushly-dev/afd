@@ -45,6 +45,8 @@ interface FixtureOptions {
 	lateFailure?: boolean;
 	/** Stage B's own boot of the chunk was tried already: this instance starts late. */
 	urlBooted?: boolean;
+	/** Instances `scope-set { app }` refuses, as `canOpen` does one that does not list the project. */
+	unopenable?: string[];
 }
 
 /** A shell and a kernel holding `state`; `scope-set` fails for a slug it does not hold. */
@@ -84,12 +86,16 @@ async function fixture(
 				) {
 					return { success: false, error: { code: 'PROJECT_NOT_FOUND' } };
 				}
+				if (options.unopenable?.includes(input.app as string)) {
+					return { success: false, error: { code: 'SCOPE_PROJECT_REQUIRED' } };
+				}
 				state = {
 					...state,
 					scope: project ? { project: project.id } : {},
 					project: project ?? null,
 					path: '',
 					pending: false,
+					...(input.app !== undefined ? { active: input.app as string, section: null } : {}),
 				};
 			}
 			if (name === 'app-open') state = { ...state, active: input.instance as string, path: '' };
@@ -127,6 +133,8 @@ async function fixture(
 			app('counter', ['workspace']),
 			app('off', ['workspace', 'project'], 'disabled'),
 			app('broken', ['workspace', 'project'], 'failed'),
+			// A mounted instance that lists a project, which only the kernel knows (N4).
+			app('work', ['project']),
 		],
 		readState: async () => structuredClone(state),
 		route: 'home',
@@ -163,9 +171,9 @@ describe('P2-E8: a route runs journaled commands, only where the state differs',
 			instance: 'hello',
 			rest: ['a b', 'c'],
 		});
+		// The switch and the open are one call, which the kernel refuses whole (N4).
 		expect(commands()).toEqual([
-			['scope-set', { project: 'atlas' }],
-			['app-open', { instance: 'hello' }],
+			['scope-set', { project: 'atlas', app: 'hello' }],
 			['app-route-set', { instance: 'hello', path: 'a b/c' }],
 		]);
 		expect(host.route).toBe('home');
@@ -236,7 +244,7 @@ describe('P2-E8: a route runs journaled commands, only where the state differs',
 			instance: 'hello',
 			rest: [],
 		});
-		expect(commands()).toEqual([['scope-set', { project: 'vault' }]]);
+		expect(commands()).toEqual([['scope-set', { project: 'vault', app: 'hello' }]]);
 		expect(host.route).toBe('not-found');
 		await timers();
 		expect(moves).toEqual([]);
@@ -408,7 +416,7 @@ describe('P2-E8: the boot (6.3)', () => {
 			}
 		);
 		await sync.boot();
-		expect(commands()).toEqual([['scope-set', { project: ATLAS.id }]]);
+		expect(commands()).toEqual([['scope-set', { project: ATLAS.id, app: 'hello' }]]);
 		// Main says the URL names nothing it can show, rather than show what the URL does not name.
 		expect(host.route).toBe('not-found');
 		expect(moves).toEqual([]);
@@ -507,5 +515,40 @@ describe('P2-E8: what a URL may hold', () => {
 			instance: 'hello',
 			rest: ['a', 'b'],
 		});
+	});
+});
+
+describe("P2-E8: an app the kernel will not open in the route's project (N4)", () => {
+	it('P2-E8: an in-page navigation switches nothing when scope-set { app } is refused', async () => {
+		const { commands, host, sync } = await fixture('acme', {}, { unopenable: ['work'] });
+		await sync.navigated({
+			kind: 'app',
+			workspace: 'acme',
+			project: 'beacon',
+			instance: 'work',
+			rest: [],
+		});
+		expect(commands()).toEqual([['scope-set', { project: 'beacon', app: 'work' }]]);
+		expect(host.route).toBe('not-found');
+	});
+
+	it("P2-E8: the boot goes back to the record's scope when the route's app cannot open there", async () => {
+		const { commands, host, sync } = await fixture(
+			'acme/p/beacon/work',
+			{ scope: { project: BEACON.id }, project: BEACON, pending: true },
+			{
+				booted: false,
+				record: null,
+				unopenable: ['work'],
+				route: { kind: 'app', workspace: 'acme', project: 'beacon', instance: 'work', rest: [] },
+			}
+		);
+		await sync.boot();
+		expect(commands()).toEqual([
+			['scope-set', { project: BEACON.id, app: 'work' }],
+			['view-state-get', { id: 'loam.scope' }],
+			['scope-set', { project: null }],
+		]);
+		expect(host.route).toBe('not-found');
 	});
 });

@@ -250,9 +250,7 @@ export async function createKernelParts(
 					title,
 					order,
 					state: enabled === false ? 'disabled' : app.state,
-					// An app has a level at least, so with a project active every app can open (narrowing).
-					available:
-						enabled !== false && (project !== undefined || app.scopeLevels.includes('workspace')),
+					available: enabled !== false && scope.opensIn(app.instance, app.scopeLevels, project),
 				};
 			})
 			.sort(byOrder);
@@ -418,6 +416,7 @@ export async function createKernelParts(
 	 * which waits for stage B and would never drain.
 	 */
 	const BOOT_FIELDS: KernelCallFields = {};
+	const runBoot = (name: string, input?: unknown) => run('palette', name, input, {}, BOOT_FIELDS);
 	let endStageB: () => void = () => {};
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;
@@ -531,9 +530,8 @@ export async function createKernelParts(
 			// none can lose a write to it (2.2). A replay's entries are what ran, an apply among them (10).
 			if (applying) {
 				registries = { ...registries, boot: build('palette', bootOnly) };
-				await lateParts?.apply(applying, internals.replaying === true, (name, input) =>
-					run('palette', name, input, {}, BOOT_FIELDS)
-				);
+				await lateParts?.apply(applying, internals.replaying === true, runBoot);
+				if (hydrated) await lateParts?.settle(internals.replaying === true, runBoot);
 			}
 			setAppCommands(apps.commands);
 		})()
@@ -700,6 +698,8 @@ export async function createKernelParts(
 		if (stageBError instanceof LoamKernelError) throw stageBError;
 		await state.hydrate();
 		apps.reconcileLayouts();
+		// Stage B ran before the persisted state was read, so its settle is here (F3).
+		if (applying) await lateParts?.settle(internals.replaying === true, runBoot);
 	}
 	chooseScope(options.initialScope?.project);
 	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.
@@ -764,7 +764,7 @@ export async function createKernelParts(
 			await lateParts?.reload();
 			chooseScope();
 		},
-		runBoot: (name, input) => run('palette', name, input, {}, BOOT_FIELDS),
+		runBoot,
 		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served.
 		mcpOptions: () => lateParts?.mcpOptions(current.commands, current.middleware),
 	};

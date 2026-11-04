@@ -1,0 +1,92 @@
+manifest_version = 2
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "tasks"
+title = "Tasks"
+version = "0.1.0"
+description = "Tasks kept per project: a sidebar list, and main to add, rename and complete them."
+kind = "native"
+domains = ["tasks"]
+license = "MIT"
+
+[native]
+entry = "dist/native.js"
+
+# Project-only: with no project its rail entry is dimmed, and its commands answer SCOPE_PROJECT_REQUIRED.
+[app]
+scope_levels = ["project"]
+resource_keys = { "tasks-complete" = "task", "tasks-rename" = "task" }
+
+[[grants]]
+name = "store"
+reason = "Keeps each project's tasks."
+
+[[commands]]
+name = "tasks-add"
+title = "Add a task"
+description = "Add a task to the active project, and return it."
+category = "tasks"
+effects = ["store-write"]
+input_schema = "schemas/tasks-add.input.json"
+
+[[commands]]
+name = "tasks-add-blank"
+title = "Add an untitled task"
+description = "Add a task titled Untitled to the active project, and return it."
+category = "tasks"
+effects = ["store-write"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[[commands]]
+name = "tasks-list"
+title = "List tasks"
+description = "List the active project's tasks, as the sidebar's list."
+category = "tasks"
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[[commands]]
+name = "tasks-rename"
+title = "Rename a task"
+description = "Give one of the active project's tasks a new title."
+category = "tasks"
+effects = ["store-write"]
+input_schema = "schemas/tasks-rename.input.json"
+undoable = true
+
+[[commands]]
+name = "tasks-complete"
+title = "Complete a task"
+description = "Mark one of the active project's tasks done."
+category = "tasks"
+effects = ["store-write"]
+input_schema = "schemas/tasks-complete.input.json"
+
+[[commands]]
+name = "tasks-summary"
+title = "Summarize tasks"
+description = "Count the active project's open and done tasks, and list the latest."
+category = "tasks"
+effects = ["inspect"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+
+[ui]
+compositions = ["list-detail"]
+
+[ui.layout]
+sidebar = { open = true, width = 260 }
+
+[ui.surfaces.rail]
+label = "Tasks"
+icon = "system/checkmark"
+order = 30
+
+[ui.surfaces.sidebar]
+shape = "list"
+command = "tasks-list"
+title = "Tasks"
+
+[ui.surfaces.main]
+element = "tasks-main"

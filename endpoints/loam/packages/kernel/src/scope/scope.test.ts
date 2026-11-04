@@ -20,7 +20,7 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from '../testing.js';
-import type { KernelEventV2, LoamKernelV2, ProjectV1, ScopeV1 } from '../types.js';
+import type { AppSummaryV2, KernelEventV2, LoamKernelV2, ProjectV1, ScopeV1 } from '../types.js';
 import { decideAccess, LOCAL_ACTOR } from './access.js';
 
 const kernels: LoamKernelV2[] = [];
@@ -189,8 +189,10 @@ describe("P2-E4: 4.3's switch rules, in applyScopeChange", () => {
 		await kernel.call('app-open', { instance: 'dual' });
 		await kernel.call('app-selection-set', { instance: 'dual', id: 'a' });
 		await kernel.call('scope-set', { project: 'atlas' });
+		// Cleared: none, at the level a selection in Atlas defaults to (7.4).
 		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
 			id: null,
+			level: 'project',
 		});
 		await kernel.call('modal-open', { title: 'Sure?', body: 'Say so.' });
 		const refused = await kernel.call('scope-set', { project: 'beacon' });
@@ -734,6 +736,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		expect((await kernel.call('section-get')).data).toMatchObject({ path: '', active: 'dual' });
 		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
 			id: null,
+			level: 'project',
 		});
 		expect(await scopeOf(dual.second)).toMatchObject({ pending: false });
 		expect((await replayOf(await dual.journal.read())).report.diverged).toBe(false);
@@ -906,5 +909,288 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 			active: 'dual',
 		});
 		expect((await entries(workspace)).some((entry) => entry.command === 'section-get')).toBe(false);
+	});
+});
+
+describe('P2-E3 (kernel unit): what the rail and the parts read in a project (7.1, 7.4, 7.6)', () => {
+	it('keeps the level a selection was made at, defaulting to the call’s for an app that takes one', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('app-open', { instance: 'dual' });
+		const set = await kernel.call('app-selection-set', { instance: 'dual', id: 'a' });
+		expect(set.data).toEqual({ id: 'a', level: 'project' });
+		const wide = await kernel.call('app-selection-set', {
+			instance: 'dual',
+			id: 'w',
+			level: 'workspace',
+		});
+		expect(wide.undoArgs).toEqual({ instance: 'dual', id: 'a', level: 'project' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: 'w',
+			level: 'workspace',
+		});
+		// A workspace-only app's selection is at the workspace, whatever is active.
+		await kernel.call('app-open', { instance: 'solo' });
+		expect((await kernel.call('app-selection-set', { instance: 'solo', id: 's' })).data).toEqual({
+			id: 's',
+			level: 'workspace',
+		});
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'solo', id: 's', level: 'everywhere' }))
+				.error?.code
+		).toBe('VALIDATION_ERROR');
+	});
+
+	it('keeps a status value per instance and scope, and app-get answers for the call’s', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		const port = kernel.appPort('dual');
+		await kernel.call('app-open', { instance: 'dual' });
+		await port.surface({ scope: ATLAS }).call('status-item-set', { id: 'count', value: '1' });
+		await port.surface({ scope: WORKSPACE }).call('status-item-set', { id: 'count', value: '2' });
+		const statusIn = async (project: string | null) => {
+			await kernel.call('scope-set', { project });
+			return (
+				await kernel.call<{ statusItems: Record<string, string> }>('app-get', {
+					instance: 'dual',
+				})
+			).data?.statusItems;
+		};
+		expect(await statusIn('atlas')).toEqual({ count: '1' });
+		expect(await statusIn('beacon')).toEqual({});
+		expect(await statusIn(null)).toEqual({ count: '2' });
+	});
+
+	it('marks a project-only app unavailable with no project, and one listing projects elsewhere', async () => {
+		const base = scopedDeployment();
+		const { kernel } = await scoped({
+			deployment: {
+				...base,
+				apps: base.apps.map((app) =>
+					app.instance === 'dual' ? { ...app, projects: ['atlas'] } : app
+				),
+			},
+		});
+		const available = async () =>
+			Object.fromEntries(
+				((await kernel.call<{ apps: AppSummaryV2[] }>('app-list')).data?.apps ?? []).map((app) => [
+					app.instance,
+					app.available,
+				])
+			);
+		expect(await available()).toEqual({ tasks: false, dual: true, solo: true });
+		await kernel.call('scope-set', { project: 'atlas' });
+		expect(await available()).toEqual({ tasks: true, dual: true, solo: true });
+		await kernel.call('scope-set', { project: 'beacon' });
+		expect(await available()).toEqual({ tasks: true, dual: false, solo: true });
+	});
+});
+
+describe('P2-E3 (kernel unit): a selection belongs to its scope and its app’s levels (7.4)', () => {
+	it('refuses a level the app does not take, and a project level with no project', async () => {
+		const { kernel } = await scoped();
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'solo', id: 's', level: 'project' }))
+				.error?.code
+		).toBe('VALIDATION_ERROR');
+		expect(
+			(await kernel.call('app-selection-set', { instance: 'dual', id: 'd', level: 'project' }))
+				.error?.code
+		).toBe('SCOPE_PROJECT_REQUIRED');
+	});
+
+	it('keeps a late selection made in Atlas out of Beacon', async () => {
+		const workspace = await scoped();
+		const { kernel } = workspace;
+		await kernel.call('scope-set', { project: 'beacon' });
+		await kernel.call('app-open', { instance: 'dual' });
+		// A surface made in Atlas, whose call lands after the switch.
+		const late = await kernel
+			.appPort('dual')
+			.surface({ scope: ATLAS })
+			.call('app-selection-set', { instance: 'dual', id: 'from-atlas' });
+		expect(late.data).toEqual({ id: 'from-atlas', level: 'project' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: null,
+			level: 'project',
+		});
+		await kernel.call('app-selection-set', { instance: 'dual', id: 'here' });
+		expect((await kernel.call('app-selection-get', { instance: 'dual' })).data).toEqual({
+			id: 'here',
+			level: 'project',
+		});
+	});
+});
+
+describe('P2-E3 (kernel unit): an app that cannot open here, through app-open or scope-set { app } (N3, N5)', () => {
+	it('refuses a project-only app with no project, and scope-set { app } to it changes nothing', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('scope-set', { project: 'atlas' });
+		const refused = await kernel.call('scope-set', { project: null, app: 'tasks' });
+		expect(refused.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(ATLAS);
+	});
+
+	it('refuses an undo of a scope-set that would reach an app disabled since, changing nothing', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('app-open', { instance: 'solo' });
+		// A workspace-only app leaves for a project, and the undo names it.
+		const left = await kernel.call('scope-set', { project: 'atlas' });
+		expect(left.undoArgs).toEqual({ project: null, app: 'solo' });
+		await kernel.call('workspace-app-set', { instance: 'solo', enabled: false });
+		const undo = await kernel.call(left.undoCommand as string, left.undoArgs);
+		expect(undo.error?.code).toBe('APP_DISABLED');
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(ATLAS);
+	});
+
+	it('refuses a disabled app in app-open and scope-set { app }, before any switch', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('workspace-app-set', { instance: 'dual', enabled: false });
+		expect((await kernel.call('app-open', { instance: 'dual' })).error?.code).toBe('APP_DISABLED');
+		const refused = await kernel.call('scope-set', { project: 'atlas', app: 'dual' });
+		expect(refused.error?.code).toBe('APP_DISABLED');
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+	});
+
+	it('opens an app with the switch, main showing it with no section, and reports mainChanged', async () => {
+		const { kernel } = await scoped();
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		const opened = await kernel.call('scope-set', { project: 'atlas', app: 'tasks' });
+		expect(opened.data).toMatchObject({ active: 'tasks' });
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			section: null,
+			active: 'tasks',
+		});
+		expect(events.find((event) => event.command === 'scope-set')?.mainChanged).toBe('push');
+	});
+
+	it('gives a project-only app’s first selection an undo at the project’s level', async () => {
+		const { kernel } = await scoped();
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('app-open', { instance: 'tasks' });
+		expect((await kernel.call('app-selection-get', { instance: 'tasks' })).data).toEqual({
+			id: null,
+			level: 'project',
+		});
+		const set = await kernel.call('app-selection-set', { instance: 'tasks', id: 't-1' });
+		expect(set.undoArgs).toEqual({ instance: 'tasks', id: null, level: 'project' });
+		expect((await kernel.call(set.undoCommand as string, set.undoArgs)).success).toBe(true);
+	});
+
+	it('refuses an unknown app in scope-set { app } before any switch, loam.scope unwritten (F2)', async () => {
+		const { kernel } = await scoped();
+		const refused = await kernel.call('scope-set', { project: 'atlas', app: 'ghost' });
+		expect(refused.error?.code).toBe('APP_NOT_FOUND');
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+		expect((await kernel.call('view-state-get', { id: 'loam.scope' })).data).toMatchObject({
+			state: { project: null },
+		});
+	});
+
+	it('undoes a scope-set that opened an app from none by closing it, as app-close lands (F4)', async () => {
+		const { kernel } = await scoped();
+		const opened = await kernel.call('scope-set', { project: 'atlas', app: 'tasks' });
+		expect(opened.undoArgs).toEqual({ project: null, app: null });
+		const undone = await kernel.call(opened.undoCommand as string, opened.undoArgs);
+		expect(undone.success).toBe(true);
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: null,
+			path: '',
+			active: null,
+		});
+		// Its own undo opens the app in Atlas again.
+		expect(undone.undoArgs).toEqual({ project: ATLAS.project, app: 'tasks' });
+		// In a project, `app: null` lands on the project's home, as app-close does there.
+		await kernel.call('scope-set', { project: 'beacon', app: 'dual' });
+		await kernel.call('scope-set', { project: 'atlas', app: null });
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+	});
+});
+
+describe('P2-E3 (kernel unit): a persisted active app that cannot open in the recorded scope is none at boot (F3)', () => {
+	/** `dual` listing `projects`, at `generation`. */
+	const deployment = (generation: string, projects?: string[]) => {
+		const projection = scopedDeployment();
+		return {
+			...projection,
+			generation,
+			apps: projection.apps.map((entry) =>
+				entry.instance === 'dual' && projects ? { ...entry, projects } : entry
+			),
+		};
+	};
+
+	async function reloadWith(
+		setup: (workspace: ScopedWorkspace) => Promise<unknown>,
+		first = deployment('scoped'),
+		second = first
+	) {
+		const store = new MemoryAdapter();
+		const journal = new MemoryJournalSink();
+		const before = await scoped({ store, journal, deployment: first });
+		await setup(before);
+		await before.kernel.flush();
+		await before.kernel.dispose();
+		const after = await scoped({
+			store,
+			journal,
+			deployment: second,
+			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+		});
+		return { after, journal };
+	}
+
+	it('closes an instance a redeploy stopped listing the recorded project in, journaled, and replays', async () => {
+		const { after, journal } = await reloadWith(
+			async ({ kernel }) => {
+				await kernel.call('scope-set', { project: 'atlas' });
+				await kernel.call('app-open', { instance: 'dual' });
+			},
+			deployment('scoped', ['atlas', 'beacon']),
+			deployment('scoped-2', ['beacon'])
+		);
+		const { kernel } = after;
+		expect((await kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(ATLAS);
+		// Landed as a change of scope lands a left app: the project's home.
+		expect((await kernel.call('section-get')).data).toEqual({
+			section: 'projects',
+			path: '',
+			active: null,
+		});
+		const recorded = await journal.read();
+		const settled = recorded.filter((entry) => entry.command === 'app-settle');
+		expect(settled).toHaveLength(1);
+		expect(settled[0]?.result.data).toEqual({ left: 'dual', code: 'SCOPE_PROJECT_REQUIRED' });
+		// Right after the apply that dropped the project from the list.
+		const commands = recorded.map((entry) => entry.command);
+		expect(commands[commands.indexOf('app-settle') - 1]).toBe('workspace-deployment-apply');
+		expect((await replayOf(recorded)).report.diverged).toBe(false);
+	});
+
+	it('closes a disabled active app at a reload, and journals nothing when the app can open', async () => {
+		const disabled = await reloadWith(async ({ kernel }) => {
+			await kernel.call('app-open', { instance: 'dual' });
+			await kernel.call('workspace-app-set', { instance: 'dual', enabled: false });
+		});
+		expect((await disabled.after.kernel.call('section-get')).data).toMatchObject({
+			active: null,
+			section: 'projects',
+		});
+		const recorded = await disabled.journal.read();
+		expect(recorded.find((entry) => entry.command === 'app-settle')?.result.data).toEqual({
+			left: 'dual',
+			code: 'APP_DISABLED',
+		});
+		expect((await replayOf(recorded)).report.diverged).toBe(false);
+
+		const kept = await reloadWith(({ kernel }) => kernel.call('app-open', { instance: 'dual' }));
+		expect((await kept.after.kernel.call('section-get')).data).toMatchObject({ active: 'dual' });
+		expect((await kept.journal.read()).some((entry) => entry.command === 'app-settle')).toBe(false);
 	});
 });

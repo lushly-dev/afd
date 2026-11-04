@@ -1,6 +1,7 @@
 /**
  * @fileoverview `loam-status-item`: one item of the status bar, its label read before its value
- * (design.md, component list). It is text, not a control, and does not animate.
+ * (design.md, component list). It is no control itself, and does not animate; its value may hold one, as the
+ * project's item holds a button to the project's home.
  */
 
 import { attr, css, FASTElement, html } from '@lushly-dev/fast-element';

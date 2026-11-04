@@ -11,7 +11,6 @@ import {
 	APPEARANCE_QUERIES,
 	type AppearanceV0,
 	type AppSummaryV2,
-	type CommandSummaryV0,
 	createDefaultAppearance,
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
@@ -20,7 +19,6 @@ import {
 	type LayoutPatchV0,
 	type LayoutStateV0,
 	type LoamKernelV2,
-	type PaletteItem,
 } from '@lushly-dev/loam-kernel';
 import { afterFirstFrame } from '../first-frame.js';
 import {
@@ -37,17 +35,20 @@ import {
 	type PresentationV0,
 	presentLayout,
 } from '../layout-class.js';
+import { RailBands } from '../rail/rail-bands.js';
 import type { ResizeDetail } from '../resize.js';
 import { createRouter, type RouterV1, type RouteV1 } from '../router.js';
 import type { StateProperty } from '../state-properties.js';
 import { applyAppearance } from '../theme.js';
 import type { MainStateV1, UrlSyncV1 } from '../url-sync.js';
-import { APP_OPEN_EVENT, type LoamAppEntry } from './app-entry.js';
+import { APP_OPEN_EVENT, SECTION_OPEN_EVENT } from './app-entry.js';
 import { ACTION_EVENT, type ChromeAction, deepActiveElement } from './events.js';
 import { focusPart } from './focus.js';
 import { defineNotice } from './notice-loader.js';
-import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
+import type { LoamPalette } from './palette.js';
+import type { ShellPalette } from './palette-host.js';
 import { definePalette, whenIdle } from './palette-loader.js';
+import { type LoamProjectSwitcher, SWITCHER_OPEN_EVENT } from './project-switcher.js';
 import type { LoamResizeHandle } from './resize-handle.js';
 import { styles } from './shell-styles.js';
 import type { LoamTitlebar } from './titlebar.js';
@@ -186,6 +187,23 @@ const template = html<LoamShell>`
 				data-part="statusbar"
 				?hidden="${(x) => x.presentation.layoutClass === 'compact'}"
 			>
+				<loam-status-item slot="start" class="workspace-status" label="Workspace"
+					>${(x) => x.workspaceName}</loam-status-item
+				>
+				<loam-status-item
+					slot="start"
+					class="project-status"
+					label="Project"
+					?hidden="${(x) => !x.projectName}"
+					><button
+						class="project-home"
+						type="button"
+						aria-label="${(x) => `Project: ${x.projectName}, home`}"
+						@click="${(x) => x.kernel?.call('section-open', { section: 'projects' })}"
+					>
+						${(x) => x.projectName}
+					</button></loam-status-item
+				>
 				<loam-status-item slot="start" class="actor-status"
 					>${(x) => (x.account ? `Signed in as ${x.account}` : 'Signed out')}</loam-status-item
 				>
@@ -198,6 +216,7 @@ const template = html<LoamShell>`
 				?hidden="${(x) => x.presentation.layoutClass !== 'compact'}"
 			></loam-tabbar>
 			<loam-palette ${ref('palette')}></loam-palette>
+			<span class="announce" role="status">${(x) => x.announcement}</span>
 		`
 	)}
 `;
@@ -223,6 +242,13 @@ export class LoamShell extends FASTElement {
 	declare landing: string;
 	/** Main hides its landing while a persisted active app's surface is on its way (2.2). */
 	declare mainBusy: boolean;
+	/** The status bar's left items: the workspace's name, and the active project's, or empty (7.4). */
+	declare workspaceName: string;
+	declare projectName: string;
+	/** The live region's text: a change of scope, and what it left (phase 2 specification, 7.8). */
+	declare announcement: string;
+	/** The rail's and the tab bar's entries, in first paint (7.2). */
+	readonly rail = new RailBands(this);
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
 	kernel: LoamKernelV2 | null = null;
@@ -233,11 +259,6 @@ export class LoamShell extends FASTElement {
 	listsApps = false;
 	/** How many apps `app-list` last listed: the app surfaces load after the first frame when any are. */
 	appCount = 0;
-	/**
-	 * The rail's and tab bar's entries the first frame drew, by instance, for the app surfaces to adopt.
-	 * A press before the surfaces attach queues `app-open` behind stage B.
-	 */
-	readonly bootEntries = new Map<string, LoamAppEntry[]>();
 	/** The app surfaces, once their chunk has loaded. */
 	apps: ShellApps | null = null;
 	/** Where the shell reads the journal's last sequence number at boot. */
@@ -250,11 +271,12 @@ export class LoamShell extends FASTElement {
 
 	#layoutClass: LayoutClass = 'expanded';
 	#width = 0;
-	#commands = new Map<string, CommandSummaryV0>();
+	/** The palette's host, loaded with the palette: its search and its runs. */
+	#paletteHost: Promise<ShellPalette> | null = null;
+	#pendingQuery = '';
 	#cleanup: (() => void)[] = [];
 	#started: Promise<void> | null = null;
 	#reads = { layout: 0, appearance: 0, session: 0 };
-	#pendingQuery = '';
 	/** The router, once the shell has started (phase 2 specification, 6.3). */
 	router: RouterV1 | null = null;
 	/** Set once stage B's own boot of the URL chunk has been tried, whether or not the chunk loaded. */
@@ -279,6 +301,9 @@ export class LoamShell extends FASTElement {
 		this.booted = false;
 		this.landing = 'No apps yet';
 		this.mainBusy = false;
+		this.workspaceName = '';
+		this.projectName = '';
+		this.announcement = '';
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.base = new URL('./', globalThis.location?.href ?? 'http://localhost/').href;
 		this.home = new URL(this.base).pathname;
@@ -316,8 +341,6 @@ export class LoamShell extends FASTElement {
 		this.router = null;
 		this.#urlSync = null;
 		clearTimeout(this.#busyTimer);
-		for (const entries of this.bootEntries.values()) for (const entry of entries) entry.remove();
-		this.bootEntries.clear();
 		this.appCount = 0;
 		this.#started = null;
 		this.apps = null;
@@ -343,7 +366,6 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		const view = this.ownerDocument.defaultView ?? window;
-		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
 		// Before a call that waited on stage B goes on, so a palette result finds its row.
 		void kernel.appsReady.then(() => this.#stageBEnded(kernel)).catch(reportError);
 
@@ -362,6 +384,16 @@ export class LoamShell extends FASTElement {
 			if (this.apps) return;
 			event.stopPropagation();
 			void kernel.call('app-open', (event as CustomEvent<{ instance: string }>).detail);
+		});
+		// The rail's sections, and its switcher, whose list is the `switcher` chunk's (7.2).
+		this.#listen(this, SECTION_OPEN_EVENT, (event) => {
+			void kernel.call('section-open', (event as CustomEvent<{ section: string }>).detail);
+		});
+		this.#listen(this, SWITCHER_OPEN_EVENT, (event) => {
+			const switcher = event.composedPath()[0] as LoamProjectSwitcher;
+			void import('../rail/switcher.js')
+				.then(({ openSwitcher }) => openSwitcher(this, switcher))
+				.catch(reportError);
 		});
 		this.#listen(this, 'resize-preview', (event) => this.#onResize(event, false));
 		this.#listen(this, 'resize-commit', (event) => this.#onResize(event, true));
@@ -399,12 +431,10 @@ export class LoamShell extends FASTElement {
 		this.lastSeq = Math.max(this.lastSeq, entries.at(-1)?.seq ?? 0);
 		// Appearance first, so the parts render in their theme with no transition from light.
 		await this.#readAppearance();
-		const apps = this.listsApps ? this.#readAppList() : Promise.resolve(undefined);
-		const [, , list, state] = await Promise.all([
+		const [, , [list, state]] = await Promise.all([
 			this.readLayout(),
 			this.#readSession(),
-			apps,
-			this.readState(),
+			this.rail.read(),
 		]);
 		// Stage A: the URL's project is active only if the kernel let the actor in, so a missing and a refused
 		// one paint the same "Nothing here" (6.3).
@@ -423,10 +453,8 @@ export class LoamShell extends FASTElement {
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
-		if (list) {
-			await Updates.next();
-			this.#renderBootEntries(list);
-		}
+		await Updates.next();
+		this.rail.render(list, state);
 		void afterFirstFrame(view).then(() => {
 			// What E1 reads: everything requested before this mark is the first paint (2.2).
 			view.performance?.mark?.('loam-stage-b');
@@ -435,39 +463,6 @@ export class LoamShell extends FASTElement {
 			if (this.appCount > 0) void this.#loadApps();
 			whenIdle(view, () => void this.preparePalette());
 		});
-	}
-
-	/** Read `app-list`, and how many apps it lists. */
-	async #readAppList(): Promise<{ active: string | null; apps: AppSummaryV2[] } | undefined> {
-		const result = await this.kernel?.call<{ active: string | null; apps: AppSummaryV2[] }>(
-			'app-list'
-		);
-		if (!result?.success || !result.data) return undefined;
-		this.appList = result.data.apps;
-		this.appCount = result.data.apps.length;
-		return result.data;
-	}
-
-	/** The first frame's rail and tab bar, from the boot records: text, an icon and a state. */
-	#renderBootEntries({ active, apps }: { active: string | null; apps: AppSummaryV2[] }): void {
-		// Stage B may have ended first, and the app surfaces then draw the rail themselves.
-		if (this.apps) return;
-		for (const app of apps) {
-			if (!app.rail || this.bootEntries.has(app.instance)) continue;
-			const entries = (['rail', 'tabbar'] as const).map((variant) => {
-				const entry = this.ownerDocument.createElement('loam-app-entry') as LoamAppEntry;
-				entry.variant = variant;
-				entry.instance = app.instance;
-				entry.label = app.title;
-				// Blank until the app surfaces register `ICONS_V1` and set it (phase 2 specification, 2.4).
-				entry.icon = '';
-				entry.state = app.state;
-				entry.current = app.instance === active;
-				this.shadowRoot?.querySelector(`loam-${variant}`)?.append(entry);
-				return entry;
-			});
-			this.bootEntries.set(app.instance, entries);
-		}
 	}
 
 	#busyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -492,18 +487,16 @@ export class LoamShell extends FASTElement {
 	 * A chunk that failed says so in main.
 	 */
 	async #stageBEnded(kernel: LoamKernelV2): Promise<void> {
-		for (const command of kernel.listCommands()) this.#commands.set(command.name, command);
 		if (kernel.lateFailure) {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
 			// Stage B lists each app `failed`, so the first frame's entries say "(unavailable)" from it.
-			for (const app of (await this.#readAppList())?.apps ?? []) {
-				for (const entry of this.bootEntries.get(app.instance) ?? []) entry.state = app.state;
-			}
+			await this.rail.refresh();
 			return;
 		}
 		const listed = this.listsApps || this.appCount > 0;
-		if (listed) await this.#readAppList();
+		// Stage B's list corrects what the boot records said (2.2).
+		await this.rail.refresh();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
 		await this.#url((url) => url.boot());
 		// From here, a URL chunk loaded again after a failure starts late, with no boot of its own (6.3).
@@ -634,6 +627,7 @@ export class LoamShell extends FASTElement {
 	#onEvent(event: KernelEventV2): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
+		this.rail.heard(event);
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
 		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
 		if (event.command === 'palette-open' && event.success) {
@@ -745,26 +739,16 @@ export class LoamShell extends FASTElement {
 		await this.kernel.call('palette-open', query ? { query } : {});
 	}
 
-	#palette: Promise<LoamPalette | null> | null = null;
-
 	/** Load and define the palette once, and give it its host. */
 	preparePalette(): Promise<LoamPalette | null> {
-		this.#palette ??= definePalette().then(() => {
-			const palette = this.palette;
-			const kernel = this.kernel;
-			if (!palette || !kernel) {
-				// Not rendered yet: try again on the next call rather than keep the miss.
-				this.#palette = null;
-				return null;
-			}
-			palette.host = {
-				search: (query) => this.#search(query),
-				run: (name) => this.#runFromPalette(name),
-				close: () => void kernel.call('palette-close'),
-			};
-			return palette;
-		});
-		return this.#palette;
+		// A failed load is tried again at the next call.
+		this.#paletteHost ??= import('./palette-host.js')
+			.then(({ ShellPalette }) => new ShellPalette(this, definePalette))
+			.catch((cause: unknown) => {
+				this.#paletteHost = null;
+				throw cause;
+			});
+		return this.#paletteHost.then((host) => host.prepare());
 	}
 
 	async #showPalette(): Promise<void> {
@@ -772,13 +756,8 @@ export class LoamShell extends FASTElement {
 		await this.#closeDrawer();
 		const query = this.#pendingQuery;
 		this.#pendingQuery = '';
-		let palette = await this.preparePalette();
-		// The shell may not have rendered its palette yet; preparePalette forgets a miss, so retry.
-		for (let attempt = 0; attempt < 60 && !palette; attempt++) {
-			await Updates.next();
-			palette = await this.preparePalette();
-		}
-		await palette?.open(query);
+		await this.preparePalette();
+		await (await this.#paletteHost)?.show(query);
 	}
 
 	async toggle(part: 'sidebar' | 'inspector' | 'panel'): Promise<void> {
@@ -931,40 +910,6 @@ export class LoamShell extends FASTElement {
 			: null;
 		if (element) focusPart(element);
 	}
-
-	// ─── The palette ───────────────────────────────────────────────────────────────
-
-	async #search(query: string): Promise<PaletteResult[]> {
-		const result = await this.kernel?.call<{ items: PaletteItem[] }>('palette-search', {
-			query,
-			limit: 20,
-		});
-		if (!result?.success) return [];
-		return (result.data as { items: PaletteItem[] }).items.map((item) => {
-			const summary = this.#commands.get(item.name);
-			return {
-				name: item.name,
-				...(item.title !== undefined ? { title: item.title } : {}),
-				description: item.description,
-				disabled: summary?.needsInput === true,
-				...(summary?.keybinding !== undefined ? { keybinding: summary.keybinding } : {}),
-			};
-		});
-	}
-
-	async #runFromPalette(name: string): Promise<PaletteFailure | null> {
-		const kernel = this.kernel;
-		if (!kernel) return null;
-		const result = await kernel.call(name, {});
-		if (!result.success) {
-			return {
-				message: result.error?.message ?? `${name} failed`,
-				...(result.error?.suggestion !== undefined ? { suggestion: result.error.suggestion } : {}),
-			};
-		}
-		if (name !== 'palette-close' && name !== 'palette-open') await kernel.call('palette-close');
-		return null;
-	}
 }
 observable(LoamShell.prototype, 'layout');
 observable(LoamShell.prototype, 'appearance');
@@ -976,5 +921,8 @@ observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
 observable(LoamShell.prototype, 'booted');
 observable(LoamShell.prototype, 'landing');
+observable(LoamShell.prototype, 'workspaceName');
+observable(LoamShell.prototype, 'projectName');
+observable(LoamShell.prototype, 'announcement');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;

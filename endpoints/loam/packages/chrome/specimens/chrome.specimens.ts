@@ -28,6 +28,17 @@ export const Shell = shell('comfortable');
 /** The whole shell with every part present, compact density. */
 export const ShellCompactDensity = shell('compact');
 
+/** The shell in a project: the status bar's workspace and project items (phase 2 specification, 7.4). */
+export const ShellProject = {
+	render: () =>
+		shellFixture(async () => {
+			const { kernel } = await mediaKernel();
+			const created = await kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+			await kernel.call('scope-set', { project: created.data?.id });
+			return { kernel };
+		}),
+} satisfies SpecimenDefinition;
+
 /** The shell with the command palette open on a query. */
 export const ShellPalette = {
 	render: () =>

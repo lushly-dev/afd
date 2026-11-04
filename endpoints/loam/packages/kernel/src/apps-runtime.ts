@@ -22,6 +22,7 @@ import type {
 	AppPortV2,
 	AppSummaryV2,
 	CommandSummaryV1,
+	SelectionV2,
 } from './types.js';
 
 /** Who owns a command, for the context fields. */
@@ -63,7 +64,8 @@ export interface AppsRuntime {
 	/** The mounted instances, for `startInstances`. */
 	mountedInstances(): string[];
 	summaries(): AppSummaryV2[];
-	detail(instance: string): CommandResult<AppDetailV1>;
+	/** `statusItems` answer for `project`, the call's scope, as `setStatusItem` keys them (7.6). */
+	detail(instance: string, project?: string): CommandResult<AppDetailV1>;
 	open(instance: string): CommandResult<{ active: string | null; previous: string | null }>;
 	close(): CommandResult<{ active: null; previous: string | null }>;
 	commandList(instance: string): CommandResult<{ commands: AppCommandRowV1[]; hidden: number }>;
@@ -76,12 +78,21 @@ export interface AppsRuntime {
 	redact(record: JournalRecord): JournalRecord;
 	/** Register a catalog a journal recorded, with no network. Only a replay has one. */
 	applyCatalog(instance: string, catalog: unknown): void;
-	selection(instance: string): CommandResult<{ id: string | null }>;
-	setSelection(instance: string, id: string | null): CommandResult<{ id: string | null }>;
+	/** The selected id in `project`'s scope, the call's, and the level it was made at (7.4). */
+	selection(instance: string, project?: string): CommandResult<SelectionV2>;
+	/** Refused for a level the app does not take, or `project` with no project in the call's scope. */
+	setSelection(
+		instance: string,
+		id: string | null,
+		level: SelectionV2['level'],
+		project?: string
+	): CommandResult<SelectionV2>;
+	/** A value is per instance and scope: `project` is the call's, for an app that takes one (7.6). */
 	setStatusItem(
 		caller: string | undefined,
 		id: string,
-		value: string
+		value: string,
+		project?: string
 	): CommandResult<{ id: string; value: string }>;
 	/** Forget each app's selection and status values, as a reload does. */
 	resetSession(): void;

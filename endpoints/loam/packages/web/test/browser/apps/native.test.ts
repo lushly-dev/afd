@@ -72,7 +72,8 @@ describe('E1: hello loads native', () => {
 		// Exactly one status item, as the first open renders it, whatever raced to set it.
 		await expect.poll(() => page.locator('[data-status-item="count"]').textContent()).toBe('0');
 		expect(await page.locator('[data-status-item="count"]').count()).toBe(1);
-		expect(await page.title()).toBe('Hello - Loam');
+		// Amended by phase 2's step 6: `<app or section> · <project> · <workspace>` (7.4).
+		expect(await page.title()).toBe('Hello · Personal');
 		expect(await page.locator('loam-toast-region .announcement').textContent()).toBe(
 			'Hello opened'
 		);

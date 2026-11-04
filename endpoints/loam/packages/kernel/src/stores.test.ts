@@ -99,7 +99,7 @@ describe.each(adapters)('P2-E10: the stores over %s', (_name, adapter) => {
 			id: 'tasks',
 			workspace: 'personal',
 			app: 'tasks',
-			package: 'apps/tasks/',
+			package: 'fixtures/tasks/',
 			overrides: {},
 			listed: 'scoped',
 			updatedBy: 'local',

@@ -6,6 +6,12 @@
 
 import { css } from '@lushly-dev/fast-element';
 
+/*
+ * From phase 2's step 6 (written here, not in the stylesheet, which ships what it holds): `.announce` is the
+ * live region of a change of scope, heard and not seen (7.8); `.project-home` is the status bar's project
+ * item, a button to the project's home inside `loam-status-item`, whose muted label stays off the button's
+ * hover and press so its contrast holds, a 24-pixel target in `loam-status-action`'s states (7.4).
+ */
 export const styles = css`
 	:host {
 		display: grid;
@@ -84,10 +90,55 @@ export const styles = css`
 		align-self: end;
 		block-size: clamp(40dvh, var(--_panel-height), 80dvh);
 	}
+	.announce {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.project-home {
+		min-inline-size: var(--size-target-compact);
+		min-block-size: var(--size-target-compact);
+		padding-inline: var(--size-space-xs);
+		border: 1px solid transparent;
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		cursor: pointer;
+	}
+	.project-home:hover {
+		background: var(--color-action-secondary-hover);
+		color: var(--color-text-primary);
+	}
+	.project-home:active {
+		background: var(--color-action-secondary-pressed);
+	}
+	.project-home:focus-visible {
+		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline-offset: calc(-1 * var(--shell-size-focus));
+	}
 	@media (forced-colors: active) {
 		:host {
 			background: Canvas;
 			color: CanvasText;
+		}
+		.project-home {
+			border-color: ButtonText;
+			background: ButtonFace;
+			color: ButtonText;
+		}
+		.project-home:is(:hover, :active) {
+			background: Highlight;
+			color: HighlightText;
+		}
+		.project-home:focus-visible {
+			outline-color: Highlight;
+		}
+		.project-home:is(:hover, :active):focus-visible {
+			outline-color: HighlightText;
 		}
 	}
 `;

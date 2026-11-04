@@ -128,9 +128,10 @@ describe("Loam's profile", () => {
 			'ui-new',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
-			// until its step serves it: `app.resource_keys` is step 4's, with its own cases.
+			// until its step serves it: `app.resource_keys` is step 4's and `tree` step 6's, with their own cases.
+			const served = key === 'app-resource-keys' || key === 'sidebar-tree';
 			expect(ids.has(`version-keys-${key}`), key).toBe(true);
-			expect(ids.has(`not-yet-served-${key}`), key).toBe(key !== 'app-resource-keys');
+			expect(ids.has(`not-yet-served-${key}`), key).toBe(!served);
 		}
 		for (const item of cases.filter((candidate) => candidate.id.startsWith('version-keys-'))) {
 			if (item.id !== 'version-keys-each-once') expect(item.base).toBe('native');

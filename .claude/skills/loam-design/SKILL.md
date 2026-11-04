@@ -126,7 +126,7 @@ regions: `space.layout.*`.
 | Part | Size | Background |
 |------|------|------------|
 | title bar | `shell.size.titlebar` (40, 32 compact); targets `size.target.natural` | `color.surface.subtle` |
-| rail | `shell.size.rail` (48, 40); square targets `size.target.comfortable` | `color.surface.subtle` |
+| rail | `shell.size.rail` (48, 40); square targets `size.target.comfortable`; two bands, "Project apps" (Projects, the switcher, Documents, then project apps) and "Workspace apps", split by a `1px` `color.border.subtle` divider, then Settings; the bands scroll | `color.surface.subtle` |
 | sidebar | `--_sidebar-width`; `shell.size.sidebar.{default,min,max}` 260, 200 to 480 | `color.surface.card` |
 | main | the rest; at least `shell.size.main.min` (360) | `color.surface.page` |
 | inspector | `--_inspector-width`; `shell.size.inspector.{default,min,max}` 300, 240 to 520 | `color.surface.card` |
@@ -185,6 +185,20 @@ determinate `violet-progress`, never `violet-spinner` or an indeterminate
   native `disabled` or `aria-disabled="true"` when it must keep focus for a
   tooltip; invalid `color.field.border.invalid`, `aria-invalid="true"` and
   supporting text in `color.state.danger.text`; loading `aria-busy="true"`.
+
+## Tooltips and popups in the rail
+
+A rail or tab bar has one `loam-tooltip`, in its own shadow root, because
+anchor names are tree-scoped. It is `popover="manual"` in the top layer, so a
+scrolling list never clips it, and it is placed by CSS anchor positioning:
+set `anchor-name` and `position-anchor` through CSSOM
+(`style.setProperty`), never a `style` attribute, which `style-src 'self'`
+refuses. An element it serves exposes a `tip` property; a dimmed entry is
+`aria-disabled`, stays in the Tab order and describes itself with the same
+text. A popup that opens from a rail element (the project switcher's list)
+closes that tooltip itself, since focus inside the element's own shadow root
+never reaches the rail's. Hover, keyboard focus and Escape behave as WCAG
+1.4.13 asks.
 
 ## Icons
 

@@ -43,13 +43,9 @@ afterAll(async () => {
 /** What stage B reads: every package's manifest and each of its chunks. */
 const STAGE_B =
 	/\/apps\/[^/]+\/app-manifest\.json$|\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync)-[^/]*\.js$/;
-const STAGE_B_CHUNK = /\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync)-/;
-/**
- * The palette and the resize handle load when the page is idle, which on a busy machine can come early,
- * and no app decides it (#718).
- */
-const IDLE = /^\/assets\/(?:palette|resize-handle)-/;
-
+// The switcher's list and the tooltip load on first use, never before the first frame (7.2, 7.5).
+const STAGE_B_CHUNK =
+	/\/assets\/(?:apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip)-/;
 /**
  * The first-paint row of `budget`: `index.html`'s entry and every chunk it imports statically, followed
  * through each chunk's own static `import` statements. A dynamic `import(...)` loads later.
@@ -86,7 +82,9 @@ async function firstPaint(
 	await then?.(opened.page);
 	const bytes = Object.fromEntries(
 		site.log
-			.filter(({ path }) => !IDLE.test(path) && paths.includes(path))
+			// The palette's idle load is scheduled after the mark, so it is never in this list (#718's filter
+			// went with step 6, which found `openShell` loading it early).
+			.filter(({ path }) => paths.includes(path))
 			.map(({ path, bytes }) => [path, bytes])
 	);
 	expect(opened.errors).toEqual([]);
@@ -103,7 +101,7 @@ const railOrder = (page: Page) =>
 		.evaluateAll((entries) => entries.map((entry) => entry.getAttribute('instance')));
 
 describe('P2-E1: one first paint', () => {
-	it('P2-E1: the empty shell, hello, and hello with tally request the same chunks, byte for byte', async () => {
+	it('P2-E1: the empty shell, hello, hello with tally, and with tasks request the same chunks, byte for byte', async () => {
 		const hello = await packApp('hello');
 		const sites = [
 			await serveDist(),
@@ -143,15 +141,26 @@ describe('P2-E1: one first paint', () => {
 			})
 		);
 		deep.release();
+		// Step 6's: the project-only tasks, version 2, beside hello and tally (E1, E11).
+		const withTasks = await serveDeployment({
+			config: deploymentFile(
+				deploymentEntry('hello', hello),
+				deploymentEntry('tally', await packApp('tally')),
+				deploymentEntry('tasks', await packApp('tasks'))
+			),
+		});
+		sites.push(withTasks);
+		measured.push(await firstPaint(withTasks));
 		const assets = measured.map(({ bytes }) =>
 			Object.fromEntries(Object.entries(bytes).filter(([path]) => path.startsWith('/assets/')))
 		);
 		expect(assets[1]).toEqual(assets[0]);
 		expect(assets[2]).toEqual(assets[0]);
 		expect(assets[3]).toEqual(assets[0]);
+		expect(assets[4]).toEqual(assets[0]);
 		const deploymentJson = measured.map(({ bytes }) => bytes['/deployment.json']);
 		expect(deploymentJson.every((size) => typeof size === 'number' && size > 0)).toBe(true);
-		expect(new Set(deploymentJson).size).toBe(3);
+		expect(new Set(deploymentJson).size).toBe(4);
 		expect(deploymentJson[3]).toBe(deploymentJson[1]);
 		for (const { paths } of measured) {
 			expect(paths.filter((path) => path.endsWith('app-manifest.json'))).toEqual([]);
@@ -344,9 +353,20 @@ describe('P2-E1: one first paint', () => {
 		const { page } = opened;
 		await measureFirstPaint(page);
 		expect(await entryOf(page, 'hello').getAttribute('aria-label')).toBe('Liar (loading)');
-		expect(await railOrder(page)).toEqual(['tally', 'hello']);
+		// Amended by phase 2's step 6: a record saying `project` alone puts hello in the top band, dimmed with
+		// no project, and stage B's manifest moves it to the bottom band, before tally by its order (7.1).
+		const bandOf = (instance: string) =>
+			page
+				.locator(`loam-rail loam-app-entry[instance="${instance}"]`)
+				.evaluate((entry) => (entry.parentElement?.classList.contains('top') ? 'top' : 'bottom'));
+		expect(await bandOf('hello')).toBe('top');
+		expect(await entryOf(page, 'hello').getAttribute('aria-disabled')).toBe('true');
+		expect(await railOrder(page)).toEqual(['hello', 'tally']);
 		site.release();
 		await expect.poll(() => entryOf(page, 'hello').getAttribute('aria-label')).toBe('Hello');
+		// D29, open with the owner: a dual-scope app with no project is in the bottom band (7.1).
+		await expect.poll(() => bandOf('hello')).toBe('bottom');
+		expect(await entryOf(page, 'hello').getAttribute('aria-disabled')).toBeNull();
 		await expect.poll(() => railOrder(page)).toEqual(['hello', 'tally']);
 		const list = (await kernelCall(page, 'app-list')) as {
 			data: { apps: Array<{ instance: string; title: string; scopeLevels: string[] }> };
