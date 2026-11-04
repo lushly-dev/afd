@@ -37,7 +37,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * none and added `urlMinified`: the URL's commands and writes are a `url-sync` chunk loaded when stage B
  * ends, after `apps` and before `surfaces`, 3,719 of 5,091, its measurement plus 10% and 1,000 for steps
  * 7 and 11's shapes, unrounded (approved by the coordinator); first paint 279,728 and 86,097 gzip, the
- * kernel alone 110,790, `late` 48,425. Step 9 leaves
+ * kernel alone 110,790, `late` 48,425. Step 6 changed none and added two rows: `switcherMinified`, the
+ * project switcher's list, measured at 10,288 against a first estimate of 30,000, so lowered by phase 0's
+ * rule to its measurement plus 10%, 11,317; and `tooltipMinified`, the rail's tooltip, 2,841 of 3,126, its
+ * measurement plus 10%, which left first paint to meet the step's allowance. First paint, after its
+ * reviews and re-checks, 285,302 and 87,964 gzip, the kernel alone 111,055, `late` 49,890, `surfaces`
+ * 83,468, `switcher` 11,316. After its reviews the coordinator
+ * approved a third row, `switcherColdMinified` (2.4, 2026-11-03): what a press of the switcher downloads on
+ * an empty shell, which never loads `surfaces` (7.8), 41,057 of 45,163, its measurement plus 10%, unrounded,
+ * as `urlMinified`'s is. No other ceiling rose. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -52,6 +60,9 @@ export const CEILINGS = Object.freeze({
 	viewMinified: 25_080,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
+	switcherMinified: 11_317,
+	switcherColdMinified: 45_163,
+	tooltipMinified: 3_126,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -120,7 +131,9 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync)-/.test(name)
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip)-/.test(
+			name
+		)
 	);
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
@@ -156,6 +169,18 @@ async function measurePage() {
 	const consoleFiles = closure(/^assets\/console-/, afterSurfaces);
 	const mount = closure(/^assets\/mount-/, afterSurfaces);
 	if (mount.size === 0) throw new Error('budget: the build has no `mount` chunk to measure');
+	// The project switcher's list, loaded on its first press (phase 2 specification, 7.2): in "the rest" of
+	// 2.4's load order, so charged after the surfaces.
+	const switcher = closure(/^assets\/switcher-/, afterSurfaces);
+	if (switcher.size === 0) throw new Error('budget: the build has no `switcher` chunk to measure');
+	// The same press on an empty shell, which loads no `apps` and never `surfaces` (7.8): what it downloads
+	// after first paint, `late` and `url-sync`, the kit's listbox and option among it (2.4,
+	// `switcherColdMinified`, approved by the coordinator on 2026-11-03).
+	const cold = new Set([...afterLate, ...closure(/^assets\/url-sync-/, afterLate)]);
+	const switcherCold = closure(/^assets\/switcher-/, cold);
+	// The rail's tooltip, loaded on its first hover, focus or press, which can come before `late` (7.5).
+	const tooltip = closure(/^assets\/tooltip-/, initial);
+	if (tooltip.size === 0) throw new Error('budget: the build has no `tooltip` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -180,6 +205,9 @@ async function measurePage() {
 		viewMinified: sizeOf(view),
 		consoleMinified: sizeOf(consoleFiles),
 		mountMinified: sizeOf(mount),
+		switcherMinified: sizeOf(switcher),
+		switcherColdMinified: sizeOf(switcherCold),
+		tooltipMinified: sizeOf(tooltip),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -248,6 +276,9 @@ const ROWS = [
 	['viewMinified', "The chrome's `view` chunk and its imports, minified"],
 	['consoleMinified', 'The `console` chunk and its imports, minified'],
 	['mountMinified', 'The `mount` chunk and its imports, minified: the MCP client'],
+	['switcherMinified', "The chrome's `switcher` chunk and its imports, minified"],
+	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
+	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 ];
 
 export async function measure() {
@@ -261,7 +292,7 @@ export async function measure() {
 		ceiling: CEILINGS[key],
 		over: values[key] > CEILINGS[key],
 	}));
-	return { rows, page, kernel, apps: ['hello', 'tally'].map(appBundle).filter(Boolean) };
+	return { rows, page, kernel, apps: ['hello', 'tally', 'tasks'].map(appBundle).filter(Boolean) };
 }
 
 async function main() {

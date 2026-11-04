@@ -73,6 +73,8 @@ export interface ShellState {
 		takesProject: (instance: string) => boolean
 	): Promise<string>;
 	appearance(): AppearanceStateV0;
+	/** Resolves once a record registered on first use has been read, so no write lands before it (0b). */
+	whenRead(id: string): Promise<void>;
 	/** Load the persisted records. An invalid record is ignored and its defaults kept. */
 	hydrate(): Promise<void>;
 	/** Load each record registered since `hydrate`, one by one, as stage B's new instances. */
@@ -234,6 +236,7 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			return id;
 		},
 		appearance: () => ({ ...appearance }),
+		whenRead: async (id) => reading.get(id),
 		async hydrate() {
 			hydrating++;
 			try {

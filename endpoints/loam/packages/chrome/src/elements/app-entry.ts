@@ -1,18 +1,20 @@
 /**
  * @fileoverview `loam-app-entry`: one app in the rail or the tab bar (phase 1 specification, 4.6), in
- * first paint from phase 2, so the first frame lists the apps from their boot records (phase 2
- * specification, 2.2). `ICONS_V1` registers with the app surfaces, after the first frame, so an entry
- * the first frame draws has an empty `icon` and a blank slot of the icon's size until then (2.4). A
- * button with the app's icon, and its label as visible text in the tab bar and as `aria-label` and
- * tooltip in the rail. The active entry has `aria-current="page"`; a `failed` or `refused` one says
- * "(unavailable)" and a press still opens it; a `loading` one has `aria-busy="true"`. The tooltip
- * follows the settings entry's rules (WCAG 1.4.13).
+ * first paint, so the first frame lists the apps from their boot records (phase 2 specification, 2.2).
+ * `ICONS_V1` registers with the app surfaces, after the first frame, so an entry the first frame draws has
+ * an empty `icon` and a blank slot of the icon's size until then (2.4). A button with the app's icon, and
+ * its label as visible text in the tab bar and as `aria-label` in the rail. The active entry has
+ * `aria-current="page"`; a `failed` or `refused` one says "(unavailable)" and a press still opens it; a
+ * `loading` one has `aria-busy="true"`. A `dimmed` one (7.1) is `aria-disabled`, stays in the Tab order,
+ * describes itself with its `tip`, and a press does nothing but show that tip. Its tooltip is the rail's
+ * `loam-tooltip`, which reads `tip` (7.5). `loam-section-entry` is the same shape for a section (7.2).
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
 import { entryBase } from './entry-styles.js';
 
 export const APP_OPEN_EVENT = 'loam-app-open';
+export const SECTION_OPEN_EVENT = 'loam-section-open';
 
 const UNAVAILABLE = new Set(['failed', 'refused']);
 
@@ -23,8 +25,9 @@ const template = html<LoamAppEntry>`
 		aria-label="${(x) => x.accessibleLabel}"
 		aria-current="${(x) => (x.current ? 'page' : null)}"
 		aria-busy="${(x) => (x.state === 'loading' ? 'true' : null)}"
+		aria-disabled="${(x) => (x.dimmed ? 'true' : null)}"
+		aria-describedby="${(x) => (x.dimmed ? 'why' : null)}"
 		@click="${(x) => x.press()}"
-		@blur="${(x) => x.resetTip()}"
 	>
 		<span class="icon">
 			${when(
@@ -37,15 +40,10 @@ const template = html<LoamAppEntry>`
 		</span>
 		<span class="label">${(x) => x.accessibleLabel}</span>
 	</button>
-	<span class="tip" aria-hidden="true">${(x) => x.accessibleLabel}</span>
+	<span id="why" hidden>${(x) => x.tip}</span>
 `;
 
 const styles = css`
-	:host {
-		position: relative;
-		display: block;
-		flex: none;
-	}
 	:host([hidden]) {
 		display: none;
 	}
@@ -62,11 +60,7 @@ const styles = css`
 		inline-size: var(--size-line-md);
 		block-size: var(--size-line-md);
 	}
-	.entry:hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
-	}
-	.entry:active {
+	.entry:not([aria-disabled]):active {
 		background: var(--color-action-secondary-pressed);
 		color: var(--color-text-primary);
 	}
@@ -78,54 +72,28 @@ const styles = css`
 	.entry[aria-busy='true'] {
 		cursor: progress;
 	}
-	.tip {
-		inset-block-start: 0;
-		inset-inline-start: 100%;
-	}
-	:host([variant='rail']:hover) .tip,
-	:host([variant='rail']) .entry:focus-visible + .tip {
-		display: block;
-	}
-	:host([variant='rail'][data-tip='dismissed']:hover) .tip,
-	:host([variant='rail'][data-tip='dismissed']) .entry:focus-visible + .tip {
-		display: none;
+	.entry[aria-disabled] {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 	:host([variant='rail']) .entry {
 		inline-size: var(--size-target-comfortable);
 	}
-	:host([variant='rail']) .label {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-	:host([variant='tabbar']) .entry {
-		flex-direction: column;
-	}
 	@media (forced-colors: active) {
-		.entry {
-			color: ButtonText;
-		}
-		.entry:hover,
-		.entry:active,
+		.entry:not([aria-disabled]):hover,
+		.entry:not([aria-disabled]):active,
 		.entry[aria-current='page'] {
 			border-color: Highlight;
 			background: Highlight;
 			color: HighlightText;
 		}
-		.entry:focus-visible {
-			outline-color: Highlight;
+		.entry[aria-disabled] {
+			color: GrayText;
+			border-color: GrayText;
 		}
 		.entry:hover:focus-visible,
 		.entry[aria-current='page']:focus-visible {
 			outline-color: HighlightText;
-		}
-		.tip {
-			border: 1px solid CanvasText;
-			background: Canvas;
-			color: CanvasText;
 		}
 	}
 `;
@@ -136,9 +104,10 @@ export class LoamAppEntry extends FASTElement {
 	declare icon: string;
 	declare state: string;
 	declare current: boolean;
+	declare dimmed: boolean;
+	/** What the rail's or tab bar's `loam-tooltip` says of it; empty for none. */
+	declare tip: string;
 	declare variant: 'rail' | 'tabbar';
-
-	#onKeydown = (event: KeyboardEvent) => this.dismissTip(event);
 
 	constructor() {
 		super();
@@ -147,6 +116,8 @@ export class LoamAppEntry extends FASTElement {
 		this.icon = 'system/folder';
 		this.state = 'ready';
 		this.current = false;
+		this.dimmed = false;
+		this.tip = '';
 		this.variant = 'rail';
 	}
 
@@ -162,17 +133,10 @@ export class LoamAppEntry extends FASTElement {
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'listitem');
-		this.ownerDocument.addEventListener('keydown', this.#onKeydown, true);
-		this.addEventListener('mouseleave', this.resetTip);
-	}
-
-	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('keydown', this.#onKeydown, true);
-		this.removeEventListener('mouseleave', this.resetTip);
-		super.disconnectedCallback();
 	}
 
 	press(): void {
+		if (this.dimmed) return;
 		this.dispatchEvent(
 			new CustomEvent(APP_OPEN_EVENT, {
 				detail: { instance: this.instance },
@@ -181,32 +145,40 @@ export class LoamAppEntry extends FASTElement {
 			})
 		);
 	}
-
-	/** Escape hides a showing tooltip, wherever focus is; the key does nothing else then. */
-	dismissTip(event: KeyboardEvent): void {
-		if (event.key !== 'Escape') return;
-		const tip = this.shadowRoot?.querySelector<HTMLElement>('.tip');
-		if (!tip || getComputedStyle(tip).display === 'none') return;
-		this.dataset.tip = 'dismissed';
-		event.preventDefault();
-		event.stopPropagation();
-	}
-
-	/** A dismissed tooltip shows again once the pointer and focus have both left. */
-	resetTip = (): void => {
-		const entry = this.shadowRoot?.querySelector<HTMLElement>('.entry');
-		if (!this.matches(':hover') && !entry?.matches(':focus')) delete this.dataset.tip;
-	};
 }
 attr(LoamAppEntry.prototype, 'instance');
 attr(LoamAppEntry.prototype, 'label');
 attr(LoamAppEntry.prototype, 'icon');
 attr(LoamAppEntry.prototype, 'state');
 attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'current');
+attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'dimmed');
+attr(LoamAppEntry.prototype, 'tip');
 attr(LoamAppEntry.prototype, 'variant');
+
+/** A section of the rail's top band, Projects or Documents: a press opens it (7.2). */
+export class LoamSectionEntry extends LoamAppEntry {
+	declare section: string;
+
+	override press(): void {
+		if (this.dimmed) return;
+		this.dispatchEvent(
+			new CustomEvent(SECTION_OPEN_EVENT, {
+				detail: { section: this.section },
+				bubbles: true,
+				composed: true,
+			})
+		);
+	}
+}
+attr(LoamSectionEntry.prototype, 'section');
 
 export const appEntryDefinition = {
 	name: 'loam-app-entry',
 	template,
 	styles: [entryBase, styles],
+} as const;
+
+export const sectionEntryDefinition = {
+	...appEntryDefinition,
+	name: 'loam-section-entry',
 } as const;

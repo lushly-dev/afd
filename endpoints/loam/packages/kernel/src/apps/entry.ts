@@ -97,7 +97,7 @@ export function baseRecord(
 		},
 		commands: [],
 		statusItemIds: new Set(manifest?.ui?.surfaces?.status?.items?.map((item) => item.id) ?? []),
-		selection: null,
+		selections: new Map(),
 		statusValues: new Map(),
 		...(manifest !== undefined ? { manifest } : {}),
 	};

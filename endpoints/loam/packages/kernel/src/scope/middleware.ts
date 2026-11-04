@@ -38,6 +38,13 @@ export interface LateScope {
 	): Promise<CommandResult>;
 	/** As a reload: the next call's actor is the first one seen (10). */
 	forgetActor(): void;
+	/** Why the active app cannot open in the recorded scope (`canOpen`), or undefined (F3). */
+	activeRefusal(): CommandResult<never> | undefined;
+	/**
+	 * `app-settle`'s: an active app {@link LateScope.activeRefusal} refuses is no app, landed as a change of
+	 * scope lands a left one (F3). The one it left, and why.
+	 */
+	settleActive(): { left: string; code: string } | undefined;
 }
 
 export interface ScopeMiddlewareDeps {

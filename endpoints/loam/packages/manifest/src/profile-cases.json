@@ -1139,7 +1139,7 @@
 			"suggestion": "Set manifest_version = 2."
 		},
 		{
-			"id": "not-yet-served-sidebar-tree",
+			"id": "sidebar-tree-served",
 			"base": "native",
 			"set": {
 				"/manifest_version": 2,
@@ -1149,10 +1149,7 @@
 				},
 				"/ui/compositions": []
 			},
-			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.surfaces.sidebar.shape",
-			"suggestion": "Use `shape = \"list\"`"
+			"accepted": true
 		},
 		{
 			"id": "not-yet-served-ui-project-summary",
@@ -1412,10 +1409,7 @@
 				},
 				"/ui/compositions": []
 			},
-			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.surfaces.sidebar.shape",
-			"suggestion": "Use `shape = \"list\"`"
+			"accepted": true
 		},
 		{
 			"id": "resource-keys-value-bad",

@@ -221,9 +221,9 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 
 		// An app in a project, with its route: the first frame is already in the project (stage A), and stage
-		// B journals the switch from the record, then the route.
+		// B journals the switch from the record, with the app in the same call, then the route (N4).
 		expect(await visit('personal/p/atlas/hello/items/a%20b')).toEqual([
-			ran('scope-set', { project: atlasId }),
+			ran('scope-set', { project: atlasId, app: 'hello' }),
 			ran('app-route-set', { instance: 'hello', path: 'items/a b' }),
 		]);
 		await showsApp(page, 'hello');
@@ -283,20 +283,48 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		const pushed = await historyLength(page);
 		expect(pushed).toBe(start + 1);
 
+		// Phase 2's step 6: hello is kept across the change, and made again (7.6).
+		const markMain = () =>
+			page.locator('hello-main').evaluate((element) => {
+				(element as unknown as { loamMark?: boolean }).loamMark = true;
+			});
+		const madeAgain = async () =>
+			!(await page
+				.locator('hello-main')
+				.evaluate((element) => (element as unknown as { loamMark?: boolean }).loamMark === true));
+		await markMain();
 		let count = (await journal(page)).length;
 		await traverse(page, 'back');
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/hello`);
 		expect((await stateOf(page)).scope).toEqual({ workspace: 'personal' });
+		await surfacesIdle(page);
+		expect(await madeAgain()).toBe(true);
+		// Amended by phase 2's step 6: the recreation reads hello's detail, layout and list again, which are
+		// reads; what changes state is the traverse's command, and the new main's one status item.
+		const changes = (entries: EntrySummary[]) =>
+			entries.filter(({ command }) => !/-(get|list)$/.test(command));
 		expect(
-			(await since(page, count)).map(({ command, input, success, interface: iface }) => ({
+			changes(await since(page, count)).map(({ command, input, success, interface: iface }) => ({
 				command,
 				input,
 				success,
 				iface,
 			}))
 		).toEqual([
-			{ command: 'scope-set', input: { project: null }, success: true, iface: 'palette' },
+			// An app route switches and opens in one call, which the kernel refuses whole (N4).
+			{
+				command: 'scope-set',
+				input: { project: null, app: 'hello' },
+				success: true,
+				iface: 'palette',
+			},
+			{
+				command: 'status-item-set',
+				input: { id: 'count', value: '0' },
+				success: true,
+				iface: 'palette',
+			},
 		]);
 		expect(await historyLength(page)).toBe(pushed);
 		expect(
@@ -306,14 +334,20 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 			)
 		).toBe(true);
 
+		await markMain();
 		count = (await journal(page)).length;
 		await traverse(page, 'forward');
 		await settle(page);
 		expect(pathOf(page)).toBe(`${basePath}personal/p/atlas/hello`);
 		expect((await stateOf(page)).project?.slug).toBe('atlas');
-		expect((await since(page, count)).map(({ command, input }) => [command, input])).toEqual([
-			['scope-set', { project: 'atlas' }],
-		]);
+		await surfacesIdle(page);
+		expect(await madeAgain()).toBe(true);
+		expect(changes(await since(page, count)).map(({ command, input }) => [command, input])).toEqual(
+			[
+				['scope-set', { project: 'atlas', app: 'hello' }],
+				['status-item-set', { id: 'count', value: '0' }],
+			]
+		);
 		expect(await historyLength(page)).toBe(pushed);
 		await showsApp(page, 'hello');
 		noFailures(opened);
@@ -375,6 +409,26 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		await expect.poll(() => heading(page)).not.toBe('Nothing here');
 		expect(pathOf(page)).toBe(basePath);
 		noFailures(opened);
+		await opened.context.close();
+	});
+
+	it('P2-E8: a reload with a disabled active app journals app-settle, and the app does not open (F3)', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await openApp(page, 'hello');
+		await showsApp(page, 'hello');
+		await kernelCall(page, 'workspace-app-set', { instance: 'hello', enabled: false });
+		await settle(page);
+		await flush(page);
+		const count = (await journal(page)).length;
+		await page.reload();
+		await ready(page);
+		const settled = (await since(page, count)).filter((entry) => entry.command === 'app-settle');
+		expect(settled).toMatchObject([{ success: true, input: {} }]);
+		expect(await stateOf(page)).toMatchObject({ active: null });
+		// Its URL names it, so main says "Nothing here", as for any app that cannot open (6.3).
+		expect(await heading(page)).toBe('Nothing here');
+		expect((await mainShows(page)).app).toBe(false);
 		await opened.context.close();
 	});
 

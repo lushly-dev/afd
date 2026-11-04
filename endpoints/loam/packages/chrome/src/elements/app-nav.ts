@@ -1,154 +1,169 @@
 /**
- * @fileoverview `loam-rail` and `loam-tabbar`: `navigation`, "Apps". With no app installed they
- * hold only the settings entry, disabled with the tooltip "Settings arrive in phase 4" (5.1). The
- * entry stays focusable (`aria-disabled`) so the tooltip can be read. The tooltip shows on hover
- * and focus, stays while the pointer moves onto it, and Escape dismisses it wherever focus is
- * (WCAG 1.4.13).
+ * @fileoverview `loam-rail` and `loam-tabbar`: `navigation`, "Apps", with two bands and a divider (phase 2
+ * specification, 7.1 and 7.2). The top band, "Project apps", holds Projects, the project switcher,
+ * Documents, then the apps that belong under a project; the bottom band, "Workspace apps", the apps with
+ * no project now. Settings is last, outside the bands, `aria-disabled` and focusable with "Settings arrive
+ * in phase 4". `RailBands` (`../rail/rail-bands.ts`) owns the app entries; no slot takes them. The bands
+ * scroll, and one `loam-tooltip` in this shadow root serves every entry, in the top layer, so no list
+ * clips it (7.5, #709). Its chunk loads on the first hover, focus or press here, which it is then given.
  */
 
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
-import { entryBase } from './entry-styles.js';
 import { registerChromeIcons } from './icons.js';
 import { partHost } from './styles.js';
 
 export const SETTINGS_TOOLTIP = 'Settings arrive in phase 4';
 
 const template = html<LoamAppNav>`
-	<ul class="entries" role="list">
-		<slot></slot>
-		<li
-			class="entry-item"
-			@mouseleave="${(x) => x.resetTip()}"
-		>
-			<button
-				class="entry"
-				type="button"
-				aria-disabled="true"
-				aria-describedby="settings-tip"
-				@blur="${(x) => x.resetTip()}"
-			>
-				<violet-icon icon="system/settings" decorative></violet-icon>
-				<span class="label">Settings</span>
-			</button>
-			<span id="settings-tip" class="tip" role="tooltip">${() => SETTINGS_TOOLTIP}</span>
-		</li>
+	<div class="bands">
+		<ul class="band top" aria-label="Project apps">
+			<loam-section-entry
+				section="projects"
+				label="Projects"
+				icon="system/folder"
+				variant="${(x) => x.variant}"
+			></loam-section-entry>
+			<loam-project-switcher variant="${(x) => x.variant}"></loam-project-switcher>
+			<loam-section-entry
+				section="documents"
+				label="Documents"
+				icon="system/document"
+				variant="${(x) => x.variant}"
+			></loam-section-entry>
+		</ul>
+		<hr class="divider" aria-hidden="true" />
+		<ul class="band bottom" aria-label="Workspace apps"></ul>
+	</div>
+	<ul class="end" aria-label="Settings">
+		<loam-section-entry
+			class="settings"
+			label="Settings"
+			icon="system/settings"
+			dimmed
+			tip="Settings arrive in phase 4"
+			variant="${(x) => x.variant}"
+		></loam-section-entry>
 	</ul>
 `;
 
-const entryStyles = css`
-	.entries {
+const navStyles = css`
+	.bands,
+	.band,
+	.end {
 		display: flex;
+		align-items: center;
 		margin: 0;
 		padding: 0;
 		list-style: none;
 		gap: var(--space-inline-sm);
 	}
-	.entry-item {
-		position: relative;
+	.bands {
+		min-block-size: 0;
+		min-inline-size: 0;
+		overflow: auto;
+		scrollbar-width: thin;
 	}
-	.entry {
-		opacity: 0.55;
-		cursor: not-allowed;
+	.divider {
+		flex: none;
+		margin: 0;
+		border: 0;
+		background: var(--color-border-subtle);
 	}
-	.entry-item:hover .tip,
-	.entry:focus-visible + .tip {
-		display: block;
-	}
-	.entry-item[data-tip='dismissed'] .tip {
+	.bottom:empty,
+	.divider:has(+ .bottom:empty) {
 		display: none;
 	}
 	@media (forced-colors: active) {
-		.entry {
-			color: GrayText;
-			border-color: GrayText;
-		}
-		.entry:focus-visible {
-			outline-color: Highlight;
-		}
-		.tip {
-			border: 1px solid CanvasText;
-			background: Canvas;
-			color: CanvasText;
+		.divider {
+			background: CanvasText;
 		}
 	}
 `;
 
-export class LoamAppNav extends FASTElement {
+export abstract class LoamAppNav extends FASTElement {
+	abstract readonly variant: 'rail' | 'tabbar';
+
 	constructor() {
 		super();
 		registerChromeIcons();
 	}
 
-	#onKeydown = (event: KeyboardEvent) => this.dismissTip(event);
+	#tooltip: Promise<{ handle(type: string, path: EventTarget[], replayed: boolean): void }> | null =
+		null;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.setAttribute('role', 'navigation');
 		this.setAttribute('aria-label', 'Apps');
-		this.ownerDocument.addEventListener('keydown', this.#onKeydown, true);
+		this.#wakeOn('addEventListener');
 	}
 
-	override disconnectedCallback(): void {
-		this.ownerDocument.removeEventListener('keydown', this.#onKeydown, true);
-		super.disconnectedCallback();
+	#wakeOn(method: 'addEventListener' | 'removeEventListener'): void {
+		for (const type of ['pointerover', 'focusin', 'click'])
+			this.shadowRoot?.[method](type, this.#wake);
 	}
 
-	/** Escape hides a showing tooltip, wherever focus is; the key does nothing else then. */
-	dismissTip(event: KeyboardEvent): void {
-		if (event.key !== 'Escape') return;
-		const item = this.shadowRoot?.querySelector<HTMLElement>('.entry-item');
-		const tip = item?.querySelector<HTMLElement>('.tip');
-		if (!item || !tip || getComputedStyle(tip).display === 'none') return;
-		item.dataset.tip = 'dismissed';
-		event.preventDefault();
-		event.stopPropagation();
-	}
+	/**
+	 * The first event that needs the tooltip loads it, and is handed to it if it still holds: the pointer
+	 * still over its target, focus still on it (phase 2 specification, 7.5). A failed load is tried again.
+	 */
+	#wake = (event: Event): void => {
+		const path = event.composedPath();
+		const { type } = event;
+		this.#tooltip ??= import('./tooltip.js')
+			.then(({ attachTooltip }) => attachTooltip(this))
+			.then((tip) => {
+				this.#wakeOn('removeEventListener');
+				return tip;
+			})
+			.catch((cause: unknown) => {
+				this.#tooltip = null;
+				throw cause;
+			});
+		void this.#tooltip.then((tip) => tip.handle(type, path, true)).catch(reportError);
+	};
 
-	/** A dismissed tooltip shows again once the pointer and focus have both left. */
-	resetTip(): void {
-		const item = this.shadowRoot?.querySelector<HTMLElement>('.entry-item');
-		const entry = this.shadowRoot?.querySelector<HTMLElement>('.entry');
-		if (item && !item.matches(':hover') && !entry?.matches(':focus')) delete item.dataset.tip;
+	/** A band's list, which `RailBands` fills. */
+	band(band: 'top' | 'bottom'): HTMLUListElement {
+		return this.shadowRoot?.querySelector(`.${band}`) as HTMLUListElement;
 	}
 }
 
-export class LoamRail extends LoamAppNav {}
-export class LoamTabbar extends LoamAppNav {}
+export class LoamRail extends LoamAppNav {
+	readonly variant = 'rail';
+}
+export class LoamTabbar extends LoamAppNav {
+	readonly variant = 'tabbar';
+}
 
 export const railDefinition = {
 	name: 'loam-rail',
 	template,
 	styles: [
 		partHost,
-		entryBase,
-		entryStyles,
+		navStyles,
 		css`
 			:host {
-				display: block;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: var(--space-inline-sm);
 				inline-size: var(--shell-size-rail);
 				padding-block: var(--space-stack-sm);
 				background: var(--color-surface-subtle);
 				border-inline-end: 1px solid var(--color-border-subtle);
 			}
-			.entries {
+			.bands,
+			.band,
+			.end {
 				flex-direction: column;
-				align-items: center;
 			}
-			.entry {
-				inline-size: var(--size-target-comfortable);
+			.bands {
+				align-self: stretch;
 			}
-			.label {
-				position: absolute;
-				inline-size: 1px;
+			.divider {
+				inline-size: var(--size-target-compact);
 				block-size: 1px;
-				overflow: hidden;
-				clip-path: inset(50%);
-				white-space: nowrap;
-			}
-			.tip {
-				inset-block-start: 0;
-				inset-inline-start: 100%;
-				border-inline-start: var(--size-space-sm) solid transparent;
 			}
 			@media (forced-colors: active) {
 				:host {
@@ -165,25 +180,21 @@ export const tabbarDefinition = {
 	template,
 	styles: [
 		partHost,
-		entryBase,
-		entryStyles,
+		navStyles,
 		css`
 			:host {
 				display: flex;
 				align-items: center;
-				justify-content: center;
+				justify-content: safe center;
+				gap: var(--space-inline-sm);
 				block-size: var(--shell-size-tabbar);
 				padding-inline: var(--space-inline-md);
 				background: var(--color-surface-subtle);
 				border-block-start: 1px solid var(--color-border-subtle);
 			}
-			.entry {
-				flex-direction: column;
-			}
-			.tip {
-				inset-block-end: 100%;
-				inset-inline-start: 0;
-				border-block-end: var(--size-space-sm) solid transparent;
+			.divider {
+				inline-size: 1px;
+				block-size: var(--size-target-compact);
 			}
 			@media (forced-colors: active) {
 				:host {

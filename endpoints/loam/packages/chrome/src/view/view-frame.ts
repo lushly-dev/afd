@@ -36,6 +36,9 @@ export interface ViewFrameOptions {
 	resource: string;
 	command?: string;
 	selection?: string | null;
+	/** The surface's scope and the app's route, as `dev.loam/scope` and `dev.loam/route` (7.6). */
+	scope?: { workspace: string; project?: string };
+	route?: string;
 	theme(): ViewHostContext['theme'];
 	/** The view has sent `initialized`, or failed. */
 	onSettled?(failed: boolean): void;
@@ -145,6 +148,21 @@ export class LoamViewFrame extends FASTElement {
 		this.#host?.changeContext({ 'dev.loam/selection': id });
 	}
 
+	#selectionLevel: 'workspace' | 'project' | undefined;
+
+	set selectionLevel(level: 'workspace' | 'project') {
+		if (level === this.#selectionLevel) return;
+		this.#selectionLevel = level;
+		this.#host?.changeContext({ 'dev.loam/selectionLevel': level });
+	}
+
+	/** A change of route reaches the view as `host-context-changed`, and recreates nothing (7.6). */
+	set route(route: string) {
+		if (!this.#options || route === this.#options.route) return;
+		this.#options.route = route;
+		this.#host?.changeContext({ 'dev.loam/route': route });
+	}
+
 	override connectedCallback(): void {
 		super.connectedCallback();
 		if (this.#options && !this.#started) {
@@ -225,6 +243,9 @@ export class LoamViewFrame extends FASTElement {
 			containerDimensions: { ...this.#dimensions },
 			'dev.loam/tokens': readTokens(this.ownerDocument),
 			...(this.#selection !== undefined ? { 'dev.loam/selection': this.#selection } : {}),
+			...(this.#selectionLevel ? { 'dev.loam/selectionLevel': this.#selectionLevel } : {}),
+			...(this.#options?.scope ? { 'dev.loam/scope': this.#options.scope } : {}),
+			...(this.#options?.route !== undefined ? { 'dev.loam/route': this.#options.route } : {}),
 		};
 	}
 

@@ -7,7 +7,7 @@
  */
 
 import { css } from '@lushly-dev/fast-element';
-import type { AppContextV1, LoamSurfaceElementV1 } from '@lushly-dev/loam-sdk';
+import type { AppContextV1, LoamSurfaceElementV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 
 const styles = css`
 	:host {
@@ -52,6 +52,10 @@ export interface MountOptions {
 	element: string;
 	context: AppContextV1;
 	selection?: string | null;
+	selectionLevel?: 'workspace' | 'project';
+	/** The scope the surface is created in, fixed for its life, and the app's route (phase 2 specification, 7.6). */
+	scope?: ScopeV1;
+	route?: string;
 	/** A title above the element, for a panel's view. */
 	label?: string;
 }
@@ -79,9 +83,21 @@ export class LoamMount extends HTMLElement {
 		if (this.#surface) this.#surface.selection = id;
 	}
 
+	set selectionLevel(level: 'workspace' | 'project') {
+		if (this.#options) this.#options.selectionLevel = level;
+		if (this.#surface) this.#surface.selectionLevel = level;
+	}
+
+	/** A change of route is a property change: it recreates nothing (7.6). */
+	set route(route: string) {
+		if (this.#options) this.#options.route = route;
+		if (this.#surface) this.#surface.route = route;
+	}
+
 	connectedCallback(): void {
 		if (this.shadowRoot || !this.#options) return;
-		const { registry, element, context, selection, label } = this.#options;
+		const { registry, element, context, selection, selectionLevel, scope, route, label } =
+			this.#options;
 		const root = this.attachShadow({
 			mode: 'open',
 			customElementRegistry: registry,
@@ -106,6 +122,10 @@ export class LoamMount extends HTMLElement {
 					} as ElementCreationOptions)
 		) as LoamSurfaceElementV1;
 		surface.context = context;
+		// Before it connects, so it reads them when it is created (7.6).
+		if (scope) surface.scope = scope;
+		if (route !== undefined) surface.route = route;
+		if (selectionLevel) surface.selectionLevel = selectionLevel;
 		surface.selection = selection ?? null;
 		this.#surface = surface;
 		root.append(surface);

@@ -151,7 +151,7 @@ const packed = new Map<string, Promise<string>>();
 
 /** `loam app pack` on an app's built source, once a run, in a temporary directory. */
 export function packApp(
-	app: 'hello' | 'tally',
+	app: 'hello' | 'tally' | 'tasks',
 	kind: 'native' | 'view' | 'mounted' = 'native'
 ): Promise<string> {
 	const key = `${app}-${kind}`;
@@ -321,7 +321,12 @@ export async function openPage(
 	return watched;
 }
 
-/** Open the built shell and wait until it has read the kernel's state and loaded the palette. */
+/**
+ * Open the built shell and wait until it has read the kernel's state and loaded the palette. The palette
+ * loads only once stage B's mark is taken, as the shell's own idle load does: loaded at `ready`, which stage
+ * A reaches first, its chunks and the kit's they import were requested inside first paint's window, which
+ * E1 and E5 cut at that mark, and a chunk found only once another had parsed fell on either side of it.
+ */
 export async function openShell(
 	browser: Browser,
 	origin: string,
@@ -333,9 +338,21 @@ export async function openShell(
 	await opened.page.evaluate(async () => {
 		const shell = document.querySelector('loam-shell') as unknown as {
 			ready: Promise<void>;
+			booted: boolean;
 			preparePalette(): Promise<unknown>;
 		};
 		await shell.ready;
+		// A shell that booted takes the mark within two frames, or its hidden-tab timeout; one that failed
+		// to start never does.
+		if (shell.booted) {
+			await new Promise<void>((resolve) => {
+				const check = () =>
+					performance.getEntriesByName('loam-stage-b').length > 0
+						? resolve()
+						: setTimeout(check, 5);
+				check();
+			});
+		}
 		await shell.preparePalette();
 	});
 	await settle(opened.page);

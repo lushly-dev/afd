@@ -15,17 +15,17 @@ import * as z from 'zod/mini';
 import type { AppCommandRowV1, AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
-import { kernelFailure } from '../errors.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
-import type { AppDetailV1, AppInstanceV1 } from '../types.js';
-import { disabled, setMain } from './main-state.js';
+import type { AppDetailV1, AppInstanceV1, SelectionV2 } from '../types.js';
+import { canOpen, setMain } from './main-state.js';
 
 const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
 const instanceInput = z.strictObject({ instance: instanceName });
 const selectionInput = z.strictObject({
 	instance: instanceName,
 	id: z.nullable(z.string().check(z.maxLength(256))),
+	level: z.optional(z.enum(['workspace', 'project'])),
 });
 const statusInput = z.strictObject({
 	id: z.string().check(z.minLength(1), z.maxLength(64)),
@@ -98,7 +98,9 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: async (input) => apps().detail(input.instance),
+		// The status values of the call's scope, the active one for a person (phase 2 specification, 7.6).
+		handler: async (input, context) =>
+			apps().detail(input.instance, (context as KernelFieldContext).scope?.project),
 	});
 
 	const appOpen = defineCommandWithSchema<
@@ -116,21 +118,10 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		jsonSchema: INSTANCE_INPUT_JSON,
 		async handler(input, context) {
 			const { instance } = input;
-			const app = apps()
-				.summaries()
-				.find((candidate) => candidate.instance === instance);
-			if (app && disabled(scope, instance)) {
-				return kernelFailure(
-					'APP_DISABLED',
-					`The app '${instance}' is disabled in this workspace`,
-					`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
-				);
-			}
-			// A dimmed entry: a project-only app with no project (phase 2 specification, 7.1).
-			if (app && !app.scopeLevels.includes('workspace') && scope.active().project === undefined) {
-				return kernelFailure('SCOPE_PROJECT_REQUIRED', 'Open a project first', 'Run scope-set');
-			}
-			return moved(apps().open(instance), context);
+			// A disabled app, or a dimmed entry: a project-only app with no project, or an instance that does
+			// not list this project (phase 2 specification, 4.1, 7.1, 9.1).
+			const refused = canOpen(apps(), scope, instance, scope.active().project);
+			return refused ?? moved(apps().open(instance), context);
 		},
 	});
 
@@ -191,21 +182,23 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		handler: (input) => apps().refreshInstance(input.instance),
 	});
 
-	const appSelectionGet = defineCommandWithSchema<typeof instanceInput, { id: string | null }>({
+	const appSelectionGet = defineCommandWithSchema<typeof instanceInput, SelectionV2>({
 		name: 'app-selection-get',
-		description: "Get an app's selected id, which leaving the app clears",
+		description: "Get an app's selected id and its level, which leaving the app clears",
 		category: 'app',
 		mutation: false,
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: async (input) => apps().selection(input.instance),
+		handler: async (input, context) =>
+			apps().selection(input.instance, (context as KernelFieldContext).scope?.project),
 	});
 
-	const appSelectionSet = defineCommandWithSchema<typeof selectionInput, { id: string | null }>({
+	const appSelectionSet = defineCommandWithSchema<typeof selectionInput, SelectionV2>({
 		name: 'app-selection-set',
 		title: 'Select an item',
-		description: "Set an app's selected id; main and the inspector follow it",
+		description:
+			"Set an app's selected id, and the level it is at; main and the inspector follow it",
 		category: 'app',
 		mutation: true,
 		undoable: true,
@@ -216,11 +209,21 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 			properties: {
 				instance: INSTANCE_JSON,
 				id: { anyOf: [{ type: 'string', maxLength: 256 }, { type: 'null' }] } as JsonSchema,
+				level: { type: 'string', enum: ['workspace', 'project'] },
 			},
 			required: ['instance', 'id'],
 			additionalProperties: false,
 		},
-		handler: async (input) => apps().setSelection(input.instance, input.id),
+		// Left out, the level is the call's: a project's for an app that takes one (7.4).
+		handler: async (input, context) => {
+			const project = (context as KernelFieldContext).scope?.project;
+			const takes = apps()
+				.summaries()
+				.find((app) => app.instance === input.instance)
+				?.scopeLevels.includes('project');
+			const level = input.level ?? (project !== undefined && takes ? 'project' : 'workspace');
+			return apps().setSelection(input.instance, input.id, level, project);
+		},
 	});
 
 	const statusItemSet = defineCommandWithSchema<typeof statusInput, { id: string; value: string }>({
@@ -240,8 +243,10 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 			required: ['id', 'value'],
 			additionalProperties: false,
 		},
-		handler: async (input, context: CommandContext) =>
-			apps().setStatusItem((context as KernelFieldContext).caller, input.id, input.value),
+		handler: async (input, context: CommandContext) => {
+			const { caller, scope: called } = context as KernelFieldContext;
+			return apps().setStatusItem(caller, input.id, input.value, called?.project);
+		},
 	});
 
 	return [

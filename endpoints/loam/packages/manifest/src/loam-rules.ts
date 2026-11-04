@@ -77,15 +77,10 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
  * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
  * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
  * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
- * holds a `ManifestV2`, so nothing narrows a manifest any longer.
+ * holds a `ManifestV2`, so nothing narrows a manifest any longer. Step 6 served the `tree` sidebar, whose
+ * one rule, a `command`, the schema holds.
  */
 export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
-	// Step 6 serves the `tree` sidebar. Its rules: a `tree` needs a `command` (the schema holds it).
-	{
-		pointer: '/ui/surfaces/sidebar/shape',
-		value: 'tree',
-		instead: 'Use `shape = "list"` until a later build serves `"tree"`.',
-	},
 	// Step 7 serves `ui.project_summary`. Its rules: `MANIFEST_SUMMARY_INVALID`, not `mounted`.
 	{ pointer: '/ui/project_summary' },
 	// Step 9 serves `ui.documents`. Its rules are the documents specification's 2.1, and `content_schema`'s `MANIFEST_NOT_PACKED`.

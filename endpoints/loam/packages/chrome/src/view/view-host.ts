@@ -16,6 +16,10 @@ export interface ViewHostContext {
 	containerDimensions: { width: number; height: number };
 	'dev.loam/tokens': Record<string, string>;
 	'dev.loam/selection'?: string | null;
+	/** The level the selection was made at, the surface's scope and the app's route (phase 2, 7.4 and 7.6). */
+	'dev.loam/selectionLevel'?: 'workspace' | 'project';
+	'dev.loam/scope'?: { workspace: string; project?: string };
+	'dev.loam/route'?: string;
 }
 
 export interface ViewHostOptions {

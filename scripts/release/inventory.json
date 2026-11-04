@@ -791,6 +791,27 @@
 			]
 		},
 		{
+			"id": "loam-app-tasks",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "f0c618aa0b66bc008ad44b6cdb33049fb3a9e060",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-app-tasks",
+					"registry": "npm",
+					"manifest": "endpoints/loam/apps/tasks/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel",
 			"family": "umbel",
 			"protocol": "language-tag-v1",

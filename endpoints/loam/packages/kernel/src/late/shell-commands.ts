@@ -76,7 +76,7 @@ export interface ShellCommandDeps {
 	apps(): AppsRuntime;
 }
 
-/** The project a view-state id holds after `@`, as `loam.layout.tasks@prj_atlas` does (3.4). */
+/** The project a view-state id holds after `@`, as `loam.layout.hello@prj_atlas` does (3.4). */
 const projectOfId = (id: string): string | undefined => {
 	const at = id.lastIndexOf('@');
 	return at < 0 ? undefined : id.slice(at + 1);
@@ -243,6 +243,8 @@ function guardViewStateSet(
 			if (!mayRead(id, context, deps)) return unregistered(id);
 			const recordId = await layoutRecordId(id, context, deps);
 			if (isLayoutId(recordId)) {
+				// A project's record read on first use is read before this writes it, as `layout-*` waits (7.6).
+				await deps.state.whenRead(recordId);
 				const current = deps.state.layoutOf(recordId);
 				if (current) {
 					const checked = replace

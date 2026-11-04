@@ -165,3 +165,10 @@ The values above landed, for the theme and the components together:
   text, prefixed "Error:", in `color.state.danger.text`. `violet-select`'s list opens under its trigger
   with `position: absolute`, because its `position: fixed` lands in the wrong place inside the mount's
   `contain: content`.
+- **2026-11-03. The rail and the parts (phase 2 step 6).** The rail and the tab bar gain two bands
+  and a divider, `loam-section-entry`, `loam-project-switcher` and its list (`loam-project-list`, in
+  a `violet-popover`, or a modal `dialog` in the compact class), and one shared `loam-tooltip` per
+  shadow root in the top layer, placed by anchor positioning set through CSSOM; the settings entry's
+  own tooltip CSS goes. A dimmed entry uses the disabled state and stays focusable. `loam-list` gains
+  a `region` heading for a dual-scope app's two groups, `loam-part-header` breadcrumbs, and the status
+  bar the workspace and project items. No new token; three raw lengths became `shell.size.*` ids.
