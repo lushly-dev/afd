@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 3 merged in #755, #757, #761, #774 and #776; Batch 4 in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 4 (all AFD and Botcore work) merged in #755, #757, #761, #774, #776 and #777. Batches 5 to 7 are in Lushly; Batch 5 waits on the delivery decision below.
 
 ## Summary
 
@@ -241,6 +241,20 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 Batches 3–4 and 5–7 are independent of each other once Batches 0–2 land.
 
 Still to confirm: whether Codex discovers these skills through `.codex/skills`. Its current docs name only `.agents/skills`.
+
+## Outcome in AFD (2026-11-04)
+
+- **Skill counts.** Botcore's canonical skills went from 55 to 9, and AFD's from 69 to 21.
+- **Listing.** It went from 39,092 to 5,639 description characters, under the 8,000-character fallback that hosts use. `listingBudget` and `botcore.toml`'s `listing_budget` hold it at 5,700, and every AFD skill lints with no errors or warnings.
+- **Code findings filed as issues:**
+  - #778: the CDP commands.
+  - #779: the docs checks.
+  - #780: an unverified agents orchestrator reset.
+  - #781: the `pnpm verify` preflight.
+
+Still open for the owner:
+- **Lushly delivery.** How Lushly receives the cleaned Botcore skills: a release, or installing from AFD's source (see Batch 5).
+- **loam-design.** Whether it should become a router to `endpoints/loam/docs/design.md`. That would reverse Loam's D26 (see Batch 3).
 
 ## Owner decisions (2026-11-03)
 
