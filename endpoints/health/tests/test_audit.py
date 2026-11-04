@@ -51,7 +51,7 @@ class HealthFixture(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(report["artifacts_written"], [])
         self.assertEqual(set(report["summary"]), set(STATUSES))
-        self.assertTrue(all(o["schema_version"] == "1.1" for o in report["outcomes"]))
+        self.assertTrue(all(o["schema_version"] == "1.2" for o in report["outcomes"]))
         self.assertEqual(report["outcomes"][0]["target"], "sample-project")
 
     def test_missing_version_is_failure_with_remediation(self):
@@ -84,6 +84,139 @@ class HealthFixture(unittest.TestCase):
         self.write(".nvmrc", "22\n")
         self.write(".github/workflows/ci.yml", "node-version: 24\n")
         self.assertEqual(self.run_check("node_version_alignment")["status"], "failed")
+
+    def test_ci_folded_expression_and_lists_are_read(self):
+        self.write(".nvmrc", "26\n")
+        self.write(
+            ".github/workflows/ci.yml",
+            "matrix:\n"
+            "  node-version: >-\n"
+            "    ${{ fromJSON(github.event_name == 'schedule'\n"
+            '    && \'["22.x", "26.x"]\' || \'["26.x"]\') }}\n'
+            "steps:\n"
+            "  - with:\n"
+            "      node-version: ${{ matrix.node-version }}\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("CI=[22, 26]", result["message"])
+        self.write(".nvmrc", "24\n")
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("[22, 26]", result["message"])
+        self.write(
+            ".github/workflows/ci.yml",
+            "matrix:\n  node-version: [22.x, '24']  # both\n"
+            "node-version: ${{ matrix.node-version }}\n",
+        )
+        self.assertEqual(self.run_check("node_version_alignment")["status"], "passed")
+        self.write(
+            ".github/workflows/ci.yml",
+            "matrix:\n  node-version:\n    - 22.x\n    - 24.x\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("CI=[22, 24]", result["message"])
+
+    def test_ci_majors_elsewhere_do_not_hide_the_matching_one(self):
+        self.write(".nvmrc", "26\n")
+        self.write("package.json", '{"engines":{"node":">=27"}}')
+        self.write(
+            ".github/workflows/ci.yml",
+            "node-version: 22.x\n---\nnode-version: >-\n  ${{ fromJSON('[\"26.x\"]') }}\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("engines minimum 27", result["message"])
+        self.write("package.json", '{"engines":{"node":">=22"}}')
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("CI=[22, 26], engines>=22", result["message"])
+
+    def test_ci_expressions_that_select_nothing_literal_still_warn(self):
+        self.write(".nvmrc", "26\n")
+        self.write(
+            ".github/workflows/ci.yml",
+            "matrix:\n  node-version: ${{ fromJSON(inputs.versions) }}\n"
+            "node-version: ${{ matrix.node-version }}\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "warn")
+        self.assertIn("ci.yml", result["message"])
+        self.write(".github/workflows/ci.yml", "node-version: ${{ matrix.node-version }}\n")
+        self.assertEqual(self.run_check("node_version_alignment")["status"], "warn")
+
+    def test_ci_present_ignores_workflows_that_only_publish(self):
+        publish = "on:\n  push:\n    tags: ['v*']\n  release:\n    types: [published]\n"
+        self.write(".github/workflows/a-publish.yml", f"{publish}jobs: {{test: 1, build: 1}}\n")
+        result = self.run_check("ci_present")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("runs on pushes or pull requests", result["message"])
+        self.write(".github/workflows/z-ci.yml", "on: [pull_request]\njobs: {test: 1, build: 1}\n")
+        self.write(
+            ".github/workflows/m-main.yml",
+            "on:\n  push:\n    branches: [main]\njobs: {test: 1, build: 1}\n",
+        )
+        result = self.run_check("ci_present")
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["message"], "CI workflow found: z-ci.yml")
+
+    def test_ci_present_accepts_a_branch_push_and_ignores_commented_triggers(self):
+        self.write(
+            ".github/workflows/nightly.yml",
+            "on:\n  # pull_request: disabled\n  schedule:\n    - cron: '0 0 * * *'\n"
+            "jobs: {test: 1, build: 1}\n",
+        )
+        self.assertEqual(self.run_check("ci_present")["status"], "failed")
+        self.write(
+            ".github/workflows/main.yml",
+            "on:\n  push:\n    branches: [main]\n    tags: ['v*']\njobs: {test: 1, build: 1}\n",
+        )
+        self.assertEqual(self.run_check("ci_present")["message"], "CI workflow found: main.yml")
+
+    def test_ci_quoted_references_and_values_that_are_not_versions(self):
+        self.write(".nvmrc", "24\n")
+        for reference in ('"${{ matrix.node }}"', "'${{ matrix.node }}'"):
+            self.write(
+                ".github/workflows/ci.yml",
+                f"matrix:\n  node: [24.x]\nnode-version: {reference}\n",
+            )
+            self.assertEqual(self.run_check("node_version_alignment")["status"], "passed")
+        for expression in (
+            'fromJSON(\'["24","lts/*"]\')',
+            "fromJSON(inputs.versions || '[\"24\"]')",
+        ):
+            self.write(".github/workflows/ci.yml", f"node-version: ${{{{ {expression} }}}}\n")
+            self.assertEqual(self.run_check("node_version_alignment")["status"], "warn")
+
+    def test_ci_list_items_and_inputs_named_node_version(self):
+        self.write(".nvmrc", "24\n")
+        self.write(
+            ".github/workflows/ci.yml",
+            "on:\n  workflow_dispatch:\n    inputs:\n      node-version:\n"
+            "        description: Which Node\n"
+            "matrix:\n  include:\n    - node-version: 24.x\n    - os: linux\n"
+            "steps:\n  - with:\n      node-version:\n  - run: test\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("CI=[24]", result["message"])
+
+    def test_ci_present_trigger_forms(self):
+        job = "jobs: {test: 1, build: 1}\n"
+        cases = {
+            "on:\n- push\n- pull_request\n": "passed",
+            "on:\n# comment\n  pull_request:\n": "passed",
+            "on: workflow_call\n": "passed",
+            "on: {push: {tags: [v1]}}\n": "failed",
+            "on:\n  pull_request_review:\n": "failed",
+            "on:\n  workflow_dispatch:\n    inputs:\n      x:\n"
+            "        description: push image\n": "failed",
+            "on:\n  push:\n    tags-ignore: [v1]\n": "passed",
+        }
+        for triggers, expected in cases.items():
+            self.write(".github/workflows/ci.yml", triggers + job)
+            self.assertEqual(self.run_check("ci_present")["status"], expected, triggers)
 
     def test_ci_matrix_and_env(self):
         self.write(".nvmrc", "24\n")
@@ -247,7 +380,7 @@ class HealthFixture(unittest.TestCase):
         before = self.snapshot()
         selected = tuple(key for key in CHECKS if key != "last_commit")
         report = audit((self.target,), Policy(selected))
-        self.assertEqual(len(report["outcomes"]), 11)
+        self.assertEqual(len(report["outcomes"]), 12)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(report["summary"]["error"], 0)
 

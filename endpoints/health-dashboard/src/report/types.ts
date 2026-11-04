@@ -1,6 +1,6 @@
 /**
- * TypeScript view of Health report schema 1.1 (endpoints/health
- * `src/lushly_health/schemas/report-1.1.json`). The schema, not these types, is the
+ * TypeScript view of Health report schema 1.2 (endpoints/health
+ * `src/lushly_health/schemas/report-1.2.json`). The schema, not these types, is the
  * contract: every file is validated against it before any of these types apply.
  */
 
@@ -23,10 +23,14 @@ export interface ReportTarget {
 	/** Caller-local path recorded by Health; private data when sharing a report. */
 	path: string;
 	language: string;
+	/** The repository containing this target, when it declares one; private like `path`. */
+	repository_root?: string;
 }
 
 export interface Evidence {
 	paths: string[];
+	/** Present when `paths` are relative to the target's repository root. */
+	base?: 'repository_root';
 	required_tools: string[];
 	kind: 'local_configuration_heuristic';
 	metric?: string;
@@ -34,7 +38,7 @@ export interface Evidence {
 }
 
 export interface Outcome {
-	schema_version: '1.1';
+	schema_version: '1.2';
 	check_id: string;
 	target: string;
 	status: Status;
@@ -57,7 +61,7 @@ export interface ReportVerdict {
 }
 
 export interface HealthReport {
-	schema_version: '1.1';
+	schema_version: '1.2';
 	generator: { name: 'lushly-health'; version: string };
 	/** UTC, whole seconds: `YYYY-MM-DDTHH:MM:SSZ`. */
 	generated_at: string;

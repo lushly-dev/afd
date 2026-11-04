@@ -38,6 +38,11 @@ const repositories = {
 	// Truncated on purpose: the Node check raises and Health reports `error`.
 	'broken-config': { 'package.json': '{ "name": "broken-config",\n' },
 	'api-service': { '.gitattributes': GITATTRIBUTES, 'pyproject.toml': ruffProject('api-service') },
+	// The unit's own configuration sits in it; the repository's sits at the root.
+	monorepo: {
+		'.gitattributes': GITATTRIBUTES,
+		'packages/unit/pyproject.toml': ruffProject('unit'),
+	},
 	'tidy-lib': {
 		'.gitattributes': GITATTRIBUTES,
 		'lefthook.yml': LEFTHOOK,
@@ -45,7 +50,10 @@ const repositories = {
 	},
 };
 
-/** Each fixture: targets [id, language] and a caller-owned policy (Health's own format). */
+/**
+ * Each fixture: targets [id, language, unit?] and a caller-owned policy (Health's own format).
+ * A unit is [repository, directory]: the target is that directory inside that repository.
+ */
 const fixtures = {
 	'mixed-status': {
 		targets: [
@@ -79,6 +87,10 @@ const fixtures = {
 			disabled: ['dependabot_configured'],
 		},
 	},
+	'unit-in-repository': {
+		targets: [['unit', 'python', ['monorepo', 'packages/unit']]],
+		policy: { checks: ['gitattributes_lf', 'linter_strict'] },
+	},
 	'advisory-only': {
 		targets: [['tidy-lib', 'python']],
 		policy: {
@@ -93,11 +105,16 @@ const fixtures = {
 };
 
 function audit(workspace, name, fixture) {
-	const targets = fixture.targets.map(([id, language]) => ({
-		id,
-		path: `repos/${id}`,
-		language,
-	}));
+	const targets = fixture.targets.map(([id, language, unit]) =>
+		unit
+			? {
+					id,
+					path: `repos/${unit[0]}/${unit[1]}`,
+					language,
+					repository_root: `repos/${unit[0]}`,
+				}
+			: { id, path: `repos/${id}`, language }
+	);
 	const targetsFile = join(workspace, `${name}.targets.json`);
 	const policyFile = join(workspace, `${name}.policy.json`);
 	writeFileSync(targetsFile, JSON.stringify({ schema_version: '1.0', targets }));
@@ -129,7 +146,10 @@ function audit(workspace, name, fixture) {
 	if (result.status !== 0)
 		throw new Error(`Health audit for ${name} exited ${result.status}:\n${result.stderr}`);
 	const report = JSON.parse(result.stdout);
-	for (const target of report.targets) target.path = `<fixture>/${target.id}`;
+	for (const target of report.targets) {
+		target.path = `<fixture>/${target.id}`;
+		if (target.repository_root) target.repository_root = '<fixture>/repository';
+	}
 	report.generated_at = FIXTURE_TIME;
 	const text = `${JSON.stringify(report, null, '\t')}\n`;
 	for (const root of new Set([workspace, realpathSync(workspace)]))
@@ -142,8 +162,10 @@ let stale = 0;
 try {
 	for (const [id, files] of Object.entries(repositories)) {
 		mkdirSync(join(workspace, 'repos', id), { recursive: true });
-		for (const [file, contents] of Object.entries(files))
+		for (const [file, contents] of Object.entries(files)) {
+			mkdirSync(dirname(join(workspace, 'repos', id, file)), { recursive: true });
 			writeFileSync(join(workspace, 'repos', id, file), contents);
+		}
 	}
 	for (const [name, fixture] of Object.entries(fixtures)) {
 		const destination = join(output, `${name}.report.json`);

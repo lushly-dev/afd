@@ -30,6 +30,11 @@ def _parser() -> argparse.ArgumentParser:
         metavar=("ID", "PATH", "LANGUAGE"),
         help="An explicit target (repeatable)",
     )
+    run.add_argument(
+        "--repository-root",
+        type=Path,
+        help="The repository containing every --target, for repository-level checks",
+    )
     run.add_argument("--targets", type=Path, help="A caller-owned targets file (TOML or JSON)")
     run.add_argument("--policy", type=Path, help="A caller-owned policy file (TOML or JSON)")
     run.add_argument("--check", action="append", help="Select a check id (repeatable)")
@@ -56,10 +61,14 @@ def _selection(options) -> tuple[tuple[Target, ...], Policy]:
         raise ValueError("Pass either --targets FILE or one or more --target ID PATH LANGUAGE")
     if bool(options.policy) == bool(options.check):
         raise ValueError("Pass either --policy FILE or one or more --check ID")
+    if options.targets and options.repository_root:
+        raise ValueError("Declare repository_root in the targets file")
     targets = (
         load_targets(options.targets)
         if options.targets
-        else tuple(Target(i, Path(p), lang) for i, p, lang in options.target)
+        else tuple(
+            Target(i, Path(p), lang, options.repository_root) for i, p, lang in options.target
+        )
     )
     if options.policy:
         if options.disable:

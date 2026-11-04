@@ -150,13 +150,23 @@ export interface EvidenceItem {
 /** The kind is a schema constant, explained once on the page rather than per row. */
 export function describeEvidence(evidence: Evidence): EvidenceItem[] {
 	const items: EvidenceItem[] = [];
-	if (evidence.paths.length) items.push({ label: 'Reads', values: evidence.paths });
+	if (evidence.paths.length)
+		items.push({
+			label: evidence.base === 'repository_root' ? 'Reads in repository' : 'Reads',
+			values: evidence.paths,
+		});
 	if (evidence.required_tools.length)
 		items.push({ label: 'Needs', values: evidence.required_tools });
 	if (evidence.metric !== undefined) items.push({ label: 'Metric', values: [evidence.metric] });
 	if (evidence.error_type !== undefined)
 		items.push({ label: 'Error type', values: [evidence.error_type] });
 	return items;
+}
+
+/** Only a result that needs attention can lack guidance; the others don't call for any. */
+export function describeRemediation({ remediation, status }: Outcome): string {
+	if (remediation !== null) return remediation;
+	return ['passed', 'skipped', 'disabled'].includes(status) ? 'None needed' : 'No guidance';
 }
 
 export const plural = (count: number, one: string, many: string) =>
