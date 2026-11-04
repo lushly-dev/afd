@@ -409,6 +409,11 @@ describe('P2-E3: two projects, and an app at each level', () => {
 				).choose(new CustomEvent('change', { detail: { value: 'prj_missing' } }))
 			);
 		await refuse();
+		// `choose` resolves with `failure` set and the line's `hidden` removed only at FAST's next update:
+		// wait for the line to show, so the observer below sees the second refusal alone, not that update.
+		await expect
+			.poll(() => failure.evaluate((element) => element.hasAttribute('hidden')))
+			.toBe(false);
 		const first = await failure.textContent();
 		await failure.evaluate((element) => {
 			const seen: boolean[] = [];
@@ -419,7 +424,8 @@ describe('P2-E3: two projects, and an app at each level', () => {
 			});
 		});
 		await refuse();
-		expect(await failure.textContent()).toBe(first);
+		// The same refusal, once FAST's update has rendered it.
+		await expect.poll(() => failure.textContent()).toBe(first);
 		await expect
 			.poll(() => page.evaluate(() => (window as unknown as { seen: boolean[] }).seen))
 			.toEqual([true, false]);
