@@ -89,9 +89,15 @@
     service; a listed drafter's memory claims refused until step 3c (`PROPOSAL_DRAFT_UNVERIFIABLE`); every draft
     that was not applied redacted when its source is erased, and the change log's earlier hashes of it
     forgotten. Its [amendments](#amendments-from-step-3b) settle thirteen details and change no trust-model
-    point; 12 and 13 record the owner's decisions on its two questions, for the stronger guarantee.
-- **Not done:** steps 3c to 7 of section [15](#15-implementation-plan); step 3c (knowledge: verifying drafts) is
-  next.
+    point; 12 and 13 record the owner's decisions on its two questions, for the stronger guarantee. Merged in
+    [#763](https://github.com/lushly-dev/afd/pull/763) as `4a6b2de4`.
+  - Step 3c (knowledge: verifying drafts), 2026-11-03, in its pull request, from `4a6b2de4`: `umbel_okf::draft` (the
+    fixed rendering, the rationale, `subject_key` and the id and key derivations); the knowledge plugin's optional,
+    read-only `memory` grant and a `journal` on every command and pipeline; every check of 3.2, with
+    `PROPOSAL_DRAFT_MISMATCH` naming it, in place of step 3b's refusals, which stay only for claims this instance cannot
+    verify; approve's re-checks and authorship from the store (8.2); the "erased" claim checked. Its
+    [amendments](#amendments-from-step-3c) settle thirteen details and change no trust-model point.
+- **Not done:** steps 4 to 7 of section [15](#15-implementation-plan); step 4 (curator: candidates) is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -844,8 +850,8 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `CURATOR_MODEL_UNAVAILABLE` | `config.model` is set (8.5) | No |
 | `PROPOSAL_DRAFTER_NOT_ALLOWED` | An attested submission from an instance not in `drafters` | No |
 | `PROPOSAL_EVIDENCE_INVALID` (extended) | Memory evidence, memory `derivedFrom`, a `conflictSet` or a withdrawal without an accepted attestation | No |
-| `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2); `details.check` names the check | No |
-| `PROPOSAL_DRAFT_UNVERIFIABLE` | A listed drafter's claim this instance cannot yet verify (step 3b, amendment 1); `details.claim` names it | No |
+| `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2, and step 3c's amendment 4); `details.check` names the check. Also at approve, for a copied field that no longer matches (8.2), and for an "erased" claim the store contradicts (step 3c, amendment 11) | No |
+| `PROPOSAL_DRAFT_UNVERIFIABLE` | A listed drafter's claim this instance cannot verify: memory without the `memory` grant or on an op other than `create`, or content citing no memory record (step 3b, amendment 1; step 3c, amendments 2 and 3); `details.claim` names it. Also at approve, for a memory draft without the grant | No |
 | `PROPOSAL_ALREADY_OPEN` | A drafted proposal for a document or source that has an open proposal | No |
 | `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals, 50 withdrawals or 400 cited sources | No |
 | `PROPOSAL_ACCESS_WIDENED` | Approve's re-check of 5.1 fails | No |
@@ -1340,6 +1346,150 @@ they now stand.
       those keys enter both. Undrafted proposals keep it. `redaction.rs`
       (`no_earlier_body_hash_of_a_redacted_draft_remains`) holds, for a draft the batch stored and a person
       rejected, that neither earlier hash is left in the change log, the files, the journal or the events.
+
+### Amendments from step 3c
+
+Step 3c settled these details of sections 2.1, 3.2, 4.5, 8.1, 8.2, 9.1, 10.3, 11.2 and 11.3 that the text left open.
+None accepts a drafter's claim unverified, reads memory beyond the caller's reader filter, or changes who may draft,
+approve or read anything. Every one refuses where the text was silent, or reads the store where the text allowed
+trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amendment 10 said it would.
+
+1. **`umbel_okf::draft`'s bytes.** The rendering's frontmatter holds `title`, `type`, `tags` and `generated`, in that
+   order. Each value is a YAML double-quoted scalar with JSON's escapes, plus `\u` escapes for C1 controls, U+2028,
+   U+2029 and U+FEFF, so no record's text can break a line. `tags` is `[]` when there are none. Tags and constraints
+   are the records' union, sorted, each once. The text gets one final newline when it has none. `Holds only` appears
+   only with constraints.
+   - `generated.by` is `umbel:<plugin>/<instance>` from the host's attestation, which is 4.5's `umbel:curator/<instance>`
+     for the curator plugin.
+   - `generated.at` is the canonical instant `YYYY-MM-DDTHH:MM:SS.mmmZ` (`format_instant`), so it reads back as one
+     value.
+   - The rationale, 4.5's "fixed text from the snapshot", is `Drafted from <class> memory of authority <authority>,
+     observed in <n> session(s) by <m> principal(s), settled at <instant>.` `Rationale::parse` is its exact inverse.
+   - The idempotency key is `<instance>/<candidate id>/<drafts>`: 4.5's `curator/...` for the instance `curator`, and
+     two curator instances never share a key.
+
+   `okf/tests/draft.rs` pins each of these byte for byte.
+2. **The `memory` grant is optional.** It is declared `required = false`, so a deployer who runs no curator may deny
+   it (`deny = ["memory"]` under `[plugins.knowledge]`) and the instance still loads. This settles step 3b's amendment
+   1 question: for such an instance `PROPOSAL_DRAFT_UNVERIFIABLE` stays. Every memory claim is refused with claim
+   `memory-evidence`, and approve refuses a stored memory draft with the same code, so nothing is accepted or applied
+   unverified.
+   - It is a read grant, so it needs no `allow` list and the README's `umbel.toml` is unchanged.
+   - The reads are `memory_get` and, only when no version is current, `memory_history`, both under the caller's reader
+     filter, never a derivation read (owner decision 4).
+   - Holding it, phase 3 section 2.3 requires a `journal` on every command and pipeline. The read and index commands,
+     `knowledge-propose`, `-verify` and `knowledge-refresh` declare `plain`, as they behaved before. The digest set is
+     unchanged.
+3. **What stays unverifiable**, claim by claim, with `PROPOSAL_DRAFT_UNVERIFIABLE`:
+   - `memory-evidence`: without the grant, or on an op other than `create`, since 4.5 drafts memory only as a new
+     document's fixed rendering.
+   - `content`: a drafter's `create` or `update` that cites no memory record, since there is no rendering to compare it
+     with.
+
+   The other claims step 3b refused now have checks. A candidate, a promotion, a conflict set or a `derivedFrom` on a
+   draft citing no memory record is false on its face: `PROPOSAL_DRAFT_MISMATCH` with `candidate`, `mode` or
+   `promoted-by`, `conflict-set`, or `derived-from`.
+4. **Checks the table did not name**, each `PROPOSAL_DRAFT_MISMATCH`:
+   - `source-authority`: a source whose authority is not `person`, `agent`, `tool` or `import`. A transcript never
+     settles (owner decision 9), and step 1's amendment 9 already kept it out of the evidence schema.
+   - `evidence`: a draft citing memory cites only memory. Any other entry's `ref` is free text that would outlive a
+     redaction.
+   - `derived-from`: `derivedFrom` names each source exactly once, as kind `memory` (2.1's "per source"). A missing or
+     extra entry fails here; a differing hash is `source-hash`, as the table says.
+   - `rationale`: the rationale is amendment 1's fixed text, of the group's class, with an authority no higher than the
+     highest source's, at the content's settling instant. Counts above the store's are `counts`, as the table says.
+   - `key`: the idempotency key is amendment 1's derivation for the attested instance and the verified candidate, with
+     any draft count. A key survives a redaction (step 3b, amendment 6), so it must be content-free.
+   - `run`: a drafted item's `run` is absent or the attested run. It is stored as `proposer.run` and the envelope's
+     `session`, which also survive a redaction.
+
+   A memory entry not in 2.1's exact shape (an unknown key, a malformed `ref`) is `PROPOSAL_INVALID`. Two entries for
+   one record are `group`.
+5. **How the checks read the store.** Each source is read once per batch, at the call's `now`, with flagged and expired
+   versions let through, so a refusal can name its cause:
+   - `source-missing`: no version readable under the caller's filter. Never written, forgotten, purged and another
+     person's private record are one answer.
+   - `source-not-live`: versions readable but none current (invalidated or superseded), or a current version that is
+     invalidated, superseded, outside its validity or expired.
+   - `source-flagged`, `source-class` and `source-authority`, as named.
+
+   The checks run in this order, and the first that fails refuses the item: `run`, source exists, version and hash, group
+   (before the copied fields, since the rendering needs one group), copied fields, confidence, counts, excerpt,
+   `generated-at`, content, rationale, candidate, key, the conflict set's form, document, the conflict set's
+   consistency, sensitivity, widening and mode. Further:
+   - `confidence` is the highest of the sources' asserted confidences, and absent when none asserts one.
+   - An entry without an `excerpt` claims none.
+   - `generated-at`'s lower bound is each source's current `recordedAt`.
+6. **Document and conflict set.**
+   - Document: `change.doc` is a `create` at `<collection>/<path>` whose path ends in the candidate id, or in the
+     conflict set id when one is set. Submit already requires a collection an area governs.
+   - Conflict set: it has the form `k-` and 20 hex digits. Every *open* proposal sharing it targets the same document,
+     the `subject_key` of its title (the verified rendering's subject) equals this draft's, and none cites this draft's
+     content hash.
+   - The set id's derivation from the lowest member is not checked: 4.4 fixes it when the set first forms, and later
+     members may be lower.
+   - A verified conflict set goes to `PROPOSAL_ALREADY_OPEN`, so alternatives do not block each other on their shared
+     document (step 3b, amendment 4).
+7. **Verification and the idempotent retry.** A retry that repeats the change and the drafter's claims returns the
+   stored draft before any check, as step 3b's amendment 4 says, since it accepts nothing new. A different draft under
+   a used key is verified before it is called `PROPOSAL_KEY_REUSED`, so a replayed batch with a tampered copied field
+   is `PROPOSAL_DRAFT_MISMATCH` naming that field (section 13, point 1). Verification also comes before
+   `PROPOSAL_ALREADY_OPEN`.
+8. **What is stored.** A verified draft stores:
+   - its `derivedFrom`, in the body's provenance and the record's envelope, each entry of kind `memory`;
+   - its conflict set;
+   - its claimed and verified `mode`, `candidate` and `promotedBy`.
+
+   A later save (a decision, a withdrawal) keeps the envelope's `derivedFrom`, and only a redaction removes it. Phase
+   2's approve cleared it on every save, when no proposal had one. No result's `dev.umbel/provenance` carries it, as
+   11.2 requires.
+9. **Approve's re-checks (8.2)** run in this order: the redaction refusal (step 3b, amendment 12), the state, the
+   target, each source, then authorship.
+   - Target, scheduled draft: the target's current resolved access set must lie within every source's copied set, and
+     its sensitivity must not be below any source's.
+   - Target, promoted draft: 5.1 lets its target be wider, so the current target must lie within the target's access
+     set recorded at submission (the proposal's `provenance.access`). No reader is added after the owner's consent.
+   - A target that fails either rule is `PROPOSAL_ACCESS_WIDENED`.
+   - Sources: one absent, not live, flagged, or not at its cited version and hash is `PROPOSAL_SOURCE_GONE`; a copied
+     field no longer equal to the record's is `PROPOSAL_DRAFT_MISMATCH` naming it.
+
+   An apply resumed from `approved` re-checks too. The approver reads under their own filter (owner decision 4), so a
+   promoted draft of a private record can be approved only by someone who can read it: its owner, which is
+   self-approval.
+10. **Authorship from the store (8.2, D102).** Approving a drafted proposal is self-approval when the approver's
+    effective principal or actor string equals a source record's principal, read at approve, or `promotedBy`. The
+    proposer, who ran the pipeline, is no longer compared. So a draft of another person's shared memory, and a drafted
+    `verify` or `deprecate` (which cite no memory), are approved by the runner with no exception, as 8.2 says, and
+    step 3b's stricter interim rule (its amendment 10) ends. Undrafted proposals keep phase 2's rule.
+11. **The "erased" claim is checked.** Step 3b's amendment 12 left this open. Two paths redact: a `withdraw` item with
+    `redact: true`, and each draft the `erased` notice reaches. Either redacts only when the memory store, read under
+    the caller's filter, no longer holds one of the sources named. Otherwise the draft is unchanged and the item is
+    `PROPOSAL_DRAFT_MISMATCH` with `details.check = "source-erased"`; the notice reports it in `erased.refused`.
+    - An erased record never returns, so the check never keeps forgotten text.
+    - A record the caller can no longer read counts as gone, since a redaction only removes.
+    - A draft citing no memory record is never redacted as if a source were erased.
+    - Without the `memory` grant nothing can be checked, and the redaction proceeds, for the same reason.
+    - A draft already redacted is not checked again.
+12. **The preview's labels.** They stand as steps 3a and 3b set them, and every field under "verified against memory at
+    submission" is now checked by a row of 3.2: the drafter's `mode`, `candidate` and `promotedBy`, and each memory
+    entry's principal, class, sensitivity, authority, origin, constraints, access, confirmation and content hash.
+    - The observed sessions (bounded only) and the settling instant (bounded) stay under "drafter's policy".
+    - The principals count, now verified exactly, stays beside them rather than change the layout: it says less than
+      is known, never more.
+    - A draft citing no memory still reads "checked at submission: it cites no memory record".
+    - Records a library embedder writes are trusted, as before (D14).
+13. **Tests.**
+    - `okf/tests/draft.rs` (9 tests).
+    - `plugins/knowledge/tests/verify_drafts.rs` (18), with `tests/support/memory.rs`, which writes memory records
+      through the store and builds drafts through `umbel_okf::draft`. It enables `umbel-store`'s `conformance` feature
+      for the knowledge crate's tests, for the suite's memory samples; no crate is added.
+    - `drafted.rs` gains approve's authorship from the store, and its step 3b refusal test becomes the test of what
+      stays refused.
+    - `journal_modes.rs` approves a verified draft (a seeded draft citing a record the store never held is now
+      `PROPOSAL_SOURCE_GONE`) and holds the manifest's `plain` journals and its optional `memory` grant.
+    - `redaction.rs` redacts a verified draft after its source is forgotten, and holds that a draft citing no memory is
+      not redacted as erased.
+    - The 400-source cap stays in `drafted.rs`.
 
 ## 16. For the owner
 
