@@ -100,6 +100,20 @@ def test_skills_config() -> None:
     assert config.skills.agent_skills is True
 
 
+def test_skills_listing_budget(tmp_path: Path) -> None:
+    """listing_budget defaults to Claude Code's 8,000 and loads from [skills]."""
+    assert SkillsConfig().listing_budget == 8000
+    (tmp_path / "botcore.toml").write_text("[skills]\nlisting_budget = 10200\n")
+
+    assert load_config(workspace=tmp_path).skills.listing_budget == 10200
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "8000", 8000.5])
+def test_skills_listing_budget_must_be_a_positive_integer(value: object) -> None:
+    with pytest.raises(ValidationError):
+        SkillsConfig(listing_budget=value)
+
+
 def test_config_precedence(tmp_workspace: Path) -> None:
     """CLI overrides > project config > defaults."""
     # tmp_workspace has file_size_warn=400 and coverage_threshold=70

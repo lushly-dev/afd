@@ -118,3 +118,27 @@ async def test_list_without_source(tmp_path: Path) -> None:
     installed = data["installed"]
     assert len(installed) == 1
     assert "source" not in installed[0]
+
+
+async def test_list_reads_metadata_ownership(tmp_path: Path) -> None:
+    """Installed source and version come from metadata:, else the top level."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "modern").mkdir()
+    (skills_dir / "modern" / "SKILL.md").write_text(
+        "---\nname: modern\ndescription: A modern skill.\n"
+        "metadata:\n  source: botcore\n  version: 2.0.0\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+    _make_skill(skills_dir, "older", "1.5.0", source="my-plugin")
+
+    with (
+        patch("botcore.commands.skill.list.find_workspace", return_value=ws),
+        patch("botcore.commands.skill.list.discover_available_skills", return_value={}),
+    ):
+        result = await skill_list(show_source=True)
+
+    installed = {s["name"]: s for s in assert_success(result)["installed"]}
+    assert (installed["modern"]["source"], installed["modern"]["version"]) == ("botcore", "2.0.0")
+    assert (installed["older"]["source"], installed["older"]["version"]) == ("my-plugin", "1.5.0")

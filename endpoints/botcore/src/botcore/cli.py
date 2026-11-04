@@ -365,7 +365,7 @@ def skill_status_cmd(ctx: click.Context, **_kwargs: Any) -> None:
 @_json_option
 @click.pass_context
 def skill_lint_cmd(ctx: click.Context, path: str | None, **_kwargs: Any) -> None:
-    """Lint SKILL.md files against the Claude Code runtime frontmatter spec."""
+    """Lint SKILL.md files under PATH (default: current directory), rules SK001-SK019."""
     from botcore.commands.skill_lint import skill_lint_spec
 
     result = _run_async(skill_lint_spec(path=path))

@@ -105,6 +105,61 @@ async def test_status_stale(tmp_path: Path) -> None:
     assert sec["status"] == "stale"
 
 
+def _write(base: Path, name: str, frontmatter: str) -> Path:
+    skill_dir = base / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: A {name} skill.\n{frontmatter}---\n\nBody.\n",
+        encoding="utf-8",
+    )
+    return skill_dir
+
+
+@pytest.mark.parametrize(
+    ("local", "status", "local_version"),
+    [
+        ("metadata:\n  source: botcore\n  version: 3.0.0\n", "ok", "3.0.0"),
+        ("metadata:\n  source: botcore\n  version: 1.0.0\n", "stale", "1.0.0"),
+        # metadata wins over a stale top-level copy
+        ("version: '1.0.0'\nmetadata:\n  source: botcore\n  version: 3.0.0\n", "ok", "3.0.0"),
+        # top-level fallback for older copies
+        ("source: botcore\nversion: '1.0.0'\n", "stale", "1.0.0"),
+        ("metadata:\n  version: 3.0.0\n", "unmanaged", "3.0.0"),
+        ("metadata:\n  source: other\n  version: 3.0.0\n", "conflict", "3.0.0"),
+    ],
+)
+async def test_status_reads_metadata_ownership(
+    tmp_path: Path, local: str, status: str, local_version: str
+) -> None:
+    ws = _setup_workspace(tmp_path)
+    _write(ws / ".claude" / "skills", "security", local)
+    source = tmp_path / "source"
+    _write(source, "security", "metadata:\n  source: botcore\n  version: 3.0.0\n")
+
+    from botcore.commands.skill._discovery import DiscoveredSkill
+    from botcore.commands.skill.frontmatter import read_skill_manifest
+
+    m = read_skill_manifest(source / "security")
+    available = {
+        "security": DiscoveredSkill(
+            name="security", source="botcore", source_path=source / "security", manifest=m
+        )
+    }
+
+    with (
+        patch("botcore.commands.skill.status.find_workspace", return_value=ws),
+        patch("botcore.commands.skill.status.discover_available_skills", return_value=available),
+    ):
+        result = await skill_status()
+
+    [entry] = assert_success(result)["skills"]
+    assert (entry["status"], entry["source_version"], entry["local_version"]) == (
+        status,
+        "3.0.0",
+        local_version,
+    )
+
+
 async def test_status_missing(tmp_path: Path) -> None:
     """Available skill not installed locally shows 'missing'."""
     ws = _setup_workspace(tmp_path)

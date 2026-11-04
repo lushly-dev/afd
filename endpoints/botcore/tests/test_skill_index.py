@@ -64,6 +64,23 @@ async def test_index_generates_table(tmp_path: Path) -> None:
     assert index_path.exists()
 
 
+async def test_index_reads_metadata_ownership(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    (skills_dir / "modern").mkdir(parents=True)
+    (skills_dir / "modern" / "SKILL.md").write_text(
+        "---\nname: modern\ndescription: A modern skill.\n"
+        "metadata:\n  source: botcore\n  version: 2.0.0\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    with patch("botcore.commands.skill.index.find_workspace", return_value=ws):
+        result = await skill_index(write=False)
+
+    content = assert_success(result)["content"]
+    assert "| [modern](./modern/SKILL.md) | 2.0.0 | botcore | A modern skill. |" in content
+
+
 async def test_index_dry_run(tmp_path: Path) -> None:
     """Dry run returns content without writing."""
     ws = _setup_workspace(tmp_path)

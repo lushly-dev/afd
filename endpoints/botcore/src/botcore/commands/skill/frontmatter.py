@@ -1,16 +1,26 @@
-"""YAML frontmatter parse/write and SkillManifest model."""
+"""YAML frontmatter parse/write and SkillManifest model.
+
+Botcore's ownership fields (``source``, ``version``, ``portable``) live under the open
+standard's ``metadata:`` map. Readers fall back to top-level copies written by older
+Botcore releases; writers always move them under ``metadata:``.
+"""
 
 from __future__ import annotations
 
 import re
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
-# Deterministic field order for rendering
-_FIELD_ORDER = ["name", "source", "description", "version", "triggers"]
+# Botcore's ownership fields, kept under ``metadata:``
+OWNERSHIP_FIELDS = ("source", "version", "portable")
+_DEFAULT_VERSION = "0.0.0"
+
+# Deterministic order for the leading fields; others follow alphabetically, then metadata
+_FIELD_ORDER = ["name", "description", "triggers"]
 
 # Descriptions longer than this are emitted as a folded block scalar
 _FOLD_THRESHOLD = 60
@@ -57,53 +67,115 @@ def _render_description(val: str) -> str:
 
 
 class SkillManifest(BaseModel):
-    """Skill metadata parsed from YAML frontmatter."""
+    """Skill metadata parsed from YAML frontmatter.
+
+    ``source``, ``version`` and ``portable`` resolve from the ``metadata:`` map first,
+    then from the top level (older copies). ``metadata`` keeps the map's other keys.
+    ``triggers`` is read for older copies only; no writer adds it.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     name: str = ""
     description: str = ""
-    version: str = "0.0.0"
+    version: str = _DEFAULT_VERSION
     source: str | None = None
     triggers: list[str] = []
     portable: bool = False
     category: str | None = None
+    metadata: dict[str, Any] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_ownership(cls, data: Any) -> Any:
+        """Lift the ownership fields out of ``metadata:``, which wins over the top level.
+
+        An unquoted ``version: 1.0`` is a YAML number; it becomes text rather than making
+        the whole manifest invalid (which would hide the skill's owner). Lint flags it.
+        """
+        if not isinstance(data, dict):
+            return data
+        resolved = dict(data)
+        metadata = resolved.pop("metadata", None)
+        if isinstance(metadata, dict):
+            metadata = dict(metadata)
+            for key in OWNERSHIP_FIELDS:
+                value = metadata.pop(key, None)
+                if value is not None:
+                    resolved[key] = value
+            resolved["metadata"] = metadata
+        elif metadata is not None:
+            resolved["metadata"] = metadata  # rejected by validation
+        version = resolved.get("version")
+        if isinstance(version, int | float) and not isinstance(version, bool):
+            resolved["version"] = str(version)
+        return resolved
+
+
+def ownership_metadata(manifest: SkillManifest) -> dict[str, Any]:
+    """The ``metadata:`` map a writer emits: ownership fields first, then the other keys."""
+    metadata: dict[str, Any] = {}
+    if manifest.source is not None:
+        metadata["source"] = manifest.source
+    if manifest.version != _DEFAULT_VERSION:
+        metadata["version"] = manifest.version
+    if manifest.portable:
+        metadata["portable"] = True
+    for key, value in manifest.metadata.items():
+        if key not in OWNERSHIP_FIELDS:
+            metadata[key] = value
+    return metadata
+
+
+def split_frontmatter(content: str) -> tuple[dict | None, str]:
+    """Return the raw frontmatter mapping and the body.
+
+    Returns (None, content) when there is no ``---`` block or it is not a YAML mapping.
+    """
+    match = _FRONTMATTER_RE.match(content)
+    if not match:
+        return None, content
+
+    try:
+        data = yaml.safe_load(match.group(1))
+    except yaml.YAMLError:
+        return None, content
+
+    if not isinstance(data, dict):
+        return None, content
+
+    return data, match.group(2)
 
 
 def parse_frontmatter(content: str) -> tuple[SkillManifest, str]:
     """Split content at --- delimiters, YAML-parse the frontmatter.
 
+    Frontmatter that does not fit the manifest model (such as a ``metadata:`` value that
+    is not a mapping) is treated like invalid YAML.
+
     Returns:
         (manifest, body) where body is everything after the closing ---.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if not match:
+    data, body = split_frontmatter(content)
+    if data is None:
         return SkillManifest(), content
-
-    yaml_str = match.group(1)
-    body = match.group(2)
 
     try:
-        data = yaml.safe_load(yaml_str)
-    except yaml.YAMLError:
+        return SkillManifest(**data), body
+    except (TypeError, ValidationError):
         return SkillManifest(), content
-
-    if not isinstance(data, dict):
-        return SkillManifest(), content
-
-    return SkillManifest(**data), body
 
 
 def render_frontmatter(manifest: SkillManifest, body: str = "") -> str:
     """Render a SkillManifest as YAML frontmatter + body.
 
-    Fields are written in deterministic order: name, source, description,
-    version, triggers, then remaining fields alphabetically.
+    Fields are written in deterministic order: name, description, triggers (kept only
+    when an older copy had them), remaining fields alphabetically, then ``metadata:``
+    holding the ownership fields. No top-level ``source``, ``version`` or ``portable``.
     """
     data = manifest.model_dump(exclude_none=True, exclude_defaults=False)
-    # Remove fields that are default/empty and not in the ordered set
-    if not data.get("portable"):
-        data.pop("portable", None)
+    for key in (*OWNERSHIP_FIELDS, "metadata"):
+        data.pop(key, None)
     if not data.get("category"):
         data.pop("category", None)
     if not data.get("triggers"):
@@ -126,6 +198,10 @@ def render_frontmatter(manifest: SkillManifest, body: str = "") -> str:
     # Remaining fields alphabetically
     for key in sorted(data):
         lines.append(_dump({key: data[key]}))
+
+    metadata = ownership_metadata(manifest)
+    if metadata:
+        lines.append(_dump({"metadata": metadata}))
 
     lines.append("---")
 
@@ -156,14 +232,40 @@ def read_skill_manifest(skill_dir: Path) -> SkillManifest | None:
     return manifest
 
 
-def set_frontmatter_source(content: str, source: str | None) -> str | None:
-    """Set or remove the top-level ``source:`` field with a minimal text edit.
+_KEY_RE = re.compile(r"([A-Za-z_][\w-]*)\s*:(?=\s|$)")
 
-    Only the ``source:`` line is touched; every other frontmatter line and the
-    body are kept byte-for-byte. The new line is inserted right after
-    ``name:`` when absent. Falls back to a full ``render_frontmatter`` if the
-    targeted edit does not yield the expected manifest. Returns None when the
-    content has no parseable frontmatter with a name.
+
+def _top_level_key(line: str) -> str | None:
+    """The key a top-level frontmatter line opens, or None for any other line."""
+    match = _KEY_RE.match(line)
+    return match.group(1) if match else None
+
+
+def _block_end(lines: list[str], start: int) -> int:
+    """Index after the key at ``start`` and its value's lines (indented, or ``- `` items)."""
+    end = index = start + 1
+    while index < len(lines):
+        line = lines[index]
+        if line[:1] in (" ", "\t") or re.match(r"-(\s|$)", line):
+            index += 1
+            end = index
+        elif not line.strip():
+            index += 1  # a blank line belongs to the value only if indented lines follow
+        else:
+            break
+    return end
+
+
+def set_frontmatter_source(content: str, source: str | None) -> str | None:
+    """Set or remove ``metadata.source`` with a minimal text edit.
+
+    Top-level ``source:``, ``version:`` and ``portable:`` lines (older copies) are
+    removed and their values moved under ``metadata:``. The ``metadata:`` block is
+    rewritten in place, or appended when absent, and left byte-for-byte when it already
+    holds the expected values; every other frontmatter line and the body are kept
+    byte-for-byte. Falls back to a full ``render_frontmatter`` if the targeted edit does
+    not yield the expected manifest. Returns None when the content has no parseable
+    frontmatter with a name.
     """
     match = _FRONTMATTER_RE.match(content)
     if not match:
@@ -171,32 +273,41 @@ def set_frontmatter_source(content: str, source: str | None) -> str | None:
     manifest, body = parse_frontmatter(content)
     if not manifest.name:
         return None
+    expected = manifest.model_copy(update={"source": source})
+    metadata = ownership_metadata(expected)
 
     lines = match.group(1).split("\n")
     kept: list[str] = []
+    old_block: list[str] | None = None
     insert_at: int | None = None
+    moved = False
     i = 0
     while i < len(lines):
-        line = lines[i]
-        if re.match(r"source\s*:", line):
-            # Drop the key and any indented continuation lines of its value
-            insert_at = len(kept)
-            i += 1
-            while i < len(lines) and lines[i][:1] in (" ", "\t"):
-                i += 1
+        key = _top_level_key(lines[i])
+        if key in OWNERSHIP_FIELDS or key == "metadata":
+            end = _block_end(lines, i)
+            if key == "metadata" and old_block is None:
+                insert_at = len(kept)
+                old_block = lines[i:end]
+            moved = moved or key != "metadata"
+            i = end
             continue
-        kept.append(line)
-        if insert_at is None and re.match(r"name\s*:", line):
-            insert_at = len(kept)
+        kept.append(lines[i])
         i += 1
 
-    if source is not None:
-        kept.insert(len(kept) if insert_at is None else insert_at, _dump({"source": source}))
+    block = _dump({"metadata": metadata}).split("\n") if metadata else []
+    if old_block is not None and not moved:
+        try:
+            if yaml.safe_load("\n".join(old_block)) == {"metadata": metadata}:
+                block = old_block
+        except yaml.YAMLError:
+            pass
+    at = len(kept) if insert_at is None else insert_at
+    kept[at:at] = block
 
     start, end = match.span(1)
     new_content = content[:start] + "\n".join(kept) + content[end:]
 
-    expected = manifest.model_copy(update={"source": source})
     reparsed, _ = parse_frontmatter(new_content)
     if reparsed.model_dump() != expected.model_dump():
         return render_frontmatter(expected, body)
@@ -204,9 +315,10 @@ def set_frontmatter_source(content: str, source: str | None) -> str | None:
 
 
 def update_skill_source(skill_dir: Path, source: str | None) -> bool:
-    """Add or update the source: field in a skill's frontmatter.
+    """Set or remove ``metadata.source`` in a skill's frontmatter.
 
-    Preserves the body content. Returns True if the file was modified.
+    Also moves top-level ownership fields under ``metadata:``. Preserves the body
+    content. Returns True if the file was modified.
     """
     skill_file = skill_dir / "SKILL.md"
     if not skill_file.exists():
@@ -216,7 +328,7 @@ def update_skill_source(skill_dir: Path, source: str | None) -> bool:
 
     content = skill_file.read_text(encoding="utf-8")
     new_content = set_frontmatter_source(content, source)
-    if new_content is None:
+    if new_content is None or new_content == content:
         return False
 
     skill_file.write_text(new_content, encoding="utf-8")

@@ -44,21 +44,26 @@ Visualize module dependency graph.
 Detect hardcoded/non-portable paths.
 
 ## dev_skill_lint()
-Lint skill files for structure issues.
+Run skill_lint over the configured skills directory.
 """,
     "skill": """\
 # Skill Registry Commands
+
+Ownership lives in the frontmatter's `metadata:` map (`metadata.source`,
+`metadata.version`, `metadata.portable`). A skill without a source is locally owned;
+a top-level `source:`, `version:` or `portable:` (older copies) is still read.
 
 ## skill_list(show_source=False, plugin_dirs=None)
 List available and installed skills with version and source info.
 
 ## skill_seed(update=False, dry_run=False, plugin_dirs=None)
 Copy skills from botcore/plugin sources into project's .claude/skills/.
-Injects `source:` frontmatter for ownership tracking.
+Sets `metadata.source` for ownership tracking, moving any top-level ownership fields
+under `metadata:`.
 Skills installed under a retired name (e.g. `manage-documentation`, renamed to
-`docs-manager` in 0.4.0) are migrated when `source: botcore`; otherwise they are
+`docs-manager` in 0.4.0) are migrated when botcore owns them; otherwise they are
 left in place, listed in `renamed_locally_owned`, and the new name is not seeded.
-Skills botcore retired (`RETIRED_SKILLS`) are removed when `source: botcore`, no
+Skills botcore retired (`RETIRED_SKILLS`) are removed when botcore owns them, no
 `include` list is set and `skip` doesn't name them; other copies are kept and listed
 in `retired_locally_owned`. Both lists are in the result as `retired` and
 `retired_locally_owned`.
@@ -70,15 +75,29 @@ Detect version drift between installed and available skills.
 Reports: ok, stale, missing, unmanaged, conflict, renamed, retired.
 
 ## skill_lint(path=None, strict=False)
-Run 15 quality rules (SK001-SK015) on skill files.
+Lint skills in the configured skills directory. `botcore skill-lint [path]`
+(`skill_lint_spec`) runs the same rules over any directory.
+- Errors: SK001 no SKILL.md or frontmatter, SK002 no `name`, SK003 no `description`,
+  SK004 name not kebab-case, over 64 characters or unlike its directory, SK005
+  description over 1,024 characters, SK008 missing `references/` file, SK015
+  duplicate name.
+- Warnings: SK009 body over 500 lines, SK010 placeholder text (TODO, FIXME, TBD,
+  Lorem ipsum), SK012 `skill.md` instead of `SKILL.md`, SK014 orphan reference file,
+  SK016 description over 300 characters, SK017 `triggers` field or "Triggers:" list,
+  SK018 field outside the open standard and Claude Code (top-level `source`, `version`
+  or `portable` belongs under `metadata:`), SK019 listing over `[skills]
+  listing_budget` (default 8000: description plus `when_to_use`, skipping
+  `disable-model-invocation: true`).
+- Result: per-skill violations plus `listing: {characters, budget}`.
 - `path`: Lint a specific skill path (default: all in skills dir)
-- `strict`: Treat warnings as errors
+- `strict`: Report every warning as an error
 
 ## skill_adopt(name, source="local")
-Claim an unmanaged skill by adding `source:` frontmatter.
+Claim an unmanaged skill by setting `metadata.source`. A skill already owned by
+`source` with top-level ownership fields has them moved under `metadata:`.
 
 ## skill_unadopt(name)
-Remove `source:` frontmatter from a skill.
+Remove `metadata.source` (or a top-level `source:`) from a skill.
 
 ## skill_index(write=True)
 Generate `_index.md` table of all installed skills.

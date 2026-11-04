@@ -7,7 +7,7 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from botcore.utils.workspace import detect_language, detect_package, find_workspace
 
@@ -32,6 +32,8 @@ class SkillsConfig(BaseModel):
     skip: list[str] = []
     source_dir: str = ".claude/skills"
     agent_skills: bool = False
+    # Characters of descriptions (plus when_to_use) the host lists; Claude Code's fallback
+    listing_budget: int = Field(default=8000, gt=0, strict=True)
 
 
 class LanguageConfig(BaseModel):

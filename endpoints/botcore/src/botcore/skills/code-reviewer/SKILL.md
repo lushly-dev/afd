@@ -1,13 +1,14 @@
 ---
 name: code-reviewer
-source: botcore
 description: >
   Reviews a diff, pull request, spec or proposal as a fresh, read-only reviewer
   and reports evidence-backed BLOCKER, IMPROVEMENT and PRAISE findings. Use when
   self-reviewing before a commit, reviewing a PR, briefing an independent
   reviewer, or reviewing a spec or proposal.
-version: 2.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # Code reviewer

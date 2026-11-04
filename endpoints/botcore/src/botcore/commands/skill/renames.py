@@ -138,11 +138,11 @@ def locally_owned_rename_suggestion(
 ) -> str:
     """Explain how to resolve a renamed skill that botcore does not own."""
     old_path = PurePosixPath(source_dir, old_name)
-    # A skill with no source: needs adopting so seed won't treat the renamed copy as botcore's
+    # A skill with no source needs adopting so seed won't treat the renamed copy as botcore's
     keep = (
         f"then run skill_adopt('{new_name}') to keep your version"
         if owner is None
-        else f"keeping its source: {owner} field so seed leaves it alone"
+        else f"keeping its ownership field (source: {owner}) so seed leaves it alone"
     )
     return (
         f"'{old_name}' was renamed to '{new_name}' but is not managed by botcore, so it "
@@ -179,6 +179,6 @@ def retired_suggestion(
             f"{path}. To keep it, run skill_adopt('{name}') to mark it yours."
         )
     return (
-        f"'{name}' shares a name botcore retired, but its source: {owner} field marks it "
-        f"as yours, so skill-seed keeps it. No action is needed."
+        f"'{name}' shares a name botcore retired, but its ownership field (source: {owner}) "
+        f"marks it as yours, so skill-seed keeps it. No action is needed."
     )

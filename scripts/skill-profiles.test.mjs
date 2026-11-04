@@ -13,7 +13,13 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { listingCharacters, listingFields, projectText, syncProfiles } from './skill-profiles.mjs';
+import {
+	declaresOwner,
+	listingCharacters,
+	listingFields,
+	projectText,
+	syncProfiles,
+} from './skill-profiles.mjs';
 
 async function fixture(t) {
 	const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'afd-skill-profile-')));
@@ -218,6 +224,16 @@ test('listing fields follow YAML scalar semantics and fail closed outside the su
 		assert.throws(() => listingFields(doc(unsupported)), /Unsupported|Duplicate/, unsupported);
 });
 
+test('override ownership reads metadata.source, with the top-level form for older files', () => {
+	const doc = (frontmatter) => `---\nname: x\n${frontmatter}\n---\nBody.\n`;
+	assert.equal(declaresOwner(doc('metadata:\n  version: 1.0.0\n  source: afd'), 'afd'), true);
+	assert.equal(declaresOwner(doc('source: afd'), 'afd'), true);
+	assert.equal(declaresOwner(doc('metadata:\n  source: botcore'), 'afd'), false);
+	assert.equal(declaresOwner(doc('metadata:\n  source: afd-extra'), 'afd'), false);
+	assert.equal(declaresOwner(doc('description: x\n  source: afd'), 'afd'), false);
+	assert.equal(declaresOwner('No frontmatter.', 'afd'), false);
+});
+
 test('listing characters count description and when_to_use, skip user-only skills and cap descriptions', () => {
 	const doc = (frontmatter) => `---\n${frontmatter}\n---\n`;
 	assert.equal(listingCharacters(doc('description: abc\nwhen_to_use: de'), 's'), 5);
@@ -275,6 +291,27 @@ test('profiles must declare a listing budget, and an over-budget listing fails b
 		await save();
 		await assert.rejects(syncProfiles(root), /listingBudget must be a positive integer: afd/);
 	}
+});
+
+test('botcore.toml [skills] listing_budget must match the profile it lints', async (t) => {
+	const { root, put } = await fixture(t);
+	assert.deepEqual(await syncProfiles(root, { write: true }).then(() => syncProfiles(root)), []);
+	await put('botcore.toml', '[project]\nname = "x"\n');
+	assert.deepEqual(await syncProfiles(root), []);
+	await put('botcore.toml', '[skills]\nlisting_budget = 1000  # same\nskip = []\n\n[other]\n');
+	assert.deepEqual(await syncProfiles(root), []);
+	for (const [config, message] of [
+		[
+			'[skills]\nskip = []\n',
+			/listing_budget \(unset, so 8000\) must equal listingBudget 1000 for afd/,
+		],
+		['[skills]\nlisting_budget = 999\n', /listing_budget \(999\) must equal listingBudget 1000/],
+	]) {
+		await put('botcore.toml', config);
+		await assert.rejects(syncProfiles(root), message);
+	}
+	await put('botcore.toml', '[skills]\nsource_dir = "elsewhere"\nlisting_budget = 5\n');
+	assert.deepEqual(await syncProfiles(root), []);
 });
 
 test('rewrites exact skill identifiers and explicit short invocations, preserving ordinary words and commands', () => {

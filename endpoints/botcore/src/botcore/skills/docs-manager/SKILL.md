@@ -1,13 +1,14 @@
 ---
 name: docs-manager
-source: botcore
 description: >
   Keeps a repository's documentation true to the code: AGENTS.md as the only
   instruction file, changelog entries, counts, links and sourced prose. Use when
   updating docs after a change, auditing them, or editing README, AGENTS.md or a
   changelog.
-version: 2.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # Docs manager

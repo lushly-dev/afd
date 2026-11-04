@@ -1,4 +1,4 @@
-"""Regression tests for SK008 reference resolution in both skill linters (issue #15)."""
+"""Regression tests for SK008 reference resolution in both lint entry points (issue #15)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 from afd.testing import assert_success
 
-from botcore.commands.skill.lint import skill_lint
-from botcore.commands.skill_lint import _check_reference_links
+from botcore.commands.skill.lint import check_reference_links, skill_lint
+from botcore.commands.skill_lint import skill_lint_spec
 
 # Bodies that point at repo docs or existing skill-local files: no SK008.
 _CLEAN_BODIES = [
@@ -40,8 +40,7 @@ def _make_skill(base: Path, body: str) -> Path:
     (skill_dir / "references" / "sub").mkdir()
     (skill_dir / "references" / "sub" / "deep.md").write_text("# Deep\n", encoding="utf-8")
     (skill_dir / "SKILL.md").write_text(
-        "---\nname: demo\ndescription: A demo skill.\nversion: '1.0.0'\n"
-        f"triggers:\n  - demo\n---\n\n# Demo\n\n{body}\n",
+        f"---\nname: demo\ndescription: A demo skill.\n---\n\n# Demo\n\n{body}\n",
         encoding="utf-8",
     )
     return skill_dir
@@ -70,12 +69,28 @@ async def test_skill_lint_reports_missing_reference_once(
     assert await _sk008_messages(tmp_path, body) == [f"Referenced file missing: references/{name}"]
 
 
+async def _spec_sk008_messages(tmp_path: Path, body: str) -> list[str]:
+    data = assert_success(await skill_lint_spec(path=str(_make_skill(tmp_path, body))))
+    return [i["message"] for i in data["skills"][0]["issues"] if i["rule"] == "SK008"]
+
+
 @pytest.mark.parametrize("body", _CLEAN_BODIES)
-def test_spec_lint_ignores_repo_paths(tmp_path: Path, body: str) -> None:
-    assert _check_reference_links(_make_skill(tmp_path, body), body) == []
+async def test_spec_lint_ignores_repo_paths(tmp_path: Path, body: str) -> None:
+    assert await _spec_sk008_messages(tmp_path, body) == []
 
 
 @pytest.mark.parametrize(("body", "name"), _MISSING_BODIES)
-def test_spec_lint_reports_missing_reference_once(tmp_path: Path, body: str, name: str) -> None:
-    issues = _check_reference_links(_make_skill(tmp_path, body), body)
-    assert [i["message"] for i in issues] == [f"Referenced file missing: references/{name}"]
+async def test_spec_lint_reports_missing_reference_once(
+    tmp_path: Path, body: str, name: str
+) -> None:
+    assert await _spec_sk008_messages(tmp_path, body) == [
+        f"Referenced file missing: references/{name}"
+    ]
+
+
+def test_missing_reference_without_a_references_dir(tmp_path: Path) -> None:
+    """A references/ link is checked even when the skill has no references/ directory."""
+    skill_dir = tmp_path / "demo"
+    skill_dir.mkdir()
+    issues = check_reference_links(skill_dir, "See references/guide.md.")
+    assert [i["rule"] for i in issues] == ["SK008"]

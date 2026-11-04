@@ -76,9 +76,6 @@ IMPORT_REASONS = {
     "src/botcore/__init__.py": ("Set additive host API version to 0.6.0"),
     "src/botcore/_mcp.py": ("Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"),
     "src/botcore/commands/dev/core.py": ("Preserve unavailable/error/failed native-tool outcomes"),
-    "src/botcore/config.py": (
-        "Accept the legacy informational version stamp while rejecting unknowns"
-    ),
     "src/botcore/host.py": ("Map broken-link failures and typed infrastructure verdicts correctly"),
     "src/botcore/host_surfaces.py": (
         "Support both SDKs and safe Python aliases for canonical kebab IDs"
@@ -92,7 +89,6 @@ IMPORT_REASONS = {
     ),
     "tests/test_cdp_diagnostics.py": ("Normalize imports under selected Ruff rules"),
     "tests/test_cdp_inspection.py": ("Normalize imports under selected Ruff rules"),
-    "tests/test_config.py": ("Test legacy stamp acceptance and unknown-field rejection"),
     "tests/test_host.py": (
         "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases"
     ),
@@ -119,7 +115,6 @@ IMPORT_REASONS = {
     "src/botcore/skills/skill-manager/SKILL.md": (
         "Rewrite skill authoring for current models; drop legacy references and trigger lists"
     ),
-    "README.md": ("List the bundled skills that remain after the generic ones were retired"),
     "src/botcore/commands/skill/renames.py": (
         "Add the retired-skill list; drop renames whose target was retired"
     ),
@@ -158,6 +153,27 @@ IMPORT_REASONS = {
         "Assert the browser-automation skill names every exported cdp command"
     ),
     "tests/test_frontmatter.py": ("Expect the nine bundled skills that remain"),
+    "README.md": ("List the bundled skills that remain; record ownership under metadata"),
+    "src/botcore/config.py": (
+        "Accept the legacy version stamp, reject unknowns, add listing_budget"
+    ),
+    "tests/test_config.py": ("Test the legacy stamp, unknown-field rejection and listing_budget"),
+    "src/botcore/cli.py": ("Describe skill-lint as the shared skill rule set"),
+    "src/botcore/commands/skill/__init__.py": ("Export the shared skill rules"),
+    "src/botcore/commands/skill/adopt.py": ("Record adopted ownership under metadata"),
+    "src/botcore/commands/skill/frontmatter.py": (
+        "Read and write ownership under metadata, falling back to the top level"
+    ),
+    "src/botcore/commands/skill/lint.py": (
+        "One skill rule set for both linters, with the listing budget"
+    ),
+    "src/botcore/commands/skill_lint.py": ("Lint a path with the shared skill rules"),
+    "tests/test_coverage_gaps.py": ("Follow the merged skill rules"),
+    "tests/test_skill_adopt.py": ("Cover ownership recorded under metadata"),
+    "tests/test_skill_index.py": ("Cover versions read from metadata"),
+    "tests/test_skill_lint.py": ("Cover the shared rules, strict mode and the listing budget"),
+    "tests/test_skill_lint_sk008.py": ("Check references on skills without a references directory"),
+    "tests/test_skill_list.py": ("Cover ownership read from metadata"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),

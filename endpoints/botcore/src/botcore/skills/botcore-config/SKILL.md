@@ -1,13 +1,14 @@
 ---
 name: botcore-config
-source: botcore
 description: >
   Configures botcore through botcore.toml or [tool.botcore] in pyproject.toml:
   which file wins, validation, defaults, per-package and per-language settings,
   and the [skills] section. Use when writing botcore config or when a setting
   seems to be ignored.
-version: "2.0.0"
-portable: true
+metadata:
+  source: botcore
+  version: 2.1.0
+  portable: true
 ---
 
 # Configuring botcore
@@ -83,5 +84,6 @@ Defined but not used, so setting them changes nothing:
 | `include` | unset (all) | Only these are seeded or updated; when set, `skip` is ignored |
 | `skip` | `[]` | Never seeded or updated |
 | `agent_skills` | `false` | Also copy seeded and updated skills to `.agent/skills/` |
+| `listing_budget` | `8000` | Positive integer. skill-lint warns (SK019) when the skills' descriptions plus `when_to_use` exceed it; skills with `disable-model-invocation: true` don't count |
 
-Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `source: botcore`). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `src/botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.
+Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `metadata.source: botcore`, or a top-level `source: botcore` in older copies). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `src/botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.

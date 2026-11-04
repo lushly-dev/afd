@@ -171,6 +171,48 @@ function firstParagraph(text) {
 	return paragraph.join(' ');
 }
 
+/**
+ * botcore skill lint budgets the same listing from botcore.toml [skills] listing_budget.
+ * When that section exists, its budget must equal the matching profile's listingBudget.
+ */
+async function checkBotcoreBudget(root, manifest) {
+	let text;
+	try {
+		text = await readFile(await inside(root, 'botcore.toml'), 'utf8');
+	} catch (error) {
+		if (error.code === 'ENOENT') return;
+		throw error;
+	}
+	const section = text.match(/^\[skills\][ \t]*\r?\n([\s\S]*?)(?=^\[|(?![\s\S]))/m)?.[1];
+	if (section === undefined) return;
+	const field = (key) =>
+		section.match(new RegExp(`^${key}[ \\t]*=[ \\t]*(.*?)[ \\t]*(?:#.*)?$`, 'm'))?.[1];
+	const rawBudget = field('listing_budget');
+	const rawSource = field('source_dir');
+	const sourceDir =
+		rawSource === undefined ? '.claude/skills' : rawSource.match(/^"([^"]+)"$/)?.[1];
+	if (!sourceDir) throw new Error('Unsupported botcore.toml [skills] source_dir value');
+	const profile = Object.entries(manifest.profiles).find(([, value]) => value.root === sourceDir);
+	if (!profile) return;
+	const budget = rawBudget === undefined ? undefined : Number(rawBudget);
+	if (budget !== profile[1].listingBudget)
+		throw new Error(
+			`botcore.toml [skills] listing_budget (${rawBudget ?? 'unset, so 8000'}) must equal listingBudget ${profile[1].listingBudget} for ${profile[0]}`
+		);
+}
+
+/** Botcore records ownership as metadata.source; older files use a top-level source. */
+export function declaresOwner(text, owner) {
+	const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? '';
+	const value = escapeRegex(owner);
+	return (
+		new RegExp(`^source: ${value}$`, 'm').test(frontmatter) ||
+		new RegExp(`^metadata:\\r?\\n(?:[ \\t]+.*\\r?\\n)*?[ \\t]+source: ${value}$`, 'm').test(
+			frontmatter
+		)
+	);
+}
+
 /** Characters a skill adds to the host listing; user-only skills are not listed. */
 export function listingCharacters(text, skill) {
 	let fields;
@@ -298,8 +340,8 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 				throw new Error(`Override ownership required: ${override.name}`);
 			const source = await inside(root, `${profile.root}/${override.name}/SKILL.md`);
 			const text = await readFile(source, 'utf8');
-			if (!/^source: afd$/m.test(text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? ''))
-				throw new Error(`Local override must declare source: afd: ${override.name}`);
+			if (!declaresOwner(text, 'afd'))
+				throw new Error(`Local override must declare metadata.source: afd: ${override.name}`);
 			listing.set(override.name, listingCharacters(text, override.name));
 		}
 		for (const name of profile.local) {
@@ -353,6 +395,7 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 		}
 		onListing?.(profileName, { characters, budget: profile.listingBudget, skills: listing.size });
 	}
+	await checkBotcoreBudget(root, manifest);
 	if (write)
 		for (const change of changes) {
 			await mkdir(path.dirname(change.path), { recursive: true });

@@ -101,11 +101,14 @@ async def test_seed_creates_new_skills(tmp_path: Path) -> None:
     assert sorted(data["seeded"]) == ["security", "testing"]
     assert len(data["skipped"]) == 0
 
-    # Verify files were copied and source: injected
+    # Verify files were copied and ownership recorded under metadata:
     security_skill = ws / ".claude" / "skills" / "security" / "SKILL.md"
     assert security_skill.exists()
     content = security_skill.read_text(encoding="utf-8")
-    assert "source: botcore" in content
+    assert content == (
+        "---\nname: security\ndescription: A security skill.\n"
+        "metadata:\n  source: botcore\n  version: 3.0.0\n---\n\nBody.\n"
+    )
 
 
 async def test_seed_skips_different_source(tmp_path: Path) -> None:
@@ -171,6 +174,95 @@ async def test_seed_updates_matching_source(tmp_path: Path) -> None:
 
     data = assert_success(result)
     assert data["updated"] == ["security"]
+
+
+def _make_metadata_skill(base: Path, name: str, source: str, version: str = "1.0.0") -> Path:
+    """Create a skill whose ownership is under metadata:."""
+    skill_dir = base / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: A {name} skill.\n"
+        f"metadata:\n  source: {source}\n  version: {version}\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+    return skill_dir
+
+
+@pytest.mark.parametrize("local_form", ["metadata", "top-level"])
+async def test_seed_update_reads_ownership_from_metadata_or_top_level(
+    tmp_path: Path, local_form: str
+) -> None:
+    """--update refreshes a botcore-owned copy either way and leaves it in metadata form."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    if local_form == "metadata":
+        _make_metadata_skill(skills_dir, "security", "botcore")
+    else:
+        _make_source_skill(skills_dir, "security", "1.0.0", source="botcore")
+    source_dir = tmp_path / "source"
+    _make_metadata_skill(source_dir, "security", "botcore", "5.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "security"), update=True)
+
+    assert assert_success(result)["updated"] == ["security"]
+    local = skills_dir / "security"
+    assert (local / "SKILL.md").read_bytes() == (source_dir / "security" / "SKILL.md").read_bytes()
+    manifest = read_skill_manifest(local)
+    assert manifest is not None
+    assert (manifest.source, manifest.version) == ("botcore", "5.0.0")
+
+
+async def test_seed_skips_metadata_owned_by_another_source(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    _make_metadata_skill(skills_dir, "security", "custom-plugin")
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "security", "5.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "security"), update=True)
+
+    data = assert_success(result)
+    assert data["updated"] == []
+    assert data["skipped"] == [{"name": "security", "reason": "owned by custom-plugin"}]
+
+
+async def test_seed_plugin_skill_records_plugin_source_in_metadata(tmp_path: Path) -> None:
+    """A plugin copy's own top-level ownership fields move under metadata: on seeding."""
+    ws = _setup_workspace(tmp_path)
+    plugin_dir = tmp_path / "plugin"
+    skill = plugin_dir / "lint-rules"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        "---\nname: lint-rules\nsource: botcore\ndescription: Lint rules.\n"
+        "version: '2.1.0'\nportable: true\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    result = await _seed(ws, _discovered(plugin_dir, "lint-rules", source="my-plugin"))
+
+    assert assert_success(result)["seeded"] == ["lint-rules"]
+    content = (ws / ".claude" / "skills" / "lint-rules" / "SKILL.md").read_text(encoding="utf-8")
+    assert content == (
+        "---\nname: lint-rules\ndescription: Lint rules.\n"
+        "metadata:\n  source: my-plugin\n  version: 2.1.0\n  portable: true\n---\n\nBody.\n"
+    )
+
+
+async def test_seed_bundled_skills_copies_them_byte_for_byte(tmp_path: Path) -> None:
+    """Bundled skills already say metadata.source: botcore, so seeding copies them as-is."""
+    ws = _setup_workspace(tmp_path)
+    bundled = discover_available_skills()
+
+    with patch("botcore.commands.skill.seed.find_workspace", return_value=ws):
+        result = await skill_seed(plugin_dirs=[])
+
+    assert sorted(assert_success(result)["seeded"]) == sorted(bundled)
+    for name, skill in bundled.items():
+        copy = ws / ".claude" / "skills" / name / "SKILL.md"
+        assert copy.read_bytes() == (skill.source_path / "SKILL.md").read_bytes()
+        manifest = read_skill_manifest(copy.parent)
+        assert manifest is not None
+        assert manifest.source == "botcore"
 
 
 async def test_seed_skips_unmanaged(tmp_path: Path) -> None:

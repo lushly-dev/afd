@@ -43,7 +43,7 @@ async def test_lint_sk003_missing_description(tmp_path) -> None:
 
 
 async def test_lint_sk005_long_description(tmp_path) -> None:
-    """SK005: Overly long description is a warning."""
+    """SK005: A description over 1,024 characters is an error."""
     ws = _setup_skill_ws(tmp_path)
     skills_dir = ws / ".claude" / "skills" / "long-desc"
     skills_dir.mkdir(parents=True)
@@ -58,7 +58,7 @@ async def test_lint_sk005_long_description(tmp_path) -> None:
         result = await skill_lint()
 
     violations = result.data["skills"][0]["violations"]
-    assert any(v["rule"] == "SK005" for v in violations)
+    assert ("SK005", "error") in [(v["rule"], v["severity"]) for v in violations]
 
 
 async def test_lint_sk008_missing_referenced_file(tmp_path) -> None:
@@ -83,11 +83,11 @@ async def test_lint_sk008_missing_referenced_file(tmp_path) -> None:
 
 
 async def test_lint_sk009_body_too_long(tmp_path) -> None:
-    """SK009: Body exceeding max length is a warning."""
+    """SK009: A body over 500 lines is a warning."""
     ws = _setup_skill_ws(tmp_path)
     skills_dir = ws / ".claude" / "skills" / "long-body"
     skills_dir.mkdir(parents=True)
-    long_body = "x " * 30_000
+    long_body = "x\n" * 501
     (skills_dir / "SKILL.md").write_text(
         "---\nname: long-body\ndescription: Test.\n"
         f"version: '1.0.0'\ntriggers:\n  - test\n---\n\n{long_body}\n",

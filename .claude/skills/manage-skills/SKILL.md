@@ -1,12 +1,13 @@
 ---
 name: manage-skills
-source: botcore
 description: >
   Write, trim and check agent skills (SKILL.md) so each carries only what an
   agent would otherwise get wrong. Use when creating, auditing or rewriting a
   skill, or deciding whether guidance belongs in a skill at all.
-version: 4.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 4.1.0
+  portable: true
 ---
 
 <!-- Generated from skills/exports.json; edit the canonical skill-manager skill. -->
@@ -72,7 +73,7 @@ The description is how agents choose a skill, and every description in a reposit
 
 ## Botcore specifics
 
-- **Linting:** run `botcore skill-lint <skills-dir>` before committing.
-- **Seeding:** `botcore skill-seed --update` refreshes only skills whose frontmatter says `source: botcore`. A skill without that line counts as locally owned and is skipped, so stripping it silently stops updates.
-- **Versions:** bump `version` when you change a canonical skill, so `botcore skill-status` reports drift in consuming repositories.
+- **Linting:** run `botcore skill-lint <skills-dir>` before committing. It applies this page's limits, and `[skills] listing_budget` (default 8,000 characters) caps the repository's total listing.
+- **Ownership:** Botcore tracks a skill under the standard `metadata:` map: `metadata.source: botcore`, with `metadata.version` and `metadata.portable`. `botcore skill-seed --update` refreshes only skills with that source. A skill without it is treated as locally owned and skipped, so deleting it silently stops updates. A top-level `source:` is still read for older copies; skill-seed and skill-adopt move it under `metadata:` when they write the skill.
+- **Versions:** bump `metadata.version` when you change a canonical skill, so `botcore skill-status` reports drift in consuming repositories.
 - **Renamed projections:** some repositories project Botcore skills under other names, such as AFD with `skills/exports.json`. Edit the canonical source and regenerate, because the projections are overwritten.

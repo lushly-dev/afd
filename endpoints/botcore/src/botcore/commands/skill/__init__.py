@@ -8,7 +8,7 @@ Commands are split into modules:
 - list.py: List available and installed skills
 - status.py: Version drift detection
 - adopt.py: Claim unmanaged skills
-- lint.py: Skill quality rules (SK001-SK015)
+- lint.py: Skill lint rules (SK001-SK019), shared with commands/skill_lint.py
 - index.py: Generate _index.md
 """
 

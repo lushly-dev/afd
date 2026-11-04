@@ -1,12 +1,13 @@
 ---
 name: agent-config
-source: botcore
 description: >
   Configures agents for the botcore-agents plugin under [plugins.agents]: models,
   connector command resolution, permissions, state persistence, and the fields
   that have no effect yet. Use when writing or debugging an agent definition.
-version: "2.0.0"
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # Configuring botcore agents
