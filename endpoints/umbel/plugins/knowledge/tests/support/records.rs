@@ -57,6 +57,27 @@ pub fn seed(fx: &Fx, body: &Value) -> Record {
         .unwrap()
 }
 
+/// Replace the stored proposal record `body["id"]` in `main` with `body`, as a library embedder
+/// can (D14), compare-and-set against the stored version.
+pub fn overwrite(fx: &Fx, body: &Value) -> Record {
+    let id = body["id"].as_str().unwrap();
+    let current = read(fx, id);
+    let mut envelope = current.envelope.clone();
+    envelope.content_hash = Some(ContentHash::of(canonical_json(body).as_bytes()).to_string());
+    let store = store(fx, "main");
+    store
+        .put_record(
+            NS,
+            KIND,
+            id,
+            body.clone(),
+            envelope,
+            Expect::Hash(current.content_hash),
+        )
+        .unwrap();
+    read(fx, id)
+}
+
 /// `sha256:` of the canonical JSON of `change`, `rationale` and `evidence`, as the plugin hashes.
 pub fn change_hash(change: &Value, rationale: &str, evidence: &Value) -> String {
     let whole = json!({ "change": change, "rationale": rationale, "evidence": evidence });

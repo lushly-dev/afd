@@ -310,6 +310,18 @@ expose = { mcp = false, agent = false, cli = true }
 journal = { mode = "digest", keep = ["space", "proposal"] }
 
 [[commands]]
+name = "knowledge-auto-approve"
+description = "Apply the pending proposals that meet an auto-approval rule their area opts into, recorded as the policy's decision, never a person's. The one rule, deprecate-declared, applies a drafted deprecate only when a person's applied proposal wrote its superseded_by into the document's current bytes; never a create, update, verify, memory-derived, flagged or alternative proposal. Off unless an area lists it. Command line only; never a pipeline step."
+effects = ["store-write", "workspace-write"]
+input_schema = "schemas/knowledge-auto-approve.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+confirm_prompt = "Apply every pending proposal that meets an auto-approval rule its area opts into, recorded as the area's policy decision, without a person deciding each one?"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "limit"] }
+
+[[commands]]
 name = "knowledge-reject"
 description = "Reject a proposal with a reason the proposer or curator reads next. Only a person at a terminal, who is one of the area's approvers and can read the target, may; the command line shows knowledge-proposal-preview before asking."
 effects = ["store-write"]

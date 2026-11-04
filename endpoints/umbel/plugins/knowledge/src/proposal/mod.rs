@@ -5,11 +5,13 @@
 //! approve's and reject's prompts the command line shows `knowledge-proposal-preview` (phase 4
 //! section 8.1). A drafter's pipeline step submits and withdraws through
 //! `knowledge-propose-batch` and reads its decisions with `knowledge-proposal-feed` (phase 4
-//! sections 3.2, 7.1 and 9.1).
+//! sections 3.2, 7.1 and 9.1). `knowledge-auto-approve` applies what an area's opted-in rule
+//! holds for, as the policy's decision (section 8.3).
 
 mod apply;
 mod area;
 mod attest;
+mod auto;
 mod batch;
 mod checks;
 mod common;
@@ -38,6 +40,7 @@ pub(crate) fn dispatch(name: &str, input: &Value, cx: &mut Cx) -> Option<Outcome
         "knowledge-proposal-preview" => preview::run(input, cx),
         "knowledge-withdraw" => review::withdraw(input, cx),
         "knowledge-approve" => apply::approve(input, cx),
+        "knowledge-auto-approve" => auto::run(input, cx),
         "knowledge-reject" => apply::reject(input, cx),
         "knowledge-verify" => verify::run(input, cx),
         _ => return None,

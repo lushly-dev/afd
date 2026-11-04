@@ -1,6 +1,7 @@
 //! Stand-in drafters for the drafted path (phase 4 step 3b): compiled plugins whose pipelines'
 //! steps are `knowledge-propose-batch` and `knowledge-proposal-feed`, so the host attests those
-//! steps to them (phase 4 section 10.1). `curator` is listed in the knowledge instance's
+//! steps to them (phase 4 section 10.1), and `knowledge-auto-approve`, which refuses any
+//! attested step (step 6). `curator` is listed in the knowledge instance's
 //! `drafters`; `scribe` is the same shape and is not. The curator plugin itself comes in step 4.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
@@ -54,6 +55,17 @@ expose = {{ mcp = false, agent = false, cli = true }}
 result = "last"
 steps = [
   {{ command = "knowledge-proposal-feed", input = {{ space = "$input.space", after = "$input.after" }}, as = "feed" }},
+]
+
+[[pipelines]]
+name = "{id}-auto"
+description = "Try to run an area's auto-approval rule as a pipeline step, which is refused."
+effects = ["store-write", "workspace-write"]
+input_schema = {{ type = "object" }}
+expose = {{ mcp = false, agent = false, cli = true }}
+result = "last"
+steps = [
+  {{ command = "knowledge-auto-approve", input = {{ space = "$input.space" }}, as = "auto" }},
 ]
 "#
     )
