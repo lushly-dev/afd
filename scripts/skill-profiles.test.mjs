@@ -13,7 +13,13 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { listingCharacters, listingFields, projectText, syncProfiles } from './skill-profiles.mjs';
+import {
+	declaresOwner,
+	listingCharacters,
+	listingFields,
+	projectText,
+	syncProfiles,
+} from './skill-profiles.mjs';
 
 async function fixture(t) {
 	const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'afd-skill-profile-')));
@@ -216,6 +222,16 @@ test('listing fields follow YAML scalar semantics and fail closed outside the su
 		'description:\n- a\n- b',
 	])
 		assert.throws(() => listingFields(doc(unsupported)), /Unsupported|Duplicate/, unsupported);
+});
+
+test('override ownership reads metadata.source, with the top-level form for older files', () => {
+	const doc = (frontmatter) => `---\nname: x\n${frontmatter}\n---\nBody.\n`;
+	assert.equal(declaresOwner(doc('metadata:\n  version: 1.0.0\n  source: afd'), 'afd'), true);
+	assert.equal(declaresOwner(doc('source: afd'), 'afd'), true);
+	assert.equal(declaresOwner(doc('metadata:\n  source: botcore'), 'afd'), false);
+	assert.equal(declaresOwner(doc('metadata:\n  source: afd-extra'), 'afd'), false);
+	assert.equal(declaresOwner(doc('description: x\n  source: afd'), 'afd'), false);
+	assert.equal(declaresOwner('No frontmatter.', 'afd'), false);
 });
 
 test('listing characters count description and when_to_use, skip user-only skills and cap descriptions', () => {

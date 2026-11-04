@@ -30,9 +30,9 @@ async def skill_status(
     Status per skill:
     - ok: local version matches source version
     - stale: local version is behind source
-    - unmanaged: local skill has no source: field
+    - unmanaged: local skill has no source (metadata.source, or top-level source:)
     - missing: source skill not installed locally
-    - conflict: local skill has a different source: than expected
+    - conflict: local skill has a different source than expected
     - renamed: local skill uses a retired name; see renamed_to and suggestion
     - retired: botcore no longer ships the local skill; see suggestion
     """

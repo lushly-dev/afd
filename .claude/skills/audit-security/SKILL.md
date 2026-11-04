@@ -1,13 +1,14 @@
 ---
 name: audit-security
-source: botcore
 description: >
   Audits MCP servers, AFD and Botcore command surfaces and agent setups for
   security: tool authorization, approval gates, code-execution tools, agent
   permissions and supply chain. Use for a security audit or a security review
   lane on a server, command, agent or dependency change.
-version: 2.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 <!-- Generated from skills/exports.json; edit the canonical security-auditor skill. -->

@@ -18,6 +18,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: one lint rule set, and ownership in `metadata:`** -- `skill_lint` (MCP, Alfred)
+  and `botcore skill-lint` / `skill_lint_spec` (CLI) now share one rule set. Before, the
+  first warned when `triggers` or `version` were missing while the second called them
+  unsupported, which led a consumer to strip `source:` and silently stop seeding.
+  - **Retired rules:** SK006 (triggers required) and SK013 (version required).
+  - **Errors:** SK004 (name format and directory) and SK005 (description over 1,024
+    characters) are errors.
+  - **New warnings:**
+    - SK016: description over 300 characters.
+    - SK017: `triggers` fields and "Triggers:" lists.
+    - SK019: listing over `[skills] listing_budget`, default 8,000 characters. The
+      count mirrors how hosts list descriptions.
+  - **SK018** accepts current Claude Code fields.
+  - **SK009** counts lines (500).
+  - **Strict:** `strict=True` turns every warning into an error.
+  - **Ownership:** botcore now records `source`, `version` and `portable` under the
+    open standard's `metadata:` map. It still reads top-level fields from older copies.
+    Seed, adopt and render write `metadata:`, and the bundled skills use it.
 - **skills: the remaining skills rewritten and merged** -- nine bundled skills remain. Each
   is a single SKILL.md (2.0.0) whose API claims were checked against the code.
   - **Merges.** `review` merged into `code-reviewer`; `docs-update` and `content-humanizer`

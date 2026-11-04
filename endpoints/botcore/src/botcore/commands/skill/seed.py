@@ -38,17 +38,20 @@ async def skill_seed(
     1. Load config → get SkillsConfig (include/skip/source_dir/agent_skills)
     2. discover_available_skills() → all candidates from botcore + plugins
     3. Filter by include/skip (include takes priority; if set, skip is ignored)
+    Ownership is ``metadata.source`` in a skill's frontmatter, or a top-level
+    ``source:`` in older copies.
+
     4. For each local skill under a renamed name whose new name is a candidate:
-       - source: botcore → remove it (migrated; the new name is seeded below)
-       - no source: or different → leave it, report it, and don't seed the
+       - source botcore → remove it (migrated; the new name is seeded below)
+       - no source or different → leave it, report it, and don't seed the
          new name alongside it (that would duplicate the skill)
     5. For each local skill botcore retired that no source still ships:
-       - source: botcore, no include list and not skipped → remove it (retired)
+       - source botcore, no include list and not skipped → remove it (retired)
        - otherwise → leave it and report it (retired_locally_owned)
     6. For each skill:
-       - Not present locally → copy tree, inject source: in frontmatter
-       - Present, matching source: → overwrite if update=True, skip otherwise
-       - Present, no source: or different → skip (log warning)
+       - Not present locally → copy tree, set metadata.source in frontmatter
+       - Present, matching source → overwrite if update=True, skip otherwise
+       - Present, no source or different → skip (log warning)
     7. If agent_skills=True, mirror to .agent/skills/
     8. Return summary
     """
@@ -166,7 +169,7 @@ def _migrate_renamed_skills(
 
     Only renames whose new name is a seed candidate are considered, so an
     include/skip filter never leaves a project with neither name.
-    - source: botcore → remove the old directory (migrated)
+    - source botcore → remove the old directory (migrated)
     - anything else → leave it in place and report it (renamed_locally_owned)
 
     Returns:
@@ -260,12 +263,15 @@ def _remove_skill_dir(path: Path) -> None:
 
 
 def _copy_skill(source_path: Path, target_path: Path, source_name: str) -> None:
-    """Copy a skill directory and inject source: into frontmatter."""
+    """Copy a skill directory and set ``metadata.source`` in its frontmatter.
+
+    Any top-level ownership fields in the copy move under ``metadata:``.
+    """
     if target_path.exists():
         shutil.rmtree(target_path)
     shutil.copytree(source_path, target_path)
 
-    # Inject source: into frontmatter
+    # Record ownership under metadata:
     skill_file = target_path / "SKILL.md"
     if not skill_file.exists():
         skill_file = target_path / "skill.md"

@@ -207,24 +207,25 @@ The plugin's commands, docs, and skills automatically appear in MCP, CLI, and Di
 
 ## Skill Ownership
 
-Skills use a `source:` field in YAML frontmatter to track ownership:
+Skills track ownership under the open standard's `metadata:` map in YAML frontmatter:
 
 ```yaml
 ---
 name: security
-source: botcore
-description: Audit code for vulnerabilities.
-version: "3.0.0"
-triggers:
-  - security
-  - vulnerability
+description: Audits code for vulnerabilities. Use when reviewing a change for security.
+metadata:
+  source: botcore
+  version: 3.0.0
+  portable: true
 ---
 ```
 
 Three tiers:
-- **`source: botcore`** — Bundled universal skills, updated by `skill_seed --update`
-- **`source: <plugin>`** — Plugin-provided skills
-- **No source / `source: local`** — Project-specific skills, never overwritten by seed
+- **`metadata.source: botcore`** — Bundled universal skills, updated by `skill_seed --update`
+- **`metadata.source: <plugin>`** — Plugin-provided skills
+- **No source / `metadata.source: local`** — Project-specific skills, never overwritten by seed
+
+A top-level `source:` (older copies) is still read; seed and adopt move it under `metadata:`.
 
 This solves the customization problem: central skills stay in sync across repos, while project-specific skills remain untouched.
 
@@ -239,6 +240,7 @@ Convention over configuration. An empty config is valid — language detection a
 include = ["security", "testing"]  # Only seed these (omit for all)
 skip = ["i18n"]                    # Exclude these
 source_dir = ".claude/skills"      # Target directory
+listing_budget = 8000              # skill_lint's SK019 cap on listed description characters
 
 [languages.python]
 root = "python/"

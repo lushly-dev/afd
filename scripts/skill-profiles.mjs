@@ -171,6 +171,18 @@ function firstParagraph(text) {
 	return paragraph.join(' ');
 }
 
+/** Botcore records ownership as metadata.source; older files use a top-level source. */
+export function declaresOwner(text, owner) {
+	const frontmatter = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? '';
+	const value = escapeRegex(owner);
+	return (
+		new RegExp(`^source: ${value}$`, 'm').test(frontmatter) ||
+		new RegExp(`^metadata:\\r?\\n(?:[ \\t]+.*\\r?\\n)*?[ \\t]+source: ${value}$`, 'm').test(
+			frontmatter
+		)
+	);
+}
+
 /** Characters a skill adds to the host listing; user-only skills are not listed. */
 export function listingCharacters(text, skill) {
 	let fields;
@@ -298,8 +310,8 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 				throw new Error(`Override ownership required: ${override.name}`);
 			const source = await inside(root, `${profile.root}/${override.name}/SKILL.md`);
 			const text = await readFile(source, 'utf8');
-			if (!/^source: afd$/m.test(text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1] ?? ''))
-				throw new Error(`Local override must declare source: afd: ${override.name}`);
+			if (!declaresOwner(text, 'afd'))
+				throw new Error(`Local override must declare metadata.source: afd: ${override.name}`);
 			listing.set(override.name, listingCharacters(text, override.name));
 		}
 		for (const name of profile.local) {

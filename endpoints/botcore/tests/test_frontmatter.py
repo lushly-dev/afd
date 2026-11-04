@@ -127,6 +127,57 @@ version: "1.0.0"
     assert manifest.source == "botcore"
 
 
+def test_parse_ownership_from_metadata() -> None:
+    """source, version and portable resolve from metadata:, which keeps its other keys."""
+    content = """\
+---
+name: security
+description: Test.
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
+  owner-team: platform
+---
+"""
+    manifest, _ = parse_frontmatter(content)
+
+    assert (manifest.source, manifest.version, manifest.portable) == ("botcore", "2.0.0", True)
+    assert manifest.metadata == {"owner-team": "platform"}
+
+
+def test_parse_metadata_wins_over_top_level() -> None:
+    content = (
+        "---\nname: x\nsource: old\nversion: '1.0.0'\nportable: false\n"
+        "metadata:\n  source: botcore\n  version: 2.0.0\n---\n"
+    )
+    manifest, _ = parse_frontmatter(content)
+
+    assert (manifest.source, manifest.version, manifest.portable) == ("botcore", "2.0.0", False)
+
+
+def test_parse_falls_back_to_top_level_ownership() -> None:
+    """Older copies with top-level fields keep working, field by field."""
+    content = (
+        "---\nname: x\nsource: botcore\nversion: '1.5.0'\nportable: true\n"
+        "metadata:\n  owner-team: platform\n---\n"
+    )
+    manifest, _ = parse_frontmatter(content)
+
+    assert (manifest.source, manifest.version, manifest.portable) == ("botcore", "1.5.0", True)
+    assert manifest.metadata == {"owner-team": "platform"}
+
+
+@pytest.mark.parametrize("metadata", ["metadata: just text", "metadata:\n  - a list"])
+def test_parse_non_mapping_metadata_is_invalid(metadata: str) -> None:
+    """The open standard's metadata is a map; anything else reads like invalid YAML."""
+    content = f"---\nname: x\n{metadata}\n---\n\nBody.\n"
+    manifest, body = parse_frontmatter(content)
+
+    assert manifest.name == ""
+    assert body == content
+
+
 # ── render_frontmatter ─────────────────────────────────────────────────
 
 
@@ -150,36 +201,50 @@ def test_render_basic() -> None:
 
 
 def test_render_with_source() -> None:
-    """source: appears in rendered output."""
+    """Ownership is rendered under metadata:, never at the top level."""
     manifest = SkillManifest(
         name="test",
         source="botcore",
         description="Test.",
         version="1.0.0",
+        portable=True,
     )
     result = render_frontmatter(manifest)
 
-    assert "source: botcore" in result
+    assert result == (
+        "---\nname: test\ndescription: Test.\n"
+        "metadata:\n  source: botcore\n  version: 1.0.0\n  portable: true\n---\n"
+    )
+    assert not re.search(r"^(source|version|portable):", result, re.MULTILINE)
+
+
+def test_render_keeps_other_metadata_after_ownership() -> None:
+    manifest, _ = parse_frontmatter(
+        "---\nname: t\ndescription: d\nmetadata:\n  owner-team: platform\n  source: botcore\n---\n"
+    )
+    result = render_frontmatter(manifest)
+
+    assert "metadata:\n  source: botcore\n  owner-team: platform\n" in result
+    assert parse_frontmatter(result)[0].model_dump() == manifest.model_dump()
 
 
 def test_render_field_order() -> None:
-    """Fields are rendered in deterministic order."""
+    """Fields are rendered in deterministic order, with metadata: last."""
     manifest = SkillManifest(
         name="test",
         source="botcore",
         description="A test skill.",
         version="1.0.0",
         triggers=["test"],
+        license="MIT",
     )
     result = render_frontmatter(manifest)
 
-    name_pos = result.index("name:")
-    source_pos = result.index("source:")
-    desc_pos = result.index("description:")
-    version_pos = result.index("version:")
-    triggers_pos = result.index("triggers:")
-
-    assert name_pos < source_pos < desc_pos < version_pos < triggers_pos
+    positions = [
+        result.index(key) for key in ("name:", "description:", "triggers:", "license:", "metadata:")
+    ]
+    assert positions == sorted(positions)
+    assert result.index("metadata:") < result.index("  source:") < result.index("  version:")
 
 
 def test_render_long_description_uses_folded() -> None:
@@ -200,6 +265,13 @@ def test_render_omits_empty_triggers() -> None:
     result = render_frontmatter(manifest)
 
     assert "triggers:" not in result
+
+
+def test_render_omits_default_ownership() -> None:
+    """No source, the default version and portable: false add no metadata: block."""
+    result = render_frontmatter(SkillManifest(name="test", description="Test."))
+
+    assert result == "---\nname: test\ndescription: Test.\n---\n"
 
 
 # ── read_skill_manifest ────────────────────────────────────────────────
@@ -257,7 +329,7 @@ def test_read_skill_manifest_no_name(tmp_path: Path) -> None:
 
 
 def test_update_skill_source(tmp_path: Path) -> None:
-    """Add source: to an existing skill."""
+    """Add metadata.source to an existing skill, moving its top-level version too."""
     skill_dir = tmp_path / "testing"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(
@@ -269,8 +341,12 @@ def test_update_skill_source(tmp_path: Path) -> None:
     assert result is True
 
     updated = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
-    assert "source: botcore" in updated
-    assert "# Testing" in updated
+    assert updated == (
+        "---\nname: testing\ndescription: Test.\n"
+        "metadata:\n  source: botcore\n  version: 1.0.0\n---\n\n# Testing\n"
+    )
+    # Already in that form: nothing to write
+    assert update_skill_source(skill_dir, "botcore") is False
 
 
 def test_update_skill_source_no_file(tmp_path: Path) -> None:
@@ -293,8 +369,9 @@ def test_update_skill_source_replaces_existing(tmp_path: Path) -> None:
     update_skill_source(skill_dir, "new-source")
 
     updated = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
-    assert "source: new-source" in updated
+    assert "metadata:\n  source: new-source\n" in updated
     assert "source: old" not in updated
+    assert not re.search(r"^source:", updated, re.MULTILINE)
 
 
 # ── YAML safety / round-trip ───────────────────────────────────────────
@@ -344,7 +421,7 @@ def test_render_round_trips_bundled_skill(skill_file: Path) -> None:
 
 @pytest.mark.parametrize("skill_file", _BUNDLED_SKILLS, ids=lambda p: p.parent.name)
 def test_set_source_round_trips_bundled_skill(skill_file: Path) -> None:
-    """The minimal source: edit used by skill_seed keeps every manifest field."""
+    """The minimal source edit used by skill_seed keeps every manifest field."""
     content = skill_file.read_text(encoding="utf-8")
     manifest, body = parse_frontmatter(content)
 
@@ -356,6 +433,22 @@ def test_set_source_round_trips_bundled_skill(skill_file: Path) -> None:
     expected = manifest.model_copy(update={"source": "some-plugin"})
     assert reparsed.model_dump() == expected.model_dump()
     assert reparsed_body == body
+    # Only the metadata.source line changed
+    assert updated == content.replace("  source: botcore\n", "  source: some-plugin\n")
+
+
+@pytest.mark.parametrize("skill_file", _BUNDLED_SKILLS, ids=lambda p: p.parent.name)
+def test_bundled_skill_keeps_ownership_in_metadata(skill_file: Path) -> None:
+    """Canonical skills carry metadata.source: botcore and no top-level ownership."""
+    content = skill_file.read_text(encoding="utf-8")
+    data = _frontmatter_yaml(content)
+
+    assert not {"source", "version", "portable", "triggers"} & set(data)
+    assert data["metadata"]["source"] == "botcore"
+    assert data["metadata"]["portable"] is True
+    assert isinstance(data["metadata"]["version"], str)
+    # Seeding as botcore is a no-op
+    assert set_frontmatter_source(content, "botcore") == content
 
 
 @pytest.mark.parametrize(
@@ -418,21 +511,67 @@ def test_render_long_description_wraps_lines() -> None:
 
 
 def test_set_frontmatter_source_minimal_edit() -> None:
+    """Top-level ownership moves under metadata:; every other line stays byte-for-byte."""
     content = (
         "---\nname: x\n# keep this comment\ndescription: >\n  Folded text\n"
         "  continues.\nversion: \"1.0.0\"\ntriggers:\n  - '@file'\n---\n\nBody.\n"
     )
+    kept = content.replace('version: "1.0.0"\n', "")
     updated = set_frontmatter_source(content, "botcore")
 
-    assert updated == content.replace("name: x\n", "name: x\nsource: botcore\n")
-    assert set_frontmatter_source(updated, None) == content
+    assert updated == kept.replace(
+        "---\n\nBody", "metadata:\n  source: botcore\n  version: 1.0.0\n---\n\nBody"
+    )
+    # Writers keep an existing triggers list but never add one
+    assert updated.count("triggers:") == 1
+    assert set_frontmatter_source(updated, None) == kept.replace(
+        "---\n\nBody", "metadata:\n  version: 1.0.0\n---\n\nBody"
+    )
 
 
 def test_set_frontmatter_source_replaces_multiline_value() -> None:
     content = "---\nname: x\nsource:\n  old\nversion: '1.0.0'\n---\nBody\n"
     updated = set_frontmatter_source(content, "new")
 
-    assert updated == "---\nname: x\nsource: new\nversion: '1.0.0'\n---\nBody\n"
+    assert updated == "---\nname: x\nmetadata:\n  source: new\n  version: 1.0.0\n---\nBody\n"
+
+
+def test_set_frontmatter_source_edits_metadata_in_place() -> None:
+    """An existing metadata: block is rewritten where it stands, keeping its other keys."""
+    content = (
+        "---\nname: x\nmetadata:\n  owner-team: platform\n  source: old\n"
+        "description: Test.\nlicense: MIT\n---\n\nBody.\n"
+    )
+    updated = set_frontmatter_source(content, "botcore")
+
+    assert updated == (
+        "---\nname: x\nmetadata:\n  source: botcore\n  owner-team: platform\n"
+        "description: Test.\nlicense: MIT\n---\n\nBody.\n"
+    )
+
+
+def test_set_frontmatter_source_leaves_matching_metadata_untouched() -> None:
+    """A metadata: block that already holds the values keeps its comments and layout."""
+    content = (
+        "---\nname: x\ndescription: Test.\nmetadata:\n  # ownership\n"
+        "  source: \"botcore\"\n  version: '2.0.0'\n---\n\nBody.\n"
+    )
+
+    assert set_frontmatter_source(content, "botcore") == content
+
+
+def test_set_frontmatter_source_metadata_wins_over_stale_top_level() -> None:
+    """A stale top-level copy is dropped; the metadata: value is the one kept."""
+    content = (
+        "---\nname: x\nsource: old\nversion: '1.0.0'\ndescription: Test.\n"
+        "metadata:\n  source: botcore\n  version: 2.0.0\n---\n\nBody.\n"
+    )
+    updated = set_frontmatter_source(content, "botcore")
+
+    assert updated == (
+        "---\nname: x\ndescription: Test.\n"
+        "metadata:\n  source: botcore\n  version: 2.0.0\n---\n\nBody.\n"
+    )
 
 
 def test_set_frontmatter_source_invalid_yaml_returns_none() -> None:

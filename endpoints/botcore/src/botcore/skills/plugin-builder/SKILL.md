@@ -1,13 +1,14 @@
 ---
 name: plugin-builder
-source: botcore
 description: >
   Builds Botcore plugins: commands that return AFD CommandResults, registration,
   entry points, and serving them through a managed host with command policies.
   Use when writing or changing a Botcore plugin or exposing its commands over
   MCP or a CLI.
-version: 2.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # Botcore plugins

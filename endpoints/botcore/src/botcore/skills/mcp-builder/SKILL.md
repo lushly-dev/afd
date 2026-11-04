@@ -1,13 +1,14 @@
 ---
 name: mcp-builder
-source: botcore
 description: >
   Builds and debugs Python MCP servers on Botcore and the MCP SDK: tool-list
   cost, output budgets, subprocesses, execute tools and client setup. Use when
   writing an MCP server or tool, or when a server bloats context, truncates
   JSON, hangs or won't start.
-version: 2.0.0
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # MCP servers

@@ -1,13 +1,14 @@
 ---
 name: browser-automation
-source: botcore
 description: >
   Drives Chromium with botcore's cdp_* commands (botcore.commands.cdp): sessions,
   shadow DOM selectors, console capture, screenshots and DevTools performance
   traces. Use when automating or debugging a page with these commands or
   capturing a Chrome trace.
-version: "2.0.0"
-portable: true
+metadata:
+  source: botcore
+  version: 2.0.0
+  portable: true
 ---
 
 # Browser automation with botcore CDP

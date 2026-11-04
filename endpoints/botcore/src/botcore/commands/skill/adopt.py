@@ -1,4 +1,4 @@
-"""Adopt an unmanaged skill — add source: to its frontmatter."""
+"""Adopt an unmanaged skill — set metadata.source in its frontmatter."""
 
 from __future__ import annotations
 
@@ -13,12 +13,15 @@ async def skill_adopt(
     name: str,
     source: str = "local",
 ) -> CommandResult[dict]:
-    """Claim an unmanaged skill by adding source: to its frontmatter.
+    """Claim an unmanaged skill by setting ``metadata.source`` in its frontmatter.
+
+    A skill already owned by ``source`` whose ownership fields are still at the top
+    level (an older copy) has them moved under ``metadata:``.
 
     Fails if:
     - Skill directory doesn't exist
     - Skill has no SKILL.md
-    - Skill already has a different source:
+    - Skill already has a different source
     """
     ws = find_workspace()
     if not ws:
@@ -51,13 +54,20 @@ async def skill_adopt(
         return error(
             "SOURCE_CONFLICT",
             f"Skill '{name}' already owned by '{manifest.source}', cannot adopt as '{source}'",
-            suggestion=f"Remove the source: field first or use source='{manifest.source}'",
+            suggestion=(
+                f"Run skill_unadopt('{name}') to remove metadata.source first, "
+                f"or use source='{manifest.source}'"
+            ),
         )
 
     if manifest.source == source:
+        moved = update_skill_source(skill_dir, source)
+        reasoning = f"Skill already has source: {source}"
+        if moved:
+            reasoning += "; moved its top-level ownership fields under metadata:"
         return success(
-            data={"name": name, "source": source, "changed": False},
-            reasoning=f"Skill already has source: {source}",
+            data={"name": name, "source": source, "changed": moved},
+            reasoning=reasoning,
         )
 
     updated = update_skill_source(skill_dir, source)
@@ -69,7 +79,7 @@ async def skill_adopt(
 
 
 async def skill_unadopt(name: str) -> CommandResult[dict]:
-    """Remove the source: field from a skill's frontmatter."""
+    """Remove ``metadata.source`` (or an older top-level ``source:``) from a skill."""
     ws = find_workspace()
     if not ws:
         return error(

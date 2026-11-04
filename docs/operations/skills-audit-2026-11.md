@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batch 0 merged in #755 and Batch 1 in #757; Batch 2 in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0, 1 and 2 merged in #755, #757 and #761; Batch 2b in progress.
 
 ## Summary
 
@@ -216,6 +216,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Evaluate by replaying two or three recent sessions against the old and new text before merging. These are the most-used skills.
 
 **Batch 5: Lushly plumbing and removals** (after Batches 1 and 2).
+- Decide first how Lushly receives the cleaned skills. It pins `lushly-botcore[all]==0.3.5` from PyPI, and AFD's Botcore is quarantined from publishing, so `skill-seed` there still delivers the old set. The options are a Botcore release, or seeding from AFD's source (for example `uvx --from 'git+https://github.com/lushly-dev/afd#subdirectory=endpoints/botcore'`). This is an owner decision.
 - Re-adopt the surviving canonical skills with `metadata:` ownership, so `skill-seed --update` refreshes them again.
 - Delete the copies Botcore removed and the Lushly removals listed above.
 - Register Lushly's session skills as local.
