@@ -118,22 +118,37 @@ pub(crate) fn render(proposal: &Proposal) -> String {
         line(
             &mut out,
             &format!(
-                "  redacted at {} ({}): its content, diff and memory excerpts were removed",
+                "  redacted at {} ({}): its content, diff, rationale and excerpts were removed",
                 redacted.at, redacted.reason
             ),
         );
     }
     match &proposal.drafter {
         None => line(&mut out, "Drafter: none"),
-        Some(drafter) => drafter_lines(&mut out, drafter, settled_at(proposal).as_deref()),
+        Some(drafter) => drafter_lines(
+            &mut out,
+            drafter,
+            settled_at(proposal).as_deref(),
+            cites_memory(&proposal.evidence),
+        ),
     }
     evidence_lines(&mut out, &proposal.evidence);
     diff_lines(&mut out, &proposal.diff);
     out
 }
 
+/// Whether any evidence entry is a memory record's, erased or not.
+fn cites_memory(evidence: &[Value]) -> bool {
+    evidence
+        .iter()
+        .any(|entry| entry.get("kind").and_then(Value::as_str) == Some("memory"))
+}
+
 /// The drafter's attested fields, its verified ones, the drafter's policy and the widening line.
-fn drafter_lines(out: &mut String, drafter: &Drafter, settled: Option<&str>) {
+/// A draft citing no memory record was checked against no memory record, so its line says only
+/// what this plugin computed: with no source to widen, the mode is `scheduled` (phase 4 step 3b,
+/// amendment 1).
+fn drafter_lines(out: &mut String, drafter: &Drafter, settled: Option<&str>, memory: bool) {
     let _ = writeln!(
         out,
         "Drafter, attested by the host: plugin {}, instance {}, pipeline {}, run {}",
@@ -148,6 +163,14 @@ fn drafter_lines(out: &mut String, drafter: &Drafter, settled: Option<&str>) {
     }
     if let Some(by) = &drafter.promoted_by {
         let _ = write!(verified, ", promoted by {by}");
+    }
+    if !memory {
+        let _ = writeln!(
+            out,
+            "Drafter, checked at submission: it cites no memory record, so it widens no one's readers"
+        );
+        let _ = writeln!(out, "{verified}");
+        return;
     }
     let _ = writeln!(out, "Drafter, verified against memory at submission:");
     let _ = writeln!(out, "{verified}");

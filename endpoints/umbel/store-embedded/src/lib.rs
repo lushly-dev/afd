@@ -162,4 +162,26 @@ impl SqliteStore {
     pub(crate) fn pool(&self) -> &connection::Pool {
         &self.pool
     }
+
+    /// A reader holding a snapshot of the write-ahead log until the hold is dropped, for tests of
+    /// [`SqliteStore::truncate_wal`]'s `Pending` answer from crates that do not link SQLite
+    /// themselves (phase 4 section 9.1). Compiled in only with the `testkit` feature.
+    ///
+    /// # Errors
+    /// `Busy`, `Corrupt` or `Io` if the database cannot be opened or read.
+    #[cfg(feature = "testkit")]
+    pub fn hold_reader(&self) -> Result<ReaderHold, StoreError> {
+        let conn = rusqlite::Connection::open(self.database_path())
+            .map_err(|e| StoreError::Io(format!("a reader for the hold: {e}")))?;
+        conn.execute_batch("BEGIN; SELECT count(*) FROM records;")
+            .map_err(|e| StoreError::Io(format!("a read snapshot for the hold: {e}")))?;
+        Ok(ReaderHold { _conn: conn })
+    }
+}
+
+/// An open read transaction on `store.sqlite3` ([`SqliteStore::hold_reader`]); dropping it ends
+/// the transaction and closes the connection.
+#[cfg(feature = "testkit")]
+pub struct ReaderHold {
+    _conn: rusqlite::Connection,
 }

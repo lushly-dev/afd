@@ -21,6 +21,16 @@
 			"default": ["bm25"],
 			"description": "The retrieval lanes; bm25 is the only one (no embedding model by default)"
 		},
+		"drafters": {
+			"type": "array",
+			"default": [],
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9-]{0,62}$"
+			},
+			"description": "Plugin instances whose pipeline steps this instance accepts drafted proposals from (phase 4 section 3.2): the host attests who drafted, and every other claim is verified here. Default []: an attested submission is PROPOSAL_DRAFTER_NOT_ALLOWED"
+		},
 		"areas": {
 			"type": "object",
 			"default": {},

@@ -14,7 +14,7 @@ use umbel_store::{
     Page, Record, RecordMeta, Rev, Subgraph,
 };
 
-use crate::cx::{Cx, HostError, HostServices};
+use crate::cx::{Cx, HostError, HostServices, WalCheckpoint};
 
 /// One file of a collection, as `content_list` reports it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -454,6 +454,15 @@ impl Cx {
     pub fn checkpoint(&self, space: &str) -> Result<(), HostError> {
         self.check_space(space)?;
         self.host()?.checkpoint(space)
+    }
+
+    /// A reporting checkpoint of the document store after a write that removed text.
+    ///
+    /// # Errors
+    /// See [`HostServices::truncate_wal`].
+    pub fn truncate_wal(&self, space: &str) -> Result<WalCheckpoint, HostError> {
+        self.check_space(space)?;
+        self.host()?.truncate_wal(space)
     }
 
     /// The read methods as another principal, in the call's spaces.

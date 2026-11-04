@@ -314,7 +314,7 @@ async fn a_redacted_proposal_previews_with_no_content() {
     let text = preview(&fx, draft["id"].as_str().unwrap()).await;
     for wanted in [
         "  withdrawn by the drafter (source-erased) at 2026-01-02T00:00:00.000Z",
-        "  redacted at 2026-01-02T00:00:00.000Z (source-erased): its content, diff and memory excerpts were removed",
+        "  redacted at 2026-01-02T00:00:00.000Z (source-erased): its content, diff, rationale and excerpts were removed",
         "Diff: none",
     ] {
         assert!(

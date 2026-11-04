@@ -599,6 +599,10 @@ impl HostServices for CallServices {
         self.svc_checkpoint(space)
     }
 
+    fn truncate_wal(&self, space: &str) -> Result<umbel_sdk::WalCheckpoint, ServiceError> {
+        self.svc_truncate_wal(space)
+    }
+
     fn as_reader(&self, principal: &str) -> Result<Reader, ServiceError> {
         self.svc_as_reader(principal)
     }

@@ -1,6 +1,11 @@
 //! `knowledge-propose` (specification section 9.1): validate, scan, diff and store a proposal as
 //! `pending`. The same key with the same change returns the existing proposal; the same key with
 //! another change is `PROPOSAL_KEY_REUSED`.
+//!
+//! [`submit`] is that validation for `knowledge-propose-batch` too (phase 4 section 11.2), which
+//! adds a drafter for an attested step: its proposals are `agent-inferred`, a retry must repeat
+//! the drafter's claims as well as the change, and a document or source that already has an open
+//! proposal is `PROPOSAL_ALREADY_OPEN`.
 
 use serde_json::{Value, json};
 use umbel_okf::{Ingest, Kind, analyze, document_id};
@@ -12,7 +17,7 @@ use super::area::{self, Area};
 use super::common::{self, Caller, Parts, Target};
 use super::diff;
 use super::model::{
-    Change, Op, Policy, Proposal, Proposer, State, Verification, change_hash, proposal_id,
+    Change, Drafter, Op, Policy, Proposal, Proposer, State, Verification, change_hash, proposal_id,
 };
 use crate::fail;
 
@@ -62,6 +67,45 @@ fn memory_evidence() -> Outcome {
         "memory evidence is accepted only from an attested drafter, never by knowledge-propose",
         "Memory reaches proposals only through the curator's curator-run; cite other sources as document, url, text or record evidence.",
     )
+}
+
+/// What a drafted submission adds (phase 4 sections 2.1 and 3.2).
+pub(crate) struct Drafted<'a> {
+    /// The drafter: the host-attested fields and the claims this plugin verified.
+    pub(crate) drafter: Drafter,
+    /// Whether the change's document, or one of the memory sources its evidence cites, already
+    /// has an open proposal that blocks it.
+    pub(crate) already_open: &'a dyn Fn(&Change, &[Value]) -> bool,
+}
+
+/// A proposal [`submit`] stored, or the existing one an idempotent retry found.
+pub(crate) struct Submitted {
+    pub(crate) proposal: Proposal,
+    pub(crate) created: bool,
+    /// The record's revision, for a stored one.
+    pub(crate) rev: Option<u64>,
+    /// `knowledge-propose`'s answer for it.
+    pub(crate) outcome: Outcome,
+}
+
+/// `PROPOSAL_ALREADY_OPEN` (phase 4 section 11.2): a drafted proposal for a document, or a memory
+/// source, that has an open proposal. Its alternatives in one conflict set do not block each other.
+fn already_open() -> Outcome {
+    failure(
+        "PROPOSAL_ALREADY_OPEN",
+        "the document, or a memory source the draft cites, already has an open proposal",
+        "Let a person decide the open proposal, or withdraw it first; the draft is not stored.",
+    )
+}
+
+/// Whether an existing proposal's drafter and conflict set are the ones a retry names.
+fn same_draft(existing: &Proposal, drafter: Option<&Drafter>) -> bool {
+    let drafters = match (existing.drafter.as_ref(), drafter) {
+        (None, None) => true,
+        (Some(stored), Some(asked)) => stored.same_draft(asked),
+        _ => false,
+    };
+    drafters && existing.conflict_set.is_none()
 }
 
 /// What the input says, checked.
@@ -226,6 +270,15 @@ pub(crate) fn file_path(doc: &str) -> Result<(String, String), Outcome> {
 }
 
 pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
+    submit(caller, input, None).map(|submitted| submitted.outcome)
+}
+
+/// Validate, scan, diff and store one proposal, drafted when `drafted` is given.
+pub(crate) fn submit(
+    caller: &Caller<'_>,
+    input: &Value,
+    drafted: Option<Drafted<'_>>,
+) -> Result<Submitted, Outcome> {
     let cx = caller.cx;
     let submission = parse(input)?;
     check_shape(&submission.change)?;
@@ -235,17 +288,29 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
         &submission.rationale,
         &submission.evidence,
     );
+    let drafter = drafted.as_ref().map(|drafted| &drafted.drafter);
 
-    // An idempotent retry comes first: it must not depend on what changed since.
+    // An idempotent retry comes first: it must not depend on what changed since. It repeats the
+    // change and, for a draft, the drafter's claims; the run may differ (phase 4 section 7.3).
     if let Some((existing, _)) = common::get(caller, &id).map_err(|e| host(&e))? {
-        if existing.change_hash == hash {
-            return Ok(shown(&existing, false, None));
+        if existing.change_hash == hash && same_draft(&existing, drafter) {
+            return Ok(Submitted {
+                outcome: shown(&existing, false, None),
+                proposal: existing,
+                created: false,
+                rev: None,
+            });
         }
         return Err(failure(
             "PROPOSAL_KEY_REUSED",
             "that idempotency key was used for a different change; the earlier proposal is unchanged",
             "Use a new idempotency_key for a new change.",
         ));
+    }
+    if let Some(drafted) = &drafted
+        && (drafted.already_open)(&submission.change, &submission.evidence)
+    {
+        return Err(already_open());
     }
 
     let change = &submission.change;
@@ -364,9 +429,15 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
     check_evidence(caller, &submission.evidence)?;
 
     let diff = diff::unified(&file, &old_text, &new_text, change.op == Op::Create);
-    let origin = caller.origin();
+    // A draft is the drafter's inference, whoever ran its pipeline (phase 4 section 8.2).
+    let origin = if drafter.is_some() {
+        umbel_store::Origin::AgentInferred
+    } else {
+        caller.origin()
+    };
     // Envelope version 2, nested in proposal version 2 (phase 4 section 2.1): `authority` null,
-    // as for every record, and nothing derived from memory, since no drafter is attested here.
+    // as for every record, and nothing derived from memory: no proposal cites memory until step
+    // 3c verifies a drafter's sources (step 3b, amendment 1).
     let provenance = json!({
         "version": super::model::VERSION,
         "origin": origin,
@@ -417,7 +488,7 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
         flags: flags.clone(),
         created_at: caller.now.clone(),
         updated_at: caller.now.clone(),
-        drafter: None,
+        drafter: drafter.cloned(),
         conflict_set: None,
         withdrawal: None,
         redacted: None,
@@ -459,7 +530,12 @@ pub(crate) fn propose(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Out
     if !flags.is_empty() {
         outcome = flagged(outcome, &flags);
     }
-    Ok(outcome)
+    Ok(Submitted {
+        proposal,
+        created: true,
+        rev: Some(meta.rev),
+        outcome,
+    })
 }
 
 /// The `CONTENT_FLAGGED` warning, naming flags and no text.

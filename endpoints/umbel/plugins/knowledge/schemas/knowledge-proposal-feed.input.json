@@ -1,0 +1,16 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"after": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "The store revision the previous feed returned as next; 0 for the first"
+		}
+	},
+	"required": ["after"],
+	"additionalProperties": false
+}

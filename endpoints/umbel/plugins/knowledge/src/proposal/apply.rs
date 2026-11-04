@@ -358,7 +358,9 @@ fn apply(
         .as_ref()
         .map_or("document", |info| info.default_type.as_str())
         .to_owned();
-    let doc_origin = if proposal.proposer.actor.kind == "human" {
+    // A person's own proposal is their statement; an agent's, or any drafted one (whoever ran
+    // the drafter's pipeline), is an inference (phase 4 section 8.2, D102).
+    let doc_origin = if proposal.proposer.actor.kind == "human" && proposal.drafter.is_none() {
         Origin::UserStated
     } else {
         Origin::AgentInferred

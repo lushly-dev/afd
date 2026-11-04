@@ -224,6 +224,10 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
         "graph-applied" => cx.graph_applied(space).map(|rev| json!(rev)),
         "derive-head" => cx.derive_head(space).map(|rev| json!(rev)),
         "checkpoint" => cx.checkpoint(space).map(|()| json!("checkpointed")),
+        "truncate-wal" => cx.truncate_wal(space).map(|state| match state {
+            umbel_sdk::WalCheckpoint::Clean => json!("clean"),
+            umbel_sdk::WalCheckpoint::Pending => json!("pending"),
+        }),
         "graph-nodes" => cx
             .graph_nodes(space, &list(args, "ids"))
             .map(|nodes| json!(nodes.iter().map(|n| n.id.clone()).collect::<Vec<_>>())),

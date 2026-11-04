@@ -1,0 +1,254 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"proposals": {
+			"type": "array",
+			"description": "At most 50 proposals, each knowledge-propose's input without space, citing at most 400 distinct memory sources in all; more is PROPOSAL_BATCH_TOO_LARGE",
+			"items": {
+				"type": "object",
+				"properties": {
+					"idempotency_key": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 128,
+						"description": "Chosen by the caller (a run id plus a step works). The same key with the same change returns the existing proposal; the same key with another change is PROPOSAL_KEY_REUSED"
+					},
+					"change": {
+						"type": "object",
+						"properties": {
+							"op": {
+								"enum": ["create", "update", "deprecate", "verify"]
+							},
+							"doc": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512,
+								"description": "A document id, <collection>/<path>"
+							},
+							"baseHash": {
+								"type": "string",
+								"maxLength": 71,
+								"description": "The content hash you read; required for update, deprecate and verify, left out for create"
+							},
+							"content": {
+								"type": "string",
+								"description": "The whole new file including frontmatter, for create and update"
+							},
+							"supersededBy": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512,
+								"description": "For deprecate: the document id or /-prefixed path that replaces it"
+							},
+							"verification": {
+								"type": "object",
+								"properties": {
+									"note": {
+										"type": "string",
+										"maxLength": 1000
+									},
+									"staleAfter": {
+										"type": "string",
+										"maxLength": 64,
+										"description": "An absolute datetime with a UTC offset"
+									}
+								},
+								"additionalProperties": false
+							}
+						},
+						"required": ["op", "doc"],
+						"additionalProperties": false
+					},
+					"rationale": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 4000
+					},
+					"evidence": {
+						"type": "array",
+						"minItems": 1,
+						"maxItems": 32,
+						"items": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"enum": ["document", "url", "text", "record", "memory"],
+									"description": "memory only from a listed drafter's attested step (phase 4 section 2.1); its entry then copies the record's fields below"
+								},
+								"ref": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 1024
+								},
+								"contentHash": {
+									"type": "string",
+									"maxLength": 71
+								},
+								"excerpt": {
+									"type": "string",
+									"maxLength": 1000
+								},
+								"principal": {
+									"type": "string",
+									"maxLength": 140,
+									"description": "memory: the record's owner, <kind>:<id>"
+								},
+								"class": {
+									"enum": ["semantic", "procedural"],
+									"description": "memory"
+								},
+								"authority": {
+									"enum": ["person", "agent", "tool", "import"],
+									"description": "memory"
+								},
+								"origin": {
+									"enum": ["user-stated", "agent-inferred", "document-derived"],
+									"description": "memory"
+								},
+								"constraints": {
+									"type": ["array", "null"],
+									"maxItems": 16,
+									"items": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"description": "memory"
+								},
+								"access": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 64,
+									"items": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"description": "memory: the record's access set"
+								},
+								"sensitivity": {
+									"enum": ["public", "internal", "confidential", "restricted"],
+									"description": "memory"
+								},
+								"confirmation": {
+									"type": ["object", "null"],
+									"description": "memory: the record's confirmation, or null"
+								},
+								"observations": {
+									"type": "object",
+									"properties": {
+										"sessions": {
+											"type": "integer",
+											"minimum": 0
+										},
+										"principals": {
+											"type": "integer",
+											"minimum": 0
+										}
+									},
+									"required": ["sessions", "principals"],
+									"additionalProperties": false,
+									"description": "memory"
+								}
+							},
+							"required": ["kind", "ref"],
+							"additionalProperties": false
+						}
+					},
+					"confidence": {
+						"type": "number",
+						"minimum": 0,
+						"maximum": 1
+					},
+					"run": {
+						"type": "string",
+						"maxLength": 128
+					},
+					"drafter": {
+						"type": "object",
+						"description": "A drafter's claims, verified here (phase 4 section 3.2); the plugin, instance, pipeline and run come from the host's attestation, never from the input. Only from a listed drafter's attested step",
+						"properties": {
+							"mode": {
+								"enum": ["scheduled", "promoted"]
+							},
+							"candidate": {
+								"type": "string",
+								"minLength": 22,
+								"maxLength": 22,
+								"description": "c- and 20 hex digits"
+							},
+							"promotedBy": {
+								"type": "string",
+								"maxLength": 140,
+								"description": "The principal who promoted the sources, <kind>:<id>"
+							}
+						},
+						"additionalProperties": false
+					},
+					"conflictSet": {
+						"type": "string",
+						"minLength": 22,
+						"maxLength": 22,
+						"description": "k- and 20 hex digits: the conflict set a drafted alternative belongs to (phase 4 section 4.4). Only from a listed drafter's attested step"
+					},
+					"derivedFrom": {
+						"type": "array",
+						"minItems": 1,
+						"maxItems": 32,
+						"description": "A drafted proposal's memory sources, each equal to a memory evidence entry's id and hash (phase 4 section 2.1). Only from a listed drafter's attested step",
+						"items": {
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "memory"
+								},
+								"id": {
+									"type": "string",
+									"maxLength": 28,
+									"description": "mem- and 24 hex digits"
+								},
+								"contentHash": {
+									"type": "string",
+									"maxLength": 71
+								}
+							},
+							"required": ["kind", "id", "contentHash"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": ["idempotency_key", "change", "rationale", "evidence"],
+				"additionalProperties": false
+			}
+		},
+		"withdraw": {
+			"type": "array",
+			"description": "At most 50 withdrawals by the attested drafter, run before the proposals; more is PROPOSAL_BATCH_TOO_LARGE",
+			"items": {
+				"type": "object",
+				"properties": {
+					"proposal": {
+						"type": "string",
+						"minLength": 3,
+						"maxLength": 22,
+						"description": "A proposal id, p- and 20 hex digits"
+					},
+					"reason": {
+						"enum": ["source-erased", "source-changed", "superseded-alternative"]
+					},
+					"redact": {
+						"type": "boolean",
+						"default": false,
+						"description": "Remove the draft's text and hashes (phase 4 section 9.1): true exactly for source-erased"
+					}
+				},
+				"required": ["proposal", "reason"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["proposals"],
+	"additionalProperties": false
+}

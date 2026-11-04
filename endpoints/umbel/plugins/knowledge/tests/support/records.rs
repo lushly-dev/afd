@@ -212,14 +212,20 @@ pub fn drafted(draft: &Draft<'_>) -> Value {
     })
 }
 
-/// `body` as section 9.1's redaction leaves it: withdrawn by the drafter, its content, diff and
-/// memory evidence gone but for the reference, `derivedFrom` null, the change hash redacted.
+/// The rationale a redaction leaves (phase 4 step 3b, amendment 6).
+pub const REDACTED_RATIONALE: &str =
+    "Redacted: a memory record this draft cited was forgotten, so its text was removed.";
+
+/// `body` as section 9.1's redaction leaves it: withdrawn by the drafter, its content, diff,
+/// rationale and memory evidence gone but for the reference, `derivedFrom` null, the change hash
+/// redacted.
 pub fn redacted(mut body: Value) -> Value {
     let id = body["id"].as_str().unwrap().to_owned();
     let hash = ContentHash::of(canonical_json(&json!({ "redacted": id })).as_bytes()).to_string();
     body["state"] = json!("withdrawn");
     body["change"].as_object_mut().unwrap().remove("content");
     body["diff"] = json!("");
+    body["rationale"] = json!(REDACTED_RATIONALE);
     body["evidence"] =
         json!([{ "kind": "memory", "ref": format!("{SOURCE_ID}@2"), "erased": true }]);
     body["changeHash"] = json!(hash);

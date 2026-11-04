@@ -53,6 +53,12 @@ diff's first 80 lines), and `knowledge-proposal-show` has the whole diff. Poll `
 carries the reason, and `knowledge-withdraw` takes back your own pending proposal. An applied
 document is searchable after the next `knowledge-refresh`.
 
+`knowledge-propose-batch` takes up to 50 such proposals in one call (`proposals`, each without
+`space`) and answers per item, so one refused item does not stop the rest. Called by you it is an
+ordinary batch: drafter fields, memory evidence and withdrawals are refused
+(`PROPOSAL_EVIDENCE_INVALID`). Only a drafter's own pipeline, attested by the host and listed in
+`drafters`, sends those, and its proposals are still decided by a person.
+
 ## Following the graph
 
 `knowledge-index` also builds a structural graph of each space: the directory hierarchy, headings,
