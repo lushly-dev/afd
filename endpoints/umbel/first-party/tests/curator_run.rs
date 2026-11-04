@@ -2,9 +2,10 @@
 //! 9.1; step 5). The curator's own pipeline plans under the caller's reader filter, the knowledge
 //! plugin verifies every draft against the memory store before it stores it, a person decides at
 //! a terminal, and the next run reads the decision back; a forgotten source's draft is redacted;
-//! documents due are proposed for verification and a named successor for deprecation. The
-//! curator never approves: a pipeline whose step is `knowledge-approve` is refused even when a
-//! person answers yes.
+//! documents due are proposed for verification and a named successor for deprecation, which an
+//! area that opts into `deprecate-declared` applies when a person's applied proposal declared it
+//! (step 6). The curator never approves: a pipeline whose step is `knowledge-approve` is refused
+//! even when a person answers yes.
 //!
 //! This crate links the curator beside the knowledge plugin as a dev-dependency (D3); step 7 links
 //! it into the binary.
@@ -21,7 +22,7 @@ use umbel_sdk::{Cx, Outcome, Plugin, failure};
 use umbel_store::conformance::samples;
 use umbel_store::memory::{DAY_MS, Forget, format_instant};
 use umbel_store::{
-    Authority, DocumentStore, Expect, ForgetSelector, MemoryStore, MemoryWrite, Origin,
+    Authority, ContentHash, DocumentStore, Expect, ForgetSelector, MemoryStore, MemoryWrite, Origin,
 };
 use umbel_store_embedded::{SqliteMemoryStore, SqliteStore, StoreOptions};
 
@@ -500,6 +501,105 @@ async fn due_documents_and_named_successors_are_proposed_and_accepted() {
     );
     // Drafted again only once decided.
     assert_eq!(fx.run().await["counts"]["reverify"], 0);
+}
+
+#[tokio::test]
+async fn a_successor_a_person_declared_is_deprecated_by_the_areas_rule() {
+    const OLD: &str = "---\ntitle: Old\n---\nBody.\n";
+    const DECLARED: &str = "---\ntitle: Old\nsuperseded_by: new\n---\nBody.\n";
+    let mut fx = Fx::new();
+    // The area opts into the rule (section 8.3; off by default).
+    let path = fx.dir.path().join("umbel.toml");
+    let config = std::fs::read_to_string(&path).unwrap().replace(
+        "[plugins.knowledge.config.areas.notes]\nspace = \"alpha\"\ncollection = \"notes\"\n",
+        "[plugins.knowledge.config.areas.notes]\nspace = \"alpha\"\ncollection = \"notes\"\nauto = [\"deprecate-declared\"]\n",
+    );
+    assert!(config.contains("auto = "));
+    std::fs::write(&path, config).unwrap();
+    for (id, text) in [
+        ("notes/old", OLD),
+        ("notes/new", "---\ntitle: New\n---\nBody.\n"),
+    ] {
+        std::fs::write(fx.dir.path().join(format!("spaces/alpha/{id}.md")), text).unwrap();
+        fx.document(id, text, |_| {});
+    }
+    // A person approves, at the terminal, an agent's update declaring the successor.
+    let context = fx
+        .host
+        .context(
+            Actor::new(ActorKind::Agent)
+                .with_id("bo")
+                .with_on_behalf_of("bo"),
+        )
+        .with_interface(CommandInterface::Mcp);
+    let proposed: CommandResult<Value> = fx
+        .host
+        .registry()
+        .execute(
+            "knowledge-propose",
+            json!({
+                "space": "alpha",
+                "idempotency_key": "declare",
+                "change": {
+                    "op": "update", "doc": "notes/old",
+                    "baseHash": ContentHash::of(OLD.as_bytes()).to_string(), "content": DECLARED,
+                },
+                "rationale": "The page says what replaced it.",
+                "evidence": [{ "kind": "text", "ref": "team notes" }],
+            }),
+            Some(context),
+        )
+        .await;
+    let proposed = serde_json::to_value(proposed).unwrap();
+    let declared = proposed["data"]["proposal"]["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{proposed}"))
+        .to_owned();
+    let (code, approved, _) = fx
+        .terminal(
+            &[
+                "call",
+                "knowledge-approve",
+                &json!({ "space": "alpha", "proposal": declared }).to_string(),
+            ],
+            true,
+        )
+        .await;
+    assert_eq!(code, 0, "{approved}");
+
+    // The curator's run drafts the deprecate, and the area's rule applies it as its decision.
+    fx.at(day(1));
+    let report = fx.run().await;
+    assert_eq!(report["counts"]["deprecate"], 1, "{report}");
+    let id = report["proposals"][0].as_str().unwrap().to_owned();
+    let result = fx
+        .cli("knowledge-auto-approve", json!({ "space": "alpha" }))
+        .await;
+    assert_eq!(
+        result["data"]["applied"][0]["proposal"],
+        id.as_str(),
+        "{result}"
+    );
+    let proposal = fx.proposal(&id).await;
+    assert_eq!(proposal["state"], "applied", "{proposal}");
+    let text = std::fs::read_to_string(fx.dir.path().join("spaces/alpha/notes/old.md")).unwrap();
+    assert!(text.contains("status: \"deprecated\""), "{text}");
+    let record = SqliteStore::open(&fx.space(), "alpha", StoreOptions::default())
+        .unwrap()
+        .get_record(
+            "knowledge",
+            "proposal",
+            &id,
+            &umbel_store::ReaderFilter::derivation(),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.body["decision"]["channel"], "policy");
+    assert_eq!(record.body["decision"]["by"]["id"], "policy:notes");
+    assert_eq!(record.body["policy"]["rule"], "auto:deprecate-declared");
+    // The next run reads the decision back and drafts nothing for the deprecated document.
+    let report = fx.run().await;
+    assert_eq!(report["counts"]["deprecate"], 0, "{report}");
 }
 
 #[tokio::test]

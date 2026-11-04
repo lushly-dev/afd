@@ -184,6 +184,18 @@ self-approval. The `memory` grant needs no `allow` list; deny it (`deny = ["memo
 same pipeline withdraws its own drafts, and redacts one whose memory source was forgotten, and reads
 the decisions on them with `knowledge-proposal-feed`.
 
+**Auto-approval, off by default.** One kind of proposal may be applied without a person, and only in an
+area whose deployer lists it: `auto = ["deprecate-declared"]` under `[plugins.knowledge.config.areas.<id>]`
+(default `[]`; any other value fails the configuration). `knowledge-auto-approve` (command line only, a
+prompt that `--yes` answers from cron, never as a pipeline step) then applies each pending drafted
+`deprecate` of that area whose `supersededBy` equals the document's `superseded_by`, when a person's
+applied `create` or `update` wrote that declaration into the document's current bytes (its diff added
+the line) and the successor is a document every reader of the deprecated one can read and that is not
+itself deprecated. A `superseded_by` typed into a file, or carried through a later edit or verification,
+never triggers it, and no `create`, `update`, `verify`, memory-derived, flagged or alternative proposal is
+ever applied this way. The record says `decision.channel = "policy"`, decided by `policy:<area>` for the
+principal who ran it; the caller must be one of the area's approvers.
+
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
 

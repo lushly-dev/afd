@@ -605,11 +605,25 @@ fn shown(proposal: &Proposal, created: bool, rev: Option<u64>) -> Outcome {
     ))
 }
 
+/// `policy.rule` of a person's decision.
+pub(crate) const RULE_PERSON: &str = "person";
+
 pub(crate) fn policy_of(area: &Area) -> Policy {
     Policy {
         area: area.id.clone(),
-        version: area.policy_version(),
-        rule: "person".to_owned(),
+        version: area.policy_version(RULE_PERSON),
+        rule: RULE_PERSON.to_owned(),
+    }
+}
+
+/// The policy of a decision the area's auto-approval rule `rule` made (phase 4 section 8.3):
+/// `auto:<rule>`, with a version covering the area's `auto` list.
+pub(crate) fn policy_auto(area: &Area, rule: &str) -> Policy {
+    let rule = format!("auto:{rule}");
+    Policy {
+        area: area.id.clone(),
+        version: area.policy_version(&rule),
+        rule,
     }
 }
 

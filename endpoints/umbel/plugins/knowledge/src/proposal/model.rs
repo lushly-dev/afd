@@ -20,6 +20,8 @@ pub(crate) const VERSIONS: [u32; 2] = [1, VERSION];
 const VERSION_2_KEYS: [&str; 4] = ["drafter", "conflictSet", "withdrawal", "redacted"];
 /// `decision.channel` of a person's decision at a terminal.
 pub(crate) const CHANNEL_TERMINAL: &str = "terminal";
+/// `decision.channel` of an area's auto-approval rule (phase 4 section 8.3).
+pub(crate) const CHANNEL_POLICY: &str = "policy";
 
 /// Where a proposal is in its life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -114,8 +114,17 @@
     re-verification and deprecation drafts with per-document `review` records; rejection and apply feedback; the
     re-check of open drafts and forgotten evidence (the `erased` notice, the curator's records erased, a consent that
     keeps no sources). Its [amendments](#amendments-from-step-5) settle thirteen details and change no trust-model point;
-    the first refuses the run's steps outside the run, and the ninth declares one grant less (`graph`).
-- **Not done:** steps 6 and 7 of section [15](#15-implementation-plan); step 6 (auto-approval) is next.
+    the first refuses the run's steps outside the run, and the ninth declares one grant less (`graph`). Merged in
+    [#768](https://github.com/lushly-dev/afd/pull/768) as `9ea18e73`.
+  - Step 6 (auto-approval), 2026-11-03, in its pull request, from `9ea18e73`: `knowledge-auto-approve` (command line
+    only, a prompt `--yes` answers, digest-journaled, refused for a pipeline step or a caller that is not a person) and
+    the one rule kind, `deprecate-declared`, in an area's `auto` list (default `[]`). It applies a drafted deprecate only
+    when a person's applied `create` or `update` wrote the declaration into the document's current bytes, its diff adding
+    that line, and the successor is readable by the document's readers; as the policy's decision, never a person's. Its
+    [amendments](#amendments-from-step-6) settle eleven details and change no trust-model point; the seventh closes two
+    cases the text's predicate let through (a typed declaration carried through a verification or an edit). No host
+    `src/`, `wit/` or `schemas/` file changed.
+- **Not done:** step 7 of section [15](#15-implementation-plan), which is next.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -880,7 +889,7 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals, 50 withdrawals or 400 cited sources | No |
 | `PROPOSAL_ACCESS_WIDENED` | Approve's re-check of 5.1 fails | No |
 | `PROPOSAL_SOURCE_GONE` | Approve finds a source gone (8.2) | No |
-| `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation | No |
+| `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation, or from a caller that is not a person (step 6, amendment 2) | No |
 | `CONFIRMATION_PREVIEW_FAILED` | The preview failed; nothing ran | No |
 | `CURATOR_CANDIDATES_SKIPPED` (warning) | A run skipped candidates; details hold counts by reason | |
 | `CURATOR_LOCK_TAKEN_OVER` (warning) | `curator-finish` found its expired lock taken over by another run, so it recorded its report and left the state (step 5, amendment 3) | |
@@ -980,7 +989,7 @@ It asserts:
 | `plugins/knowledge/tests/preview.rs` | knowledge | Rendering, labels, reader rules |
 | `plugins/knowledge/tests/redaction.rs` | knowledge | 9.1's redacted record; idempotent; applied proposals untouched |
 | `plugins/knowledge/tests/journal_modes.rs` | knowledge | 11.2's digest set: a canary in a drafted proposal never in the journal |
-| `plugins/knowledge/tests/auto_approve.rs` | knowledge | 8.3, if built |
+| `plugins/knowledge/tests/auto_approve.rs` | knowledge | 8.3, with step 6's amendments |
 | `plugins/knowledge/tests/proposals.rs`, `verification.rs` (existing) | knowledge | Phase 2 behaviour unchanged |
 | `plugins/curator/tests/settle.rs` | curator | 4.1 to 4.3 |
 | `plugins/curator/tests/conflicts.rs` | curator | 4.4 |
@@ -1771,6 +1780,98 @@ removes more than the text said and the ninth declares less. No host `src/` file
     and an apply read back, a forgotten source redacted with its text and hash gone from the store's bytes, verify and
     deprecate drafts accepted, and a pipeline whose step is `knowledge-approve` refused (`CONFIRMATION_REQUIRED`) even
     when a person answers yes.
+
+### Amendments from step 6
+
+Step 6 settled these details of sections 8.3, 11.2, 11.3 and 12 that the text left open. None applies a proposal without
+a person beyond `deprecate-declared`, lets a pipeline trigger it, or records a policy's decision as a person's. Each
+refuses where the text was silent; the seventh closes two cases the text's predicate let through, so a `superseded_by`
+typed into a file never triggers the rule, as owner decision 1 says. No host `src/`, `wit/` or `schemas/` file changed:
+`proposal.v2.json` already held the policy decision (step 1, amendment 8).
+
+1. **Shape and confirmation.** `knowledge-auto-approve` is command line only (`expose = { mcp = false, agent = false,
+   cli = true }`), `store-write` and `workspace-write`, digest-journaled keeping `space` and `limit`, with no AFD
+   `approval`. The text names no confirmation, so it takes the stricter of the two consistent with it: a
+   `confirm_prompt`, asked at a terminal, answered from cron by `--yes`, and refusing a call with neither
+   (`CONFIRMATION_REQUIRED`). Not `confirm = "require-human"`: the rule is the one under which a proposal is applied
+   "without a person" (Terms), a policy and not a person decides (step 1, amendment 8), and a person-only prompt would
+   refuse the cron run 7.3 describes. As with every plain prompt, `umbel batch` and a library call do not ask; the
+   rule is the same whoever runs it.
+2. **Who runs it.** Refused with `PROPOSAL_AUTO_NOT_ALLOWED` (`details.reason`), before anything is read, for any call
+   the host attests as a pipeline step (`pipeline`), whoever ships the pipeline, and for a caller that is not a person
+   with an id (`not-a-person`), as a library could call it. Per proposal, the caller must be one of the area's
+   approvers (`area.admits`), else it is skipped `not-approver`: only someone who could have approved it by hand runs
+   the policy over it. `CallContext.person` is not required: it is a terminal check, and cron has none; the decision is
+   recorded as the policy's, never as the caller's.
+3. **The `auto` list.** The configuration schema allows only `["deprecate-declared"]`, each kind once
+   (`PLUGIN_CONFIG_INVALID` at load), and the area reader checks it again (`AREA_CONFIG_INVALID`). An area admits no
+   other key. What the rule never applies (create, update, verify, memory-derived, flagged, alternatives) is code, not
+   configuration, so no area setting widens it.
+4. **The policy version covering `auto`.** `policy.version` hashes the area's keys and the decision's rule (`person` or
+   `auto:<rule>`), and the `auto` list when the area has one; an area without one keeps the version it had before.
+5. **Which area.** The proposal's recorded area must list the rule and still be the area governing the document now,
+   else `area-changed`: a more specific area added since, which lists nothing, governs it.
+6. **"Drafted, no flags, no `conflictSet`", read exactly.** A version 2 `deprecate` with a `drafter` whose instance
+   `drafters` still lists (`drafter-not-listed`), `mode = "scheduled"` with no candidate or promotion, no memory evidence
+   and no `derivedFrom` (all `memory`), no flags (`flagged`), no conflict set (`alternative`), and a `supersededBy`
+   (`no-successor`). Any other op is `op`; an undrafted deprecate is `not-drafted`.
+7. **"The target's current bytes were written by an applied proposal", made exact** (owner decision 1). The document is
+   readable and not deprecated (`target-missing`, `already-deprecated`); its hash is the draft's `baseHash`
+   (`target-changed`); its file holds bytes of that hash (`bytes-changed`: an edit not yet synced); its frontmatter's
+   `superseded_by` equals `change.supersededBy` as written (`declaration-differs`). Its envelope names exactly one
+   `derivedFrom` entry, of kind `proposal`, whose record, read from this instance's own namespace, where no other plugin
+   writes, is `applied`, of this space and document, with `result.contentHash` and the hash of its `change.content` both
+   the document's; else `not-written-by-proposal`. So an envelope another writer put proves nothing the record does
+   not. **Two further conditions close what the text's predicate let through:**
+   - The writer is a `create` or `update`, decided by a person (`decision.by` a human, not `channel = "policy"`), citing
+     no memory. A `verify` rewrites only its own keys, so a declaration typed into a file followed by a person's
+     `knowledge-verify` would otherwise pass.
+   - **Its diff adds the frontmatter line that declares `superseded_by`** (`declaration-not-written`). A declaration
+     typed into a file and carried, as context, through a person's approved edit of the body would otherwise pass. The
+     line must be a top-level key with its value on that line; anything else (a block scalar, an anchor, a flow or
+     nested mapping, two such lines) fails closed.
+
+   Limits, stated: a declaration a person's proposal wrote and a later proposal carried through does not count, and the
+   area waits for a person (fail closed). The person who approved the writer approved its whole content; whether their
+   preview's first 80 diff lines showed that line is not checked, as for any line of any approval (section 12's
+   rubber-stamping row).
+8. **The successor.** `change.supersededBy` resolves with `umbel_okf::links::successor` to a document the caller reads
+   (absent, unreadable and an address outside the space are one answer, `successor-missing`), not deprecated
+   (`successor-deprecated`), and readable by every reader of the target: each of the target's access tokens is in the
+   successor's set (`successor-narrower`). A deprecated document drops out of search for all its readers (D58), so none
+   of them is pointed to a document they cannot open. These are read at the call's `now`; the successor is not
+   compare-and-set protected through the apply, the same window a person's approval has.
+9. **Races.** The proposal is read again, under approve's reader rules, just before the rule is checked, and must still
+   be pending or a stopped apply this rule decided (`state` otherwise); `apply::apply_by_policy` refuses any other state
+   itself (`PROPOSAL_STATE_INVALID`), so a proposal rejected or withdrawn after it was listed is never applied. The rule
+   is checked on that record, the document and the file read in this call, then applied through approve's steps: the
+   proposal record is compare-and-set against the version read,
+   the file against its hash, which must be the `baseHash` and so the checked bytes, and the document against its
+   stored hash. A writer between the check and the apply makes it `PROPOSAL_CONFLICT` and nothing unchecked is
+   written. An apply the policy decided that stopped stays `approved` with the policy's decision; a later call resumes it
+   only when the rule holds again in full, keeping the first decision. A person's approval that stopped is the person's
+   to resume, and `knowledge-auto-approve` does not consider it; `knowledge-approve` may still resume either, as phase
+   2's resume does, keeping the decision recorded.
+10. **Input and result.** The input is closed: `{ space?, limit? }`, `limit` 1 to 200 (default 50), the most proposals
+    one call applies. It reads every proposal record of the space under the caller's filter, cheapest checks first,
+    and considers those whose recorded area lists a rule. The result is `{ space, applied: [{ proposal, doc, rule, rev
+    }], skipped: [{ proposal, doc, reason }], failed: [{ proposal, doc, code }], counts: { examined, applied, skipped,
+    failed }, reasons, more, indexed: false, nextStep }`: ids, document ids and codes, at most 200 listed of each, the
+    counts covering all. Approve's reader rules apply (`not-readable`). Without the `content` grant it is
+    `PROPOSAL_APPLY_UNAVAILABLE`.
+11. **Tests.** `plugins/knowledge/tests/auto_approve.rs` (20): off unless the document's area lists the rule; applied as
+    the policy's decision, valid against `proposal.v2.json`, read back by the drafter's feed, digest-journaled; a typed
+    declaration; a declaration carried through an edit and through a verification; bytes changed on disk and after a
+    sync; forged envelopes (other bytes under the writer's lineage, another document's proposal, two lineages, a
+    `document` lineage); the declaration differing; each op, and an undrafted deprecate; memory evidence, `derivedFrom`, a
+    promotion, flags, a conflict set and an unlisted drafter; the successor deprecated, gone, outside the space,
+    unreadable and narrower; every widening of `auto` refused at load; the governing area changed and the list removed;
+    a caller outside the approvers; a pipeline step of a listed and an unlisted instance, an agent and MCP refused; the
+    prompt, declined and `--yes`; `limit` and `more`, and the closed input; two calls at once applying once; a stopped
+    policy apply resumed only when the rule holds again; a person's stopped approval left alone. Two unit tests cover
+    the declaring line and a diff's added lines. `first-party/tests/curator_run.rs` gains the real curator's deprecate
+    draft applied by the rule after a person declared the successor, and read back by the next run. `journal_modes.rs`
+    adds the command to the digest set.
 
 ## 16. For the owner
 

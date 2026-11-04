@@ -57,7 +57,11 @@ document is searchable after the next `knowledge-refresh`.
 `space`) and answers per item, so one refused item does not stop the rest. Called by you it is an
 ordinary batch: drafter fields, memory evidence and withdrawals are refused
 (`PROPOSAL_EVIDENCE_INVALID`). Only a drafter's own pipeline, attested by the host and listed in
-`drafters`, sends those, and its proposals are still decided by a person.
+`drafters`, sends those, and its proposals are still decided by a person. The one exception is an
+area whose deployer lists `auto = ["deprecate-declared"]`: there `knowledge-auto-approve`, which you
+cannot run, applies the curator's drafted deprecate of a document whose `superseded_by` a person's
+applied proposal wrote, recorded as the area's policy decision. Nothing you propose is ever applied
+that way.
 
 ## Following the graph
 

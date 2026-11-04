@@ -93,6 +93,15 @@
 					"allow_self_approval": {
 						"type": "boolean",
 						"default": false
+					},
+					"auto": {
+						"type": "array",
+						"default": [],
+						"uniqueItems": true,
+						"items": {
+							"enum": ["deprecate-declared"]
+						},
+						"description": "The auto-approval rules the area opts into (phase 4 section 8.3, owner decision 1); default [], off. The one kind, deprecate-declared, lets knowledge-auto-approve apply a drafted deprecate whose declaration a person's applied proposal wrote; nothing else is ever applied without a person"
 					}
 				},
 				"required": ["space", "collection"],

@@ -18,7 +18,7 @@ const REASON_CANARY: &str = "bilbyreason";
 const PLAIN_CANARY: &str = "dingoplain";
 
 /// The digest set and the input keys each keeps.
-const DIGEST: [(&str, &[&str]); 8] = [
+const DIGEST: [(&str, &[&str]); 9] = [
     // Phase 4 step 3b: the drafted path. The batch has no proposal input, and the feed's `after`
     // is a store revision.
     ("knowledge-propose-batch", &["space"]),
@@ -32,6 +32,8 @@ const DIGEST: [(&str, &[&str]); 8] = [
     ("knowledge-approve", &["space", "proposal"]),
     ("knowledge-reject", &["space", "proposal"]),
     ("knowledge-withdraw", &["space", "proposal"]),
+    // Phase 4 step 6: auto-approval (section 11.2), which has no proposal input.
+    ("knowledge-auto-approve", &["space", "limit"]),
 ];
 
 fn manifest() -> toml::Table {
@@ -261,6 +263,9 @@ async fn a_canary_in_a_drafted_proposal_never_reaches_the_journal_or_the_events(
         .cli("knowledge-proposal-feed", json!({ "after": 0 }))
         .await;
     assert_eq!(code(&fed), "PROPOSAL_DRAFTER_NOT_ALLOWED", "{fed}");
+    // Auto-approval (step 6): its result names proposals and documents, so it is digested too.
+    let auto = fx.cli("knowledge-auto-approve", json!({})).await;
+    assert_eq!(data(&auto)["counts"]["applied"], 0, "{auto}");
 
     let journal = records::journal(&fx);
     assert!(journal.contains(PLAIN_CANARY), "the control is journaled");
