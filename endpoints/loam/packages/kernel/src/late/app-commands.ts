@@ -49,6 +49,13 @@ export interface AppCommandDeps {
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
 	const { apps, scope } = deps;
+	/** An instance's notices, with `APP_DISABLED` and its suggestion when the workspace disables it. */
+	const noticesOf = (instance: string, notices: AppInstanceV1['notices']) => {
+		const off = disabledRefusal(scope, instance)?.error;
+		return off
+			? [...notices, { code: off.code, message: `${off.message}. ${off.suggestion}.` }]
+			: notices;
+	};
 	/**
 	 * A change of what main shows moves the URL (phase 2 specification, 6.3). Every success reports
 	 * `mainChanged`, so an app reopened from "Nothing here" brings the URL back to it; one that names the same
@@ -173,6 +180,9 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 					.instances()
 					.map((row) => ({
 						...row,
+						// Disabled: never discovered, so its state stays as discovery left it, and the row says why
+						// (4.1). `AppInstanceV1.state` is version 1's, so this is a notice and not a state.
+						notices: noticesOf(row.instance, row.notices),
 						// A slug no project has yet: the instance is unavailable there until one has it (9.1).
 						warnings: [
 							...row.warnings,

@@ -35,7 +35,11 @@ import {
 } from './apps-runtime.js';
 import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, SHELL_EXPOSE } from './commands.js';
-import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
+import {
+	KERNEL_CONTEXT_FIELDS,
+	type KernelCallFields,
+	type KernelFieldContext,
+} from './context-fields.js';
 import { LoamKernelError } from './errors.js';
 import {
 	createKeybindings,
@@ -202,9 +206,16 @@ export interface KernelParts {
 export interface KernelPartsInternals {
 	/**
 	 * A nested call's answer from the journal, in place of running it (7.6). Undefined runs it: a refusal
-	 * before the middleware leaves no entry, and answers the same again.
+	 * before the middleware leaves no entry, and answers the same again. `owned` is what the call's context
+	 * would carry: a recorded call (`replay: 'recorded'`) the journal does not hold is answered with a
+	 * failure, and never run, since running it would reach a server (phase 2 specification, 10).
 	 */
-	answerNested?(parent: string, name: string, input: unknown): CommandResult | undefined;
+	answerNested?(
+		parent: string,
+		name: string,
+		input: unknown,
+		owned: KernelFieldContext
+	): CommandResult | undefined;
 	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
 	nestedUnrecorded?(parent: string, name: string): void;
 	/** A replay: stage B's own journaled work is skipped, since the entries are what ran (10). */
@@ -602,12 +613,12 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
+		const owned = apps.contextOf(name, input);
 		if (fields.parent !== undefined) {
-			const answered = internals.answerNested?.(fields.parent, name, input);
+			const answered = internals.answerNested?.(fields.parent, name, input, owned);
 			if (answered) return answered as CommandResult<T>;
 		}
 		const traceId = `${traceBase}-${++calls}`;
-		const owned = apps.contextOf(name, input);
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
 		// the active scope at this moment. No registry or connection holds it (3.2).
 		const asked = callOptions.scope;

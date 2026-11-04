@@ -27,7 +27,7 @@ import {
 	serveDeployment,
 	settle,
 } from '../browser/harness';
-import type { RelayedRequest } from './mount-relay';
+import type { RelayedCall, RelayedRequest } from './mount-relay';
 import { type ScopeServer, startScopeServer } from './scope-server';
 import { packUmbel, untilInstance } from './support';
 import { createUmbelWorkspace, startUmbel, type UmbelInstance } from './umbel-fixture';
@@ -148,8 +148,8 @@ const logLength = () => (site.relay as NonNullable<DeploymentSite['relay']>).log
  * The `_meta` a request carried, once the relay read its body, without the MCP SDK's own protocol keys
  * (`io.modelcontextprotocol/*`, which the 2026-07-28 era sends on every request): what Loam added.
  */
-function metaOf(request: RelayedRequest): Record<string, unknown> | undefined {
-	const kept = Object.entries(request.rpc?.meta ?? {}).filter(
+function metaOf(call: RelayedCall | undefined): Record<string, unknown> | undefined {
+	const kept = Object.entries(call?.meta ?? {}).filter(
 		([key]) => !key.startsWith('io.modelcontextprotocol/')
 	);
 	return kept.length > 0 ? Object.fromEntries(kept) : undefined;
@@ -164,8 +164,9 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 		expect(answered.data).toMatchObject({ greeting: 'Hello, Ada!', space: 'main' });
 		const calls = relayed('work', from).filter(({ rpc }) => rpc?.method === 'tools/call');
 		expect(calls).toHaveLength(1);
-		// The stock `umbel` declares no such field, so it dropped the key it was sent.
-		expect(metaOf(calls[0] as RelayedRequest)).toEqual({
+		// What the relay sent on: the key, which a stock `umbel` declares no field for (the last case here
+		// shows it answers the same with it as without it).
+		expect(metaOf(calls[0]?.rpc)).toEqual({
 			'dev.loam/scope': { workspace: WORKSPACE, project: ids.atlas },
 		});
 		await settle(page);
@@ -190,12 +191,14 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 		const beacon = await callIn(page, 'work-hello-greet', {}, ids.beacon);
 		expect(beacon.error).toMatchObject({
 			code: 'MOUNT_PROJECT_NOT_LISTED',
-			suggestion: 'Switch to a project this instance serves: atlas, vault',
+			// Vault is listed too, and restricted to a person this page's actor is not: it is not named (B2).
+			suggestion: 'Switch to a project this instance serves: atlas',
 		});
 		const agent = await callIn(page, 'work-workspace-show', {}, ids.beacon, true);
 		expect(agent.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
-		// 3.4's line 3 runs before the instance's own check: a project-only instance at workspace level.
-		const workspace = await callIn(page, 'work-hello-greet', {}, undefined);
+		// Deviation 1 (the spec's Status block): 3.4's line 3 runs before the instance's own check, so a
+		// project-only instance at workspace level is SCOPE_PROJECT_REQUIRED, journaled, with no request.
+		const workspace = await callIn(page, 'work-hello-greet', { name: 'nowhere' }, undefined);
 		expect(workspace.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
 		expect(relayed('work', from)).toEqual([]);
 		await settle(page);
@@ -208,6 +211,16 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 			instance: 'work',
 			replay: 'recorded',
 		});
+		const required = (await journal(page)).findLast(
+			({ command, error }) =>
+				command === 'work-hello-greet' && error?.code === 'SCOPE_PROJECT_REQUIRED'
+		);
+		expect(required).toMatchObject({
+			input: { name: 'nowhere' },
+			success: false,
+			context: { scope: { workspace: WORKSPACE }, instance: 'work', replay: 'recorded' },
+		});
+		expect(required?.context?.scope).toEqual({ workspace: WORKSPACE });
 	});
 
 	it('refuses a non-member in a restricted project it lists as PROJECT_NOT_FOUND, with no request', async () => {
@@ -239,7 +252,7 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 		expect(
 			relayed('probe', from)
 				.filter(({ rpc }) => rpc?.method === 'tools/call')
-				.map((request) => [request.rpc?.name, metaOf(request)])
+				.map(({ rpc }) => [rpc?.name, metaOf(rpc)])
 		).toEqual([
 			['scope-echo', { 'dev.loam/scope': atlas }],
 			['afd-call', { 'dev.loam/scope': atlas }],
@@ -260,7 +273,7 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 		);
 		expect(relayed('probe', from).some(({ rpc }) => rpc?.name === 'afd-help')).toBe(true);
 		expect(new Set(discovery.map(({ instance }) => instance))).toEqual(new Set(['work', 'probe']));
-		expect(discovery.filter((request) => metaOf(request) !== undefined)).toEqual([]);
+		expect(discovery.filter(({ rpc }) => metaOf(rpc) !== undefined)).toEqual([]);
 		// Discovery reads `afd-help`, never `tools/list` (phase 1 specification, 9.9).
 		expect(
 			(site.relay as NonNullable<DeploymentSite['relay']>).log.filter(
@@ -268,6 +281,26 @@ describe('P2-E6: scope reaches a mounted instance, through a test-only relay', (
 			)
 		).toEqual([]);
 		expect(shell.violations).toEqual([]);
+	});
+
+	it('carries the scope on a command call alone: no other request of either instance has it', async () => {
+		const log = (site.relay as NonNullable<DeploymentSite['relay']>).log;
+		const commandCall = (request: RelayedRequest) =>
+			request.rpc?.method === 'tools/call' &&
+			request.rpc.name !== 'afd-help' &&
+			request.rpc.name !== 'afd-detail';
+		// Every other request, `initialize` or `server/discover`, notifications, discovery and any batch,
+		// whose requests are read one by one.
+		const others = log.filter((request) => !commandCall(request));
+		const calls = others.flatMap(({ instance, rpc }) =>
+			(rpc?.batch ?? (rpc ? [rpc] : [])).map((call) => ({ instance, call }))
+		);
+		expect(calls.filter(({ call }) => metaOf(call) !== undefined)).toEqual([]);
+		// Not vacuous: the connections' own requests are among them, for both instances.
+		const handshakes = calls.filter(({ call }) => call.method !== 'tools/call');
+		expect(new Set(handshakes.map(({ instance }) => instance))).toEqual(new Set(['work', 'probe']));
+		// And every command call there was carried it.
+		expect(log.filter(commandCall).every(({ rpc }) => metaOf(rpc)?.['dev.loam/scope'])).toBe(true);
 	});
 
 	it('finds a stock umbel answers the same with the key present as without it', async () => {

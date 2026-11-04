@@ -49,10 +49,10 @@ export interface AppsHost {
 	clock(): number;
 	/**
 	 * The kernel's scope state, read only: the active scope, for the chrome's port and its store (phase 2
-	 * specification, 3.6 and 5), and the project and workspace-app records a mounted instance is checked
-	 * against (4.1, 9).
+	 * specification, 3.6 and 5), the project and workspace-app records a mounted instance is checked
+	 * against (4.1, 9), and `decideAccess` on them.
 	 */
-	scope: Pick<ScopeRuntime, 'active' | 'projects' | 'workspaceApps'>;
+	scope: Pick<ScopeRuntime, 'active' | 'allows' | 'projects' | 'workspaceApps'>;
 }
 
 /**

@@ -35,6 +35,8 @@ export interface RelayedCall {
 	name?: string;
 	/** `params._meta`, as the page sent it. */
 	meta?: Record<string, unknown>;
+	/** A batch body's requests, each read as one is, under the method `batch`, so none slips past a filter. */
+	batch?: RelayedCall[];
 }
 
 /** One request the relay saw: its method, and the names of the headers the page sent. */
@@ -49,20 +51,32 @@ export interface RelayedRequest {
 	status: number;
 }
 
-/** A JSON-RPC request's method, tool and `_meta`. Never a token: a page's body holds none (D64). */
-function callOf(body: Buffer): RelayedCall | undefined {
+/** One JSON-RPC message's method, tool and `_meta`. */
+function messageOf(message: unknown): RelayedCall | undefined {
+	const { method, params } = (message ?? {}) as {
+		method?: unknown;
+		params?: { name?: unknown; _meta?: unknown };
+	};
+	if (typeof method !== 'string') return undefined;
+	const { name, _meta: meta } = params ?? {};
+	return {
+		method,
+		...(typeof name === 'string' ? { name } : {}),
+		...(meta && typeof meta === 'object' ? { meta: meta as Record<string, unknown> } : {}),
+	};
+}
+
+/**
+ * A body's JSON-RPC request, or a batch of them logged as a batch. Never a token: a page's body holds
+ * none (D64).
+ */
+export function callOf(body: Buffer): RelayedCall | undefined {
 	try {
-		const message = JSON.parse(body.toString('utf8')) as {
-			method?: unknown;
-			params?: { name?: unknown; _meta?: unknown };
-		};
-		if (typeof message?.method !== 'string') return undefined;
-		const { name, _meta: meta } = message.params ?? {};
-		return {
-			method: message.method,
-			...(typeof name === 'string' ? { name } : {}),
-			...(meta && typeof meta === 'object' ? { meta: meta as Record<string, unknown> } : {}),
-		};
+		const parsed: unknown = JSON.parse(body.toString('utf8'));
+		if (Array.isArray(parsed)) {
+			return { method: 'batch', batch: parsed.flatMap((item) => messageOf(item) ?? []) };
+		}
+		return messageOf(parsed);
 	} catch {
 		return undefined;
 	}

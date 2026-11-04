@@ -277,19 +277,23 @@ export function pinMountedInput(
  * projects alone, by slug, and nothing at workspace level. The kernel's `opensIn` reads the same list
  * against the same slug, so an app that cannot open in a project has every call refused there too. This is
  * the instance's own refusal, before any request: a call the kernel did not open, an agent's, still stops.
+ * Its suggestion names only the listed projects `visible` lets the caller enter, so a non-member learns of
+ * no restricted project, as `PROJECT_NOT_FOUND` keeps it (3.4).
  */
 export function unlistedProject(
 	entry: Pick<ProjectionAppV1, 'projects'>,
-	slug: string | undefined
+	slug: string | undefined,
+	visible: (slug: string) => boolean
 ): CommandResult<never> | undefined {
 	const listed = entry.projects;
 	if (listed === undefined || (slug !== undefined && listed.includes(slug))) return undefined;
+	const shown = listed.filter(visible);
 	return kernelFailure(
 		'MOUNT_PROJECT_NOT_LISTED',
 		slug === undefined
 			? 'This instance serves only its projects'
 			: `This instance does not serve the project \`${slug}\``,
-		`Switch to a project this instance serves: ${listed.join(', ')}`
+		`Switch to a project this instance serves${shown.length > 0 ? `: ${shown.join(', ')}` : ''}`
 	);
 }
 
@@ -627,7 +631,16 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		// The effective scope, after the middleware's lines 1 to 6: ids, never a name (9.2).
 		const { scope } = context as KernelFieldContext;
 		const slug = scope?.project && host.scope.projects.get(scope.project)?.slug;
-		const refused = unlistedProject(entry, slug);
+		// `actorKey`, as `decideAccess` reads the actor; through the runtime, so this chunk imports nothing
+		// of first paint's and the bundler parts its shared chunks as before.
+		const actor = context.actor?.id ?? 'local';
+		const refused = unlistedProject(entry, slug, (listed) => {
+			const project = host.scope.projects.all().find((candidate) => candidate.slug === listed);
+			return (
+				project !== undefined &&
+				host.scope.allows(actor, { workspace: scope?.workspace ?? '', project: project.id })
+			);
+		});
 		if (refused) return refused;
 		const live = transport;
 		if (record.state === 'failed' || !live) {
@@ -651,7 +664,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		const signal = context.signal ? AbortSignal.any([deadline, context.signal]) : deadline;
 		// A claim the shell makes on every call of a command, `afd-call` too, and on no discovery. A server
 		// that declares the field reads it; one that does not drops it (`spec/context-fields.md`).
-		const meta = { 'dev.loam/scope': scope };
+		const meta = scope ? { 'dev.loam/scope': scope } : undefined;
 		let answer: McpToolCallResult;
 		try {
 			answer = await raced(

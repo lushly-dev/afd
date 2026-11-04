@@ -23,7 +23,7 @@ import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { BOOT_ONLY } from './commands.js';
-import { LoamKernelError, PAGE_DECIDED } from './errors.js';
+import { kernelFailure, LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { CALL_MARK } from './scope/runtime.js';
@@ -186,12 +186,26 @@ function nestedReplay(entries: readonly JournalEntry[]) {
 	const problems = new Map<string, string>();
 	return {
 		problems,
-		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
+		answer(
+			parent: string,
+			name: string,
+			input: unknown,
+			recorded: boolean
+		): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
-			if (next?.command !== name || !sameCall(next.input, input)) return undefined;
-			queue?.shift();
-			return next.result;
+			if (next?.command === name && sameCall(next.input, input)) {
+				queue?.shift();
+				return next.result;
+			}
+			if (!recorded) return undefined;
+			// A recorded call never runs in a replay, whatever ports it was given: it would reach a server.
+			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
+			return kernelFailure(
+				'REPLAY_NOT_RECORDED',
+				`The journal does not record '${name}' under this call, so the replay does not run it`,
+				'Replay the whole journal the session recorded'
+			);
 		},
 		unrecorded(parent: string, name: string): void {
 			problems.set(parent, `The handler called '${name}', which the journal does not record there`);
@@ -307,7 +321,8 @@ export async function replayKernel(
 			...(options.ports !== undefined ? { ports: options.ports } : {}),
 		},
 		{
-			answerNested: (parent, name, input) => nested.answer(parent, name, input),
+			answerNested: (parent, name, input, owned) =>
+				nested.answer(parent, name, input, owned.replay === 'recorded'),
 			nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
 			replaying: true,
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).

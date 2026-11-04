@@ -1,12 +1,18 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { createKernelParts } from '../kernel.js';
-import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import {
+	createFixedEnvironment,
+	createFixturePorts,
+	type KernelReplayReport,
+	replayKernel,
+} from '../testing.js';
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
@@ -17,6 +23,7 @@ import type {
 import {
 	AUTO_DISCOVERY_MS,
 	boundRecorded,
+	createMountedHost,
 	DISCOVERY_LIMITS,
 	discoverInstance,
 	flagsOf,
@@ -25,6 +32,8 @@ import {
 	RECORDED_RESULT_MAX_BYTES,
 	unlistedProject,
 } from './mounted.js';
+import type { AppRecord } from './operations.js';
+import type { AppsHost } from './types.js';
 
 const umbelManifest = (extra: Record<string, unknown> = {}): ManifestV1 =>
 	({
@@ -1132,17 +1141,121 @@ describe('P2-E6 (kernel unit): a mounted call carries its scope, and stays in it
 		await kernel.dispose();
 	});
 
-	it('answers no project, and an unlisted one, itself, with the slugs it serves', () => {
+	it('answers no project, and an unlisted one, itself, naming only the slugs the caller may see', () => {
 		const entry = { projects: ['atlas', 'borealis'] };
-		expect(unlistedProject(entry, undefined)?.error).toMatchObject({
+		const all = () => true;
+		expect(unlistedProject(entry, undefined, all)?.error).toMatchObject({
 			code: 'MOUNT_PROJECT_NOT_LISTED',
 			message: 'This instance serves only its projects',
 			suggestion: 'Switch to a project this instance serves: atlas, borealis',
 		});
-		expect(unlistedProject(entry, 'beacon')?.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
-		expect(unlistedProject(entry, 'atlas')).toBeUndefined();
-		expect(unlistedProject({}, undefined)).toBeUndefined();
-		expect(unlistedProject({}, 'beacon')).toBeUndefined();
+		expect(unlistedProject(entry, 'beacon', (slug) => slug === 'atlas')?.error).toMatchObject({
+			message: 'This instance does not serve the project `beacon`',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(unlistedProject(entry, 'beacon', () => false)?.error?.suggestion).toBe(
+			'Switch to a project this instance serves'
+		);
+		expect(unlistedProject(entry, 'atlas', all)).toBeUndefined();
+		expect(unlistedProject({}, undefined, all)).toBeUndefined();
+		expect(unlistedProject({}, 'beacon', all)).toBeUndefined();
+	});
+
+	it("B2: names no restricted project to a non-member in the refusal's suggestion", async () => {
+		const { kernel, transport, beacon } = await scoped({ projects: ['atlas', 'vault'] });
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const vault = await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		expect(vault.success).toBe(true);
+		const inBeacon = { scope: { workspace: 'personal', project: beacon } };
+		const before = transport.calls.length;
+		const member = await kernel.call('work-hello-greet', {}, inBeacon);
+		expect(member.error?.suggestion).toBe('Switch to a project this instance serves: atlas, vault');
+		await kernel.call('auth-sign-out');
+		const outsider = await kernel.call('work-hello-greet', {}, inBeacon);
+		expect(outsider.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(JSON.stringify(outsider)).not.toMatch(/vault/i);
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('B2: words the suggestion without slugs when the caller may enter none of them', async () => {
+		const { kernel, beacon } = await scoped({ projects: ['vault', 'later'] });
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		await kernel.call('auth-sign-out');
+		// `vault` is restricted to someone else, and no project has the slug `later` yet.
+		const refused = await kernel.call(
+			'work-hello-greet',
+			{},
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(refused.error?.suggestion).toBe('Switch to a project this instance serves');
+		await kernel.dispose();
+	});
+
+	it("B4: refuses no project in the registered handler's own call, wired past the middleware", async () => {
+		const transport = fakeTransport(
+			{ 'hello-greet': { mutation: false } },
+			{ firstClass: ['hello-greet'] }
+		);
+		const commands: ZodCommandDefinition[] = [];
+		const record = { instance: 'work', app: 'umbel', state: 'loading', commands: [] };
+		const host = {
+			taken: new Set<string>(),
+			setCommands() {},
+			clock: () => 0,
+			commandRows: () => [],
+			runAs: async () => ({ success: true }),
+			scope: {
+				active: () => ({ workspace: 'personal' }),
+				allows: () => true,
+				projects: { get: () => undefined, all: () => [] },
+				workspaceApps: { get: () => undefined },
+			},
+		};
+		const mounted = createMountedHost({
+			record: record as unknown as AppRecord,
+			entry: work({ projects: ['atlas'] }) as never,
+			manifest: umbelManifest() as never,
+			host: host as unknown as AppsHost,
+			ports: { ...createFixturePorts({}), mountTransport: async () => transport },
+			commands,
+			owners: new Map(),
+		});
+		expect((await mounted.refresh()).success).toBe(true);
+		const greet = commands.find((command) => command.name === 'work-hello-greet');
+		expect(greet).toBeDefined();
+		const before = transport.calls.length;
+		// What 3.4's line 3 refuses first in a kernel: the handler's own check is there too.
+		const refused = (await greet?.handler({}, {
+			scope: { workspace: 'personal' },
+		} as never)) as { error?: Record<string, unknown> };
+		expect(refused.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance serves only its projects',
+			suggestion: 'Switch to a project this instance serves',
+		});
+		expect(transport.calls.length).toBe(before);
+		await mounted.dispose();
 	});
 
 	it("pins a project's mapped space by its slug, and refuses another, before any request", async () => {
@@ -1279,6 +1392,97 @@ describe('4.1: a disabled mounted instance is not discovered, and enabling one d
 		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
 		expect(made).toBe(1);
 
+		const { report } = await replayKernel(await journal.read(), {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+
+	it('B1: a replay whose journal lacks the nested refresh makes no transport, and reports it', async () => {
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => fakeTransport({ 'a-read': { mutation: false } }),
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		const recorded: JournalEntry[] = await journal.read();
+		const nested = recorded.find(
+			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
+		);
+		expect(nested).toBeDefined();
+		const parent = recorded.find(({ traceId }) => traceId === nested?.context?.parent);
+		// As a journal recorded before step 8 would hold it, or one with the entry lost.
+		const entries = recorded.filter((entry) => entry !== nested);
+		let made = 0;
+		const refusal = await replayKernel(entries, {
+			deployment,
+			ports: {
+				...createFixturePorts(packages),
+				async mountTransport() {
+					made++;
+					return fakeTransport({ 'a-read': { mutation: false } });
+				},
+			},
+		}).then(
+			() => undefined,
+			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error
+		);
+		expect(made).toBe(0);
+		expect(refusal?.code).toBe('REPLAY_DIVERGED');
+		const differing = (refusal?.details?.report?.entries ?? []).filter(
+			({ status }) => status !== 'same'
+		);
+		expect(differing.map(({ seq }) => seq)).toContain(parent?.seq);
+		expect(JSON.stringify(differing)).toContain(
+			"The handler called 'app-instance-refresh', which the journal does not record there"
+		);
+		await kernel.dispose();
+	});
+
+	it('S1: says on its row that it is disabled, with the command that enables it, while it waits', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		const row = await instance(kernel);
+		// Version 1's state: never discovered, it reads as discovery left it, and the notice says why.
+		expect(row?.state).toBe('loading');
+		expect(row?.notices).toContainEqual({
+			code: 'APP_DISABLED',
+			message:
+				'The app \'work\' is disabled in this workspace. Enable it with workspace-app-set { instance: "work", enabled: true }.',
+		});
+		// Its commands were never discovered, so none is registered: the registry's own answer.
+		expect((await kernel.call('work-a-read', {})).error?.code).toBe('COMMAND_NOT_FOUND');
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		const enabled = await instance(kernel);
+		expect(enabled?.state).toBe('ready');
+		expect(enabled?.notices.map(({ code }) => code)).not.toContain('APP_DISABLED');
+		// Discovered, then disabled: its commands are registered, and the gate answers them (4.1).
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		expect((await kernel.call('work-a-read', {})).error?.code).toBe('APP_DISABLED');
+		await kernel.dispose();
+	});
+
+	it('N5: enables it whatever its discovery answers, and warns of a failed one', async () => {
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => Promise.reject(new TypeError('fetch failed')),
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		const enabled = await kernel.call<{ overrides: Record<string, unknown> }>('workspace-app-set', {
+			instance: 'work',
+			enabled: true,
+		});
+		expect(enabled.success).toBe(true);
+		expect(enabled.data?.overrides.enabled).toBe(true);
+		expect(enabled.warnings).toEqual([
+			{
+				code: 'MOUNT_UNREACHABLE',
+				message: 'Enabled, and its discovery failed: The instance cannot be reached',
+			},
+		]);
+		expect((await instance(kernel))?.state).toBe('failed');
 		const { report } = await replayKernel(await journal.read(), {
 			deployment,
 			ports: createFixturePorts(packages),

@@ -698,7 +698,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		category: 'workspace',
 		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
+		// Enabling a mounted instance waits for its discovery (4.1).
+		executionTime: 'slow',
 		input: appSetInput,
 		jsonSchema: {
 			type: 'object',
@@ -736,11 +737,26 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				updatedBy: actorKey(context),
 			};
 			await stores.putWorkspaceApp(next);
-			// Enabled again: a mounted instance left undiscovered while disabled is discovered now (4.1).
-			if (record.overrides.enabled === false && overrides.enabled !== false) {
-				await deps.apps().refreshEnabled?.(input.instance, context.traceId as string);
-			}
-			return success(next, { undoCommand: 'workspace-app-set', undoArgs });
+			// Enabled again: a mounted instance left undiscovered while disabled is discovered now (4.1). The
+			// change stands whatever discovery answers, and a failed one is the result's warning.
+			const found =
+				record.overrides.enabled === false && overrides.enabled !== false
+					? await deps.apps().refreshEnabled?.(input.instance, context.traceId as string)
+					: undefined;
+			return success(next, {
+				undoCommand: 'workspace-app-set',
+				undoArgs,
+				...(found?.error
+					? {
+							warnings: [
+								{
+									code: found.error.code,
+									message: `Enabled, and its discovery failed: ${found.error.message}`,
+								},
+							],
+						}
+					: {}),
+			});
 		},
 	});
 
