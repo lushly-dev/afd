@@ -293,6 +293,27 @@ test('profiles must declare a listing budget, and an over-budget listing fails b
 	}
 });
 
+test('botcore.toml [skills] listing_budget must match the profile it lints', async (t) => {
+	const { root, put } = await fixture(t);
+	assert.deepEqual(await syncProfiles(root, { write: true }).then(() => syncProfiles(root)), []);
+	await put('botcore.toml', '[project]\nname = "x"\n');
+	assert.deepEqual(await syncProfiles(root), []);
+	await put('botcore.toml', '[skills]\nlisting_budget = 1000  # same\nskip = []\n\n[other]\n');
+	assert.deepEqual(await syncProfiles(root), []);
+	for (const [config, message] of [
+		[
+			'[skills]\nskip = []\n',
+			/listing_budget \(unset, so 8000\) must equal listingBudget 1000 for afd/,
+		],
+		['[skills]\nlisting_budget = 999\n', /listing_budget \(999\) must equal listingBudget 1000/],
+	]) {
+		await put('botcore.toml', config);
+		await assert.rejects(syncProfiles(root), message);
+	}
+	await put('botcore.toml', '[skills]\nsource_dir = "elsewhere"\nlisting_budget = 5\n');
+	assert.deepEqual(await syncProfiles(root), []);
+});
+
 test('rewrites exact skill identifiers and explicit short invocations, preserving ordinary words and commands', () => {
 	const text =
 		'---\nname: hotfix\n---\nUse `commit` first, then `release patch`. Keep the `hotfix` label, git commit, gh pr review and release notes. See ../code-reviewer/SKILL.md and the code-reviewer skill.\n';

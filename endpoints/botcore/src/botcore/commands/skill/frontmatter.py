@@ -88,22 +88,27 @@ class SkillManifest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _resolve_ownership(cls, data: Any) -> Any:
-        """Lift the ownership fields out of ``metadata:``, which wins over the top level."""
-        if not isinstance(data, dict) or "metadata" not in data:
+        """Lift the ownership fields out of ``metadata:``, which wins over the top level.
+
+        An unquoted ``version: 1.0`` is a YAML number; it becomes text rather than making
+        the whole manifest invalid (which would hide the skill's owner). Lint flags it.
+        """
+        if not isinstance(data, dict):
             return data
         resolved = dict(data)
-        metadata = resolved.pop("metadata")
-        if metadata is None:
-            return resolved
-        if not isinstance(metadata, dict):
+        metadata = resolved.pop("metadata", None)
+        if isinstance(metadata, dict):
+            metadata = dict(metadata)
+            for key in OWNERSHIP_FIELDS:
+                value = metadata.pop(key, None)
+                if value is not None:
+                    resolved[key] = value
+            resolved["metadata"] = metadata
+        elif metadata is not None:
             resolved["metadata"] = metadata  # rejected by validation
-            return resolved
-        metadata = dict(metadata)
-        for key in OWNERSHIP_FIELDS:
-            value = metadata.pop(key, None)
-            if value is not None:
-                resolved[key] = value
-        resolved["metadata"] = metadata
+        version = resolved.get("version")
+        if isinstance(version, int | float) and not isinstance(version, bool):
+            resolved["version"] = str(version)
         return resolved
 
 

@@ -32,11 +32,19 @@ def _discover_skill_dirs(root: Path) -> list[Path]:
     return sorted(skill_dirs)
 
 
-def _listing_budget(target: Path) -> int:
-    """The [skills] listing_budget of the workspace containing target, else the default."""
+def _listing_budget(target: Path) -> tuple[int, str | None]:
+    """The [skills] listing_budget of the workspace containing target, else the default.
+
+    A config that fails to load leaves the default in place and is reported, because
+    linting skills shouldn't depend on the rest of the workspace's config being valid.
+    """
     ws = find_workspace(target)
-    skills = load_config(workspace=ws).skills if ws else SkillsConfig()
-    return skills.listing_budget
+    if not ws:
+        return SkillsConfig().listing_budget, None
+    try:
+        return load_config(workspace=ws).skills.listing_budget, None
+    except Exception as exc:  # pydantic validation, TOML or OS errors
+        return SkillsConfig().listing_budget, f"{type(exc).__name__}: {exc}".splitlines()[0]
 
 
 async def skill_lint_spec(
@@ -74,7 +82,10 @@ async def skill_lint_spec(
             suggestion="Provide a directory containing skill subdirectories with SKILL.md files",
         )
 
-    linted, listing = lint_skill_dirs(skill_dirs, _listing_budget(target))
+    budget, config_error = _listing_budget(target)
+    linted, listing = lint_skill_dirs(skill_dirs, budget)
+    if config_error:
+        listing["config_error"] = config_error
     results = [
         {"skill": r["skill"], "path": str(skill_dir), "issues": r["violations"]}
         for r, skill_dir in zip(linted, skill_dirs, strict=True)

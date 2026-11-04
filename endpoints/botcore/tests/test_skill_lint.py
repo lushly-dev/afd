@@ -517,3 +517,57 @@ async def test_bundled_skills_lint_without_errors() -> None:
     assert data["errors"] == 0, data["skills"]
     issues = [i for s in data["skills"] for i in s["issues"]]
     assert not [i for i in issues if i["rule"] in ("SK017", "SK018")]
+
+
+# ── Ownership values and robustness ─────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "ownership",
+    ["metadata:\n  source: botcore\n  version: 1.0\n", "source: botcore\nversion: 1.0\n"],
+)
+async def test_numeric_version_keeps_the_owner_and_warns(tmp_path: Path, ownership: str) -> None:
+    """An unquoted version is a YAML number: the owner stays readable and lint asks to quote."""
+    from botcore.commands.skill.frontmatter import read_skill_manifest
+
+    ws = _setup_workspace(tmp_path)
+    skill = _write_skill(_skills_dir(ws), "numeric", f"name: numeric\ndescription: X.\n{ownership}")
+
+    manifest = read_skill_manifest(skill)
+    assert (manifest.source, manifest.version) == ("botcore", "1.0")
+    data = await _lint(ws)
+    messages = [v["message"] for v in data["skills"][0]["violations"] if v["rule"] == "SK018"]
+    assert any("YAML number" in m for m in messages)
+    assert data["errors"] == 0
+
+
+async def test_metadata_that_is_not_a_mapping_is_an_error(tmp_path: Path) -> None:
+    ws = _setup_workspace(tmp_path)
+    _write_skill(
+        _skills_dir(ws), "bad-meta", "name: bad-meta\ndescription: X.\nmetadata: botcore\n"
+    )
+
+    assert ("SK001", "error") in await _rules(ws)
+
+
+async def test_path_lint_survives_an_invalid_workspace_config(tmp_path: Path) -> None:
+    """A broken [tool.botcore] keeps the default budget and is reported, not raised."""
+    ws = _setup_workspace(tmp_path, "listing_budget = -1")
+    _make_valid_skill(_skills_dir(ws), "ok")
+
+    data = assert_success(await skill_lint_spec(str(_skills_dir(ws))))
+
+    assert data["listing"]["budget"] == 8000
+    assert "ValidationError" in data["listing"]["config_error"]
+    assert data["errors"] == 0
+
+
+async def test_mirrored_copy_is_listed_once(tmp_path: Path) -> None:
+    """Two directories holding the same skill name add its listing once."""
+    root = tmp_path / "tree"
+    for base in ("a", "b"):
+        _write_skill(root / base, "same", "name: same\ndescription: Twelve chars\n")
+
+    data = assert_success(await skill_lint_spec(str(root)))
+
+    assert data["listing"]["characters"] == len("Twelve chars")

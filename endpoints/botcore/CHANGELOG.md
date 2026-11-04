@@ -30,12 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - SK017: `triggers` fields and "Triggers:" lists.
     - SK019: listing over `[skills] listing_budget`, default 8,000 characters. The
       count mirrors how hosts list descriptions.
-  - **SK018** accepts current Claude Code fields.
-  - **SK009** counts lines (500).
+  - **SK018** accepts current Claude Code fields, and warns on an unquoted numeric
+    `version`.
+  - **SK001** also covers a `metadata:` that is not a mapping.
+  - **SK009** counts lines (500), not characters.
+  - **SK012** now flags a lowercase `skill.md`; SK004 covers a directory/name mismatch.
+  - **SK008** runs even without a `references/` directory.
+  - **SK010** looks only for upper-case TODO, FIXME and TBD, and Lorem ipsum.
   - **Strict:** `strict=True` turns every warning into an error.
+  - **`skill_lint_spec`** keeps the default budget and reports `listing.config_error` when
+    the enclosing workspace's config fails to load. It counts a mirrored copy of a skill
+    once.
   - **Ownership:** botcore now records `source`, `version` and `portable` under the
     open standard's `metadata:` map. It still reads top-level fields from older copies.
-    Seed, adopt and render write `metadata:`, and the bundled skills use it.
+    Seed, adopt and render write `metadata:`, and the bundled skills use it. A numeric
+    version becomes text instead of hiding the skill's owner.
 - **skills: the remaining skills rewritten and merged** -- nine bundled skills remain. Each
   is a single SKILL.md (2.0.0) whose API claims were checked against the code.
   - **Merges.** `review` merged into `code-reviewer`; `docs-update` and `content-humanizer`

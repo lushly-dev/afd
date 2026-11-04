@@ -285,7 +285,11 @@ def listing_characters(text: str, fm: dict | None) -> int:
 
 def _check_listing_budget(results: list[dict[str, Any]], budget: int) -> dict[str, int]:
     """SK019: attach an over-budget warning to the skill with the largest listing."""
-    characters = sum(r["listing"] for r in results)
+    # Hosts list a name once, so a mirrored copy (same name) counts once.
+    listed: dict[str, int] = {}
+    for r in results:
+        listed.setdefault(r.get("name") or r["skill"], r["listing"])
+    characters = sum(listed.values())
     if characters > budget:
         largest = sorted(
             (r for r in results if r["listing"] > 0), key=lambda r: r["listing"], reverse=True
@@ -347,7 +351,34 @@ def _lint_skill(skill_dir: Path) -> dict[str, Any]:
     violations.extend(_check_filename(skill_dir))
     violations.extend(_check_triggers(fm))
     violations.extend(_check_fields(fm))
+    violations.extend(_check_ownership_types(fm))
     return result
+
+
+def _check_ownership_types(fm: dict[str, Any]) -> list[Issue]:
+    """SK001: ownership values skill-seed can read; SK018: versions YAML would reformat."""
+    metadata = fm.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return [
+            _issue(
+                "SK001",
+                "error",
+                "metadata: must be a mapping; skill-seed can't read the skill's owner from it",
+            )
+        ]
+    issues: list[Issue] = []
+    for where, values in (("metadata.", metadata or {}), ("", fm)):
+        version = values.get("version")
+        if isinstance(version, int | float) and not isinstance(version, bool):
+            issues.append(
+                _issue(
+                    "SK018",
+                    "warning",
+                    f"{where}version is the YAML number {version!r}; quote it so it keeps "
+                    "its exact text (1.10 would read as 1.1)",
+                )
+            )
+    return issues
 
 
 def lint_skill_dirs(
