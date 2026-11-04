@@ -20,7 +20,14 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { canOpen, disabledRefusal, setMain, setScopeProject } from './main-state.js';
+import type { DocumentCheck } from './document-types.js';
+import {
+	archivedRefusal,
+	canOpen,
+	disabledRefusal,
+	setMain,
+	setScopeProject,
+} from './main-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -31,6 +38,8 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
+	/** The documents specification's check, for a type's instance commands (4.2 and 4.4). */
+	documents?: DocumentCheck;
 	/**
 	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
 	 * entry, and `replaying`.
@@ -270,21 +279,20 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					call.scope = { workspace: requested.workspace };
 					scope.note(call.traceId, { scope: call.scope });
 				}
-				// Line 5: a store key in another scope.
-				const mismatch = await checkResource(name, input, call);
+				// Line 5: a type's instance command names a document in this scope, of its type, under 256 KiB
+				// (documents specification, 4.2 and 4.4); then a store key in another scope.
+				const mismatch =
+					(await deps.documents?.instance(name, input, call)) ??
+					(await checkResource(name, input, call));
 				if (mismatch) return mismatch;
 				// Line 6: a mutation under an archived project.
 				const at = (call.scope as ScopeV1).project;
 				const project = at === undefined ? undefined : scope.projects.get(at);
-				if (project?.status === 'archived' && deps.isMutation(name)) {
-					return kernelFailure(
-						'PROJECT_ARCHIVED',
-						`The project '${project.name}' is archived, so nothing in it can change`,
-						`Restore it with project-restore { project: "${project.slug}" }`
-					);
-				}
+				if (project?.status === 'archived' && deps.isMutation(name))
+					return archivedRefusal(project);
 			}
 			const result = await next();
+			if (owner !== undefined && result.success) await deps.documents?.after(name, input, call);
 			if (
 				result.success &&
 				name.startsWith('auth-') &&

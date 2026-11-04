@@ -27,6 +27,8 @@ export interface ScopeSeen {
 	scope?: ScopeV1;
 	scopeChanged?: ScopeChangeV2;
 	mainChanged?: 'push' | 'replace';
+	/** A type's instance command that changed this document succeeded (documents specification, 5.7). */
+	document?: string;
 }
 
 export interface ScopeRuntime {

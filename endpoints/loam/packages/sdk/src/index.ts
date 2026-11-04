@@ -113,6 +113,74 @@ export interface AppProjectV1 {
 	updatedAt: number;
 }
 
+/**
+ * How a document type binds to collaboration (documents specification, 3.1; D46): required on every type
+ * and copied to each record. `crdt` is refused until the collaboration specification chooses a library.
+ */
+export interface BindingV1 {
+	model: 'command';
+	selection: 'none' | 'text-range' | 'item';
+	locator: 'none' | 'text-range' | 'item';
+	/** Per-property last-writer-wins is D46's default, and the only value until that specification. */
+	conflict: 'last-writer-wins';
+}
+
+/**
+ * A document's record, the shell's (documents specification, 3; D79). Its content is the type's, in the
+ * owning plugin's `store` under the document's scope, at {@link documentContentKey}.
+ */
+export interface DocumentRecordV1 {
+	/** `doc_` and 12 characters, from the command's random. */
+	id: string;
+	workspace: string;
+	type: string;
+	/** The owning plugin when created. */
+	instance: string;
+	/** 1 to 200 characters. */
+	title: string;
+	/** Exactly one scope. */
+	scope: ScopeV1;
+	/** `w` or `p:<project>`. */
+	scopeKey: string;
+	/** The actor's id, or `local`. */
+	owner: string;
+	/** At most 20, each 1 to 40 characters. */
+	tags: string[];
+	status: 'active' | 'archived' | 'trashed';
+	trashedAt: number | null;
+	/** The type's, when written last. */
+	contentVersion: number;
+	/** Copied from the type when created (D46). */
+	binding: BindingV1;
+	/** 0, raised when it moves between projects; the collaboration service reads it. */
+	epoch: number;
+	createdAt: number;
+	updatedAt: number;
+	createdBy: string;
+	updatedBy: string;
+}
+
+/** One registered document type, as `document-type-list` answers it: no content (documents specification, 2.2). */
+export interface DocumentTypeV1 {
+	id: string;
+	title: string;
+	icon: string;
+	instance: string;
+	app: string;
+	scopeLevels: Array<'workspace' | 'project'>;
+	contentVersion: number;
+	templates: Array<{ id: string; title: string }>;
+	surfaces: Array<'editor' | 'embed' | 'inspector'>;
+	binding: BindingV1;
+	instanceCommands: string[];
+	editorKind: 'native' | 'view';
+}
+
+/** The store key of a document's content, in its type's `store` (documents specification, 3). */
+export function documentContentKey(document: string): string {
+	return `doc/${document}`;
+}
+
 /** What the `projects` grant gives a handler: reads only, never a member (phase 2 specification, 5). */
 export interface ProjectsV1 {
 	/** The call's effective project, so `null` for a workspace-only app. */

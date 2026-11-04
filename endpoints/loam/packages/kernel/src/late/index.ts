@@ -14,6 +14,8 @@ import type { LateScope } from '../scope/middleware.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
+import { DOCUMENT_KIT } from './document-kit.js';
+import { createDocumentCheck } from './document-types.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
@@ -34,6 +36,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		isMutation(name: string): boolean;
 		/** What only a replay sets: its recorded actor by trace ID, and `replaying` (phase 2 specification, 10). */
 		internals?: LateScopeDeps['internals'];
+		/** The kernel's clock, for stage B's trash expiry (documents specification, 4.1). */
+		clock?: { now(): number };
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'>;
 
 /**
@@ -104,31 +108,36 @@ export interface LateParts {
 	reload(): Promise<void>;
 	/**
 	 * Stage B's own journaled work, with `run` boot's own (2.2, step 5); never re-run in a replay, whose
-	 * entries are what ran. It keeps whether the store now holds the projection's entries.
+	 * entries are what ran. It keeps whether the store now holds the projection's entries. Then the trash's
+	 * expiry (documents specification, 4.1), and, with `settle` (stage A has hydrated the persisted state),
+	 * {@link LateParts.settle}: here rather than in the kernel's stage B, so first paint holds no call of it.
 	 */
 	apply(
 		projection: AppliedProjection,
-		replaying: boolean,
-		run: (name: string, input: unknown) => Promise<{ success: boolean }>
+		run: (name: string, input: unknown) => Promise<{ success: boolean }>,
+		settle?: boolean
 	): Promise<void>;
 	/**
 	 * Boot's `app-settle`, once the persisted state is read and after the apply, which may drop the recorded
 	 * project from an instance's list: only when the active app cannot open in the recorded scope, and never
 	 * in a replay, whose entries are what ran (F3).
 	 */
-	settle(
-		replaying: boolean,
-		run: (name: string, input: unknown) => Promise<{ success: boolean }>
-	): Promise<void>;
+	settle(run: (name: string, input: unknown) => Promise<{ success: boolean }>): Promise<void>;
 	/** The instances whose commands the palette and `listCommands` leave out: not available here (11.2). */
 	hidden(apps: readonly AppSummaryV2[]): ReadonlySet<string>;
 }
 
-export function createLateParts(
+/**
+ * The late parts, once the `late-documents` chunk has loaded: its `document-*` definitions are awaited
+ * here, inside `loadLate`, so they register in stage B with the rest (phase 2 specification, 2.4).
+ */
+export async function createLateParts(
 	boot: readonly ZodCommandDefinition[],
 	deps: LateCommandDeps
-): LateParts {
-	const lateScope = createLateScope(deps);
+): Promise<LateParts> {
+	const documents = createDocumentCheck(deps);
+	const lateScope = createLateScope({ ...deps, documents });
+	const { createDocumentCommands, trashBefore } = await import('./documents.js');
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -143,16 +152,20 @@ export function createLateParts(
 			...boot,
 			...createShellCommands(deps),
 			...createAuthMutationCommands(deps.auth),
-			...createAppCommands(deps),
+			...createAppCommands({
+				...deps,
+				documentNotices: (instance) => documents.types().conflicts.get(instance) ?? [],
+			}),
 			...createOverlayCommands({
 				overlays: deps.overlays,
 				activeApp: () => deps.state.activeApp(),
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
+			...createDocumentCommands({ ...deps, check: documents }, DOCUMENT_KIT),
 		].map((command) => [command.name, command])
 	);
-	return {
+	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: createPortRefusals(),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
@@ -169,7 +182,9 @@ export function createLateParts(
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
-		async apply(projection, replaying, run) {
+		async apply(projection, run, settle) {
+			// A replay's entries are what ran (10): it reads its own `internals`, so first paint passes nothing.
+			const replaying = deps.internals?.replaying === true;
 			// A replay applies through its entries; an empty projection there holds nothing to apply. A
 			// failure fails the apply alone, which the next stage B tries again: the shell's commands load.
 			try {
@@ -179,8 +194,26 @@ export function createLateParts(
 			} catch (cause) {
 				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 			}
+			// Then the trash older than the workspace's `trashDays`, journaled, and only when there is some
+			// (documents specification, 4.1); a replay's entries are what ran. A failure fails it alone.
+			try {
+				const before = replaying
+					? undefined
+					: await trashBefore(
+							DOCUMENT_KIT,
+							deps.store,
+							deps.scope.workspace.id,
+							(await stores.workspace())?.trashDays ?? 30,
+							deps.clock?.now() ?? Date.now()
+						);
+				if (before !== undefined) await run('document-trash-expire', { before });
+			} catch (cause) {
+				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+			}
+			if (settle) await parts.settle(run);
 		},
-		async settle(replaying, run) {
+		async settle(run) {
+			const replaying = deps.internals?.replaying === true;
 			// As the apply: a failure fails the settle alone, reported, never the shell's commands.
 			try {
 				if (!replaying && lateScope.activeRefusal()) await run('app-settle', {});
@@ -194,4 +227,5 @@ export function createLateParts(
 			lateScope.forgetActor();
 		},
 	};
+	return parts;
 }

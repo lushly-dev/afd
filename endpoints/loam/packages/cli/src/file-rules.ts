@@ -209,6 +209,10 @@ export function inlineSchemas(
 		});
 	}
 	inlineKey(table(inlined.config), 'schema', '/config');
+	// A document type's content schema, inlined as other schemas are (documents specification, 2.1).
+	list(table(inlined.ui).documents).forEach((type, index) => {
+		inlineKey(type, 'content_schema', `/ui/documents/${index}`);
+	});
 	list(inlined.skills).forEach((skill, index) => {
 		if (typeof skill.path === 'string') {
 			findings.push(...skillFindings(tree, skill.path, `/skills/${index}/path`));

@@ -199,6 +199,14 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 	const shape = shapeOf(pointer);
 	const key = keyOf(pointer);
 	const said = `\`${key}\` ${error.message ?? `fails \`${error.keyword}\``}.`;
+	if (shape.startsWith('/ui/documents/*/binding')) {
+		return {
+			code: 'MANIFEST_DOCUMENT_BINDING',
+			message: `Every document type declares its binding (D46): ${said}`,
+			suggestion:
+				'Declare `[ui.documents.binding]` with `model = "command"`, `selection`, `locator` and `conflict = "last-writer-wins"`.',
+		};
+	}
 	switch (shape) {
 		case '/plugin/kind':
 			return {

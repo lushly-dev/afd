@@ -1265,45 +1265,6 @@
 			"key": "ui.project_summary"
 		},
 		{
-			"id": "not-yet-served-ui-documents",
-			"base": "native",
-			"set": {
-				"/manifest_version": 2,
-				"/ui/documents": [
-					{
-						"id": "hello",
-						"title": "Greeting",
-						"icon": "system/document",
-						"content_schema": {
-							"type": "object"
-						},
-						"content_version": 1,
-						"editor": {
-							"element": "hello-editor"
-						},
-						"binding": {
-							"model": "command",
-							"selection": "none",
-							"locator": "none",
-							"conflict": "last-writer-wins"
-						},
-						"templates": [
-							{
-								"id": "blank",
-								"title": "Blank",
-								"content": {}
-							}
-						],
-						"instance_commands": ["hello-greet"]
-					}
-				]
-			},
-			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.documents",
-			"suggestion": "until phase 2 serves it"
-		},
-		{
 			"id": "not-yet-served-ui-new",
 			"base": "native",
 			"set": {
@@ -1669,8 +1630,2286 @@
 				]
 			},
 			"accepted": false,
-			"code": "MANIFEST_INVALID",
+			"code": "MANIFEST_DOCUMENT_BINDING",
 			"key": "ui.documents[0].binding"
+		},
+		{
+			"id": "documents-served",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"export_command": "hello-read",
+						"import_command": "hello-load",
+						"autosave_ms": 2000,
+						"scope_levels": ["project"],
+						"embed": {
+							"element": "hello-embed"
+						},
+						"inspector": {
+							"element": "hello-inspector"
+						}
+					},
+					{
+						"id": "hello-memo",
+						"title": "Memo",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "documents-served-view",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"resource": "ui://hello/main"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"embed": {
+							"resource": "ui://hello/main"
+						}
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "documents-type-id-other-plugin",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "other",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TYPE_ID_INVALID",
+			"key": "ui.documents[0].id",
+			"suggestion": "`hello-<name>`"
+		},
+		{
+			"id": "documents-type-id-pattern",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello-two-parts",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TYPE_ID_INVALID",
+			"key": "ui.documents[0].id"
+		},
+		{
+			"id": "documents-type-id-repeated",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					},
+					{
+						"id": "hello",
+						"title": "Again",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TYPE_ID_INVALID",
+			"key": "ui.documents[1].id"
+		},
+		{
+			"id": "documents-content-schema-invalid",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "string"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "ui.documents[0].content_schema"
+		},
+		{
+			"id": "documents-content-schema-not-packed",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": "schemas/greeting.content.json",
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_NOT_PACKED",
+			"key": "ui.documents[0].content_schema",
+			"suggestion": "loam app pack"
+		},
+		{
+			"id": "documents-content-version-bound",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 0,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].content_version"
+		},
+		{
+			"id": "documents-icon-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/nope",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].icon"
+		},
+		{
+			"id": "documents-title-control",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting\u0007",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.documents[0].title"
+		},
+		{
+			"id": "documents-instance-command-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-nope"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].instance_commands[0]"
+		},
+		{
+			"id": "documents-instance-command-no-document",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read", "hello-greet"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].instance_commands[1]",
+			"suggestion": "required string `document`"
+		},
+		{
+			"id": "documents-export-not-inspect",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"export_command": "hello-load"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].export_command",
+			"suggestion": "effects = [\"inspect\"]"
+		},
+		{
+			"id": "documents-export-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"export_command": "hello-nope"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].export_command"
+		},
+		{
+			"id": "documents-import-without-content",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"import_command": "hello-read"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].import_command",
+			"suggestion": "`content`"
+		},
+		{
+			"id": "documents-scope-invalid",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"scope_levels": ["project"]
+					}
+				],
+				"/app/scope_levels": ["workspace"]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_SCOPE_INVALID",
+			"key": "ui.documents[0].scope_levels"
+		},
+		{
+			"id": "documents-editor-required",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.documents[0].editor"
+		},
+		{
+			"id": "documents-editor-native-resource",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"resource": "ui://hello/main"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.documents[0].editor"
+		},
+		{
+			"id": "documents-editor-element-invalid",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "loam-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ELEMENT_INVALID",
+			"key": "ui.documents[0].editor.element"
+		},
+		{
+			"id": "documents-embed-native-resource",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"embed": {
+							"resource": "ui://hello/main"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.documents[0].embed"
+		},
+		{
+			"id": "documents-view-editor-element",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.documents[0].editor"
+		},
+		{
+			"id": "documents-view-editor-resource-unknown",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"resource": "ui://hello/editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_RESOURCE_UNKNOWN",
+			"key": "ui.documents[0].editor.resource"
+		},
+		{
+			"id": "documents-view-inspector",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"resource": "ui://hello/main"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"inspector": {
+							"element": "hello-inspector"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.documents[0].inspector"
+		},
+		{
+			"id": "documents-binding-crdt",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "crdt",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "BINDING_MODEL_UNAVAILABLE",
+			"key": "ui.documents[0].binding.model",
+			"suggestion": "model = \"command\""
+		},
+		{
+			"id": "documents-binding-selection-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "word",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_DOCUMENT_BINDING",
+			"key": "ui.documents[0].binding.selection"
+		},
+		{
+			"id": "documents-templates-empty",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TEMPLATE_INVALID",
+			"key": "ui.documents[0].templates"
+		},
+		{
+			"id": "documents-templates-over-twenty",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "t0",
+								"title": "T0",
+								"content": {}
+							},
+							{
+								"id": "t1",
+								"title": "T1",
+								"content": {}
+							},
+							{
+								"id": "t2",
+								"title": "T2",
+								"content": {}
+							},
+							{
+								"id": "t3",
+								"title": "T3",
+								"content": {}
+							},
+							{
+								"id": "t4",
+								"title": "T4",
+								"content": {}
+							},
+							{
+								"id": "t5",
+								"title": "T5",
+								"content": {}
+							},
+							{
+								"id": "t6",
+								"title": "T6",
+								"content": {}
+							},
+							{
+								"id": "t7",
+								"title": "T7",
+								"content": {}
+							},
+							{
+								"id": "t8",
+								"title": "T8",
+								"content": {}
+							},
+							{
+								"id": "t9",
+								"title": "T9",
+								"content": {}
+							},
+							{
+								"id": "t10",
+								"title": "T10",
+								"content": {}
+							},
+							{
+								"id": "t11",
+								"title": "T11",
+								"content": {}
+							},
+							{
+								"id": "t12",
+								"title": "T12",
+								"content": {}
+							},
+							{
+								"id": "t13",
+								"title": "T13",
+								"content": {}
+							},
+							{
+								"id": "t14",
+								"title": "T14",
+								"content": {}
+							},
+							{
+								"id": "t15",
+								"title": "T15",
+								"content": {}
+							},
+							{
+								"id": "t16",
+								"title": "T16",
+								"content": {}
+							},
+							{
+								"id": "t17",
+								"title": "T17",
+								"content": {}
+							},
+							{
+								"id": "t18",
+								"title": "T18",
+								"content": {}
+							},
+							{
+								"id": "t19",
+								"title": "T19",
+								"content": {}
+							},
+							{
+								"id": "t20",
+								"title": "T20",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TEMPLATE_INVALID",
+			"key": "ui.documents[0].templates"
+		},
+		{
+			"id": "documents-template-repeated",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							},
+							{
+								"id": "blank",
+								"title": "Again",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_TEMPLATE_INVALID",
+			"key": "ui.documents[0].templates[1].id"
+		},
+		{
+			"id": "documents-without-store",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				],
+				"/grants": [
+					{
+						"name": "clock",
+						"reason": "Stamps each greeting with the command context's clock."
+					}
+				]
+			},
+			"accepted": false,
+			"code": "GRANT_REQUIRED",
+			"key": "ui.documents",
+			"alsoKeys": ["commands[0].effects", "commands[2].effects", "commands[4].effects"],
+			"suggestion": "name = \"store\""
+		},
+		{
+			"id": "documents-on-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.documents",
+			"suggestion": "`native` or `view`"
 		},
 		{
 			"id": "documents-panel-refused",
@@ -2896,14 +5135,14 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "documents",
+					"name": "settings",
 					"reason": "x"
 				}
 			},
 			"accepted": false,
 			"code": "GRANT_UNAVAILABLE",
 			"key": "grants[1].name",
-			"suggestion": "phase 2"
+			"suggestion": "phase 4"
 		},
 		{
 			"id": "grant-required-collaboration",
@@ -2924,9 +5163,20 @@
 			"base": "native",
 			"set": {
 				"/grants/1": {
-					"name": "documents",
+					"name": "settings",
 					"reason": "x",
 					"required": false
+				}
+			},
+			"accepted": true
+		},
+		{
+			"id": "grant-documents-served",
+			"base": "native",
+			"set": {
+				"/grants/2": {
+					"name": "documents",
+					"reason": "Lists documents."
 				}
 			},
 			"accepted": true

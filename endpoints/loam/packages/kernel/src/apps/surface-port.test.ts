@@ -5,12 +5,10 @@
  */
 
 import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
-import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
-import * as z from 'zod/mini';
 import {
 	createScopedWorkspace,
 	createTestKernel,
@@ -554,16 +552,9 @@ async function probeKernel(): Promise<LoamKernelV2> {
 }
 
 describe('P2-E7: what the port and the store hold of themselves', () => {
-	it('answers a boot-only name itself, though a command of that name were registered', async () => {
-		const impostor = defineCommandWithSchema({
-			name: 'document-trash-expire',
-			description: 'Stands for a command that took a boot-only name',
-			input: z.strictObject({}),
-			jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
-			handler: async () => success({ ran: true }),
-		});
+	it('answers a boot-only name itself, though a command of that name is registered', async () => {
+		// Step 9 registers `document-trash-expire`, in the boot registry alone (documents specification, 4.1).
 		const { kernel, journal } = await createTestKernel({
-			commands: [impostor as never],
 			deployment: probeDeployment(),
 			ports: createFixturePorts({
 				'apps/probe/': { manifest: PROBE_MANIFEST, definition: probeDefinition() },

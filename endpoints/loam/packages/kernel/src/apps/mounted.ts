@@ -207,6 +207,12 @@ const RECORDED_TEXT_MAX = 2_000;
 
 /** A recorded entry over the bound keeps what a replay and a reader need of it, and no `data`. */
 export function boundRecorded(record: JournalRecord): JournalRecord {
+	// An input over 256 KiB, refused before any handler, is journaled with only its document's id, so a
+	// refused save does not itself store what it refused (documents specification, 4.4).
+	if (record.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE') {
+		const { document } = (record.input ?? {}) as { document?: unknown };
+		return { ...record, input: typeof document === 'string' ? { document } : {} };
+	}
 	if (record.context?.replay !== 'recorded') return record;
 	const bytes = lengthOf(record.result);
 	if (bytes <= RECORDED_RESULT_MAX_BYTES) return record;

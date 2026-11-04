@@ -10,6 +10,7 @@ import {
 	SHELL_RESERVED_CHORDS_V1,
 } from './catalogs.js';
 import type { Finding } from './core-rules.js';
+import { documentRules } from './document-rules.js';
 import { keyOf, valueAt } from './pointers.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
 
@@ -78,11 +79,10 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
  * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
  * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
  * holds a `ManifestV2`, so nothing narrows a manifest any longer. Step 6 served the `tree` sidebar, whose
- * one rule, a `command`, the schema holds. Step 7 served `ui.project_summary` (`summaryRules`).
+ * one rule, a `command`, the schema holds. Step 7 served `ui.project_summary` (`summaryRules`). Step 9
+ * served `ui.documents` (`documentRules`, the documents specification's 2.1).
  */
 export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
-	// Step 9 serves `ui.documents`. Its rules are the documents specification's 2.1, and `content_schema`'s `MANIFEST_NOT_PACKED`.
-	{ pointer: '/ui/documents' },
 	// Step 11 serves `ui.new`. Its rules: `MANIFEST_COMMAND_UNKNOWN`, `MANIFEST_COMMAND_NEEDS_INPUT`.
 	{ pointer: '/ui/new' },
 ];
@@ -142,6 +142,9 @@ function packedRules(manifest: ManifestV2, found: Findings): void {
 		if (typeof command.returns === 'string') refuse(`/commands/${index}/returns`);
 	});
 	if (typeof manifest.config?.schema === 'string') refuse('/config/schema');
+	(manifest.ui?.documents ?? []).forEach((type, index) => {
+		if (typeof type.content_schema === 'string') refuse(`/ui/documents/${index}/content_schema`);
+	});
 }
 
 function identityRules(manifest: ManifestV2, found: Findings): void {
@@ -381,8 +384,10 @@ function surfaceRules(manifest: ManifestV2, found: Findings): void {
 	);
 }
 
-function elementRules(surfaces: Surfaces, found: Findings): void {
-	const check = (element: string | undefined, pointer: string): void => {
+/** A custom element name an app may use, or `MANIFEST_ELEMENT_INVALID`. */
+const elementCheck =
+	(found: Findings) =>
+	(element: string | undefined, pointer: string): void => {
 		if (element === undefined) return;
 		if (
 			!ELEMENT.test(element) ||
@@ -398,6 +403,9 @@ function elementRules(surfaces: Surfaces, found: Findings): void {
 			);
 		}
 	};
+
+function elementRules(surfaces: Surfaces, found: Findings): void {
+	const check = elementCheck(found);
 	check(surfaces.sidebar?.element, '/ui/surfaces/sidebar/element');
 	check(surfaces.main?.element, '/ui/surfaces/main/element');
 	check(surfaces.inspector?.element, '/ui/surfaces/inspector/element');
@@ -512,6 +520,12 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 	(manifest.ui?.resources ?? []).forEach((resource, index) => {
 		add(`/ui/resources/${index}/title`, resource.title);
 	});
+	(manifest.ui?.documents ?? []).forEach((type, index) => {
+		add(`/ui/documents/${index}/title`, type.title);
+		type.templates.forEach((template, at) => {
+			add(`/ui/documents/${index}/templates/${at}/title`, template.title);
+		});
+	});
 }
 
 /**
@@ -612,6 +626,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	compositionRules(manifest, found);
 	resourceKeyRules(manifest, found);
 	summaryRules(manifest, found);
+	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
 	return found;
 }
