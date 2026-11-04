@@ -54,10 +54,6 @@ IMPORT_REASONS = {
     "CHANGELOG.md": (
         "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
     ),
-    "VALIDATION.md": ("Record actual import checks, scope and provenance corrections"),
-    "docs/host-composition.md": (
-        "Describe actual versioning, SDK compatibility and optional integration"
-    ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
     ),
@@ -66,9 +62,6 @@ IMPORT_REASONS = {
     ),
     "packages/botcore-agents/src/botcore_agents/state.py": (
         "Normalize imports under package Ruff rules"
-    ),
-    "pyproject.toml": (
-        "Set root version 0.6.0, package provenance and local AFD bootstrap override"
     ),
     "scripts/package_smoke.py": (
         "Build/audit all six artifacts and an isolated installed- wheel app"
@@ -181,6 +174,13 @@ IMPORT_REASONS = {
     "tests/test_skill_lint.py": ("Cover the shared rules, strict mode and the listing budget"),
     "tests/test_skill_lint_sk008.py": ("Check references on skills without a references directory"),
     "tests/test_skill_list.py": ("Cover ownership read from metadata"),
+    "pyproject.toml": (
+        "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
+    ),
+    "docs/host-composition.md": (
+        "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
+    ),
+    "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),

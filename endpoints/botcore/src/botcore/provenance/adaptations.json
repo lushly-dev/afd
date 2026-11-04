@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "052a0913865129c6ec206b8ea520f11f7c48dbb534f1eb67faeec80eb527358d",
+      "current_import_sha256": "c77af74ccb1cde8d3c6221c0c6027a00b8fd3c716413e0ae401f07184e5c34d6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -57,11 +57,11 @@
       "path": "VALIDATION.md",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "87d6f671976a598c46188f6a525227cfcbbcea97264a4e9716b4bc599546b580",
+      "current_import_sha256": "d81a080a1df7bf37304ce00b46988dabd7f72e80853caee2eb54695a07e8cbcf",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Record actual import checks, scope and provenance corrections"
+      "import_reason": "Record actual import checks, scope and provenance corrections, as history"
     },
     {
       "path": "botcore-connectors/LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "b8028aec6b79aa1b270bf3d639183a571411e7d085eec7586bdd9a045df460fd",
+      "current_import_sha256": "1b15dc36e9d2fbca0fef065ff98d93bd080a9015b388721d22405370735cb7c7",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe actual versioning, SDK compatibility and optional integration"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1467,11 +1467,11 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "e3c7dc33c69dfb289952fbac1a2f7797ec2437d4fe19709bc07bac5c0c91a9dc",
+      "current_import_sha256": "7fec9d6d01f09f3f3764e5dd2a3f1457e1d55c5dfb9d686ef957d907d858458c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.6.0, package provenance and local AFD bootstrap override"
+      "import_reason": "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
     },
     {
       "path": "scripts/package_smoke.py",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "55b3d13b1d69a870859e532cb1f54e135a578724097c163e7865bda9ea21bb7a",
+      "current_import_sha256": "f9bfdc362bcb3e7c71e41e3e2766337b908fbf6190fa827834bcc577c61d6add",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",

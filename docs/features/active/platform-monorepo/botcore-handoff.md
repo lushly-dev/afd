@@ -28,19 +28,34 @@ Recorded 2026-11-04. State: **in progress**. The AFD side is prepared; the owner
 - Adds `publish-botcore.yml` and makes `botcore.yml` reusable (`workflow_call`).
 - Updates Botcore's provenance envelope: `publisher_authority` and `publication_state` describe the handoff.
 
-Merging it gives AFD no upload ability: PyPI accepts an upload from `publish-botcore.yml` only once step 2 adds its trusted publisher. A `botcore-v*` tag pushed before then fails at the token exchange, publishes nothing, and the unit goes to `held` (below).
+- Ports lushly-dev/botcore's 17 unreleased changesets (changes made there after 0.5.0, all inside the imported code) into the Unreleased section of `endpoints/botcore/CHANGELOG.md`. They include two breaking changes (`research_query` moved to OpenAI, and `default_model` lost its default). The source's open issues were already transferred to AFD.
+- Points the project URLs in `endpoints/botcore/pyproject.toml` at AFD, so 0.6.0's metadata doesn't name the archived repository.
+
+**Ordering.** `handoff.mjs` admits the unit at `enable-new`, after `disable-old`. Here the inventory admission merges first, with the old repository's publish workflow already removed (step 1's first part), because admission alone grants nothing: PyPI accepts an upload from `publish-botcore.yml` only once step 3 adds its trusted publisher. A `botcore-v*` tag pushed before then fails at the token exchange, publishes nothing, and the unit goes to `held` (below). The old route's credential is still live until step 1 finishes, so steps 2 and 3 must not start before it.
 
 ## Owner steps, in order
 
-1. **Disable the old route.** In `lushly-dev/botcore`: remove `.github/workflows/publish.yml`, close #45 and #46 unmerged, and delete the `PYPI_API_TOKEN` secret. On PyPI, revoke the API token behind that secret (account settings, API tokens), and delete any trusted publisher registered for `lushly-dev/botcore` under the project's publishing settings.
-2. **Add the PyPI trusted publisher for AFD.** At <https://pypi.org/manage/project/lushly-botcore/settings/publishing/>: owner `lushly-dev`, repository `afd`, workflow `publish-botcore.yml`, environment `pypi-botcore`. AFD has no `pypi-botcore` environment yet; GitHub creates it on the first run, or create it first with a deployment rule for `botcore-v*` tags. AFD's existing `pypi` environment has no protection rules.
-3. **Release 0.6.0 from AFD.** A release PR dates the `0.6.0` section of `endpoints/botcore/CHANGELOG.md` and re-hashes its provenance rows (see the `do-release` skill's Botcore track). After it merges and `botcore.yml` passes, the owner tags the merge commit `botcore-v0.6.0` (annotated) and pushes it. An agent does not push the tag.
-4. **Read back the registry and check an isolated install** (the evidence below).
-5. **Archive `lushly-dev/botcore`** once the evidence is recorded here.
+1. **Disable the old route.**
+   - In `lushly-dev/botcore`: remove `.github/workflows/publish.yml` and close #45 and #46 unmerged. Done in [lushly-dev/botcore#47](https://github.com/lushly-dev/botcore/pull/47) (#45 and #46 closed 2026-11-04).
+   - Delete the `PYPI_API_TOKEN` secret.
+   - On PyPI, check the scope of the API token behind it (account settings, API tokens). If it is account-wide, find any other repository that uses it before revoking it. Then revoke it, and confirm that no remaining API token can upload `lushly-botcore`.
+   - Delete any trusted publisher registered for `lushly-dev/botcore` under the project's publishing settings.
+2. **Protect the new route before enabling it.** PyPI matches a trusted publisher on repository, workflow file and environment, not on the git ref. So without protection, anyone who can push a branch could edit `publish-botcore.yml` there to upload without the guard. In `lushly-dev/afd` settings:
+   - Create the `pypi-botcore` environment, with a deployment rule that allows only tags matching `botcore-v*` and the owner as a required reviewer.
+   - Add a tag ruleset that lets only the owner create, update or delete `botcore-v*` tags.
+
+   AFD's existing `pypi` and `crates-io` environments have the same gap; see the issue linked in STATUS.md.
+3. **Add the PyPI trusted publisher for AFD.**
+   - First re-read PyPI (0.6.0 still absent) and the old repository's workflow runs (none queued or running since step 1). `enable-new` requires that state, and `skip-existing` would otherwise hide a version the old route published.
+   - Then, at <https://pypi.org/manage/project/lushly-botcore/settings/publishing/>, add: owner `lushly-dev`, repository `afd`, workflow `publish-botcore.yml`, environment `pypi-botcore`.
+4. **Release 0.6.0 from AFD.** A release PR dates the `0.6.0` section of `endpoints/botcore/CHANGELOG.md` and re-hashes its provenance rows (see the `do-release` skill's Botcore track). After it merges and `botcore.yml` passes, the owner tags the merge commit `botcore-v0.6.0` (annotated) and pushes it. An agent does not push the tag.
+5. **Read back the registry and check an isolated install** (the evidence below).
+6. **Archive `lushly-dev/botcore`** once the evidence is recorded here.
 
 ## Verification evidence still to come
 
-- Old route disabled: the commit removing `publish.yml`; #45 and #46 closed; `PYPI_API_TOKEN` absent from the repository's secrets; the token revoked on PyPI; no `lushly-dev/botcore` trusted publisher on the project.
+- Old route disabled: the commit removing `publish.yml`; #45 and #46 closed; `PYPI_API_TOKEN` absent from the repository's secrets; the token's scope checked and the token revoked on PyPI; no remaining token or `lushly-dev/botcore` trusted publisher that can upload the project.
+- New route protected: the `pypi-botcore` environment's deployment rule (`botcore-v*` tags only) and required reviewer, and the `botcore-v*` tag ruleset.
 - New route enabled: the PyPI publishing settings list exactly one publisher, `lushly-dev/afd` `publish-botcore.yml` environment `pypi-botcore`.
 - Release run: the `publish-botcore.yml` run for `botcore-v0.6.0`, with its version, test, build and publish jobs, and the receipt's wheel and sdist SHA-256.
 - Registry readback: <https://pypi.org/pypi/lushly-botcore/0.6.0/json> lists `lushly_botcore-0.6.0-py3-none-any.whl` and `lushly_botcore-0.6.0.tar.gz` with the receipt's SHA-256, and each file's provenance names `lushly-dev/afd` and `publish-botcore.yml` as its trusted publisher.
@@ -51,7 +66,7 @@ Until these are recorded, Phase 5 for `lushly-botcore` stays in progress in [STA
 
 ## Failure and restoration
 
-- **AFD's route fails** (token exchange, upload or an uncertain result): read PyPI before anything else. To stop uploads at once, delete AFD's trusted publisher on PyPI: a re-run for an existing tag reads that tag's inventory, so only later tags see an inventory change. Then set the unit to `held` in AFD's inventory (or list the version in `heldVersions`), which the guard rejects. A version PyPI serves is published: fix forward from AFD with a new version, never a re-upload of the same one.
+- **AFD's route fails** (token exchange, upload or an uncertain result): read PyPI before anything else. A job that failed after the build can be retried with "Re-run failed jobs" in the same run within the 7-day artifact retention, which reuses the same artifacts and receipt. When both the tag push and the Release ran, compare PyPI with the receipt of the run that actually uploaded. To stop uploads at once, delete AFD's trusted publisher on PyPI: a re-run for an existing tag reads that tag's inventory, so only later tags see an inventory change. Then set the unit to `held` in AFD's inventory (or list the version in `heldVersions`), which the guard rejects. A version PyPI serves is published: fix forward from AFD with a new version, never a re-upload of the same one.
 - **Restoring the old publisher** is safe only when the unit is held, nothing is queued or in flight, PyPI serves no version from AFD and no upload is uncertain, and the old repository's workflow is known to build the same distribution. Then:
   1. Delete AFD's trusted publisher on PyPI.
   2. In the inventory, set `botcore` back to `state: quarantined` and `authority: github: lushly-dev/botcore`, and restore the provenance envelope's earlier `publisher_authority` and `publication_state` in `endpoints/botcore/scripts/verify_provenance.py`, then re-seal both provenance copies.

@@ -14,7 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quality verdicts:** strict adapters keep execution success separate from passing checks,
   with target/evidence and nonpassing empty/skipped/unavailable aggregate behavior.
 - **Provenance:** imported from upstream Botcore main with exact source allowlist and MIT notices;
-  the envelope records the publisher authority and publication state below.
+  its envelope records that AFD publishes `lushly-botcore` and that the other distributions
+  have no publisher.
+
+<!-- Ported from lushly-dev/botcore's unreleased changesets (changes made there after 0.5.0 and imported at `7d5c54ca`): -->
+
+- **botcore-llm** -- `llm_chat_stream` (in `botcore_llm.chat_stream`) streams a chat turn as afd stream chunks: progress for the sent message and each tool started, `{"text": ...}` data chunks from the Copilot SDK's `assistant.message_delta` events, then a complete or error chunk. Closing it early aborts the turn. `llm_chat` now collects this stream; its result is unchanged, but cancelling `llm_chat` now also aborts the turn in the session. Data chunks carry `message_id`; a turn that uses tools streams every assistant message, and the complete chunk's `content` is the final one. When the SDK returns no final message, `llm_chat` now returns the last streamed message's text and id instead of empty strings
+
+- **botcore-agents** -- `task_status` shows a running task's progress: `partial_result` (the reply text streamed so far) and `progress_message` (the latest progress, such as `Running grep`). They are held in memory only, not saved with orchestrator state, and are dropped when the task completes, fails, or is cancelled, or when state is restored
+
+- **research** -- `research_stream` streams a research answer as afd stream chunks (progress, text data chunks, then a complete or error chunk); `research_query` collects it into the same result as before and no longer blocks the event loop. The MCP `{name}-research` tool forwards the stream as MCP progress notifications and now returns the result's JSON fields instead of its string form
+
+- **botcore-agents** -- `task_assign_stream` and `task_resume_stream` stream an agent task as afd chunks: a progress chunk with the task id and agent, the agent's chat progress and `{"text", "message_id", "task_id"}` data chunks from `llm_chat_stream`, then a complete or error chunk. `task_assign` and `task_resume` now collect these streams with unchanged results. Closing a stream early aborts the chat turn and marks the task `cancelled`. A task cancelled by `agent_stop` while running now stays `cancelled` (`TASK_CANCELLED`) and its agent stays stopped, and `TASK_EXECUTION_ERROR` now carries a suggestion. Stopping and deleting an agent while its task runs now ends the task as `TASK_CANCELLED` instead of raising
 
 ### Changed
 
@@ -114,11 +125,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agents wildcard discovery declares an optional connectors extra and returns an
   actionable unavailable-integration result before session creation when absent.
 
+<!-- Ported from lushly-dev/botcore's unreleased changesets (changes made there after 0.5.0 and imported at `7d5c54ca`): -->
+
+- **research** -- **Breaking:** `research_query` now uses OpenAI GPT models with the built-in web search instead of Gemini + Google Search. The `research` extra installs `openai` instead of `google-genai`, and the key is `OPENAI_API_KEY` (was `GEMINI_API_KEY`; `EnvConfig.gemini_api_key` is now `openai_api_key`). Modes: `fast` uses GPT-6 Luna, `deep` and `thinking` use GPT-6.1 Sol at higher reasoning effort
+
+- **skills** -- update LLM guidance for current models: adaptive thinking and effort instead of chain-of-thought prompts and budget_tokens, output_config structured outputs, agent loops that handle early end_turn, pause_turn, and refusal, model-ID placeholders instead of pinned IDs and price tables, and content-humanizer specifics that must come from verified sources Superseded later in this release: AFD retired that skill.
+
+- **deps** -- require `afd>=0.9.0` (was 0.6.0) in botcore and all plugin packages. Pipeline step aliases are now referenced as `$steps.<alias>` (`$g.field` is a literal in afd 0.9); the built-in pipeline docs describe the full 0.9 reference syntax. A command handler that raises now returns `COMMAND_EXECUTION_ERROR` with a generic message (the exception is logged to the `afd.direct` logger) instead of `VALIDATION_ERROR` with the exception text
+
+- **skills** -- make AGENTS.md the only agent instruction file: docs-manager, docs-update, and commit no longer generate or sync a CLAUDE.md (Claude Code reads AGENTS.md only when no CLAUDE.md exists)
+
+- **botcore-llm, botcore-agents** -- **Breaking:** `default_model` no longer defaults to `"gpt-4.1"`. Set it under `[tool.botcore.plugins.llm]` / `[tool.botcore.plugins.agents]` (or pass a model explicitly); otherwise `llm_session_create` and `agent_start` return `CONFIG_ERROR` naming the missing setting. Use `llm_model_list` to find model IDs your Copilot account can use.
+
+- **skills: LLM integration** -- add GPT-6.1 Sol and Claude Sonnet 5.5 model guidance with effort and completed-task cost evaluation. Superseded later in this release: AFD retired that skill.
+
+- Update bundled Node environment skill guidance for the Node 24 LTS baseline. Superseded later in this release: AFD retired that skill.
+
 ### Fixed
 
 - `smart_truncate` keeps 40% head and 60% tail of its budget at every size. The head and
   tail had stayed pinned at 3,000 and 4,000 characters after `MAX_OUTPUT_LENGTH` rose to
   100,000, so output just over the cap shrank to about 7,000 characters.
+
+<!-- Ported from lushly-dev/botcore's unreleased changesets (changes made there after 0.5.0 and imported at `7d5c54ca`): -->
+
+- **core** -- `botcore` imports on Python 3.11 again: `skill_lint.py` used a PEP 695 `type` alias (3.12+ syntax), which made `import botcore.commands` raise `SyntaxError` on 3.11 even though the package declares `requires-python >=3.11`
+
+- **botcore-llm** -- works with github-copilot-sdk 1.0.26 (now the minimum): client connects via `connection=`, sessions use keyword `create_session`/`send_and_wait` and `disconnect()`, tool results use snake_case `ToolResult` fields, and the permission gate reads the SDK's typed requests and returns `PermissionDecision` objects instead of denying every request
+
+- **skill lint** -- SK008 no longer flags repo paths that contain a `references/` segment (e.g. `docs/references/x.md`) or leaks backticks and other markdown delimiters into the reported file name, in both `skill_lint` and `skill-lint` spec checks
+
+- **skills: renamed skill migration** -- projects seeded before 0.4.0 ended up with each renamed skill twice (e.g. `manage-documentation` next to `docs-manager`) after upgrading. `skill_seed` now reads a bundled old-to-new name map: an old-name skill with `source: botcore` is removed and the new name seeded in its place (reported under `migrated`); an old-name skill botcore doesn't own is left untouched, reported under `renamed_locally_owned` with a delete-or-adopt suggestion, and its new name is not seeded alongside it. `skill_status` reports old-name skills with the new `renamed` status.
+
+- **skill_lint** -- report the linted skill directory in `path` when a path is given (it previously always showed the default skills directory), and make `SKILL_NOT_FOUND` name the directory it checked with a suggestion
+
+- **skill** -- `render_frontmatter` now emits valid YAML for triggers and descriptions containing special characters (e.g. `!bash`, `@file`), and `skill_seed`/`skill_adopt` inject `source:` with a minimal line edit instead of rewriting the frontmatter. Fixes `commands-learn` showing as `unmanaged` after a fresh seed and never updating with `skill_seed --update`.
 
 ## [0.5.0] - 2026-07-28
 
