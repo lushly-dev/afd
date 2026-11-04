@@ -1,0 +1,43 @@
+[package]
+name = "umbel-plugin-curator"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel curator plugin: settled memory as candidates for the knowledge base, under the caller's reader filter, drafted through the shared fixed rendering, with promotion of a person's own records at a terminal"
+repository = "https://github.com/lushly-dev/afd"
+
+# No dependency on another plugin crate, of any kind (D3): the curator reads memory and documents
+# through the host's grants, renders through `umbel-okf`, which the knowledge plugin re-renders
+# with, and reaches proposals only through a pipeline it ships as data (phase 4 section 3.1).
+# `tests/no_plugin_dependency.rs` holds that, and that no HTTP client is a direct dependency.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The settle pack is a TOML file.
+toml = "1"
+# The fixed draft rendering and the id derivations, shared with the knowledge plugin (step 3c).
+umbel-okf = { path = "../../okf" }
+umbel-sdk = { path = "../../sdk" }
+umbel-store = { path = "../../store" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+# The curator's records are validated against `curator-record.v1.json`.
+jsonschema = { version = "0.60", default-features = false }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The tests boot a host with the plugin and its grants, with no loader (so no wasmtime), and run
+# the command line in process for `curator-promote`'s terminal.
+umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
+# The tests write memory records and documents through the store API, with fixed ids and a fixed
+# clock, into the files the host then opens.
+umbel-store = { path = "../../store", features = ["conformance"] }
+umbel-store-embedded = { path = "../../store-embedded" }
+
+[lints]
+workspace = true

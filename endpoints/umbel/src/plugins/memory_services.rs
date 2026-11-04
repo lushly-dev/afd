@@ -21,7 +21,7 @@ use umbel_store::{
 
 use super::grants::CallServices;
 use crate::access::effective_principal_of;
-use crate::authority::{Prompts, caller_is_person, write_authority};
+use crate::authority::{Prompts, write_authority};
 use crate::store::host_error;
 use crate::workspace::{DefaultAccess, MemoryWritePolicy};
 
@@ -139,11 +139,6 @@ impl CallServices {
         let filter = self.filter(space)?;
         self.note_use();
         Ok((self.memory_store(space)?, filter, principal))
-    }
-
-    /// Whether the caller has authority `person` (section 3.3): the terminal check alone.
-    fn person(&self) -> bool {
-        caller_is_person(&self.context, self.command.as_deref(), &self.prompts())
     }
 
     fn policy(&self) -> MemoryWritePolicy {

@@ -254,6 +254,17 @@ impl CallServices {
         self.shared.attestations.lookup(trace, command)
     }
 
+    /// Whether the caller has authority `person` for this call's command (phase 3 specification,
+    /// sections 3.3 and 8.7; D86): the terminal check alone. The memory services make it before a
+    /// confirmation, a forget by selector and a sharing write, and `CallContext.person` carries it
+    /// to every compiled plugin's command (phase 4 step 4, amendment 9). A call made with
+    /// [`Services::call`], which names no command, is a person's only through the library.
+    pub fn person(&self) -> bool {
+        let empty = crate::authority::Prompts::default();
+        let prompts = self.shared.prompts.get().unwrap_or(&empty);
+        crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
+    }
+
     /// Whether the grant `name` is held (declared and not denied).
     #[cfg_attr(not(feature = "component"), allow(dead_code))]
     pub(crate) fn holds(&self, name: &str) -> bool {

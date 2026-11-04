@@ -1,0 +1,38 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"status": {
+			"type": "array",
+			"maxItems": 8,
+			"items": {
+				"enum": [
+					"settling",
+					"ready",
+					"drafted",
+					"needs-promotion",
+					"skipped",
+					"rejected",
+					"applied",
+					"erased"
+				]
+			},
+			"description": "Only candidates with one of these statuses; default every status. Counts always cover every candidate"
+		},
+		"after": {
+			"type": "string",
+			"maxLength": 22,
+			"description": "Continue after this candidate id: the previous page's next"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 500,
+			"description": "At most this many candidates; default 100"
+		}
+	}
+}

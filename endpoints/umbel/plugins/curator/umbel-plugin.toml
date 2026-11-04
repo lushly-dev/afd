@@ -1,0 +1,78 @@
+manifest_version = 4
+protocol = 1
+
+[plugin]
+id = "curator"
+title = "Curator"
+version = "0.1.0"
+description = "Finds the memory records that have settled into candidates for the knowledge base: semantic and procedural records that stood unchanged for the settling window, in enough sessions, with an authority the space admits, read under the caller's reader filter. It drafts them through the shared fixed rendering, never writes memory or knowledge, and lets a person widen their own records at a terminal."
+kind = "compiled"
+domains = ["curator"]
+
+[[grants]]
+name = "config"
+reason = "Reads each space's target (the collection, and an optional prefix, drafted documents go to) and refuses a configured model."
+
+[[grants]]
+name = "packs"
+reason = "Reads the settle pack a space may override: the settling windows, sessions, authorities and the per-call bounds."
+
+[[grants]]
+name = "clock"
+reason = "Measures how long a record has stood unchanged, its validity and its expiry against the command context's clock."
+
+[[grants]]
+name = "memory"
+reason = "Lists and reads, never writes, the memory records the caller can read, under the caller's reader filter only: never a derivation read, never another person's records the caller cannot read."
+
+[[grants]]
+name = "documents"
+reason = "Reads, under the caller's reader filter, whether a candidate's target document already exists."
+
+[[grants]]
+name = "content"
+required = false
+reason = "Learns the target collection's kind, access set and sensitivity from the workspace, to apply the access rule; it reads no file. Without it every command answers CURATOR_TARGET_UNCONFIGURED."
+
+[[grants]]
+name = "records"
+reason = "Reads the caller's own curator records: candidates and promotions, kept per space and principal."
+
+[[grants]]
+name = "records_write"
+reason = "Writes the caller's own curator records: a promotion's consent. They hold record ids, versions and content hashes, never memory text."
+
+[[commands]]
+name = "curator-candidates"
+description = "List your curator candidates in a space by status (settling, ready, needs-promotion, skipped, and after runs drafted, rejected, applied, erased), with counts, authority, access and where each would be drafted. Only what you can read is counted; no memory text is shown, and the content hash only for candidates whose records are all your own."
+effects = ["inspect"]
+input_schema = "schemas/curator-candidates.input.json"
+category = "curator"
+tags = ["curator", "memory", "knowledge"]
+version = "1.0.0"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space"] }
+
+[[commands]]
+name = "curator-promote"
+description = "As a person at a terminal, consent to have one of your candidates drafted for the target collection's readers, which are wider than the readers of your records. Only your own records, and only with the contentHash curator-candidates or memory-show printed for them. Sensitivity is never overridden."
+effects = ["store-write"]
+input_schema = "schemas/curator-promote.input.json"
+category = "curator"
+tags = ["curator", "memory", "write"]
+version = "1.0.0"
+confirm = "require-human"
+confirm_prompt = "You are consenting to propose your own memory records for wider readers: once the next curator run drafts them, their text becomes readable by everyone who can read the target collection, before anyone approves it. Read the records with memory-show first."
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space"] }
+
+[[packs]]
+id = "settle"
+path = "packs/settle"
+
+[[skills]]
+name = "curator-guide"
+path = "skills/curator-guide"
+
+[config]
+schema = "schemas/config.schema.json"

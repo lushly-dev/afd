@@ -51,6 +51,17 @@ pub struct CallContext {
     /// command called. Nothing a caller sends sets it: not the input, not `extra`, not a trace id
     /// chosen by a client. A component (WIT world 1.0.0) and a mounted server never see it.
     pub pipeline: Option<PipelineAttestation>,
+    /// Whether the host counts the caller as a person for this command (phase 3 specification,
+    /// sections 3.3 and 8.7; D86): a human through the library, or a human at the command line
+    /// whose human-present mark names this command (stdin and stderr are terminals, the input is
+    /// not `@-`, neither `--yes` nor `--approve`, and no agent environment variable is set). The
+    /// same check the host makes before `memory-confirm` gives a record authority `person`;
+    /// `curator-promote` makes it before a person widens their own records (phase 4 step 4,
+    /// amendment 9). **Not an attestation**: it rests on a terminal check until phase 5.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see `false`.
+    pub person: bool,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the

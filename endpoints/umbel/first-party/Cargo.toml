@@ -39,6 +39,12 @@ tempfile = "3"
 umbel = { path = "..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
 # `umbel_hook::run` drives this binary as the `umbel-hook` binary does (section 12).
 umbel-hook = { path = "../adapters/hook" }
+# `curator_drafts.rs` (phase 4 step 4) drafts with the curator's own code and submits the drafts
+# to the knowledge plugin: the only crate that links the curator beside the knowledge plugin (D3).
+# Step 7 links it into the binary.
+umbel-okf = { path = "../okf" }
+umbel-plugin-curator = { path = "../plugins/curator" }
+umbel-sdk = { path = "../sdk" }
 # The digest across write orders (section 9.6): two stores written through the store API with
 # fixed ids and a fixed clock.
 umbel-store = { path = "../store", features = ["conformance"] }

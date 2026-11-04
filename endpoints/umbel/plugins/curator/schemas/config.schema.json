@@ -1,0 +1,35 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"spaces": {
+			"type": "object",
+			"default": {},
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]{0,62}$"
+			},
+			"description": "By space: where drafted documents go (phase 4 section 4.5). The knowledge instance's drafter entry, [plugins.knowledge.config.drafters.<instance>.targets.<space>], must name the same target, and it is the one enforced: a create anywhere else is refused, never written. A space with no target is CURATOR_TARGET_UNCONFIGURED",
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"collection": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]{0,62}$",
+						"description": "A markdown collection of the space"
+					},
+					"prefix": {
+						"type": "string",
+						"pattern": "^[a-z0-9][a-z0-9_-]{0,62}(/[a-z0-9][a-z0-9_-]{0,62}){0,7}$",
+						"description": "Optional. One to eight plain segments joined by /: lowercase letters, digits, - and _, no dots, no leading or trailing /. A draft is <collection>/<prefix>/<derived id>"
+					}
+				},
+				"required": ["collection"],
+				"additionalProperties": false
+			}
+		},
+		"model": {
+			"description": "Reserved (phase 4 section 8.5): no model drafts or extracts in phase 4. Any value other than null makes every curator command answer CURATOR_MODEL_UNAVAILABLE"
+		}
+	},
+	"additionalProperties": false
+}

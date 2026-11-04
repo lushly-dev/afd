@@ -1,0 +1,41 @@
+# The curator's settle pack (phase 4 specification, sections 4, 6 and 7). A space overrides this
+# file whole (D46): spaces/<space>/packs/curator/settle/data/settle.toml.
+
+# How long a record's current version must stand unchanged before it settles, by class. Episodic
+# records never settle (D15).
+semantic_days = 7
+procedural_days = 14
+
+# A candidate settles only when its records were observed in at least this many sessions in all.
+# Sessions are labels a writer chose (D68): this stops an accident, not an adversary.
+min_sessions = 2
+
+# The authorities that may settle. The default admits only what a person said or confirmed.
+# A space may add "agent", "tool" or "import"; an agent's note is what memory poisoning writes,
+# so each widens that risk. "transcript" never settles and is refused (owner decision 9).
+authorities = ["person"]
+
+# Unset: confidence is carried as asserted. Set from 0 to 1 to make it a gate: a record with a
+# lower confidence, or none, does not settle.
+# min_confidence = 0.7
+
+# What one call may read and draft: memory list reads, full record reads, and proposals.
+max_records = 5000
+max_gets = 500
+max_proposals = 20
+
+# How many members of one conflict set are drafted as alternatives; the rest are skipped.
+max_alternatives = 4
+
+# A rejected draft's content is not drafted again for this many days.
+quiet_days = 90
+
+# A run is overdue after twice this many hours (curator-status).
+every_hours = 24
+
+# Re-verification: verify proposals for documents due within lead_days of stale_after, the next
+# stale_after every_days later, at most max_per_run per run.
+[reverify]
+lead_days = 14
+every_days = 180
+max_per_run = 20
