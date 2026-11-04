@@ -7,8 +7,7 @@
 //! (step 6). The curator never approves: a pipeline whose step is `knowledge-approve` is refused
 //! even when a person answers yes.
 //!
-//! This crate links the curator beside the knowledge plugin as a dev-dependency (D3); step 7 links
-//! it into the binary.
+//! This crate links the curator beside the knowledge plugin (D3), in the binary since step 7.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::sync::{Arc, Mutex};
