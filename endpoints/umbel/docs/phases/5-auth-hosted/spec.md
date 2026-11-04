@@ -9,13 +9,16 @@
 
 ## Status
 
-- **State:** **written 2026-11-03; revised the same day after an independent review (36 findings and 7 nits, every
-  one holding, 3 in part; [Review response](#review-response)); in review, not approved.**
-  - It proposes decisions [D106 to D130](../../decisions.md).
-  - Seventeen of them are trust-model or scope choices. They are **pending** the owner's answers to the seventeen
-    questions of section [17](#17-for-the-owner), and no text here treats them as decided.
-  - Where a section depends on a pending answer, it describes the recommended option and names the question.
-  - Nothing is implemented.
+- **State:** **approved 2026-11-04, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04
+  (D24)**, after an independent review and a revision.
+  - Written 2026-11-03 and revised the same day after the review: 36 findings and 7 nits, every one holding, 3 in part
+    ([Review response](#review-response)).
+  - It adds decisions [D106 to D130](../../decisions.md), all decided. Seventeen are the owner's answers to section
+    [17](#17-for-the-owner); the rest are decided with the approval under the delegation.
+  - The owner took the recommended option on every question and asked for two strengthenings: **user verification
+    is mandatory** on every person login (decision 6), and **a configurable two-person rule** for `memory-erase`
+    (decision 9). Both are written into the sections they govern.
+  - Implementation starts with step 0a. Nothing is implemented yet.
 - **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done), and again for the review. Read in
   `endpoints/umbel`:
   - `src/principal.rs`:
@@ -106,8 +109,8 @@
   - `rustls-pki-types` 1.15.1 is in Umbel's lock.
 - **External sources:** checked on 2026-11-03 (see [Trajectory refresh](#trajectory-refresh)).
 - **No Rust was built** for this document. No cargo command was run except `cargo info`.
-- **Done:** this specification and its revision, in review.
-- **Not done:** everything in section [16](#16-implementation-plan); the owner's answers (section 17).
+- **Done:** this specification, its revision and its approval with the owner's answers (2026-11-04).
+- **Not done:** everything in section [16](#16-implementation-plan).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -130,7 +133,7 @@ standards. All hold; three hold in part.
 | 11 | Layer order: the per-token limit sat before verification; the person page inside the bearer layer and outside host checks; "fail closed" too broad | Holds | A new order: an IP limit before verification, the token limit after it, the person page mounted beside MCP with its own host check; the test restated (6.3) |
 | 12 | Several introspection issuers leak opaque tokens; RFC 7662 and RFC 9068 claim requirements | Holds | At most one introspection issuer, used only for non-JWS tokens; `exp`, `iat`, `iss`, `aud`, `sub` and `client_id` required in a response; `iat` and `jti` required in a JWT (3.2) |
 | 13 | The relay protocol was under-specified | Holds | Pending retries, the relay `requestState`, the server-side PKCE verifier and the shared `person.key` are specified (7.2, 7.3) |
-| 14 | `prompt=login` with empty `acr_values` is passable by browser automation; clickjacking | Holds | Threat row; the doctor warns on empty `acr_values`; `frame-ancestors 'none'` and `X-Frame-Options: DENY` (7.2, 6.1, 13.2) |
+| 14 | `prompt=login` with empty `acr_values` is passable by browser automation; clickjacking | Holds | Threat row; the doctor warns on empty `acr_values` (made a failure, with user verification checked on every login, by owner decision 6 on 2026-11-04); `frame-ancestors 'none'` and `X-Frame-Options: DENY` (7.2, 6.1, 13.2) |
 | 15 | `memory-erase` against D85's "blind" | Holds | Erase acts on the target principal's records without the eraser's filter and returns counts only (8.4) |
 | 16 | Host-run redaction adds a privileged filter against D101; no durable trigger; ownership undefined | Holds | Question 11 amends D101 explicitly; an erasure outbox row in the forget's transaction; ownership is the instance's record namespace, with a host-only command (8.5) |
 | 17 | Plan order | Holds | `umbel-testkit-idp` is step 1b; 0c needs 0b; step 2 split into 2a to 2c (16) |
@@ -149,7 +152,7 @@ standards. All hold; three hold in part.
 | 30 | Do 5.2's rows add up? | Holds | Needs are the union of every row that applies (5.2) |
 | 31 | "Agents are already refused" | Holds in part: true only while `agents_may_share` is false | Restated; editors must be persons whatever `agents_may_share` says (8.3) |
 | 32 | `rustls-pemfile` is archived | Holds in part: the archival was not re-checked; `rustls-pki-types` 1.15.1 is in the lock | `rustls-pki-types`' `PemObject` (1) |
-| 33 | The architecture's trust model still names AFD's prompt | Holds | Architecture section 5 amended, marked proposed |
+| 33 | The architecture's trust model still names AFD's prompt | Holds | Architecture section 5 amended (decided with the approval) |
 | 34 | `policyVersion` moved under `policyDecision` | Holds (D36) | Kept top-level (2.1) |
 | 35 | Missing test files | Holds | `doctor_auth.rs`, `auth_show.rs`; `principal_v1.rs` and `person_page.rs` name the cases (14) |
 | 36 | Question 15 was framed by cost | Holds | Restated as correctness (17, question 15) |
@@ -209,26 +212,27 @@ It also takes up what earlier phases deferred to it:
 | 16. Spaces do not mix | Per-space scopes narrow a token to spaces (5); a task belongs to one space |
 
 Decisions served: D14, D19, D24, D25, D26, D29, D32, D36, D42, D43, D53, D62, D68, D71, D73, D74, D82, D84, D85,
-D86, D88, D91, D97, D99, D101, D102 and D103, and the new D106 to D130. O5 is question 14. O1 and O4 are untouched.
+D86, D88, D91, D97, D99, D101, D102 and D103, and the new D106 to D130. D116 amends D99, D120 amends D101, and D123
+closes O5 (owner decision 14). O1 and O4 are untouched.
 
 ## Trajectory refresh
 
 Refreshed 2026-11-03 against primary sources.
 
 **One finding changes the design.** URL-mode elicitation in MCP 2026-07-28 makes an out-of-band, server-verified
-person possible, which form mode cannot be (question 6). **A second finding narrows scope.** Enterprise-managed
+person possible, which form mode cannot be (owner decision 6). **A second finding narrows scope.** Enterprise-managed
 authorization asks nothing new of a resource server (3.4).
 
 | Row | Checked against | Finding on 2026-11-03 | Effect on phase 5 |
 | --- | --- | --- | --- |
 | W1 release cycle | [MCP roadmap](https://modelcontextprotocol.io/development/roadmap), last updated 2026-08-22 | 2026-07-28 current. Priority 3, "Agent Identity and Enterprise-Ready Security": DPoP, SEP-1933, ID-JAG, RFC 8693. Human-presence attestation "under discussion" | Pins MCP 2026-07-28 and keeps 2025-11-25 |
 | MCP Authorization | [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), [security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations), 2026-07-28 | <ul><li>OAuth 2.1 (cites draft 13); servers "MUST implement" RFC 9728, with at least one authorization server.</li><li>Discovery by `resource_metadata` or a well-known URI.</li><li>Audience validation "MUST"; "MUST NOT accept or transit any other tokens".</li><li>Insufficient scope "SHOULD" be a 403 with `error="insufficient_scope"`, all scopes in one challenge; required scopes "may be determined dynamically based on the specific request arguments"; scope hierarchies respected.</li><li>stdio "SHOULD NOT" follow it.</li></ul> | Section 3, 5.2 |
-| Enterprise-managed authorization | [`ext-auth`](https://github.com/modelcontextprotocol/ext-auth), stable, revision 2026-07-28, last commit 2026-10-23 | <ul><li>ID token, then an ID-JAG by RFC 8693 at the IdP, then an access token by RFC 7523 at the resource authorization server, "audience-restricted to the MCP Server".</li><li>No step for the resource server.</li><li>The access token's `sub` is the resource authorization server's, which login at the IdP need not match.</li></ul> | 3.4, 4.1 (namespaces), question 12 |
+| Enterprise-managed authorization | [`ext-auth`](https://github.com/modelcontextprotocol/ext-auth), stable, revision 2026-07-28, last commit 2026-10-23 | <ul><li>ID token, then an ID-JAG by RFC 8693 at the IdP, then an access token by RFC 7523 at the resource authorization server, "audience-restricted to the MCP Server".</li><li>No step for the resource server.</li><li>The access token's `sub` is the resource authorization server's, which login at the IdP need not match.</li></ul> | 3.4, 4.1 (namespaces), owner decision 12 |
 | W5 agent identity | [SEP-1932](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1932), [SEP-1933](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1933); GitHub API | Open pull requests, not drafts, updated 2026-11-02 | DPoP and workload identity stay reserved (D19) |
-| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | <ul><li>URL mode is "out-of-band… not exposed to the client".</li><li>Servers "MUST verify the identity of the user who opens the URL" and "MUST ensure that the user who started the elicitation request… is the same user who completes" it.</li><li>"MUST NOT provide a URL which is pre-authenticated".</li><li>"MUST bind elicitation requests to the client and user identity".</li><li>"MUST NOT rely on URL mode elicitation to authorize users for themselves".</li><li>URL mode "may change".</li></ul> | Section 7, 7.5, question 6 |
+| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | <ul><li>URL mode is "out-of-band… not exposed to the client".</li><li>Servers "MUST verify the identity of the user who opens the URL" and "MUST ensure that the user who started the elicitation request… is the same user who completes" it.</li><li>"MUST NOT provide a URL which is pre-authenticated".</li><li>"MUST bind elicitation requests to the client and user identity".</li><li>"MUST NOT rely on URL mode elicitation to authorize users for themselves".</li><li>URL mode "may change".</li></ul> | Section 7, 7.5, owner decision 6 |
 | W7 Tasks | [Tasks](https://modelcontextprotocol.io/extensions/tasks/overview); [`ext-tasks`](https://github.com/modelcontextprotocol/ext-tasks) revision 2026-07-28, last commit 2026-10-20 | <ul><li>Only `tools/call` becomes a task.</li><li>Servers "MUST perform authentication and authorization checks on each task-related request", with unguessable ids, durable before `CreateTaskResult`.</li><li>`Mcp-Name` carries `taskId`; no progress notifications.</li></ul> | 12.2 |
 | W2 MCP Events | [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) | Open, updated 2026-11-03 | Usage and events stay in Umbel's log |
-| W12 OpenTelemetry GenAI | Not re-checked; phase 0's refresh (no tagged release) stands | | Question 15 |
+| W12 OpenTelemetry GenAI | Not re-checked; phase 0's refresh (no tagged release) stands | | Owner decision 15 |
 | IETF drafts | Datatracker API | `draft-ietf-oauth-v2-1` 17 (2026-10-31; MCP cites 13); `draft-ietf-oauth-identity-assertion-authz-grant` 06 (2026-10-31; EMA cites 04); `draft-ietf-oauth-client-id-metadata-document` 03 (2026-11-02) | The verifier follows the RFCs it uses: RFC 6750, 7519, 7662, 8414, 8705, 8707, 9068, 9207, 9728, and OIDC Core and Discovery |
 | Libraries | `cargo info`; registry sources | <ul><li>`rmcp` 3.8.0: no server auth; `TaskManager` in memory.</li><li>`jsonwebtoken` 11.1.0 (MSRV 1.88, `aws_lc_rs` feature), with the defaults the Status lists.</li><li>`aws-lc-rs` 1.19.0, `rustls` 0.23.46, `tokio-rustls` 0.26.6 and `rustls-pki-types` 1.15.1 in the lock.</li><li>`tantivy` 0.27.0 `Bm25StatisticsProvider`.</li></ul> | 1, 3, 9 |
 
@@ -236,7 +240,7 @@ Rows W3, W4, W6, W8 to W11 and W13 to W18 were not re-checked.
 
 ## Terms
 
-These enter the [glossary](../../architecture.md#12-glossary), marked proposed.
+These enter the [glossary](../../architecture.md#12-glossary).
 
 | Term | Meaning |
 | --- | --- |
@@ -250,7 +254,7 @@ These enter the [glossary](../../architecture.md#12-glossary), marked proposed.
 | Person assurance | How a person is proven for one decision: `terminal` (the CLI's check) or `verified` (a fresh login at the namespace's identity provider, on the person page) |
 | Person page | The host's HTTPS page that a URL-mode elicitation, or the CLI, sends a person to, where they log in and decide one gated call |
 | Host-verified confirmation | AFD's per-command confirmation mode under which the server never sends a form, and defers the decision to the host's `HumanRelay` |
-| Operator | A caller at the host's own CLI (transport `cli`, authentication `process`); nothing else (question 17) |
+| Operator | A caller at the host's own CLI (transport `cli`, authentication `process`); nothing else (owner decision 17) |
 | Task | An MCP task running one command, bound to the principal that started it |
 | Usage event | One request's content-free metering record |
 | Hosted profile | The requirements the doctor enforces when `auth.mode` is not `none` |
@@ -321,7 +325,7 @@ Version 0's four fields keep their meaning:
 - `authentication` gains `verified` and `gateway`, as phase 0 reserved;
 - the reserved top-level fields take their meanings, **each at the top level where version 0 reserved it** (D36),
   `policyVersion` included;
-- `tenant` stays reserved (question 14);
+- `tenant` stays reserved (owner decision 14);
 - Umbel never copies the token or AFD's `credentials` here.
 
 ```json
@@ -366,7 +370,7 @@ config_version = 5
 [principal]
 local_id = "corp/U019488227"                   # in oauth and gateway modes: <namespace>/<subject> (4.6)
 
-[principal.equivalents]                        # legacy principal -> namespaced principal, one way (4.6, question 16)
+[principal.equivalents]                        # legacy principal -> namespaced principal, one way (4.6, owner decision 16)
 "human:ada" = "human:corp/U019488227"
 
 [http]
@@ -391,7 +395,9 @@ require_bound_tokens = false                   # true needs [http.tls] client_au
 
 [auth.namespaces.corp]                         # ^[a-z][a-z0-9-]{0,31}$
 person = { issuer = "corp-idp", client_id = "umbel-person-page", client_secret_env = "UMBEL_PERSON_SECRET",
-           subject_claim = "sub", max_age_s = 300, acr_values = ["phr"] }
+           subject_claim = "sub", max_age_s = 300,
+           acr_values = ["phr"],                                        # required: classes needing user verification
+           uv_amr = ["pin", "fpt", "face", "iris", "retina", "vbm"] }   # RFC 8176 user-verification methods
 
 [auth.issuers.corp-idp]                        # an OIDC provider; issues the person login, and may issue tokens
 issuer = "https://idp.example.com"
@@ -405,9 +411,9 @@ services = { clients = ["build-bot"], claim = { name = "idtyp", value = "app" } 
 [auth.issuers.corp-as]                         # the resource authorization server (enterprise-managed authorization)
 issuer = "https://as.example.com"
 namespace = "corp"
-subject_claim = "sub"                          # the deployer asserts it equals corp-idp's subject (4.1, question 1)
+subject_claim = "sub"                          # the deployer asserts it equals corp-idp's subject (4.1, owner decision 1)
 
-[auth.gateway]                                 # mode = "gateway" only (4.4, question 5)
+[auth.gateway]                                 # mode = "gateway" only (4.4, owner decision 5)
 alias = "edge"
 namespace = "corp"
 issuer = "https://gateway.example.com"
@@ -418,7 +424,7 @@ max_scopes = ["umbel:read", "umbel:write"]
 
 [access.groups.eng]
 members = ["human:corp/U019488227"]
-claim = { issuer = "corp-idp", name = "groups", value = "engineering" }   # question 4
+claim = { issuer = "corp-idp", name = "groups", value = "engineering" }   # owner decision 4
 
 [limits]
 ip_requests_per_minute = 1200
@@ -444,7 +450,10 @@ Rules checked at open, each failing with `WORKSPACE_CONFIG_INVALID` naming the k
   is loopback.
 - **Bound tokens.** `require_bound_tokens` needs `client_auth` other than `none`, so that the certificate reaches
   Umbel (in-process TLS).
-- **Namespaces.** A namespace's `person.issuer` is an issuer of that namespace.
+- **Namespaces.** A namespace's `person.issuer` is an issuer of that namespace. Its `acr_values` and `uv_amr` must
+  be non-empty, and `uv_amr` may name only RFC 8176 user-verification methods (`pin`, `fpt`, `face`, `iris`,
+  `retina`, `vbm`). A person login without them is invalid, and its namespace's `verified` commands are not served
+  (owner decision 6).
 - **Secrets.** Every `*_env` key names a variable, never a value.
 - **Operator id.** In modes `oauth` and `gateway`, `principal.local_id` is `<ns>/<subject>` for a declared
   namespace (4.6).
@@ -648,16 +657,16 @@ The extension's resource-server obligation is to accept tokens "audience-restric
 resource authorization server that the metadata names. 3.2 does exactly that, so inbound needs no path of its own.
 The access token's `sub` is the resource authorization server's, while a person logs in at the enterprise identity
 provider. So the two meet only through a namespace in which the deployer declares both issuers' subject claims
-comparable (4.1, question 1).
+comparable (4.1, owner decision 1).
 
 `umbel-testkit-idp` runs the whole exchange (ID token, RFC 8693 ID-JAG, RFC 7523 grant), and the exit test uses it
-for a user who also completes a person decision (14, point 5). Outbound is question 12.
+for a user who also completes a person decision (14, point 5). Outbound stays D43 (owner decision 12).
 
 ## 4. Who the caller is
 
-### 4.1 Identity namespaces and mapping (D110, question 1)
+### 4.1 Identity namespaces and mapping (D110, owner decision 1)
 
-**Recommended (question 1):**
+**Owner decision 1:**
 - **A person** is `human:<ns>/<subject>`, where `<subject>` is the issuer's `subject_claim` (default `sub`).
 - **The client** is `agent:<ns>/<client_id>`, acting for `<ns>/<subject>`.
 - **A service** is `service:<ns>/<client_id>` with no `onBehalfOf`. A token is a service token when any of these
@@ -693,18 +702,18 @@ for a user who also completes a person decision (14, point 5). Outbound is quest
 The hook fails closed: an HTTP request in `oauth` or `gateway` without verified extensions (a layer missing) is
 `UNAUTHORIZED`. Nothing is read from a header the caller controls.
 
-### 4.3 Delegation (D111, question 2)
+### 4.3 Delegation (D111, owner decision 2)
 
-**Recommended (question 2):**
+**Owner decision 2:**
 - An agent's reader filter is its person's, **narrowed by its token**: a space the token grants no verb in is
   answered as unreadable (5.4).
 - `delegationChain` records the client, or the RFC 8693 `act` chain when the issuer is configured
   `delegation = "act"`. Each entry is mapped as a client is in 4.1.
 - An `act` from an issuer not so configured is ignored and logged.
 
-### 4.4 Gateway-trusted mode (D114, question 5)
+### 4.4 Gateway-trusted mode (D114, owner decision 5)
 
-**Recommended (question 5):** a gateway is trusted only to say who authenticated. Every request needs both of these:
+**Owner decision 5:** a gateway is trusted only to say who authenticated. Every request needs both of these:
 
 1. **A pinned, authenticated channel.**
    - `client_auth = "ca"`: the certificate chains to `client_ca`, and its SHA-256 is in `client_cert_sha256`.
@@ -729,23 +738,23 @@ Mapping and scopes:
 `{"error":"UNAUTHORIZED","suggestion":"The gateway must connect with its pinned certificate and send a valid
 Umbel-Gateway-Assertion."}`. No identity header (`X-User` and the like) is ever read.
 
-### 4.5 Groups from token claims (D113, question 4)
+### 4.5 Groups from token claims (D113, owner decision 4)
 
-**Recommended (question 4):**
+**Owner decision 4:**
 - `[access.groups.<g>] claim = { issuer, name, value }` adds members: callers whose token from that issuer carries
   claim `name` (a string or an array of strings) containing exactly `value`.
 - They are unioned with static `members`, never taken from a gateway, and last no longer than the token.
 - **This makes the identity provider a source of membership.** `umbel.toml` still names which groups read which
   space, but who is in a group is then partly the identity provider's. It is a narrower version of question 3's
-  alternative (c), which this specification does not recommend, and question 4 says so.
+  alternative (c), which the owner did not choose; decision 4 accepted it knowing so.
 
-### 4.6 One person, one principal (D129, question 16)
+### 4.6 One person, one principal (D129, owner decision 16)
 
 The identity split is real. Self-approval (D102) compares principal strings, so `human:ada` at the CLI and
 `human:corp/U019488227` over HTTP would be two people: one person could approve their own draft. The split would also
 orphan memory ownership, `readers`, approvers and cursors.
 
-**Recommended (question 16):**
+**Owner decision 16:**
 - **The join is mandatory in hosted modes.** `principal.local_id` must be `<ns>/<subject>` of a declared namespace,
   so the operator at the CLI is the same principal as their hosted identity, and the CLI's person decisions
   (7.2) take their namespace and subject from it.
@@ -762,9 +771,9 @@ orphan memory ownership, `readers`, approvers and cursors.
 - The doctor's `auth.principals` fails, in hosted modes, on a `readers`, approver or group entry that no namespace
   or equivalent can produce, since such an entry grants no one.
 
-### 4.7 Who is an operator (D130, question 17)
+### 4.7 Who is an operator (D130, owner decision 17)
 
-**Recommended (question 17):** only the CLI (transport `cli`, authentication `process`) is an operator. Library
+**Owner decision 17:** only the CLI (transport `cli`, authentication `process`) is an operator. Library
 calls are treated by their actor, so an embedder that serves several people through `Host::context`
 (`host/mod.rs:579-585`) gets the same sealed positions, readable totals and own-only usage as HTTP callers.
 
@@ -784,9 +793,9 @@ A scope is `<prefix>:<verb>`, or `<prefix>:<verb>:<space>`. The verbs are `read`
 
 Parsing is exact (no wildcards, case-sensitive). Scopes under other prefixes are ignored.
 
-### 5.2 What a call needs (D112, question 3)
+### 5.2 What a call needs (D112, owner decision 3)
 
-**Recommended (question 3):** Umbel's `ScopeResolver` derives needs from what the host knows. **A call needs the
+**Owner decision 3:** Umbel's `ScopeResolver` derives needs from what the host knows. **A call needs the
 union of every row that applies.**
 
 | Applies when | Adds |
@@ -848,7 +857,7 @@ checks, which apply whenever `auth.mode` is not `none`.
 | `auth.subjects` | A `sub` subject claim at an issuer whose `subject_types_supported` lacks `public` (4.1) |
 | `auth.services` | An issuer with neither `services.clients` nor `services.claim` (warn) |
 | `auth.principals` | `local_id` not namespaced; a `readers`, approver or member entry no namespace or equivalent can produce (4.6) |
-| `auth.person` | An area with `approve_over_mcp`, or a command with `person.mcp`, in a namespace with no person login (warn; the command is then not served over MCP, 7.1). Empty `acr_values` (warn: a browser automated with saved credentials passes `prompt=login`; set an `acr` class that needs user verification, 13.2) |
+| `auth.person` | **Fails** (owner decision 6) when a namespace's person login has empty `acr_values` or `uv_amr`; when the provider publishes `acr_values_supported` without a configured class; or when it publishes `claims_supported` without `acr` or `amr`. While it fails, that namespace's `verified` commands are not served. Warns when an area with `approve_over_mcp`, or a command with `person.mcp`, has callers in a namespace with no person login; those commands are then not served to them (7.1) |
 | `auth.secrets` | A `*_env` variable unset |
 | `auth.shared` | `state/shared/` not writable, or not on a local filesystem (D29) |
 | `auth.confirmations` | `mcp.confirmations = "enforce"` (fail). **Why:** under `enforce` the caller's own `confirm: true` proceeds, and under `require-human` an accepted form answer proceeds (`confirmations.rs:268-294`). Neither proves a person, so person-gated commands use the host-verified mode (3.1), and `mcp.confirmations` governs only ordinary `confirm_prompt` commands |
@@ -895,19 +904,21 @@ sharing `state/`. Several machines are phase 6, and the shared-state traits (10.
 
 ## 7. Proving a person
 
-### 7.1 Assurance levels (D115, question 6)
+### 7.1 Assurance levels (D115, owner decision 6)
 
-**Recommended (question 6):** two levels, recorded on everything a person decides.
+**Owner decision 6:** two levels, recorded on everything a person decides.
 
 | Level | How | Where |
 | --- | --- | --- |
 | `terminal` | The CLI's check (D71, D86), unchanged and still not an attestation | `person.cli = "terminal"` commands at the operator's CLI |
-| `verified` | The person page (7.2): a fresh login at the namespace's identity provider, the subject matched to the caller, one decision bound to the call | `person.mcp = "verified"` commands over MCP, and `person.cli = "verified"` commands at the CLI, which print the URL and wait |
+| `verified` | The person page (7.2): a fresh login at the namespace's identity provider **with user verification**, the subject matched to the caller, one decision bound to the call | `person.mcp = "verified"` commands over MCP, and `person.cli = "verified"` commands at the CLI, which print the URL and wait |
 
 **Rules:**
 - A command with `person.mcp` is served over MCP **only in a hosted mode, and only for callers whose namespace has
-  a person login**. Elsewhere it is not listed and is refused as an unexposed command, so mode `none` behaves as
-  phases 2 to 4.
+  a valid person login** (one passing `auth.person`). Elsewhere it is not listed and is refused as an unexposed
+  command, so mode `none` behaves as phases 2 to 4.
+- **User verification is mandatory** (owner decision 6). Every person login requests an `acr` class that requires
+  user verification, and every ID token it returns must prove it (7.2, step 3).
 - A `person.cli = "verified"` command at the CLI needs a namespaced `local_id` and that namespace's login, else
   `PERSON_VERIFICATION_UNAVAILABLE`.
 - No other path gives a person:
@@ -933,7 +944,8 @@ and `response_mode=query` (so `SameSite=Lax` holds on the return). It is not an 
 2. **Open.** `GET /d/<id>` makes a login row:
    - a random `login` id, with the **PKCE verifier and the `nonce` kept server-side in that row**;
    - a redirect to the namespace's identity provider (its OIDC discovery, `issuer` checked) with `prompt=login`,
-     `max_age`, `acr_values`, `response_mode=query` and `state`.
+     `max_age`, `acr_values`, a `claims` request marking `acr` essential with those values (OIDC Core 5.5.1.1),
+     `response_mode=query` and `state`.
 
    `state` is `<login id>.<HMAC-SHA256 under state/keys/person.key>`. That key is 32 bytes, race-safe and shared
    by every process, so any process can finish the login. A `__Host-` cookie (`Secure`, `HttpOnly`,
@@ -942,8 +954,11 @@ and `response_mode=query` (so `SameSite=Lax` holds on the return). It is not an 
    - `state`'s MAC and the cookie must match the login row.
    - RFC 9207 `iss` is checked when the provider advertises it.
    - The code is exchanged with the stored verifier.
-   - The ID token is verified: signature, `iss`, `aud` = `client_id`, the stored `nonce`, `exp`, `auth_time`
-     within `max_age_s`, and `acr` in `acr_values` when any are set.
+   - The ID token is verified: signature, `iss`, `aud` = `client_id`, the stored `nonce`, `exp`, and `auth_time`
+     within `max_age_s`.
+   - **User verification** (owner decision 6): `acr` must be one of `acr_values`, **and** `amr` must contain at least
+     one `uv_amr` method. An ID token without both is refused with `PERSON_VERIFICATION_INSUFFICIENT`, and nothing
+     is recorded. The check runs on every login, because no metadata can prove what a class means.
    - **Its `subject_claim` must equal `for.subject`, in the same namespace**; otherwise "This request is for another
      person", and nothing is recorded.
 4. **Decide.** The page renders **at page time**:
@@ -973,9 +988,9 @@ and `response_mode=query` (so `SameSite=Lax` holds on the return). It is not an 
 - Each decision is journaled under its command's trace as a host `person-decide` entry, digest-journaled, keeping
   `id`, `level` and `decision`.
 
-### 7.3 The MCP approval relay (D116, question 7; amends D99)
+### 7.3 The MCP approval relay (D116, owner decision 7; amends D99)
 
-**Recommended (question 7):**
+**Owner decision 7:**
 - **Approve and reject only.** An area opts in with `approve_over_mcp`, default false.
   - The knowledge manifest (version 5) gives both `person = { cli = "terminal", mcp = "verified" }` and
     `confirmationMode = "host-verified"`.
@@ -1021,13 +1036,13 @@ Here:
 - the request is bound to the client and user identity, as the same section requires (`for`, 7.2);
 - the identity comes from the deployer's identity provider, as the phishing rule suggests.
 
-This reading is the owner's to accept, and question 6 asks it.
+The owner accepted this reading with decision 6.
 
-## 8. Person-gated memory and the open owner questions
+## 8. Person-gated memory, and the questions earlier phases left open
 
-### 8.1 Gated commands over MCP (D117, question 8)
+### 8.1 Gated commands over MCP (D117, owner decision 8)
 
-**Recommended (question 8):**
+**Owner decision 8:**
 - **`memory-confirm`** gains `confirm_preview = "memory-preview"` (an `inspect` command returning the record's
   text under the caller's filter, declaring `id` and `space`, both in its `keep`), and `person = { cli =
   "terminal", mcp = "verified" }`. Own records only (D88 kept).
@@ -1037,20 +1052,20 @@ This reading is the owner's to accept, and question 6 asks it.
 
 ### 8.2 Confirming another person's record
 
-**Recommended (question 8):** keep D88's refusal.
+**Owner decision 8:** D88's refusal stays.
 
-### 8.3 Changing another person's shared record (D119, question 10)
+### 8.3 Changing another person's shared record (D119, owner decision 10)
 
 Today a sharing writer who can read a record may invalidate or supersede it (`memory_services.rs:215-253`). A
 sharing writer includes agents holding a `writers` token when `agents_may_share = true` (lines 150-162).
 
-**Recommended (question 10):**
+**Owner decision 10:**
 - Only the record's principal (with equivalents), or **a person** holding a token in a new `editors` list on the
   `memory_write` grant table (default empty), may change another principal's record.
 - An editor is a person whatever `agents_may_share` says, and must be `verified` over MCP.
 - `MEMORY_NOT_OWNED` otherwise. History keeps every version.
 
-### 8.4 `memory-erase` (D118, question 9)
+### 8.4 `memory-erase` (D118, owner decision 9)
 
 D85: blind, irreversible, resting on a verified person, and able to reach records a person's CLI cannot forget
 (`agent:loopback`, `agent:<local_id>`).
@@ -1070,14 +1085,42 @@ D85: blind, irreversible, resting on a verified person, and able to reach record
 - **Dry run and plan.** `dryRun = true`, required first, returns only a count and a `plan` (the SHA-256 of the
   sorted ids and versions). The erase must present the same `plan`, else `MEMORY_ERASE_PLAN_STALE`.
 - **Erasure** is phase 3's forget path (keys first, D73, D82). It returns counts only.
-- **Disclosed residue**, as D85 lists. **Recommended addition:** the erased principal receives an event in their
-  own stream (access `principal:<erased>`) naming the eraser, the count and the time.
-- In mode `none` the command is unavailable (no verified person), so local erasure waits for a hosted setup.
-  Question 9 offers the terminal level as an alternative.
+- **Disclosed residue**, as D85 lists. The erased principal also receives an event in their own stream (access
+  `principal:<erased>`) naming every eraser who acted, the count and the time.
+- **The two-person rule (owner decision 9's strengthening).** The `memory_write` grant table's
+  `erase_approvals` is `1` or `2`, default `1`, and `erase_approval_window_s` is 600 to 604 800, default 86 400.
+  They sit beside `erasers`, where D74 keeps the memory policy the host reads:
 
-### 8.5 A draft its proposer can no longer read (D120, question 11; amends D101)
+  ```toml
+  [plugins.memory.grants.memory_write]
+  erasers = ["group:records-admins"]
+  erase_approvals = 2
+  erase_approval_window_s = 86400
+  ```
 
-**Recommended (question 11):** a host-run, redaction-only sweep. **It amends D101**, which keeps every privileged
+  - With `2`, the first eraser's erase (after the dry run, with the plan, and a `verified` decision) erases nothing.
+    It writes an **erase request** in the memory database's new `erase_requests` table: request id `x-<20 hex>`,
+    space, target principal, plan, the first eraser, `at` and `expiresAt`. It answers
+    `{ "status": "awaiting-second-eraser", "request", "expiresAt" }`.
+  - A **second eraser** runs their own dry run, which must produce the same plan, then
+    `memory-erase { space, principal, plan, request }` with their own `verified` decision, inside the window.
+  - The second eraser must be a different effective principal from the first, compared through equivalents (4.6),
+    else `MEMORY_ERASE_SECOND_ERASER_REQUIRED`.
+  - A plan that no longer matches voids the request (`MEMORY_ERASE_PLAN_STALE`), and so does the window passing
+    (`MEMORY_ERASE_REQUEST_EXPIRED`).
+  - Only when both have approved does the erase run. The journal keeps both erasers, the request id and the plan,
+    and the erased principal's notice names both.
+  - A request holds no text and no ids, only the plan's hash. It is deleted with `secure_delete` when it runs or
+    expires.
+  - **The default is `1` only because a deployment with a single administrator could not erase at all otherwise.**
+    A deployment with two or more erasers should set `2`, and the doctor's `stores.memory_erase` check warns when
+    `erasers` can produce two people and `erase_approvals` is `1`.
+- In mode `none` the command is unavailable (no verified person), so local erasure waits for a hosted setup. The
+  owner did not choose the terminal level for erase (decision 9).
+
+### 8.5 A draft its proposer can no longer read (D120, owner decision 11; amends D101)
+
+**Owner decision 11:** a host-run, redaction-only sweep. **It amends D101**, which keeps every privileged
 read refused, by admitting one narrowly scoped one.
 
 - **Durable trigger.** A forget or an erase writes an `erasure` outbox row (space, erased memory ids, the instances
@@ -1197,10 +1240,13 @@ follows the same rule (phase 1 follow-up).
 | `RATE_LIMITED` | 11's read-bytes limit | Yes | `retryAfterMs` |
 | `PERSON_VERIFICATION_UNAVAILABLE` | A `verified` command with no namespaced `local_id` or person login (7.1) | No | None |
 | `PERSON_DECISION_EXPIRED` | The CLI's decision expired before it was decided (7.2) | Yes | None |
+| `PERSON_VERIFICATION_INSUFFICIENT` | The login's ID token lacks a configured `acr` or a user-verification `amr` (7.2) | Yes (log in again with user verification) | None |
 | `APPROVAL_RELAY_DISABLED` | Approve or reject over MCP in an area without `approve_over_mcp` (7.3) | No | `area` |
 | `APPROVAL_REQUIRED` | Reasons `declined` or `url-elicitation-required` (7.3) | No | `reason` |
 | `MEMORY_ERASE_NOT_ALLOWED` | The caller is not an eraser (8.4) | No | None |
-| `MEMORY_ERASE_PLAN_STALE` | The records changed since the dry run (8.4) | No (run the dry run again) | None |
+| `MEMORY_ERASE_PLAN_STALE` | The records changed since the dry run, or since an erase request (8.4) | No (run the dry run again) | None |
+| `MEMORY_ERASE_SECOND_ERASER_REQUIRED` | With `erase_approvals = 2`, the approving eraser is the requesting one (8.4) | No | `request` |
+| `MEMORY_ERASE_REQUEST_EXPIRED` | The erase request's window passed (8.4) | No (start again) | `request` |
 | `MEMORY_QUERY_TOO_BROAD` | More than 50 000 readable matches (9.2) | No | `limit` |
 | `INVALID_CURSOR` (existing) | A version 0 string from a non-`process` caller; another principal's version 1 cursor (9.3) | No | None |
 | `TASK_LOST` | The task's process died; its lease expired (12.2) | Yes | None |
@@ -1222,9 +1268,9 @@ In hosted modes there are four limits. Counters are shared (10.2), and operators
 
 ## 12. Usage, tasks, telemetry
 
-### 12.1 Usage events (D122, question 13)
+### 12.1 Usage events (D122, owner decision 13)
 
-**Recommended (question 13):** one content-free record per MCP HTTP request, in `state/usage/<yyyy-mm>.jsonl`,
+**Owner decision 13:** one content-free record per MCP HTTP request, in `state/usage/<yyyy-mm>.jsonl`,
 under its own lock, mode 0600.
 
 ```json
@@ -1282,9 +1328,9 @@ are counts and ids, never content.
 `first-party/tests/hosted_not_request_path.rs` repeats phase 4's point 7 over the hosted surface, with a token
 holding every scope.
 
-### 12.4 Telemetry and OpenTelemetry export (D124, question 15)
+### 12.4 Telemetry and OpenTelemetry export (D124, owner decision 15)
 
-**Recommended (question 15):** no OpenTelemetry export, and no Rust telemetry middleware, in phase 5. While W12's
+**Owner decision 15:** no OpenTelemetry export, and no Rust telemetry middleware, in phase 5. While W12's
 conventions have no tagged release, their attribute names may still change. Consumers who key dashboards, alerts or
 audit queries on them would then silently read wrong or missing data. The journal and usage events keep the record
 meanwhile.
@@ -1320,7 +1366,8 @@ meanwhile.
 | Scope escalation through batch or pipe | Every step resolved before dispatch | `scope_gate.rs` |
 | Confirmation replay across actors (#532) | Actor and credentials bound | AFD `server_confirmations.rs`; `confirm_binding.rs` |
 | An agent answering for a person | Host-verified mode: no form, no `confirm: true`; a URL login bound to `for` | `person_page.rs`, `relay.rs` |
-| **Browser automation with saved credentials** passing `prompt=login` | `acr_values` naming a class that needs user verification (the doctor warns when empty); `max_age`; one decision per login. **Not defended without an `acr`:** an agent driving the person's own browser with stored credentials | `doctor_auth.rs`, `person_page.rs` |
+| **Browser automation with saved credentials** passing `prompt=login` | **Closed under owner decision 6's condition:** every login must show a configured `acr` and a user-verification `amr` (a PIN or biometric at the authenticator), which stored credentials and a scripted browser cannot produce; `auth.person` fails without the configuration, and its commands are not served. Not defended, and stated: an attacker who controls the person's authenticator itself, which no remote check can detect | `doctor_auth.rs`, `person_page.rs` |
+| A single eraser erasing alone where two are available | `erase_approvals = 2`; the doctor's `stores.memory_erase` warning (owner decision 9) | `memory/tests/erase.rs` |
 | Clickjacking the decision | `frame-ancestors 'none'`, `X-Frame-Options: DENY` | `person_page.rs` |
 | Phishing (another person opens the link) | `for.subject` and namespace matched | `person_page.rs` |
 | CSRF, login CSRF, fixation | Server-side PKCE and `nonce`; a MAC on `state`; a `__Host-` cookie; a CSRF token; `response_mode=query` | `person_page.rs` |
@@ -1352,8 +1399,8 @@ The exit criterion is met when `umbel.yml` is green on `main` with every test be
   - a gateway signer.
 - **Two** `umbel-first-party serve --http` processes, bound to 127.0.0.1 with `[http.tls]` and `auth.mode =
   "oauth"`, on one workspace, behind `first-party/tests/support/balancer.rs` (TCP round-robin).
-- One namespace `idp` holding both issuers, with the person login at `idp`, `acr_values` set, and `local_id =
-  "idp/ada"`.
+- One namespace `idp` holding both issuers, with the person login at `idp`, `acr_values` and `uv_amr` set (the
+  fixture's scripted login reports `amr: ["hwk", "pin"]`), and `local_id = "idp/ada"`.
 - Spaces `alpha` and `beta`. Documents readable by `principal:human:idp/ada`, by `principal:human:idp/bo`, by
   `group:eng` (claim-derived for ada and cy), and by `space`.
 
@@ -1377,7 +1424,8 @@ It asserts:
    - bo's agent proposes in an `approve_over_mcp` area.
    - ada's client calls `knowledge-approve`, receives a **URL-mode** elicitation and no form, and retries while
      pending, getting `input_required` again.
-   - The scripted browser logs in as ada with the `acr`, sees the preview, and approves.
+   - The scripted browser logs in as ada with the `acr` and user verification, sees the preview, and approves. A
+     login without user verification (`amr: ["pwd"]`) is refused.
    - The retry, through the other process, applies the proposal (version 3, `mcp-elicitation`, `verified`).
    - **cy, the enterprise-managed user, completes a `memory-confirm` decision the same way**, matched across `as`
      and `idp` in one namespace.
@@ -1412,11 +1460,11 @@ It asserts:
 | `tests/config_v5.rs`, `tests/manifest_v5.rs` | host | 2.2, 2.3 (`person` per surface, MCP exposure only with `mcp`, the preview `keep` rule) |
 | `tests/auth_layers.rs`, `tests/auth_tokens.rs`, `tests/token_canary.rs`, `tests/auth_keys.rs` | host | 6.3; 3.2 and 3.3 through the host |
 | `tests/principal_v1.rs` | host | 4.1 (namespaces, subject claims, services, the `~` form), `act` from an `act` issuer kept and from a non-`act` issuer ignored, groups from claims, 4.6's equivalents |
-| `tests/doctor_auth.rs` | host | Every `auth.*` check of 6.1 |
+| `tests/doctor_auth.rs` | host | Every `auth.*` check of 6.1; `auth.person` fails on empty `acr_values` or `uv_amr`, on an unsupported class, and on `claims_supported` without `acr` or `amr`, and while it fails the namespace's `verified` commands are neither listed nor callable |
 | `tests/auth_show.rs` | host | 10.3: own projection only |
 | `tests/scope_gate.rs`, `tests/space_visibility.rs` | host | 5.2 to 5.4, built-ins included |
 | `tests/gateway_mode.rs` | host | 4.4, the meet included |
-| `tests/person_page.rs` | host | 7.2: every rule, binding to every field of `for` (a different client of the same person refused), headers, the preview rendered at page time and not stored |
+| `tests/person_page.rs` | host | 7.2: every rule, binding to every field of `for` (a different client of the same person refused), headers, the preview rendered at page time and not stored; an ID token with no `acr`, an unlisted `acr`, no `amr`, or only `pwd` and `otp` in `amr`, each refused with `PERSON_VERIFICATION_INSUFFICIENT` |
 | `tests/confirm_binding.rs` | host | #532 through Umbel |
 | `tests/shared_nonces.rs`, `tests/tasks.rs`, `tests/limits.rs`, `tests/usage.rs` | host | 10.2, 12.2, 11, 12.1, with two processes where shared |
 | `tests/cursor_v1.rs` | host | 9.3: readable heads, deterministic equality, version 0 for `process` |
@@ -1426,7 +1474,7 @@ It asserts:
 | `store/tests/memory_tokenizer.rs` | store | 9.2's tokenizer against FTS5's tokens |
 | `plugins/knowledge/tests/relay.rs` | knowledge | 7.3; proposal version 3; self-approval through equivalents |
 | `plugins/knowledge/tests/eval_gate.rs` (existing) | knowledge | Passes within tolerance under 9.1 |
-| `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` | memory | 8.4, 8.3, 8.1 |
+| `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` | memory | 8.4, with `erase_approvals = 2`: one eraser alone erases nothing; the same eraser twice, or an equivalent principal, refused; a changed plan and an expired window void the request; two erasers erase, and the journal and notice name both. 8.3, 8.1 |
 | `first-party/tests/hosted_leaks.rs` | first-party | Differential probes over HTTP for every read command, the space oracle both ways |
 | `first-party/tests/hosted_not_request_path.rs` | first-party | 12.3 |
 | `first-party/tests/exit_hosted.rs` | first-party | The exit criterion |
@@ -1441,9 +1489,9 @@ its local entry. AFD's step 0 tests run in `rust.yml` and the language workflows
 | Several machines behind one URL | Phase 6 | `src/shared/` traits |
 | DPoP, workload identity | When SEP-1932 and SEP-1933 are final (D19) | `dpop` reserved; `cnf.jkt` refused |
 | Umbel as an authorization server | Never (A7) | `no_auth_server.rs` |
-| Outbound per-caller credentials | Question 12 | D43 unchanged |
-| OpenTelemetry export | Question 15 | Journal and usage |
-| Multi-tenant deployments | Question 14 | `tenant` reserved |
+| Outbound per-caller credentials | The federation specification with O1 (owner decision 12) | D43 unchanged |
+| OpenTelemetry export | After W12's first tagged release (owner decision 15) | Journal and usage |
+| Multi-tenant deployments | Never in one deployment (owner decision 14; O5 closed) | `tenant` reserved |
 | Plugin `secrets` and `http` grants | The first plugin that needs them | Named and refused (D42) |
 | CORS for browser clients | Loam's U1 | `allowed_origins` |
 | Server cards, registry entry | Phase 7 | Metadata is the only public document |
@@ -1453,7 +1501,7 @@ its local entry. AFD's step 0 tests run in `rust.yml` and the language workflows
 
 Each step is one pull request, green on the repository's checks and `umbel.yml`, and updates STATUS.md and this file.
 A step that finds a design decision stops and amends this document. Steps changing host code carry the
-`Plugin-isolation-exempt:` line. Steps 6, 10 and 11 depend on the answers to questions 7 to 11.
+`Plugin-isolation-exempt:` line. Steps 6, 10 and 11 follow owner decisions 7 to 11.
 
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
@@ -1492,100 +1540,110 @@ A step that finds a design decision stops and amends this document. Steps changi
 
 ## 17. For the owner
 
-These are the trust-model and scope decisions, with recommendations and alternatives. **None is decided.** The
-decision each becomes is pending in the log.
+### Owner decisions, 2026-11-04
 
-1. **Who a verified caller is** (D110; 4.1). *Recommended:*
+**The owner answered all seventeen questions on 2026-11-04.** They are final and written into the sections they
+govern; do not ask again. Approval is under the owner's 2026-10-31 delegation, with these answers (D24).
+
+The owner chose the recommended option on questions 1 to 4. For question 5 onward the owner said: *"I am not an
+expert on these so I am fine going with your recommendations but lets make sure we are making good choices, not
+cutting corners, investing in the best outcomes, and being secure."* So every question takes its recommendation,
+and two are strengthened under that instruction: **user verification is mandatory** (decision 6), and **a
+configurable two-person rule** applies to `memory-erase` (decision 9).
+
+Each entry keeps the question as it was asked, the decision, and the alternatives not chosen.
+
+1. **Who a verified caller is** (D110; 4.1). *Decided by the owner, 2026-11-04:*
    - People are `human:<namespace>/<subject>`, from a configured, non-pairwise subject claim.
    - Clients are `agent:<namespace>/<client_id>`, acting for them.
    - Services are `service:<namespace>/<client_id>`, recognised by `sub == client_id`, a listed client, or a
      configured claim.
-   - Two issuers in one namespace are the deployer's assertion that their subjects name the same people (needed for
-     enterprise-managed users, whose token comes from another issuer than their login).
+   - Two issuers in one namespace are the deployer's assertion that their subjects name the same people.
 
-   *Alternatives:* (a) a mutable claim such as `email` as the id, so a reassigned address inherits records; (b) an
-   explicit table from issuer and subject to principal, refusing unmapped subjects; (c) one issuer per namespace,
-   so enterprise-managed users can never be proven on the person page.
-2. **What an agent reads for its person** (D111; 4.3). *Recommended:* the person's filter narrowed to the token's
-   granted spaces; the `act` chain recorded from an issuer configured for it. *Alternatives:* (a) the person's whole
-   filter, with scopes gating commands only; (b) agents never read their person's private records without a new
-   `umbel:private` scope, which breaks private-by-default recall for agents without it.
-3. **Scope mapping, including per-space scopes** (D112; 5). *Recommended:* the verbs `read`, `write`, `approve`
-   and `erase`, optionally narrowed to a space, resolved per call from effects, gates and the input's space, with a
-   call needing the union of what applies. Scopes only narrow access, and readability is checked before scope.
-   *Alternatives:* (a) unqualified verbs only; (b) per-command scopes declared in manifests, so plugin authors
-   decide what an authorization server must grant; (c) scopes that also grant space access, making the
-   authorization server the source of who reads a space.
-4. **Groups from token claims** (D113; 4.5). *Recommended:* a group may take members from one issuer's claim with
-   an exact value, unioned with static members and lasting no longer than the token. **This makes the identity
-   provider a source of membership**, a narrow form of question 3's (c): `umbel.toml` still says which group reads
-   which space. *Alternatives:* (a) static `members` only, keeping visibility wholly in `umbel.toml`; (b) claims
-   replace static members.
-5. **What a gateway is trusted for** (D114; 4.4). *Recommended:* identity only, through a CA-validated, pinned
-   channel (or loopback) **and** a signed, single-use, URL-bound assertion; scopes cut to a ceiling by the scope
-   order; never a person. *Alternatives:* (a) identity headers from a network-restricted peer; (b) a pinned channel
-   with plain headers; (c) no gateway mode, so gateways forward audience-bound OAuth tokens.
-6. **How a person is proven** (D115; 7, 7.5). *Recommended:*
+   *Alternatives not chosen:* (a) a mutable claim such as `email` as the id, so a reassigned address inherits
+   records; (b) an explicit table from issuer and subject to principal, refusing unmapped subjects; (c) one issuer per
+   namespace, so enterprise-managed users could never be proven on the person page.
+2. **What an agent reads for its person** (D111; 4.3). *Decided by the owner, 2026-11-04:* the person's filter
+   narrowed to the token's granted spaces; the `act` chain recorded from an issuer configured for it. *Alternatives
+   not chosen:* (a) the person's whole filter, with scopes gating commands only; (b) agents never read their person's
+   private records without a new `umbel:private` scope.
+3. **Scope mapping, including per-space scopes** (D112; 5). *Decided by the owner, 2026-11-04:* the verbs `read`,
+   `write`, `approve` and `erase`, optionally narrowed to a space, resolved per call, with a call needing the union of
+   what applies. Scopes only narrow access, and readability is checked before scope. *Alternatives not chosen:* (a)
+   unqualified verbs only; (b) per-command scopes declared in manifests; (c) scopes that also grant space access.
+4. **Groups from token claims** (D113; 4.5). *Decided by the owner, 2026-11-04:* a group may take members from one
+   issuer's claim with an exact value, unioned with static members and lasting no longer than the token. This makes
+   the identity provider a source of membership, while `umbel.toml` still says which group reads which space.
+   *Alternatives not chosen:* (a) static `members` only; (b) claims replace static members.
+5. **What a gateway is trusted for** (D114; 4.4). *Decided by the owner, 2026-11-04:* identity only, through a
+   CA-validated, pinned channel (or loopback) and a signed, single-use, URL-bound assertion; scopes cut to a ceiling
+   by the scope order; never a person. *Alternatives not chosen:* (a) identity headers from a network-restricted peer;
+   (b) a pinned channel with plain headers; (c) no gateway mode.
+6. **How a person is proven** (D115; 7, 7.5). *Decided by the owner, 2026-11-04, with a strengthening:*
    - Two levels. `terminal` is the operator's CLI, unchanged. `verified` is the person page: URL-mode elicitation or
-     a CLI-printed URL, a fresh login at the namespace's identity provider (`prompt=login`, `max_age`, an `acr`
-     class needing user verification), every field of `for` matched, and one decision bound to the call.
-   - It rests on reading the MCP rule against using URL mode "to authorize users for themselves" as being about
-     access to the server, not about confirming one decision (7.5).
-   - It does not stop an agent that drives the person's own browser with stored credentials unless the `acr` class
-     demands user verification.
+     a CLI-printed URL, a fresh login at the namespace's identity provider (`prompt=login`, `max_age`), every field of
+     `for` matched, and one decision bound to the call.
+   - The owner accepted 7.5's reading of the MCP rule against using URL mode "to authorize users for themselves".
+   - **Strengthening: user verification is mandatory.** Every person login must request an `acr` class requiring
+     user verification, and each ID token must show that class and a user-verification `amr` (7.2). An empty
+     `acr_values`, or a login without user verification, is no longer a warning: `auth.person` fails, and the
+     namespace's `verified` commands are not served until it is fixed (2.2, 6.1).
+   - With that, the browser-automation threat is closed except against an attacker who controls the person's
+     authenticator (13.2).
 
-   *Alternatives:* (a) the token's `sub` as the person, with form answers (D99's first reading), which proves a
-   client answered; (b) RFC 9470 step-up claims on the access token with form answers, which proves a recent login
-   but leaves the answer to the client; (c) WebAuthn user verification held by Umbel per decision, which makes Umbel
-   hold passkeys.
-7. **The MCP approval relay** (D116, amends D99; 7.3). *Recommended:* approve and reject only, opted in per area,
-   in AFD's host-verified mode so no form is ever sent, through the person page only, recorded as `mcp-elicitation`
-   with the assurance. Clients without URL elicitation approve at the CLI. *Alternatives:* (a) AFD's form-mode
-   relay, recording the token's subject; (b) form answers accepted with fresh step-up claims.
-8. **Other person-gated commands** (D117; 8.1, 8.2). *Recommended:* `memory-confirm` over MCP at `verified` with a
-   text preview, own records only (D88 kept). `curator-promote` and `memory-remember`'s prompt stay CLI only at
-   `terminal`. *Alternatives:* (a) all stay CLI only, so hosted users never confirm their notes and their push
-   stays empty; (b) a verified person may confirm another's record, recorded with both names.
-9. **`memory-erase`** (D118; 8.4). *Recommended:* blind as D85 says (the target's records by owner, never the
-   eraser's filter), a `verified` eraser in `erasers`, a dry-run plan the erase must match, counts only, and a
-   notice in the erased principal's stream; unavailable in mode `none`. *Alternatives:* (a) a two-person rule; (b)
-   the operator's `terminal` level suffices, so local workspaces can erase.
-10. **Changing another person's shared record** (D119; 8.3). *Recommended:* only the record's principal, or a
-    person in a new `editors` list, verified over MCP, whatever `agents_may_share` says. *Alternatives:* (a) today's
-    rule, any sharing writer who can read it, including agents when `agents_may_share` is true; (b) only the
-    record's principal.
-11. **A draft its proposer can no longer read** (D120; 8.5), **amending D101.** *Recommended:* a host-run,
-    redaction-only sweep with a durable trigger in the forget's transaction, a host-only command and mark, and a
-    filter bounded to the instance's own proposals, returning counts. *Alternatives:* (a) accept the limit as phase 4
-    stated it, keeping D101 whole; (b) let the knowledge plugin read its own records unfiltered whenever it holds
-    `memory`, which is a general read.
+   *Alternatives not chosen:* (a) the token's `sub` as the person, with form answers; (b) RFC 9470 step-up claims with
+   form answers; (c) WebAuthn user verification held by Umbel per decision; and, for the strengthening, (d) a doctor
+   warning only on empty `acr_values`, as the review-time text had.
+7. **The MCP approval relay** (D116, amends D99; 7.3). *Decided by the owner, 2026-11-04:* approve and reject only,
+   opted in per area, in AFD's host-verified mode so no form is ever sent, through the person page only, recorded as
+   `mcp-elicitation` with the assurance. *Alternatives not chosen:* (a) AFD's form-mode relay; (b) form answers with
+   step-up claims.
+8. **Other person-gated commands** (D117; 8.1, 8.2). *Decided by the owner, 2026-11-04:* `memory-confirm` over MCP at
+   `verified` with a text preview, own records only (D88 kept). `curator-promote` and `memory-remember`'s prompt stay
+   CLI only at `terminal`. *Alternatives not chosen:* (a) all stay CLI only; (b) a verified person may confirm
+   another's record.
+9. **`memory-erase`** (D118; 8.4). *Decided by the owner, 2026-11-04, with a strengthening:*
+   - Blind as D85 says: the target's records by owner, never the eraser's filter.
+   - A `verified` eraser in `erasers`, a dry-run plan the erase must match, and counts only.
+   - A notice in the erased principal's stream.
+   - Unavailable in mode `none`.
+   - **Strengthening: a configurable two-person rule.** `erase_approvals` is `1` or `2`. With `2`, a second
+     verified eraser, other than the first, approves the same plan within `erase_approval_window_s` before anything
+     is erased. Both are recorded, and the notice names both.
+   - **The default is `1` only because a deployment with a single administrator could not erase otherwise.**
+
+   *Alternatives not chosen:* (a) a two-person rule always, which a single-administrator deployment could never
+   satisfy; (b) the operator's `terminal` level suffices.
+10. **Changing another person's shared record** (D119; 8.3). *Decided by the owner, 2026-11-04:* only the record's
+    principal, or a person in a new `editors` list, verified over MCP, whatever `agents_may_share` says. This answers
+    phase 3's sharing-writer follow-up. *Alternatives not chosen:* (a) today's rule; (b) only the record's principal.
+11. **A draft its proposer can no longer read** (D120; 8.5), **amending D101.** *Decided by the owner, 2026-11-04:* a
+    host-run, redaction-only sweep with a durable trigger in the forget's transaction, a host-only command and mark,
+    and a filter bounded to the instance's own proposals, returning counts. This answers phase 4 step 3b's amendment
+    12 limit. *Alternatives not chosen:* (a) accept the limit, keeping D101 whole; (b) let the knowledge plugin read
+    its own records unfiltered whenever it holds `memory`.
 12. **Credentials toward mounted servers, and enterprise-managed authorization on connections** (D121; 3.4).
-    *Recommended:* inbound accepted with no special path; outbound stays D43; per-caller exchange for mounts is
-    decided with O1, because it makes Umbel act as each user downstream. *Alternatives:* (a) per-caller RFC 8693 or
-    ID-JAG exchange for HTTP mounts now, so mounted servers filter by user; (b) URL-mode third-party authorization
-    per user, with Umbel holding each user's upstream tokens.
-13. **Usage events** (D122; 12.1). *Recommended:* a content-free stream counting every request, polls and lists
-    included; callers see their own, `usage.readers` (default none) and the operator all. *Alternatives:* (a) usage
-    in each space's stream under the caller's access; (b) operator only.
-14. **Tenancy, O5** (D123; 6.4). *Recommended:* single-tenant per deployment, closing O5. *Alternatives:* (a) a
-    tenant per namespace, with spaces and keys per tenant; (b) leave O5 open.
-15. **Telemetry export** (D124; 12.4). *Recommended:* none in phase 5, because the GenAI attribute names are not
-    yet stable, and consumers keying dashboards, alerts or audit queries on them would silently read wrong or
-    missing data when they change. *Alternative:* export now against the development conventions, with consumers
-    warned that names will change.
-16. **Joining a person's local and hosted identity, and migration** (D129; 4.6). *Recommended:* in hosted modes
-    `local_id` must be a namespaced id, and legacy principals (`human:ada`, `agent:loopback`) map one way through
-    `principal.equivalents`, which ownership, self-approval, approvers, `readers` and cursors all consult; nothing
-    is rewritten. *Alternatives:* (a) rewrite ownership and access sets to the namespaced principal with a migration
-    command, re-sealing memory; (b) no join: legacy records stay with the legacy principal, and the doctor lists
-    them.
-17. **Who is an operator** (D130; 4.7). *Recommended:* only the CLI; library calls are treated by their actor.
-    *Alternatives:* (a) the CLI and the library, as phase 2 treats embedders, trusting every embedder to serve one
-    person; (b) the CLI and stdio, as both are local processes.
+    *Decided by the owner, 2026-11-04:* inbound accepted with no special path; outbound stays D43; per-caller exchange
+    for mounts is decided with O1. *Alternatives not chosen:* (a) per-caller RFC 8693 or ID-JAG exchange for HTTP
+    mounts now; (b) URL-mode third-party authorization per user.
+13. **Usage events** (D122; 12.1). *Decided by the owner, 2026-11-04:* a content-free stream counting every request;
+    callers see their own, `usage.readers` and the operator all. *Alternatives not chosen:* (a) usage in each space's
+    stream; (b) operator only.
+14. **Tenancy, O5** (D123; 6.4). *Decided by the owner, 2026-11-04:* single-tenant per deployment; **O5 is closed**.
+    *Alternatives not chosen:* (a) a tenant per namespace; (b) leave O5 open.
+15. **Telemetry export** (D124; 12.4). *Decided by the owner, 2026-11-04:* none in phase 5, because consumers keying
+    on the unstable GenAI attribute names would silently read wrong or missing data when they change. *Alternative not
+    chosen:* export now against the development conventions.
+16. **Joining a person's local and hosted identity, and migration** (D129; 4.6). *Decided by the owner, 2026-11-04:*
+    in hosted modes `local_id` must be a namespaced id, and legacy principals map one way through
+    `principal.equivalents`, which every principal comparison consults; nothing is rewritten. *Alternatives not
+    chosen:* (a) rewrite ownership with a migration command, re-sealing memory; (b) no join.
+17. **Who is an operator** (D130; 4.7). *Decided by the owner, 2026-11-04:* only the CLI; library calls are treated
+    by their actor. *Alternatives not chosen:* (a) the CLI and the library; (b) the CLI and stdio.
 
 ### Decisions made here that do not change the trust model
 
-These are proposed with the specification's approval:
+These were decided with the specification's approval on 2026-11-04, under the owner's 2026-10-31 delegation:
 - D106: AFD step 0, with the resolver, the host-verified mode and relay evidence.
 - D107: auth modes, TLS, the hosted profile and the layer order.
 - D108: token rules.
@@ -1599,7 +1657,6 @@ These are proposed with the specification's approval:
 
 | Date | Follow-up | Owner |
 | --- | --- | --- |
-| 2026-11-03 | A second review after this revision, then the owner's answers (D24) | Owner's coordinator |
 | 2026-11-03 | URL-mode elicitation "may change"; re-check at each refresh while the relay depends on it | Phase 5 owning agent |
 | 2026-11-03 | Client support for URL-mode elicitation is not in the extension client matrix | Re-check at step 6 |
 | 2026-11-03 | DPoP (SEP-1932), workload identity (SEP-1933) | W5 |
