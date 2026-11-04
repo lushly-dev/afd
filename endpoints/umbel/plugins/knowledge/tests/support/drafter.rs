@@ -99,17 +99,28 @@ space = "main"
 collection = "handbook"
 "#;
 
-/// [`CONFIG`] with both stand-ins enabled, the knowledge instance listing `drafters`, the
-/// handbook area, and the command line's person `local_id`.
+/// The target the stand-in `curator` drafts creates into in `main`: `handbook/learned/<id>`.
+pub const TARGET: &str = "\n[plugins.knowledge.config.drafters.curator.targets.main]\ncollection = \"handbook\"\nprefix = \"learned\"\n";
+
+/// [`CONFIG`] with both stand-ins enabled, the knowledge instance listing `drafters` (the
+/// `curator` with its [`TARGET`], any other without a target), the handbook area, and the command
+/// line's person `local_id`.
 pub fn config(drafters: &[&str], local_id: &str) -> String {
-    let listed: Vec<String> = drafters.iter().map(|d| format!("\"{d}\"")).collect();
+    let mut listed = String::new();
+    for drafter in drafters {
+        listed.push_str(&format!(
+            "\n[plugins.knowledge.config.drafters.{drafter}]\n"
+        ));
+        if *drafter == "curator" {
+            listed.push_str(TARGET);
+        }
+    }
     let base = CONFIG.replace(
         "enabled = [\"sources\", \"knowledge\"]",
         "enabled = [\"sources\", \"knowledge\", \"curator\", \"scribe\"]",
     );
     format!(
-        "{base}\n[plugins.curator]\nsource = \"compiled:curator\"\n\n[plugins.scribe]\nsource = \"compiled:scribe\"\n\n[plugins.knowledge.config]\ndrafters = [{}]\n{AREA}\n[principal]\nlocal_id = \"{local_id}\"\n",
-        listed.join(", ")
+        "{base}\n[plugins.curator]\nsource = \"compiled:curator\"\n\n[plugins.scribe]\nsource = \"compiled:scribe\"\n\n[plugins.knowledge.config]\n{listed}\n{AREA}\n[principal]\nlocal_id = \"{local_id}\"\n"
     )
 }
 

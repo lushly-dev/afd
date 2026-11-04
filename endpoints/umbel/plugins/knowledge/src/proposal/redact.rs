@@ -24,6 +24,13 @@
 //! redacts each of its own drafts citing one. Both are idempotent: a redacted draft is written
 //! again only if the change log still holds an earlier hash of it.
 //!
+//! **"Erased" is a claim, and it is checked** (step 3c): a draft is redacted for a forgotten
+//! source only when the memory store, read under the caller's filter, no longer holds one of the
+//! sources named (forgotten, purged or no longer readable alike), else `PROPOSAL_DRAFT_MISMATCH`
+//! with `details.check = "source-erased"`. An erased record never comes back, so the check never
+//! keeps forgotten text. Without the `memory` grant nothing can be checked, and a redaction only
+//! removes, so it proceeds.
+//!
 //! The document store's connections run with `secure_delete`, and the batch checkpoints after a
 //! redaction ([`super::batch`]).
 
@@ -35,6 +42,7 @@ use umbel_store::{ContentHash, Expect, Record, canonical_json};
 
 use super::common::{self, Caller};
 use super::model::{DRAFTER_REASONS, KIND, Proposal, Redacted, SOURCE_ERASED, State, Withdrawal};
+use super::sources::{Sources, Unread, mismatch};
 use crate::fail;
 
 /// The rationale a redacted proposal keeps: fixed text, naming no source.
@@ -91,6 +99,20 @@ fn not_drafter() -> Outcome {
     )
 }
 
+/// Whether the store bears out the drafter's word that one of `named` is erased: at least one of
+/// them is no longer held, under the caller's reader filter. Without the `memory` grant nothing
+/// can be checked, and a redaction only removes text, so it holds.
+fn erased_one(memory: &Sources<'_, '_>, named: &[String]) -> Result<bool, Outcome> {
+    for id in named {
+        match memory.read(id) {
+            Ok(read) if read.exists() => {}
+            Ok(_) | Err(Unread::Withheld) => return Ok(true),
+            Err(Unread::Failed(outcome)) => return Err(outcome),
+        }
+    }
+    Ok(false)
+}
+
 /// Whether `proposal` is the attested drafter's own, for the caller.
 fn owns(caller: &Caller<'_>, attestation: &PipelineAttestation, proposal: &Proposal) -> bool {
     proposal
@@ -108,6 +130,7 @@ fn owns(caller: &Caller<'_>, attestation: &PipelineAttestation, proposal: &Propo
 pub(crate) fn withdraw(
     caller: &Caller<'_>,
     attestation: Option<&PipelineAttestation>,
+    memory: &Sources<'_, '_>,
     item: &Value,
 ) -> Result<Done, Outcome> {
     let Some(attestation) = attestation else {
@@ -139,6 +162,13 @@ pub(crate) fn withdraw(
     };
     if !owns(caller, attestation, &proposal) {
         return Err(not_drafter());
+    }
+    if redact
+        && proposal.state != State::Applied
+        && proposal.redacted.is_none()
+        && !erased_one(memory, &proposal.memory_sources())?
+    {
+        return Err(mismatch("source-erased"));
     }
     match proposal.state {
         State::Applied => Err(common::wrong_state(
@@ -186,6 +216,7 @@ pub(crate) struct Swept {
 pub(crate) fn sweep(
     caller: &Caller<'_>,
     attestation: &PipelineAttestation,
+    memory: &Sources<'_, '_>,
     erased: &BTreeSet<String>,
 ) -> Result<Swept, Outcome> {
     let mut swept = Swept::default();
@@ -199,15 +230,28 @@ pub(crate) fn sweep(
             let Some(proposal) = Proposal::from_value(&record.body) else {
                 continue;
             };
-            let cites = proposal
+            let named: Vec<String> = proposal
                 .memory_sources()
-                .iter()
-                .any(|id| erased.contains(id));
-            if !cites || proposal.state == State::Applied || !owns(caller, attestation, &proposal) {
+                .into_iter()
+                .filter(|id| erased.contains(id))
+                .collect();
+            if named.is_empty()
+                || proposal.state == State::Applied
+                || !owns(caller, attestation, &proposal)
+            {
                 continue;
             }
             let id = proposal.id.clone();
-            match erase(caller, proposal, record) {
+            let checked = if proposal.redacted.is_some() {
+                Ok(())
+            } else {
+                match erased_one(memory, &named) {
+                    Ok(true) => Ok(()),
+                    Ok(false) => Err(mismatch("source-erased")),
+                    Err(outcome) => Err(outcome),
+                }
+            };
+            match checked.and_then(|()| erase(caller, proposal, record)) {
                 Ok(done) => {
                     swept.forgotten += done.forgotten;
                     if done.redacted {

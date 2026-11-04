@@ -19,6 +19,8 @@ pub(crate) struct Caller<'a> {
     pub(crate) space: String,
     /// The command context's clock, RFC 3339 with milliseconds.
     pub(crate) now: String,
+    /// The same instant in epoch milliseconds.
+    pub(crate) now_ms: i64,
     pub(crate) actor: ActorRef,
     /// The effective principal string (section 6): the person behind the call, else the actor.
     pub(crate) principal: String,
@@ -47,6 +49,7 @@ impl<'a> Caller<'a> {
             cx,
             space,
             now: rfc3339(now_ms),
+            now_ms,
             actor,
             principal,
         })

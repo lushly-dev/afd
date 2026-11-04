@@ -168,11 +168,21 @@ after the next `knowledge-refresh`.
 
 `knowledge-propose-batch` submits up to 50 proposals in one call, with a result for each. Called as a
 step of a drafter's pipeline (the curator's `curator-run`, from phase 4), the host attests the drafter,
-and the knowledge instance accepts it only when `[plugins.knowledge.config] drafters` lists that
-instance (default none). A drafter's claims are verified, not trusted: until that verification lands,
-a draft citing memory, or claiming content, is refused with `PROPOSAL_DRAFT_UNVERIFIABLE`. The same
-pipeline withdraws its own drafts, and redacts one whose memory source was forgotten, and reads the
-decisions on them with `knowledge-proposal-feed`.
+and the knowledge instance accepts it only when its configuration lists that instance as
+`[plugins.knowledge.config.drafters.<instance>]` (default none), with the target its creates go to in each
+space: a markdown `collection` and an optional `prefix` of plain segments. A drafted create must be exactly
+`<collection>/<prefix>/<derived id>`; a drafter with no target in a space drafts no create there. The
+drafter's own configuration names the same target, and the knowledge instance's is the one enforced. A drafter's claims are verified, not trusted: through its read-only `memory`
+grant, under the caller's reader filter, the knowledge instance reads every memory record a draft
+cites and checks that it is live, at the cited version, and copied field by field, and that the
+content, rationale, candidate, key and document id are the curator's fixed rendering and derivations
+of those records; a mismatch is `PROPOSAL_DRAFT_MISMATCH`, naming the check, and nothing is stored.
+`knowledge-approve` reads the sources again: a source gone is `PROPOSAL_SOURCE_GONE`, a target now
+wider than its sources is `PROPOSAL_ACCESS_WIDENED`, and approving a draft of your own memory is
+self-approval. The `memory` grant needs no `allow` list; deny it (`deny = ["memory"]` under
+`[plugins.knowledge]`) and memory-derived drafts are refused with `PROPOSAL_DRAFT_UNVERIFIABLE`. The
+same pipeline withdraws its own drafts, and redacts one whose memory source was forgotten, and reads
+the decisions on them with `knowledge-proposal-feed`.
 
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
@@ -195,7 +205,9 @@ explicit `allow` list in `umbel.toml`: a plugin whose required grant has none do
 | `content_write` | `knowledge` | applying a proposal (it writes the file) | `<space>/<collection>` or `<space>/*` |
 
 The first five are required. The last two are optional and only for applying proposals; without
-them the workspace loads and an approval is recorded, then stops with `PROPOSAL_APPLY_UNAVAILABLE`. A proposal also needs an *area* that says who may approve changes to
+them the workspace loads and an approval is recorded, then stops with `PROPOSAL_APPLY_UNAVAILABLE`.
+`knowledge` also declares `memory`, read only and optional, to verify drafted proposals; a read grant
+needs no `allow` entry, so the file below is unchanged by it. A proposal also needs an *area* that says who may approve changes to
 a collection. This `umbel.toml` runs everything (a workspace made with `umbel-knowledge init
 ~/umbel-ws` starts with only `config_version = 3`; add the rest):
 
@@ -246,6 +258,13 @@ space = "main"
 collection = "handbook"
 approvers = ["principal:human:ada"]
 allow_self_approval = true              # a one-person workspace; leave it out otherwise
+
+# Drafted proposals (phase 4): accept the curator's pipeline, and send its creates in the space
+# main exactly to handbook/learned/<derived id>. The curator's own configuration names the same
+# target; this one is enforced. Leave it out if you run no curator.
+[plugins.knowledge.config.drafters.curator.targets.main]
+collection = "handbook"
+prefix = "learned"
 ```
 
 Then put Markdown under `spaces/main/handbook` and source files under `spaces/main/src`, and:

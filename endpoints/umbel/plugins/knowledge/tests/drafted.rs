@@ -1,10 +1,10 @@
 //! The drafted path of `knowledge-propose-batch` and `knowledge-proposal-feed` (phase 4
 //! specification, sections 3.2, 7.1 and 11.2; D91): an attestation needed for a drafter, memory
-//! evidence, a memory `derivedFrom`, a conflict set and withdrawals; `drafters`; a listed drafter's
-//! memory claims refused until step 3c verifies them (`PROPOSAL_DRAFT_UNVERIFIABLE`);
-//! `PROPOSAL_ALREADY_OPEN`; the batch caps; a retry that must repeat the drafter's claims; the
-//! feed; drafted documents `agent-inferred`; approve's authorship until step 3c; and no memory
-//! hash in a result's provenance.
+//! evidence, a memory `derivedFrom`, a conflict set and withdrawals; `drafters`; what a listed
+//! drafter's claims are refused with once step 3c verifies them (`verify_drafts.rs` holds each
+//! check of section 3.2); `PROPOSAL_ALREADY_OPEN`; the batch caps; a retry that must repeat the
+//! drafter's claims; the feed; drafted documents `agent-inferred`; approve's authorship from the
+//! memory store (section 8.2); and no memory hash in a result's provenance.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -233,14 +233,14 @@ async fn a_listed_drafters_proposal_carries_the_hosts_attestation() {
     );
 }
 
-// ── Memory claims before step 3c ────────────────────────────────────────────────────────────
+// ── What stays refused ──────────────────────────────────────────────────────────────────────
 
-/// Owner decision 10, attest and verify: until step 3c verifies a drafter's claims against the
-/// memory store, a listed, attested drafter's memory evidence and memory `derivedFrom` are
-/// refused, and so is every other claim section 3.2 verifies, so nothing labelled "verified
-/// against memory at submission" is ever stored unverified.
+/// What a listed drafter cannot have verified is still refused (step 3b, amendment 1, as step 3c
+/// leaves it): content that renders no memory record, and memory evidence on anything but a
+/// create; a claim that cites no memory record is false on its face, so a mismatch. Nothing is
+/// stored, and nothing stored reads "verified against memory at submission".
 #[tokio::test]
-async fn a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified() {
+async fn what_a_listed_drafter_cannot_have_verified_is_still_refused() {
     let fx = fixture(&["curator"], "local").await;
     let base = hash_of(&fx, "handbook/runbook").await;
     let doc = || verify("x", "handbook/runbook", &base);
@@ -280,6 +280,12 @@ async fn a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified(
         "rationale": "A settled fact.",
         "evidence": [{ "kind": "text", "ref": "the drafter's word" }],
     });
+    let update = json!({
+        "idempotency_key": "m9",
+        "change": { "op": "update", "doc": "handbook/runbook", "baseHash": base, "content": "---\ntitle: Rolling back\n---\nNew.\n" },
+        "rationale": "An edit.",
+        "evidence": [{ "kind": "document", "ref": "handbook/runbook", "contentHash": base }],
+    });
     let (result, _) = submit(
         &fx,
         json!([
@@ -290,36 +296,42 @@ async fn a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified(
             promoted,
             promoted_by,
             conflict,
-            create
+            create,
+            update
         ]),
         None,
     )
     .await;
     let batch = data(&result);
-    let claims = [
-        "memory-evidence",
-        "memory-evidence",
-        "derived-from",
-        "candidate",
-        "promotion",
-        "promotion",
-        "conflict-set",
-        "content",
-    ];
-    for (index, claim) in claims.iter().enumerate() {
-        let refused = item(batch, "results", index);
-        assert_eq!(
-            item_code(refused),
+    let expected = [
+        (
             "PROPOSAL_DRAFT_UNVERIFIABLE",
-            "{index}: {result}"
-        );
-        assert_eq!(
-            refused["error"]["details"],
-            json!({ "claim": claim }),
-            "{index}"
-        );
+            json!({ "claim": "memory-evidence" }),
+        ),
+        (
+            "PROPOSAL_DRAFT_UNVERIFIABLE",
+            json!({ "claim": "memory-evidence" }),
+        ),
+        (
+            "PROPOSAL_DRAFT_MISMATCH",
+            json!({ "check": "derived-from" }),
+        ),
+        ("PROPOSAL_DRAFT_MISMATCH", json!({ "check": "candidate" })),
+        ("PROPOSAL_DRAFT_MISMATCH", json!({ "check": "mode" })),
+        ("PROPOSAL_DRAFT_MISMATCH", json!({ "check": "promoted-by" })),
+        (
+            "PROPOSAL_DRAFT_MISMATCH",
+            json!({ "check": "conflict-set" }),
+        ),
+        ("PROPOSAL_DRAFT_UNVERIFIABLE", json!({ "claim": "content" })),
+        ("PROPOSAL_DRAFT_UNVERIFIABLE", json!({ "claim": "content" })),
+    ];
+    for (index, (code, details)) in expected.iter().enumerate() {
+        let refused = item(batch, "results", index);
+        assert_eq!(item_code(refused), *code, "{index}: {result}");
+        assert_eq!(refused["error"]["details"], *details, "{index}");
     }
-    assert_eq!(batch["counts"]["refused"], 8);
+    assert_eq!(batch["counts"]["refused"], 9);
     assert!(stored(&fx).is_empty(), "nothing was stored");
 
     // The same drafter's memory-free draft is accepted beside them, and nothing stored cites
@@ -329,6 +341,16 @@ async fn a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified(
     for body in stored(&fx) {
         assert!(!body.to_string().contains("\"memory\""), "{body}");
         assert_eq!(body["provenance"]["derivedFrom"], Value::Null);
+        let id = body["id"].as_str().unwrap();
+        let preview = fx
+            .cli("knowledge-proposal-preview", json!({ "proposal": id }))
+            .await;
+        let text = data(&preview)["preview"].as_str().unwrap();
+        assert!(!text.contains("verified against memory"), "{text}");
+        assert!(
+            text.contains("checked at submission: it cites no memory record"),
+            "{text}"
+        );
     }
 }
 
@@ -611,9 +633,9 @@ async fn the_feed_reports_decisions_on_the_drafters_own_proposals_after_a_revisi
 // ── Approval of a draft ─────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn a_drafted_document_is_agent_inferred_and_its_runner_approving_is_self_approval() {
-    // The runner, human:local, approving at the terminal: until step 3c reads the sources'
-    // principals from the store, a draft keeps phase 2's rule, so the runner is its author.
+async fn a_drafted_document_is_agent_inferred_and_its_runner_is_not_its_author() {
+    // The runner, human:local, approving at the terminal a drafted deprecate: its authors are its
+    // sources' principals and `promotedBy`, and it has neither (section 8.2), so no exception.
     let fx = fixture(&["curator"], "local").await;
     let base = hash_of(&fx, "handbook/runbook").await;
     let (result, _) = submit(
@@ -626,14 +648,6 @@ async fn a_drafted_document_is_agent_inferred_and_its_runner_approving_is_self_a
         .as_str()
         .unwrap()
         .to_owned();
-    let refused = fx
-        .at_terminal("knowledge-approve", json!({ "proposal": id }))
-        .await;
-    assert_eq!(code(&refused), "PROPOSAL_SELF_APPROVAL", "{refused}");
-
-    // Another person approves it: no exception, a terminal decision, an agent-inferred document.
-    let mut fx = fx;
-    fx.reopen(&drafter::config(&["curator"], "bo"));
     let approved = fx
         .at_terminal("knowledge-approve", json!({ "proposal": id }))
         .await;
@@ -642,7 +656,7 @@ async fn a_drafted_document_is_agent_inferred_and_its_runner_approving_is_self_a
     records::assert_valid("proposal.v2", &body);
     assert_eq!(body["exception"], Value::Null);
     assert_eq!(body["decision"]["channel"], "terminal");
-    assert_eq!(body["decision"]["principal"], "human:bo");
+    assert_eq!(body["decision"]["principal"], "human:local");
     use umbel_store::{DocumentStore, ReaderFilter};
     let document = records::store(&fx, "main")
         .get_document("handbook/runbook", &ReaderFilter::derivation())
@@ -657,4 +671,84 @@ async fn a_drafted_document_is_agent_inferred_and_its_runner_approving_is_self_a
             .to_string()
             .contains("derivedFrom\":[{\"kind\":\"memory")
     );
+}
+
+/// `drafter::config` with the handbook area allowing self-approval.
+fn self_approving(local_id: &str) -> String {
+    drafter::config(&["curator"], local_id).replace(
+        "space = \"main\"\ncollection = \"handbook\"\n",
+        "space = \"main\"\ncollection = \"handbook\"\nallow_self_approval = true\n",
+    )
+}
+
+#[tokio::test]
+async fn approving_a_draft_of_ones_own_memory_is_self_approval_read_from_the_store() {
+    use support::memory::{self as mem, Place, drafted, promoted};
+    let mut fx = fixture(&["curator"], "local").await;
+    mem::write(
+        &fx,
+        vec![
+            mem::entry(
+                1,
+                "human:ada",
+                &["space"],
+                "Staging uses blue-green",
+                "Ada's fact.",
+            ),
+            mem::entry(
+                2,
+                "human:local",
+                &["principal:human:local"],
+                "Rollbacks",
+                "Local's own.",
+            ),
+        ],
+    );
+    let shared = mem::record(&fx, &mem::id(1));
+    let own = mem::record(&fx, &mem::id(2));
+    let (result, _) = submit(
+        &fx,
+        json!([drafted(&[shared], &Place::default()), promoted(&[own])]),
+        None,
+    )
+    .await;
+    let ids: Vec<String> = (0..2)
+        .map(|i| {
+            let one = item(data(&result), "results", i);
+            assert_eq!(one["ok"], true, "{result}");
+            one["proposal"]["id"].as_str().unwrap().to_owned()
+        })
+        .collect();
+
+    // The promoted draft: the approver is its source's principal and its promotedBy.
+    let refused = fx
+        .at_terminal("knowledge-approve", json!({ "proposal": ids[1] }))
+        .await;
+    assert_eq!(code(&refused), "PROPOSAL_SELF_APPROVAL", "{refused}");
+
+    // Ada, whose memory the scheduled draft is, approving it: self-approval, not the runner's.
+    fx.reopen(&drafter::config(&["curator"], "ada"));
+    let refused = fx
+        .at_terminal("knowledge-approve", json!({ "proposal": ids[0] }))
+        .await;
+    assert_eq!(code(&refused), "PROPOSAL_SELF_APPROVAL", "{refused}");
+    fx.reopen(&self_approving("ada"));
+    let approved = fx
+        .at_terminal("knowledge-approve", json!({ "proposal": ids[0] }))
+        .await;
+    assert_eq!(data(&approved)["applied"], true, "{approved}");
+    assert_eq!(
+        records::read(&fx, &ids[0]).body["exception"],
+        "self-approval"
+    );
+
+    // The owner promoting and approving their own record, where the area allows it.
+    fx.reopen(&self_approving("local"));
+    let approved = fx
+        .at_terminal("knowledge-approve", json!({ "proposal": ids[1] }))
+        .await;
+    assert_eq!(data(&approved)["applied"], true, "{approved}");
+    let body = records::read(&fx, &ids[1]).body;
+    assert_eq!(body["exception"], "self-approval");
+    assert_eq!(body["drafter"]["promotedBy"], "human:local");
 }

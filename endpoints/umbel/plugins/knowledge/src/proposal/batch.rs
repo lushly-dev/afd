@@ -7,10 +7,11 @@
 //! for its item. A step attested to an instance `drafters` does not list is
 //! `PROPOSAL_DRAFTER_NOT_ALLOWED` for the whole call. A listed drafter's proposals carry the
 //! host's attestation as their `drafter` and are `agent-inferred`; every claim beyond it is
-//! verified against the memory store and the fixed rendering, and until that verification exists
-//! (step 3c) a claim it would check is refused with `PROPOSAL_DRAFT_UNVERIFIABLE` (step 3b,
-//! amendment 1). A drafted proposal for a document, or a memory source, that already has an open
-//! proposal is `PROPOSAL_ALREADY_OPEN`, alternatives of one conflict set apart.
+//! verified against the memory store (each source read once per batch, under the caller's reader
+//! filter) and the fixed rendering before it is stored ([`super::checks`]): a mismatch is
+//! `PROPOSAL_DRAFT_MISMATCH`, and a claim this instance cannot verify is
+//! `PROPOSAL_DRAFT_UNVERIFIABLE`. A drafted proposal for a document, or a memory source, that
+//! already has an open proposal is `PROPOSAL_ALREADY_OPEN`, alternatives of one conflict set apart.
 //!
 //! Withdrawals run first, then the `erased` notice (the memory records the drafter saw erased,
 //! whose drafts are redacted in every state but applied), so a draft replacing a withdrawn one is
@@ -24,11 +25,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Map, Value, json};
 use umbel_sdk::{Cx, Outcome, PipelineAttestation, WalCheckpoint, failure, success};
 
+use umbel_store::DerivedFrom;
+
 use super::attest;
+use super::checks::{self, Draftable, Member};
 use super::common::{self, Caller};
-use super::model::{Change, Drafter, KIND, MODE_SCHEDULED, Op, Proposal, memory_sources};
+use super::model::{Change, Drafter, KIND, MODE_SCHEDULED, Proposal, memory_sources};
 use super::propose::{self, Drafted, Submitted};
 use super::redact;
+use super::sources::Sources;
 use crate::fail;
 
 /// The most proposals, and the most withdrawals, one batch takes.
@@ -103,33 +108,37 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
     if !erased.is_empty() && attestation.is_none() {
         return Err(redact::unattested());
     }
+    // Each memory source is read once per batch, under the caller's reader filter.
+    let memory = Sources::new(caller);
 
     // Withdrawals first: a draft that replaces a withdrawn one must not find it open.
     let mut withdrawn_results = Vec::with_capacity(withdrawals.len());
     let (mut withdrawn, mut redacted, mut forgotten) = (0usize, 0usize, 0u64);
     for (index, item) in withdrawals.iter().enumerate() {
         let id = item.get("proposal").cloned().unwrap_or(Value::Null);
-        withdrawn_results.push(match redact::withdraw(caller, attestation.as_ref(), item) {
-            Ok(done) => {
-                withdrawn += usize::from(done.withdrawn);
-                redacted += usize::from(done.redacted);
-                forgotten += done.forgotten;
-                json!({
-                    "index": index,
-                    "ok": true,
-                    "withdrawn": done.withdrawn,
-                    "redacted": done.redacted,
-                    "proposal": common::summary(&done.proposal),
-                })
-            }
-            Err(outcome) => refused(index, Some(id), &outcome),
-        });
+        withdrawn_results.push(
+            match redact::withdraw(caller, attestation.as_ref(), &memory, item) {
+                Ok(done) => {
+                    withdrawn += usize::from(done.withdrawn);
+                    redacted += usize::from(done.redacted);
+                    forgotten += done.forgotten;
+                    json!({
+                        "index": index,
+                        "ok": true,
+                        "withdrawn": done.withdrawn,
+                        "redacted": done.redacted,
+                        "proposal": common::summary(&done.proposal),
+                    })
+                }
+                Err(outcome) => refused(index, Some(id), &outcome),
+            },
+        );
     }
 
     // Then the drafts citing an erased source, whatever their state but applied (amendment 12).
     let swept = match &attestation {
         Some(attestation) if !erased.is_empty() => {
-            let swept = redact::sweep(caller, attestation, &erased)?;
+            let swept = redact::sweep(caller, attestation, &memory, &erased)?;
             withdrawn += swept.withdrawn.len();
             redacted += swept.redacted.len();
             forgotten += swept.forgotten;
@@ -145,7 +154,7 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
     let mut results = Vec::with_capacity(proposals.len());
     let (mut created, mut existing) = (0usize, 0usize);
     for (index, item) in proposals.iter().enumerate() {
-        match one(caller, attestation.as_ref(), open.as_ref(), item) {
+        match one(caller, attestation.as_ref(), &memory, open.as_ref(), item) {
             Ok(submitted) => {
                 if submitted.created {
                     created += 1;
@@ -261,6 +270,7 @@ fn refused(index: usize, proposal: Option<Value>, outcome: &Outcome) -> Value {
 fn one(
     caller: &Caller<'_>,
     attestation: Option<&PipelineAttestation>,
+    memory: &Sources<'_, '_>,
     open: Option<&Open>,
     item: &Value,
 ) -> Result<Submitted, Outcome> {
@@ -271,16 +281,13 @@ fn one(
             "Give each item knowledge-propose's fields.",
         ));
     };
-    let claims = Claims::of(fields);
     let (Some(attestation), Some(open)) = (attestation, open) else {
-        if claims.any() {
+        if claims_any(fields) {
             return Err(claims_unattested());
         }
         return propose::submit(caller, item, None);
     };
-    if let Some(claim) = claims.unverifiable(fields) {
-        return Err(unverifiable(claim));
-    }
+    let claims = Claims::parse(fields)?;
     let mut plain: Map<String, Value> = fields.clone();
     for key in DRAFTER_KEYS {
         plain.remove(key);
@@ -290,82 +297,114 @@ fn one(
         instance: attestation.instance.clone(),
         pipeline: attestation.pipeline.clone(),
         run: attestation.run.clone(),
-        mode: MODE_SCHEDULED.to_owned(),
-        candidate: None,
-        promoted_by: None,
+        mode: claims.mode,
+        candidate: claims.candidate,
+        promoted_by: claims.promoted_by,
     };
-    let already_open = |change: &Change, evidence: &[Value]| open.blocks(change, None, evidence);
+    let members = claims
+        .conflict_set
+        .as_deref()
+        .map(|set| open.members(set))
+        .unwrap_or_default();
+    let target = attest::target(caller.cx, &attestation.instance, &caller.space);
+    let draftable = Draftable {
+        caller,
+        attestation,
+        sources: memory,
+        drafter: &drafter,
+        conflict_set: claims.conflict_set.as_deref(),
+        derived_from: claims.derived_from.as_deref(),
+        members: &members,
+        target: target.as_ref(),
+    };
+    let verify = |submission: &propose::Submission| checks::verify(&draftable, submission);
+    let already_open = |change: &Change, conflict_set: Option<&str>, evidence: &[Value]| {
+        open.blocks(change, conflict_set, evidence)
+    };
     propose::submit(
         caller,
         &Value::Object(plain),
         Some(Drafted {
-            drafter,
+            drafter: drafter.clone(),
+            conflict_set: claims.conflict_set.clone(),
+            derived_from: claims.derived_from.clone(),
+            verify: &verify,
             already_open: &already_open,
         }),
     )
 }
 
-/// What an item claims beyond `knowledge-propose`'s fields: what only a drafter may send.
+/// Whether an item claims what only a drafter may: memory evidence, a `derivedFrom`, a
+/// `conflictSet` or a `drafter` object.
+fn claims_any(fields: &Map<String, Value>) -> bool {
+    let present = |key: &str| fields.get(key).is_some_and(|value| !value.is_null());
+    present("derivedFrom")
+        || present("conflictSet")
+        || present("drafter")
+        || fields
+            .get("evidence")
+            .and_then(Value::as_array)
+            .is_some_and(|evidence| !memory_sources(evidence).is_empty())
+}
+
+/// A listed drafter's claims beyond `knowledge-propose`'s fields, in their shapes; section 3.2
+/// verifies what they say ([`checks::verify`]).
 struct Claims {
-    memory_evidence: bool,
-    derived_from: bool,
-    conflict_set: bool,
-    drafter: bool,
+    mode: String,
+    candidate: Option<String>,
+    promoted_by: Option<String>,
+    conflict_set: Option<String>,
+    derived_from: Option<Vec<DerivedFrom>>,
 }
 
 impl Claims {
-    fn of(fields: &Map<String, Value>) -> Self {
-        let present = |key: &str| fields.get(key).is_some_and(|value| !value.is_null());
-        Self {
-            memory_evidence: fields
-                .get("evidence")
-                .and_then(Value::as_array)
-                .is_some_and(|evidence| !memory_sources(evidence).is_empty()),
-            derived_from: present("derivedFrom"),
-            conflict_set: present("conflictSet"),
-            drafter: present("drafter"),
-        }
-    }
-
-    fn any(&self) -> bool {
-        self.memory_evidence || self.derived_from || self.conflict_set || self.drafter
-    }
-
-    /// The first claim of a listed drafter that section 3.2 verifies against the memory store or
-    /// the fixed rendering, which this step cannot yet do (step 3b, amendment 1): memory evidence,
-    /// a memory `derivedFrom`, a candidate, a promotion, a conflict set, and the content of a
-    /// create or an update. A `scheduled` draft with other evidence widens nobody and claims no
-    /// content, so its `mode` is what this plugin computes.
-    fn unverifiable(&self, fields: &Map<String, Value>) -> Option<&'static str> {
-        let drafter = fields.get("drafter").filter(|value| !value.is_null());
-        let claims = |key: &str| {
-            drafter
-                .and_then(|d| d.get(key))
-                .is_some_and(|v| !v.is_null())
+    fn parse(fields: &Map<String, Value>) -> Result<Self, Outcome> {
+        let invalid = |why: &str| {
+            failure(
+                "PROPOSAL_INVALID",
+                &format!("the proposal was refused: {why}"),
+                "Fix the draft; knowledge-propose-batch's input schema lists every field.",
+            )
         };
-        let mode = drafter
-            .and_then(|d| d.get("mode"))
-            .and_then(Value::as_str)
-            .unwrap_or(MODE_SCHEDULED);
-        let op = fields
-            .get("change")
-            .and_then(|change| change.get("op"))
-            .and_then(|op| serde_json::from_value::<Op>(op.clone()).ok());
-        if self.memory_evidence {
-            Some("memory-evidence")
-        } else if self.derived_from {
-            Some("derived-from")
-        } else if claims("candidate") {
-            Some("candidate")
-        } else if mode != MODE_SCHEDULED || claims("promotedBy") {
-            Some("promotion")
-        } else if self.conflict_set {
-            Some("conflict-set")
-        } else if matches!(op, Some(Op::Create | Op::Update)) {
-            Some("content")
-        } else {
-            None
+        let text = |value: Option<&Value>, what: &str| -> Result<Option<String>, Outcome> {
+            match value {
+                None | Some(Value::Null) => Ok(None),
+                Some(Value::String(text)) => Ok(Some(text.clone())),
+                Some(_) => Err(invalid(&format!("{what} is a string"))),
+            }
+        };
+        let drafter = match fields.get("drafter") {
+            None | Some(Value::Null) => Map::new(),
+            Some(Value::Object(map)) => map.clone(),
+            Some(_) => return Err(invalid("drafter is an object")),
+        };
+        if drafter
+            .keys()
+            .any(|key| !matches!(key.as_str(), "mode" | "candidate" | "promotedBy"))
+        {
+            return Err(invalid(
+                "drafter carries only mode, candidate and promotedBy; the host attests the rest",
+            ));
         }
+        let mode =
+            text(drafter.get("mode"), "drafter.mode")?.unwrap_or_else(|| MODE_SCHEDULED.to_owned());
+        if !matches!(mode.as_str(), "scheduled" | "promoted") {
+            return Err(invalid("drafter.mode is scheduled or promoted"));
+        }
+        let derived_from = match fields.get("derivedFrom") {
+            None | Some(Value::Null) => None,
+            Some(value) => Some(
+                serde_json::from_value::<Vec<DerivedFrom>>(value.clone())
+                    .map_err(|_| invalid("derivedFrom is a list of { kind, id, contentHash }"))?,
+            ),
+        };
+        Ok(Self {
+            mode,
+            candidate: text(drafter.get("candidate"), "drafter.candidate")?,
+            promoted_by: text(drafter.get("promotedBy"), "drafter.promotedBy")?,
+            conflict_set: text(fields.get("conflictSet"), "conflictSet")?,
+            derived_from,
+        })
     }
 }
 
@@ -378,24 +417,14 @@ fn claims_unattested() -> Outcome {
     )
 }
 
-/// `PROPOSAL_DRAFT_UNVERIFIABLE` (step 3b, amendment 1): a listed drafter's claim that this
-/// instance cannot yet verify, so it stores nothing labelled as verified. `details.claim` names
-/// the claim, never the content.
-fn unverifiable(claim: &str) -> Outcome {
-    failure(
-        "PROPOSAL_DRAFT_UNVERIFIABLE",
-        "the drafter's claim cannot be verified against the memory store and the fixed rendering by this knowledge instance, so the draft is not stored",
-        "Submit memory-derived drafts once knowledge verifies them (phase 4 step 3c); verify and deprecate drafts citing document, url, text or record evidence are accepted now.",
-    )
-    .with_error_details(json!({ "claim": claim }))
-}
-
 /// The open proposals the caller can read, by document and by cited memory source, for
 /// `PROPOSAL_ALREADY_OPEN`.
 struct Open {
     /// Each document's open proposals' conflict sets (`None` for a proposal in none).
     docs: BTreeMap<String, Vec<Option<String>>>,
     sources: BTreeSet<String>,
+    /// Each conflict set's open members.
+    sets: BTreeMap<String, Vec<Member>>,
 }
 
 impl Open {
@@ -403,6 +432,7 @@ impl Open {
         let mut open = Self {
             docs: BTreeMap::new(),
             sources: BTreeSet::new(),
+            sets: BTreeMap::new(),
         };
         let mut after: Option<String> = None;
         loop {
@@ -431,6 +461,17 @@ impl Open {
             .or_default()
             .push(proposal.conflict_set.clone());
         self.sources.extend(proposal.memory_sources());
+        if let Some(set) = &proposal.conflict_set {
+            self.sets
+                .entry(set.clone())
+                .or_default()
+                .push(Member::of(proposal));
+        }
+    }
+
+    /// The open members of the conflict set `set`.
+    fn members(&self, set: &str) -> Vec<Member> {
+        self.sets.get(set).cloned().unwrap_or_default()
     }
 
     /// Whether a draft of `change` in `conflict_set`, citing `evidence`, is blocked: its document

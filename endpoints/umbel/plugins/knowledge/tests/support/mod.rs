@@ -14,6 +14,7 @@ use umbel::{Host, HostBuilder};
 
 pub mod drafter;
 pub mod eval;
+pub mod memory;
 pub mod records;
 
 /// Spaces `main` (collections `handbook`, `code`) and `beta` (`notes`); the group `platform` with
