@@ -10,7 +10,7 @@ from afd.testing import assert_error, assert_success
 
 from botcore.commands.skill._discovery import DiscoveredSkill, discover_available_skills
 from botcore.commands.skill.frontmatter import read_skill_manifest
-from botcore.commands.skill.renames import SKILL_RENAMES, resolve_rename
+from botcore.commands.skill.renames import RETIRED_SKILLS, SKILL_RENAMES, resolve_rename
 from botcore.commands.skill.seed import skill_seed
 
 
@@ -558,17 +558,17 @@ async def test_seed_migrates_include_filtered_new_name(tmp_path: Path) -> None:
     )
     skills_dir = ws / ".claude" / "skills"
     _make_source_skill(skills_dir, "manage-documentation", "1.0.0", source="botcore")
-    _make_source_skill(skills_dir, "manage-git", "1.0.0", source="botcore")
+    _make_source_skill(skills_dir, "review-code", "1.0.0", source="botcore")
 
     source_dir = tmp_path / "source"
     _make_source_skill(source_dir, "docs-manager", "2.0.0")
-    _make_source_skill(source_dir, "git-manager", "2.0.0")
+    _make_source_skill(source_dir, "code-reviewer", "2.0.0")
 
-    result = await _seed(ws, _discovered(source_dir, "docs-manager", "git-manager"))
+    result = await _seed(ws, _discovered(source_dir, "docs-manager", "code-reviewer"))
 
     data = assert_success(result)
     assert data["migrated"] == [{"from": "manage-documentation", "to": "docs-manager"}]
-    assert (skills_dir / "manage-git").exists()
+    assert (skills_dir / "review-code").exists()
 
 
 async def test_seed_migration_unlinks_symlinked_old_skill(tmp_path: Path) -> None:
@@ -589,3 +589,171 @@ async def test_seed_migration_unlinks_symlinked_old_skill(tmp_path: Path) -> Non
     assert not (skills_dir / "manage-documentation").exists()
     assert (shared / "SKILL.md").exists()
     assert (skills_dir / "docs-manager").exists()
+
+
+# ── Retired skills (no replacement) ─────────────────────────────────────────
+
+
+def test_retired_skills_are_neither_bundled_nor_renamed() -> None:
+    """A retired name is not shipped, not a rename source and not a rename target."""
+    bundled = discover_available_skills()
+
+    assert not RETIRED_SKILLS & set(bundled)
+    assert not RETIRED_SKILLS & set(SKILL_RENAMES)
+    assert not RETIRED_SKILLS & set(SKILL_RENAMES.values())
+    assert {"commit", "do-commit", "write-tests", "accessibility-learn"} <= RETIRED_SKILLS
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+async def test_seed_removes_botcore_owned_retired_skills(tmp_path: Path, dry_run: bool) -> None:
+    """Managed copies of retired skills, under current or earlier names, are removed."""
+    ws = _setup_workspace(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname = 'test'\nversion = '0.1.0'"
+        "\n\n[tool.botcore.skills]\nagent_skills = true\n",
+        encoding="utf-8",
+    )
+    skills_dir = ws / ".claude" / "skills"
+    agent_dir = ws / ".agent" / "skills"
+    for base in (skills_dir, agent_dir):
+        _make_source_skill(base, "git-manager", "1.0.0", source="botcore")
+        _make_source_skill(base, "write-tests", "0.3.5", source="botcore")
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"), dry_run=dry_run)
+
+    data = assert_success(result)
+    assert data["retired"] == ["git-manager", "write-tests"]
+    assert data["retired_locally_owned"] == []
+    for base in (skills_dir, agent_dir):
+        for name in ("git-manager", "write-tests"):
+            assert (base / name).exists() is dry_run
+
+
+@pytest.mark.parametrize("owner", [None, "local"])
+async def test_seed_keeps_locally_owned_retired_skill(tmp_path: Path, owner: str | None) -> None:
+    """A retired skill botcore doesn't own is left in place and reported."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    kept = _make_source_skill(skills_dir, "do-commit", "0.3.5", source=owner)
+    original = (kept / "SKILL.md").read_text(encoding="utf-8")
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"), update=True)
+
+    data = assert_success(result)
+    assert data["retired"] == []
+    [entry] = data["retired_locally_owned"]
+    assert entry["name"] == "do-commit"
+    assert entry["owner"] == owner
+    if owner is None:
+        assert "delete .claude/skills/do-commit" in entry["suggestion"]
+        assert "skill_adopt('do-commit')" in entry["suggestion"]
+    else:
+        # Another owner's skill is never offered for deletion.
+        assert "delete" not in entry["suggestion"].lower()
+        assert f"source: {owner}" in entry["suggestion"]
+    assert (kept / "SKILL.md").read_text(encoding="utf-8") == original
+
+
+async def test_seed_keeps_retired_name_another_source_ships(tmp_path: Path) -> None:
+    """A name botcore retired but a plugin still ships belongs to that plugin."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    _make_source_skill(skills_dir, "git-manager", "1.0.0", source="botcore")
+
+    plugin_dir = tmp_path / "plugin"
+    _make_source_skill(plugin_dir, "git-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(plugin_dir, "git-manager", source="my-plugin"))
+
+    data = assert_success(result)
+    assert data["retired"] == []
+    assert data["retired_locally_owned"] == []
+    assert (skills_dir / "git-manager").exists()
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "skip = ['git-manager']",
+        "include = ['git-manager', 'docs-manager']",
+        "include = ['docs-manager']",
+    ],
+)
+async def test_seed_keeps_retired_skill_the_config_names(tmp_path: Path, config: str) -> None:
+    """A skip, or any include list, keeps seed from removing a botcore-owned retired copy."""
+    ws = _setup_workspace(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        f"[project]\nname = 'test'\nversion = '0.1.0'\n\n[tool.botcore.skills]\n{config}\n",
+        encoding="utf-8",
+    )
+    skills_dir = ws / ".claude" / "skills"
+    _make_source_skill(skills_dir, "git-manager", "1.0.0", source="botcore")
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"))
+
+    data = assert_success(result)
+    assert data["retired"] == []
+    [entry] = data["retired_locally_owned"]
+    assert entry["owner"] == "botcore"
+    assert "include/skip keeps skill-seed" in entry["suggestion"]
+    assert (skills_dir / "git-manager").exists()
+
+
+async def test_seed_unlinks_symlinked_retired_skill(tmp_path: Path) -> None:
+    """A symlinked retired skill loses only the link; the shared target is untouched."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    skills_dir.mkdir(parents=True)
+    shared = _make_source_skill(tmp_path / "shared", "write-tests", source="botcore")
+    (skills_dir / "write-tests").symlink_to(shared, target_is_directory=True)
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"))
+
+    assert assert_success(result)["retired"] == ["write-tests"]
+    assert not (skills_dir / "write-tests").exists()
+    assert (shared / "SKILL.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("config", "dry_run", "removed"),
+    [
+        ("", False, True),
+        ("", True, False),
+        ("skip = ['write-tests']", False, False),
+        ("include = ['docs-manager']", False, False),
+    ],
+)
+async def test_seed_stale_retired_mirror(
+    tmp_path: Path, config: str, dry_run: bool, removed: bool
+) -> None:
+    """A managed retired mirror goes even without its primary, unless config or dry run keeps it."""
+    ws = _setup_workspace(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname = 'test'\nversion = '0.1.0'"
+        f"\n\n[tool.botcore.skills]\nagent_skills = true\n{config}\n",
+        encoding="utf-8",
+    )
+    agent_dir = ws / ".agent" / "skills"
+    _make_source_skill(agent_dir, "write-tests", "0.3.5", source="botcore")
+    _make_source_skill(agent_dir, "manage-git", "0.3.5")  # unowned mirror: left alone
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"), dry_run=dry_run)
+
+    assert assert_success(result)["retired"] == []
+    assert (agent_dir / "write-tests").exists() is not removed
+    assert (agent_dir / "manage-git").exists()

@@ -5,7 +5,7 @@ description: >
   Run a documentation update pass across CHANGELOG, AGENTS.md, README.md,
   and skill files. Ensures docs reflect current code state with proper
   changelog formatting, semver alignment, and version-tag consistency.
-  Standalone skill — invoke directly, not only as part of commit.
+  Standalone skill — invoke directly, not only when committing.
 version: "1.0.0"
 triggers:
   - do documentation update
@@ -24,7 +24,7 @@ user-invocable: true
 
 Run a documentation update pass — CHANGELOG, AGENTS.md, README.md, skill files.
 
-This skill is standalone. Invoke it directly whenever code changes need documentation, not only as part of `commit`. Agents should run this after any feature, fix, refactor, or structural change.
+This skill is standalone. Invoke it directly whenever code changes need documentation, not only when committing. Agents should run this after any feature, fix, refactor, or structural change.
 
 ## Bot Commands
 

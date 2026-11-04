@@ -55,7 +55,7 @@ graph TB
     BC --> C["📁 Repo C"]
 
     P["🔌 Plugins"] --> BC
-    S["📚 54 Skills"] --> BC
+    S["📚 12 Skills"] --> BC
     CMD["⚡ 38+ Commands"] --> BC
 
     style BC fill:#16213e,stroke:#22c55e,stroke-width:2px,color:#eee
@@ -127,7 +127,7 @@ Adding a command to botcore or a plugin automatically makes it available — no 
 graph LR
     Core["⚡ Core Commands<br/><em>38 built-in</em>"]
     Plugins["🔌 Plugins<br/><em>entry-point discovery</em>"]
-    Skills["📚 Skills<br/><em>54 bundled</em>"]
+    Skills["📚 Skills<br/><em>12 bundled</em>"]
 
     Core --> NS["🔀 Namespace Merge"]
     Plugins --> NS
@@ -167,25 +167,18 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | **Research** | `research_query`, `research_stream` | GPT web research with streamed output |
 | **Undo** | `undo_status`, `undo_clear` | Command history and rollback |
 
-### Bundled Skills (54)
+### Bundled Skills (12)
 
-Skills are markdown knowledge packs that give agents domain expertise. botcore bundles 54 universal skills, organized by category:
+Skills are markdown knowledge packs for agents. botcore bundles only skills whose content is
+specific to botcore or its ecosystem; general engineering guidance that current models already
+know was retired. `skill_seed` removes botcore-managed copies of retired skills and reports
+locally owned ones.
 
 | Category | Skills |
 |----------|--------|
-| **Architecture** | `architect-systems`, `design-apis`, `model-data` |
-| **Quality** | `audit-security`, `audit-licenses`, `code-standards-learn`, `code-reviewer`, `find-duplicates` |
-| **Testing** | `test-writer`, `component-tester`, `build-stories` |
-| **Development** | `problem-solver`, `refactoring-learn`, `handle-errors`, `manage-concurrency`, `optimize-performance` |
-| **AI & Agents** | `integrate-llms`, `build-mcp-servers`, `create-prompts`, `create-personas`, `manage-commands` |
-| **Infrastructure** | `deploy-infrastructure`, `manage-dependencies`, `dev-environment-learn`, `implement-observability` |
-| **Frontend** | `implement-designs`, `explore-css`, `accessibility-learn`, `manage-state`, `manage-feature-flags` |
-| **Content** | `humanize-content`, `design-content`, `implement-i18n`, `implement-caching` |
-| **Workflow** | `commit`, `pr`, `release`, `review`, `hotfix` |
-| **Documentation** | `docs-manager`, `spec-writer`, `commit-writer`, `skill-manager` |
-| **Migration** | `migration-learn`, `authentication-learn`, `research` |
-| **Project** | `git-manager`, `manage-projects` |
-| **botcore** | `plugin-builder`, `botcore-config`, `dev-checks`, `browser-automation` |
+| **botcore** | `agent-config`, `botcore-config`, `browser-automation`, `mcp-builder`, `plugin-builder` |
+| **Review and security** | `code-reviewer`, `review`, `security-auditor` |
+| **Documentation** | `content-humanizer`, `docs-manager`, `docs-update`, `skill-manager` |
 
 ## Plugin System
 
@@ -320,7 +313,7 @@ result = await client.call("skill_seed", {"update": True})
 ### Manage Skills
 
 ```bash
-# Copy all 54 bundled skills into .claude/skills/
+# Copy the 12 bundled skills into .claude/skills/
 botcore skill-seed
 
 # Check for version drift
@@ -355,7 +348,7 @@ ruff check src/ --fix
 - [x] Command extraction (38+ commands across 8 domains)
 - [x] CDP browser automation (28 commands)
 - [x] Skill registry (seed, lint, track, adopt, index)
-- [x] 54 bundled universal skills
+- [x] 12 bundled skills
 - [x] MCP server factory (meta-tool pattern)
 - [x] Multi-language dispatch (Python, TypeScript, Rust)
 - [x] Skill ownership tiers (botcore, plugin, local)

@@ -58,12 +58,16 @@ Injects `source:` frontmatter for ownership tracking.
 Skills installed under a retired name (e.g. `manage-documentation`, renamed to
 `docs-manager` in 0.4.0) are migrated when `source: botcore`; otherwise they are
 left in place, listed in `renamed_locally_owned`, and the new name is not seeded.
+Skills botcore retired (`RETIRED_SKILLS`) are removed when `source: botcore`, no
+`include` list is set and `skip` doesn't name them; other copies are kept and listed
+in `retired_locally_owned`. Both lists are in the result as `retired` and
+`retired_locally_owned`.
 - `update`: Also update stale skills (default: only new)
 - `dry_run`: Preview changes without writing
 
 ## skill_status(plugin_dirs=None)
 Detect version drift between installed and available skills.
-Reports: ok, stale, missing, unmanaged, conflict, renamed.
+Reports: ok, stale, missing, unmanaged, conflict, renamed, retired.
 
 ## skill_lint(path=None, strict=False)
 Run 15 quality rules (SK001-SK015) on skill files.

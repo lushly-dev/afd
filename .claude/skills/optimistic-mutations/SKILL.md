@@ -77,7 +77,6 @@ If you need implementation details for these pieces, also load:
 
 - `afd-developer` for CommandResult and error conventions
 - `afd-directclient` for client execution patterns
-- `manage-state` for local/store/query trade-offs
 
 ## Standard Flow
 

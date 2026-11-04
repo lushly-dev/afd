@@ -331,3 +331,31 @@ async def test_status_renamed_when_new_name_excluded(tmp_path: Path) -> None:
     assert old["status"] == "renamed"
     assert "excludes" in old["suggestion"]
     assert "Run skill-seed" not in old["suggestion"]
+
+
+@pytest.mark.parametrize(
+    ("owner", "hint"),
+    [
+        ("botcore", "run skill-seed to remove"),
+        (None, "skill_adopt('manage-git')"),
+        ("afd", "No action is needed"),
+    ],
+)
+async def test_status_retired(tmp_path: Path, owner: str | None, hint: str) -> None:
+    """A local skill botcore retired shows 'retired', not 'unmanaged'."""
+    ws = _setup_workspace(tmp_path)
+    _make_skill(ws / ".claude" / "skills", "manage-git", "0.3.5", source=owner)
+
+    with (
+        patch("botcore.commands.skill.status.find_workspace", return_value=ws),
+        patch("botcore.commands.skill.status.discover_available_skills", return_value={}),
+    ):
+        result = await skill_status()
+
+    data = assert_success(result)
+    [entry] = data["skills"]
+    assert entry["status"] == "retired"
+    assert entry["source"] == owner
+    assert hint in entry["suggestion"]
+    assert data["summary"]["retired"] == 1
+    assert data["summary"]["unmanaged"] == 0

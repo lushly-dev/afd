@@ -14,8 +14,14 @@ from botcore.commands.skill._discovery import (
     filter_skills,
 )
 from botcore.commands.skill.frontmatter import read_skill_manifest, set_frontmatter_source
-from botcore.commands.skill.renames import locally_owned_rename_suggestion, resolve_rename
-from botcore.config import load_config
+from botcore.commands.skill.renames import (
+    RETIRED_SKILLS,
+    locally_owned_rename_suggestion,
+    resolve_rename,
+    retired_suggestion,
+    seed_manages_retired,
+)
+from botcore.config import SkillsConfig, load_config
 from botcore.utils.workspace import find_workspace
 
 logger = logging.getLogger(__name__)
@@ -36,12 +42,15 @@ async def skill_seed(
        - source: botcore → remove it (migrated; the new name is seeded below)
        - no source: or different → leave it, report it, and don't seed the
          new name alongside it (that would duplicate the skill)
-    5. For each skill:
+    5. For each local skill botcore retired that no source still ships:
+       - source: botcore, no include list and not skipped → remove it (retired)
+       - otherwise → leave it and report it (retired_locally_owned)
+    6. For each skill:
        - Not present locally → copy tree, inject source: in frontmatter
        - Present, matching source: → overwrite if update=True, skip otherwise
        - Present, no source: or different → skip (log warning)
-    6. If agent_skills=True, mirror to .agent/skills/
-    7. Return summary
+    7. If agent_skills=True, mirror to .agent/skills/
+    8. Return summary
     """
     ws = find_workspace()
     if not ws:
@@ -69,6 +78,9 @@ async def skill_seed(
 
     migrated, renamed_locally_owned = _migrate_renamed_skills(
         local, candidates, available, skills_config.source_dir, dry_run
+    )
+    retired, retired_locally_owned = _remove_retired_skills(
+        local, available, skills_config, dry_run
     )
     # new name -> locally owned old name still occupying it
     blocked_by_rename = {e["renamed_to"]: e["name"] for e in renamed_locally_owned}
@@ -112,7 +124,13 @@ async def skill_seed(
     if skills_config.agent_skills and not dry_run:
         agent_dir = ws / ".agent" / "skills"
         agent_dir.mkdir(parents=True, exist_ok=True)
-        _remove_botcore_owned(agent_dir, [m["from"] for m in migrated])
+        # Retired mirrors go even when the primary copy is already gone.
+        stale = [
+            name
+            for name in sorted(RETIRED_SKILLS - set(available))
+            if seed_manages_retired(name, skills_config.include, skills_config.skip)
+        ]
+        _remove_botcore_owned(agent_dir, [m["from"] for m in migrated] + stale)
         for name in seeded + updated:
             src = skills_dir / name
             dst = agent_dir / name
@@ -129,6 +147,8 @@ async def skill_seed(
             "skipped": skipped,
             "migrated": migrated,
             "renamed_locally_owned": renamed_locally_owned,
+            "retired": retired,
+            "retired_locally_owned": retired_locally_owned,
             "agent_mirrored": agent_mirrored,
             "dry_run": dry_run,
         }
@@ -179,6 +199,47 @@ def _migrate_renamed_skills(
             )
 
     return migrated, renamed_locally_owned
+
+
+def _remove_retired_skills(
+    local: dict,
+    available: dict,
+    skills_config: SkillsConfig,
+    dry_run: bool,
+) -> tuple[list[str], list[dict]]:
+    """Remove botcore-owned copies of retired skills; report the ones seed must keep.
+
+    A name some source still ships is not retired there, so it is left alone; see
+    seed_manages_retired for how include/skip keep a retired name.
+
+    Returns:
+        (retired, retired_locally_owned)
+    """
+    retired: list[str] = []
+    retired_locally_owned: list[dict] = []
+
+    for name, (path, manifest) in sorted(local.items()):
+        if name not in RETIRED_SKILLS or name in available:
+            continue
+
+        owner = manifest.source if manifest else None
+        managed = seed_manages_retired(name, skills_config.include, skills_config.skip)
+        if owner == "botcore" and managed:
+            if not dry_run:
+                _remove_skill_dir(path)
+            retired.append(name)
+        else:
+            retired_locally_owned.append(
+                {
+                    "name": name,
+                    "owner": owner,
+                    "suggestion": retired_suggestion(
+                        name, skills_config.source_dir, owner, managed
+                    ),
+                }
+            )
+
+    return retired, retired_locally_owned
 
 
 def _remove_botcore_owned(skills_dir: Path, names: list[str]) -> None:
