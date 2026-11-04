@@ -6,7 +6,8 @@
  * holds them, each record's scope among them.
  */
 
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import {
@@ -14,8 +15,9 @@ import {
 	createFixturePorts,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import { type Browser, chromium, type Page } from 'playwright';
+import { type Browser, chromium, type Frame, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { bundlePage } from '../bundle';
 import {
 	APPS,
 	agentCall,
@@ -24,6 +26,7 @@ import {
 	deploymentFile,
 	journal,
 	kernelCall,
+	openApp,
 	openShell,
 	packApp,
 	serveDeployment,
@@ -35,6 +38,91 @@ import { PERSON, runScopeSession, scopedCall } from './session-scope';
 let browser: Browser;
 let site: DeploymentSite;
 let viewSite: DeploymentSite;
+/** A test-only view whose handlers say what scope each call ran in, and make a nested query (E7). */
+let scopedSite: DeploymentSite;
+let scratch: string;
+
+const VIEW_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Scoped</title></head>
+<body><main><h1>Scoped</h1></main><script>
+addEventListener('message', (event) => {
+	if (event.source === parent && !event.data.method && event.data.id === 1) {
+		parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
+	}
+});
+parent.postMessage({ jsonrpc: '2.0', id: 1, method: 'ui/initialize', params: {
+	protocolVersion: '2026-01-26', appInfo: { name: 'scoped', version: '0.1.0' }, appCapabilities: {},
+} }, '*');
+</script></body></html>`;
+
+async function scopedViewPackage(): Promise<string> {
+	const directory = join(scratch, 'scoped');
+	await mkdir(directory, { recursive: true });
+	const command = (name: string) => ({
+		name,
+		title: name,
+		description: `The scope ${name} ran in.`,
+		effects: ['inspect'],
+		input_schema: { type: 'object', properties: {}, additionalProperties: false },
+	});
+	await writeFile(
+		join(directory, 'app-manifest.json'),
+		JSON.stringify({
+			manifest_version: 2,
+			protocol: 1,
+			afd_contract: '1.0',
+			plugin: {
+				id: 'scoped',
+				title: 'Scoped',
+				version: '0.1.0',
+				description: 'A view that says what scope its calls ran in.',
+				kind: 'view',
+				domains: ['scoped'],
+				license: 'MIT',
+			},
+			app: { scope_levels: ['workspace', 'project'] },
+			view: { handlers: 'handlers.html' },
+			commands: [command('scoped-where'), command('scoped-nested')],
+			ui: {
+				resources: [{ uri: 'ui://scoped/main', path: 'main.html' }],
+				surfaces: { main: { resource: 'ui://scoped/main' } },
+			},
+		})
+	);
+	const script = (await bundlePage('scope-handlers')).replaceAll('</script', '<\\/script');
+	await writeFile(
+		join(directory, 'handlers.html'),
+		`<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Handlers</title></head><body><script>${script}</script></body></html>`
+	);
+	await writeFile(join(directory, 'main.html'), VIEW_PAGE);
+	return directory;
+}
+
+/** The view's own frame, inside the proxy's in main. */
+async function viewFrame(page: Page): Promise<Frame> {
+	const element = await page.locator('loam-view-frame iframe').elementHandle();
+	const outer = await element?.contentFrame();
+	if (!outer) throw new Error('No outer frame');
+	await expect.poll(() => outer.childFrames().length).toBe(1);
+	return outer.childFrames()[0] as Frame;
+}
+
+/** A `tools/call` as code in the view sends it, by hand, with whatever `_meta` it likes. */
+function viewCall(frame: Frame, params: unknown) {
+	return frame.evaluate(
+		(params) =>
+			new Promise<{ result?: { structuredContent?: { data?: unknown } } }>((resolve) => {
+				const id = `e7-${Math.random()}`;
+				const listen = (event: MessageEvent) => {
+					if (event.data?.id !== id) return;
+					removeEventListener('message', listen);
+					resolve(event.data);
+				};
+				addEventListener('message', listen);
+				parent.postMessage({ jsonrpc: '2.0', id, method: 'tools/call', params }, '*');
+			}),
+		params
+	);
+}
 
 beforeAll(async () => {
 	browser = await chromium.launch();
@@ -49,11 +137,18 @@ beforeAll(async () => {
 		config: deploymentFile(deploymentEntry('hello', await packApp('hello', 'view'))),
 		sandbox: true,
 	});
-});
+	scratch = await mkdtemp(join(tmpdir(), 'loam-e7-'));
+	scopedSite = await serveDeployment({
+		config: deploymentFile(deploymentEntry('scoped', await scopedViewPackage())),
+		sandbox: true,
+	});
+}, 120_000);
 afterAll(async () => {
 	await site?.close();
 	await viewSite?.close();
+	await scopedSite?.close();
 	await browser?.close();
+	if (scratch) await rm(scratch, { recursive: true, force: true });
 });
 
 const entriesOf = (page: Page) =>
@@ -293,10 +388,16 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			expect(entry).toMatchObject({ command: 'tasks-complete', success: false, interface: iface });
 			expect(entry?.error?.code).toBe('SCOPE_MISMATCH');
 		}
-		// Only in a project the actor may not enter: it reaches the handler as a missing key, naming nothing.
-		const hidden = await agentCall(page, 'tasks-complete', { task: 't-2' });
-		expect(hidden).toMatchObject({ success: false, error: { code: 'TASK_NOT_FOUND' } });
-		expect(JSON.stringify(hidden)).not.toMatch(/vault/i);
+		// Only in a project the actor may not enter: it reaches the handler as a missing key, naming nothing,
+		// through both interfaces.
+		for (const call of [
+			() => kernelCall(page, 'tasks-complete', { task: 't-2' }),
+			() => agentCall(page, 'tasks-complete', { task: 't-2' }),
+		]) {
+			const hidden = await call();
+			expect(hidden).toMatchObject({ success: false, error: { code: 'TASK_NOT_FOUND' } });
+			expect(JSON.stringify(hidden)).not.toMatch(/vault/i);
+		}
 		expect(
 			(await journal(page)).findLast(({ command }) => command === 'tasks-complete')?.error?.code
 		).toBe('TASK_NOT_FOUND');
@@ -323,7 +424,74 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 		expect(JSON.stringify((restricted as { error: unknown }).error)).toBe(
 			JSON.stringify((missing as { error: unknown }).error)
 		);
+		// And through kernel.agent, with the journal read after.
+		const agentScoped = (scope: unknown) =>
+			page.evaluate(
+				({ scope }) =>
+					(
+						document.querySelector('loam-shell') as unknown as {
+							kernel: { agent: { call(n: string, i: unknown, o: unknown): Promise<unknown> } };
+						}
+					).kernel.agent.call('tasks-list', {}, { scope }),
+				{ scope }
+			);
+		const agentRestricted = await agentScoped({ workspace: 'personal', project: vaultId });
+		const agentMissing = await agentScoped({ workspace: 'personal', project: 'prj_nowhere00' });
+		expect(JSON.stringify((agentRestricted as { error: unknown }).error)).toBe(
+			JSON.stringify((agentMissing as { error: unknown }).error)
+		);
+		expect((agentRestricted as { error: { code: string } }).error.code).toBe('PROJECT_NOT_FOUND');
+		const refusals = (await journal(page)).filter(
+			({ command, error }) => command === 'tasks-list' && error?.code === 'PROJECT_NOT_FOUND'
+		);
+		expect(refusals.map((entry) => entry.interface)).toEqual([
+			'palette',
+			'palette',
+			'agent',
+			'agent',
+		]);
 		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 60_000);
+
+	it("P2-E7: a view's own `_meta` scope is ignored, and a nested query keeps the outer scope, through the frame and kernel.agent", async () => {
+		const opened = await openShell(browser, scopedSite.root);
+		const { page } = opened;
+		const atlas = (
+			(await kernelCall(page, 'project-create', { name: 'Atlas' })) as { data: { id: string } }
+		).data.id;
+		const beacon = (
+			(await kernelCall(page, 'project-create', { name: 'Beacon' })) as { data: { id: string } }
+		).data.id;
+		const inAtlas = { workspace: 'personal', project: atlas };
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await openApp(page, 'scoped');
+		const frame = await viewFrame(page);
+		// The view names Beacon in `_meta`: ignored, its surface's scope is Atlas (3.2).
+		const asked = await viewCall(frame, {
+			name: 'scoped-where',
+			arguments: {},
+			_meta: { 'dev.loam/scope': { workspace: 'personal', project: beacon } },
+		});
+		expect(asked.result?.structuredContent?.data).toEqual({ scope: inAtlas });
+		const where = (await journal(page)).findLast(({ command }) => command === 'scoped-where');
+		expect(where?.context?.scope).toEqual(inAtlas);
+		// A nested query keeps the outer call's scope, from the frame and from an agent.
+		const nested = await viewCall(frame, { name: 'scoped-nested', arguments: {} });
+		expect(nested.result?.structuredContent?.data).toEqual({ outer: inAtlas, nested: inAtlas });
+		const fromAgent = (await agentCall(page, 'scoped-nested')) as { data: unknown };
+		expect(fromAgent.data).toEqual({ outer: inAtlas, nested: inAtlas });
+		const entries = await journal(page);
+		const outer = entries.findLast(({ command }) => command === 'scoped-nested');
+		expect(outer).toMatchObject({ interface: 'agent', context: { scope: inAtlas } });
+		const inner = entries.filter(
+			({ command, context }) => command === 'scoped-where' && context?.parent !== undefined
+		);
+		expect(inner.length).toBeGreaterThanOrEqual(2);
+		for (const entry of inner) expect(entry.context?.scope).toEqual(inAtlas);
+		expect(opened.violations.filter((violation) => !violation.includes('frame-ancestors'))).toEqual(
+			[]
+		);
 		await opened.context.close();
 	}, 60_000);
 

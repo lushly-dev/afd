@@ -52,9 +52,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * the kernel's summary rows that `project-summary-get` loads on its first call, 41,358 of 45,000, its first
  * estimate kept as the measurement is above 70% of it; and raised `appsMinified` by 833, to 379,826, for
  * `ui.project_summary`'s rule in the one validator, measured as the closure with it less without it (379,007
- * less 378,174), approved by the coordinator, 2026-11-03. First paint 285,436 and 88,008 gzip, with
- * `vite.config.ts`'s `events` group keeping the preload helper in first paint's `events` chunk; the kernel
- * alone 111,273, `late` 50,933, `url-sync` 4,347. Step 9 leaves
+ * less 378,174 on step 6's base), approved by the coordinator, 2026-11-03. On step 8's base: first paint
+ * 285,404 and 88,000 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
+ * `events` chunk; the kernel alone 111,238, `late` 51,893, `url-sync` 4,347, `apps` 379,806 (20 left).
+ * Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
