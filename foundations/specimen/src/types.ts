@@ -220,6 +220,12 @@ export interface BenchConfig {
 		workers?: number;
 		/** A retained story's deadline, as Vitest's `testTimeout`. Defaults to 15,000 ms, as Vitest's. */
 		timeoutMs?: number;
+		/**
+		 * Check each run story a second time once it has settled, after the check Storybook's
+		 * timing gives it: its elements defined, fonts loaded and two frames drawn. A violation
+		 * there fails the story, as `settled-a11y`. Off by default, so runs agree with Storybook.
+		 */
+		settledAccessibility?: boolean;
 	};
 	/** Recorded performance baselines, relative to the configuration and inside the root. */
 	profile?: { baselines?: string };
@@ -854,8 +860,11 @@ export interface StoryOutcome {
 	/** `excluded`: no test exists for the story under the include and exclude tags. */
 	status: 'passed' | 'failed' | 'skipped' | 'excluded';
 	play: 'ran' | 'none';
-	failures: { category: 'render' | 'play' | 'a11y'; message: string }[];
+	failures: { category: 'render' | 'play' | 'a11y' | 'settled-a11y'; message: string }[];
+	/** The check at Storybook's timing: after the play, before the next frame. */
 	a11y: AxeOutcome;
+	/** The settled check, under the same policy, when `test.settledAccessibility` asks for it. */
+	settled?: AxeOutcome;
 }
 export interface BrowserRuntime {
 	/**
@@ -885,8 +894,15 @@ export interface BrowserRuntime {
 	expect(expectation: Expectation, element?: Element): Promise<void>;
 	/** What a profile reads from the page at its checkpoint. */
 	profileMetrics(): Promise<Record<string, number | null>>;
-	/** Render a retained story, then run its play and accessibility check, with no task between. */
-	mountAndRun(entry: SpecimenEntry, context: SpecimenContext): Promise<StoryOutcome>;
+	/**
+	 * Render a retained story, then run its play and accessibility check, with no task between;
+	 * `settled` checks it again once it has settled.
+	 */
+	mountAndRun(
+		entry: SpecimenEntry,
+		context: SpecimenContext,
+		options?: { settled?: boolean }
+	): Promise<StoryOutcome>;
 	/** Resolve an entry without rendering it: args, context and the component's enriched schema. */
 	inspect(
 		entry: SpecimenEntry,

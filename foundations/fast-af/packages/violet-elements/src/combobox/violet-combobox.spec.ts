@@ -211,7 +211,7 @@ describe("violet-combobox", () => {
             await nextFrame();
 
             expect(disabled.getAttribute("aria-disabled")).toBe("true");
-            expect(getOption(combobox, "coop").getAttribute("aria-disabled")).toBe("false");
+            expect(getOption(combobox, "coop").hasAttribute("aria-disabled")).toBe(false);
         });
 
         it("falls back to the placeholder and then a generic name for the listbox label", async () => {

@@ -58,7 +58,8 @@ describe("violet-option", () => {
         expect(option.getAttribute("role")).toBe("option");
         expect(option.id).toBe(option.optionId);
         expect(option.getAttribute("aria-selected")).toBe("false");
-        expect(option.getAttribute("aria-disabled")).toBe("false");
+        // Unset, so a disabled listbox's aria-disabled reaches it.
+        expect(option.hasAttribute("aria-disabled")).toBe(false);
     });
 
     it("keeps an author-provided id", async () => {
@@ -151,7 +152,7 @@ describe("violet-option", () => {
 
         option.disabled = false;
         await nextFrame();
-        expect(option.getAttribute("aria-disabled")).toBe("false");
+        expect(option.hasAttribute("aria-disabled")).toBe(false);
     });
 
     it("treats a disabled group as disabled", async () => {

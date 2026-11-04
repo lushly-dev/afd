@@ -231,6 +231,9 @@ pub struct RenderRequest {
     /// Run an accessibility check at the checkpoint, as `specimen-a11y` asks.
     #[serde(default)]
     pub accessibility: bool,
+    /// Check a retained story's run again once it has settled (`test.settledAccessibility`).
+    #[serde(default)]
+    pub settled: bool,
     /// Measure the page at the checkpoint, as `specimen-profile` asks.
     #[serde(default)]
     pub profile: bool,
@@ -568,8 +571,8 @@ impl Browser {
             if request.checkpoint == "after-run" {
                 attempt.enter(RUN_PHASE);
                 let expression = format!(
-                    "window.__specimen.mountAndRun({}, {})",
-                    request.entry, context
+                    "window.__specimen.mountAndRun({}, {}, {{ settled: {} }})",
+                    request.entry, context, request.settled
                 );
                 let run = page.evaluate(&expression);
                 outcome = Some(match input.as_mut() {

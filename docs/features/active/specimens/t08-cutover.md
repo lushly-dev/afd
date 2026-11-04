@@ -16,7 +16,8 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 | Normal consumer gates, with no root Storybook | FAST-AF: [done here](#afds-fast-af-stories). Lushly: not started | Lushly's repository |
 | Rollback checkpoints | FAST-AF: [recorded](#rollback-for-afds-stories). Lushly: not started | Lushly's, at its cutover |
 | Legacy Fluent exceptions | None here: those components were not imported. Lushly: not started | Lushly's |
-| Human review of the index | All 407 links verified on AFD's stories; no person has reviewed it yet | **Owner** |
+| Human review of the index | All 407 links verified on AFD's stories. The owner reviewed the page on 2026-11-04: "Index looks good, nice and simple" | Done |
+| Settled accessibility check | [Added](#the-settled-accessibility-check), and on for AFD's stories, which pass it | Done here. Lushly's one story is Lushly's |
 | Distribution | Marked as a preview in the docs. All Specimen units stay quarantined, and the FAST-AF plugin stays private | **Owner**: Lushly cannot install it until this changes |
 
 ## The rehearsal
@@ -73,7 +74,8 @@ Made on 2026-11-02, in answer to this record's first version.
 | Human review of the index | The owner reviews it when ready | On AFD's own stories, once they run here |
 | Publishing (2026-11-02) | A prerelease of the core and CLI, after the review of the index | Lifting quarantine, a named publisher and release admission stay the owner's. The prebuilt hosts it needs are packaged (G13) |
 | The FAST-AF plugin's distribution (2026-11-02) | Publish it with Specimen | It stops being private for the prerelease, so Lushly can install it |
-| A settled accessibility check (2026-11-02) | Add it and fix the 3 stories | Kept separate from the check that matches Storybook's timing, which T06's agreement evidence uses |
+| A settled accessibility check (2026-11-02) | Add it and fix the 3 stories | [Done](#the-settled-accessibility-check), kept separate from the check that matches Storybook's timing, which T06's agreement evidence uses |
+| The index (2026-11-04) | "Index looks good, nice and simple" | Reviewed, after the page was styled at the owner's request on 2026-11-03 |
 
 ## Native helpers and types
 
@@ -145,6 +147,19 @@ The [`Disabled` story that disabled nothing](t07-coverage.md#finding-a-disabled-
 
 **Fixing the story found a real bug in the component.** A disabled calendar disabled only its 2 navigation buttons. Its 42 day buttons stayed enabled and focusable, doing nothing when pressed, and the whole calendar was dimmed, which failed axe's contrast check. `violet-calendar` now passes its `disabled` state into the grid, so every day button is really disabled, and the dimming on the root is gone, since disabled buttons already dim themselves. A spec covers disabling and re-enabling. An accessibility exception would have hidden this.
 
+### The settled accessibility check
+
+The owner decided on 2026-11-02 to add a check that sees a story after it has settled, kept apart from the one that matches Storybook's timing. `test: { settledAccessibility: true }` in a configuration turns it on. After the usual check, a run waits until the story's elements are defined, its fonts are loaded and two frames are drawn, then checks again under the same policy. The run reports both, as `a11y` and `settled`, and a violation in the second fails the story as `settled-a11y`. With it on, `specimen-a11y` and a capture report the settled check. It is off by default, so T06's agreement holds; a qualifying pair compares Storybook's timing and runs with it off.
+
+`compat/settled/` proves the difference in `src/compat-run.test.ts`. Its story dims its text one frame after rendering. Storybook and Specimen's default check both pass it, and the settled check fails it at `color-contrast`. A second story dims the same way but marks itself `aria-disabled`, and passes, as WCAG exempts inactive controls.
+
+AFD's configuration turns it on, so `pnpm test:stories` and the `stories` job run it on all 407 stories. Of the 3 failures T06 found, 2 are AFD's, and both were in the components rather than the stories:
+
+- **A disabled listbox told assistive technology its options were enabled.** Each option set `aria-disabled="false"`, which overrides the listbox's own `aria-disabled="true"`, for a screen reader as for axe. An option now states `aria-disabled` only when it is disabled itself, so a disabled listbox's state reaches every option. The option's and combobox's specs and the option's story now expect no attribute on an enabled option, and a listbox spec covers it.
+- **A disabled switch dimmed its supporting text to 3.17:1.** That text usually says why the control is unavailable, as the story's does, so it should stay readable. A disabled switch now dims its control and label and leaves its supporting text alone. The checkbox and radio dimmed theirs the same way and passed only because axe saw it as a disabled control's label; they follow the same rule now. A switch spec checks the opacities.
+
+All 407 stories pass both checks. The third failure, Lushly's settings surface at 3.03:1, is in Lushly's repository, and the check finds it when Lushly turns the setting on ([lushly#2116](https://github.com/lushly-dev/lushly/issues/2116)).
+
 ### Qualifying pairs
 
 `experiments/run-afd-pairs.mjs` compares the two runners on AFD's exact stories and components. AFD has no Storybook, so that side is an overlay outside the repository: upstream's Storybook configuration and dependencies, with AFD's `src`, tokens, manifest and built packages over them, and Storybook's helpers restored in each story. Specimen's side is AFD's own configuration. So the two sides share no helper code.
@@ -169,8 +184,7 @@ Reverting [#717](https://github.com/lushly-dev/afd/pull/717) (`7b26afb4`) takes 
 
 - **Lushly's move:** [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) has the steps, including what the codemod cannot reach, and Lushly's own qualifying pairs.
 - **For the owner, publishing.** That issue is blocked until the packages can be installed, which means lifting quarantine and giving the FAST-AF plugin a supported distribution if Lushly needs it.
-- **For the owner, the review of the index.**
-- **For the owner, from T06:** because of that timing, AFD's gate cannot see this contrast problem on disabled text, in this story or in the listbox's two. [Whether to offer a settled check](STATUS.md) is still open.
+- **For the owner, a named publisher** for the prerelease, and approval of the release itself.
 - **A follow-up, since the extra CPU is accepted only for now:** measure full suites under T04's policy, and profile where the per-story time goes.
 
 T09 to T11 are optional additions and are not prerequisites for cutover.

@@ -34,7 +34,7 @@ The fast-element build rewrites its API reports when the public API changes, as 
 
 ## Stories
 
-Every component has its stories in `src/`, and they run on [Specimen](../specimen/README.md), not Storybook. `pnpm test:stories` typechecks them, runs each one with its accessibility check, applies the story contract, and builds the review page within its budgets. [`specimen.yml`](../../.github/workflows/specimen.yml) runs the same check.
+Every component has its stories in `src/`, and they run on [Specimen](../specimen/README.md), not Storybook. `pnpm test:stories` typechecks them, runs each one with its accessibility check at Storybook's timing and again once it has settled (`test.settledAccessibility` in `specimen.config.json`), applies the story contract, and builds the review page within its budgets. [`specimen.yml`](../../.github/workflows/specimen.yml) runs the same check.
 
 Upstream's Storybook configuration and Fastbot stayed upstream. `specimen.config.json` and `specimen/preview.ts` hold what its preview gave every story, and `specimen contract` does what Fastbot's story rules did, on evidence from a run. So a story named `Disabled` has to render the component disabled.
 
