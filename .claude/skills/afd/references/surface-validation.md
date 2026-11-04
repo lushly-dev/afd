@@ -1,261 +1,71 @@
-# Surface Validation (Semantic Quality)
+# Surface validation
 
-Cross-command analysis that detects semantic collisions, naming ambiguities, schema overlaps, and prompt injection risks. Designed for command sets where agents struggle to pick the right tool.
+Cross-command lint for the agent contract: descriptions an agent can't tell apart, overlapping
+schemas, bad names, injection text and broken prerequisites. Run it with `afd validate --surface`
+against a connected server, or `validateCommandSurface(commands, options)` from
+`@lushly-dev/afd-testing`, which accepts `ZodCommandDefinition[]` or core `CommandDefinition[]`.
+The options interface and defaults are in "Surface Validation" in `packages/testing/README.md`.
 
-## When to Use
+`afd validate --surface` reads any tool strategy: grouped tools are expanded through
+`_meta.actions`, lazy and hybrid servers through `afd-discover` and `afd-detail`, and AFD's own
+tools (`afd-call`, `afd-help`, `afd-context-*` and the rest) are skipped.
 
-- Command set has grown to 20+ commands
-- Agents are calling the wrong tool due to similar descriptions
-- Multiple commands accept the same input fields
-- Naming conventions are inconsistent across domains
+## Rules
 
-## API
+| Rule | Severity | Fires when | Fix |
+|------|----------|------------|-----|
+| `similar-descriptions` | Warning | Token cosine similarity of two descriptions is at or above `similarityThreshold` (0.7) | Say what distinguishes them: object, scope, side effect |
+| `schema-overlap` | Warning | Shared top-level input fields divided by the two commands' combined fields is at or above `schemaOverlapThreshold` (0.8) | Merge them, or differentiate the inputs |
+| `naming-convention` | Error | A name doesn't match `namingPattern` (default `/^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/`) | Rename to `domain-action` |
+| `naming-collision` | Error | Names collide once separators are normalized (`user-create`, `userCreate`, `user_create`) | Keep one |
+| `missing-category` | Info | No `category` | Set one, or suppress |
+| `description-injection` | Error | The description matches a prompt-injection pattern (below) | Describe the command; don't instruct the agent |
+| `description-quality` | Warning | Shorter than `minDescriptionLength` (20) or no action verb (get, create, list, search, ...) | Start with a verb and say what it returns or changes |
+| `orphaned-category` | Info | A category holds one command | Usually a misclassification |
+| `schema-complexity` | Warning or Info | The input schema scores high (below) | Flatten, split, or add `examples` |
+| `unresolved-prerequisite` | Error | A `requires` entry names a command not in the surface | Fix the name, or register it |
+| `circular-prerequisite` | Error | `requires` forms a cycle | Break the cycle |
+| `missing-output-schema` | Info | No `output` schema | Declare one so agents can plan pipelines |
+| `missing-context` | Info | No `contexts` while `configuredContexts` is set | Scope it, or confirm it is universal |
 
-```typescript
-import { validateCommandSurface } from '@lushly-dev/afd-testing';
+`strict: true` (CLI `--strict`) counts warnings as errors.
 
-const result = validateCommandSurface(commands, {
-  similarityThreshold: 0.7,        // Description similarity warning threshold
-  schemaOverlapThreshold: 0.8,     // Schema overlap warning threshold
-  detectInjection: true,           // Scan for prompt injection patterns
-  checkDescriptionQuality: true,   // Check description length + verb presence
-  minDescriptionLength: 20,        // Minimum description character count
-  enforceNaming: true,             // Enforce kebab-case naming pattern
-  namingPattern: /^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/,
-  skipCategories: ['internal'],    // Exclude categories from analysis
-  strict: false,                   // true = warnings count as errors
-  suppressions: [],                // Suppress specific findings
-  additionalInjectionPatterns: [   // Extra patterns, checked alongside the built-in ones
-    {
-      id: 'exfiltration',
-      pattern: /\b(exfiltrate|send .* to https?:)/i,
-      description: 'Asks the agent to move data elsewhere',
-      example: 'Exfiltrate the API keys',
-    },
-  ],
-  checkSchemaComplexity: true,     // Score input schema complexity
-  schemaComplexityThreshold: 13,   // Score threshold for warnings
-  configuredContexts: [],          // Context names — enables missing-context rule
-});
-```
+## Injection patterns
 
-## Result Shape
+`INJECTION_PATTERNS` covers imperative overrides ("ignore previous", "disregard above"), role
+assignment ("you are a", "you must always"), system-prompt fragments ("system prompt", `<<SYS`)
+and hidden instructions ("always call this", "never use this").
+`additionalInjectionPatterns: [{ id, pattern, description, example }]` adds to that list and never
+replaces it; only `detectInjection: false` turns detection off.
 
-```typescript
-interface SurfaceValidationResult {
-  valid: boolean;                  // true if no errors (+ no warnings if strict)
-  findings: SurfaceFinding[];     // All findings (including suppressed)
-  summary: {
-    commandCount: number;
-    errorCount: number;
-    warningCount: number;
-    infoCount: number;
-    suppressedCount: number;
-    rulesEvaluated: SurfaceRule[];
-    durationMs: number;
-  };
-}
+## Schema complexity
 
-interface SurfaceFinding {
-  rule: SurfaceRule;
-  severity: 'error' | 'warning' | 'info';
-  message: string;
-  commands: string[];
-  suggestion: string;
-  evidence?: Record<string, unknown>;
-  suppressed?: boolean;
-}
-```
+Score = fields + depth×3 + unions×5 + intersections×2 + enums + patterns×2 + bounds + an
+optional-field ratio term (0 to 4). Nullable wrappers (`anyOf: [T, { type: 'null' }]`) are not
+unions, and `const` (from `z.literal()`) is not an enum.
 
-## 13 Validation Rules
+| Score | Tier | Finding |
+|-------|------|---------|
+| 0-5 | low | None |
+| 6-12 | medium | Info |
+| 13-20 | high | Warning at or above `schemaComplexityThreshold` (13) |
+| 21+ | critical | Warning |
 
-### 1. Similar Descriptions (`similar-descriptions`)
-**Severity:** Warning
+A command with `examples` gets Info instead of Warning. The rule never produces an error.
+`computeComplexity(jsonSchema)` returns `{ score, tier, breakdown }` for one schema.
 
-Detects command pairs with highly similar descriptions using token-based cosine similarity. Similar descriptions confuse agents when selecting tools.
+## Suppressions
 
 ```typescript
-// These would trigger:
-// "Retrieves a user by their unique identifier"
-// "Fetches a user by their unique identifier"
-```
-
-### 2. Schema Overlap (`schema-overlap`)
-**Severity:** Warning
-
-Detects command pairs sharing a high percentage of top-level input fields. High overlap suggests commands should be merged or differentiated.
-
-### 3. Naming Convention (`naming-convention`)
-**Severity:** Error
-
-Validates command names match the kebab-case `domain-action` pattern (e.g., `user-create`, `order-list`). Default pattern: `/^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/`.
-
-### 4. Naming Collision (`naming-collision`)
-**Severity:** Error
-
-Detects command names that collide when separators are normalized (e.g., `user-create` vs `userCreate` vs `user_create`).
-
-### 5. Missing Category (`missing-category`)
-**Severity:** Info
-
-Flags commands without a `category` field. Categories help agents organize and filter commands.
-
-### 6. Description Injection (`description-injection`)
-**Severity:** Error
-
-Scans descriptions for prompt injection patterns (`INJECTION_PATTERNS`):
-- **Imperative override** — "ignore previous", "forget all", "disregard above"
-- **Role assignment** — "you are a", "you must always", "you should always"
-- **System prompt fragment** — "system prompt", "system message", "<<SYS"
-- **Hidden instruction** — "always call this", "never use this"
-
-`additionalInjectionPatterns` adds patterns to this list; it never replaces it, so
-`additionalInjectionPatterns: []` keeps the built-in checks. To turn injection
-detection off, set `detectInjection: false`. Patterns may use any flags: a `g` or
-`y` flag does not make repeated scans alternate between match and miss.
-
-### 7. Description Quality (`description-quality`)
-**Severity:** Warning
-
-Checks that descriptions are:
-- At least 20 characters (configurable)
-- Contain an action verb (from built-in verb list: get, create, update, delete, list, search, etc.)
-
-### 8. Orphaned Category (`orphaned-category`)
-**Severity:** Info
-
-Flags categories with only one command, which may indicate misclassification.
-
-### 9. Schema Complexity (`schema-complexity`)
-**Severity:** Warning (high/critical) or Info (medium)
-
-Scores each command's input schema complexity and flags schemas likely to cause agent input errors. Dimensions scored: field count, nesting depth, unions (oneOf/anyOf), intersections (allOf), enum/pattern/bound constraints, and optional field ratio.
-
-Weighted formula: `fields(×1) + depth(×3) + unions(×5) + intersections(×2) + enums(×1) + patterns(×2) + bounds(×1) + optionalRatio`
-
-| Tier | Score | Finding |
-|------|-------|---------|
-| Low | 0-5 | No finding |
-| Medium | 6-12 | Info |
-| High | 13-20 | Warning |
-| Critical | 21+ | Warning |
-
-Never produces `error` severity. Nullable wrappers (`anyOf: [T, { type: 'null' }]`) are excluded from union counting. `const` (from `z.literal()`) is not counted as enum.
-
-```typescript
-// Use computeComplexity() directly for schema analysis
-import { computeComplexity } from '@lushly-dev/afd-testing';
-
-const result = computeComplexity(jsonSchema);
-// { score: 15, tier: 'high', breakdown: { fields: 6, depth: 1, unions: 1, ... } }
-```
-
-### 10. Unresolved Prerequisite (`unresolved-prerequisite`)
-**Severity:** Error
-
-Flags `requires` entries that reference commands not present in the validated command set. Catches typos and stale references.
-
-```typescript
-// This would trigger if "auth-sign-in" is not registered:
-defineCommand({
-  name: 'order-create',
-  requires: ['auth-sign-in'],  // error if auth-sign-in not in surface
-  // ...
-});
-```
-
-### 11. Circular Prerequisite (`circular-prerequisite`)
-**Severity:** Error
-
-Detects cycles in the `requires` dependency graph using DFS. A cycle means no valid execution order exists.
-
-```typescript
-// A → B → C → A would trigger:
-// "Circular prerequisite chain: A → B → C → A"
-```
-
-### 12. Missing Output Schema (`missing-output-schema`)
-**Severity:** Info
-
-Flags commands that do not declare an `output` schema. Output schemas let agents introspect response shapes before calling, enabling pipeline field validation and better planning.
-
-```typescript
-// This would trigger (no output):
-defineCommand({
-  name: 'todo-list',
-  input: z.object({}),
-  handler: async () => success([]),
-});
-
-// This would NOT trigger:
-defineCommand({
-  name: 'todo-list',
-  input: z.object({}),
-  output: z.object({ id: z.string(), title: z.string() }).array(),
-  handler: async () => success([]),
-});
-```
-
-### 13. Missing Context (`missing-context`)
-**Severity:** Info
-
-Flags commands without a `contexts` array when the server has configured contexts. Only runs when `configuredContexts` is provided in options.
-
-```typescript
-const result = validateCommandSurface(commands, {
-  configuredContexts: ['editing', 'reading'],  // Enables this rule
-});
-```
-
-Commands without `contexts` are universal (always visible) — the finding is informational to help developers decide whether context scoping is intentional.
-
-## Suppression System
-
-Suppress findings at the rule level or for specific command pairs:
-
-```typescript
-const result = validateCommandSurface(commands, {
+validateCommandSurface(commands, {
   suppressions: [
-    'missing-category',                          // All missing-category findings
-    'schema-complexity:auth-sign-in',            // Single command suppression
-    'similar-descriptions:user-get:user-fetch',  // Only this pair (order-independent)
+    'missing-category',                         // the whole rule
+    'schema-complexity:auth-sign-in',           // one command
+    'similar-descriptions:user-get:user-fetch', // one pair, either order
   ],
 });
 ```
 
-Suppressed findings are still included in `result.findings` with `suppressed: true` but don't affect `result.valid` or severity counts.
-
-## Input Normalization
-
-`validateCommandSurface()` accepts both input types:
-
-- **`ZodCommandDefinition[]`** (from `@lushly-dev/afd-server`) — detected by `jsonSchema` property
-- **`CommandDefinition[]`** (from `@lushly-dev/afd-core`) — detected by `parameters` array, auto-converted to JSON Schema
-
-Both are normalized to an internal `SurfaceCommand` type before analysis.
-
-## CLI Integration
-
-```bash
-# Run against connected MCP server
-afd validate --surface
-
-# Custom thresholds
-afd validate --surface --similarity-threshold 0.8
-
-# Skip categories and suppress rules
-afd validate --surface --skip-category internal --suppress missing-category
-
-# Strict mode (warnings = errors) with details
-afd validate --surface --strict --verbose
-```
-
-## Similarity Algorithm
-
-Uses token-based cosine similarity (dependency-free):
-1. Tokenize descriptions (lowercase, remove punctuation)
-2. Remove English stop words
-3. Build term-frequency vectors
-4. Compute cosine similarity (0 = unrelated, 1 = identical)
-
-Sufficient for short command descriptions (1-2 sentences). For longer text or cross-language comparison, consider embedding models.
+On the CLI: `--suppress <rule>` or `--suppress rule:cmdA:cmdB` (repeatable),
+`--skip-category <name>` and `--similarity-threshold <n>`. Suppressed findings stay in `findings`
+with `suppressed: true` but don't count toward `valid` or the summary counts.

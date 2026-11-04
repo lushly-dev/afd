@@ -1,551 +1,86 @@
-# MCP Integration
+# MCP integration: what an agent sees
 
-Setting up Model Context Protocol servers and clients.
+How an AFD server presents commands over MCP, in every language. The rules are in
+[`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) (lists, routing, contexts),
+[`spec/command-metadata.md`](../../../../spec/command-metadata.md) (`_meta`, confirmations,
+approvals) and [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md) (MCP eras).
+Writing a TypeScript server (`createMcpServer`, `createMcpHandler`, transports, options): the
+afd-typescript skill and `packages/server/README.md`.
 
-## Server Setup
+## Exposure
 
-### Basic Server
+Only commands with `expose: { mcp: true }` are listed or callable over MCP, on every path:
+`tools/list`, the meta-tools, grouped tools and the HTTP routes. A private command answers
+`COMMAND_NOT_FOUND`, the same as an unknown name, so an agent cannot learn it exists.
 
-```typescript
-import { createMcpServer } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
+## Tool strategies
 
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-});
+| Strategy | TypeScript and Rust `tools/list` |
+|----------|----------------------------------|
+| `grouped` | `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`, then one tool per group (`category`, else the first name segment) |
+| `individual` | `afd-batch`, `afd-pipe`, `afd-call`, then one tool per command |
+| `lazy` | The five meta-tools only; agents run `afd-discover` → `afd-detail` → `afd-call` |
+| `hybrid` | The five meta-tools, the context tools when contexts are set, then 1 to 8 `firstClassTools`; the list never varies by context |
 
-await server.start();
-console.log(`MCP server running at ${server.getUrl()}`);
-```
+The default is `grouped` in TypeScript and Rust and `individual` in Python, and Python also lists
+`afd-discover` and `afd-detail` under `individual` and `grouped`. Every strategy routes all five
+meta-tools, and any exposed command by its own name, whether or not it is listed.
 
-### Embeddable Node Handler
+A grouped tool takes `{ action, params }` (`todo-create` is group `todo`, action `create`). Its
+`_meta.actions` carries each action's command name, description, input schema and per-command
+`_meta`. Small groups (at most 8,192 characters of schemas, no `$ref`) also inline the schemas
+as `params.anyOf`, never at the top level, because some hosts reject top-level `anyOf`.
 
-```typescript
-import { createServer } from 'node:http';
-import { createMcpHandler } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
+## Meta-tool behaviour
 
-const handler = createMcpHandler({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  host: '127.0.0.1',
-  port: 3100,
-});
+- An unknown name, by any route, is `COMMAND_NOT_FOUND`, suggesting at most three close matches the
+  caller can call and ending "Use afd-discover to list all commands."
+- Invalid `afd-call`, `afd-discover` or `afd-detail` arguments are `VALIDATION_ERROR` with
+  `details.errors`; a `null` argument counts as omitted. Invalid `afd-batch` and `afd-pipe`
+  envelopes are `INVALID_BATCH_REQUEST` and `INVALID_PIPELINE_REQUEST`.
+- `afd-pipe` step inputs reference `$prev`, `$first`, `$steps[n]`, `$steps.alias` and `$input`,
+  optionally with a path (`$prev.items[0].id`). An unresolved reference is omitted. See
+  [`spec/pipeline-variables.md`](../../../../spec/pipeline-variables.md).
 
-createServer((req, res) => {
-  void handler(req, res);
-}).listen(3100, '127.0.0.1');
-```
+## Tool `_meta`
 
-Use `createMcpServer()` when AFD should own the server lifecycle. Use `createMcpHandler()` when your Node host or platform owns the HTTP server lifecycle and needs an embeddable handler.
+A command's tool (or its `_meta.actions` entry when grouped) reports the planning fields it sets:
+`category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `contexts`
+and `outputSchema`. Unset fields and empty arrays are omitted. `confirmPrompt` is display text, so
+it is in `afd-detail`, not `_meta`.
 
-### With Middleware
-
-```typescript
-import {
-  createMcpServer,
-  defaultMiddleware,
-  createRateLimitMiddleware,
-} from '@lushly-dev/afd-server';
-
-// Recommended: use defaultMiddleware() for zero-config observability
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  middleware: [
-    ...defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
-    createRateLimitMiddleware({
-      maxRequests: 100,
-      windowMs: 60000
-    }),
-  ],
-});
-```
-
-### Server Endpoints
-
-The server exposes these endpoints:
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/mcp` | POST | MCP Streamable HTTP: MCP 2026-07-28 statelessly, and 2025 clients that send `initialize` |
-| `/health` | GET | Health check |
-| `/sse` | GET | Deprecated: the 2024-11-05 HTTP+SSE transport (removed in 3.0) |
-| `/message` | POST | Deprecated: JSON-RPC endpoint of the `/sse` transport |
-| `/rpc` | POST | Simple JSON-RPC for browser clients |
-| `/batch` | POST | Batch command execution |
-| `/stream/:command` | POST | SSE chunks from one command, input in the JSON body |
-| `/stream/:command?input=...` | GET | Legacy form with JSON input in the query (not for `mutation: true` commands; input capped like a POST body) |
-
-`/stream` is not incremental: the handler runs to completion, then its result is sent as chunks (one `data` chunk per array item, or one for any other value, then `complete`).
-
-## Client Setup
-
-### Streamable HTTP (Default)
-
-```typescript
-import { McpClient } from '@lushly-dev/afd-client';
-
-// A URL that does not end in /sse uses the streamable-http transport (official MCP SDK client):
-// MCP 2026-07-28 when the server offers it, else the 2025 initialize handshake.
-const client = new McpClient({ url: 'http://localhost:3100/mcp', protocolMode: 'auto' });
-await client.connect();
-
-// List available tools
-const tools = await client.listTools();
-console.log(tools);
-
-// Call a tool
-const result = await client.call('todo-create', { 
-  title: 'Test',
-  priority: 'high' 
-});
-```
-
-### SSE Transport (Deprecated)
-
-```typescript
-import { McpClient } from '@lushly-dev/afd-client';
-
-// The AFD server's 2024-11-05 /sse + /message lane; removed in 3.0.
-const client = new McpClient({ url: 'http://localhost:3100/sse', transport: 'sse' });
-await client.connect();
-```
-
-### Connection Management
-
-```typescript
-const client = new McpClient();
-
-// Check connection status
-console.log(client.state); // 'disconnected' | 'connecting' | 'connected'
-
-// Connect
-await client.connect(transport);
-
-// Disconnect
-await client.disconnect();
-
-// Reconnect
-await client.reconnect();
-```
-
-## MCP Protocol Basics
-
-### Request Format
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "todo-create",
-    "arguments": {
-      "title": "Test todo",
-      "priority": "high"
-    }
-  }
-}
-```
-
-### Response Format
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"success\":true,\"data\":{...}}"
-      }
-    ]
-  }
-}
-```
-
-### Error Response
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32600,
-    "message": "Invalid request"
-  }
-}
-```
-
-## Registering Commands
-
-### Export Pattern
-
-```typescript
-// commands/create.ts — every remotely callable command opts in to MCP exposure
-export const createTodo = defineCommand({ ..., expose: { mcp: true } });
-
-// commands/list.ts
-export const listTodos = defineCommand({ ..., expose: { mcp: true } });
-
-// commands/index.ts
-import { createTodo } from './create.js';
-import { listTodos } from './list.js';
-import { getTodo } from './get.js';
-// ... other imports
-
-export { createTodo, listTodos, getTodo, /* ... */ };
-
-export const allCommands = [
-  createTodo,
-  listTodos,
-  getTodo,
-  // ... all commands
-];
-```
-
-### Server Registration
-
-```typescript
-import { allCommands } from './commands/index.js';
-
-const server = createMcpServer({
-  name: 'todo-app',
-  version: '1.0.0',
-  commands: allCommands,
-  bootstrap: true, // optional: afd-help, afd-docs, afd-schema
-});
-```
-
-Command names must be unique. Server creation throws on duplicates and on names the server
-handles itself: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`; the
-bootstrap names with `bootstrap: true`; the `afd-context-*` names with `contexts`.
-
-### Bootstrap Tools
-
-`bootstrap: true` registers three MCP-exposed onboarding tools. They describe only the
-MCP-exposed commands visible in the active context (built-ins included):
+## Bootstrap tools
 
 | Tool | Input | Returns |
 |------|-------|---------|
-| `afd-help` | `{ filter?, format?: 'brief' \| 'full' }` | Commands with `requires`, grouped by category |
-| `afd-docs` | `{ command? }` | Markdown documentation |
-| `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas; `typescript` adds generated `<Command>Input` types |
+| `afd-help` | `{ filter?, format?: 'brief' \| 'full' }` | Commands by category; `filter` matches tags, category or name |
+| `afd-docs` | `{ command? }` | Markdown documentation generated from the definitions |
+| `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas, or TypeScript input types too |
 
-## Middleware
+TypeScript registers them with `bootstrap: true`, Rust with `register_bootstrap_commands`, and
+Python always. They describe only the exposed commands available in the active context.
 
-### Default Middleware (Recommended)
+## Contexts
 
-```typescript
-import { defaultMiddleware } from '@lushly-dev/afd-server';
+A command that declares `contexts` is available only while one of them is active; with none
+active, everything is. A call outside its context is `COMMAND_NOT_IN_CONTEXT`.
 
-// Zero-config: trace IDs, logging, slow-command warnings
-middleware: defaultMiddleware()
+- **MCP 2026-07-28** has no session. The active context is request input,
+  `_meta["dev.afd/context"]` on `tools/list` and `tools/call`; `afd-context-enter` and
+  `afd-context-exit` validate the name, store nothing and return `persisted: false`.
+- **2025 clients** keep a stack per connection (stdio `initialize`, or each `Mcp-Session-Id` on
+  the deprecated `/message` lane); enter and exit without a session are `SESSION_REQUIRED`. A stack
+  holds at most 16 contexts.
 
-// Selective disable
-middleware: defaultMiddleware({ timing: false })
+## TypeScript HTTP endpoints
 
-// Custom options + compose with additional middleware
-middleware: [
-  ...defaultMiddleware({ timing: { slowThreshold: 500 } }),
-  createRateLimitMiddleware({ maxRequests: 100, windowMs: 60000 }),
-]
-```
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /mcp` | MCP Streamable HTTP: 2026-07-28 statelessly, and 2025 clients that send `initialize` |
+| `POST /rpc` | Simple JSON-RPC for browser clients |
+| `POST /batch` | Batch execution |
+| `POST /stream/:name` | SSE chunks, produced after the handler finishes (not incremental) |
+| `GET /health` | Health check |
+| `GET /sse`, `POST /message` | Deprecated 2024-11-05 transport, removed in 3.0 |
 
-### Logging Middleware
-
-```typescript
-import { createLoggingMiddleware } from '@lushly-dev/afd-server';
-
-const logging = createLoggingMiddleware({
-  log: console.log,
-  logInput: false,   // Don't log sensitive input
-  logResult: false,
-});
-```
-
-### Timing Middleware
-
-```typescript
-import { createTimingMiddleware } from '@lushly-dev/afd-server';
-
-const timing = createTimingMiddleware({
-  slowThreshold: 1000,  // Warn if > 1s
-  onSlow: (name, ms) => console.warn(`Slow: ${name} (${ms}ms)`),
-});
-```
-
-### Rate Limiting
-
-Without `keyFn`, every client shares one budget. Identify callers with the server's `createContext(req)` option and key on that value (never on `traceId`, which is unique per call):
-
-```typescript
-import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
-
-// createMcpServer({ ..., createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }) })
-const rateLimit = createRateLimitMiddleware({
-  maxRequests: 100,
-  windowMs: 60000,  // 1 minute, per client
-  keyFn: (context) => String(context.clientId ?? 'unknown'),
-});
-```
-
-### Custom Middleware
-
-```typescript
-import { type CommandMiddleware, failure } from '@lushly-dev/afd-server';
-
-const authMiddleware: CommandMiddleware = async (
-  commandName,
-  input,
-  context,
-  next
-) => {
-  // Check auth (set context.userId with the server's createContext(req) option)
-  if (!context.userId) {
-    return failure({ code: 'UNAUTHORIZED', message: 'Sign in first', suggestion: 'Send credentials' });
-  }
-  
-  // Call next middleware/handler
-  return next();
-};
-```
-
-## CORS Configuration
-
-For browser clients, configure CORS:
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  cors: {
-    origin: ['http://localhost:5173'],
-    methods: ['GET', 'POST', 'OPTIONS'],
-    headers: ['Content-Type'],
-  },
-});
-```
-
-## Health Checks
-
-The server provides a `/health` endpoint:
-
-```bash
-curl http://localhost:3100/health
-# {"status":"ok","name":"my-app","version":"1.0.0"}
-```
-
-## Integration with FAST Element
-
-```typescript
-import { FASTElement, customElement, observable } from '@microsoft/fast-element';
-import { McpClient } from '@lushly-dev/afd-client';
-
-@customElement({ name: 'app-root' })
-export class AppRoot extends FASTElement {
-  private client = new McpClient({ url: 'http://localhost:3100/mcp' });
-  @observable connected = false;
-  
-  async connectedCallback() {
-    super.connectedCallback();
-    await this.client.connect();
-    this.connected = true;
-  }
-  
-  async createTodo(title: string) {
-    const result = await this.client.call('todo-create', { title });
-    if (result.success) {
-      console.log('Created:', result.data);
-    } else {
-      console.error('Error:', result.error?.message);
-    }
-  }
-  
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.client.disconnect();
-  }
-}
-```
-
-## Tool Metadata (`_meta`)
-
-When commands have metadata fields set, the MCP `tools/list` response includes a `_meta` object on each tool:
-
-```json
-{
-  "name": "order-create",
-  "description": "Creates a new order",
-  "inputSchema": { "type": "object", "properties": { ... } },
-  "_meta": {
-    "requires": ["auth-sign-in"],
-    "mutation": true,
-    "examples": [{ "name": "Basic order", "input": { "item": "Widget" } }],
-    "outputSchema": { "type": "object", "properties": { "id": { "type": "string" } } },
-    "contexts": ["ordering"]
-  }
-}
-```
-
-| Field | Source | Purpose |
-|-------|--------|---------|
-| `requires` | `defineCommand({ requires })` | Planning-order dependencies |
-| `mutation` | `defineCommand({ mutation })` | Whether command changes state |
-| `examples` | `defineCommand({ examples })` | Example inputs for agent reference |
-| `outputSchema` | `defineCommand({ output })` | JSON Schema of response `data` shape |
-| `contexts` | `defineCommand({ contexts })` | Context scopes where command is visible |
-
-`_meta` is only emitted when there is content (no empty objects). Agents can read `_meta.requires` to plan command execution order without trial-and-error.
-
-Input schemas are generated in Zod input mode: fields with `.default()` are optional, and
-`.transform()` fields are described by their input type. `z.number().int()` becomes
-`"type": "integer"`.
-
-## Tool Strategies
-
-`toolStrategy` defaults to `'grouped'`. `afd-call`, `afd-batch` and `afd-pipe` are listed in
-every strategy.
-
-| Strategy | Tools listed |
-|----------|--------------|
-| `grouped` (default) | One tool per group (`category`, else the first name segment, or `groupByFn`) plus `afd-detail` |
-| `individual` | One tool per command with its input schema and `_meta` |
-| `lazy` | `afd-discover` and `afd-detail` |
-| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools; the list never varies by context |
-
-A grouped tool takes `{ action, params }` (`todo-create` → group `todo`, action `create`).
-Its `_meta.actions` lists every action with the full command name, description, input
-schema and the per-command `_meta` fields above:
-
-```json
-{
-  "name": "todo",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "action": { "type": "string", "enum": ["create", "list"] },
-      "params": { "type": "object", "anyOf": [{ "title": "create", "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] }] }
-    },
-    "required": ["action"]
-  },
-  "_meta": {
-    "actions": [
-      { "action": "create", "command": "todo-create", "description": "Create a todo", "inputSchema": { "...": "..." }, "requires": ["auth-sign-in"], "mutation": true }
-    ]
-  }
-}
-```
-
-Small groups (at most 8,192 characters of per-action schemas, no `$ref`) also inline the
-schemas as `params.anyOf` branches titled with the action. They are never placed at the top
-level, since some MCP hosts reject top-level `oneOf`/`anyOf`/`allOf`. For larger groups,
-agents read `_meta.actions` or call `afd-detail`.
-
-## Lazy Strategy (Large Command Sets)
-
-For servers with many commands (50+), the `lazy` strategy exposes 5 meta-tools instead of enumerating all commands:
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  toolStrategy: 'lazy',
-});
-```
-
-### Discovery Workflow
-
-```
-Agent → afd-discover (filter/search) → afd-detail (get schemas) → afd-call (execute)
-```
-
-1. **`afd-discover`** — List commands with filtering (category, tag, search). Returns names + short descriptions. Paginated (default limit 50, max 200).
-2. **`afd-detail`** — Get full schema for 1–10 commands by name. Returns input schema, output schema, examples, prerequisites, and contexts.
-3. **`afd-call`** — Universal dispatcher. Accepts `{ command, input }` and runs the full middleware chain. Available in **all** strategies.
-
-### afd-call (Universal)
-
-`afd-call` works in all three strategies (individual, grouped, lazy):
-
-```typescript
-// Agent calls via afd-call
-await tools.call('afd-call', {
-  command: 'todo-create',
-  input: { title: 'Buy milk', priority: 'high' },
-});
-```
-
-On error, `afd-call` returns fuzzy suggestions for misspelled command names. Invalid
-arguments to `afd-call`, `afd-discover` or `afd-detail` (for example `{ search: 123 }`)
-return a `VALIDATION_ERROR` result with `details.errors`; a `null` argument counts as omitted.
-
-## Context Management
-
-For large command sets, contexts dynamically scope which commands are visible:
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  contexts: [
-    { name: 'editing', description: 'Document editing tools' },
-    { name: 'reviewing', description: 'Review and approval tools' },
-  ],
-});
-```
-
-### Context Commands
-
-| Command | Description |
-|---------|-------------|
-| `afd-context-list` | List all configured contexts and the active context |
-| `afd-context-enter` | Enter a context (pushes to stack, filters visible tools) |
-| `afd-context-exit` | Exit current context (pops stack, restores previous) |
-
-On MCP 2026-07-28 (`/mcp`, and stdio connections opened with `server/discover`) there is no session: the active context is request input. Send `_meta["dev.afd/context"]` with the context name on `tools/list` and `tools/call`; `afd-context-enter` and `afd-context-exit` validate the name but store nothing and return `persisted: false`. 2025 clients keep per-connection state: a stdio connection opened with `initialize` keeps one stack, each `Mcp-Session-Id` session on the deprecated `/message` lane keeps its own, and a 2025 request without a session gets `SESSION_REQUIRED` from enter/exit. Stacks hold at most 16 contexts; re-entering the active context is a no-op.
-
-### Command Context Scoping
-
-Commands declare which contexts they belong to:
-
-```typescript
-const formatDoc = defineCommand({
-  name: 'doc-format',
-  description: 'Format the current document',
-  contexts: ['editing'],  // Only visible in 'editing' context
-  // ...
-});
-```
-
-- Commands **without** `contexts` are universal (always visible)
-- Context commands (`afd-context-*`) are always visible regardless of active context
-- When no context is active, all commands are visible
-- Contexts use a stack — entering a new context pushes to stack, exiting pops
-
-## Server Options
-
-The TypeScript server does not read environment variables. Pass these options to
-`createMcpServer()` / `createMcpHandler()` explicitly (read `process.env` yourself if needed):
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `port` | 3100 | Server port |
-| `host` | localhost | Bind host |
-| `allowedHosts` | configured host + loopback names | Accepted HTTP `Host` values; set for proxies and custom hostnames |
-| `allowedOrigins` | same-origin only | Additional exact browser origins |
-| `maxBodyBytes` | 1048576 | Maximum JSON request body |
-| `devMode` | false | Verbose errors and any-origin CORS — never enable on a reachable host |
-| `toolStrategy` | `'grouped'` | `'grouped'`, `'individual'`, `'lazy'` or `'hybrid'` (see Tool Strategies) |
-| `firstClassTools` | none | With `'hybrid'` only: the 1 to 8 commands listed as their own tools, in order |
-| `bootstrap` | false | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools |
-| `contexts` | none | Context scopes; registers the `afd-context-*` commands |
+Status codes, JSON-RPC error codes and sessions: "HTTP Endpoints" in `packages/server/README.md`.

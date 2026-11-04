@@ -1,464 +1,126 @@
 ---
 name: afd-directclient
 description: >
-  DirectClient transport for zero-overhead command execution when AI agents
-  are co-located in the same Node.js process. Covers the validating
-  createDirectRegistry, when to use, security hardening, error handling, and
-  observability patterns.
-  Triggers: directclient, in-process, zero overhead, co-located agent,
-  embedded agent, gemini integration, chat server, createDirectRegistry,
-  DirectRegistry, createDirectToolSurface, activeContext, listTools.
+  Runs AFD commands in-process with createDirectRegistry and DirectClient: allow,
+  activeContext, approvals, pipe() and the MCP tool surface, plus optimistic UI. Use when
+  embedding an agent or chat loop in an app; for defining commands or MCP servers, use
+  afd-typescript.
 ---
 
-# AFD DirectClient Patterns
+# DirectClient and createDirectRegistry
 
-DirectClient bypasses MCP transport for ~0.03ms command execution (vs ~2-10ms MCP).
+`DirectClient` (`@lushly-dev/afd-client`) lets an agent in the app's own process call commands with no transport; an agent in another process uses MCP. Reference: `packages/client/README.md` ("DirectClient") and `packages/server/README.md` ("In-process entry point").
 
-## When to Use
+## Always build the registry with `createDirectRegistry`
 
-```
-✅ Use DirectClient when:
-- LLM/agent runs in same process as your app
-- Agent makes many sequential tool calls
-- Need fastest possible agentic loops
+Import it from `@lushly-dev/afd-server`, or `@lushly-dev/afd-server/direct` in a browser, worker or webview (no MCP SDK, no Node built-in). It runs each call through `createMcpServer`'s engine: Zod validation of the whole input, middleware with `onCommand`/`onError`, error sanitization (exception text only with `devMode: true`), and exposure to its `interface` (`'agent'` by default; others get `COMMAND_NOT_EXPOSED`).
 
-❌ Don't use when:
-- Running tests (GitHub Actions, IDE) — use CLI/MCP
-- Agent is in separate process — use HTTP/SSE
-- Cross-process communication needed
-```
+A hand-rolled registry that calls `command.handler(input)` skips all of that: `{ "title": { "nested": true } }` reaches your store, exceptions leak, `expose: { agent: false }` is ignored, and so are the `allow` and `activeContext` call options.
 
-## The Registry: Always `createDirectRegistry`
+Flags a command leaves out fall back to `defaultExpose` (`palette` and `agent` on), so `expose: { mcp: true }` stays callable by in-app agents. Use `expose: { agent: false }` for commands the AI must not run.
 
-Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`,
-or from `@lushly-dev/afd-server/direct` in a browser, web worker or webview:
-that entry loads neither the MCP SDK nor any Node.js builtin, and also exports
-the journal and the Node-free middleware. It runs every call through the same
-engine as `createMcpServer`:
+`@lushly-dev/afd-client` has no browser entry for `DirectClient` yet ([#655](https://github.com/lushly-dev/afd/issues/655)); its root also loads `McpClient`, the deprecated transports and `eventsource`.
 
-- **Zod validation** of the full input before the handler runs (nested objects,
-  wrong types, lengths, enums, defaults and transforms)
-- **Middleware** (logging, tracing, rate limiting, auth), plus `onCommand`/`onError`
-- **Error sanitization**: exception text stays out of results unless `devMode: true`
-- **Exposure**: only commands exposed to the chosen interface (`'agent'` by
-  default) are listed or run; others get `COMMAND_NOT_EXPOSED`
-
-```typescript
-// registry.ts
-import { createDirectRegistry } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
-
-export const registry = createDirectRegistry(allCommands, {
-  interface: 'agent',            // default
-  middleware: [/* same middleware as your MCP server */],
-});
-```
-
-❌ **Never hand-roll a registry** that calls `command.handler(input)`. It skips
-Zod validation (so `{ "title": { "nested": true } }` reaches your store), skips
-middleware, leaks exception messages, and lets the agent call commands you
-marked `expose: { agent: false }`.
-
-Exposure flags a command leaves out fall back to `defaultExpose` (`palette` and
-`agent` on, `mcp` and `cli` off). `expose: { mcp: true }` therefore stays
-available to in-app agents; use `expose: { agent: false }` for commands the AI
-must not run (for example destructive admin commands).
-
-## Basic Usage
+## Calling
 
 ```typescript
 import { isSuccess } from '@lushly-dev/afd-core';
-import { DirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
-import { registry } from './registry.js';
+import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
+import { createDirectRegistry } from '@lushly-dev/afd-server';
 
-const client = new DirectClient(registry);
-
-// Execute commands with zero transport overhead
-const result = await client.call<Todo>('todo-create', {
-  title: 'Fast task',
-  priority: 'high'
-});
-// ~0.03ms vs 2-10ms for MCP
-
-if (isUnknownToolError(result)) {
-  console.error('Unknown command:', result.data?.hint);
-} else if (isSuccess(result)) {
-  console.log('Created:', result.data.id); // CommandResult<Todo>
-} else {
-  console.error('Error:', result.error);
-}
-```
-
-`call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`; rule
-out the unknown-tool case with `isUnknownToolError(result)` before reading
-`result.data` as `T`.
-
-### Narrowing What the Agent May Call
-
-```typescript
-const client = new DirectClient(registry, {
+const registry = createDirectRegistry(commands, { middleware });
+const client = createDirectClient(registry, {
+  actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId },
   allow: (name) => name.startsWith('todo-') && name !== 'todo-clear',
 });
-// Refused names return COMMAND_NOT_ALLOWED and are hidden from
-// listCommands(), listCommandNames() and hasCommand().
+
+const result = await client.call<Todo>('todo-create', { title: 'Fast task' });
+if (isUnknownToolError(result)) console.error(result.data?.hint);
+else if (isSuccess(result)) console.log(result.data.id);
 ```
 
-The client also passes its check to the registry as the `allow` call option
-(beside `activeContext`), on every call, `pipe()` step and approval retry.
-`createDirectRegistry()` enforces it on every command the call runs, so a
-routed tool cannot reach a refused command (see the tool surface below). A
-hand-written registry whose `execute` ignores call options gets name checks
-only. Used without a client, the registry takes the same option:
-`registry.execute(name, input, context, { allow })`.
+- `call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so check `isUnknownToolError` before reading `data` as `T`. It never rejects: a throw becomes `COMMAND_EXECUTION_ERROR` without the exception text.
+- The default actor is `{ kind: 'human' }`. Set `{ kind: 'agent' }` for an assistant, so middleware, approval tokens and `metadata.actorKind` tell it from the user.
+- A context `timeout` is enforced (per step in `pipe()`) and combined with `signal`. After `TIMEOUT` the handler may still have finished, so check a mutation's effect before retrying.
+- For an LLM's tool list, prefer `listTools()` (below) to `listCommands()`. `packages/examples/todo-directclient/` is a Gemini chat loop.
 
-### AFD Contexts and the MCP Tool Surface
+## `allow`
 
-Give the registry `contexts` (as on `createMcpServer`) and, for an agent that
-should see what an MCP agent sees, `tools: createDirectToolSurface()`:
+A refused name, or a predicate that throws, returns `COMMAND_NOT_ALLOWED` and is hidden from `listCommands()`, `listCommandNames()`, `hasCommand()` and `listTools()`. The client also passes the predicate to the registry as the `allow` call option on every call, `pipe()` step and approval retry, and `createDirectRegistry` checks it on every command the call runs: the `afd-call` target, `afd-batch` items, `afd-pipe` steps, a grouped tool's action, and a command a handler runs with its own context. Allowing a meta-tool never reaches a refused command.
+
+- Allow a grouped tool by its group name (`note`). A refused action is `COMMAND_NOT_FOUND`; a group with none permitted is `COMMAND_NOT_ALLOWED`.
+- The predicate rides on the context as an opaque token: handlers cannot read or replace it, and tool arguments cannot carry one.
+- Without a client: `registry.execute(name, input, context, { allow })` and `registry.listTools({ allow })`.
+
+## Contexts and the MCP tool surface
 
 ```typescript
 import { createDirectRegistry, createDirectToolSurface } from '@lushly-dev/afd-server/direct';
 
-const registry = createDirectRegistry(allCommands, {
+const registry = createDirectRegistry(commands, {
   contexts: [{ name: 'billing' }, { name: 'writing' }],
-  tools: createDirectToolSurface({ strategy: 'lazy' }), // individual (default), grouped, lazy, hybrid
+  tools: createDirectToolSurface({ strategy: 'lazy' }), // also firstClassTools, bootstrap
 });
-const client = new DirectClient(registry, { actor: { kind: 'agent' } });
+const client = createDirectClient(registry, { actor: { kind: 'agent' } });
 
-const tools = client.listTools({ activeContext: 'billing' }); // exactly the MCP server's list
-await client.call('afd-discover', {}, { activeContext: 'billing' });
+client.listTools({ activeContext: 'billing' }); // what the MCP server would list
 await client.call('invoice-pay', { id: 'in-1' }, { activeContext: 'billing' });
 ```
 
-- **The active context is per call, never state.** `activeContext` goes to the
-  registry beside the command context (handlers never see it), with every
-  `pipe()` step and on the approval retry. An unknown name is
-  `CONTEXT_NOT_FOUND`; a command outside it `COMMAND_NOT_IN_CONTEXT`. To keep a
-  stack, keep it in the host and pass its top on each call.
-- **The context tools only validate**, as on the stateless MCP 2026-07-28 lane:
-  `afd-context-enter`/`-exit` change nothing and return `persisted: false`.
-- **Meta-tools route through the server's router** (`afd-call`, `afd-batch`,
-  `afd-pipe`, `afd-discover`, `afd-detail`; grouped tools under `grouped`);
-  `afd-batch` returns a `BatchResult` and `afd-pipe` a `PipelineResult`.
-- **Exposure is the registry's interface** (`'agent'` by default), where the
-  MCP server uses `expose.mcp`. Use `interface: 'mcp'` for the server's exact
-  surface.
-- **`allow` is enforced per routed command.** It checks the tool name, then the
-  registry checks every command that tool runs: the `afd-call` target, each
-  `afd-batch` item, each `afd-pipe` step, a grouped tool's action, and a
-  command a handler runs by passing its own context to `execute`. Refusals are
-  `COMMAND_NOT_ALLOWED`; `afd-discover`, `afd-detail`, the bootstrap tools and
-  `listTools()` leave refused commands out. Allow a grouped tool by its group
-  name (`note`). A grouped tool sees only its permitted actions: a refused
-  action is `COMMAND_NOT_FOUND` and cannot make another ambiguous, and a group
-  with none permitted is `COMMAND_NOT_ALLOWED`. The predicate rides on the context as an opaque token:
-  handlers cannot read or replace it, and tool arguments cannot carry one.
-- Without `tools`, `registry.listTools()` throws a `TypeError`, and the tool
-  router is not bundled: a browser host pays for it only when it asks.
+- **The active context is per call, never registry state.** Handlers never see it; `pipe()` steps and the approval retry carry it. An unknown name, or any name on a registry without `contexts`, is `CONTEXT_NOT_FOUND`; a command outside it, `COMMAND_NOT_IN_CONTEXT`. A host that wants a stack keeps it and passes the top. Contexts are not a security boundary.
+- **`createDirectToolSurface` defaults to `'individual'`**, where `createMcpServer` defaults to `'grouped'`. Pass `strategy` to match a server.
+- **`listTools({ strategy?, activeContext? })`** runs the server's own tool-list code. It throws `TypeError` on a registry built without `tools` (which then does not bundle the router) and `RangeError` for an unknown context.
+- **Meta-tools route through the server's router**: `afd-batch` returns a `BatchResult`, `afd-pipe` a `PipelineResult`. `afd-context-enter` and `-exit` only validate and return `persisted: false`, as on the stateless MCP 2026-07-28 lane.
+- **Exposure follows the registry's `interface`**, not `expose.mcp`. Use `interface: 'mcp'` for exactly the server's surface.
 
-### Timeouts and Cancellation
-
-```typescript
-const result = await client.call('report-build', input, {
-  timeout: 5_000,               // enforced; per step in pipe()
-  signal: request.signal,       // combined with the timeout
-});
-if (result.error?.code === 'TIMEOUT') {
-  // The handler's signal was aborted, but it may still have finished:
-  // check a mutation's effect before retrying.
-}
-```
-
-### Human Approval (`onApprovalNeeded`)
-
-When the registry runs `createApprovalMiddleware` (from `@lushly-dev/afd-server`, or
-`@lushly-dev/afd-server/direct` in a browser or webview; it runs on WebCrypto), a
-command whose `approval` policy requires sign-off returns `APPROVAL_REQUIRED`
-before its handler runs. `onApprovalNeeded` lets the app ask the human and retry:
+## Approvals
 
 ```typescript
 const commands = [todoDelete, todoList];
 const registry = createDirectRegistry(commands, {
-  middleware: [createApprovalMiddleware({ secret: process.env.AFD_APPROVAL_SECRET!, commands })],
+  middleware: [createApprovalMiddleware({ secret: approvalSecret, commands })],
 });
 const client = createDirectClient(registry, {
-  actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId },
-  onApprovalNeeded: async ({ command, input, summary, expiresAt, signal }) =>
-    confirmDialog(summary, { signal }), // true to approve
+  actor: { kind: 'agent', onBehalfOf: userId },
+  onApprovalNeeded: async ({ summary, signal }) => confirmDialog(summary, { signal }), // true approves
 });
 ```
 
-- `true`: the client retries the same call **once**, with the same input and
-  actor using a private approval exchange, and returns the
-  retry's result. A retry that is held again (for example `reason: 'expired'`,
-  when the human took longer than the token's TTL) is returned as is.
-- `false`, any non-`true` value, a hook that throws, or no hook: the original
-  token-free `APPROVAL_REQUIRED` result is returned. Custom registries must support
-  the private exchange; token-in-result registries do not trigger the hook.
-- In a page, the approval secret is visible to every script on that page. The gate
-  stops a model from approving its own call through tool input, not code running in
-  the page; keep approvals on a server when you need that boundary.
-- The hook is trusted app code and never sees the token. Credentials stay in private
-  exchange state. Public call and pipe contexts strip `approval`; results, observer hooks
-  and failure journals do not receive it. Use matching client/core/server versions.
-- `timeout` bounds each attempt, not the human's decision. `request.signal` is
-  the call's signal: close the prompt when it aborts. A call cancelled during
-  the wait counts as denied.
-- `pipe()`: each gated step asks when it is reached, mid-pipeline, with its
-  resolved input. Asking up front is not possible: tokens are bound to the input,
-  which may come from earlier steps. A denied step fails like any other step, and
-  the pipeline's `timeoutMs` includes the wait.
+A held call returns `APPROVAL_REQUIRED` before its handler runs, and the hook receives `{ command, input, summary, expiresAt, actor, reason?, signal? }`.
 
-## AI Chat Integration
+- On `true` the client retries once, same input and actor, through a private exchange, and returns the retry's result; a retry held again (`reason: 'expired'`) is returned as is. Anything else, a throw or no hook returns the original token-free result.
+- The hook never sees the token, and public contexts strip `approval`. Use matching `afd-client`, `afd-core` and `afd-server` versions; a custom registry must support the private exchange.
+- `timeout` bounds each attempt, not the human. Close the prompt when `signal` aborts; a call cancelled while waiting is denied.
+- In `pipe()` each gated step asks when reached, with its resolved input (tokens bind to input), and `timeoutMs` includes the wait.
+- In a page the secret is readable by page scripts: the gate stops the model, not page code. Keep approvals on a server when you need that boundary.
+- Confirmations (`confirmPrompt`) never gate in-process calls.
+
+Contract: `spec/command-metadata.md`, "Approvals".
+
+## `pipe()` and `$input`
 
 ```typescript
-import { GoogleGenAI } from '@google/genai';
-import { DirectClient } from '@lushly-dev/afd-client';
-
-const directClient = new DirectClient(registry); // from createDirectRegistry
-
-// Execute function calls from Gemini
-for (const functionCall of response.functionCalls) {
-  const commandName = functionCall.name.replace(/_/g, '-');
-  const result = await directClient.call(commandName, functionCall.args);
-  // Feed result back to Gemini
-}
-```
-
-## Security Hardening (HTTP Exposure)
-
-When exposing DirectClient over HTTP (for browser-based AI):
-
-### API Key Protection
-
-```typescript
-function validateApiKey(): void {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey || apiKey.length < 20) {
-    console.error('Invalid API key');
-    process.exit(1);
-  }
-  // Mask in logs
-  console.log(`API Key: ***${apiKey.slice(-4)}`);
-}
-```
-
-### CORS Lockdown
-
-Default to an explicit localhost allowlist, never `*`, and never reflect an
-origin that is not on the list (including `null`). Bind the server to
-`127.0.0.1` unless it must be reachable from elsewhere.
-
-```typescript
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-);
-
-function setCorsHeaders(req, res): boolean {
-  const origin = req.headers.origin;
-  if (origin === undefined) return true; // same-origin or non-browser client
-  if (!ALLOWED_ORIGINS.has(origin)) {
-    res.writeHead(403);
-    res.end();
-    return false;
-  }
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
-  return true;
-}
-
-server.listen(PORT, '127.0.0.1');
-```
-
-### Rate Limiting
-
-Key the limit on the socket address (`req.socket.remoteAddress`), not on
-`X-Forwarded-For`, unless a trusted proxy sets that header; clients can rotate
-it to bypass the limit. Prune expired entries so the map stays bounded.
-
-```typescript
-const RATE_LIMIT = 30; // per minute
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  let entry = rateLimits.get(ip);
-  if (entry && entry.resetAt <= now) {
-    rateLimits.delete(ip);
-    entry = undefined;
-  }
-  if (!entry) {
-    rateLimits.set(ip, { count: 1, resetAt: now + 60_000 });
-    return { allowed: true };
-  }
-  if (entry.count >= RATE_LIMIT) {
-    return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
-  }
-  entry.count++;
-  return { allowed: true };
-}
-```
-
-### Input Validation
-
-Command inputs are validated by `createDirectRegistry` (each command's Zod
-schema). At the HTTP boundary, also check the envelope:
-
-```typescript
-// Validate command names (prevent injection)
-function validateCommandName(name: unknown): name is string {
-  if (typeof name !== 'string') return false;
-  return /^[a-zA-Z][a-zA-Z0-9-]{0,49}$/.test(name);
-}
-
-// Limit request body size
-const MAX_BODY_SIZE = 10 * 1024; // 10KB
-```
-
-## Error Handling
-
-### Retry with Exponential Backoff
-
-```typescript
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  { maxRetries = 3, baseDelayMs = 1000, requestId = '' }
-): Promise<T> {
-  let lastError;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = categorizeError(error);
-      if (!lastError.retryable) throw lastError;
-      if (attempt >= maxRetries) throw lastError;
-      const delayMs = baseDelayMs * Math.pow(2, attempt);
-      await sleep(delayMs);
-    }
-  }
-  throw lastError;
-}
-```
-
-### Error Categorization
-
-```typescript
-type ErrorCategory = 'rate_limit' | 'auth' | 'network' | 'timeout' | 'server' | 'unknown';
-
-function categorizeError(error: unknown): CategorizedError {
-  const msg = error instanceof Error ? error.message : String(error);
-  
-  if (msg.includes('429') || msg.includes('rate limit')) {
-    return { category: 'rate_limit', retryable: true,
-      userMessage: 'Please wait and try again' };
-  }
-  if (msg.includes('401') || msg.includes('API key')) {
-    return { category: 'auth', retryable: false,
-      userMessage: 'Check API key configuration' };
-  }
-  // ... more categories
-}
-```
-
-## Observability
-
-### Health Endpoints
-
-```typescript
-// GET /health - Basic liveness
-if (req.url === '/health') {
-  res.json({ status: 'ok', uptimeMs: Date.now() - startTime });
-}
-
-// GET /ready - Component readiness
-if (req.url === '/ready') {
-  const ready = isGeminiConfigured();
-  res.status(ready ? 200 : 503).json({
-    ready,
-    checks: { gemini: ready ? 'ok' : 'missing_key' }
-  });
-}
-```
-
-### Metrics Collection
-
-```typescript
-const metrics = {
-  requestCount: 0,
-  successCount: 0,
-  errorCount: 0,
-  toolCallCount: 0,
-  latencies: [], // Keep last 100
-  errorsByType: {},
-};
-
-// GET /metrics
-res.json({
-  ...metrics,
-  p50LatencyMs: calculatePercentile(50),
-  p95LatencyMs: calculatePercentile(95),
-  p99LatencyMs: calculatePercentile(99),
-});
-```
-
-## Performance Comparison
-
-| Transport     | Latency     | Use Case |
-|---------------|-------------|----------|
-| DirectClient  | ~0.03ms     | Co-located agents |
-| MCP (HTTP)    | ~2-5ms      | Cross-process |
-| MCP (SSE)     | ~5-10ms     | Remote agents |
-
-## Pipeline Execution
-
-DirectClient supports `pipe()` for declarative command chaining:
-
-```typescript
-const result = await client.pipe([
-  { command: 'user-get', input: { id: 1 }, as: 'user' },
-  { command: 'order-list', input: { userId: '$prev.id' } },
-]);
-```
-
-Variable resolution follows `spec/pipeline-variables.md`:
-
-- References are whole strings: `$prev` (last successful step), `$first`, `$steps[n]`, `$steps.alias`
-  and `$input`, each optionally followed by `.path` (`$prev.items[0].id`, `$prev.items.0`).
-- `$input` is the request's own `input` field, passed as `client.pipe({ input, steps })`. It is **not**
-  the `context` argument of `pipe()`: that context still reaches each command, but no reference can read
-  it. (Before this change `$input` resolved to the caller's whole context, so auth or other secrets could
-  be copied into command inputs.)
-- Other `$` strings (`'$9.99'`, `'$HOME'`) are literals; `'$$prev'` sends the literal `'$prev'`.
-- Only own keys of plain JSON objects and in-bounds indices resolve; `constructor`, `__proto__` and
-  `__`-prefixed segments never do.
-- Unresolved references are omitted from objects, `null` in arrays, and make `when` comparisons false.
-- Inputs nested deeper than 64 levels fail with `VALIDATION_ERROR` before any command runs.
-- Step data is copied between steps, so a handler that mutates its input cannot change another step's data.
-
-```typescript
-const result = await client.pipe(
+await client.pipe(
   {
     input: { userId: 1 },
     steps: [
       { command: 'user-get', input: { id: '$input.userId' }, as: 'user' },
       { command: 'order-list', input: { userId: '$steps.user.id' } },
     ],
+    options: { timeoutMs: 5_000 }, // and continueOnFailure; steps may carry `when`
   },
-  { traceId: 'trace-123' } // reaches handlers as context; not visible to $input
+  { traceId: 'trace-123' } // reaches handlers as context; no reference can read it
 );
 ```
 
-Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeoutMs`.
-Each step goes through `call()`, so `allow`, the registry's Zod validation,
-`onApprovalNeeded` (asked when a gated step is reached), a `timeout` passed in
-the pipe context (applied per step) and an `activeContext` passed there all hold
-for pipelines.
+`spec/pipeline-variables.md` is normative. What catches people:
 
-## Related
+- A reference is a whole string: `$prev` (last successful step), `$first`, `$steps[n]`, `$steps.<alias>` or `$input`, plus an optional path (`$prev.items[0].id`, `$prev.items.0`).
+- `$input` is the request's own `input` field, never the `pipe()` context, so auth and other context values cannot be copied into step inputs.
+- Other `$` strings (`'$9.99'`) are literals; `'$$prev'` sends `'$prev'`. Only own keys and in-bounds indices resolve, and `__` segments never do.
+- An unresolved reference is omitted from an object, `null` in an array, and false in `when`. Inputs nested past 64 levels fail with `VALIDATION_ERROR` before any step.
+- Step data is copied between steps. Each step goes through `call()`, so `allow`, validation, approvals, `timeout` and `activeContext` all hold.
 
-- `afd-typescript` - TypeScript command patterns
-- `afd-developer` - Core AFD methodology
-- [Myoso](https://github.com/lushly-dev/myoso) - Standalone app with DirectClient + Gemini chat integration
+## Optimistic UI in an app client
+
+Optimistic updates are a client pattern, not an AFD feature: the client owns pending state and rendering, and commands stay correct without it. Keep visual state out of commands, put view state an agent should see or drive in `view-state-*` commands, and keep business data in commands. Return the authoritative entity (canonical ID, corrected order, normalized values) and declare `output`, so the client replaces its guess with `data`; explain corrections in `reasoning` or `warnings`. On failure, roll back or refetch: `undoCommand`/`undoArgs` undo a success and are not a rollback. Don't apply `destructive` or approval-gated commands optimistically, since a held call waits for a human. Collaborative conflict resolution is out of scope.

@@ -36,10 +36,8 @@ Features progress through three stages:
 ## Guides
 
 Guides have been migrated to skills under `.claude/skills/`. See:
-- `afd-developer` skill — Philosophy, trust, implementation phases, production considerations
-- `afd` skill — Command schema design, telemetry, external adapters
-- `afd-directclient` skill — In-process command execution
-- `optimistic-mutations` skill — Optimistic mutation patterns for interactive AFD clients
+- `afd` skill — Philosophy, command schema design, MCP integration, telemetry
+- `afd-directclient` skill — In-process command execution and optimistic UI in app clients
 
 ## Workflow
 

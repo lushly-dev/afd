@@ -119,7 +119,7 @@ are marked; registry checks were made against the registries' own APIs.
 | **S39** `foundations/fast-af` README and the violet-elements component list | fast-element 3.0.1 with a scoped-registry dependency; the component set including dialog, toast, menu, tabs, data grid, persona | Quarantined units |
 | **S40** `foundations/violet`, `endpoints/health`, `endpoints/health-dashboard`, `foundations/specimen` READMEs | Token engine and runtime; report schema 1.1 and a static FAST-AF dashboard with CSP and axe checks; the observation bench | Quarantined units |
 | **S54** The afd.dev design record and skill in `.claude/skills/afd-site-design` | A semantic token layer, a type ramp, color-field rules, section anatomy, motion rules and a verification checklist, carried as a skill for agents | A website's record; Loam's document covers application chrome |
-| **S77** The `optimistic-mutations` skill in this repository | Visual, view-state and business-data layers; optimistic apply, reconcile from results, rollback on failure; collaborative conflict resolution explicitly out of scope | Internal guidance |
+| **S77** The afd-directclient skill's optimistic UI section in this repository | Visual, view-state and business-data layers; optimistic apply, reconcile from results, rollback on failure; collaborative conflict resolution explicitly out of scope | Internal guidance |
 | **S78** The owner's report on 2026-10-31 of an earlier multiplayer service | Worked well in production; built for one document type and should have been a shareable service for every document; live sessions had to revalidate authorization on membership change, and review links needed generations | Private experience; no code or documentation read |
 
 ## Multiplayer and agent skills

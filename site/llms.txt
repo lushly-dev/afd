@@ -53,9 +53,9 @@ Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quicks
 
 ## Agent UX (human UX pattern → AFD mechanism)
 
-- Progressive disclosure → tool strategies: `toolStrategy: 'grouped'` (default, one tool per category), `'individual'`, or `'lazy'` (five meta-tools: afd-discover, afd-detail, afd-call, afd-batch, afd-pipe). [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-taxonomy.md)
+- Progressive disclosure → tool strategies: `toolStrategy: 'grouped'` (default, one tool per category), `'individual'`, or `'lazy'` (five meta-tools: afd-discover, afd-detail, afd-call, afd-batch, afd-pipe). [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/mcp-integration.md)
 - Confirmation dialogs → `destructive: true` with `confirmPrompt`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-trust-config.md)
-- Permissions → per-surface `expose: { palette, agent, mcp, cli }`; `mcp` and `cli` are opt-in. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-exposure-undo.md)
+- Permissions → per-surface `expose: { palette, agent, mcp, cli }`; `mcp` and `cli` are opt-in. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-trust-config.md)
 - Undo → `undoable: true`.
 - Helpful errors → every error has `code`, `message`, `suggestion`, optional `retryable`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md)
 - Wayfinding → `requires: ['auth-sign-in']` declares prerequisites, exposed as `_meta.requires`.
@@ -65,7 +65,7 @@ Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quicks
 
 ## For coding agents
 
-The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient. Add one to a project with:
+The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient. Add one to a project with:
 
 ```bash
 npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd

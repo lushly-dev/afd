@@ -1,186 +1,102 @@
 ---
 name: afd
 description: >
-  Agent-First Development (AFD) patterns for building software where AI agents
-  are first-class users. Covers command design, CLI validation, MCP servers,
-  CommandResult schemas, and testing strategies. Use when building agent-ready
-  apps, designing commands, or integrating MCP.
-version: "2.0.0"
-category: core
-triggers:
-  - agent-first
-  - AFD
-  - command-first
-  - MCP server
-  - CommandResult
-  - CLI validation
-  - afd call
+  Core Agent-First Development (AFD) rules: the honesty check, the command-first
+  workflow, CommandResult and errors, naming, meta-tools and the afd CLI. Use when
+  designing commands or asking how AFD works; for code in one language, use
+  afd-typescript, afd-python, afd-rust or afd-cpp.
 ---
 
-# Agent-First Development (AFD)
+# Agent-First Development
 
-Expert guidance for building software with the Agent-First Development methodology.
+Agents are first-class users. Every capability is a command before any UI exists, and the UI is a
+thin caller of the same commands.
 
-## Capabilities
-
-1. **Command Design** — Define commands with typed schemas, proper error handling, and UX-enabling metadata
-2. **CLI Validation** — Test commands via CLI before building UI
-3. **MCP Integration** — Set up MCP servers and connect clients
-4. **Testing** — Unit tests, performance tests, AFD compliance checks, and surface validation
-5. **Functional Parity** — Prefer shared AFD capabilities and agent-visible behavior over literal package symmetry; keep the command layer framework-agnostic
-6. **Ecosystem Integration Boundaries** — Keep UI/framework integrations in examples or ecosystem layers rather than the core AFD surface
-
-## Routing Logic
-
-| Request type | Load reference |
-|--------------|----------------|
-| Command schemas, typed schema patterns | [references/command-design.md](references/command-design.md) |
-| CommandResult interface, UX fields, batch patterns | [references/command-schema.md](references/command-schema.md) |
-| MCP server setup, transports, embeddable Node handler | [references/mcp-integration.md](references/mcp-integration.md) |
-| Testing commands, performance | [references/testing.md](references/testing.md) |
-| CLI usage, validation workflow | [references/cli-validation.md](references/cli-validation.md) |
-| Command tags, bootstrap tools, tool strategies | [references/command-taxonomy.md](references/command-taxonomy.md) |
-| Output schemas, context scoping | [references/command-design.md](references/command-design.md) |
-| Lazy discovery, `afd-call`, context management | [references/mcp-integration.md](references/mcp-integration.md) |
-| Real-time protocols, WebSocket | [references/handoff-pattern.md](references/handoff-pattern.md) |
-| JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
-| Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |
-| defaultMiddleware, auto trace ID, logging/timing defaults | [references/telemetry.md](references/telemetry.md) |
-| External adapters, CLI/API bridging | [references/external-adapters.md](references/external-adapters.md) |
-| Destructive commands, confirmation UI, approval gates (`approval`, `createApprovalMiddleware`) | [references/command-trust-config.md](references/command-trust-config.md) |
-| Interface exposure, undo metadata | [references/command-exposure-undo.md](references/command-exposure-undo.md) |
-| Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
-| Command prerequisites, `requires` field | [references/command-schema.md](references/command-schema.md) |
-| Surface validation, semantic quality | [references/surface-validation.md](references/surface-validation.md) |
-
-### Functional Parity Rule
-
-When comparing implementations across TypeScript, Python, Rust, and C++, treat parity as a shared capability contract, not a promise that every API or module name will match exactly. The current capability matrix, including which gaps are intentional, is [`docs/language-parity.md`](../../../docs/language-parity.md).
-
-- Core AFD surfaces MUST stay framework-agnostic.
-- React or browser integrations SHOULD live in examples or ecosystem layers.
-- Cross-language implementations MAY choose idiomatic signatures, schemas, or module boundaries when that better fits the host language.
-- New features SHOULD be judged first by whether they change agent-visible behavior, then by whether they belong in the shared AFD surface.
-- Shared parity examples include output schemas, validated examples, prerequisite metadata, context scoping, grouped/lazy tool strategies, and meta-tools such as `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, and `afd-detail`.
-
-## Core Principles
-
-### 1. Command-First Development
-
-All functionality is exposed as commands before any UI is built:
-
-```typescript
-// Step 1: Define command
-const createItem = defineCommand({
-  name: 'item-create',
-  expose: { mcp: true }, // Commands are private unless exposed; MCP clients need this opt-in
-  input: z.object({ title: z.string().min(1) }),
-  async handler(input) {
-    const item = await store.create(input);
-    return success(item, { reasoning: `Created "${item.title}"` });
-  },
-});
-
-// Step 2: Validate via CLI
-// afd call item-create '{"title": "Test"}'
-
-// Step 3: Build UI (only after CLI works)
-```
-
-TypeScript is shown here for brevity, but the command-first workflow is the invariant. Python uses Pydantic-based command definitions and Rust uses JSON Schema-backed command definitions while preserving the same agent-facing contract.
-
-### 2. The Honesty Check
+## The honesty check
 
 > "If it can't be done via CLI, the architecture is wrong."
 
-- No UI-only code paths
-- All business logic in command handlers
-- UI is a thin wrapper
+No UI-only code paths: business logic lives in handlers, and people and agents run the same
+commands, so what you prove at the CLI is exactly what the UI and every agent get. Ephemeral or
+derived UI state (hover, focus, local sorting) is not a command; see
+[command-schema.md](references/command-schema.md).
 
-### 3. UX-Enabling Schemas
+## Workflow
 
-Commands return metadata that enables good agent UX:
+1. **Define** the command: input schema, description, the error codes it returns, and the
+   metadata agents plan with (`output`, `examples`, `requires`, `contexts`, `mutation`,
+   `destructive`, `approval`).
+2. **Validate** it with `afd call` and `afd validate --surface`. Don't start the UI until the CLI
+   call works.
+3. **Surface** it: the UI calls the command and shows its `reasoning`, `confidence` and `warnings`.
 
-```typescript
-interface CommandResult<T> {
-  success: boolean;
-  data?: T;
-  error?: CommandError;
-  
-  // UX-enabling fields
-  confidence?: number;      // 0-1, for reliability indicators
-  reasoning?: string;       // Explain "why" to users
-  warnings?: Warning[];     // Alert to side effects
-  suggestions?: string[];   // Guide next steps
-}
-```
+To fix a bug, reproduce it with `afd call`, fix it in the handler, and confirm it at the CLI before
+looking at the UI.
 
-### 4. Structured Errors
+## Command rules
 
-Errors include recovery guidance:
+- **Names** are `domain-action` kebab-case with at least two segments (`todo-create`,
+  `user-get`), the same in every language (`validateCommandName`). No dots, camelCase or
+  underscores. TypeScript's `defineCommand` only warns on a bad name; `afd validate --surface`
+  reports it as an error.
+- **Results**: `success(data, { reasoning, confidence, warnings, suggestions })` or
+  `error(code, message, { suggestion, retryable, details })` (`failure()` takes a whole
+  `CommandError`); Python and Rust have equivalents. Every error carries a `suggestion` saying how
+  to recover: `Use todo-list to see available todos`.
+- **Error codes** come from the shared catalog first: `ErrorCodes` in
+  `packages/core/src/errors.ts`, with meaning and retryability in
+  [`spec/error-codes.md`](../../../spec/error-codes.md). Add an application code (the todo
+  example's `NO_CHANGES`) only when none fits.
+- **Exposure**: a command is private to MCP until it sets `expose: { mcp: true }`. Over MCP a
+  private command answers `COMMAND_NOT_FOUND`, exactly like an unknown name.
+- **`requires`** is planning metadata. Nothing enforces it at runtime.
 
-```typescript
-return error('NOT_FOUND', `Item ${id} not found`, {
-  suggestion: 'Use item.list to see available items',
-});
-```
+## Meta-tools
 
-## Quick Reference
+| Tool | Does |
+|------|------|
+| `afd-call` | Runs any exposed command: `{ command, input }` |
+| `afd-batch` | Runs several commands in one call |
+| `afd-pipe` | Chains steps; inputs reference `$prev`, `$steps.alias`, `$input` |
+| `afd-discover` | Lists commands by category, tag or search, paginated |
+| `afd-detail` | Full schemas, examples and metadata for 1 to 10 commands |
+| `afd-help`, `afd-docs`, `afd-schema` | Bootstrap tools: list, document, export schemas |
+| `afd-context-list`, `-enter`, `-exit` | Context scoping, when the server configures contexts |
 
-| Task | Pattern |
+Every tool strategy (`individual`, `grouped`, `lazy`, `hybrid`) routes all five meta-tools,
+listed or not. On large surfaces an agent runs `afd-discover` → `afd-detail` → `afd-call`. The
+default strategy and lists differ by language: [mcp-integration.md](references/mcp-integration.md).
+
+## CLI
+
+| Task | Command |
 |------|---------|
-| Define command | `defineCommand({ name, input, handler })` |
-| Success response | `success(data, { reasoning, confidence })` |
-| Error response | `error(code, message, { suggestion })` |
-| Test via CLI | `afd call <command> '<json>'` |
-| List commands | `afd tools` |
-| Replay a journal (CI regression check) | `afd replay session.jsonl --module ./dist/registry.js` |
-| Rich command metadata | Add `output` / `output_schema`, `requires`, `contexts`, and `examples` |
-| Large command surfaces | Use `individual`, `grouped`, or `lazy` tool strategies |
-| Lazy agent workflow | `afd-discover -> afd-detail -> afd-call` |
-| Runtime dispatch | `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` |
-| Context scoping | `afd-context-list`, `afd-context-enter`, `afd-context-exit` |
-| Create standalone MCP server | `const server = createMcpServer({ commands }); await server.start()` |
-| Embed MCP into existing Node host | `const handler = createMcpHandler({ commands })` |
+| Connect | `afd connect http://localhost:3100/mcp` |
+| List tools | `afd tools` (`-c <category>`, `-f json`) |
+| Call | `afd call todo-create '{"title":"Test"}'`, or `afd call todo-create title=Test` |
+| Call in-process | `afd call <name> '<json>' --module ./dist/registry.js` (runs approvals locally) |
+| Lint the agent contract | `afd validate --surface` |
+| Replay a journal | `afd replay session.jsonl --module ./dist/registry.js` |
 
-## Development Workflow
+Every option: `packages/cli/README.md`.
 
-```
-┌─────────────────────────────────────────────────┐
-│  1. DEFINE                                      │
-│  • Create command with Zod schema               │
-│  • Define inputs, outputs, error codes          │
-├─────────────────────────────────────────────────┤
-│  2. VALIDATE                                    │
-│  • Test via CLI: afd call <command>             │
-│  • ⛔ Do NOT proceed until CLI works            │
-├─────────────────────────────────────────────────┤
-│  3. SURFACE                                     │
-│  • Build UI that calls command                  │
-│  • Use metadata for UX (confidence, reasoning)  │
-└─────────────────────────────────────────────────┘
-```
+## Parity
 
-## AFD Packages
+Languages share capabilities and agent-visible behaviour, not identical API names. The capability
+matrix and the intended gaps are in [`docs/language-parity.md`](../../../docs/language-parity.md).
 
-| Package | Purpose |
-|---------|---------|
-| `@lushly-dev/afd-core` | Core types (CommandResult, CommandError, validateCommandName) |
-| `@lushly-dev/afd-server` | Zod-based MCP server factory |
-| `@lushly-dev/afd-client` | MCP client with Streamable HTTP and SSE/HTTP transports + DirectClient; the Streamable HTTP transport alone for browsers at `/streamable-http` |
-| `@lushly-dev/afd-testing` | JTBD scenario runner, surface validation, test validators |
-| `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
-| `@lushly-dev/afd-view-state` | Ecosystem-level UI view state management via commands; not part of the core cross-language parity surface |
-| `@lushly-dev/afd-cli` | Command-line interface |
-| `@lushly-dev/local-db` | Async data adapter with swappable backends (Memory, HTTP, IndexedDB at `/indexeddb`) and its contract suite (`/testing`) |
+## References
 
-## When to Escalate
+| Read | When |
+|------|------|
+| [command-schema.md](references/command-schema.md) | `CommandResult` fields, error shape, confidence, batch results, tags, `requires`, what is not a command |
+| [mcp-integration.md](references/mcp-integration.md) | Tool strategies, grouped tools, `_meta`, bootstrap and context tools, HTTP endpoints |
+| [command-trust-config.md](references/command-trust-config.md) | `destructive`, `confirmPrompt`, `approval`, `expose`, `undoable` |
+| [surface-validation.md](references/surface-validation.md) | Reading and fixing `afd validate --surface` findings |
+| [telemetry.md](references/telemetry.md) | TypeScript default middleware, middleware order, telemetry sinks |
+| [handoff-pattern.md](references/handoff-pattern.md) | A command that hands off to WebSocket, SSE or WebRTC |
+| [platform-utils.md](references/platform-utils.md) | `exec`, `findUp` and the GitHub and package-manager connectors |
+| [philosophy.md](references/philosophy.md) | Explaining why AFD to a person |
 
-- Complex multi-step agent workflows (refer to MCP documentation)
-- Real-time streaming responses (WebSocket transport)
-- Authentication/authorization for commands (refer to security expert)
-
-## Resources
-
-- **AFD Repository**: https://github.com/lushly-dev/afd
-- **Example App**: `packages/examples/todo/`
+JTBD scenario files, fixtures and test helpers are documented in `packages/testing/README.md`.
+In-process agents: afd-directclient. Sign-in: afd-auth.

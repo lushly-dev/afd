@@ -1,15 +1,10 @@
 ---
 name: afd-site-design
 description: >
-  Design system and decision record for the afd.dev website (site/), the
-  Command Manifesto 2 design. Covers the semantic token layer, colour-field
-  placement rules, the eight-step type ramp, the heavy-plus-thin statement
-  pattern, section anatomy (figure labels, giant numerals, crop marks), motion
-  rules, the live command runtime and the verification checklist.
-  Use when: editing or adding sections to site/, changing colours, type or
-  spacing, adding animation, building a new page, or reviewing site design.
-  Triggers: afd.dev, site design, landing page, style guide, design tokens,
-  manifesto, section, hero, type ramp, colour field, tokens-m2.
+  Design rules for the afd.dev website in site/: tokens, colour-field placement,
+  the type ramp, section anatomy, motion and the pre-commit checks. Use when
+  editing the landing page or its CSS, adding a section or reviewing site design;
+  for Loam's application chrome, use loam-design.
 ---
 
 # AFD Site Design
@@ -30,7 +25,6 @@ breathe.**
 | `site/js/runtime.js` | The page's command registry (shared by every design). |
 | `site/js/vendor/afd-core.js` | Bundled afd-core. Rebuild with `node scripts/build-site-runtime.mjs`. |
 | `site/styleguide.html` | Living style guide. Reads tokens from the CSS, so it can't drift. |
-| [references/history.md](references/history.md) | How the design got here: the reviews and trade-offs behind the earlier directions. |
 
 ## Principles
 

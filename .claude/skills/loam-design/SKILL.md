@@ -1,20 +1,10 @@
 ---
 name: loam-design
 description: >
-  Design system and decision record for AFD Loam's chrome and kit
-  (endpoints/loam/), on the Violet theme in @lushly-dev/loam-theme. Covers
-  the token contract and its three layers, the five-step type ramp, color
-  roles and contrast floors, high contrast and forced colors, comfortable
-  and compact density, the parts' sizes, surfaces, gutters and resize
-  handles, motion and reduced motion, focus and state, violet-icon, the
-  layout classes, the component checklist and the component list.
-  Use when: building or styling a Loam chrome or kit component, changing a
-  value in Loam's theme, adding a token, reviewing a Loam component against
-  the checklist, or deciding a Loam layout or state treatment.
-  Triggers: loam design, loam theme, loam-theme, loam chrome, loam kit,
-  token contract, lint:tokens, loam-lint-tokens, shell tokens, high
-  contrast, compact density, layout class, resize handle, component
-  checklist, design.md.
+  Design rules for Loam's chrome and kit on the Violet theme: tokens, type ramp,
+  contrast, density, parts, motion, focus and the component checklist. Use when
+  building, styling or reviewing a Loam component or theme; for afd.dev, use
+  afd-site-design.
 ---
 
 # Loam Design

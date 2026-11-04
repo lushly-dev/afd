@@ -20,11 +20,12 @@ Install the published [afd crate](https://crates.io/crates/afd):
 cargo add afd
 ```
 
-To pin the first release in `Cargo.toml`:
+To pin a release in `Cargo.toml`, use an exact requirement with the version you
+tested (the current one is in this package's `Cargo.toml`):
 
 ```toml
 [dependencies]
-afd = "=0.1.0"
+afd = "=<version>"
 ```
 
 For source development, Cargo finds the package in `packages/rust`:
