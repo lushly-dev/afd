@@ -45,8 +45,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 83,468, `switcher` 11,316. After its reviews the coordinator
  * approved a third row, `switcherColdMinified` (2.4, 2026-11-03): what a press of the switcher downloads on
  * an empty shell, which never loads `surfaces` (7.8), 41,057 of 45,163, its measurement plus 10%, unrounded,
- * as `urlMinified`'s is. No other ceiling rose. Step 8 changed none: first paint 285,283 and 87,954 gzip,
- * the kernel alone 111,034, `late` 50,146, `apps` 378,700 and `mount` 215,943, with 9.2's checks in
+ * as `urlMinified`'s is. No other ceiling rose. Step 8 changed none: first paint 285,289 and 87,956 gzip,
+ * the kernel alone 111,043, `late` 50,403, `apps` 378,908 (85 left) and `mount` 215,943, with 9.2's checks in
  * `apps` and the disabled gate's refusals moved to `late`, which `apps` had no room for. Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
