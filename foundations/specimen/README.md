@@ -347,7 +347,11 @@ node endpoints/specimen-cli/dist/bin.js --root foundations/specimen/fixtures bui
 python3 -m http.server 4173 --directory /tmp/specimen-static
 ```
 
-The output directory must be empty. Open `/index.html` for the metadata index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
+The output directory must be empty. Open `/index.html` for the index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview.
+
+The index groups specimens by component, a story's title or a native specimen's title without its last segment, under a heading for each shared prefix such as `Components`. A story with a play is tagged `play`. The filter matches every word against a specimen's name, group, id and tags, and keeps its text in `q`, so a reloaded or shared link opens filtered. Every count follows the filter. A preview names the specimen, its id and its group, and shows the frame on a stage captioned with its size and theme. The viewport is a device preset (Phone, Large phone, Tablet, Laptop, Desktop or Wide) or a custom width and height, and theme and viewport apply only when you press Apply. Drag the frame's corner to resize it: the story sees its window resize, as on a device, and the caption, the viewport controls and the URL's `viewport` follow, so a reload or a shared link opens at that size.
+
+The pages have one small stylesheet of their own, linked only on the index and the preview. A story's frame and an automated render never load it, so it cannot change an observation. Restyle the pages by setting its custom properties, such as `--specimen-surface`, `--specimen-text` and `--specimen-accent`. Its colors use `light-dark()`, and follow the theme the page selects. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
 
 Each bench page, this one included, starts `Math.random` from a fixed seed, so a framework's random marker comes out the same each time and a link reopens to the same DOM. A capture's manifest records this in `checkpoint.baseline`. The clock stays real, so a story showing today's date will still differ tomorrow.
 
@@ -356,6 +360,7 @@ A link can also carry `checkpoint`: `after-run` runs a retained story's play in 
 `specimen-build.json` describes the build without running it:
 
 - `entries`: each case's identity and `url`.
+- `styles`: the pages' stylesheet, in minified bytes against its own ceiling of **8,000 bytes**. A build over it fails, as does one that does not emit it. A story's own CSS is not counted here.
 - `categories` and `total`: the shell, interaction support and accessibility in minified bytes against their ceilings. A build over a ceiling fails. Capture code counts as shell, and a play's helpers, such as `storybook/test`, count as interaction support however a story imports them.
 - `reported`: what has no ceiling, namely the `catalog` of cases, the `incumbent` (what else a preview imports from Storybook) and `consumer` code.
 - `chunks`: every emitted chunk with its category and size.

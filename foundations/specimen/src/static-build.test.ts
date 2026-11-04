@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { type Browser, chromium, type Page } from 'playwright';
@@ -14,9 +15,10 @@ interface BuildReport {
 	shellBytes: number;
 	budget: number;
 	total: { bytes: number; budget: number };
+	styles: { file: string; bytes: number; budget: number };
 	categories: Record<string, { bytes: number; budget: number }>;
 	reported: { catalog: number; incumbent: number; consumer: number };
-	entries: { id: string; url: string; story?: { play: string } }[];
+	entries: { id: string; title: string; url: string; story?: { play: string } }[];
 	chunks: { file: string; category: string; bytes: number }[];
 }
 
@@ -114,6 +116,16 @@ describe('the build accounting', () => {
 		expect(one.report.reported.catalog).toBeLessThan(whole.report.reported.catalog);
 	}, 120_000);
 
+	it('reports the pages’ own stylesheet against its own ceiling, apart from the JavaScript', async () => {
+		const { report, dir } = whole;
+		expect(report.styles.file).toMatch(/^assets\/page-.+\.css$/);
+		expect(report.styles.budget).toBe(8_000);
+		expect(report.styles.bytes).toBeGreaterThan(1_000);
+		expect(report.styles.bytes).toBeLessThanOrEqual(report.styles.budget);
+		expect((await readFile(join(dir, report.styles.file))).byteLength).toBe(report.styles.bytes);
+		expect(report.chunks.some((chunk) => chunk.file === report.styles.file)).toBe(false);
+	});
+
 	it('lists each case with its link in the manifest', () => {
 		const { report } = whole;
 		expect(report.entries.length).toBeGreaterThan(5);
@@ -172,6 +184,145 @@ describe('the build accounting', () => {
 			expect(requests.filter((path) => /stories/.test(path))).toEqual([]);
 			expect(failed).toEqual([]);
 			await page.context().close();
+		});
+
+		it('groups the index by component, and filters it with counts it keeps in the URL', async () => {
+			const { page } = await open('');
+			const status = page.getByRole('status');
+			const groups = new Set(whole.report.entries.map((entry) => entry.title));
+			await expect
+				.poll(() => status.textContent())
+				.toBe(`${whole.report.entries.length} specimens in ${groups.size} groups`);
+			const card = page.getByRole('region', { name: 'Fixtures / Cases' });
+			expect(await card.getByRole('link', { name: 'Precedence' }).count()).toBe(1);
+			const filter = page.getByRole('searchbox', { name: 'Filter' });
+			await filter.fill('fixtures-cases--precedence');
+			expect(await status.textContent()).toBe(
+				`1 of ${whole.report.entries.length} specimens in 1 groups`
+			);
+			expect(await page.locator('main li:not([hidden]) a').allTextContents()).toEqual([
+				'Precedence',
+			]);
+			expect(await card.locator('h3 span').textContent()).toBe('1');
+			expect(new URL(page.url()).searchParams.get('q')).toBe('fixtures-cases--precedence');
+			await page.reload();
+			expect(await filter.inputValue()).toBe('fixtures-cases--precedence');
+			expect(await page.locator('main li:not([hidden])').count()).toBe(1);
+			await filter.fill('');
+			expect(await page.locator('main li[hidden], main section[hidden]').count()).toBe(0);
+			await page.context().close();
+		});
+
+		it('styles the index and preview, and never a story’s frame or an automated page', async () => {
+			const stylesheet = `/${whole.report.styles.file}`;
+			const loaded = (page: Page | import('playwright').Frame) =>
+				page.evaluate(
+					(href) =>
+						[...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].some(
+							(link) => new URL(link.href).pathname === href && link.sheet !== null
+						),
+					stylesheet
+				);
+			const index = await open('');
+			await index.page.waitForSelector('main ul a');
+			expect(await loaded(index.page)).toBe(true);
+			expect(index.failed).toEqual([]);
+			await index.page.context().close();
+			const preview = await open('specimen.html?id=fixtures-cases--precedence');
+			const frame = await settledFrame(preview.page);
+			expect(await loaded(preview.page)).toBe(true);
+			expect(await loaded(frame)).toBe(false);
+			expect(preview.requests.filter((path) => path === stylesheet)).toHaveLength(1);
+			await preview.page.context().close();
+			const automated = await open('specimen.html?automation=1');
+			expect(await loaded(automated.page)).toBe(false);
+			expect(automated.requests).not.toContain(stylesheet);
+			await automated.page.context().close();
+		});
+
+		it('sets the viewport from a preset or a custom size, applied only on submit', async () => {
+			const { page } = await open('specimen.html?id=fixtures-cases--precedence');
+			await settledFrame(page);
+			const size = page.getByRole('combobox', { name: 'Viewport' });
+			const width = page.getByRole('spinbutton', { name: 'Width' });
+			expect(await size.inputValue()).toBe('1280x720');
+			expect(await width.isVisible()).toBe(false);
+			const before = page.url();
+			await size.selectOption('375x812');
+			// Choosing an option changes nothing until it is applied.
+			expect(page.url()).toBe(before);
+			await Promise.all([
+				page.waitForURL(/[?&]viewport=375x812(?:&|$)/),
+				page.getByRole('button', { name: 'Apply' }).click(),
+			]);
+			expect(await (await settledFrame(page)).evaluate(() => innerWidth)).toBe(375);
+			await size.selectOption('custom');
+			await width.fill('500');
+			await page.getByRole('spinbutton', { name: 'Height' }).fill('400');
+			await Promise.all([
+				page.waitForURL(/[?&]viewport=500x400(?:&|$)/),
+				page.getByRole('button', { name: 'Apply' }).click(),
+			]);
+			const frame = await settledFrame(page);
+			expect(await frame.evaluate(() => [innerWidth, innerHeight])).toEqual([500, 400]);
+			expect(await size.inputValue()).toBe('custom');
+			expect(await width.inputValue()).toBe('500');
+			await page.context().close();
+		});
+
+		it('resizes the frame by dragging its corner, and keeps the size it was dragged to', async () => {
+			const { page } = await open('specimen.html?id=fixtures-cases--precedence&viewport=600x400');
+			const frame = await settledFrame(page);
+			const box = await page.locator('.specimen-viewport').boundingBox();
+			if (!box) throw new Error('No resizable frame');
+			await page.mouse.move(box.x + box.width - 3, box.y + box.height - 3);
+			await page.mouse.down();
+			await page.mouse.move(box.x + box.width - 203, box.y + box.height + 97, { steps: 10 });
+			await page.mouse.up();
+			await expect.poll(() => frame.evaluate(() => innerWidth)).toBeLessThan(450);
+			const [w, hgt] = await frame.evaluate(() => [innerWidth, innerHeight]);
+			expect(hgt).toBeGreaterThan(450);
+			await expect.poll(() => new URL(page.url()).searchParams.get('viewport')).toBe(`${w}x${hgt}`);
+			expect(await page.locator('figcaption').textContent()).toContain(`${w} × ${hgt}`);
+			expect(await page.getByRole('combobox', { name: 'Viewport' }).inputValue()).toBe('custom');
+			expect(await page.getByRole('spinbutton', { name: 'Width' }).inputValue()).toBe(String(w));
+			await page.reload();
+			expect(await (await settledFrame(page)).evaluate(() => [innerWidth, innerHeight])).toEqual([
+				w,
+				hgt,
+			]);
+			await page.context().close();
+		});
+
+		it('passes axe on the index and the preview, in the light and dark themes', async () => {
+			const axe = await readFile(
+				createRequire(import.meta.url).resolve('axe-core/axe.min.js'),
+				'utf8'
+			);
+			for (const theme of ['light', 'dark'])
+				for (const path of [
+					`?theme=${theme}`,
+					`specimen.html?id=fixtures-cases--precedence&theme=${theme}`,
+				]) {
+					const { page } = await open(path);
+					await page.waitForSelector(path.startsWith('?') ? 'main ul a' : 'iframe');
+					await page.addScriptTag({ content: axe });
+					// The page's own markup: a story is checked by its own run, not here.
+					const violations = await page.evaluate(async () => {
+						const run = await (
+							window as unknown as {
+								axe: {
+									run(
+										context: unknown
+									): Promise<{ violations: { id: string; nodes: unknown[] }[] }>;
+								};
+							}
+						).axe.run({ exclude: [['iframe']] });
+						return run.violations.map((violation) => `${violation.id} (${violation.nodes.length})`);
+					});
+					expect(violations, `${path}`).toEqual([]);
+					await page.context().close();
+				}
 		});
 
 		it('opens a case at mount, and at after-run when its play can run here', async () => {

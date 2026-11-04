@@ -1,0 +1,270 @@
+/*
+ * The index and preview pages only. installPage links this after it has ruled out a story's
+ * frame and automation, so no captured or previewed story ever loads it. Restyle the pages by
+ * setting these custom properties; light-dark() follows the theme the page selects.
+ */
+:root {
+	--specimen-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--specimen-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	--specimen-surface: light-dark(#fff, #16181d);
+	--specimen-raised: light-dark(#f5f6f8, #1f2229);
+	--specimen-stage: light-dark(#e9ebef, #0d0f13);
+	--specimen-text: light-dark(#1b1d22, #e7e9ee);
+	--specimen-muted: light-dark(#575d6b, #a6acba);
+	--specimen-border: light-dark(#d5d9e0, #363a46);
+	--specimen-accent: light-dark(#2150c4, #93b3ff);
+	--specimen-on-accent: light-dark(#fff, #10131a);
+	--specimen-accent-soft: light-dark(#e7edfb, #1e2a45);
+	--specimen-note: light-dark(#fdf6e1, #2b2516);
+	--specimen-note-edge: light-dark(#c99a1f, #a8862c);
+	--specimen-error: light-dark(#a8231b, #ffb4ab);
+	--specimen-error-soft: light-dark(#fcebe9, #3a1614);
+	--specimen-radius: 6px;
+	--specimen-gap: 1rem;
+	--specimen-focus: 2px solid var(--specimen-accent);
+}
+/* Lightning CSS compiles light-dark() to custom properties that only a declared color-scheme sets. */
+:root,
+:root[data-specimen-page-theme="high-contrast"] {
+	color-scheme: light;
+}
+:root[data-specimen-page-theme="dark"] {
+	color-scheme: dark;
+}
+:root[data-specimen-page-theme="high-contrast"] {
+	--specimen-text: #000;
+	--specimen-muted: #1b1d22;
+	--specimen-border: #000;
+	--specimen-accent: #0031a0;
+}
+body {
+	margin: 0;
+	background: var(--specimen-surface);
+	color: var(--specimen-text);
+	font: 15px / 1.5 var(--specimen-font);
+}
+#specimen-root {
+	box-sizing: border-box;
+	max-width: 84rem;
+	margin: 0 auto;
+	padding: 1.5rem;
+}
+h1 {
+	margin: 0 0 0.25rem;
+	font-size: 1.5rem;
+	line-height: 1.25;
+}
+a {
+	color: var(--specimen-accent);
+	text-underline-offset: 0.15em;
+}
+a,
+button,
+input,
+select {
+	border-radius: var(--specimen-radius);
+}
+:focus-visible {
+	outline: var(--specimen-focus);
+	outline-offset: 2px;
+}
+code {
+	font: 0.85em var(--specimen-mono);
+}
+.specimen-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 var(--specimen-gap);
+	color: var(--specimen-muted);
+}
+.specimen-crumbs {
+	margin: 0 0 0.5rem;
+	color: var(--specimen-muted);
+}
+.specimen-crumbs a {
+	color: inherit;
+}
+.specimen-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 0.75rem 1.5rem;
+	margin: 0 0 var(--specimen-gap);
+	padding: 0.75rem var(--specimen-gap);
+	border: 1px solid var(--specimen-border);
+	border-radius: var(--specimen-radius);
+	background: var(--specimen-raised);
+}
+.specimen-bar > *,
+.specimen-custom {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: 0.75rem;
+	margin: 0;
+}
+.specimen-bar > search {
+	flex: 1 1 16rem;
+}
+.specimen-custom > span {
+	padding-bottom: 0.45rem;
+	color: var(--specimen-muted);
+}
+.specimen-field {
+	display: grid;
+	gap: 0.25rem;
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+.specimen-bar > search .specimen-field {
+	flex: 1;
+}
+input,
+select,
+button {
+	box-sizing: border-box;
+	height: 2.25rem;
+	padding: 0 0.625rem;
+	border: 1px solid var(--specimen-border);
+	background: var(--specimen-surface);
+	color: var(--specimen-text);
+	font: 400 0.95rem var(--specimen-font);
+}
+input[type="search"] {
+	width: 100%;
+}
+input[type="number"] {
+	width: 6rem;
+}
+button {
+	padding: 0 1rem;
+	border-color: var(--specimen-accent);
+	background: var(--specimen-accent);
+	color: var(--specimen-on-accent);
+	font-weight: 600;
+	cursor: pointer;
+}
+.specimen-tag {
+	padding: 0 0.4rem;
+	border-radius: 999px;
+	background: var(--specimen-accent-soft);
+	color: var(--specimen-accent);
+	font-size: 0.75rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+/* Columns pack cards of different heights; each reads down its column. */
+.specimen-groups {
+	columns: 17rem;
+	column-gap: var(--specimen-gap);
+}
+.specimen-group {
+	break-inside: avoid;
+	margin: 0 0 var(--specimen-gap);
+	padding: 0.75rem var(--specimen-gap);
+	border: 1px solid var(--specimen-border);
+	border-radius: var(--specimen-radius);
+}
+.specimen-group h3 {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin: 0 0 0.25rem;
+	font-size: 1rem;
+}
+.specimen-section h2 {
+	margin: 1.5rem 0 0.75rem;
+	font-size: 1.15rem;
+}
+.specimen-section h2 span,
+.specimen-group h3 span {
+	color: var(--specimen-muted);
+	font-weight: 400;
+}
+.specimen-group ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.specimen-group li {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 0.5rem;
+	padding: 0.25rem 0;
+}
+/* A divider above each row that follows a visible one, so filtering never leaves a stray line. */
+.specimen-group li:not([hidden]) ~ li {
+	border-top: 1px solid var(--specimen-border);
+}
+.specimen-group a {
+	text-decoration: none;
+}
+.specimen-group a:hover {
+	text-decoration: underline;
+}
+/* A filtered-out row, card or section: as specific as the rules that lay them out. */
+.specimen-custom[hidden],
+.specimen-section[hidden],
+.specimen-group[hidden],
+.specimen-group li[hidden] {
+	display: none;
+}
+#specimen-page-context-notice,
+#specimen-page-checkpoint-notice,
+#specimen-page-error {
+	margin: 0 0 var(--specimen-gap);
+	padding: 0.625rem var(--specimen-gap);
+	border-left: 4px solid var(--specimen-note-edge);
+	border-radius: var(--specimen-radius);
+	background: var(--specimen-note);
+	overflow-wrap: anywhere;
+}
+#specimen-page-error {
+	border-color: var(--specimen-error);
+	background: var(--specimen-error-soft);
+	color: var(--specimen-error);
+}
+.specimen-stage {
+	margin: 0;
+	padding: 1.5rem;
+	overflow: auto;
+	border-radius: var(--specimen-radius);
+	background: var(--specimen-stage);
+}
+/* At the stage's start, so a dragged corner follows the pointer; a wider frame scrolls the stage. */
+.specimen-viewport {
+	box-sizing: content-box;
+	min-width: 120px;
+	min-height: 80px;
+	overflow: hidden;
+	resize: both;
+	box-shadow:
+		0 0 0 1px var(--specimen-border),
+		0 4px 16px rgb(0 0 0 / 0.12);
+}
+.specimen-stage figcaption {
+	margin-top: 0.75rem;
+	color: var(--specimen-muted);
+	font-size: 0.85rem;
+}
+/* A narrow window stacks the fields; each select then takes the bar's width. */
+@media (max-width: 40rem) {
+	.specimen-bar > form > .specimen-field {
+		flex: 1 1 100%;
+	}
+}
+.specimen-field select {
+	width: 100%;
+}
+@media (forced-colors: active) {
+	.specimen-tag,
+	button {
+		border: 1px solid;
+	}
+	.specimen-viewport {
+		outline: 1px solid;
+	}
+}
