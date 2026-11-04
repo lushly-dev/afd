@@ -1,10 +1,10 @@
 # Specimens status
 
-Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-02** against fetched main `c329e9d1`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
+Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-04** against fetched main `2810474c`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
 
 ## Where the epic stands
 
-Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. Nothing is published, and Lushly has not moved yet. The owner has decided to publish a prerelease once the index is reviewed, which unblocks Lushly. The prebuilt native hosts it needs are packaged.
+Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. Nothing is published, and Lushly has not moved yet. The owner has decided to publish a prerelease, which unblocks Lushly, and reviewed the index on 2026-11-04. The prerelease now waits on a named publisher. The prebuilt native hosts it needs are packaged, and AFD's stories pass the settled accessibility check.
 
 ### What is done
 
@@ -26,14 +26,15 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 
 **The owner decided on 2026-11-02:**
 
-- **Publishing:** a prerelease of the core and CLI, after the owner's review of the index. Lifting quarantine, a named publisher and release admission (G11) are still needed before anything is published.
+- **Publishing:** a prerelease of the core and CLI, after the owner's review of the index, which is done. Lifting quarantine, a named publisher and release admission (G11) are still needed before anything is published.
 - **The FAST-AF plugin's distribution:** publish it with Specimen, so it is no longer private when the prerelease goes out.
-- **A settled accessibility check:** add it, separately from the check that matches Storybook's timing, and fix the 3 stories with `color-contrast` failures on disabled text that it finds.
+- **A settled accessibility check:** add it, separately from the check that matches Storybook's timing, and fix the 3 stories with `color-contrast` failures on disabled text that it finds. [Done](t08-cutover.md#the-settled-accessibility-check) for AFD's 2, both fixed in the components; Lushly's 1 is in Lushly's repository.
 
 **Still the owner's:**
 
-1. **Review the index.** All 407 links open. On a first look on 2026-11-03 the owner asked for the page to be styled; it now groups stories by component, filters them and has its own small stylesheet, which no story's frame loads. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
-2. **Name the publisher,** and approve the release itself when it is ready.
+1. **Name the publisher,** and approve the release itself when it is ready.
+
+The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple"), after asking on 2026-11-03 for the page to be styled. It groups stories by component, filters them and has its own small stylesheet, which no story's frame loads. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
 
 **Blocked until the packages can be installed:**
 
@@ -41,7 +42,6 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 
 **An agent can do these without a decision:**
 
-- Add the settled accessibility check and fix its 3 stories, as the owner decided.
 - Prepare the prerelease: the release route must build the four prebuilt hosts and publish them with the core, at its version (G11, G13). The hosts are packaged, and `specimen.yml` builds and checks each one.
 - Measure full suites under T04's policy and profile the per-story time. The owner accepts the extra CPU for now (1.59× and 1.84× per verified case), and the proposal's resource goal stands.
 - Fix [#707](https://github.com/lushly-dev/afd/issues/707), `settle` hanging on an element only a scoped registry holds, and [#662](https://github.com/lushly-dev/afd/issues/662), the empty ARIA snapshot while a modal dialog is open.
@@ -53,7 +53,7 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 
 Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is left](#what-is-left) first; this section adds how to pick the work up.
 
-**Immediate work:** the owner answered three of the decisions on 2026-11-02 (above), and the prebuilt hosts are packaged. The settled accessibility check is next. The index review and the publisher are still the owner's. Start any new work on a fresh branch from `origin/main`.
+**Immediate work:** the owner answered three of the decisions on 2026-11-02 (above) and reviewed the index on 2026-11-04. The prebuilt hosts are packaged and the settled accessibility check is done. The prerelease's release route is next; the publisher is still the owner's. Start any new work on a fresh branch from `origin/main`.
 
 **To show the owner the review page,** follow [the FAST-AF README](../../../../foundations/fast-af/README.md). A background server stops at its time limit, so say so when handing over the link.
 
@@ -61,8 +61,7 @@ Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is
 
 | Work | Notes |
 | --- | --- |
-| The settled accessibility check | The owner decided to add it. It changes both the runner's timing and the 3 stories it catches, and T06's agreement evidence compares against Storybook's timing, so keep it separate from the existing check |
-| The prerelease's release route | After the owner reviews the index and names a publisher. The prebuilt hosts are packaged (G13), and the route must publish them with the core |
+| The prerelease's release route | Prepare it now; it publishes only once the owner names a publisher and approves. The prebuilt hosts are packaged (G13), and the route must publish them with the core |
 | Full-suite measurement and per-story profile | Under T04's policy, on `random`, in its isolated copy and after the quiet gate |
 | [#707](https://github.com/lushly-dev/afd/issues/707), [#662](https://github.com/lushly-dev/afd/issues/662) | Both raised by Loam |
 | Lushly's move | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) is Lushly's work, in its repository, once the packages can be installed |
@@ -215,7 +214,7 @@ All rows were reconciled on 2026-11-02. Rows marked open have no owner or issue 
 | Export the capture 0.2 manifest fields T03 defined | Capture 0.2 with T04/T06 | Done / merged in #691 |
 | Measure the incumbent's page baseline (`layout: 'padded'` in Vitest mode) before comparing unconstrained layout | T05; T03 finding | Open, unassigned |
 | Deliver the supported retained-CSF compatibility slice and codemod | T05; [record](t05-compatibility.md) | Done / merged in #634, #642, #647, #654 and #670 |
-| Decide whether to offer a settled accessibility check after cutover | T06 finding; [record](t06-full-runner.md#finding-storybooks-check-can-miss-a-components-rendered-state) | Decided by the owner on 2026-11-02: add it and fix the 3 stories. Open, next. Specimen reproduces Storybook's timing, as T06 requires. A check one frame later found 3 `color-contrast` failures in 1,280 stories, all disabled text that axe cannot see as disabled on a custom element |
+| Decide whether to offer a settled accessibility check after cutover | T06 finding; [record](t06-full-runner.md#finding-storybooks-check-can-miss-a-components-rendered-state) | Done: decided by the owner on 2026-11-02, added as `test.settledAccessibility` and on for AFD's stories ([record](t08-cutover.md#the-settled-accessibility-check)). The default still reproduces Storybook's timing, as T06 requires. Of the 3 `color-contrast` failures, AFD's 2 were component bugs, now fixed; Lushly's 1 is Lushly's |
 | Bring a full run's wall clock near the incumbent's | T06 step 2; [record](t06-full-runner.md#results) | Largely addressed in #676: 161 s to 112 s on Lushly and 41 s to 14 s on FAST-AF, two workers each. Whether to narrow it further, with a fresh page per story, is open |
 | Measure full suites under T04's policy and profile the per-story time | T08; the owner accepts the extra CPU for now, and the proposal's resource goal stands | Open |
 | Account for the load-sensitive `hover-rim` story in qualifying pairs | T06 step 2 finding; T08; [record](t06-full-runner.md#finding-a-load-sensitive-story-in-the-incumbent) | Open: both runners fail it under load |
@@ -262,4 +261,5 @@ All rows were reconciled on 2026-11-02. Rows marked open have no owner or issue 
 | 2026-10-31 | T03 driver context and lifecycle | Branch evidence, `lush/specimens-t03-drivers`. 3 contexts × 3 drivers on Chromium 156: geometry, units, container and theme agree; static media and locale labelled; reference media needs a driver command and the bench page's body margin. Isolation and failure ownership tested. `TrustedHTML` support: FAST-AF 9/9 and Lushly 7/7 pilot captures DOM partial → complete, repeat comparisons `insufficient-evidence` → `no-change-observed`. Owner chose the font and browser condition. |
 | 2026-11-01 | High-contrast theme context (Loam D53) | Branch `loam-specimen-high-contrast`. `SpecimenContext.theme` gains `high-contrast`, the light color scheme with `prefers-contrast: more`; the native host emulates both over CDP and pins light and dark to `prefers-contrast: no-preference`; captures report a `prefers-contrast` mismatch; the static preview offers the theme and labels the preference. A fourth `contrast` context runs through the bench, static preview and reference driver. Local receipts: `pnpm test:specimen` (165 native, 18 reference, 12 consumer checks), the host's Rust tests (11), integration (7) and CLI (8) suites |
 | 2026-11-02 | Epic reconciliation | Against main `c329e9d1`. Added [where the epic stands](#where-the-epic-stands) and brought the delivery state, workstreams, gaps and follow-ups up to the merged work. Documents only |
+| 2026-11-04 | Index review and the settled accessibility check | Branch `lush/specimens-settled-a11y`, from main `2810474c`. The owner reviewed the index ("Index looks good, nice and simple"). `test.settledAccessibility` adds a check once a story has settled; `compat/settled/` shows Storybook and the default check pass a story the settled check fails. On for AFD's stories: 407 of 407 pass both after fixing a disabled listbox's options, which claimed `aria-disabled="false"`, and a disabled switch's dimmed supporting text, with the checkbox and radio following the same rule |
 | 2026-11-02 | Handoff | Against main `a5830b4d`. Added the [handoff](#handoff-2026-11-02-resume-here). Documents only |

@@ -136,6 +136,11 @@ const styles = css`
     :host([disabled]) .root,
     :host(:disabled) .root {
         cursor: not-allowed;
+    }
+
+    /* Supporting text often says why the control is unavailable, so it stays readable. */
+    :host([disabled]) :is(.control-shell, .label),
+    :host(:disabled) :is(.control-shell, .label) {
         opacity: 0.6;
     }
 

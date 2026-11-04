@@ -79,6 +79,8 @@ A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `
 
 A story runs in one chain, as under Storybook's runner: render, then play, then the accessibility check, with no frame between them, so a component that renders on its next frame is seen as Storybook's run sees it. A custom element a story leaves undefined does not hold it up; the capture records it.
 
+That timing can miss what a component draws on its next frame, such as a FAST component applying its args: Storybook's check runs before then. `test: { settledAccessibility: true }` adds a second check once the story has settled, with its elements defined, its fonts loaded and two frames drawn, under the same policy. The run reports it as `settled`, beside `a11y`, and a violation there fails the story as `settled-a11y`. With it on, `specimen-a11y` and a capture's `channels.a11y.axe` report the settled check. It is off by default, so runs agree with Storybook's. AFD's own FAST-AF stories turn it on.
+
 Two things consumers' stories rely on are available:
 
 - `staticDirs` serves directories at the page's origin, as Storybook's option does: `"staticDirs": ["./public", { "from": "./site", "to": "/site" }]`. Paths are relative to the configuration and inside the root.

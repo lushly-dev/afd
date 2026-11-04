@@ -275,9 +275,13 @@ const storyOutcomeSchema = z.strictObject({
 	status: z.enum(['passed', 'failed', 'skipped', 'excluded']),
 	play: z.enum(['ran', 'none']),
 	failures: z.array(
-		z.strictObject({ category: z.enum(['render', 'play', 'a11y']), message: z.string() })
+		z.strictObject({
+			category: z.enum(['render', 'play', 'a11y', 'settled-a11y']),
+			message: z.string(),
+		})
 	),
 	a11y: axeOutcomeSchema,
+	settled: axeOutcomeSchema.optional(),
 });
 export const storyRunSchema = z.strictObject({
 	id: z.string(),

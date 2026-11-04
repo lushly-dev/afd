@@ -384,6 +384,7 @@ function testTags(value: unknown): NonNullable<BenchConfig['test']> {
 		'skip',
 		'workers',
 		'timeoutMs',
+		'settledAccessibility',
 	]);
 	const result: NonNullable<BenchConfig['test']> = {};
 	for (const key of ['include', 'exclude', 'skip'] as const)
@@ -392,6 +393,11 @@ function testTags(value: unknown): NonNullable<BenchConfig['test']> {
 		result.workers = integer(fields.workers, 'configuration.test.workers', 1, MAX_SUITE_WORKERS);
 	if (fields.timeoutMs !== undefined)
 		result.timeoutMs = integer(fields.timeoutMs, 'configuration.test.timeoutMs', 1, 60_000);
+	if (fields.settledAccessibility !== undefined) {
+		if (typeof fields.settledAccessibility !== 'boolean')
+			fail('configuration.test.settledAccessibility', 'expected a boolean');
+		result.settledAccessibility = fields.settledAccessibility;
+	}
 	return result;
 }
 

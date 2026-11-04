@@ -530,6 +530,49 @@ export async function checkNativeSpecimen(
 }
 
 /**
+ * The settled check, once the story has settled, added to its run: under the same policy, with
+ * animations paused at their end. A play that failed leaves nothing to check.
+ */
+export async function checkSettledStory(
+	mounted: MountedStory,
+	outcome: StoryOutcome
+): Promise<StoryOutcome> {
+	if (outcome.play === 'ran' && outcome.failures.some((failure) => failure.category === 'play'))
+		return { ...outcome, settled: { ...outcome.a11y, reason: 'the play failed' } };
+	const failures = [...outcome.failures];
+	let settled: AccessibilityResult;
+	try {
+		settled = await checkMountedStory(mounted);
+	} catch (error) {
+		settled = {
+			status: 'failed',
+			policy: accessibilityPolicy(mounted.prepared.composed),
+			reason: message(error),
+			violations: [],
+			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
+		};
+		failures.push({
+			category: 'settled-a11y',
+			message: `The settled accessibility check failed: ${message(error)}`,
+		});
+	}
+	if (settled.status === 'failed' && settled.violations.length)
+		failures.push({
+			category: 'settled-a11y',
+			message: `Once settled: ${violationList(settled.violations)}`,
+		});
+	return { ...outcome, status: failures.length ? 'failed' : outcome.status, failures, settled };
+}
+
+function violationList(violations: AxeFinding[]): string {
+	return violations
+		.map((violation) => `${violation.help} (${violation.id}) at ${violation.targets.join(', ')}`)
+		.join('; ');
+}
+
+/**
  * `runStory` after the mount: the play, then paused animations and the accessibility check.
  * A play that throws ends the run before the check, as an `afterEach` is skipped.
  */
@@ -588,11 +631,7 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 		if (a11y.status === 'failed' && a11y.violations.length)
 			failures.push({
 				category: 'a11y',
-				message: a11y.violations
-					.map(
-						(violation) => `${violation.help} (${violation.id}) at ${violation.targets.join(', ')}`
-					)
-					.join('; '),
+				message: violationList(a11y.violations),
 			});
 		return {
 			status: failures.length ? 'failed' : 'passed',

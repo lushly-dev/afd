@@ -54,6 +54,22 @@ describe("violet-switch", () => {
         document.body.innerHTML = "";
     });
 
+    it("dims a disabled switch's control and label but keeps its supporting text readable", async () => {
+        const element = await renderSwitch({
+            label: "Enable harvest sync",
+            supporting: "Unavailable while the field audit is in progress.",
+        });
+        element.disabled = true;
+        await nextFrame();
+
+        const opacity = (selector: string) =>
+            getComputedStyle(element.shadowRoot?.querySelector(selector) as Element).opacity;
+        expect(opacity(".control-shell")).toBe("0.6");
+        expect(opacity(".label")).toBe("0.6");
+        expect(opacity(".supporting")).toBe("1");
+        expect(opacity(".root")).toBe("1");
+    });
+
     it("toggles from its visual track and exposes switch semantics on the native control", async () => {
         const element = await renderSwitch({
             label: "Enable notifications",
