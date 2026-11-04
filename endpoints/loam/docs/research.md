@@ -348,9 +348,9 @@ in the Chromium suite.
   library; Automerge has a Rust core with WebAssembly bindings; Postgres
   sync engines cover the structured side [S74].
 - **AFD's client guidance stops at the shell's door.** The
-  optimistic-mutations skill covers instant feedback and reconciliation
-  from command results and excludes collaborative conflict resolution, so
-  the shell must own it [S77].
+  afd-directclient skill's optimistic UI guidance covers instant feedback
+  and reconciliation from command results and excludes collaborative
+  conflict resolution, so the shell must own it [S77].
 - **The owner's lesson.** An earlier multiplayer service worked well but was
   built for one document type and should have been a shareable service for
   all; its hard problems were authorization epochs on live sessions and

@@ -21,7 +21,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".codex/skills",
-			"listingBudget": 10200,
+			"listingBudget": 6800,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -61,7 +61,6 @@
 				"afd",
 				"afd-auth",
 				"afd-cpp",
-				"afd-developer",
 				"afd-directclient",
 				"afd-python",
 				"afd-rust",
@@ -71,8 +70,7 @@
 				"do-init-afd",
 				"do-prepare-pr",
 				"do-release",
-				"loam-design",
-				"optimistic-mutations"
+				"loam-design"
 			]
 		}
 	}

@@ -150,17 +150,15 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 
 | Skill | When to Use |
 |-------|-------------|
-| [afd](.claude/skills/afd/) | Core AFD patterns, command design, workflow |
-| [afd-developer](.claude/skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
+| [afd](.claude/skills/afd/) | Core AFD rules, philosophy, command design, meta-tools, CLI |
 | [afd-site-design](.claude/skills/afd-site-design/) | afd.dev design system: tokens, colour fields, type ramp, section patterns, motion rules |
 | [loam-design](.claude/skills/loam-design/) | Loam's chrome and kit design: token contract, type ramp, contrast floors, density, parts, motion, focus and state, layout classes, component checklist |
-| [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic, FastMCP |
+| [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic and the MCP SDK |
 | [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
 | [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
 | [afd-cpp](.claude/skills/afd-cpp/) | C++ implementation patterns (afd-cpp), embedding constraints, host integrations |
 | [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
-| [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
-| [optimistic-mutations](.claude/skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
+| [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variables, optimistic UI |
 | [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
 | [do-init-afd](.claude/skills/do-init-afd/) | Session start: preflight, refresh base, adopt task, report state |
 | [do-prepare-pr](.claude/skills/do-prepare-pr/) | Ship: base sync, independent review, docs/changeset, gates, PR, authorized merge |

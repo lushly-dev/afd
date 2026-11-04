@@ -264,9 +264,10 @@ the whole request before anything runs, and so does a malformed `when` condition
 - A batch holds at most 500 commands, with `parallelism` at most 16. Configure the caps
   with `create_server(max_batch_size=..., max_batch_parallelism=...)`; a larger request
   returns `INVALID_BATCH_REQUEST`.
-- When a batch stops (a failure with `stopOnError`, or its `timeout`), commands still
-  running are cancelled and awaited, so nothing keeps running after the result is sent.
-  They report `COMMAND_CANCELLED` or `BATCH_TIMEOUT`.
+- With `stopOnError`, a failure stops new starts: commands already running finish normally
+  and keep their results, and commands not yet started report `COMMAND_SKIPPED`. A batch
+  `timeout` cancels and awaits running commands, which report `BATCH_TIMEOUT`, so nothing
+  keeps running after the result is sent.
 - A handler that returns something other than a `CommandResult` gives its item or step
   an `INVALID_COMMAND_RESULT` failure instead of breaking the aggregate result.
 - Pipelines run sequentially. `options.parallel` and a step with `stream: true` are not
@@ -521,7 +522,7 @@ explicitly authorizes one retry. JSON or noninteractive calls remain held withou
 ## Related
 
 - [AFD TypeScript](../packages/) - Original TypeScript implementation
-- [AFD Philosophy](../.claude/skills/afd-developer/references/philosophy.md) - Why AFD?
+- [AFD Philosophy](../.claude/skills/afd/references/philosophy.md) - Why AFD?
 - [Command Schema Guide](../.claude/skills/afd/references/command-schema.md) - Designing commands
 
 ## License

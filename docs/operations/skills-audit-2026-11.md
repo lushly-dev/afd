@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0, 1 and 2 merged in #755, #757 and #761; Batch 2b in progress.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 2b merged in #755, #757, #761 and #774; Batch 3 in progress.
 
 ## Summary
 
@@ -208,7 +208,8 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Fix the 14 confirmed drift items first.
 - Merge afd-developer into afd.
 - Trim the language, auth and directclient skills, and fold in optimistic-mutations.
-- Make loam-design a router, and drop afd-site-design's `history.md`.
+- Drop afd-site-design's `history.md`.
+- loam-design stays as it is, apart from a shorter description. Loam's phase 0 specification (decision D26) and `endpoints/loam/docs/design.md` deliberately have the skill carry the same rules as the design document. Making it a router would reverse that decision, so it is the owner's call.
 
 **Batch 4: AFD session loop.**
 - Rewrite `do-init-afd`, `do-prepare-pr` and `do-release`, and trim `do-end-session`.

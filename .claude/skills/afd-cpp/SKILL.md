@@ -1,14 +1,10 @@
 ---
 name: afd-cpp
 description: >
-  C++20 implementation patterns for AFD commands using afd-cpp (packages/cpp): CommandResult
-  types, CommandDefinition with designated initializers, JSON Schema validation, the
-  CommandRegistry and middleware, DirectClient, batch, pipeline and stream execution, and
-  testing with doctest. Covers the embedding constraints (no exceptions or RTTI, macro hygiene,
-  WebAssembly) and where host adapters belong. Use when: implementing commands in C++, embedding
-  AFD in a C++ application, game engine, simulation or tool, building afd-cpp, or debugging C++
-  AFD code. Triggers: afd-cpp, c++ afd, cpp command, CommandRegistry c++, CompiledSchema,
-  DirectClient c++, cmake afd, emscripten afd.
+  Writes AFD commands in C++20 with afd-cpp (packages/cpp): designated-initializer definitions,
+  registry order, DirectClient, and the no-exceptions, no-RTTI and macro-hygiene rules. Use when
+  embedding AFD in a C++ application, engine or tool, or building or debugging afd-cpp; for Rust,
+  use afd-rust.
 ---
 
 # AFD C++ Implementation
@@ -16,10 +12,9 @@ description: >
 Patterns for implementing AFD commands in C++ with `afd-cpp` (`packages/cpp`). The design is in
 [proposal.md](../../../docs/features/complete/cpp-support/proposal.md).
 
-## Parity Rule
+## Parity
 
-C++ matches the AFD contract that TypeScript, Python and Rust share. The behavioral reference is
-the TypeScript server engine.
+The behavioral reference is the TypeScript server engine; gaps and intended differences are in [docs/language-parity.md](../../../docs/language-parity.md).
 
 - **Wire shapes** must round-trip every `spec/wire` fixture (`tests/wire_fixtures_test.cpp`).
 - **Behavior vectors** in `spec/vectors`, generated from TypeScript, must pass: pipeline references and conditions (`tests/vectors_test.cpp`), and batch and pipeline controls on a `ManualClock` (`tests/batch_vectors_test.cpp`).
@@ -35,15 +30,13 @@ the TypeScript server engine.
 include(FetchContent)
 FetchContent_Declare(afd
     GIT_REPOSITORY https://github.com/lushly-dev/afd.git
-    GIT_TAG cpp-v0.2.0
+    GIT_TAG cpp-v<version>
     SOURCE_SUBDIR packages/cpp)
 FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
 ```
 
-The published 0.2.0 release implements contract `1.0-rc`. An installed package
-also provides `find_package(afd 0.2 CONFIG REQUIRED)`; a source checkout can use
-`add_subdirectory(path/to/afd/packages/cpp afd)`.
+afd-cpp is on no registry: a release is a `cpp-v<version>` tag. Read the version from `project(... VERSION ...)` in `packages/cpp/CMakeLists.txt` and the contract from `spec/VERSION` (`afd::contract_version`). An installed package provides `find_package(afd <major>.<minor> CONFIG REQUIRED)`, which accepts only the same major and minor version before 1.0. A source checkout can use `add_subdirectory(path/to/afd/packages/cpp afd)`.
 
 ```cpp
 #include <afd/afd.hpp>   // the whole public API
@@ -75,7 +68,6 @@ afd::CommandResult custom =
 - **Options are partial designated initializers:** `ResultOptions` and `ErrorOptions`, written as `{.suggestion = ...}`. Fields must follow declaration order.
 - **`data` is a `std::optional<afd::Json>`.** `null` is a value; `std::nullopt` means absent. On the wire, unset fields are omitted, never written as `null`.
 - **Error constructors** carry TypeScript's exact text: `validation_error`, `not_found_error`, `rate_limit_error`, `timeout_error`, `internal_error`, `wrap_error` and `create_error`. The codes live in `afd::error_codes`, for example `afd::error_codes::NOT_FOUND`.
-- **Always include a `suggestion`** in errors your commands return.
 
 ## Command Definition
 
@@ -125,7 +117,7 @@ afd::CommandResult result = registry->execute("todo-create", {{"title", "Buy mil
 1. **Lookup.** An unknown name gets COMMAND_NOT_FOUND with "did you mean" matches.
 2. **Exposure**, when `context.surface` is set: COMMAND_NOT_EXPOSED.
 3. **Context:** COMMAND_NOT_IN_CONTEXT.
-4. **Validation:** VALIDATION_ERROR, with `details.errors`, `missingFields` and similar lists.
+4. **Validation** of the input, then of the declared context fields in `context.extra`: VALIDATION_ERROR, with `details.errors`, `missingFields` and similar lists. Declare fields in `CommandRegistryOptions::context_fields` and build with `CommandRegistry::create`, which returns the declaration error; a registry constructed with a bad declaration fails every call.
 5. **Middleware**, then the handler.
 6. **Metadata stamping:** `executionTimeMs`, `commandVersion`, and `traceId` read after middleware ran.
 7. **`on_command`.**
@@ -257,34 +249,13 @@ TEST_CASE("todo-create validates and stamps metadata") {
 - **Library tests:** `packages/cpp/tests`, run with `ctest --preset dev`.
 - **Conformance:** `pnpm --dir packages/examples/todo test:conformance:cpp`.
 - **Benchmarks:** `cmake --preset release -DAFD_BUILD_BENCHMARKS=ON`, build `afd_benchmarks`, run `build/release/benchmarks/afd_benchmarks [filter]`. Manual evidence with no thresholds; CI uploads a run as the `cpp-benchmarks` artifact. Baseline in `packages/cpp/README.md`.
-- **Formatting:** clang-format 22.1.8, pinned, run with `uvx --from clang-format==22.1.8 clang-format -i <files>`.
+- **Formatting:** use the pinned clang-format, never the system one. The version is `CLANG_FORMAT_VERSION` in `.github/workflows/cpp.yml`, and `packages/cpp/README.md` ("Formatting") has the `uvx --from clang-format==<version>` command.
 
-## Current Parity Note
+## What C++ Does Not Have
 
-`alfred parity` tracks `missing_from_cpp` (budget in `alfred/tests/test_parity.py`). The
-cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md).
-
-**Deferred.** These gaps are planned for later:
-- **MCP JSON-RPC types and helpers,** including command-to-tool conversion. Transports live in hosts and examples.
-- **The meta-tools and bootstrap commands:** `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`.
-- **Retry, rate-limit and telemetry middleware,** and the telemetry types.
-- **Connectors, `CommandParameter` builders and streamable-command metadata.**
-
-**By design.** These are not gaps:
-- **Typed pipeline-condition structs and their guards.** C++ keeps conditions as validated JSON.
-- **Timeout controllers.** `CancellationSource` covers them.
-- **`createCommandRegistry`.** The TypeScript core registry is not the reference.
-
-**Internal, and cheap to expose:** the pipeline aggregation helpers, `get_nested_value`, `is_batch_command` and `is_pipeline_step`.
-
-**Divergences a caller can see:**
-- `output_schema` and `prerequisites` are stored but never emitted.
-- The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.
-
-## Related Skills
-
-- `afd` - Core AFD patterns
-- `afd-typescript` - TypeScript implementation (the behavioral reference)
-- `afd-python` - Python implementation patterns
-- `afd-rust` - Rust implementation patterns
-- `afd-developer` - AFD methodology
+The full list is in [docs/language-parity.md](../../../docs/language-parity.md); `alfred parity` budgets the missing names (`alfred/tests/test_parity.py`). What a caller trips over:
+- **No MCP server, client or JSON-RPC types,** and no meta-tools or bootstrap commands (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`). Transports live in hosts and examples.
+- **No retry, rate-limit or telemetry middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
+- **`output_schema` and `prerequisites` are stored but never emitted.**
+- **The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.** Rust's whole-schema path accepts `const`; C++ does not.
+- **By design:** pipeline conditions stay validated JSON (no typed condition structs), `CancellationSource` replaces timeout controllers, and there is no `createCommandRegistry`.

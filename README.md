@@ -200,7 +200,7 @@ AFD stays framework-agnostic at the command layer. React or browser integrations
 
 Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped.
 
-**[Read the full philosophy →](./.claude/skills/afd-developer/references/philosophy.md)**
+**[Read the full philosophy →](./.claude/skills/afd/references/philosophy.md)**
 
 ## Development Workflow
 
@@ -226,7 +226,7 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 └─────────────────────────────────────────────────┘
 ```
 
-> **Note**: This is the per-command workflow. For the full 4-phase **project implementation roadmap** (Foundation → Expansion → Refinement → Ecosystem), see [Implementation Phases](./.claude/skills/afd-developer/references/implementation-phases.md).
+> **Note**: This is the per-command workflow. For the full 4-phase **project implementation roadmap** (Foundation → Expansion → Refinement → Ecosystem), see [Implementation Roadmap](./docs/whitepaper/AFD-Whitepaper.md#7-implementation-roadmap) in the whitepaper.
 
 ## Quickstart
 
@@ -488,12 +488,12 @@ node packages/cli/dist/bin.js --help
 
 | Guide | Description |
 |-------|-------------|
-| [Philosophy](./.claude/skills/afd-developer/references/philosophy.md) | **Why** AFD — UX design for AI collaborators |
+| [Philosophy](./.claude/skills/afd/references/philosophy.md) | **Why** AFD — UX design for AI collaborators |
 | [Command Schema Guide](./.claude/skills/afd/references/command-schema.md) | How to design commands that enable good agent UX |
-| [Optimistic Mutations](./.claude/skills/optimistic-mutations/SKILL.md) | How to use optimistic updates in interactive AFD clients without moving business logic out of commands |
-| [Trust Through Validation](./.claude/skills/afd-developer/references/trust-validation.md) | How CLI validation builds user trust |
-| [Implementation Phases](./.claude/skills/afd-developer/references/implementation-phases.md) | 4-phase roadmap for AFD projects |
-| [Production Considerations](./.claude/skills/afd-developer/references/production-considerations.md) | Security, mutation safety, and observability guidance |
+| [Optimistic UI](./.claude/skills/afd-directclient/SKILL.md#optimistic-ui-in-an-app-client) | How to use optimistic updates in interactive AFD clients without moving business logic out of commands |
+| [Trust Through Validation](./docs/whitepaper/AFD-Whitepaper.md#6-trust-through-validation) | How CLI validation builds user trust |
+| [Implementation Roadmap](./docs/whitepaper/AFD-Whitepaper.md#7-implementation-roadmap) | 4-phase roadmap for AFD projects |
+| [Production Considerations](./docs/whitepaper/AFD-Whitepaper.md#11-production-considerations) | Security, mutation safety, and observability guidance |
 
 ## Examples
 

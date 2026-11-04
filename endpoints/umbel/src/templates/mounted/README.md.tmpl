@@ -18,7 +18,7 @@ umbel plugin check path=. spawn=true   # starts the server, lists its tools, rep
 AFD builds MCP servers in three languages, each with the same `CommandResult` shape:
 
 - TypeScript: `@lushly-dev/afd-server`, `defineCommand` and `createMcpServer` (the `afd-typescript` skill).
-- Python: the `afd` package with FastMCP (the `afd-python` skill).
+- Python: the `afd` package with the `mcp` SDK's `MCPServer` (the `afd-python` skill).
 - Rust: the `afd` crate with its `server` feature, or `umbel-sdk`'s `serve_mounted` (the `afd-rust` skill).
 
 Serve over stdio and write logs to stderr: stdout carries only JSON-RPC.

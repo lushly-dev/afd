@@ -1,109 +1,50 @@
-# Handoff Pattern
+# Handoff pattern
 
-The handoff pattern extends AFD's command-first architecture to support real-time, streaming, and high-frequency use cases.
+For traffic a request-response command can't carry (live collaboration, 60 Hz input, unbounded
+event streams, bidirectional chat), a command hands off: it authorises the session and returns
+where to connect. The design record is `docs/features/complete/handoff-pattern/` (schema,
+lifecycle, client integration, agent behaviour, security).
 
-## When to Use Handoff
-
-| Traffic Type | Example | Why Commands Don't Fit |
-|--------------|---------|------------------------|
-| Real-time collaboration | Google Docs, Figma | Continuous CRDT operations |
-| High-frequency input | Drawing apps, games | 60Hz updates |
-| Event streams | Live feeds, Kafka | Unbounded, long-running |
-| Bidirectional comms | Video calls, chat | Simultaneous send/receive |
-
-## Handoff Command Definition
-
-Mark commands that return protocol handoffs with `handoff: true`:
+## The handoff command
 
 ```typescript
-import { defineCommand, HandoffResult } from '@lushly-dev/afd-server';
+import { createHandoff, type HandoffResult } from '@lushly-dev/afd-core';
 
 const chatConnect = defineCommand({
   name: 'chat-connect',
-  category: 'chat',
   description: 'Connect to a chat room for real-time messaging',
-  handoff: true,
-  tags: ['chat', 'handoff', 'handoff:websocket'],
-
-  inputSchema: z.object({
-    roomId: z.string(),
-  }),
-
-  async handler(input, ctx) {
-    const session = await ctx.chatService.createSession(input);
-
-    return success<HandoffResult>({
+  handoff: true,               // adds the `handoff` tag
+  handoffProtocol: 'websocket', // adds `handoff:websocket`; also webrtc, sse, http-stream or your own
+  input: z.object({ roomId: z.string() }),
+  async handler(input) {
+    const session = await chat.createSession(input.roomId);
+    return success<HandoffResult>(createHandoff({
       protocol: 'websocket',
       endpoint: `wss://chat.example.com/rooms/${input.roomId}`,
-      credentials: {
-        token: session.token,
-        sessionId: session.id,
-      },
-      metadata: {
-        expiresAt: session.expiresAt,
-        capabilities: ['text', 'typing', 'presence'],
-        reconnect: { allowed: true, maxAttempts: 5 },
-      },
-    });
+      credentials: { token: session.token, sessionId: session.id },
+      metadata: { expiresAt: session.expiresAt, capabilities: ['text', 'presence'] },
+    }));
   },
 });
 ```
 
-## Handoff Capability Tags
+`HandoffResult` is `{ protocol, endpoint, credentials?: { token?, headers?, sessionId? },
+metadata?: { expectedLatency?, capabilities?, expiresAt?, reconnect?, description? } }`.
+`createHandoff` fills `metadata.reconnect` with `{ allowed: true, maxAttempts: 3, backoffMs: 1000 }`
+when you leave it out. Core also has `isHandoff`, `isHandoffCommand` and `getHandoffProtocol`.
 
-| Tag | Meaning |
-|-----|---------|
-| `handoff` | Command returns a protocol handoff |
-| `handoff:websocket` | Uses WebSocket protocol |
-| `handoff:webrtc` | Uses WebRTC protocol |
-| `handoff:sse` | Uses Server-Sent Events |
-| `handoff:resumable` | Session can resume after disconnect |
+On the client, `@lushly-dev/afd-client` has `connectHandoff`, `createReconnectingHandoff` and a
+protocol-handler registry (`registerProtocolHandler`).
 
-## Lifecycle Commands
+## Lifecycle commands
 
-Every handoff domain should implement:
+Give each handoff domain `<domain>-connect` (or `-start`), `<domain>-status`,
+`<domain>-disconnect` (or `-end`) and `<domain>-reconnect`. A session is `pending`, `active`,
+`disconnected` (it can reconnect), `closed` or `expired`. Tag a command whose sessions survive a
+disconnect `handoff:resumable` yourself; only `handoff` and `handoff:<protocol>` are added for you.
 
-| Command | Purpose |
-|---------|---------|
-| `{domain}.connect` / `{domain}.start` | Initiate session, return `HandoffResult` |
-| `{domain}.status` | Query session state |
-| `{domain}.disconnect` / `{domain}.end` | Gracefully close session |
-| `{domain}.reconnect` | Resume disconnected session |
+## Agent fallback
 
-Session states: `pending` → `active` → `disconnected` → `closed` / `expired`
-
-## Agent Fallback Pattern
-
-Most AI agents (L1/L2) cannot consume real-time protocols. Provide polling fallbacks:
-
-| Handoff Command | Fallback Command | Description |
-|-----------------|------------------|-------------|
-| `chat-connect` | `chat-poll` | Poll for messages periodically |
-| `events-subscribe` | `events-list` | List recent events |
-| `canvas-start` | `canvas-snapshot` | Get current state |
-
-```typescript
-// Fallback for agents without WebSocket capability
-const chatPoll = defineCommand({
-  name: 'chat-poll',
-  description: 'Poll for messages (agent-friendly fallback)',
-  tags: ['chat', 'read', 'agent-friendly'],
-
-  async handler(input, ctx) {
-    const messages = await ctx.chatService.getMessages({
-      roomId: input.roomId,
-      after: input.since,
-    });
-
-    return success({
-      messages,
-      hasMore: messages.length === input.limit,
-    }, {
-      _agentHints: {
-        nextAction: 'Poll again with since=lastMessageId',
-        pollInterval: 5000,
-      },
-    });
-  },
-});
-```
+Most agents can't hold a WebSocket. Pair every handoff with a request-response command that reads
+the same state: `chat-connect` with `chat-poll`, `events-subscribe` with `events-list`,
+`canvas-start` with `canvas-snapshot`.

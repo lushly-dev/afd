@@ -301,9 +301,9 @@ records land in phase 5, so that no type is ever built for itself (D46).
   every change and the CRDT merges them. Structured fields that are not
   CRDT-bound default to per-property last-writer-wins with the server
   ordering. Clients render optimistically and reconcile from results, in
-  the pattern the optimistic-mutations guidance already sets for AFD
-  clients, which stops short of collaborative conflict resolution and so
-  leaves it to the shell [S77].
+  the pattern the afd-directclient skill's optimistic UI guidance already
+  sets for AFD clients, which stops short of collaborative conflict
+  resolution and so leaves it to the shell [S77].
 - **Presence.** An ephemeral channel per document and per run: who is
   here, cursors and selections expressed in the type's selection model so
   the editor and the inspector can show them, typing and running

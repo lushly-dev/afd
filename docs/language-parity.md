@@ -35,7 +35,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | Version | 2.2.1 | 0.10.0 | 0.2.1 (published) | 0.2.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.2.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.2.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.2.0) |
-| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
+| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | Streamable HTTP (`server` feature on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
 | Skill | `afd-typescript` | `afd-python` | `afd-rust` | `afd-cpp` |
@@ -231,7 +231,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
   - connectors;
   - `CommandParameter`;
   - streamable-command metadata.
-- **Rust** (the `afd-rust` skill's parity note): `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
+- **Rust** (the rows above): `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
 
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
@@ -252,7 +252,7 @@ Ordered by how much an agent or a security boundary is affected.
 3. **Crash error code (fixed).** Rust returned `INTERNAL_ERROR` where the reference returns `COMMAND_EXECUTION_ERROR`, and its `error_codes` omitted that code. `execute`, batch and pipeline now return `COMMAND_EXECUTION_ERROR` through the exported `execution_failure`, and `error_codes` has the code.
 4. **Success discriminants (fixed in the candidate).** Python `is_success(success(None))` is true; Rust guards also test only `success`.
 5. **Python `DirectClient` boundary remains partial.** Positive finite millisecond deadlines and shallow JSON-shaped input checks are implemented. Exposure, an `allow` predicate and middleware remain gaps. Cancellation is cooperative: a blocking or cancellation-resistant handler may still mutate after a deadline.
-6. **Python context state (fixed in the candidate).** Actual FastMCP SDK transport sessions own independent stacks capped at 16. Caller-supplied session strings never establish identity; stateless HTTP context mutation returns `SESSION_REQUIRED`. Local calls use a deliberate default scope.
+6. **Python context state (fixed in the candidate).** Actual MCP SDK transport sessions own independent stacks capped at 16. Caller-supplied session strings never establish identity; stateless HTTP context mutation returns `SESSION_REQUIRED`. Local calls use a deliberate default scope.
 7. **Python `SseDecoder` frame cap (fixed in the candidate).** Decoded UTF-8 frames default to 1 MiB, counting metadata, comments and separators. Upstream reader line allocation remains outside this decoder.
 8. **Python defaults differ from TypeScript.**
    - The bootstrap tools are always registered and MCP-exposed; in TypeScript they are opt-in.
@@ -296,7 +296,7 @@ Ordered by how much an agent or a security boundary is affected.
     - **TypeScript and Python:** the router's unreachable `COMMAND_NOT_EXPOSED` branch in `afd-call` is gone.
     - **Python:** `afd-batch` and `afd-pipe` no longer reveal a private command with `COMMAND_NOT_EXPOSED`, and the context check no longer reveals it through tools/call. `INVALID_INTERFACE` is gone: an unknown interface exposes nothing, and an empty one is no interface. `DirectClient`'s `UNKNOWN_TOOL` has a `suggestion` and `retryable: false`. The core registry's `COMMAND_NOT_IN_CONTEXT` names the command's contexts instead of the `afd-context-*` tools it lacks.
     - **C++:** see item 16.
-    - **Fixed in the candidate:** Python intercepts unknown/private FastMCP tools with structured `COMMAND_NOT_FOUND`; all strategies serve `afd-discover` and `afd-detail` (#325).
+    - **Fixed in the candidate:** Python intercepts unknown/private MCP SDK tools with structured `COMMAND_NOT_FOUND`; all strategies serve `afd-discover` and `afd-detail` (#325).
 19. **The `ErrorCodes` catalog (fixed).** TypeScript's catalog omitted 20 codes the engines emit, so each language added its own. [`spec/error-codes.md`](../spec/error-codes.md) now lists every emitted code with its meaning, retryability and emitting layer, and separates the 42-code shared catalog from transport-specific and package codes. All four languages define the shared catalog, and each test suite checks it against `spec/vectors/error-codes.json`.
 20. **The TypeScript `MockServer` runs on the core registry.** It has no Zod validation, did-you-mean, middleware or context scoping, so scenario tests run different semantics from production.
 

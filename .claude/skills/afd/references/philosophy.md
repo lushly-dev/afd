@@ -46,7 +46,7 @@ The interaction paradigm keeps changing. The investment is in the command layer,
 
 ## Documentation as a Derived Artifact
 
-In AFD, documentation is never maintained separately from commands. Commands declare their own metadata via `CommandDefinition`. The `afd-docs` bootstrap command generates human-readable documentation directly from the command registry.
+In AFD, documentation is never maintained separately from commands. Commands declare their own metadata via `CommandDefinition`. The `afd-docs` bootstrap tool generates human-readable documentation directly from the command registry (a TypeScript server registers it with `bootstrap: true`).
 
 - **Adding a command automatically adds its docs**
 - **Docs are always accurate** -- derived from the running system

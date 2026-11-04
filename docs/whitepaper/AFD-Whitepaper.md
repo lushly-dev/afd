@@ -1252,11 +1252,8 @@ $ afd call document.create '{"title": "Test Document"}'
 | Resource | Link |
 |----------|------|
 | GitHub Repository | https://github.com/lushly-dev/afd |
-| Philosophy Deep Dive | .claude/skills/afd-developer/references/philosophy.md |
+| Philosophy Deep Dive | .claude/skills/afd/references/philosophy.md |
 | Command Schema Guide | .claude/skills/afd/references/command-schema.md |
-| Trust Framework | .claude/skills/afd-developer/references/trust-validation.md |
-| Implementation Phases | .claude/skills/afd-developer/references/implementation-phases.md |
-| Production Considerations | .claude/skills/afd-developer/references/production-considerations.md |
 
 ---
 

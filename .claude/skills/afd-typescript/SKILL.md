@@ -1,76 +1,87 @@
 ---
 name: afd-typescript
 description: >
-  TypeScript implementation patterns for AFD commands using Zod schemas,
-  @lushly-dev/afd-server, and @lushly-dev/afd-core. Covers command definition, schema design,
-  error handling, MCP server setup, embeddable Node handlers, and testing. Use when: implementing
-  commands in TypeScript, setting up MCP servers, writing Zod schemas,
-  or debugging TypeScript AFD code.
-  Triggers: typescript afd, ts command, zod schema, defineCommand,
-  createMcpServer, createMcpHandler, @lushly-dev/afd-server, @lushly-dev/afd-core,
-  typescript implementation.
+  Writes AFD commands and MCP servers in TypeScript with @lushly-dev/afd-server:
+  defineCommand, createMcpServer, createMcpHandler and the browser-safe /define and
+  /direct entries. Use when adding a TypeScript command or server; for an in-process
+  agent calling commands, use afd-directclient.
 ---
 
-# AFD TypeScript Implementation
+# AFD in TypeScript
 
-Patterns for implementing AFD commands in TypeScript.
+`packages/server/README.md` is the full reference and `spec/` is the cross-language contract. This page holds what goes wrong without them. Cross-language parity rules are in `docs/language-parity.md`.
 
-## Parity Rule
+## Entry points
 
-TypeScript often serves as the reference implementation for the shared AFD surface, but parity SHOULD still be defined by framework-agnostic capabilities and agent-visible behavior rather than literal module symmetry.
+| Import | For | Notes |
+|---|---|---|
+| `@lushly-dev/afd-server` | Node servers: `createMcpServer`, `createMcpHandler`, and everything below | Loads the MCP SDK, `node:http` and `node:tls`, so it cannot go in a browser bundle |
+| `@lushly-dev/afd-server/define` | Code that only defines commands: `defineCommand`, `defineCommandWithSchema`, `success`/`failure`/`error`, `zodToJsonSchema`, `defaultExpose` | No MCP SDK, no Node built-in |
+| `@lushly-dev/afd-server/direct` | In-process hosts (browser, worker, webview, or Node without the SDK): `/define` plus `createDirectRegistry`, `createDirectToolSurface`, `createApprovalMiddleware`, `createJournalMiddleware`, `replayJournal`, `MemoryJournalSink` and the Node-free middleware | Same guarantee; an esbuild test enforces it |
+| `@lushly-dev/afd-core` | Types, result helpers, `ErrorCodes`, `systemClock`/`fixedClock`, `systemRandom`/`seededRandom`, `MemoryJournalSink` | Platform helpers are not in the barrel: import `/platform` or `/connectors` (Node only) |
+| `@lushly-dev/afd-core/journal-file`, `/journal-indexeddb` | `FileJournalSink` (Node), `IndexedDbJournalSink` (browser) | |
+| `@lushly-dev/afd-client/streamable-http` | A browser calling a remote MCP server: the transport alone | The root entry also loads `McpClient` and `eventsource` |
+| `@lushly-dev/afd-view-state`, `/commands` | `ViewStateRegistry`; `createViewStateCommands` (`view-state-get`, `-set`, `-list`) | |
 
-- Core AFD surfaces MUST stay framework-agnostic.
-- React or browser integrations SHOULD stay in examples or ecosystem layers.
-- Cross-language implementations MAY use idiomatic APIs when they preserve the same command contract and behavior.
-- Shared parity features to keep aligned include output schemas, validated examples, prerequisite metadata, context scoping, grouped/lazy discovery strategies, and the `afd-call` / `afd-batch` / `afd-pipe` / `afd-discover` / `afd-detail` tool family.
-- The behavior vectors in `spec/vectors` are generated from the core executors and pipeline resolver. An intentional change to that behavior regenerates them (see `spec/vectors/README.md`) and is made in every language in the same pull request.
-
-## Package Imports
+## Defining a command
 
 ```typescript
-// Core types
-import type { CommandResult, CommandError } from '@lushly-dev/afd-core';
-
-// Server utilities
-import {
-  defineCommand,
-  success,
-  error,
-  createMcpServer,
-  createMcpHandler,
-} from '@lushly-dev/afd-server';
-
-// Browser, web worker or webview: no MCP SDK, no Node.js builtins
-import { defineCommand, defineCommandWithSchema } from '@lushly-dev/afd-server/define';
-import {
-  createDirectRegistry,
-  createDirectToolSurface, // the MCP tool surface, only when asked for
-  createJournalMiddleware,
-} from '@lushly-dev/afd-server/direct';
-
-// Browser, web worker or webview, calling a remote MCP server: the transport alone,
-// with the MCP SDK but no McpClient, eventsource of ours or Node.js builtins
-import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
-
-// Schema validation
 import { z } from 'zod';
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 
-// View state (UI state management via commands)
-import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
+export const todoUpdate = defineCommand({
+  name: 'todo-update',
+  description: 'Update a todo item',
+  category: 'todo',
+  mutation: true,
+  expose: { mcp: true },            // MCP is opt-in; see below
+  requires: ['todo-list'],          // planning metadata only, never enforced
+  contexts: ['task-management'],    // visible only in this context
+  input: z.object({ id: z.string(), title: z.string().min(1).max(200).optional() }),
+  output: Todo,                     // advertised; results are not validated against it
+  errors: ['NOT_FOUND', 'INVALID_INPUT'],
+  approval: 'not-required',         // considered and needs none; see Approvals
+  async handler(input, context) {   // input is already parsed: defaults applied, transforms run
+    const todo = await store.get(input.id);
+    if (!todo) {
+      return failure({
+        code: 'NOT_FOUND',
+        message: `Todo ${input.id} not found`,
+        suggestion: 'Use todo-list to see available todos',
+      });
+    }
+    return success(await store.update(todo, input), {
+      reasoning: `Updated todo "${todo.title}"`,
+      confidence: 1,
+    });
+  },
+});
 ```
 
-## The Lean Path in a Browser Bundle
+- **Exposure.** Remote MCP clients list and call only commands with `expose: { mcp: true }`, on every path: `tools/list`, discovery, `afd-call`, batches, pipelines, `/rpc` and streams. Leaving it out keeps a command private to in-process callers (`server.execute()`, `createDirectRegistry`). Flags left out fall back to `defaultExpose`: `palette` and `agent` on, `mcp` and `cli` off.
+- **Error codes.** Prefer the shared catalog (`ErrorCodes` in afd-core, `spec/error-codes.md`) and add an application code in `SCREAMING_SNAKE_CASE` only when none fits. `NO_CHANGES` is not in the catalog. `error(code, message, { suggestion, retryable, details })` is shorthand for `failure({...})`.
+- **Suggestions name real commands** in `domain-action` form (`todo-list`, `auth-sign-in`), never dotted names.
+- **Handler context.** `context.traceId`; `context.actor` (`{ kind, id?, label?, onBehalfOf? }`); read time from `(context.clock ?? systemClock).now()` and randomness from `(context.random ?? systemRandom).next()`, never `Date.now()` or `Math.random()`, or journal replay cannot match. Anything else on the context comes from your middleware, `createContext` or declared `contextFields`.
+- **Log to stderr** (`console.error`): on stdio, stdout carries the JSON-RPC stream.
 
-`defineCommand` runs `toJSONSchema` as a module loads, and is bound to classic Zod. Where first paint
-counts, use `defineCommandWithSchema`: a classic or Zod Mini schema to validate, and the JSON Schema as
-a literal, so `/define` and `/direct` reach only `zod/v4/core`.
+### Zod input and output
+
+- The advertised JSON Schema (MCP `inputSchema`, `afd-detail`) is generated in input mode: a `.default()` field is optional, and a `.transform()` field shows its input type. The handler receives `z.output`.
+- `examples` are typed as `z.input` and checked at define time; a failing example throws.
+- `output` schemas are generated in output mode, so defaulted fields are required.
+- `z.number().int()` is advertised as `type: 'integer'`.
+- `defineCommand({ advertisedInputSchema })` shows a JSON object schema on every surface while `input` still validates; keeping the two consistent is your job.
+- Classic Zod commands go into a `ZodCommandDefinition[]` with no cast. A Zod Mini command does not type-check there and needs `as unknown as ZodCommandDefinition`.
+
+## The lean path in a browser bundle
+
+`defineCommand` runs `toJSONSchema` as each module loads and takes classic Zod. Where first paint counts, use `defineCommandWithSchema`: a classic or Zod Mini schema to validate, and the JSON Schema as a literal. A host that defines every command this way and imports only the registry, the journal and the middleware bundles `zod/v4/core` alone.
 
 ```typescript
 import * as z from 'zod/mini';
 import { defineCommandWithSchema, success } from '@lushly-dev/afd-server/define';
 
-const panelOpen = defineCommandWithSchema({
+export const panelOpen = defineCommandWithSchema({
   name: 'panel-open',
   description: 'Open a panel',
   input: z.object({ id: z.string() }),
@@ -81,665 +92,47 @@ const panelOpen = defineCommandWithSchema({
 });
 ```
 
-- Hold each literal equal to `zodToJsonSchema(schema)` in a test: nothing compares them at run time.
-- Import Mini as `import * as z from 'zod/mini'`. esbuild cannot tree-shake `import { z }`, and keeps its locales and `toJSONSchema`.
-- `output` is not converted. Pass `outputJsonSchema` to advertise it.
-- Importing `defineCommand` or `createDirectToolSurface` brings `toJSONSchema` back, and the surface brings classic Zod.
-- With no locale, `VALIDATION_ERROR` rebuilds the common messages. A format keeps its own name (`Invalid email`), and a rarer code says `Invalid input` with its path. Never assert on those words where classic may also load.
+- Import Mini as `import * as z from 'zod/mini'`. esbuild cannot tree-shake `import { z }` and keeps all of Zod, locales and `toJSONSchema` included.
+- Nothing compares `input` with `jsonSchema` at run time. Hold each literal equal to `zodToJsonSchema(schema)` in a test.
+- `output` is not converted either: pass `outputJsonSchema` to advertise one.
+- Importing `defineCommand` or `createDirectToolSurface` brings `toJSONSchema` back, and the tool surface brings classic Zod.
+- Mini loads no locale, so `VALIDATION_ERROR` rebuilds the common messages itself; a format keeps its own name (`Invalid email`) and a rarer code says `Invalid input` with the path. Don't assert on that wording where classic Zod may also load.
 
-## Command Definition
+## Servers
 
-### Basic Command
+`createMcpServer()` is the standalone server (`start()`, `stop()`, `getUrl()`, `execute()`). `createMcpHandler()` returns a Node request handler for a host that owns the HTTP server; call `handler.dispose()` on shutdown.
 
-```typescript
-import { z } from 'zod';
-import { defineCommand, failure, success } from '@lushly-dev/afd-server';
+- **Transport.** The default `transport: 'auto'` picks stdio whenever stdin is not a TTY. Under Docker without `-t`, systemd, pm2 or CI the HTTP port never opens: set `transport: 'http'` for anything that must listen.
+- **Middleware.** Start from `...defaultMiddleware()` (trace IDs, logging, slow-command warnings). Order matters: auth middleware first, then `createApprovalMiddleware`, and `createJournalMiddleware` last.
+- **Names.** Creation throws on duplicate names and on names the server owns: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` always; `afd-help`, `afd-docs`, `afd-schema` with `bootstrap: true`; `afd-context-list`, `-enter`, `-exit` with `contexts`. So don't add `getBootstrapCommands()` to `commands` as well as setting `bootstrap: true`.
 
-const inputSchema = z.object({
-  title: z.string().min(1).max(200),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
-});
+### Tool strategies
 
-const Todo = z.object({
-  id: z.string(),
-  title: z.string(),
-  priority: z.enum(['low', 'medium', 'high']),
-  completed: z.boolean(),
-});
+`toolStrategy` defaults to `'grouped'` on the server: one tool per group (`category`, else the first name segment) taking `{ action, params }`. `'individual'` is one tool per command, `'lazy'` lists the five meta-tools only (agents run `afd-discover` → `afd-detail` → `afd-call`), and `'hybrid'` lists the meta-tools, the context tools, then 1 to 8 `firstClassTools`. Every meta-tool is routable in every strategy, and so is any exposed command by its own name. Exact lists and order: `spec/tool-strategies.md`.
 
-export const createTodo = defineCommand({
-  name: 'todo-create',
-  description: 'Create a new todo item',
-  category: 'todo',
-  mutation: true,
-  expose: { mcp: true },       // Required for MCP clients — commands are private by default
-  requires: ['auth-sign-in'],  // Planning-order dependency (metadata only)
-  version: '1.0.0',
-  input: inputSchema,
-  output: Todo,                // Output schema — agents see response shape before calling
-  contexts: ['task-management'],  // Only visible in task-management context
-  errors: ['VALIDATION_ERROR'],
+- `createDirectToolSurface` defaults to `'individual'`, not `'grouped'`. Pass `strategy` when the in-process list must match a server's.
+- `firstClassTools` is required with `'hybrid'` and refused with any other strategy. Creation throws, naming the entry, for one that is unregistered, not `expose.mcp`, reserved, repeated or beyond 8.
+- Don't give a first-class command `contexts`: it is listed in every context but callable only in its own. `afd validate --surface` warns.
+- Bad meta-tool arguments return `VALIDATION_ERROR`; bad batch and pipeline envelopes return `INVALID_BATCH_REQUEST` and `INVALID_PIPELINE_REQUEST`.
 
-  // `input` has already been validated and parsed against `inputSchema` (defaults applied)
-  async handler(input) {
-    const todo = await store.create(input);
+### Contexts
 
-    return success(todo, {
-      reasoning: `Created todo "${todo.title}" with ${input.priority} priority`,
-      confidence: 1.0,
-    });
-  },
-});
-```
+`contexts: [{ name, description }]` scopes which commands are visible and registers the `afd-context-*` tools. Context state belongs to the client: stdio keeps one stack, HTTP `/message` one per `Mcp-Session-Id`, and the stateless 2026-07-28 lane reads `_meta["dev.afd/context"]` per request (its `afd-context-enter` stores nothing and returns `persisted: false`). `server.execute()` ignores contexts. Contexts are not a security boundary; restrict callers with `createContext` and middleware.
 
-> **Exposure is opt-in.** Remote MCP clients can only list and call commands that declare
-> `expose: { mcp: true }`. Omitting `expose` (or `expose.mcp`) keeps a command private to
-> in-process callers such as `server.execute()`. This applies to tool listing, discovery,
-> `afd-call`, batches, pipelines, and streaming.
+In process, `createDirectRegistry(commands, { contexts })` takes the same definitions, and each call names its context in the `activeContext` call option, never registry state. See the afd-directclient skill.
 
-### Command with Context
+### Confirmations and approvals
 
-```typescript
-export const updateTodo = defineCommand({
-  name: 'todo-update',
-  description: 'Update a todo item',
-  category: 'todo',
-  mutation: true,
-  expose: { mcp: true },
-  input: updateSchema,
-  errors: ['NOT_FOUND', 'NO_CHANGES'],
+- **Confirmations** (`confirmPrompt` plus server `confirmations: 'enforce' | 'require-human'`) gate MCP and HTTP calls only; in-process calls are never gated. Several instances behind one URL share a `confirmationKey`. Contract: `spec/command-metadata.md`, "Confirmations".
+- **Approvals.** `approval: 'required'`, `'not-required'` or a function of input and context, enforced by `createApprovalMiddleware({ secret, commands })`. A gated call returns `APPROVAL_REQUIRED` before the handler runs. Pass the same `commands` as the server, or the missing ones are never held. Over MCP the token is withheld from the agent by default; deliver it to the human through `onApprovalRequired`, or use `relay: 'mcp-elicitation'`. A policy function must return `'required'` when the actor is missing. `afd validate` warns (`MISSING_APPROVAL_POLICY`) on a `mutation` or `destructive` command with no policy. The middleware runs on WebCrypto, so `/direct` exports it for browsers, where the secret is visible to page scripts: it stops the model, not page code. See the afd skill's [command trust config](../afd/references/command-trust-config.md) and `spec/command-metadata.md`, "Approvals".
 
-  async handler(input, context) {
-    // context.traceId - Correlation ID for logging
-    // context.actor    - Who is calling: { kind: 'human' | 'agent' | 'service' | 'script' | 'test', id?, label?, onBehalfOf? }
-    // context.clock    - Read time here, not Date.now(): `(context.clock ?? systemClock).now()`
-    // context.random   - Read randomness here, not Math.random(): `(context.random ?? systemRandom).next()`
-    // Other context values (e.g. an authenticated user) are only present
-    // when your own middleware sets them.
-    console.error(`[${context.traceId}] Updating todo ${input.id}`); // stderr: stdout carries stdio JSON-RPC
+### Context fields, journal and resources
 
-    const todo = await store.get(input.id);
-    if (!todo) {
-      return failure({
-        code: 'NOT_FOUND',
-        message: `Todo ${input.id} not found`,
-        suggestion: 'Use todo-list to see available todos',
-      });
-    }
+- **`contextFields`** on `createMcpServer` or `createDirectRegistry` declare request-scoped values (`{ name, meta, schema, journal?, required? }`), validated before middleware runs. MCP callers send them in `tools/call` `_meta[meta]`. A field is the caller's claim: use it to narrow, never to grant access. Contract: `spec/context-fields.md`.
+- **Journal.** `createJournalMiddleware(sink)` records accepted calls with a tape of the clock and random values each handler read; `replayJournal(target, entries)` reports each entry `same`, `different` or `error`. Context values other than actor, interface, trace ID and fields marked `journal: true` are never stored. `auth-*` commands are skipped by default; use `redact` for other secrets. `IndexedDbJournalSink` holds the Web Lock `<name>:writer`, so a second tab's `append` or `lock()` rejects with `JOURNAL_LOCKED`. Format: `spec/journal.md`.
+- **Resources, skills and tool `_meta`** are opt-in: `resources` (a provider or static entries), `skills: new SkillCatalog([...])`, and `defineCommand({ toolMeta })`. A `toolMeta` key needs a prefix of two or more labels (`dev.example/origin`) outside `dev.afd/` and MCP's reserved prefixes, or is exactly `ui`. `createMcpServer` refuses any other key, naming the command; `defineCommand` does not check. Rules: `spec/mcp-resources.md`.
 
-    // ... update logic
-  },
-});
-```
+## Before you commit
 
-## Zod Schema Patterns
-
-### Basic Types
-
-```typescript
-const schema = z.object({
-  // Required string with constraints
-  title: z.string().min(1).max(200),
-
-  // Optional with default
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
-
-  // Optional field (can be undefined)
-  description: z.string().max(1000).optional(),
-
-  // Number with constraints
-  count: z.number().int().positive().max(100),
-
-  // Boolean with default
-  completed: z.boolean().default(false),
-
-  // UUID validation
-  id: z.string().uuid(),
-
-  // Email validation
-  email: z.string().email(),
-
-  // ISO date string
-  dueDate: z.string().datetime().optional(),
-});
-```
-
-### Arrays and Nested Objects
-
-```typescript
-const schema = z.object({
-  // Array of strings
-  tags: z.array(z.string()).max(10).default([]),
-
-  // Array of objects
-  items: z.array(z.object({
-    name: z.string(),
-    quantity: z.number().int().positive(),
-  })),
-
-  // Nested object
-  address: z.object({
-    street: z.string(),
-    city: z.string(),
-    zip: z.string().regex(/^\d{5}$/),
-  }).optional(),
-});
-```
-
-### Refinements and Transforms
-
-```typescript
-// Cross-field validation
-const dateRangeSchema = z.object({
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime(),
-}).refine(
-  (data) => new Date(data.endDate) > new Date(data.startDate),
-  { message: 'End date must be after start date' }
-);
-
-// Transform input
-const normalizedSchema = z.object({
-  email: z.string().email().transform(e => e.toLowerCase()),
-  name: z.string().transform(n => n.trim()),
-});
-```
-
-### Union Types (Ordering Matters!)
-
-```typescript
-// Order from most specific to least specific
-const TokenValueSchema = z.union([
-  z.string(),
-  z.object({ web: z.string(), ios: z.string() }).strict(),
-  z.record(z.string(), z.unknown()), // Most permissive last
-]);
-```
-
-## Success Responses
-
-```typescript
-// Basic success
-return success(todo);
-
-// With reasoning (recommended)
-return success(todo, {
-  reasoning: `Created todo "${todo.title}"`,
-});
-
-// With confidence (for AI-generated content)
-return success(suggestion, {
-  reasoning: 'Generated based on user history',
-  confidence: 0.85,
-});
-
-// With warnings (for mutations with side effects)
-return success(result, {
-  reasoning: 'Deleted 5 items',
-  warnings: [
-    { code: 'PERMANENT', message: 'This action cannot be undone' },
-  ],
-});
-
-// With suggestions (guide next steps)
-return success(user, {
-  reasoning: 'User created successfully',
-  suggestions: ['Add profile photo', 'Set notification preferences'],
-});
-```
-
-## Error Responses
-
-```typescript
-// Not found
-return error('NOT_FOUND', `Todo ${input.id} not found`, {
-  suggestion: 'Use todo-list to see available todos',
-});
-
-// Validation error
-return error('VALIDATION_ERROR', 'Title cannot be empty', {
-  suggestion: 'Provide a title between 1 and 200 characters',
-});
-
-// Permission denied
-return error('FORBIDDEN', 'You cannot modify this resource', {
-  suggestion: 'Contact the owner to request access',
-});
-
-// Conflict
-return error('CONFLICT', 'Email already registered', {
-  suggestion: 'Use user.login instead, or reset password',
-});
-
-// No changes
-return error('NO_CHANGES', 'No fields to update', {
-  suggestion: 'Provide at least one field to update',
-});
-```
-
-## MCP Server Setup
-
-### Basic Server
-
-```typescript
-import { createMcpServer } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
-
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-});
-
-await server.start();
-console.error(`MCP server running at ${server.getUrl()}`);
-```
-
-Only commands declaring `expose: { mcp: true }` appear in `tools/list` and can be called
-remotely; `server.execute()` can still run private commands in-process.
-
-### Embeddable Node Handler
-
-Use `createMcpHandler()` when a framework or platform owns the HTTP server lifecycle and expects a Node request handler:
-
-```typescript
-import { createServer } from 'node:http';
-import { createMcpHandler } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
-
-const handler = createMcpHandler({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  host: '127.0.0.1',
-  port: 3100,
-});
-
-createServer((req, res) => {
-  void handler(req, res);
-}).listen(3100, '127.0.0.1');
-```
-
-Use `createMcpServer()` for the batteries-included standalone server. Use `createMcpHandler()` when you need AFD to plug into an existing Node HTTP host.
-
-### Tool Strategies and Bootstrap Tools
-
-`toolStrategy` defaults to `'grouped'`: one tool per group (the command's `category`, else
-the first name segment) taking `{ action, params }`, plus `afd-detail`, `afd-call`,
-`afd-batch` and `afd-pipe`. Each grouped tool lists every action's command name, input
-schema, `requires`, `examples`, `mutation` and `outputSchema` in `_meta.actions`; small
-groups also inline the per-action schemas as `params.anyOf` branches titled with the
-action. Use `toolStrategy: 'individual'` for one tool per command, `'lazy'` for the five meta-tools only, or
-`'hybrid'` for the meta-tools plus a few first-class commands (below). The tool lists of every strategy are
-in `spec/tool-strategies.md`.
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  bootstrap: true, // afd-help, afd-docs, afd-schema (default: false)
-});
-```
-
-`bootstrap: true` registers `afd-help`, `afd-docs` and `afd-schema` as MCP tools. They
-describe only MCP-exposed commands in the active context; `afd-schema` with
-`format: 'typescript'` also returns generated input types. Do not add
-`getBootstrapCommands()` output to `commands` as well: server creation throws on duplicate
-names and on names the server owns (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`,
-`afd-detail`; the bootstrap names with `bootstrap: true`; the `afd-context-*` names with
-`contexts`).
-
-### Lazy Strategy (Large Command Sets)
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  toolStrategy: 'lazy',  // Exposes afd-discover, afd-detail, afd-call, afd-batch, afd-pipe
-});
-```
-
-The expected agent workflow in lazy mode is `afd-discover -> afd-detail -> afd-call`. `afd-call`, `afd-batch`, and `afd-pipe` remain available across all tool strategies; `lazy` just keeps discovery constant-cost for large command sets. Meta-tool arguments are validated: bad `afd-call`/`afd-discover`/`afd-detail` arguments return `VALIDATION_ERROR`, bad batch or pipeline envelopes `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`.
-
-### Hybrid Strategy (Hot Path Plus Discovery)
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  toolStrategy: 'hybrid',
-  firstClassTools: ['knowledge-search', 'memory-remember'], // 1 to 8, in list order
-});
-```
-
-`tools/list` is the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), then
-the `afd-context-*` tools when `contexts` are configured, then the first-class commands as individual tools.
-The list never varies by context (so `ttlMs` stays 300000 under `contexts`) and never changes while the
-server runs; other commands run by name or through `afd-call`. Server creation throws, naming the entry,
-for an entry that is unregistered, not `expose.mcp`, reserved, repeated or beyond 8, and for
-`firstClassTools` with another strategy (or `hybrid` without it). Avoid `contexts` on a first-class command:
-it is listed everywhere but callable only in its contexts (`afd validate --surface` warns). `afd-help`
-reports `toolStrategy` and, on hybrid servers, `firstClassTools`.
-
-### Resources, Skills and Tool `_meta`
-
-All opt-in (`spec/mcp-resources.md`; details in the server README). Served on `/mcp` and stdio in both
-MCP eras, not on the deprecated `/sse` lane.
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands,
-  resources: {
-    list: () => [{ uri: 'ui://app/view.html', name: 'View', mimeType: MCP_APP_MIME_TYPE, content: html }],
-    read: async (uri) => (uri === 'file:///a.txt' ? { content: 'text' } : undefined), // undefined = -32602
-  },
-  skills: new SkillCatalog([await skillFromDirectory('acme/lint-rules', './skills/lint-rules')]),
-});
-```
-
-- `resources` is a provider (`list()` called on every list, optional `read(uri)`) or an array of static
-  entries. Entries need an absolute unique `uri` (not `skill://`), a non-empty `name`; `ui://` needs
-  `MCP_APP_MIME_TYPE`. `content` (string or bytes) is served by the server with `size` and
-  `_meta["dev.afd/digest"]`; a read may return `_meta` (including `ui`) on the content item. Bad entries
-  throw at creation, naming the entry.
-- `new SkillCatalog(skills, { directoryRead })` checks every Agent Skills rule once, at construction:
-  `SKILL.md` frontmatter (YAML 1.2 core schema, no tags/anchors/aliases), `name` = last path segment and
-  unique, `description` 1 to 1,024 characters, at most 512 files and 16 MiB. The server declares the
-  `io.modelcontextprotocol/skills` extension and `resources`, and serves `skills/list`, `skills/get` and every
-  skill file as `skill://<path>/<file>`. Skills are untrusted data.
-- Lists never vary by connection or context; modern-era results carry the `toolsListTtlMs` option as `ttlMs`
-  (300,000 default, never lowered by contexts) and `cacheScope: "public"`. An unknown URI is `-32602` with
-  `data.uri` on both eras; a read runs no command, middleware or journal entry.
-- `defineCommand({ toolMeta })` adds `_meta` entries to the command's tool, grouped action entry and
-  `afd-detail`: keys are prefixed with two or more labels (`dev.umbel/origin`), outside `dev.afd/` and MCP's
-  reserved prefixes, or exactly `ui` (`{ resourceUri: 'ui://...' }`). `createMcpServer` refuses any other
-  key, naming the command; `defineCommand` itself does not check.
-- `defineCommand({ advertisedInputSchema })` shows a JSON object schema (`type: "object"`) on every surface
-  while `input` still validates; keeping the two consistent is yours to do.
-
-### With Contexts
-
-```typescript
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  contexts: [
-    { name: 'editing', description: 'Document editing tools' },
-    { name: 'reviewing', description: 'Review and approval tools' },
-  ],
-});
-```
-
-In process, `createDirectRegistry(commands, { contexts })` takes the same definitions; each call
-names its context in a call option, never registry state:
-`registry.execute(name, input, context, { activeContext: 'editing' })` (DirectClient: `call(name,
-args, { activeContext })`). An unknown name is `CONTEXT_NOT_FOUND`, a command outside it
-`COMMAND_NOT_IN_CONTEXT`. Add `tools: createDirectToolSurface({ strategy, firstClassTools?,
-bootstrap? })` for `registry.listTools({ strategy?, activeContext? })` (the server's own list),
-the meta-tools and the context tools, which answer `persisted: false` as on the stateless
-2026-07-28 lane. The surface uses the registry's `interface` exposure where the server uses
-`expose.mcp`; without it, the router is not bundled and `listTools` throws a `TypeError`.
-
-### With Confirmations
-
-`confirmations: 'enforce'` gates every command with `confirmPrompt` on the MCP and HTTP
-surfaces: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until
-the call is repeated with `confirm: true`. `'require-human'` accepts the elicitation only. Give
-every instance the same `confirmationKey` when several serve one URL. In-process calls are never
-gated. See `spec/command-metadata.md`, "Confirmations".
-
-```typescript
-createMcpServer({ name: 'my-app', version: '1.0.0', commands, confirmations: 'enforce' });
-```
-
-### With Middleware
-
-```typescript
-import {
-  createMcpServer,
-  defaultMiddleware,
-  createRateLimitMiddleware,
-} from '@lushly-dev/afd-server';
-
-// Recommended: defaultMiddleware() gives trace IDs, logging, and slow-command warnings
-const server = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  middleware: [
-    ...defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
-    createRateLimitMiddleware({ maxRequests: 100, windowMs: 60000 }),
-  ],
-});
-
-// Selective disable or custom options
-const server2 = createMcpServer({
-  name: 'my-app',
-  version: '1.0.0',
-  commands: allCommands,
-  middleware: defaultMiddleware({
-    logging: { logInput: true },
-    timing: { slowThreshold: 500 },
-  }),
-});
-```
-
-### Approval Gate
-
-Declare `approval: 'required'` (or `'not-required'`, or a function of input and context) on `defineCommand`, and install `createApprovalMiddleware({ secret, commands })` after any auth middleware. A gated call returns `APPROVAL_REQUIRED` before the handler runs; retry with `context.approval` set to the token once a human approved. Trusted host execution may return `details.approvalToken`; MCP omits it by default. DirectClient and createDirectRegistry always use a private exchange: public contexts cannot supply `approval`, and held results contain no token. Use DirectClient `onApprovalNeeded` for in-process human decisions. `relay: 'mcp-elicitation'` asks the human through the MCP client's form elicitation instead, with no token. The middleware runs on WebCrypto, so `@lushly-dev/afd-server/direct` exports it for browsers and webviews too; in a page the secret is visible to page scripts, so it guards against the model, not against page code. See the afd skill's [command trust config](../afd/references/command-trust-config.md).
-
-### Recording and Replaying Sessions
-
-`createJournalMiddleware(sink)` (last in the list) records accepted calls with a tape of the
-`context.clock` / `context.random` values the handler read; `replayJournal(server, entries)`
-re-runs them against a fresh server and reports `same`, `different` (with a diff) or `error` per
-entry. Handlers must read time and randomness from the context for replay to match. Sinks:
-`MemoryJournalSink` (core), `FileJournalSink` (`@lushly-dev/afd-core/journal-file`, JSON Lines) and,
-in browsers, `IndexedDbJournalSink` (`@lushly-dev/afd-core/journal-indexeddb`: one writer per database
-under the Web Lock `<name>:writer`; a second tab's `append`/`lock()` rejects with `JOURNAL_LOCKED`).
-Journals never store context values beyond actor, interface, trace ID and declared context fields marked `journal: true` (`contextFields` on `createMcpServer`/`createDirectRegistry`: `{ name, meta, schema, journal?, required? }`, validated before middleware, `VALIDATION_ERROR` naming the field; MCP callers send them in `tools/call` `_meta[meta]`, `createContext` values win, and `server/discover`/`afd-help` list them; `spec/context-fields.md`). `auth-*` commands are
-skipped by default; use `redact` for other secret inputs or results (and drop `tape` when the
-secret comes from `context.random`). Replay against a server with the same middleware. Format: `spec/journal.md`.
-
-## Command Registry Pattern
-
-```typescript
-// commands/create.ts
-export const createTodo = defineCommand({...});
-
-// commands/list.ts
-export const listTodos = defineCommand({...});
-
-// commands/index.ts
-import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
-import { createTodo } from './create.js';
-import { listTodos } from './list.js';
-import { getTodo } from './get.js';
-
-export { createTodo, listTodos, getTodo };
-
-// Annotate the array; no `as unknown as` cast is needed
-export const allCommands: ZodCommandDefinition[] = [
-  createTodo,
-  listTodos,
-  getTodo,
-];
-```
-
-## Testing Commands
-
-### Unit Tests
-
-```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { store } from '../store/memory.js';
-import { createTodo } from './create.js';
-
-beforeEach(() => {
-  store.clear();
-});
-
-describe('todo-create', () => {
-  it('creates todo with required fields', async () => {
-    const result = await createTodo.handler(
-      { title: 'Test', priority: 'medium' },
-      {}
-    );
-
-    expect(result.success).toBe(true);
-    expect(result.data?.title).toBe('Test');
-    expect(result.reasoning).toBeDefined();
-  });
-
-  it('uses default priority', async () => {
-    const result = await createTodo.handler(
-      { title: 'Test' },
-      {}
-    );
-
-    expect(result.data?.priority).toBe('medium');
-  });
-});
-```
-
-### AFD Compliance Tests
-
-```typescript
-describe('AFD Compliance', () => {
-  it('success results include reasoning', async () => {
-    const result = await createTodo.handler({ title: 'Test' }, {});
-
-    expect(result.success).toBe(true);
-    expect(result.reasoning).toBeDefined();
-    expect(typeof result.reasoning).toBe('string');
-  });
-
-  it('error results include suggestion', async () => {
-    const result = await getTodo.handler({ id: 'nonexistent' }, {});
-
-    expect(result.success).toBe(false);
-    expect(result.error?.suggestion).toBeDefined();
-  });
-});
-```
-
-### Performance Tests
-
-```typescript
-describe('Performance', () => {
-  it('todo-create < 10ms', async () => {
-    const start = performance.now();
-    await createTodo.handler({ title: 'Test' }, {});
-    const duration = performance.now() - start;
-
-    expect(duration).toBeLessThan(10);
-  });
-});
-```
-
-## TypeScript Gotchas
-
-### Zod Input vs Output Types
-
-```typescript
-// Zod distinguishes between input and output types!
-const schema = z.object({
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
-});
-
-// z.input<typeof schema>  -> { priority?: 'low' | 'medium' | 'high' }
-// z.output<typeof schema> -> { priority: 'low' | 'medium' | 'high' }
-```
-
-`defineCommand` uses each side where it belongs:
-
-- The server parses the input before calling the handler, so `handler(input)` receives
-  `z.output` (defaults applied, transforms run). No need to re-parse.
-- The advertised JSON Schema (`jsonSchema`, MCP `inputSchema`, `afd-detail`) is generated
-  in Zod **input** mode: `priority` is optional, and a `.transform()` field is advertised by
-  its input type. Transforms in input schemas are fine.
-- `examples` are typed as `z.input` and validated at define time, so they may omit defaults.
-- `output` schemas are generated in output mode (defaulted fields required).
-- `z.number().int()` is advertised as `type: 'integer'`.
-
-### Generic Registry Types
-
-```typescript
-// Use 'any' internally, cast at boundaries
-class CommandRegistry {
-  private commands = new Map<string, CommandDefinition<any, any>>();
-
-  register<TSchema extends z.ZodType, TOutput>(
-    command: CommandDefinition<TSchema, TOutput>
-  ) {
-    this.commands.set(command.name, command as CommandDefinition<any, any>);
-  }
-
-  async execute<TOutput>(name: string, input: unknown): Promise<CommandResult<TOutput>> {
-    const command = this.commands.get(name);
-    return command.handler(input) as CommandResult<TOutput>;
-  }
-}
-```
-
-## Project Configuration
-
-### tsconfig.json
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "verbatimModuleSyntax": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
-  }
-}
-```
-
-### biome.json (Linting)
-
-```json
-{
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "trailingCommas": "es5",
-      "semicolons": "always"
-    }
-  },
-  "linter": {
-    "rules": {
-      "correctness": {
-        "noUnusedImports": "error",
-        "noUnusedVariables": "error"
-      },
-      "style": {
-        "useImportType": "error",
-        "useConst": "error"
-      },
-      "suspicious": {
-        "noExplicitAny": "error"
-      }
-    }
-  }
-}
-```
-
-## Related Skills
-
-- `afd-developer` - Core AFD methodology
-- `afd-python` - Python implementation patterns
-- `afd-rust` - Rust implementation patterns
-- `afd-cpp` - C++ implementation patterns
+- `pnpm -F @lushly-dev/afd-server test` runs `entry-points.test.ts`, which fails if `/define` or `/direct` gains an MCP SDK or Node import, or grows past its size budget.
+- A change to the executors or the pipeline resolver changes `spec/vectors`. Regenerate them (`spec/vectors/README.md`) and change every language in the same pull request.

@@ -121,7 +121,7 @@ writes already names the target. A component keeps no state between calls and re
 randomness only through `Cx`. Random bytes are written to the journal, so never use them for keys.
 
 **Mounting a server.** Any MCP server over stdio works; AFD's TypeScript (`@lushly-dev/afd-server`),
-Python (`afd` with FastMCP) and Rust (`afd` with its `server` feature, or `umbel-sdk`'s
+Python (`afd` with the `mcp` SDK) and Rust (`afd` with its `server` feature, or `umbel-sdk`'s
 `serve_mounted`) servers all do. `umbel plugin check path=<dir>` reads the manifest and does not
 start the server. `spawn=true` starts it, lists its tools and reports what mounts, what was skipped
 and which descriptions match the `description-injection` rule. It runs the plugin's own program, so
