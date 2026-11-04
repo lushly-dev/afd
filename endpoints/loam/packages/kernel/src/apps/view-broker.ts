@@ -106,7 +106,8 @@ export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions)
 				const held = listeners.get(uri) ?? new Set();
 				listeners.set(uri, held);
 				const each = (linked: LinkedCallV1, scope?: ScopeV1) => {
-					// Fails closed: a broker with no surface, or a call with no scope, is told nothing (T4).
+					// Fails closed: a broker with no surface, or a call with no scope, is told nothing (T4). The project
+					// decides, as `scopeKeyOf` does: one workspace per deployment in phase 2 (D32), checked first (3.4).
 					if (bound && scope && bound.project === scope.project) listener(linked);
 				};
 				held.add(each);

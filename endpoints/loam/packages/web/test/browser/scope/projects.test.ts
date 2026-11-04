@@ -340,6 +340,42 @@ describe('P2-E9: the projects section', () => {
 		await opened.context.close();
 	}, 30_000);
 
+	it('P2-E9: following a row link to a home of fast summaries says its count once, after focus reaches the heading', async () => {
+		// tasks alone, whose summary answers at once: the read can end before the sync moves focus (item 3).
+		const served = await serveDeployment({
+			config: deploymentFile(deploymentEntry('tasks', await packApp('tasks'))),
+		});
+		try {
+			const opened = await openShell(browser, `${served.root}personal/~/projects`);
+			const { page } = opened;
+			await heading(page).waitFor();
+			await create(page, 'Atlas');
+			await expect.poll(async () => (await focused(page)).label).toBe('Atlas');
+			// Every text the status line says from here on, as a screen reader hears its changes.
+			await section(page).evaluate((element) => {
+				const said = element.shadowRoot?.querySelector('.said') as HTMLElement;
+				const heard: string[] = [];
+				(window as unknown as { heard: string[] }).heard = heard;
+				new MutationObserver(() => heard.push(said.textContent ?? '')).observe(said, {
+					subtree: true,
+					childList: true,
+					characterData: true,
+				});
+			});
+			await section(page).locator('a', { hasText: 'Atlas' }).click();
+			await expect.poll(() => heading(page).textContent()).toBe('Atlas');
+			await expect.poll(async () => (await focused(page)).tag).toBe('h1');
+			await expect.poll(() => section(page).locator('.said').textContent()).toBe('1 summary');
+			await settle(page);
+			const heard = await page.evaluate(() => (window as unknown as { heard: string[] }).heard);
+			expect(heard.filter((text) => /summar/.test(text))).toEqual(['1 summary']);
+			expect(opened.violations).toEqual([]);
+			await opened.context.close();
+		} finally {
+			await served.close();
+		}
+	}, 30_000);
+
 	it('P2-E9: the summary replays from its record with every app handler stopped, whatever the deadline did', async () => {
 		const opened = await openProjects();
 		const { page } = opened;

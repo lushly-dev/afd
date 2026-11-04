@@ -207,13 +207,14 @@ const home = html<LoamProjectsSection>`
 	<div class="cards" data-ref="cards"></div>
 `;
 
+/** The region is busy while it reads; its live lines are beside it, so nothing they say waits for the read. */
 const template = html<LoamProjectsSection>`
 	<section class="section" aria-labelledby="heading" aria-busy="${(x) => String(!x.loaded)}">
 		${when((x) => x.view === 'list', list)}
 		${when((x) => x.view === 'home' && x.project !== null, home)}
-		<p class="failure" role="alert" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
-		<p class="said" role="status">${(x) => x.status}</p>
 	</section>
+	<p class="failure read-failure" role="alert" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
+	<p class="said" role="status">${(x) => x.status}</p>
 `;
 
 type Status = 'project-archive' | 'project-restore';
@@ -276,8 +277,10 @@ export class LoamProjectsSection extends FASTElement {
 	#filterTimer: ReturnType<typeof setTimeout> | undefined;
 	/** What the section's own archive said, kept across the scope move it causes, which clears the rest. */
 	#carried = '';
-	/** Whether this home's first read says what it found, once it ends with focus in the section. */
+	/** Whether this home's first read says what it found, once it has ended and focus is in the section. */
 	#announce = false;
+	/** Whether the sync that showed this home moves focus to its heading, which may come after the read. */
+	#focusing = false;
 
 	constructor() {
 		super();
@@ -339,8 +342,16 @@ export class LoamProjectsSection extends FASTElement {
 		);
 	}
 
-	/** Show `view`, for `project` when it is the home; read what it shows. */
-	async show(view: 'list' | 'home', project: ProjectV1 | null, workspace: string): Promise<void> {
+	/**
+	 * Show `view`, for `project` when it is the home; read what it shows. `focusing` says that the sync puts
+	 * focus on the heading once this resolves, so the read's result waits for it.
+	 */
+	async show(
+		view: 'list' | 'home',
+		project: ProjectV1 | null,
+		workspace: string,
+		focusing = false
+	): Promise<void> {
 		const changed = view !== this.view || project?.id !== this.project?.id;
 		this.workspace = workspace;
 		this.view = view;
@@ -352,6 +363,7 @@ export class LoamProjectsSection extends FASTElement {
 			this.status = this.#carried;
 			this.#carried = '';
 			this.#announce = view === 'home';
+			this.#focusing = focusing;
 			this.failure = '';
 			this.actionError = '';
 			this.#emptyOpened = false;
@@ -400,12 +412,11 @@ export class LoamProjectsSection extends FASTElement {
 		}
 		this.loaded = true;
 		await this.paint();
-		// The read's result, heard where focus alone would say nothing of it: "4 summaries".
+		// The read's result, heard where focus alone would say nothing of it: "4 summaries", said now if
+		// focus is in the section, or by `focusHeading` if the sync is about to put it there.
 		if (this.#announce && this.view === 'home') {
-			this.#announce = false;
-			const count = this.cards.length;
-			if (!this.status && this.matches(':focus-within'))
-				this.status = count === 1 ? '1 summary' : `${numberOf(count)} summaries`;
+			if (this.matches(':focus-within')) this.#sayCount();
+			else if (!this.#focusing) this.#announce = false;
 		}
 		if (this.#created !== null) {
 			const id = this.#created;
@@ -492,6 +503,17 @@ export class LoamProjectsSection extends FASTElement {
 
 	focusHeading(): void {
 		this.shadowRoot?.querySelector<HTMLElement>('h1')?.focus();
+		// A read that ended before focus arrived says its result now, once (item 3).
+		if (this.#announce && this.loaded && this.view === 'home') this.#sayCount();
+	}
+
+	/** Say how many summaries the home shows, once per home, unless something else is being said. */
+	#sayCount(): void {
+		this.#announce = false;
+		this.#focusing = false;
+		const count = this.cards.length;
+		if (!this.status && !this.failure)
+			this.status = count === 1 ? '1 summary' : `${numberOf(count)} summaries`;
 	}
 
 	#lookup(): ProjectLookup {

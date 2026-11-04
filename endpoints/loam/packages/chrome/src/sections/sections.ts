@@ -138,7 +138,12 @@ async function sync(shell: LoamShell): Promise<void> {
 	const view = inProject ? 'home' : 'list';
 	const moved = entering || view !== section.view || state.scope.project !== section.project?.id;
 	const lost = focusLost(shell, main, section);
-	await section.show(view, inProject ? (state.project as ProjectV1) : null, state.workspace.id);
+	await section.show(
+		view,
+		inProject ? (state.project as ProjectV1) : null,
+		state.workspace.id,
+		moved && lost
+	);
 	markToggles(shell, true);
 	// The section declares main alone: its layout, `loam.layout.~projects`, has every other part closed.
 	await shell.readLayout();

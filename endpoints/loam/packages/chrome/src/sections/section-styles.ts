@@ -191,6 +191,9 @@ export const styles = css`
 		margin: 0;
 		padding-inline-start: var(--space-inline-md);
 	}
+	.read-failure:not([hidden]) {
+		margin-block-start: var(--space-stack-md);
+	}
 	.said {
 		position: absolute;
 		inline-size: 1px;

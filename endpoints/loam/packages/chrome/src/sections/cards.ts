@@ -16,12 +16,16 @@ export const dateOf = (at: number): string => {
 
 export const REPORT = "Report this to the app's owner";
 
-/** `text` less one trailing period, so "failure(...)." keeps its ellipsis (N4). */
-const once = (text: string): string => text.replace(/\.$/, '');
+/**
+ * `text` as a sentence: one that ends in `!`, `?` or `…` as it is, any other with one period, removing one
+ * trailing period first, so "failure(...)" keeps its ellipsis (N4).
+ */
+const sentence = (text: string): string =>
+	/[!?…]$/.test(text) ? text : `${text.replace(/\.$/, '')}.`;
 
-/** A message and its suggestion as two sentences, as a field's refusal reads (A6): one period each. */
+/** A message and its suggestion as two sentences, as a field's refusal reads (A6). */
 export const sentences = (message: string, suggestion?: string): string =>
-	`${once(message)}.${suggestion ? ` ${once(suggestion)}.` : ''}`;
+	`${sentence(message)}${suggestion ? ` ${sentence(suggestion)}` : ''}`;
 
 export const numberOf = (value: number): string => new Intl.NumberFormat().format(value);
 

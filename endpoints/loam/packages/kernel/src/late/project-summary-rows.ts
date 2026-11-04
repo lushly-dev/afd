@@ -15,27 +15,82 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Control and format characters, bidirectional overrides, zero-width marks and tag characters among them:
- * in shown text they could hide or reorder what a row says, or carry a payload no person sees that an agent
- * reads (13). A flag's tag sequence, U+1F3F4 and its tags, is kept, as are ZWNJ and ZWJ, which join scripts
- * and emoji.
+ * What shown text keeps (13): nothing that could hide or reorder what a row says, or carry a payload no
+ * person sees that an agent reads. Stripped: control (`Cc`), format (`Cf`), surrogate (`Cs`) and default
+ * ignorable code points, which are bidirectional overrides, zero-width marks and tag characters among
+ * others. `Cf` also holds the Arabic number signs (U+0600 to U+0605 and U+06DD, U+0890 and U+0891, U+08E2)
+ * and the Egyptian hieroglyph format controls (U+13430 to U+1345F): they are stripped too, as intended, since
+ * a summary's short text needs neither, and keeping them would keep a way to hide a run of text.
+ *
+ * Kept, each only where it does its work: a subdivision flag's tag sequence (U+1F3F4, two to seven of the
+ * tags for `0` to `9` and `a` to `z`, and U+E007F, as in `gbsct`); one variation selector per base character,
+ * the ideographic ones (U+E0100 to U+E01EF) only after a Han character; ZWJ only between two emoji, once; and
+ * ZWNJ only after a letter, once.
  */
-const UNSAFE = /(\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F})|[\p{Cc}\p{Cf}]/gu;
+const STRIP = /[\p{Cc}\p{Cf}\p{Cs}\p{Default_Ignorable_Code_Point}]/u;
+const FLAG = /^\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{2,7}\u{E007F}/u;
+const SELECTOR = /[\uFE00-\uFE0F]/u;
+const IDEOGRAPHIC = /[\u{E0100}-\u{E01EF}]/u;
+const HAN = /\p{Script=Han}/u;
+const EMOJI = /\p{Extended_Pictographic}/u;
+const MODIFIER = /\p{Emoji_Modifier}/u;
+const LETTER = /\p{L}/u;
+const MARK = /\p{M}/u;
+const ZWNJ = '\u200c';
+const ZWJ = '\u200d';
 
-/** Text with nothing in it a person can see: ignorable code points and white space alone. */
-const BLANK = /^[\p{Default_Ignorable_Code_Point}\p{White_Space}]*$/u;
+/** Text with nothing in it a person can see: ignorable code points, white space and the blank braille cell. */
+const BLANK = /^[\p{Default_Ignorable_Code_Point}\p{White_Space}\u2800]*$/u;
 
-/** `value` with the unsafe characters stripped, cut at `max` code points so no surrogate pair splits. */
-const clean = (value: string, max = Number.POSITIVE_INFINITY): string =>
-	[
-		...value.replace(
-			UNSAFE,
-			(found: string, flag?: string) =>
-				flag ?? (found === '\u200c' || found === '\u200d' ? found : '')
-		),
-	]
-		.slice(0, max)
-		.join('');
+/** `value` with what {@link STRIP} names stripped and the rest kept as above, cut at `max` code points. */
+function clean(value: string, max = Number.POSITIVE_INFINITY): string {
+	const points = [...value];
+	const kept: string[] = [];
+	// The last base character kept, which a selector, a modifier or a joiner follows; and the last kept.
+	let base = '';
+	let previous = '';
+	for (let at = 0; at < points.length && kept.length < max; at++) {
+		const point = points[at] as string;
+		if (point === '\u{1F3F4}') {
+			const flag = FLAG.exec(points.slice(at, at + 9).join(''))?.[0];
+			if (flag !== undefined) {
+				const run = [...flag];
+				// Whole or not at all: a cut sequence would leave tags no flag shows.
+				if (kept.length + run.length > max) break;
+				kept.push(...run);
+				at += run.length - 1;
+				base = point;
+				previous = '\u{E007F}';
+				continue;
+			}
+		}
+		let keep: boolean;
+		if (SELECTOR.test(point) || IDEOGRAPHIC.test(point)) {
+			keep = previous === base && base !== '' && (SELECTOR.test(point) || HAN.test(base));
+		} else if (point === ZWJ) {
+			keep =
+				previous !== ZWJ &&
+				previous !== ZWNJ &&
+				EMOJI.test(base) &&
+				EMOJI.test(points[at + 1] ?? '');
+		} else if (point === ZWNJ) {
+			keep = previous !== ZWJ && previous !== ZWNJ && LETTER.test(base);
+		} else if (STRIP.test(point)) {
+			continue;
+		} else {
+			kept.push(point);
+			// A skin tone and a combining mark belong to the base before them.
+			if (!(MODIFIER.test(point) && EMOJI.test(base)) && !MARK.test(point)) base = point;
+			previous = point;
+			continue;
+		}
+		if (keep) {
+			kept.push(point);
+			previous = point;
+		}
+	}
+	return kept.join('');
+}
 
 /** Shown text: cleaned, then 1 to `max` code points with something visible, or undefined. */
 const text = (value: unknown, max: number): string | undefined => {

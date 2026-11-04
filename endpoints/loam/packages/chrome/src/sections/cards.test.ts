@@ -15,4 +15,11 @@ describe('sentences', () => {
 		);
 		expect(sentences('Still loading...', 'Wait...')).toBe('Still loading... Wait...');
 	});
+
+	it('adds no period after a sentence that ends in !, ? or …', () => {
+		expect(sentences('It stopped!', 'Try again?')).toBe('It stopped! Try again?');
+		expect(sentences('Still waiting…', 'Report this to the app’s owner')).toBe(
+			'Still waiting… Report this to the app’s owner.'
+		);
+	});
 });

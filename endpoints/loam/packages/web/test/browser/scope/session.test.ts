@@ -81,7 +81,12 @@ async function scopedViewPackage(): Promise<string> {
 			},
 			app: { scope_levels: ['workspace', 'project'] },
 			view: { handlers: 'handlers.html' },
-			commands: [command('scoped-where'), command('scoped-nested')],
+			grants: [{ name: 'store', reason: 'Tries a key that names another scope.' }],
+			commands: [
+				command('scoped-where'),
+				command('scoped-nested'),
+				{ ...command('scoped-store'), effects: ['store-write'] },
+			],
 			ui: {
 				resources: [{ uri: 'ui://scoped/main', path: 'main.html' }],
 				surfaces: { main: { resource: 'ui://scoped/main' } },
@@ -588,6 +593,13 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			expect(child?.context?.scope, parent.traceId).toEqual(parent.context?.scope);
 		}
 		expect(parents.at(-1)?.contextDigest?.interface).toBe('agent');
+		// A `p~` key in the frame's `dev.loam/store` is the store's own `VALIDATION_ERROR` (-32602), as step 4
+		// recorded, read from the reply itself; natively it is a `TypeError` (the palette case above).
+		const stored = (await kernelCall(page, 'scoped-store')) as { success: boolean; data?: unknown };
+		expect(stored).toMatchObject({
+			success: true,
+			data: { refused: { name: 'RpcFailure', code: -32602, data: { code: 'VALIDATION_ERROR' } } },
+		});
 		expect(opened.violations.filter((violation) => !violation.includes('frame-ancestors'))).toEqual(
 			[]
 		);
@@ -609,8 +621,8 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 		};
 		expect(listed.data.items.map((item) => item.id)).not.toContain('Only Beacon');
 		// A key that would name another scope's record is refused by the frame's store, `VALIDATION_ERROR`
-		// there (step 4), which the handler's command answers as a throw; natively it is a `TypeError` (E7's
-		// palette case above). Nothing is stored.
+		// there (step 4; the scoped view's case reads that reply), which hello's command answers as a throw.
+		// Nothing is stored.
 		const named = await kernelCall(page, 'hello-greet', { name: 'p~prj_beacon~x' });
 		expect(named).toMatchObject({ success: false, error: { code: 'HANDLER_THREW' } });
 		const relisted = (await kernelCall(page, 'hello-list')) as {
