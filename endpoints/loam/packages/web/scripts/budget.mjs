@@ -56,13 +56,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 285,404 and 87,998 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
  * `events` chunk; the kernel alone 111,238, `late` 51,893, `url-sync` 4,347, `apps` 379,806 (20 left).
  * Step 9 leaves `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4),
- * `lateDocumentsMinified`, set at its measurement plus 10% (12,102, so 13,312), over its ledger's 11,000,
+ * `lateDocumentsMinified`, set at its measurement plus 10% (12,016, so 13,218), over its ledger's 11,000,
  * accepted by the coordinator; and raised `appsMinified` by 4,427, to 384,253, approved by the coordinator,
  * 2026-11-03: the manifest's document rules in the one validator over untrusted input (4,185, with the
  * trust review's rule on `export_command` and `import_command`), the redaction of a call the kernel's own
  * bound refused, by its mark, in `apps.redact` (184), and the port's `documents` row (58), each measured as
  * the closure with it less without it, with no slack. First paint 285,348 and 87,990 gzip, the kernel alone
- * 111,350, `late` 56,844, `apps` 384,233.
+ * 111,350, `late` 56,860, `apps` 384,233.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -70,7 +70,7 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
-	lateDocumentsMinified: 13_312,
+	lateDocumentsMinified: 13_218,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -156,6 +156,33 @@ async function measurePage() {
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
 	}
+	// First paint's chunks, by name without their hash: a chunk split off, or merged, by any cause, fails here
+	// (step 9's review): a lazy chunk that statically imports what first paint shares parts first paint's
+	// chunks, each an import line and its gzip overhead. A deliberate change edits this list in its own step.
+	const FIRST_PAINT_CHUNKS = [
+		'api',
+		'events',
+		'focus',
+		'icon-registry',
+		'index',
+		'layout',
+		'shell-state',
+		'system-close',
+		'system-folder',
+		'template',
+		'types',
+		'violet-icon',
+		'violet-token-defaults',
+		'when',
+	];
+	const held = [...initial]
+		.map((name) => name.replace(/^assets\//, '').replace(/-[\w-]{8}\.js$/, ''))
+		.sort();
+	if (held.join() !== FIRST_PAINT_CHUNKS.join()) {
+		throw new Error(
+			`budget: first paint's chunks changed: ${held.join(', ')}, not ${FIRST_PAINT_CHUNKS.join(', ')}`
+		);
+	}
 	// `vite.config.ts`'s `events` group keeps Vite's preload helper in first paint's `events` chunk (step 7):
 	// a chunk of its own would cost first paint an import line and its gzip overhead.
 	if ([...initial].some((name) => /^assets\/preload-helper-/.test(name))) {
@@ -171,7 +198,9 @@ async function measurePage() {
 			`budget: first paint holds ${events.length} \`events-\` chunks, not 1: check the \`events\` group`
 		);
 	}
-	const held = Object.keys(chunks.get(events[0]).modules ?? {}).map((id) => id.replace(/\\/g, '/'));
+	const inEvents = Object.keys(chunks.get(events[0]).modules ?? {}).map((id) =>
+		id.replace(/\\/g, '/')
+	);
 	for (const module of [
 		'vite/preload-helper',
 		'chrome/dist/elements/events.js',
@@ -179,7 +208,7 @@ async function measurePage() {
 		'chrome/dist/elements/app-entry.js',
 		'chrome/dist/elements/notice-loader.js',
 	]) {
-		if (!held.some((id) => id.includes(module))) {
+		if (!inEvents.some((id) => id.includes(module))) {
 			throw new Error(
 				`budget: first paint's \`events\` chunk does not hold ${module}: check the \`events\` group`
 			);

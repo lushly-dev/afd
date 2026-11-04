@@ -4,12 +4,17 @@
  * reaches. A view's broker is a surface's, so each check is a boundary for a view (D54).
  */
 
-import type { CommandResult, JournalEntry } from '@lushly-dev/afd-core';
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { type CommandResult, type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { defineCommandWithSchema } from '@lushly-dev/afd-server/define';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import * as z from 'zod/mini';
+import { createKernelParts } from '../kernel.js';
 import {
+	createFixedEnvironment,
 	createScopedWorkspace,
 	createTestKernel,
 	PROBE_MANIFEST,
@@ -552,15 +557,36 @@ async function probeKernel(): Promise<LoamKernelV2> {
 }
 
 describe('P2-E7: what the port and the store hold of themselves', () => {
-	it('answers a boot-only name itself, though a command of that name is registered', async () => {
-		// Step 9 registers `document-trash-expire`, in the boot registry alone (documents specification, 4.1).
-		const { kernel, journal } = await createTestKernel({
+	it('answers a boot-only name itself, though a command of that name were registered', async () => {
+		// An impostor in the palette registry under a boot-only name, beside the real one in the boot registry.
+		// `setAppCommands` places it as an app's commands are placed, past the name checks the shell's get.
+		const impostor = defineCommandWithSchema({
+			name: 'document-trash-expire',
+			description: 'Stands for a command that took a boot-only name',
+			input: z.strictObject({}),
+			jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+			handler: async () => success({ ran: true }),
+		});
+		const journal = new MemoryJournalSink();
+		const parts = await createKernelParts({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
 			deployment: probeDeployment(),
 			ports: createFixturePorts({
 				'apps/probe/': { manifest: PROBE_MANIFEST, definition: probeDefinition() },
 			}),
 		});
+		const { kernel } = parts;
 		kernels.push(kernel);
+		parts.setAppCommands([impostor as never]);
+		// The palette registry holds it: a person's call reaches it.
+		expect((await kernel.call<{ ran: boolean }>('document-trash-expire')).data).toEqual({
+			ran: true,
+		});
 		const before = (await journal.read()).length;
 		const answered = await kernel.appPort('probe').call('document-trash-expire');
 		expect(answered.error?.code).toBe('COMMAND_NOT_FOUND');

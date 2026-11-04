@@ -5,7 +5,10 @@
  * `mcp-scope.test.ts`. The fixture is the `probe` type (`testing-documents.ts`).
  */
 
+import { readFileSync } from 'node:fs';
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type CommandResult, MemoryJournalSink } from '@lushly-dev/afd-core';
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import {
 	type DocumentRecordV1,
 	type DocumentTypeV1,
@@ -16,22 +19,33 @@ import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AppStoreRecord } from '../apps/store.js';
+import { EMPTY_APPS } from '../apps-runtime.js';
+import { createBootCommands } from '../boot-commands.js';
+import { createScopeRuntime } from '../scope/runtime.js';
 import { storeRecordId } from '../scope/store-id.js';
+import { registerShellState } from '../shell-state.js';
 import {
+	createFixedEnvironment,
 	createScopedWorkspace,
 	documentsDeployment,
 	documentsPorts,
+	PROBE_DOCUMENTS_MANIFEST,
 	replayKernel,
+	SCOPED_PROJECTS,
 	type ScopedWorkspace,
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
 import type { KernelEventV2, LoamKernelV2 } from '../types.js';
+import { DOCUMENT_KIT } from './document-kit.js';
 import {
 	buildDocumentTypes,
+	createDocumentCheck,
 	DOCUMENT_INPUT_MAX_BYTES,
 	documentContentKey as kernelContentKey,
 } from './document-types.js';
+import { createDocumentCommands } from './documents.js';
+import { createLateParts, createOverlayStore } from './index.js';
 
 const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
@@ -198,6 +212,89 @@ describe('P2-D3: types and the registry', () => {
 		);
 	});
 
+	it('wires a type conflict into app-get and app-instance-list, the later app loaded with a notice', async () => {
+		const viewState = new ViewStateRegistry();
+		const state = registerShellState(viewState);
+		const auth = new MockAuthAdapter();
+		const environment = createFixedEnvironment();
+		const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+		const summary = (instance: string) => ({
+			instance,
+			app: 'probe',
+			title: 'Probe',
+			kind: 'native' as const,
+			icon: 'system/document',
+			order: 0,
+			state: 'ready' as const,
+			scopeLevels: ['workspace', 'project'] as Array<'workspace' | 'project'>,
+			rail: false,
+			available: true,
+		});
+		const loaded = ['first', 'second'];
+		const apps = {
+			...EMPTY_APPS,
+			summaries: () => loaded.map(summary),
+			port: () => ({ manifest: PROBE_DOCUMENTS_MANIFEST }) as never,
+			detail: (instance: string) => ({ success: true, data: { instance, notices: [] } }) as never,
+			instances: () => loaded.map((instance) => ({ instance, notices: [], warnings: [] })) as never,
+		};
+		const boot = createBootCommands({
+			state,
+			environment,
+			auth,
+			apps: () => apps,
+			scope,
+			summaries: () => [],
+		});
+		const parts = await createLateParts(boot, {
+			viewState,
+			state,
+			environment,
+			auth,
+			host: 'test',
+			storeKind: 'memory',
+			overlays: createOverlayStore(),
+			apps: () => apps,
+			paletteRows: () => [],
+			commandSet: () => 0,
+			scope,
+			store: new MemoryAdapter(),
+			generation: () => 'test',
+			isMutation: () => false,
+			summaries: () => [],
+			run: () => Promise.resolve({ success: true }) as never,
+		});
+		const run = (name: string, input: unknown) =>
+			(
+				parts.shell.find((command) => command.name === name) as unknown as {
+					handler(input: unknown, context: unknown): Promise<CommandResult<unknown>>;
+				}
+			).handler(input, { scope: { workspace: 'personal' } });
+		const notices = async (instance: string) =>
+			(
+				(await run('app-get', { instance })).data as { notices: Array<{ code: string }> }
+			).notices.map((notice) => notice.code);
+		expect(await notices('first')).toEqual([]);
+		expect(await notices('second')).toEqual(['DOCUMENT_TYPE_CONFLICT', 'DOCUMENT_TYPE_CONFLICT']);
+		const rows = (await run('app-instance-list', {})).data as {
+			instances: Array<{ instance: string; notices: Array<{ code: string }> }>;
+		};
+		expect(
+			rows.instances.map((row) => [row.instance, row.notices.map((notice) => notice.code)])
+		).toEqual([
+			['first', []],
+			['second', ['DOCUMENT_TYPE_CONFLICT', 'DOCUMENT_TYPE_CONFLICT']],
+		]);
+	});
+
+	it('keeps the late-documents chunk to type imports, so it parts no first-paint chunk (DOCUMENT_KIT)', () => {
+		const source = readFileSync(new URL('./documents.ts', import.meta.url), 'utf8');
+		const imports = source.match(/^import\s[^;]*;/gm) ?? [];
+		expect(imports.length).toBeGreaterThan(0);
+		expect(imports.filter((statement) => !/^import type\s/.test(statement))).toEqual([]);
+		expect(source).not.toMatch(/\bimport\s*\(|^export\s[^;]*\sfrom\s/m);
+	});
+
 	it('leaves a disabled instance out of the registry until it is enabled again', async () => {
 		const { kernel } = await documents();
 		const listed = async () =>
@@ -274,6 +371,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 			tags: [],
 			status: 'active',
 			trashedAt: null,
+			trashedFrom: null,
 			contentVersion: 2,
 			binding: {
 				model: 'command',
@@ -427,6 +525,34 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 			(await kernel.call('document-update', { document: record.id, tags: ['x'.repeat(41)] })).error
 				?.code
 		).toBe('VALIDATION_ERROR');
+	});
+
+	it('gives no undo for a trash of a trashed document or a restore of one not in the trash', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel } = workspace;
+		const record = await created(workspace);
+		const restoredActive = await kernel.call('document-restore', { document: record.id });
+		expect(restoredActive.success).toBe(true);
+		expect([restoredActive.undoCommand, restoredActive.undoArgs]).toEqual([undefined, undefined]);
+		await kernel.call('document-trash', { document: record.id });
+		const trashedAgain = await kernel.call<DocumentRecordV1>('document-trash', {
+			document: record.id,
+		});
+		expect(trashedAgain.data?.status).toBe('trashed');
+		expect([trashedAgain.undoCommand, trashedAgain.undoArgs]).toEqual([undefined, undefined]);
+	});
+
+	it('restores a document trashed while archived to archived', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel } = workspace;
+		const record = await created(workspace);
+		await kernel.call('document-update', { document: record.id, status: 'archived' });
+		const trashed = await kernel.call<DocumentRecordV1>('document-trash', { document: record.id });
+		expect(trashed.data).toMatchObject({ status: 'trashed', trashedFrom: 'archived' });
+		const restored = await kernel.call<DocumentRecordV1>('document-restore', {
+			document: record.id,
+		});
+		expect(restored.data).toMatchObject({ status: 'archived', trashedAt: null, trashedFrom: null });
 	});
 
 	it('trashes and restores, each the undo of the other, and a trashed document refuses changes', async () => {
@@ -606,6 +732,110 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		expect(store.reads).toEqual([
 			`app-probe/${storeRecordId(scopes.atlas, documentContentKey(record.id))}`,
 		]);
+	});
+});
+
+/**
+ * The commands over a check of the test's own, so a unit reaches what no deployment can: a stamp refused,
+ * an instance that cannot open where the call is.
+ */
+function directCommands(
+	opens: (type: unknown, at: { project?: string }) => CommandResult<never> | undefined
+) {
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+	scope.projects.put(SCOPED_PROJECTS[0] as never);
+	const store = new MemoryAdapter();
+	const real = createDocumentCheck({
+		scope,
+		store,
+		apps: () => EMPTY_APPS,
+		isMutation: (name) => name !== 'document-get' && name !== 'document-type-list',
+	});
+	const registry = buildDocumentTypes([
+		{ instance: 'probe', app: 'probe', kind: 'native', manifest: PROBE_DOCUMENTS_MANIFEST },
+	]);
+	const puts: Array<[string, number]> = [];
+	const check = {
+		...real,
+		types: () => registry,
+		opens: opens as never,
+		put: async (record: DocumentRecordV1, with_?: never[]) => {
+			puts.push([record.id, with_?.length ?? 0]);
+			return real.put(record, with_);
+		},
+	};
+	const commands = createDocumentCommands(
+		{ scope, store, check, run: async () => ({ success: true }) as never },
+		DOCUMENT_KIT
+	);
+	const handler = (name: string) =>
+		(
+			commands.find((command) => command.name === name) as unknown as {
+				handler(input: unknown, context: unknown): Promise<CommandResult<unknown>>;
+			}
+		).handler;
+	let at = 10;
+	const context = (where: { project?: string } = {}, now = () => at++) => ({
+		scope: { workspace: 'personal', ...where },
+		clock: { now },
+		random: { next: () => 0.5 },
+		traceId: 't',
+	});
+	return { store, puts, handler, context };
+}
+
+describe('P2-D4: every record goes through the stamped write', () => {
+	it('writes document-create and document-move through check.put, which refuses a record with no time', async () => {
+		const { store, puts, handler, context } = directCommands(() => undefined);
+		const made = (await handler('document-create')(
+			{ type: 'probe' },
+			context()
+		)) as CommandResult<DocumentRecordV1>;
+		const id = made.data?.id as string;
+		await handler('document-move')({ document: id, project: 'atlas' }, context());
+		// The record with its content in one batch, then with the moved row and its old row's removal.
+		expect(puts).toEqual([
+			[id, 1],
+			[id, 2],
+		]);
+		const broken = () => Number.NaN;
+		await expect(
+			handler('document-create')({ type: 'probe' }, context({}, broken))
+		).rejects.toThrow(/updatedAt/);
+		await expect(
+			handler('document-move')(
+				{ document: id, project: null },
+				context({ project: 'prj_atlas' }, broken)
+			)
+		).rejects.toThrow(/updatedAt/);
+		expect((await store.list('document')).data).toEqual([
+			expect.objectContaining({ id, scope: { workspace: 'personal', project: 'prj_atlas' } }),
+		]);
+	});
+
+	it("leaves out, and refuses to create, a type whose instance cannot open in the call's project (canOpen)", async () => {
+		const refusal = {
+			success: false,
+			error: { code: 'SCOPE_PROJECT_REQUIRED', message: 'Not here', suggestion: 'Run scope-set' },
+		} as CommandResult<never>;
+		const { store, handler, context } = directCommands((_type, at) =>
+			at.project === 'prj_atlas' ? refusal : undefined
+		);
+		const ids = async (where: { project?: string }) =>
+			(
+				(await handler('document-type-list')({}, context(where))).data as {
+					types: DocumentTypeV1[];
+				}
+			).types.map((type) => type.id);
+		expect(await ids({})).toEqual(['probe']);
+		expect(await ids({ project: 'prj_atlas' })).toEqual([]);
+		const refused = await handler('document-create')(
+			{ type: 'probe' },
+			context({ project: 'prj_atlas' })
+		);
+		expect(refused.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect((await handler('document-create')({ type: 'probe' }, context())).success).toBe(true);
+		expect((await store.list('document')).data.length).toBe(1);
 	});
 });
 

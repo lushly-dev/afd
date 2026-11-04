@@ -148,6 +148,8 @@ export interface DocumentRecordV1 {
 	tags: string[];
 	status: 'active' | 'archived' | 'trashed';
 	trashedAt: number | null;
+	/** The status it had when trashed, which a restore brings back; null when it is not in the trash. */
+	trashedFrom: 'active' | 'archived' | null;
 	/** The type's, when written last. */
 	contentVersion: number;
 	/** Copied from the type when created (D46). */

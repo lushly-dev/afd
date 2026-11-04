@@ -8,14 +8,14 @@
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
-import type { DataAdapter } from '@lushly-dev/local-db';
+import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { actorKey } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
-import { archivedRefusal, mismatchRefusal } from './main-state.js';
+import { archivedRefusal, canOpen, mismatchRefusal } from './main-state.js';
 import { checkStamped } from './stores.js';
 
 /** The record table (documents specification, 3). */
@@ -153,8 +153,13 @@ export interface DocumentCheck {
 	 * again from an input the handler could have changed.
 	 */
 	after(name: string, call: CommandContext, succeeded: boolean): Promise<void>;
-	/** A record written with its workspace, actor and time, or refused (architecture section 7). */
-	put(record: DocumentRecordV1): Promise<void>;
+	/**
+	 * A record written with its workspace, actor and time, or refused (architecture section 7), in one batch
+	 * with `with`, what must land with it or not at all: a new document's content, a moved one's row.
+	 */
+	put(record: DocumentRecordV1, with_?: BatchOperation[]): Promise<void>;
+	/** Why `type`'s instance cannot open at `at` (`canOpen`): disabled, gone, or not listing its project. */
+	opens(type: RegisteredTypeV1, at: ScopeV1): CommandResult<never> | undefined;
 }
 
 /** Leave the call without its input in the journal, and answered from its record in a replay (4.4). */
@@ -187,11 +192,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		const apps = deps.apps();
 		const typed: TypedApp[] = [];
 		for (const summary of apps.summaries()) {
-			// A refused, failed or disabled instance's types are not registered; its records stay (2.2).
+			// A refused, failed or disabled instance's types are not registered; its records stay (2.2). A refused
+			// one has no port (`APP_NOT_READY`), so `manifestOf` leaves it out; a disabled one is the override.
 			if (
 				summary.state === 'failed' ||
-				summary.state === 'refused' ||
-				summary.state === 'disabled' ||
 				scope.workspaceApps.get(summary.instance)?.overrides.enabled === false
 			)
 				continue;
@@ -265,9 +269,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		return record;
 	}
 
-	async function put(record: DocumentRecordV1): Promise<void> {
+	async function put(record: DocumentRecordV1, with_: BatchOperation[] = []): Promise<void> {
 		checkStamped(DOCUMENT_TABLE, record);
 		const { summary } = await store.batch([
+			...with_,
 			{ method: 'PUT', path: `/${DOCUMENT_TABLE}/${encodeURIComponent(record.id)}`, body: record },
 		]);
 		if (summary.failed > 0) throw new Error(`The store could not write '${record.id}'`);
@@ -277,6 +282,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		types,
 		find,
 		put,
+		opens: (type, at) => canOpen(deps.apps(), scope, type.instance, at.project),
 		async instance(name, input, call) {
 			const owned = typeOfCommand(name);
 			if (!owned) return undefined;

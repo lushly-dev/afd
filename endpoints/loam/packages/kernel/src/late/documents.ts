@@ -258,6 +258,7 @@ export function createDocumentCommands(
 			tags,
 			status: 'active',
 			trashedAt: null,
+			trashedFrom: null,
 			contentVersion: type.contentVersion,
 			binding: { ...type.binding },
 			epoch: 0,
@@ -295,10 +296,15 @@ export function createDocumentCommands(
 		input: typeListInput,
 		jsonSchema: object({ all: { type: 'boolean' } }),
 		async handler(input, context) {
-			const level = callOf(context).scope?.project === undefined ? 'workspace' : 'project';
+			const here = callOf(context).scope as ScopeV1;
+			const level = here.project === undefined ? 'workspace' : 'project';
+			// The types the scope allows: of its level, and of an instance that can open here (`canOpen`).
 			return success({
 				types: [...check.types().types.values()]
-					.filter((type) => input.all === true || type.scopeLevels.includes(level))
+					.filter(
+						(type) =>
+							input.all === true || (type.scopeLevels.includes(level) && !check.opens(type, here))
+					)
 					.map(({ declared: _declared, ...shown }) => shown),
 			});
 		},
@@ -319,7 +325,7 @@ export function createDocumentCommands(
 			if (isRefusal(at)) return at;
 			const type = typeOf(input.type);
 			if (isRefusal(type)) return type;
-			const refused = archived(at) ?? levelRefusal(type, at);
+			const refused = archived(at) ?? levelRefusal(type, at) ?? check.opens(type, at);
 			if (refused) return refused;
 			const template =
 				input.template === undefined
@@ -350,13 +356,9 @@ export function createDocumentCommands(
 				scopeKey: record.scopeKey,
 			};
 			// The record and its template's content in one batch, so neither lands alone (4.1).
-			await batch(
-				[
-					{ method: 'PUT', path: recordPath(record.id), body: record },
-					{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
-				],
-				`create '${record.id}'`
-			);
+			await check.put(record, [
+				{ method: 'PUT', path: contentPath(type.instance, at, record.id), body: content },
+			]);
 			return success(record, {
 				undoCommand: 'document-trash',
 				undoArgs: { document: record.id },
@@ -502,7 +504,7 @@ export function createDocumentCommands(
 			if (isRefusal(to)) return to;
 			const type = typeOf(record.type);
 			if (isRefusal(type)) return type;
-			const refused = archived(to) ?? levelRefusal(type, to);
+			const refused = archived(to) ?? levelRefusal(type, to) ?? check.opens(type, to);
 			if (refused) return refused;
 			const from = record.scope;
 			const back = { document: record.id, project: from.project ?? null };
@@ -519,26 +521,23 @@ export function createDocumentCommands(
 			const key = documentContentKey(record.id);
 			const table = `app-${record.instance}`;
 			const content = await store.get<AppStoreRecord>(table, storeRecordId(from, key));
-			await batch(
-				[
-					...(content
-						? [
-								{
-									method: 'PUT' as const,
-									path: contentPath(record.instance, to, record.id),
-									body: {
-										...content,
-										id: storeRecordId(to, key),
-										scope: to,
-										scopeKey: next.scopeKey,
-									},
+			await check.put(
+				next,
+				content
+					? [
+							{
+								method: 'PUT' as const,
+								path: contentPath(record.instance, to, record.id),
+								body: {
+									...content,
+									id: storeRecordId(to, key),
+									scope: to,
+									scopeKey: next.scopeKey,
 								},
-								{ method: 'DELETE' as const, path: contentPath(record.instance, from, record.id) },
-							]
-						: []),
-					{ method: 'PUT', path: recordPath(record.id), body: next },
-				],
-				`move '${record.id}'`
+							},
+							{ method: 'DELETE' as const, path: contentPath(record.instance, from, record.id) },
+						]
+					: []
 			);
 			return success(next, { undoCommand: 'document-move', undoArgs: back });
 		},
@@ -555,10 +554,15 @@ export function createDocumentCommands(
 		async handler(input, context) {
 			const record = await found(input.document, 'document-trash', context);
 			if (isRefusal(record)) return record;
-			const undo = { command: 'document-restore', args: { document: record.id } };
-			if (record.status === 'trashed')
-				return success(record, { undoCommand: undo.command, undoArgs: undo.args });
-			return change(record, { status: 'trashed', trashedAt: callNow(context) }, context, undo);
+			// Already in the trash: nothing changes, so nothing is there to undo.
+			if (record.status === 'trashed') return success(record);
+			// The status it had, so a restore brings an archived document back archived.
+			return change(
+				record,
+				{ status: 'trashed', trashedAt: callNow(context), trashedFrom: record.status },
+				context,
+				{ command: 'document-restore', args: { document: record.id } }
+			);
 		},
 	});
 
@@ -572,10 +576,14 @@ export function createDocumentCommands(
 		async handler(input, context) {
 			const record = await found(input.document, 'document-restore', context);
 			if (isRefusal(record)) return record;
-			const undo = { command: 'document-trash', args: { document: record.id } };
-			if (record.status !== 'trashed')
-				return success(record, { undoCommand: undo.command, undoArgs: undo.args });
-			return change(record, { status: 'active', trashedAt: null }, context, undo);
+			// Not in the trash: nothing changes, so nothing is there to undo.
+			if (record.status !== 'trashed') return success(record);
+			return change(
+				record,
+				{ status: record.trashedFrom ?? 'active', trashedAt: null, trashedFrom: null },
+				context,
+				{ command: 'document-trash', args: { document: record.id } }
+			);
 		},
 	});
 
@@ -693,7 +701,7 @@ export function createDocumentCommands(
 					`Ask the owner of '${type.instance}' to declare import_command`
 				);
 			}
-			const refused = archived(at) ?? levelRefusal(type, at);
+			const refused = archived(at) ?? levelRefusal(type, at) ?? check.opens(type, at);
 			if (refused) return refused;
 			const title =
 				input.title ?? (typeof envelope.title === 'string' ? envelope.title : type.title);
