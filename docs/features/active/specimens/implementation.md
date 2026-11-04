@@ -18,7 +18,7 @@ This plan describes the epic's tasks and their acceptance. The status ledger own
 | [`@lushly-dev/specimen-afd`](../../../../integrations/specimen-afd/README.md), `integrations/specimen-afd` | AFD definitions and validated `CommandResult` adapters over the native operations | list/render/diff/build; composable into an MCP host; not an application-command scenario runner |
 | [`@lushly-dev/specimen-cli`](../../../../endpoints/specimen-cli/README.md), `endpoints/specimen-cli` | The `specimen` JSON binary and embedding API | Same four commands through the integration; stdout envelope and exit status contract |
 
-The [split transition](../platform-monorepo/specimen-transition.md) governs moved imports and the CLI. All four units, with the FAST-AF plugin, remain quarantined; version 2.2.0 and successful local tarball checks do not admit publication. FAST-AF and Violet source now live in this monorepo, while Lushly remains a separate consumer. Future plugins MUST follow the family boundaries and release inventory; their names alone MUST NOT imply an implemented or published capability.
+The [split transition](../platform-monorepo/specimen-transition.md) governs moved imports and the CLI. All four units, with the FAST-AF plugin and `fast-element`, are admitted for the npm `preview` prerelease the owner approved on 2026-11-04 ([T08](t08-cutover.md#the-preview-release)); a local tarball check alone never admits publication. FAST-AF and Violet source now live in this monorepo, while Lushly remains a separate consumer. Future plugins MUST follow the family boundaries and release inventory; their names alone MUST NOT imply an implemented or published capability.
 
 ```mermaid
 flowchart LR

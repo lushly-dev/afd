@@ -19,12 +19,11 @@ const upstream = record('upstream-selected.json');
 const adaptations = record('adaptations.json');
 const git = (args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
 
-test('FAST-AF provenance records are bound by hash and remain quarantined', () => {
+test("FAST-AF provenance records are bound by hash and match each unit's release state", () => {
 	for (const entry of Object.values(provenance.records))
 		assert.equal(sha(readFileSync(join(root, directory, entry.manifest))), entry.sha256);
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
-	assert.equal(provenance.publication_state, 'quarantined');
 	const inventory = JSON.parse(readFileSync(join(root, 'scripts/release/inventory.json'), 'utf8'));
 	const architecture = JSON.parse(readFileSync(join(root, 'architecture.json'), 'utf8'));
 	for (const unit of provenance.units) {
@@ -32,7 +31,15 @@ test('FAST-AF provenance records are bound by hash and remain quarantined', () =
 		const owner = inventory.units.find((item) =>
 			item.distributions.some((distribution) => distribution.name === unit.name)
 		);
-		assert.equal(owner?.state, 'quarantined', unit.name);
+		// A preview unit is admitted on the prerelease route; every other unit stays quarantined.
+		assert.ok(['preview', 'quarantined'].includes(unit.publication_state), unit.name);
+		assert.equal(
+			owner?.state,
+			unit.publication_state === 'preview' ? 'admitted' : 'quarantined',
+			unit.name
+		);
+		if (unit.publication_state === 'preview')
+			assert.deepEqual([owner.routes, owner.distTag], [['npm-prerelease'], 'preview'], unit.name);
 		assert.equal(owner.family, 'fast-af', unit.name);
 		assert.equal(owner.sourceRevision, provenance.source_revision, unit.name);
 		assert.equal(owner.distributions[0].manifest, manifestPath);

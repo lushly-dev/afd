@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
-	"version": "2.2.0",
+	"version": "2.2.0-preview",
 	"description": "Specimen's prebuilt native host for linux-arm64",
 	"os": [
 		"linux"

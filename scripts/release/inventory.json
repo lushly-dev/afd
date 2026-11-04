@@ -289,9 +289,10 @@
 			"family": "specimen",
 			"protocol": "npm-changesets",
 			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
-			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
-			"state": "quarantined",
-			"routes": ["npm-main"],
+			"authority": "github: lushly-dev/afd release.yml through npm trusted publishing; the preview prerelease, under the preview npm tag, approved by the owner on 2026-11-04",
+			"state": "admitted",
+			"routes": ["npm-prerelease"],
+			"distTag": "preview",
 			"gates": [
 				"pnpm check",
 				"specimen.yml",
@@ -306,35 +307,35 @@
 					"registry": "npm",
 					"manifest": "foundations/specimen/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				},
 				{
 					"name": "@lushly-dev/specimen-host-darwin-arm64",
 					"registry": "npm",
 					"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				},
 				{
 					"name": "@lushly-dev/specimen-host-darwin-x64",
 					"registry": "npm",
 					"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				},
 				{
 					"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
 					"registry": "npm",
 					"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				},
 				{
 					"name": "@lushly-dev/specimen-host-linux-x64-gnu",
 					"registry": "npm",
 					"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				}
 			]
 		},
@@ -343,9 +344,10 @@
 			"family": "specimen",
 			"protocol": "npm-changesets",
 			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
-			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
-			"state": "quarantined",
-			"routes": ["npm-main"],
+			"authority": "github: lushly-dev/afd release.yml through npm trusted publishing; the preview prerelease, under the preview npm tag, approved by the owner on 2026-11-04",
+			"state": "admitted",
+			"routes": ["npm-prerelease"],
+			"distTag": "preview",
 			"gates": [
 				"pnpm check",
 				"specimen.yml",
@@ -360,7 +362,7 @@
 					"registry": "npm",
 					"manifest": "integrations/specimen-afd/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				}
 			]
 		},
@@ -369,9 +371,10 @@
 			"family": "specimen",
 			"protocol": "npm-changesets",
 			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
-			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
-			"state": "quarantined",
-			"routes": ["npm-main"],
+			"authority": "github: lushly-dev/afd release.yml through npm trusted publishing; the preview prerelease, under the preview npm tag, approved by the owner on 2026-11-04",
+			"state": "admitted",
+			"routes": ["npm-prerelease"],
+			"distTag": "preview",
 			"gates": [
 				"pnpm check",
 				"specimen.yml",
@@ -386,7 +389,7 @@
 					"registry": "npm",
 					"manifest": "endpoints/specimen-cli/package.json",
 					"format": "npm",
-					"initialVersion": "2.2.0"
+					"initialVersion": "2.2.0-preview"
 				}
 			]
 		},
@@ -395,10 +398,17 @@
 			"family": "specimen",
 			"protocol": "npm-changesets",
 			"sourceRevision": "df6eff227fce4ab265a5fe32d3fbaadd60afb6d6",
-			"authority": "none: new integration authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
-			"state": "quarantined",
-			"routes": [],
-			"gates": ["pnpm check", "specimen.yml", "release-approval"],
+			"authority": "github: lushly-dev/afd release.yml through npm trusted publishing; the preview prerelease, under the preview npm tag, approved by the owner on 2026-11-04",
+			"state": "admitted",
+			"routes": ["npm-prerelease"],
+			"distTag": "preview",
+			"gates": [
+				"pnpm check",
+				"specimen.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
 			"fixed": false,
 			"distributions": [
 				{
@@ -406,8 +416,7 @@
 					"registry": "npm",
 					"manifest": "integrations/specimen-fast-af/package.json",
 					"format": "npm",
-					"initialVersion": "0.1.0",
-					"private": true
+					"initialVersion": "0.1.0-preview"
 				}
 			]
 		},
@@ -416,9 +425,10 @@
 			"family": "fast-af",
 			"protocol": "npm-changesets",
 			"sourceRevision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
-			"authority": "original lushly-dev/fast-af repository: Changesets version records and manual package-level publication, no root publish workflow, tags or GitHub releases; no handoff authorized",
-			"state": "quarantined",
-			"routes": ["npm-main"],
+			"authority": "github: lushly-dev/afd release.yml through npm trusted publishing; the preview prerelease, under the preview npm tag, approved by the owner on 2026-11-04; publication moves here from the original lushly-dev/fast-af repository",
+			"state": "admitted",
+			"routes": ["npm-prerelease"],
+			"distTag": "preview",
 			"gates": [
 				"pnpm check",
 				"fast-af.yml",
@@ -433,7 +443,7 @@
 					"registry": "npm",
 					"manifest": "foundations/fast-af/packages/element/packages/fast-element/package.json",
 					"format": "npm",
-					"initialVersion": "3.0.1"
+					"initialVersion": "3.0.1-preview"
 				}
 			]
 		},

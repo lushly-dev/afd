@@ -85,7 +85,10 @@ const edges = (manifest) =>
 // Packed manifests: identities, portable ranges, licenses and no cross-family edges.
 const runtime = packedManifest(runtimeName);
 const component = packedManifest(componentName);
-assert.equal(runtime.version, '3.0.1');
+const runtimeVersion = JSON.parse(
+	await readFile(join(repository, runtimeSource, 'package.json'), 'utf8')
+).version;
+assert.equal(runtime.version, runtimeVersion);
 assert.equal(component.version, '0.1.0');
 assert.equal(component.private, true, 'violet-elements keeps its upstream private flag');
 assert.equal(Object.keys(runtime.exports).length, 38);
@@ -97,7 +100,7 @@ assert.deepEqual(Object.keys(component.exports), [
 	'./package.json',
 ]);
 assert.deepEqual(edges(runtime), ['@webcomponents/scoped-custom-element-registry']);
-assert.deepEqual(component.peerDependencies, { [runtimeName]: '3.0.1' });
+assert.deepEqual(component.peerDependencies, { [runtimeName]: runtimeVersion });
 assert.deepEqual(Object.keys(component.dependencies).sort(), ['@tanstack/virtual-core', 'tslib']);
 for (const manifest of [runtime, component]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);

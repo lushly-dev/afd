@@ -1,17 +1,17 @@
 {
   "name": "@lushly-dev/fast-element",
   "description": "A library for constructing Web Components",
-  "version": "3.0.1",
+  "version": "3.0.1-preview",
   "author": "Lushly Dev (forked from Microsoft FAST)",
-  "homepage": "https://github.com/lushly-dev/fast-af#readme",
+  "homepage": "https://github.com/lushly-dev/afd/tree/main/foundations/fast-af/packages/element/packages/fast-element#readme",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lushly-dev/fast-af.git",
-    "directory": "packages/element/packages/fast-element"
+    "url": "git+https://github.com/lushly-dev/afd.git",
+    "directory": "foundations/fast-af/packages/element/packages/fast-element"
   },
   "bugs": {
-    "url": "https://github.com/lushly-dev/fast-af/issues"
+    "url": "https://github.com/lushly-dev/afd/issues"
   },
   "type": "module",
   "main": "dist/esm/index.js",

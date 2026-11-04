@@ -593,10 +593,10 @@ importers:
         specifier: workspace:^2.2.0
         version: link:../../packages/server
       '@lushly-dev/specimen':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../foundations/specimen
       '@lushly-dev/specimen-afd':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../integrations/specimen-afd
       zod:
         specifier: ^4.6.6
@@ -956,7 +956,7 @@ importers:
         specifier: workspace:^2.2.0
         version: link:../../packages/server
       '@lushly-dev/specimen':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../foundations/specimen
       '@types/node':
         specifier: ^26.6.6
@@ -977,10 +977,10 @@ importers:
   integrations/specimen-fast-af:
     devDependencies:
       '@lushly-dev/fast-element':
-        specifier: workspace:^3.0.1
+        specifier: workspace:^
         version: link:../../foundations/fast-af/packages/element/packages/fast-element
       '@lushly-dev/specimen':
-        specifier: workspace:^2.2.0
+        specifier: workspace:^
         version: link:../../foundations/specimen
       '@types/node':
         specifier: ^26.6.6
