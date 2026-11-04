@@ -8,6 +8,12 @@
 //! what is already done. The file replace and the hash check are not atomic against a writer
 //! outside Umbel; Umbel's own writers are serialised by the document store's compare-and-set.
 //!
+//! A drafted proposal is re-checked at approve (phase 4 section 8.2, D102): the target's readers
+//! and sensitivity against what its memory evidence copied, and each source, read again under the
+//! approver's reader filter, still readable, live, at its version and as copied. Who authored it
+//! comes from the store: approving is self-approval when the approver is the principal of any
+//! source record, or its `promotedBy`; the runner of the drafter's pipeline is not its author.
+//!
 //! Approve never indexes: an indexer applies changes in revision order and approve must not wait
 //! on its lock, so the result says `indexed: false` and search reports `INDEX_STALE` until the
 //! next `knowledge-index` or `knowledge-refresh`.
@@ -19,6 +25,7 @@ use umbel_sdk::{Cx, HostError, Outcome, failure, success};
 use umbel_store::{ContentHash, Expect, Origin, Record, canonical_json};
 
 use super::area::{self, Area};
+use super::checks;
 use super::common::{self, Caller};
 use super::document::{self, Inherit};
 use super::model::{Change, Decision, Op, Proposal, State};
@@ -220,15 +227,23 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
             "only a pending proposal, or an approved one whose apply stopped, is approved",
         ));
     }
-    // A verification is the approver's own attestation, not a change someone else wrote
-    // (decision D63): applying one's own is not self-approval.
-    let same_actor =
-        caller.actor.text() == proposal.proposer.actor.text() && proposal.change.op != Op::Verify;
-    let exception = if same_actor {
+    // A draft's authors are its sources' principals, read from the store now, and its
+    // `promotedBy` (section 8.2, D102); nothing in the comparison is the drafter's word, and the
+    // runner of the drafter's pipeline is not an author. Before that, 8.2's re-checks: the
+    // target's readers, then each source.
+    let self_approval = if proposal.drafter.is_some() {
+        let authors = checks::recheck(caller, &proposal)?;
+        authors.contains(&caller.principal) || authors.contains(&caller.actor.text())
+    } else {
+        // A verification is the approver's own attestation, not a change someone else wrote
+        // (decision D63): applying one's own is not self-approval.
+        caller.actor.text() == proposal.proposer.actor.text() && proposal.change.op != Op::Verify
+    };
+    let exception = if self_approval {
         if !area.allow_self_approval {
             return Err(failure(
                 "PROPOSAL_SELF_APPROVAL",
-                "the area does not let an actor approve its own proposal",
+                "the area does not let an actor approve its own proposal, or a draft of memory records that are its own",
                 "Ask another approver of the area, or set allow_self_approval for the area in umbel.toml.",
             ));
         }
@@ -489,7 +504,11 @@ fn save_next(
     let mut envelope = record.envelope.clone();
     envelope.origin = Origin::UserStated;
     envelope.observed_at.clone_from(&caller.now);
-    envelope.derived_from = None;
+    // A draft keeps naming the memory records it was derived from (D81) until a redaction
+    // removes them (section 9.1).
+    if proposal.redacted.is_some() {
+        envelope.derived_from = None;
+    }
     envelope.content_hash =
         Some(ContentHash::of(canonical_json(&proposal.to_value()).as_bytes()).to_string());
     common::save(

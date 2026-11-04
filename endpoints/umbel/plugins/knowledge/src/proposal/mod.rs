@@ -11,6 +11,7 @@ mod apply;
 mod area;
 mod attest;
 mod batch;
+mod checks;
 mod common;
 mod diff;
 mod document;
@@ -20,6 +21,7 @@ mod preview;
 mod propose;
 mod redact;
 mod review;
+mod sources;
 mod verify;
 
 use serde_json::Value;

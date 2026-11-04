@@ -9,9 +9,10 @@
 //! hash of its body is left in the change log, the files, the journal or the events (step 3b,
 //! amendments 12 and 13).
 //!
-//! The memory-derived drafts are written straight into the store, as 3a's test support does,
-//! since no command stores memory evidence before step 3c; the batch's own drafts, which cite
-//! documents, are redacted too.
+//! Most memory-derived drafts are written straight into the store, as 3a's test support does, and
+//! cite a record the memory store never held; one is a draft the batch verified against a real
+//! record, which is then forgotten. Since step 3c the drafter's word that a source was erased is
+//! checked: a draft citing no memory record is not redacted as if one were.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -451,27 +452,32 @@ async fn an_erased_notice_needs_an_attestation_and_memory_record_ids() {
 
 #[tokio::test]
 async fn no_earlier_body_hash_of_a_redacted_draft_remains() {
-    // A draft the batch stored, rejected by a person at a terminal, then redacted: none of its
-    // record's earlier hashes is left in the change log, the files, the journal or the events.
+    // A draft the batch verified and stored, rejected by a person at a terminal, then redacted
+    // once its source is forgotten: none of its record's earlier hashes is left in the change log,
+    // the files, the journal or the events.
+    use support::memory as mem;
     let mut fx = fixture().await;
     let canary = "ningauicanary";
-    let base = data(
-        &fx.as_actor(
-            member(),
-            "knowledge-list",
-            json!({ "prefix": "handbook/runbook" }),
-        )
-        .await,
-    )["documents"][0]["contentHash"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let mut proposal = verify("v1", "handbook/runbook", &base);
-    proposal["change"]["verification"] = json!({ "note": format!("Checked {canary}.") });
-    let (created, _) = submit(&fx, json!([proposal]), None).await;
+    mem::write(
+        &fx,
+        vec![mem::entry(
+            1,
+            "human:ada",
+            &["space"],
+            &format!("Staging uses {canary}"),
+            &format!("Rollbacks in staging use {canary}."),
+        )],
+    );
+    let source = mem::record(&fx, &mem::id(1));
+    let (created, _) = submit(
+        &fx,
+        json!([mem::drafted(&[source], &mem::Place::default())]),
+        None,
+    )
+    .await;
     let id = item(data(&created), "results", 0)["proposal"]["id"]
         .as_str()
-        .unwrap()
+        .unwrap_or_else(|| panic!("{created}"))
         .to_owned();
     let mut earlier = vec![records::read(&fx, &id).content_hash.to_string()];
     fx.reopen(&drafter::config(&["curator"], "bo"));
@@ -487,6 +493,8 @@ async fn no_earlier_body_hash_of_a_redacted_draft_remains() {
         assert!(!files_holding(&fx, hash).is_empty(), "the scan sees {hash}");
     }
 
+    // The source is forgotten; the drafter redacts its draft.
+    mem::forget(&fx, &mem::id(1), "human:ada");
     let (result, _) = submit(&fx, json!([]), Some(erase(&id))).await;
     assert_eq!(
         item(data(&result), "withdrawals", 0)["redacted"],
@@ -669,7 +677,10 @@ async fn a_reader_holding_the_log_leaves_the_redaction_pending_until_a_later_che
 }
 
 #[tokio::test]
-async fn the_batchs_own_draft_citing_a_document_is_redacted_too() {
+async fn a_draft_citing_no_memory_record_is_not_redacted_as_if_a_source_were_erased() {
+    // Step 3c checks the drafter's word that a source was erased: a draft that cites no memory
+    // record has no source to have lost, so naming it erased is a mismatch and it is left as it
+    // was.
     let fx = fixture().await;
     let canary = "kowaricanary";
     let base = data(
@@ -686,17 +697,39 @@ async fn the_batchs_own_draft_citing_a_document_is_redacted_too() {
     let mut proposal = verify("v1", "handbook/runbook", &base);
     proposal["rationale"] = json!(format!("Due: {canary}."));
     proposal["change"]["verification"] = json!({ "note": format!("Checked {canary}.") });
-    proposal["evidence"][1]["excerpt"] = json!(format!("pass {canary}"));
     let (created, _) = submit(&fx, json!([proposal]), None).await;
     let id = item(data(&created), "results", 0)["proposal"]["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(records::read(&fx, &id).body.to_string().contains(canary));
-
+    let before = records::read(&fx, &id).body;
     let (result, _) = submit(&fx, json!([]), Some(erase(&id))).await;
+    let refused = item(data(&result), "withdrawals", 0);
+    assert_eq!(item_code(refused), "PROPOSAL_DRAFT_MISMATCH", "{result}");
+    assert_eq!(
+        refused["error"]["details"],
+        json!({ "check": "source-erased" })
+    );
+    assert_eq!(records::read(&fx, &id).body, before);
+
+    // A draft a library wrote citing a record the store does not hold, beside other evidence
+    // with an excerpt and a verify's note, loses every excerpt and the note (step 3b,
+    // amendment 6).
+    let seeded_canary = "kowariseed";
+    let mut body = draft("7d4e5f60718293041526", seeded_canary);
+    body["change"] = json!({
+        "op": "verify", "doc": "handbook/runbook", "baseHash": base,
+        "verification": { "note": format!("Checked {seeded_canary}.") },
+    });
+    body["evidence"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "kind": "text", "ref": "check:links-resolve", "excerpt": format!("pass {seeded_canary}") }));
+    records::seed(&fx, &body);
+    let seeded = body["id"].as_str().unwrap();
+    let (result, _) = submit(&fx, json!([]), Some(erase(seeded))).await;
     assert_eq!(data(&result)["checkpoint"], "clean", "{result}");
-    let record = records::read(&fx, &id).body;
+    let record = records::read(&fx, seeded).body;
     records::assert_valid("proposal.v2", &record);
     assert_eq!(record["state"], "withdrawn");
     assert_eq!(record["diff"], "");
@@ -705,7 +738,7 @@ async fn the_batchs_own_draft_citing_a_document_is_redacted_too() {
     assert_eq!(
         record["evidence"],
         json!([
-            { "kind": "document", "ref": "handbook/runbook", "contentHash": base },
+            { "kind": "memory", "ref": format!("{}@2", records::SOURCE_ID), "erased": true },
             { "kind": "text", "ref": "check:links-resolve" },
         ])
     );
@@ -713,10 +746,10 @@ async fn the_batchs_own_draft_citing_a_document_is_redacted_too() {
         record["redacted"],
         json!({ "at": NOW, "reason": "source-erased" })
     );
-    assert_eq!(files_holding(&fx, canary), Vec::<PathBuf>::new());
+    assert_eq!(files_holding(&fx, seeded_canary), Vec::<PathBuf>::new());
     assert!(
-        !records::journal(&fx).contains(canary),
+        !records::journal(&fx).contains(seeded_canary),
         "the batch is digest-journaled"
     );
-    assert!(!records::events(&fx).contains(canary));
+    assert!(!records::events(&fx).contains(seeded_canary));
 }
