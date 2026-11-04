@@ -4,6 +4,7 @@ import type { Outcome, Status } from '../report/types';
 import type { Verdict } from '../report/verdict';
 import {
 	describeEvidence,
+	describeRemediation,
 	type EvidenceItem,
 	formatGeneratedAt,
 	plural,
@@ -94,7 +95,7 @@ const rowTemplate = html<Outcome>`
 				</dl>`
 			)}
 		</td>
-		<td>${(x) => x.remediation ?? 'No guidance'}</td>
+		<td>${(x) => describeRemediation(x)}</td>
 	</tr>
 `;
 

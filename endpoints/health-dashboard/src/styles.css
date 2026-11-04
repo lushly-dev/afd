@@ -109,6 +109,16 @@ pre {
 	background: var(--card-bg);
 }
 
+/* Once a report shows it is the content. The dropzone stays one, so focus and drops keep working. */
+.report-files[data-compact]::part(surface) {
+	min-block-size: 0;
+	padding: 0.5rem 0.75rem;
+}
+
+.report-files[data-compact]::part(leading-icon) {
+	display: none;
+}
+
 .status-line,
 .row-count,
 .note,
@@ -230,6 +240,11 @@ tbody th {
 .checks td:nth-child(5),
 .checks td:nth-child(7) {
 	min-inline-size: 14rem;
+}
+
+/* Target ids break at hyphens, and the table scrolls rather than squeezing them. */
+.checks td:nth-child(3) {
+	white-space: nowrap;
 }
 
 .path {

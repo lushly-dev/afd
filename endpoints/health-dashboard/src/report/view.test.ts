@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { fixture, fixtureNames } from './fixtures.test-helper';
-import type { HealthReport } from './types';
+import type { HealthReport, Outcome } from './types';
 import { STATUSES } from './types';
 import {
 	countStatuses,
 	DEFAULT_QUERY,
 	describeEvidence,
+	describeRemediation,
 	plural,
 	SORT_COLUMN,
 	SORT_OPTIONS,
@@ -120,4 +121,25 @@ describe('helpers', () => {
 		expect(plural(1, 'report', 'reports')).toBe('1 report');
 		expect(plural(2, 'report', 'reports')).toBe('2 reports');
 	});
+});
+
+describe('describeRemediation', () => {
+	const outcome = mixed.outcomes[0] as Outcome;
+
+	it('keeps guidance Health wrote, whatever the status', () => {
+		expect(describeRemediation({ ...outcome, status: 'passed', remediation: 'Do this' })).toBe(
+			'Do this'
+		);
+	});
+
+	it.each(['passed', 'skipped', 'disabled'] as const)('%s needs no guidance', (status) => {
+		expect(describeRemediation({ ...outcome, status, remediation: null })).toBe('None needed');
+	});
+
+	it.each(['failed', 'warn', 'unavailable', 'error'] as const)(
+		'%s says when guidance is missing',
+		(status) => {
+			expect(describeRemediation({ ...outcome, status, remediation: null })).toBe('No guidance');
+		}
+	);
 });

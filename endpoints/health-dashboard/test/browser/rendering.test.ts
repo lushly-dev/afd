@@ -163,6 +163,46 @@ describe('report rendering (Chromium, file://)', () => {
 		await context.close();
 	});
 
+	it('shrinks the load panel once a report shows, keeping focus and restoring it when emptied', async () => {
+		const { context, page } = await fresh();
+		const height = () =>
+			page.locator('violet-file-upload').evaluate((el) => {
+				const surface = el.shadowRoot?.querySelector('[part="surface"]');
+				return surface ? surface.getBoundingClientRect().height : 0;
+			});
+		const empty = await height();
+		expect(empty).toBeGreaterThan(0);
+		const browse = page.locator('violet-file-upload .browse-button');
+		await browse.focus();
+		await loadFiles(page, [fixturePath('reports/all-passed.report.json')]);
+		const loaded = await page.locator('section.report').count();
+		expect(loaded).toBe(1);
+		await expect(
+			browse.evaluate((button) => (button.getRootNode() as ShadowRoot).activeElement === button)
+		).resolves.toBe(true);
+		await expect(height()).resolves.toBeLessThan(empty);
+		await page.locator('violet-file-upload violet-icon-button').first().click();
+		await page.waitForFunction(() => document.querySelectorAll('section.report').length === 0);
+		await expect(
+			page.locator('violet-file-upload').getAttribute('data-compact')
+		).resolves.toBeNull();
+		await context.close();
+	});
+
+	it('keeps target ids on one line and only says guidance is missing when it could matter', async () => {
+		const { context, page } = await fresh();
+		await loadFiles(page, [fixturePath('reports/all-passed.report.json')]);
+		const row = page.locator('.checks tbody tr').first();
+		await expect(row.locator('td').nth(5).innerText()).resolves.toBe('None needed');
+		await expect(
+			row
+				.locator('td')
+				.nth(1)
+				.evaluate((cell) => getComputedStyle(cell).whiteSpace)
+		).resolves.toBe('nowrap');
+		await context.close();
+	});
+
 	it('removes a report when its file is removed', async () => {
 		const { context, page } = await fresh();
 		await loadFiles(page, [
