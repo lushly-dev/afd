@@ -74,6 +74,8 @@ input_schema = { type = "object", properties = {}, additionalProperties = false 
 
 [ui]
 compositions = ["list-detail"]
+# What a project's home shows of tasks: a query at the project's scope, called with {} (7.7).
+project_summary = { command = "tasks-summary" }
 
 [ui.layout]
 sidebar = { open = true, width = 260 }

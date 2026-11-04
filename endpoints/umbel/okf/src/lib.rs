@@ -13,12 +13,15 @@
 //! - [`locator`]: the locator string, the stable address of a span of a document's lines;
 //! - [`rewrite`]: frontmatter-only rewrites that keep every other byte of a file;
 //! - [`ingest`]: one call that turns a file's bytes into everything the plugin stores, including
-//!   the write scan's flags.
+//!   the write scan's flags;
+//! - [`draft`]: the curator's fixed draft rendering and its id derivations (phase 4), shared so
+//!   the knowledge plugin re-renders a draft to verify it.
 //!
 //! Content is untrusted: nothing here fetches a link, follows a path or runs what a document
 //! says.
 #![forbid(unsafe_code)]
 
+pub mod draft;
 pub mod frontmatter;
 pub mod ingest;
 pub mod links;

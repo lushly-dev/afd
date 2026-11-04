@@ -138,6 +138,36 @@ impl Bin {
         output.stdout
     }
 
+    /// One command line's exit code, raw stdout and stderr (where a preview and the prompts go).
+    pub fn output(&self, args: &[&str], human: bool) -> (i32, Vec<u8>, String) {
+        let output = self.command(args, human).output().unwrap();
+        (
+            output.status.code().unwrap_or(-1),
+            output.stdout,
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        )
+    }
+
+    /// One command with a person at the terminal who answers yes: the exit code, the result, and
+    /// what the terminal showed and asked on stderr.
+    pub fn at_terminal(&self, command: &str, input: &Value) -> (i32, Value, String) {
+        let input = input.to_string();
+        let (code, stdout, stderr) =
+            self.output(&["--format", "json", "call", command, input.as_str()], true);
+        let value = serde_json::from_slice(&stdout).unwrap_or_else(|error| {
+            panic!(
+                "{command}: stdout is not JSON ({error}): {}",
+                String::from_utf8_lossy(&stdout)
+            )
+        });
+        (code, value, stderr)
+    }
+
+    /// Rewrite `umbel.toml`; the next command line reads it.
+    pub fn configure(&self, config: &str) {
+        std::fs::write(self.ws.join("umbel.toml"), config).unwrap();
+    }
+
     /// One command through the binary; `human` puts a person at the terminal who answers yes.
     pub fn call_with(&self, command: &str, input: &Value, extra: &[&str], human: bool) -> Value {
         let input = input.to_string();
@@ -265,11 +295,32 @@ pub struct Mcp {
 impl Mcp {
     /// Call a tool; its structured result.
     pub fn call(&mut self, name: &str, arguments: &Value) -> Value {
+        self.call_raw(name, arguments)["result"]["structuredContent"].clone()
+    }
+
+    /// Call a tool; the whole JSON-RPC response, a protocol error included.
+    pub fn call_raw(&mut self, name: &str, arguments: &Value) -> Value {
+        let params = format!(r#"{{"name":"{name}","arguments":{arguments},{MODERN}}}"#);
+        self.request("tools/call", &params)
+    }
+
+    /// The names `tools/list` returns.
+    pub fn tool_names(&mut self) -> Vec<String> {
+        let response = self.request("tools/list", &format!("{{{MODERN}}}"));
+        response["result"]["tools"]
+            .as_array()
+            .unwrap_or_else(|| panic!("tools/list: {response}"))
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    /// One JSON-RPC request with `params` (a JSON object's text); the response.
+    fn request(&mut self, method: &str, params: &str) -> Value {
         self.next += 1;
         let id = self.next;
-        let request = format!(
-            r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/call","params":{{"name":"{name}","arguments":{arguments},{MODERN}}}}}"#
-        );
+        let request =
+            format!(r#"{{"jsonrpc":"2.0","id":{id},"method":"{method}","params":{params}}}"#);
         writeln!(self.stdin, "{request}").unwrap();
         self.stdin.flush().unwrap();
         let line = self
@@ -278,7 +329,7 @@ impl Mcp {
             .expect("no response");
         let response: Value = serde_json::from_str(&line).expect("stdout is only JSON-RPC");
         assert_eq!(response["id"], id, "{response}");
-        response["result"]["structuredContent"].clone()
+        response
     }
 }
 

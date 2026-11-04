@@ -33,7 +33,7 @@ should never have to scan the codebase to learn what is current.
 | [Phase 1 specification](phases/1-plugin-contract/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's trust-model decisions; approved by the owner (D24) and merged in [#583](https://github.com/lushly-dev/afd/pull/583) as `880779ff`; steps 0a, 0b, 1, 2a, 2b, 3, 4, 5, 6 and 7 done 2026-11-01 (see Phase 1 below); 0a amended section 8.3's digest key. Closes O3 (D37, D38) and adds D39 to D50 with the architecture amendments they need; D38, D40, D42, D43, D47, D48 and D50 amended 2026-11-01 | [#583](https://github.com/lushly-dev/afd/pull/583), merged | 2026-11-01 against `main` at `393d30aa`: `packages/rust`, `endpoints/umbel`, the todo example and its runner, Plugin Discovery, the Skill Knowledge Layer and Botcore's command policy read; trajectory rows checked against primary sources; links and anchors resolve |
 | [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's decisions; approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as `e996aad1`. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader); step 0a done 2026-11-01 (see Phase 2 below) and amended section 14; step 2 done 2026-11-01 ([636](https://github.com/lushly-dev/afd/pull/636)); step 3 done 2026-11-01 ([643](https://github.com/lushly-dev/afd/pull/643)); steps 4 to 8 and 7a done the same day (see Phase 2 below); step 9 (the eval harness) done 2026-11-01 in the step 9 pull request; step 10 (the exit) done 2026-11-01 in the step 10 pull request, and with it **phase 2 is done** (exit criterion met; see Phase 2 below) | [#625](https://github.com/lushly-dev/afd/pull/625), merged | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
 | [Phase 3 specification](phases/3-memory-context/spec.md) | Written 2026-11-01; revised 2026-11-02 after an independent review; **approved 2026-11-02, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02** (D24). Adds D68 to D89 and W18 with the architecture amendments they need; section 15 records the owner's five decisions and the four after the key design's review; steps 1 to 9 done 2026-11-02 and 2026-11-03 (#729 to #747), and step 10 (the exit) done 2026-11-03 in the step 10 pull request, and with it **phase 3 is done** (exit criterion met; see Phase 3 below) | [#685](https://github.com/lushly-dev/afd/pull/685) | 2026-11-02 against `main` at `4a26cc0b`: each review finding checked against `endpoints/umbel` and `packages/rust`; SQLite experiments for FTS5 erasure, `+a b`, backups and the key file (Python's SQLite 3.53.4); Claude Code transcript structure from 25 local sessions, with no content read; `chacha20poly1305` by `cargo info`; S14, S15 and S16 re-read; links and anchors resolve; no Rust built |
-| [Phase 4 specification](phases/4-curator/spec.md) | Written 2026-11-03; revised the same day after an independent review (33 findings: 31 fixed as raised, 2 holding in part; its Review response table); **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03** (D24), the recommended option on nine trust-model questions and "attest and verify" on question 10 (section 16). Adds D90 to D105 with the architecture amendments they need (proposal record version 2 in the phase table, the curator component row, the proposal and manifest interfaces, the MCP approval relay prerequisite moved to phase 5, the versioning list, glossary); implementation not started | The phase 4 specification pull request, not yet opened (three local commits on `lush/umbel-phase-4-curator-spec`) | 2026-11-03 against `main` at `f0c618aa`: the knowledge proposal code, `proposal.v1.json`, the envelope, the memory store's changes feed and derivation refusal, record namespacing, pipelines, the plugin gate, the principal and CLI marks, the SDK's call context, `spec/command-metadata.md` and language parity read; W1, W2, W5, W7 and the elicitation specification checked against primary sources; links and anchors resolve; no Rust built |
+| [Phase 4 specification](phases/4-curator/spec.md) | Written 2026-11-03; revised the same day after an independent review (33 findings: 31 fixed as raised, 2 holding in part; its Review response table); **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03** (D24), the recommended option on nine trust-model questions and "attest and verify" on question 10 (section 16). Adds D90 to D105 with the architecture amendments they need (proposal record version 2 in the phase table, the curator component row, the proposal and manifest interfaces, the MCP approval relay prerequisite moved to phase 5, the versioning list, glossary); steps 1 to 6 merged and step 7 (the exit) done 2026-11-03 in its pull request, each with its amendments in the specification, and with step 7 **phase 4 is done** (exit criterion met; see Phase 4 below) | Merged in [#749](https://github.com/lushly-dev/afd/pull/749); the steps' pull requests are in the Phase 4 detail below | 2026-11-03 against `main` at `f0c618aa`: the knowledge proposal code, `proposal.v1.json`, the envelope, the memory store's changes feed and derivation refusal, record namespacing, pipelines, the plugin gate, the principal and CLI marks, the SDK's call context, `spec/command-metadata.md` and language parity read; W1, W2, W5, W7 and the elicitation specification checked against primary sources; links and anchors resolve; no Rust built |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -45,10 +45,10 @@ should never have to scan the codebase to learn what is current.
 | 1. Plugin contract | Done 2026-11-01: exit criterion met; `umbel.yml` [run 41298630706](https://github.com/lushly-dev/afd/actions/runs/41298630706) green on `main` at `886c3b4d` | Phase 1 owning agent | [Specification](phases/1-plugin-contract/spec.md) ([#583](https://github.com/lushly-dev/afd/pull/583), `880779ff`); step 0a: the [AFD proposal](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md); step 0b: [#608](https://github.com/lushly-dev/afd/pull/608); step 1: [#606](https://github.com/lushly-dev/afd/pull/606); step 2a: [#610](https://github.com/lushly-dev/afd/pull/610); step 2b: [#612](https://github.com/lushly-dev/afd/pull/612); step 3: [#611](https://github.com/lushly-dev/afd/pull/611); step 5: [#613](https://github.com/lushly-dev/afd/pull/613); step 4: [#620](https://github.com/lushly-dev/afd/pull/620); step 6: [#622](https://github.com/lushly-dev/afd/pull/622); step 7: [#623](https://github.com/lushly-dev/afd/pull/623); step 8: [#624](https://github.com/lushly-dev/afd/pull/624) | None |
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
 | 3. Memory and context | Specification approved and merged ([#685](https://github.com/lushly-dev/afd/pull/685), `e4c91f30`, with D86 to D89 written in after it); step 1 (shapes and configuration) done 2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729), `ed9a8539`; step 2 (the memory trait and suite) done 2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`; step 3a (the embedded memory store) done 2026-11-03 in [#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`; step 3b (sealing and the key file) done 2026-11-03 in [#737](https://github.com/lushly-dev/afd/pull/737), `8d51ee13`; step 4 (host services and the journal digest) done 2026-11-03 in [#740](https://github.com/lushly-dev/afd/pull/740), `d945bbbf`; step 5 (the memory plugin's writing side) done 2026-11-03 in [#742](https://github.com/lushly-dev/afd/pull/742), `0e3a501a`; step 6 (the memory plugin's reading and lifecycle commands) done 2026-11-03 in [#743](https://github.com/lushly-dev/afd/pull/743), `800856ad`; step 7a (the shared helpers: the locator string and `is_stale` in `umbel-okf`) done 2026-11-03 in [#744](https://github.com/lushly-dev/afd/pull/744), `8f124810`; step 7b (the `context` plugin) done 2026-11-03 in [#745](https://github.com/lushly-dev/afd/pull/745), `c8689ebc`; step 8 (the `umbel-first-party` binary and the `umbel-hook` harness adapter) done 2026-11-03 in [#746](https://github.com/lushly-dev/afd/pull/746), `ab5b321d`; step 9 (import and export) done 2026-11-03 in [#747](https://github.com/lushly-dev/afd/pull/747), `4e46de1b`; step 10 (the exit: `leak_probes.rs`, `poisoning.rs`, `forget_bytes.rs` and `exit_memory.rs` in `first-party/tests`) done 2026-11-03 in the step 10 pull request. **Done 2026-11-03: exit criterion met** (see Phase 3 below) | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685); step 1: [#729](https://github.com/lushly-dev/afd/pull/729); step 2: [#733](https://github.com/lushly-dev/afd/pull/733); step 3a: [#736](https://github.com/lushly-dev/afd/pull/736); step 3b: [#737](https://github.com/lushly-dev/afd/pull/737); step 4: [#740](https://github.com/lushly-dev/afd/pull/740); step 5: [#742](https://github.com/lushly-dev/afd/pull/742); step 6: [#743](https://github.com/lushly-dev/afd/pull/743); step 7a: [#744](https://github.com/lushly-dev/afd/pull/744); step 7b: [#745](https://github.com/lushly-dev/afd/pull/745); step 8: [#746](https://github.com/lushly-dev/afd/pull/746); step 9: [#747](https://github.com/lushly-dev/afd/pull/747); step 10: the step 10 pull request | None for phase 3. Phase 4 is unblocked |
-| 4. Curator | Specification approved 2026-11-03 ([spec](phases/4-curator/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, merged in [#749](https://github.com/lushly-dev/afd/pull/749), `4a9462c0`; step 1 (shapes) done 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751), `e7aeff70`; step 2 (host) done 2026-11-03 in [#753](https://github.com/lushly-dev/afd/pull/753), `83639abb`; step 3a (knowledge: record and journal) done 2026-11-03 in the step 3a pull request; step 3b (knowledge: the drafted path) next | Phase 4 owning agent | [Specification](phases/4-curator/spec.md), [#749](https://github.com/lushly-dev/afd/pull/749); step 1: [#751](https://github.com/lushly-dev/afd/pull/751); step 2: [#753](https://github.com/lushly-dev/afd/pull/753); step 3a: the step 3a pull request | Merge of step 3a, then step 3b of the [plan](phases/4-curator/spec.md#15-implementation-plan) |
-| 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification; the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) |
-| 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Its specification |
-| 7. Distribution and guides | Not started | None | None | Phases 4, 5 and 6 exit criteria met |
+| 4. Curator | Specification approved 2026-11-03 ([spec](phases/4-curator/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, merged in [#749](https://github.com/lushly-dev/afd/pull/749), `4a9462c0`; step 1 (shapes) done 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751), `e7aeff70`; step 2 (host) done 2026-11-03 in [#753](https://github.com/lushly-dev/afd/pull/753), `83639abb`; step 3a (knowledge: record and journal) done 2026-11-03 in [#754](https://github.com/lushly-dev/afd/pull/754), `37af26c9`; step 3b (knowledge: the drafted path) done 2026-11-03 in [#763](https://github.com/lushly-dev/afd/pull/763), `4a6b2de4`; step 3c (knowledge: verifying drafts) done 2026-11-03 in [#765](https://github.com/lushly-dev/afd/pull/765), `7e52e337`; step 4 (curator: candidates) done 2026-11-03 in [#767](https://github.com/lushly-dev/afd/pull/767), `0d46a9a0`; step 5 (curator: runs) done 2026-11-03 in [#768](https://github.com/lushly-dev/afd/pull/768), `9ea18e73`; step 6 (auto-approval) done 2026-11-03 in [#770](https://github.com/lushly-dev/afd/pull/770), `6e1c0a0a`; step 7 (the binary and the exit: `umbel-first-party` links the curator, `curator_leaks.rs` and `exit_curator.rs` in `first-party/tests`) done 2026-11-03 in the step 7 pull request. **Done 2026-11-03: exit criterion met** (see Phase 4 below) | Phase 4 owning agent | [Specification](phases/4-curator/spec.md), [#749](https://github.com/lushly-dev/afd/pull/749); step 1: [#751](https://github.com/lushly-dev/afd/pull/751); step 2: [#753](https://github.com/lushly-dev/afd/pull/753); step 3a: [#754](https://github.com/lushly-dev/afd/pull/754); step 3b: [#763](https://github.com/lushly-dev/afd/pull/763); step 3c: [#765](https://github.com/lushly-dev/afd/pull/765); step 4: [#767](https://github.com/lushly-dev/afd/pull/767); step 5: [#768](https://github.com/lushly-dev/afd/pull/768); step 6: [#770](https://github.com/lushly-dev/afd/pull/770); step 7: the step 7 pull request | None for phase 4. Phase 7 now needs phases 5 and 6 |
+| 5. Auth and hosted | Not started; unblocked 2026-11-01 (phase 2 exit criterion met); next | None | None | Its specification, with an independent review, a revision and the owner's answers (D24); the phase 5 prerequisites in the follow-ups (partitioned BM25 statistics, a dynamic confirmation prompt) and the MCP approval relay moved here by owner decision 2 of phase 4 (D99) |
+| 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met); next | None | None | Its specification, with an independent review, a revision and the owner's answers (D24) |
+| 7. Distribution and guides | Not started | None | None | Phases 5 and 6 exit criteria met (phase 4's was met 2026-11-03) |
 | Further first-class plugins | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Each gets its own specification (D18) |
 
 ## Phase detail
@@ -1496,10 +1496,10 @@ prompt and the host-owned `dev.umbel/human-confirmed` mark, adds no new trust as
 | Work | Notes |
 | --- | --- |
 | Phase 3 implementation | Done 2026-11-03: plan steps 1 to 10, the last in the step 10 pull request; exit criterion met |
-| Phase 4, curator | In progress. **Specification approved 2026-11-03** ([spec](phases/4-curator/spec.md)) and merged in [#749](https://github.com/lushly-dev/afd/pull/749), with the owner's answers to its ten questions (attest and verify on 10); steps 1 (shapes) and 2 (host) merged 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751) and [#753](https://github.com/lushly-dev/afd/pull/753); step 3a (knowledge: record and journal) done 2026-11-03 in its pull request; step 3b next |
-| Phase 5, auth and hosted | Specification first, after the D86 to D89 follow-up merges. Includes `memory-erase`, [#532](https://github.com/lushly-dev/afd/issues/532), partitioned BM25 statistics, token verification, `credentials`, Tasks, the dynamic confirmation prompt, real proof of a person |
-| Phase 6, backends | Specification first, after the D86 to D89 follow-up merges |
-| Phase 7, distribution and guides | Needs phases 4, 5 and 6 |
+| Phase 4, curator | **Done 2026-11-03: exit criterion met**, steps 1 to 7, the last in the step 7 pull request (see Phase 4 below). Before that: **specification approved 2026-11-03** ([spec](phases/4-curator/spec.md)) and merged in [#749](https://github.com/lushly-dev/afd/pull/749), with the owner's answers to its ten questions (attest and verify on 10); steps 1 (shapes), 2 (host), 3a (knowledge: record and journal), 3b (knowledge: the drafted path), 3c (knowledge: verifying drafts) and 4 (curator: candidates) merged 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751), [#753](https://github.com/lushly-dev/afd/pull/753), [#754](https://github.com/lushly-dev/afd/pull/754), [#763](https://github.com/lushly-dev/afd/pull/763), [#765](https://github.com/lushly-dev/afd/pull/765) and [#767](https://github.com/lushly-dev/afd/pull/767); step 5 (curator: runs) and step 6 (auto-approval) merged 2026-11-03 in [#768](https://github.com/lushly-dev/afd/pull/768) and [#770](https://github.com/lushly-dev/afd/pull/770) |
+| Phase 5, auth and hosted | **Next:** its specification, with an independent review, a revision and the owner's answers (D24); the D86 to D89 follow-up it waited on merged in [#723](https://github.com/lushly-dev/afd/pull/723). Includes `memory-erase`, [#532](https://github.com/lushly-dev/afd/issues/532), partitioned BM25 statistics, token verification, `credentials`, Tasks, the dynamic confirmation prompt, real proof of a person, and the Rust MCP approval relay with Umbel's use of it (phase 4's owner decision 2, D99) |
+| Phase 6, backends | **Next**, beside phase 5: its specification, with an independent review, a revision and the owner's answers (D24) |
+| Phase 7, distribution and guides | Needs phases 5 and 6 (phase 4 done 2026-11-03) |
 | Further first-class plugins | content-design; federation needs O1 from the owner |
 
 **Rules the owner set for this epic:** commit, open pull requests, auto-fix and merge on
@@ -1525,13 +1525,19 @@ on another local branch and push to that remote name.
   answers of 2026-11-03 (D24), after an independent review and a revision, and merged in
   [#749](https://github.com/lushly-dev/afd/pull/749) as `4a9462c0`; step 1 done 2026-11-03 in
   [#751](https://github.com/lushly-dev/afd/pull/751), merge commit `e7aeff70`; step 2 done 2026-11-03 in
-  [#753](https://github.com/lushly-dev/afd/pull/753), merge commit `83639abb`; step 3a done 2026-11-03 in its pull
-  request. Last verified 2026-11-03 against `main` at `83639abb`, with step 3a's scoped tests and clippy run on the
-  owner's Mac (below).
+  [#753](https://github.com/lushly-dev/afd/pull/753), merge commit `83639abb`; step 3a done 2026-11-03 in
+  [#754](https://github.com/lushly-dev/afd/pull/754), merge commit `37af26c9`; step 3b done 2026-11-03 in
+  [#763](https://github.com/lushly-dev/afd/pull/763), merge commit `4a6b2de4`; step 3c done 2026-11-03 in
+  [#765](https://github.com/lushly-dev/afd/pull/765), merge commit `7e52e337`; step 4 done 2026-11-03 in
+  [#767](https://github.com/lushly-dev/afd/pull/767), merge commit `0d46a9a0`; step 5 done 2026-11-03 in
+  [#768](https://github.com/lushly-dev/afd/pull/768), merge commit `9ea18e73`; step 6 done 2026-11-03 in
+  [#770](https://github.com/lushly-dev/afd/pull/770), merge commit `6e1c0a0a`; step 7 done 2026-11-03 in its pull
+  request, and with it **phase 4 is done: the exit criterion is met** (below). Last verified 2026-11-03 against
+  `main` at `6e1c0a0a` with step 7's scoped tests, clippy and the tooling tests on the owner's Mac (below).
 - **Done:** [the specification](phases/4-curator/spec.md), with D90 to D105 and amendments to the
   architecture's curator component row, proposal and manifest interfaces, phase table (proposal record
   version 2), phase specification list, phase 5 row and prerequisites table (the MCP relay moved to phase 5),
-  versioning list and glossary.
+  versioning list and glossary; and every step of its plan, 1 to 7 (below), the last meeting the exit criterion.
 - **Findings that shaped it:** `proposal.v1.json` is closed with `policy.rule` constant `person`, so the
   curator's fields need proposal record version 2; records are namespaced per plugin instance, so the
   curator reaches proposals through a pipeline it ships as data, attested by a host table keyed by random
@@ -1625,7 +1631,8 @@ on another local branch and push to that remote name.
   - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; `cargo clippy --locked --workspace
     --all-targets -- -D warnings`, and `-p umbel --lib --no-default-features` alone and with `mounted` and with
     `component`; the scoped tests above. No script or workflow changed, so the tooling tests were not rerun.
-- **Step 3a done (2026-11-03, in its pull request, from `83639abb`), knowledge: record and journal:**
+- **Step 3a done (2026-11-03, merged in [#754](https://github.com/lushly-dev/afd/pull/754) as `37af26c9`), knowledge:
+  record and journal:**
   - Proposal record version 2 (section 2.1, D92), in `plugins/knowledge/src/proposal/model.rs`. Every new proposal
     is version 2: `drafter`, `conflictSet`, `withdrawal` and `redacted` null, `decision.channel = "terminal"` on a
     person's decision, a proposer's withdrawal recorded as `{ by: "proposer", reason: "retracted", at }`, and
@@ -1668,14 +1675,373 @@ on another local branch and push to that remote name.
     job's `cargo test` (477 tests in 60 suites, `eval_gate` with the baseline untouched) and `-p
     umbel-plugin-knowledge --no-default-features` (181 in 24); the host's `schemas` test (47). No script or workflow
     changed, so the tooling tests were not rerun.
-- **Not done:** steps 3b to 7 of the [plan](phases/4-curator/spec.md#15-implementation-plan). There is no AFD
-  step 0.
-- **Next:** merge step 3a, then step 3b (knowledge: the drafted path): `drafters`, `knowledge-propose-batch` and
-  `-proposal-feed`, which read `CallContext.pipeline`; the attestation rules; `PROPOSAL_ALREADY_OPEN`; withdrawal
-  and redaction, surfacing the document store's reporting checkpoint (amendment 9 of step 2). Step 3c then verifies
-  drafts.
-- **Waiting on the owner:** nothing. Merging step 3a follows the normal pull request flow.
-- **Follow-ups:** the [specification's list](phases/4-curator/spec.md#follow-ups).
+- **Step 3b done (2026-11-03, merged in [#763](https://github.com/lushly-dev/afd/pull/763) as `4a6b2de4`),
+  knowledge: the drafted path:**
+  - `[plugins.knowledge.config] drafters` (default `[]`; a table with each drafter's targets since step 3c's
+    amendment 14), read in `plugins/knowledge/src/proposal/attest.rs`: a
+    call's `CallContext.pipeline` is accepted only from a listed instance; an attested step of any other is
+    `PROPOSAL_DRAFTER_NOT_ALLOWED` for the whole call.
+  - `knowledge-propose-batch` (every surface, `store-write`, digest keeping `space`), in `src/proposal/batch.rs`: up
+    to 50 proposals and 50 withdrawals and 400 distinct memory sources (`PROPOSAL_BATCH_TOO_LARGE`), a result per
+    item, withdrawals first. Each proposal is `knowledge-propose`'s validation, now `propose::submit`. Without an
+    attestation it is an ordinary batch: drafter claims, memory evidence, a `derivedFrom`, a conflict set and
+    withdrawals are `PROPOSAL_EVIDENCE_INVALID` per item. A listed drafter's proposals carry the attestation as
+    `drafter` (`mode = "scheduled"`) and are `agent-inferred`; a retry must repeat the drafter's claims (else
+    `PROPOSAL_KEY_REUSED`); `PROPOSAL_ALREADY_OPEN` for a document, or a memory source, with an open proposal.
+  - **The memory-evidence refusal (owner decision 10's sequencing):** until step 3c verifies a drafter's claims
+    against the memory store, a listed, attested drafter's memory evidence, memory `derivedFrom`, candidate,
+    promotion, conflict set and create or update content are refused with the new code
+    **`PROPOSAL_DRAFT_UNVERIFIABLE`**, `details.claim` naming the claim; only `verify` and `deprecate` drafts
+    citing other evidence are stored, and the preview labels them "checked at submission: it cites no memory
+    record", never "verified against memory". Nothing labelled as verified against memory can be stored before
+    the verification exists. Step 3c lifts it.
+  - A drafter's withdrawal and redaction, in `src/proposal/redact.rs`: only of a proposal whose `drafter` is the
+    attested instance and whose proposer is the caller; `source-erased` always redacts (9.1's fields, and also
+    the rationale, every excerpt, a verify's note, a rejection's reason and the stored envelope's
+    `derivedFrom`), idempotently. **Every draft that was not applied is redacted** when its source is erased
+    (decided by the owner for the stronger guarantee): a pending one is withdrawn and redacted; a withdrawn one
+    (by the drafter or its proposer), a rejected one and an approved one whose apply never landed are redacted
+    in place, keeping their decision or withdrawal; an applied one never is. A drafter reaches them by id
+    (`redact: true`) or by the new **`erased`** notice of memory record ids, which redacts each of its own
+    non-applied drafts citing one. `proposal.v2.json` now allows `redacted` in those states. Approve refuses a
+    redacted draft with `PROPOSAL_SOURCE_GONE`.
+  - **No earlier body hash of a redacted draft is left in the change log** (decided by the owner for the stronger
+    guarantee): a new store method, `DocumentStore::forget_record_history`, and host service,
+    `HostServices::record_forget_history`, null the `changes` rows' hashes of the record's earlier versions,
+    under `secure_delete`, before the checkpoint. A drafted proposal's reject and withdraw results no longer put
+    the record hash in `dev.umbel/provenance`, so neither the journal nor the events keep it.
+  - The checkpoint's `Pending` state carried through (step 2's amendment 9): a new compiled-only host service,
+    `HostServices::truncate_wal` (SDK `Cx::truncate_wal` and `WalCheckpoint`; `CallServices::svc_truncate_wal`),
+    runs `SqliteStore::truncate_wal` under `checkpoint`'s rules. The batch reports `checkpoint: "clean"` or
+    `"pending"` after a redaction or a forgotten hash, and `pending` warns `PROPOSAL_REDACTION_PENDING`
+    (store-check finishes it).
+  - `knowledge-proposal-feed` (CLI only, `inspect`, digest keeping `space` and `after`), in `src/proposal/feed.rs`:
+    refuses without an accepted attestation; the rejected and applied decisions on the attested drafter's
+    proposals of the caller after a revision, from the change log, with `next` and `more`.
+  - Approve: a drafted proposal's document is `agent-inferred`; its authorship stays phase 2's rule until step 3c
+    reads the sources (the runner approving a draft is self-approval, stricter than 8.2).
+  - Tests: `plugins/knowledge/tests/drafted.rs` (10) and `redaction.rs` (11: each state redacted by the notice and
+    by id, applied untouched, the change log's and the journal's earlier hashes gone), with stand-in drafters in
+    `tests/support/drafter.rs`; `journal_modes.rs` gains the batch and the feed in the digest set; `preview.rs`'s
+    redaction line names the rationale. Store: `store-embedded/tests/secure_delete.rs` gains the change log's
+    earlier hashes gone from the raw bytes. Host: `tests/store_truncate_wal.rs` (3: both services), with
+    `truncate-wal` and `record-forget-history` ops in `tests/support/store.rs`; `tests/schemas/phase4.rs` holds the
+    widened redaction rule. `umbel-store-embedded`'s `testkit` feature gains `SqliteStore::hold_reader`.
+  - Thirteen [amendments](phases/4-curator/spec.md#amendments-from-step-3b), none weakening the trust model; 12 and 13
+    close the step's two questions for the stronger guarantee. 11.3 gains `PROPOSAL_DRAFT_UNVERIFIABLE` and the
+    warning `PROPOSAL_REDACTION_PENDING`.
+  - **Host, store and schema code changed:** `src/plugins/store_services.rs` and `src/plugins/grants.rs` (the two
+    services), `sdk/src/` (the trait methods and `WalCheckpoint`), `store/src/traits.rs`
+    (`DocumentStore::forget_record_history`, implemented by the embedded store and the store tests' fake),
+    `store-embedded/src/` (that method, and the testkit hold), `schemas/proposal.v2.json` (the redaction rule),
+    with `tests/`. No `wit/` file changed. The pull request needs a `Plugin-isolation-exempt:` line naming the two
+    services, the store method and the schema rule.
+  - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; the knowledge job's clippy (`-p umbel-store -p
+    umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
+    --all-targets -- -D warnings`) and `cargo test` (499 tests in 62 suites, `eval_gate` with the baseline
+    untouched); `-p umbel-plugin-knowledge --no-default-features` clippy and tests (202 in 26); `cargo clippy -p umbel
+    -p umbel-sdk -p umbel-store --all-targets -- -D warnings`, `-p umbel --lib --no-default-features` and `-p
+    umbel-sdk --all-features --lib`; the host's `schemas` (47), `store_truncate_wal` (3) and `store_grants` (23). No script or workflow changed,
+    so the tooling tests were not rerun; the full gate is the owner's.
+- **Step 3c done (2026-11-03, merged in [#765](https://github.com/lushly-dev/afd/pull/765) as `7e52e337`, from `4a6b2de4`), knowledge: verifying drafts:**
+  - `umbel_okf::draft` (the new `okf/src/draft.rs`): section 4.5's fixed rendering, byte for byte, with every value
+    escaped onto its one line; the fixed rationale and its exact inverse; `subject_key` and its digest; the candidate,
+    conflict-set and document ids; the idempotency key `<instance>/<candidate>/<drafts>`; the excerpt; the settling
+    instant read back from a rendering. Shared, so the curator (step 4) renders and the knowledge plugin re-renders,
+    neither depending on the other.
+  - The knowledge plugin declares `memory`, **read only and optional** (owner decision 7), and therefore a `journal` on
+    every command and pipeline (phase 3 section 2.3): the read and index commands, `knowledge-propose`, `-verify` and
+    `knowledge-refresh` say `plain`, as they behaved; the digest set is unchanged. A read grant needs no `allow` list,
+    so the README's example `umbel.toml` is unchanged; the README says so, and how to deny it.
+  - **Every check of section 3.2**, in the new `src/proposal/checks.rs` and `src/proposal/sources.rs`, against the
+    memory store read once per batch under the batch caller's reader filter (owner decision 4; never a derivation
+    read) and against `umbel_okf::draft`: source exists (`source-missing`, `source-not-live`, `source-flagged`,
+    `source-class`), version (`source-version`, `source-hash`), copied fields (`copied-principal`, `-class`,
+    `-authority`, `-origin`, `-constraints`, `-access`, `-sensitivity`, `-confirmation`) and `confidence`, `counts`,
+    `group`, `excerpt`, `content`, `candidate`, `document`, `conflict-set`, widening and mode (`mode`, `promoted-by`,
+    `sensitivity`) and `generated-at`. Each refuses its item with `PROPOSAL_DRAFT_MISMATCH`, `details.check` naming it,
+    and nothing stored. Six checks the table did not name close the paths a drafter's free text could outlive a
+    redaction or claim what is not so: `source-authority`, `evidence`, `derived-from`, `rationale`, `key`, `run`.
+  - Step 3b's `PROPOSAL_DRAFT_UNVERIFIABLE` is lifted claim by claim. It stays only for what this instance cannot
+    verify: memory claims with the `memory` grant withheld (at submission and at approve), memory evidence on an op
+    other than `create`, and a create or update citing no memory record. A candidate, promotion, conflict set or
+    `derivedFrom` on a draft citing no memory is a mismatch.
+  - A replayed batch with a tampered copied field is verified before it is called `PROPOSAL_KEY_REUSED`, so it is
+    `PROPOSAL_DRAFT_MISMATCH` naming the field (section 13, point 1); an identical retry still returns the stored draft.
+    `PROPOSAL_ALREADY_OPEN`'s memory-source half is exercised, and a verified conflict set's alternatives do not block
+    each other.
+  - A verified draft stores its `derivedFrom` (kind `memory`) in the body and the record's envelope; later saves keep
+    it, and only a redaction removes it. No result's `dev.umbel/provenance` carries it.
+  - **Approve (section 8.2):** re-checks the target against the copied access and sensitivity
+    (`PROPOSAL_ACCESS_WIDENED`; a promotion against the target's readers at submission), then each source under the
+    approver's filter (`PROPOSAL_SOURCE_GONE`; a changed copied field is `PROPOSAL_DRAFT_MISMATCH`). **Authorship and
+    self-approval come from the store:** the approver against every source record's principal and `promotedBy`. The
+    runner is no longer compared, so step 3b's interim rule ends: a draft of another person's shared memory, and a
+    drafted `verify` or `deprecate`, are approved by the runner with no exception.
+  - The drafter's "erased" claim is checked: a draft is redacted only once the store no longer holds a named source
+    (`source-erased` otherwise), which can never keep forgotten text.
+  - The preview's "verified against memory at submission" label now covers only fields a 3.2 check verified; the
+    sessions and settling instant stay "drafter's policy".
+  - Tests: `okf/tests/draft.rs` (10) and `plugins/knowledge/tests/verify_drafts.rs` (20: each row of 3.2 and the added
+    checks, the exact target path and an unsafe prefix refused at load, a faithful draft and its preview, widening by the owner accepted and by others refused, the tampered
+    replay, the source half of `PROPOSAL_ALREADY_OPEN`, the withheld grant, the "erased" claim, approve's repeat after a
+    source or the target changes), with `tests/support/memory.rs`, which writes memory records through the store.
+    `drafted.rs` (11): the 3b refusal test now holds what stays refused, and approve's authorship from the store.
+    `journal_modes.rs` approves a verified draft and holds the `plain` journals and the optional grant. `redaction.rs`
+    redacts a verified draft after its source is forgotten, and refuses to redact a memory-free draft as erased. The
+    knowledge crate's tests enable `umbel-store`'s `conformance` feature for its memory samples; no crate is added.
+  - **The drafter's target (amendment 14, settled under owner decision 10).** `drafters` is now a table keyed by
+    instance, with `targets` per space: `[plugins.knowledge.config.drafters.curator.targets.main]` with `collection`
+    and an optional `prefix`. The configuration schema holds the shape and a safe prefix at load
+    (`PLUGIN_CONFIG_INVALID`; `umbel_okf::draft::is_safe_prefix`), and every drafted create checks the collection is
+    a markdown collection of the space (`PROPOSAL_DRAFTER_TARGET_INVALID`). A drafted create must be exactly
+    `<collection>/<prefix>/<derived id>` (`umbel_okf::draft::document_id`); anything else, and a create from a drafter
+    with no target, is `PROPOSAL_DRAFT_MISMATCH`, check `document`. No drafter-chosen text survives in the path. The
+    curator's configuration (step 4) must name the same target; knowledge's entry is the one enforced. Whether the
+    knowledge instance may write the collection is not visible to a plugin, so it is not checked at load; an approval
+    there stops with `PROPOSAL_APPLY_UNAVAILABLE`.
+  - Fourteen [amendments](phases/4-curator/spec.md#amendments-from-step-3c), none weakening the trust model.
+  - **No host `src/`, `wit/`, `schemas/` or SDK file changed**, and no script or workflow: only `umbel-okf` and the
+    knowledge plugin, so no `Plugin-isolation-exempt:` line is needed. The knowledge manifest's grant change is the
+    optional read-only `memory` grant.
+  - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; the knowledge job's clippy
+    (`-p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p
+    umbel-plugin-knowledge --all-targets -- -D warnings`) and `cargo test` (530 tests in 64 suites, `eval_gate` with the
+    baseline untouched); `-p umbel-plugin-knowledge --no-default-features` clippy and tests (223 in 27); and `cargo
+    test -p umbel-first-party` (13 in 7), whose binary links the knowledge plugin. Not run here: the job's MSRV 1.97
+    check (the toolchain is not installed on this machine) and the full gate, which is the owner's. No script or
+    workflow changed, so the tooling tests were not rerun.
+- **Step 4 done (2026-11-03, merged in [#767](https://github.com/lushly-dev/afd/pull/767) as `0d46a9a0`, from `7e52e337`), curator: candidates:**
+  - The `umbel-plugin-curator` crate (`plugins/curator`, kind `compiled`, id and domain `curator`, manifest version 4,
+    `publish = false`, quarantined in `scripts/release/inventory.json` with no route, with an `architecture.json` row):
+    its manifest, the `settle` pack (sections 4, 6 and 7's defaults and the per-call bounds), the `curator-guide` skill
+    and the configuration schema (`spaces.<space>` targets with a safe prefix; `model` reserved and refused). Grants:
+    `config`, `packs`, `clock`, `memory` (read), `documents`, `records` and `records_write`; no `content`. **No write grant to memory or knowledge** (owner decision 8), and no dependency on
+    another plugin crate (`tests/no_plugin_dependency.rs`).
+  - A deterministic, public core: `settle` (eligible records under the pack, groups by content hash and class, the
+    window by class, sessions, authority `person` by default and widened only by the pack, never `transcript`,
+    flags, liveness, the confidence gate), `access` (section 5.1, token by token, sensitivity first), `conflicts`
+    (section 4.4's sets and alternatives), `evaluate` (every status, merged with the caller's records) and `draft`
+    (a candidate as a `knowledge-propose-batch` item through `umbel_okf::draft`). Memory is read only under the
+    caller's reader filter (owner decision 4), with `memory_list` then `memory_get`, bounded by `max_records` and
+    `max_gets` and counted.
+  - `curator-candidates` (inspect) and `curator-promote` (`require-human`, own records only, the content hash as proof
+    of looking, only `needs-promotion`, sensitivity never overridden), both CLI only and digest-journaled with
+    `keep = ["space"]`. Promotion writes a `consent` record readable by its owner alone; candidate records' bodies
+    are built and read here for step 5 to write. No result, record or journal entry holds memory text.
+  - **Proof that drafts pass the knowledge plugin's verification:** `plugins/curator/tests/draft.rs` re-derives every
+    row of section 3.2 from the store's records beside the curator's drafting, byte for byte, and
+    `first-party/tests/curator_drafts.rs` submits the curator's own drafts to the real `knowledge-propose-batch` under
+    the host's pipeline attestation: a scheduled draft, both alternatives of a conflict set and a promotion are stored,
+    a rerun returns them, and a tampered copied field or a misclaimed mode is `PROPOSAL_DRAFT_MISMATCH`.
+  - Twelve [amendments](phases/4-curator/spec.md#amendments-from-step-4), none changing the trust model. The first
+    adds a host service, `readable_collections` under the `documents` grant, returning only the id, kind, access set
+    and sensitivity of the collections the caller reads, for section 5.1's target; a target the caller cannot read is
+    `CURATOR_TARGET_UNCONFIGURED` (`collection-missing`). It replaced an optional `content` grant, which also carried
+    file reads and writes, at the coordinator's request for least privilege. The ninth adds `CallContext.person`
+    (accepted).
+  - **Host and SDK changed** (`src/plugins/{compiled,grants,memory_services,store_services}.rs`,
+    `sdk/src/{cx,component,mounted,store,lib}.rs`, new `tests/call_person.rs` and `tests/readable_collections.rs`): the
+    SDK's `CallContext` gains `person`, the host's own person check (D86), so `curator-promote` refuses an agent's
+    environment as `memory-confirm` does, and the memory services now share the same `CallServices::person`; and
+    `HostServices::readable_collections` (SDK `CollectionMeta`) serves collection metadata under `documents`, filtered
+    by the caller's readers. Compiled plugins only; WIT world 1.0.0 and the schemas are unchanged. The pull request
+    needs a `Plugin-isolation-exempt:` line. `umbel-first-party` takes the curator as a dev-dependency only.
+  - CI: the `memory` job of `umbel.yml` gains `-p umbel-plugin-curator` in its clippy, tests and MSRV check; the
+    `check` job's tests exclude it.
+  - Tests: `settle.rs` (8), `conflicts.rs` (5), `draft.rs` (6), `access_rule.rs` (7), `promote.rs` (6), `config.rs`
+    (9), `no_plugin_dependency.rs` (3) and 8 unit tests in the curator crate; `first-party/tests/curator_drafts.rs` (1);
+    the host's `tests/call_person.rs` (2) and `tests/readable_collections.rs` (4).
+  - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; `cargo clippy -p umbel -p umbel-sdk -p
+    umbel-plugin-curator -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-knowledge -p umbel-first-party -p
+    umbel-hook --all-targets -- -D warnings`, `-p umbel --lib --no-default-features` (alone, with `mounted`, with
+    `component`), `-p umbel-sdk --all-features --lib`, the mounted SDK and `hello-mcp`, and the components for
+    `wasm32-wasip2`; the `memory` job's tests with the curator (259 tests in 51 suites); the SDK's and the host's unit tests with the host's `readable_collections`, `call_person`, `require_human`, `cli_authority_prompt`, `memory_grants`, `pipeline_attestation`, `pipeline_expose`, `plugin_compiled`, `grants`, `store_grants`, `store_truncate_wal`, `schemas`, `manifest_v4` and `cli_confirm_preview` (295 tests in 18 suites); and
+    `node scripts/run-tooling-tests.mjs` (305). Not run here: the job's MSRV 1.97 check (the toolchain is not
+    installed on this machine), the knowledge job (no knowledge file changed) and the full gate, which is the owner's.
+- **Step 5 done (2026-11-03, merged in [#768](https://github.com/lushly-dev/afd/pull/768) as `9ea18e73`, from `0d46a9a0`), curator: runs:**
+  - `curator-run`, the pipeline the curator ships as data (section 3.1): `curator-plan`, the knowledge plugin's
+    `knowledge-propose-batch` and `knowledge-proposal-feed`, then `curator-finish`. Command line only (`expose = { mcp
+    = false, agent = false, cli = true }`), `result = "last"`, digest-journaled, effects `store-write`; it answers
+    with `finish`'s report, ids and counts only, so stdout, cron mail and the journal hold no memory text.
+    `curator-plan` and `curator-finish` refuse any call the host does not attest as a step of it
+    (`CURATOR_RUN_REQUIRED`). `curator-status` reports the last run, `overdue`, the lock, the promotable candidates and
+    the records an owner may invalidate.
+  - **The lock** (7.3): per (space, principal), taken by compare-and-set for 10 minutes (`CURATOR_BUSY`, retryable),
+    taken over once expired, released by `finish` only when it is the run's own (`CURATOR_LOCK_TAKEN_OVER` otherwise).
+    The cursors (`feedAfter`, `memoryAfter`, `scanAfter` and the new `reviewAfter`) move only at `finish`.
+  - **Recovery** by derived proposal ids: the proposal id derivation is shared as `umbel_okf::draft::proposal_id` (the
+    knowledge plugin's own now calls it); `plan` records each draft's id and draft number before the batch, so a run
+    that stopped after its batch is completed by the next (`created: false`), and a draft whose candidate changed is
+    withdrawn before a new key is used. Never `PROPOSAL_KEY_REUSED`.
+  - **The re-check** (9.1, owner decision 7): every draft of the caller's that may be open is re-read at `now`; an
+    erased source is redacted and withdrawn through the batch's `erased` notice, and the curator's own candidate and
+    consent records keep nothing of it (hashes forgotten in the change log, a reporting checkpoint, `checkpoint` in the
+    report); invalidated, expired, confirmed, flagged or unreadable sources withdraw with `source-changed`; applied
+    alternatives withdraw the others with `superseded-alternative`.
+  - **Feedback** (7.1): a rejection quiets the same content for 90 days, keeping the approver's reason only in the
+    caller's own record; an apply marks the candidate `applied`, never drafted again.
+  - **Re-verification and inconsistencies** (section 6): `verify` drafts for documents due within `lead_days`, with
+    the three checks as evidence; `deprecate` drafts for a resolving successor; `check-failed`, `successor-missing`,
+    `target-exists` and `conflict-after-draft` reported. A new `review` record per document keeps the caller's drafts,
+    so an open one is not drafted again and a rejected one stays quiet. The successor's resolution is shared as
+    `umbel_okf::links::successor`.
+  - **Rotating scans and caps**: memory from `scanAfter`, documents from `reviewAfter`, wrapping, so every record and
+    document is reached across runs; at most `max_proposals` drafts (candidates in id order, then reviews in document
+    id order), 50 withdrawals and 400 cited records per batch; `remaining` says how far behind a run is.
+  - **Schemas:** `curator-record.v1.json` gains the `review` kind, a candidate's `proposal`, the state's `reviewAfter`
+    and a consent that keeps no sources after a forget (the host has no record deletion); `curator-report.v1.json`
+    gains `checkpoint`, `refused` and the counts `deprecate` and `refused`; examples updated and two added, with
+    `tests/schemas/phase4.rs`.
+  - Thirteen [amendments](phases/4-curator/spec.md#amendments-from-step-5), none changing the trust model. The first
+    refuses the run's steps outside the run; the ninth declares one grant less than D90 lists (`graph`, unused).
+  - **No host `src/` change.** `schemas/` changed (amendments 2, 5, 6, 7), and `umbel-okf` and the knowledge plugin by
+    two shared derivations, byte for byte (`model::proposal_id` and `graph::successor` now call `umbel-okf`), so the
+    pull request needs a `Plugin-isolation-exempt:` line naming the schema changes. The curator's `draft::item` no
+    longer writes `confidence: null` (the batch's schema refuses it). No script or workflow changed.
+  - Tests: curator `run.rs` (7), `feedback.rs` (6), `forgotten.rs` (7), `reverify.rs` (5), `deterministic.rs` (3),
+    `poisoning.rs` (5), `not_request_path.rs` (7), with a stand-in for the knowledge plugin's batch and feed
+    (`tests/support/knowledge.rs`; the curator crate links no plugin); `config.rs` and two step 4 tests updated; unit
+    tests for the state, the bookkeeping, the re-check and the review assessment. Against the real knowledge plugin,
+    `first-party/tests/curator_run.rs` (5). `okf/tests/draft.rs` gains the proposal id; the host's
+    `tests/schemas/phase4.rs` the new shapes.
+  - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; `cargo clippy --locked -p umbel-okf -p
+    umbel-plugin-knowledge -p umbel-plugin-curator -p umbel-first-party --all-targets -- -D warnings` and `-p
+    umbel-plugin-knowledge --no-default-features`; the knowledge job's tests (532 in 64 suites, `eval_gate` with the
+    baseline untouched), the `memory` job's (311 in 59, the curator and `umbel-first-party` included) and the host's
+    `schemas` (47). Not run here: the MSRV 1.97 check (the toolchain is not installed), the tooling tests (no script or
+    workflow changed) and the full gate, which is the owner's.
+- **Step 6 done (2026-11-03, merged in [#770](https://github.com/lushly-dev/afd/pull/770) as `6e1c0a0a`, from `9ea18e73`), auto-approval:**
+  - `knowledge-auto-approve { space?, limit? }` (section 8.3, owner decision 1, D98), in the new
+    `plugins/knowledge/src/proposal/auto.rs`: command line only, `store-write` and `workspace-write`, digest-journaled
+    keeping `space` and `limit`, no AFD approval, and a plain `confirm_prompt` that a person answers at a terminal and
+    `--yes` answers from cron (the stricter option the text allows; `require-human` would contradict a rule that
+    applies "without a person"). Refused with `PROPOSAL_AUTO_NOT_ALLOWED` for any pipeline step the host attests, the
+    curator's included, and for a caller that is not a person; the caller must be one of the area's approvers.
+  - **`deprecate-declared`, off by default:** an area opts in with `auto = ["deprecate-declared"]` (default `[]`); the
+    configuration schema and the area reader refuse any other value, and what is never applied is code. It applies a
+    version 2 `deprecate` drafted by a still-listed drafter, scheduled, citing no memory, unflagged and not an
+    alternative, when its area still governs the document, the document and its file are at the draft's `baseHash`,
+    the frontmatter's `superseded_by` is the draft's `supersededBy`, **the document's one `derivedFrom` names an applied
+    `create` or `update` of this instance, decided by a person, whose content and result are exactly those bytes and
+    whose diff adds the declaring line**, and the successor resolves, is not deprecated and is readable by every reader
+    of the target. So a declaration typed into a file, carried through a later edit or verification, or claimed by a
+    forged envelope never triggers it.
+  - **Recorded as the policy's decision:** `decision.by = { kind: "service", id: "policy:<area>" }`, `principal` the
+    caller's, `channel = "policy"`, `policy.rule = "auto:deprecate-declared"` with a version covering the area's `auto`
+    list, through approve's own compare-and-set steps (`apply::apply_by_policy`; `apply` takes a `Decider`). A stopped
+    policy apply resumes only when the rule holds again in full; a person's stopped approval is left to the person.
+  - Eleven [amendments](phases/4-curator/spec.md#amendments-from-step-6), none changing the trust model; the seventh
+    closes two cases the text's predicate let through (a typed declaration followed by a person's verification, or
+    carried as context through a person's edit). 11.3's `PROPOSAL_AUTO_NOT_ALLOWED` also covers a caller that is not a
+    person.
+  - **No host `src/`, `wit/`, `schemas/` or SDK file changed**, and no script or workflow: only the knowledge plugin
+    (its manifest, configuration and input schemas, the proposal code), its tests, its skill and the README, and one
+    `umbel-first-party` test. So no `Plugin-isolation-exempt:` line is needed.
+  - Tests: `plugins/knowledge/tests/auto_approve.rs` (20) and 2 unit tests in `auto.rs`; `journal_modes.rs` adds the
+    command to the digest set; the stand-in drafters gain a `<id>-auto` pipeline, and `tests/support/records.rs` an
+    `overwrite`. `first-party/tests/curator_run.rs` (6, one new): the real curator's deprecate draft applied by the
+    rule after a person declared the successor, and read back by the next run.
+  - Verified 2026-11-03 on the owner's Mac: `cargo fmt --all --check`; the knowledge job's clippy (`-p umbel-store -p
+    umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
+    --all-targets -- -D warnings`) and `cargo test` (554 tests in 65 suites, `eval_gate` with the baseline untouched);
+    `-p umbel-plugin-knowledge --no-default-features` clippy and tests (245 in 28); the `memory` job's clippy (`-p
+    umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook`) and `cargo
+    test -p umbel-first-party` (20 in 9). Not run here: the curator's own tests (the crate is unchanged), the MSRV 1.97
+    check (the toolchain is not installed), the tooling tests (no script or workflow changed) and the full gate, which
+    is the owner's.
+- **Step 7 done (2026-11-03, in the step 7 pull request, from `6e1c0a0a`), the binary and the exit:**
+  - **`umbel-first-party` links the curator** (`first-party/Cargo.toml`, `src/main.rs`), so the binary has all five
+    first-party plugins: `sources`, `knowledge`, `memory`, `context` and `curator`. The curator moved from a
+    dev-dependency to a dependency; `Cargo.lock` is unchanged. The tests' `support::with_plugins` gains it too, so
+    library actors see what the binary links.
+  - **`first-party/tests/exit_curator.rs`** (1 test, about 4 seconds in a debug build) runs the exit criterion of
+    [section 13](phases/4-curator/spec.md#13-exit-criterion-and-tests) through the real binary as a child process,
+    on the `testkit` build's frozen clock and person at a terminal, with `sources`, `knowledge`, `memory` and
+    `curator` in a space `alpha` (a `notes` collection, an area, the curator in `drafters` with the target
+    `notes/learned`). The command line is `human:local`; `human:ada`'s memory is written and forgotten through the
+    binary too, with `principal.local_id` switched for her calls. It writes a report of each point's numbers to
+    `UMBEL_CURATOR_EXIT_REPORT`, which the `memory` job sets and uploads beside phase 3's in
+    `memory-exit-report-<os>`.
+  - **`first-party/tests/curator_leaks.rs`** (1 test, about 2 seconds): a differential probe of every curator surface
+    and the knowledge plugin's proposal surfaces, on two workspaces that differ only in what bo cannot read; bo's 32
+    answers are equal in both, none holds any of ada's 16 hidden ids, hashes, run ids or her lock's trace, and every
+    curator record carries section 2.3's access set. Checked once by hand: planting one of ada's records in bo's
+    readers made it fail at its first answer.
+  - The test support gains `Bin::output`, `Bin::at_terminal` (stderr, where the preview and the prompts go),
+    `Bin::configure`, the MCP client's `tool_names` and `call_raw`, and `Ws::with_config`.
+  - **Host: no change**, and no plugin, schema, SDK or adapter change: the exit and the probes found no defect. No
+    `Plugin-isolation-exempt:` line is needed.
+  - CI: the `memory` job's test step sets `UMBEL_CURATOR_EXIT_REPORT` and its upload step takes both reports. The
+    README gains "Run the curator": a working `umbel.toml` (checked with the built binary's `workspace doctor`,
+    `curator-run` and `knowledge-auto-approve --yes`), the commands, and a cron example that runs `curator-run` and,
+    only for an area listing `deprecate-declared`, `knowledge-auto-approve --yes`.
+  - Eleven details settled in the specification's
+    [Amendments from step 7](phases/4-curator/spec.md#amendments-from-step-7), none changing the trust model; the
+    eleventh is the question for the owner below.
+- **Exit criterion** (2026-11-03, the step 7 branch from `main` at `6e1c0a0a`, in `endpoints/umbel` with its own
+  `CARGO_TARGET_DIR`, debug build, on the owner's Mac). Each point, from the report:
+  1. **A scheduled draft.** Ada's fact (authority `person`, shared with the space, one constraint, canaries in its
+     subject, text, tag and constraint, observed in 2 sessions) is `settling` on day 3 and `ready` on day 8, when
+     `curator-run` drafts 1 version 2 proposal at `notes/learned/c-<20 hex>`. Its `drafter` names the plugin and
+     instance `curator`, the pipeline `curator-run` and the run's own trace id; its 1 memory evidence entry's
+     principal, authority, origin, constraints, access and content hash equal `memory-show`'s; `derivedFrom` names
+     the record. The curator's own rendering, replayed beside the binary, returns the stored draft (`created:
+     false`); with `authority` changed it is `PROPOSAL_DRAFT_MISMATCH`, check `copied-authority`, and nothing is
+     stored. No canary is in the run's stdout (867 bytes), the journal, the log or the events.
+  2. **Approved from the command line.** `knowledge-approve` at the terminal showed 38 preview lines (the id, the
+     drafter, "verified against memory", the diff) before its prompt; the approver `human:local` is neither the
+     source's principal (`human:ada`) nor a promoter, so `exception: null`, `decision.channel = "terminal"`.
+  3. **Lands with full provenance.** The file is the curator's rendering byte for byte, with `Holds only`; the
+     document is `agent-inferred`, `generated.by = "umbel:curator/curator"`, `generated.at` the candidate's
+     `settledAt` (`2026-11-10T12:00:00.000Z`), `derivedFrom` the proposal, before and after `knowledge-refresh`;
+     `knowledge-search` finds it (1 hit); the next run reads the apply back (`applied` 1) and the candidate is
+     `applied` with `promotedTo` the document; events exist for `knowledge-propose-batch` and `knowledge-approve`;
+     a further run drafts 0.
+  4. **Promotion and self-approval.** The caller's private fact is `needs-promotion` while ada's two shared facts are
+     drafted (a run of 2); after `curator-promote` at the terminal the next run drafts it, `mode = "promoted"`,
+     `promotedBy = "human:local"`. Approving it is `PROPOSAL_SELF_APPROVAL` until the area sets
+     `allow_self_approval`, then `exception: "self-approval"`.
+  5. **Feedback.** A draft rejected at the terminal is read back (`rejected` 1), `quietUntil` 90 days on
+     (`2027-02-18T12:00:00.000Z`), and a run on day 77 drafts 0.
+  6. **Forgotten evidence.** After ada's `memory-forget` the next run withdraws 1 draft and redacts it
+     (`source-erased`), checkpoint `clean`; its id and its path `notes/learned/c-<20 hex>` are unchanged. Its 4
+     canaries and its source's hash are in none of `store.sqlite3`, its log and shared memory, the journal, log and
+     events, the curator records, the run's stdout, or any other file of the workspace (0 files).
+  7. **Not in the request path.** Over the binary's stdio MCP server, none of the 6 curator commands and pipeline and
+     the 5 command-line-only proposal commands of the knowledge plugin is in `tools/list` (10 tools) or `afd-discover`
+     (40 commands), and `afd-call`, `tools/call`, `afd-batch` and `afd-pipe` run none; no proposal changed state and
+     the run records stayed at 8.
+  - **Leak probes** (section 12's "hidden counts" and "private memory disclosed" rows): `curator_leaks.rs` passes, as
+    above.
+  - **Local checks:** `cargo fmt --all --check`; `cargo clippy --locked -j4 -p umbel-plugin-memory -p
+    umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets -- -D warnings`; the
+    `memory` job's tests as `umbel.yml` runs them, both report variables set (314 passed, 0 failed, in 61 suites:
+    312 at step 6, and these 2); `node scripts/run-tooling-tests.mjs` (305 passed, on Node 24.18; the repository pins
+    26). Not run here: the knowledge job (no knowledge file changed), the MSRV 1.97 check (the toolchain is not
+    installed on this machine) and the full gate. **Full `pnpm verify` re-run, 2026-11-03, `main` at `6e1c0a0a`
+    plus step 7, in one pass:** all 21 suites passed (the TypeScript check, Loam's build, Chromium-free units and
+    `test:mounted`, Alfred, fmt, the workspace clippy, the components and `hello-mcp`, `cargo test --locked
+    --workspace --exclude umbel-store-embedded` and the store crates, 206 test result lines with none failed, and
+    every todo conformance run against Umbel with the external clients).**
+- **Not done:** nothing in phase 4's [plan](phases/4-curator/spec.md#15-implementation-plan). There is no AFD step 0.
+  Open: the specification's [follow-ups](phases/4-curator/spec.md#follow-ups), among them the host hook for
+  configuration checks that need the workspace (a drafter target's collection), which was listed for step 7 and was
+  not built there: neither the plan row nor the exit needs it, it is a new host interface, and every case still
+  fails closed per draft; it now waits for real use, with the doctor API.
+- **Next:** the phase 5 (auth and hosted) and phase 6 (backends) specifications, which phase 4's exit leaves as the
+  open phases before phase 7. Each gets an independent review, a revision and the owner's answers (D24). Heavy steps
+  follow each plan's build note.
+- **Waiting on the owner:** one question, raised again at the exit
+  ([step 7, amendment 11](phases/4-curator/spec.md#amendments-from-step-7)). Step 3b's amendment 12 stated a limit
+  that no decision has accepted or closed: proposals are read under the caller's reader filter, so a draft whose
+  proposer has since lost read access to it (removed from the target's readers after it was drafted) is reached by
+  neither the run's re-check nor the `erased` notice, and is not redacted when its memory source is forgotten. Its
+  text stays readable by the readers the record still admits, never wider than they were. Accept it as a stated
+  limit, or close it with a redaction path outside the caller's filter (for example one the knowledge instance runs
+  on a forget), which changes who may act on a record. Every other phase 4 decision is final.
+- **Follow-ups:** the [specification's list](phases/4-curator/spec.md#follow-ups), which step 7 extended with the
+  principal filter any future plugin-record surface needs and with the question above.
 
 ## Follow-ups not yet issues
 
@@ -1819,3 +2185,9 @@ on another local branch and push to that remote name.
 | 2026-11-03 | Phase 4 step 1 | Shapes (the step 1 pull request): `proposal.v2.json`, `plugin-manifest.v4.json`, `curator-record.v1.json` and `curator-report.v1.json` with 17 examples; manifest version 4 parsed, validated and stored, not acted on (`confirm_preview` and its named command's rules, a pipeline's `expose` and `result`), in `src/plugins/manifest/v4.rs`; `MANIFEST_VERSIONS = [1, 2, 3, 4]`, `PROPOSAL_VERSIONS = [1, 2]`, `CURATOR_VERSION = 1` in `workspace-show`; P3 of `spec/plugin-manifest.md` and its profile test. Fourteen amendments in the specification, none on the trust model. `cargo fmt --all --check`, the workspace clippy (without the embedded store) and `node scripts/run-tooling-tests.mjs` (300) passed; `manifest_v4` 14 and `schemas` 47 tests, and the five older suites updated for the version bump, passed. Step 2 is next |
 | 2026-11-03 | Phase 4 step 2 | Host (the step 2 pull request, from `e7aeff70`; step 1 merged in [#751](https://github.com/lushly-dev/afd/pull/751)). Pipeline attestation: fresh random step trace ids keyed in the host's `PipelineAttestations` table, read by `CallServices::pipeline()` and the SDK's `CallContext.pipeline`, never from `extra`. A version 4 pipeline's `expose` checked at seal against every step, and `result = "last"`. The CLI's confirmation preview before the gated prompt (declared properties only, fresh trace, no marks, sanitised and capped, `CONFIRMATION_PREVIEW_FAILED`). `secure_delete=ON` and a reporting `truncate_wal` on `store.sqlite3`. Ten amendments in the specification, none on the trust model. `cargo fmt --all --check`, the workspace clippy and the three `--no-default-features` library clippies passed. The four new suites (26 tests), `manifest_v4` (14), five new unit tests and five related suites passed. No plugin changed. Step 3a is next |
 | 2026-11-03 | Phase 4 step 3a | Knowledge: record and journal (the step 3a pull request, from `83639abb`; step 2 merged in [#753](https://github.com/lushly-dev/afd/pull/753)). Proposal record version 2 written, with envelope version 2 on the body and the stored record, `decision.channel = "terminal"` and a proposer's `withdrawal`; version 1 records read, retried, decided, withdrawn and applied in their own version. The knowledge manifest at version 4; section 11.2's digest set (`-proposal-list`, `-proposal-show`, `-proposal-preview`, `-approve`, `-reject`, `-withdraw`); `knowledge-proposal-preview`, declared as `confirm_preview` by approve and reject, which closes phase 2's "must do before real use". A fault in step 1's `proposal.v2.json` fixed (a `null` withdrawal matched the drafter-withdrawal rule), so the pull request needs a `Plugin-isolation-exempt:` line. Twelve amendments, none on the trust model. No host `src/` change. `cargo fmt --all --check`, the knowledge job's clippy and tests (477 in 60 suites, `eval_gate` with the baseline untouched), the no-default-features knowledge clippy and tests (181 in 24) and the host's `schemas` test passed; `proposals_v2` 4, `preview` 8 and `journal_modes` 2 new. Step 3b is next |
+| 2026-11-03 | Phase 4 step 3b | Knowledge: the drafted path (the step 3b pull request, from `37af26c9`; step 3a merged in [#754](https://github.com/lushly-dev/afd/pull/754)). `drafters`; `knowledge-propose-batch` (per-item results, withdrawals first, caps, `PROPOSAL_ALREADY_OPEN`, a retry repeating the drafter's claims) and `knowledge-proposal-feed`, both on the host's attestation; a drafter's withdrawal and redaction, with the checkpoint's `pending` state carried through a new compiled-only host service, `truncate_wal`. Owner decision 10's sequencing held: a listed drafter's memory evidence, memory `derivedFrom`, candidate, promotion, conflict set and draft content are refused with `PROPOSAL_DRAFT_UNVERIFIABLE` until step 3c verifies them. Thirteen amendments, none weakening the trust model. The step's two questions were decided by the owner for the stronger guarantee and done in it: every draft that was not applied is redacted when its source is erased (by id, or by a new `erased` notice; `proposal.v2.json` widened), and the change log forgets a redacted record's earlier hashes (`DocumentStore::forget_record_history` and a `record_forget_history` service), with drafted reject and withdraw results no longer carrying the record hash. Host `src/`, `sdk/src/`, `store/src/`, `store-embedded/src/` and `schemas/` changed, so the pull request needs a `Plugin-isolation-exempt:` line. `cargo fmt --all --check`, the knowledge job's clippy and tests (499 in 62 suites, `eval_gate` with the baseline untouched), the no-default-features knowledge clippy and tests (202 in 26), the host, SDK and store clippies and the host's `schemas` (47), `store_truncate_wal` (3) and `store_grants` (23) passed; `drafted` 10 and `redaction` 11 new. Step 3c is next |
+| 2026-11-03 | Phase 4 step 3c | Knowledge: verifying drafts (the step 3c pull request, from `4a6b2de4`; step 3b merged in [#763](https://github.com/lushly-dev/afd/pull/763)). `umbel_okf::draft`: the fixed rendering, the rationale, `subject_key` and the id and key derivations, pinned byte for byte. The knowledge plugin declares `memory`, read only and optional, and a `plain` journal on every command and pipeline outside the digest set. Every check of section 3.2 against the memory store (read once per batch, under the caller's filter) and the shared rendering, refusing with `PROPOSAL_DRAFT_MISMATCH` naming the check, plus six it did not name (`source-authority`, `evidence`, `derived-from`, `rationale`, `key`, `run`); step 3b's `PROPOSAL_DRAFT_UNVERIFIABLE` kept only for what cannot be verified (memory without the grant or off a create, content citing no memory). A tampered replay is a mismatch, not a reused key. Approve re-checks the target and each source (`PROPOSAL_ACCESS_WIDENED`, `PROPOSAL_SOURCE_GONE`) and takes authorship from the store, so the runner is no longer the author. The "erased" claim is checked. Fourteen amendments, none weakening the trust model; the fourteenth settles the step's question under owner decision 10: the knowledge instance's `drafters` table names each drafter's target per space, and a drafted create's path is checked exactly. No host, schema, SDK or workflow change. Tests: `okf/tests/draft.rs` (10), `verify_drafts.rs` (20); the knowledge job 530 in 64 suites, without `code` 223 in 27, `umbel-first-party` 13 |
+| 2026-11-03 | Phase 4 step 4 | Curator: candidates (the step 4 pull request, from `7e52e337`; step 3c merged in [#765](https://github.com/lushly-dev/afd/pull/765)). The `umbel-plugin-curator` crate with its manifest, `settle` pack, `curator-guide` skill and configuration; a public, deterministic core for settling, groups, conflict sets, section 5.1's access rule, statuses merged with the caller's records and drafting through `umbel_okf::draft`; `curator-candidates` and `curator-promote` (`require-human`, own records, the content hash, only `needs-promotion`); per-principal candidate and consent records. Memory read only under the caller's filter; no memory or knowledge write grant. The curator's drafts pass the real knowledge plugin's verification byte for byte (`first-party/tests/curator_drafts.rs`), and a tampered field or misclaimed mode is refused. Twelve amendments, none on the trust model: a host service, `readable_collections` under `documents`, for the metadata of collections the caller reads (in place of an optional `content` grant, for least privilege), and `CallContext.person` (host and SDK), so promotion refuses an agent's environment as `memory-confirm` does; the pull request needs a `Plugin-isolation-exempt:` line. The `memory` job gains the crate. Tests: curator 44 integration and 8 unit, `curator_drafts` 1, host `call_person` 2 and `readable_collections` 4; the `memory` job 259 in 51 suites; host subset 295 in 18; tooling 305. Step 5 is next |
+| 2026-11-03 | Phase 4 step 5 | Curator: runs (the step 5 pull request, from `0d46a9a0`; step 4 merged in [#767](https://github.com/lushly-dev/afd/pull/767)). `curator-plan`, `curator-finish`, `curator-status` and the `curator-run` pipeline: command line only, `result = "last"`, digest, answering with ids and counts; the plan and finish steps refuse any call that is not a step of the run (`CURATOR_RUN_REQUIRED`). The per-principal lock (compare-and-set, takeover after 10 minutes, owner-only release), recovery by proposal ids derived through the now-shared `umbel_okf::draft::proposal_id`, rotating memory and document scans, the batch's caps; the re-check of every open draft (erased: the `erased` notice redacts and the curator's records keep nothing, hashes forgotten and checkpointed; invalidated, expired, confirmed or unreadable: withdrawn), superseded alternatives, rejection and apply feedback; re-verification and deprecation drafts with a `review` record per document, and reported inconsistencies. Thirteen amendments, none on the trust model; no host `src/` change; `schemas/` gains the `review` kind, a candidate's `proposal`, the state's `reviewAfter`, an erased consent and the report's `checkpoint` and `refused`, so the pull request needs a `Plugin-isolation-exempt:` line. Tests: curator 41 new integration (`run` 7, `feedback` 6, `forgotten` 7, `reverify` 5, `deterministic` 3, `poisoning` 5, `not_request_path` 7) and 7 new unit, with a stand-in for the knowledge plugin's batch and feed; `first-party/tests/curator_run.rs` 5 against the real knowledge plugin; `okf/tests/draft.rs` 1; the knowledge job 532 in 64 suites, the `memory` job 311 in 59, host `schemas` 47. Step 6 is next |
+| 2026-11-03 | Phase 4 step 6 | Auto-approval (the step 6 pull request, from `9ea18e73`; step 5 merged in [#768](https://github.com/lushly-dev/afd/pull/768)). `knowledge-auto-approve`: command line only, a plain prompt that `--yes` answers from cron, digest-journaled, refused for any attested pipeline step and any caller that is not a person, and per proposal for a caller outside the area's approvers. One rule kind, `deprecate-declared`, off unless an area lists it in `auto` (schema and reader refuse anything else). It applies a scheduled, memory-free, unflagged, non-alternative drafted deprecate of a still-listed drafter only when the document and its file are at the draft's base, its `superseded_by` is the draft's, its one lineage is a person's applied `create` or `update` of this instance whose content and result are those bytes and whose diff added the declaring line, and the successor is readable by every reader of the target and not deprecated; recorded as `policy:<area>` with `channel = "policy"` and `auto:deprecate-declared`, through approve's compare-and-set steps, a stopped policy apply resumed only when the rule holds again. Eleven amendments; the seventh closes a typed declaration carried through a person's verification or edit. No host, schema or SDK change. `auto_approve.rs` (20), 2 unit tests, a first-party test with the real curator. Scoped clippy and tests green; the full gate is the owner's |
+| 2026-11-03 | Phase 4 exit | Phase 4 done. Steps 1 to 6 merged (#749 specification; #751, #753, #754, #763, #765, #767, #768 and #770, the last as `6e1c0a0a`); step 7 (the step 7 pull request, from `6e1c0a0a`) linked the curator into `umbel-first-party`, so the binary has all five first-party plugins, and added `first-party/tests/exit_curator.rs` (section 13's seven points through the real binary, with the frozen clock and person at a terminal of `testkit`, ada's memory written and forgotten through the binary by switching `principal.local_id`, writing its report to `UMBEL_CURATOR_EXIT_REPORT`, uploaded by the `memory` job beside phase 3's) and `curator_leaks.rs` (bo's 32 answers on every curator and proposal surface equal with and without ada's hidden facts, space, records and lock; none of her 16 hidden ids, hashes or run ids in them; each curator record with section 2.3's access set). No host, plugin, schema, SDK or adapter change: the exit found no defect. Evidence per point: settling on day 3, ready and 1 draft on day 8 with the attested run, 1 memory evidence entry equal to the record, and a tampered replay refused `copied-authority`; a 38-line preview before the prompt, `exception: null`, channel `terminal`; the file the curator's rendering with `Holds only`, `agent-inferred`, `umbel:curator/curator`, `generated.at` the `settledAt`, `derivedFrom` the proposal, found by search, the candidate `applied`, a further run drafting 0; `needs-promotion`, then `promotedBy` and `PROPOSAL_SELF_APPROVAL` until allowed, then `self-approval`; a rejection quiet to day 107 and nothing drafted on day 77; the forgotten source's draft withdrawn and redacted, checkpoint `clean`, its 4 canaries and hash in no file of the workspace; no curator or command-line-only proposal command listed, discovered or callable over the binary's stdio MCP server. The `memory` job's crates pass 314 tests in 61 suites; `cargo fmt --all --check`, the job's clippy and `node scripts/run-tooling-tests.mjs` (305) passed. Eleven amendments; the eleventh puts step 3b's stated limit (a draft its proposer can no longer read is not redacted) to the owner. The full `pnpm verify` re-run passed all 21 suites in one pass (206 test result lines, none failed). The phase 5 and phase 6 specifications are next |

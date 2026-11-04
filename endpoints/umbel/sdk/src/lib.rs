@@ -50,12 +50,14 @@ mod store;
 pub mod build;
 
 pub use assets::Asset;
-pub use cx::{CallContext, Cx, HostError, HostServices, Level, NoServices, PipelineAttestation};
+pub use cx::{
+    CallContext, Cx, HostError, HostServices, Level, NoServices, PipelineAttestation, WalCheckpoint,
+};
 pub use memory::{LeftOutQuery, MemoryPath, MemoryWriteRequest};
 #[cfg(feature = "mounted")]
 pub use mounted::{mounted_server, serve_mounted};
 pub use outcome::{Outcome, failure, success};
-pub use store::{CollectionInfo, ContentEntry, Reader, SpaceCx};
+pub use store::{CollectionInfo, CollectionMeta, ContentEntry, Reader, SpaceCx};
 /// The store types the methods take and return (phase 2 specification, section 3.3).
 pub use umbel_store;
 

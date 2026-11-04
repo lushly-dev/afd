@@ -8,6 +8,12 @@
 //! what is already done. The file replace and the hash check are not atomic against a writer
 //! outside Umbel; Umbel's own writers are serialised by the document store's compare-and-set.
 //!
+//! A drafted proposal is re-checked at approve (phase 4 section 8.2, D102): the target's readers
+//! and sensitivity against what its memory evidence copied, and each source, read again under the
+//! approver's reader filter, still readable, live, at its version and as copied. Who authored it
+//! comes from the store: approving is self-approval when the approver is the principal of any
+//! source record, or its `promotedBy`; the runner of the drafter's pipeline is not its author.
+//!
 //! Approve never indexes: an indexer applies changes in revision order and approve must not wait
 //! on its lock, so the result says `indexed: false` and search reports `INDEX_STALE` until the
 //! next `knowledge-index` or `knowledge-refresh`.
@@ -19,9 +25,10 @@ use umbel_sdk::{Cx, HostError, Outcome, failure, success};
 use umbel_store::{ContentHash, Expect, Origin, Record, canonical_json};
 
 use super::area::{self, Area};
+use super::checks;
 use super::common::{self, Caller};
 use super::document::{self, Inherit};
-use super::model::{Change, Decision, Op, Proposal, State};
+use super::model::{ActorRef, CHANNEL_POLICY, Change, Decision, Op, Policy, Proposal, State};
 use super::propose::{self, file_path, unavailable};
 use crate::fail;
 
@@ -205,21 +212,38 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
         record,
         area,
     } = gate(caller, id)?;
+    // A redacted draft (an approved one whose source was forgotten before its apply landed)
+    // holds nothing to apply (phase 4 section 9.1; step 3b, amendment 12).
+    if proposal.redacted.is_some() {
+        return Err(failure(
+            "PROPOSAL_SOURCE_GONE",
+            "a memory record this draft cited was forgotten, and its text was redacted; nothing is applied",
+            "Nothing to do: the drafter drafts again from what is still remembered.",
+        ));
+    }
     if !matches!(proposal.state, State::Pending | State::Approved) {
         return Err(common::wrong_state(
             &proposal,
             "only a pending proposal, or an approved one whose apply stopped, is approved",
         ));
     }
-    // A verification is the approver's own attestation, not a change someone else wrote
-    // (decision D63): applying one's own is not self-approval.
-    let same_actor =
-        caller.actor.text() == proposal.proposer.actor.text() && proposal.change.op != Op::Verify;
-    let exception = if same_actor {
+    // A draft's authors are its sources' principals, read from the store now, and its
+    // `promotedBy` (section 8.2, D102); nothing in the comparison is the drafter's word, and the
+    // runner of the drafter's pipeline is not an author. Before that, 8.2's re-checks: the
+    // target's readers, then each source.
+    let self_approval = if proposal.drafter.is_some() {
+        let authors = checks::recheck(caller, &proposal)?;
+        authors.contains(&caller.principal) || authors.contains(&caller.actor.text())
+    } else {
+        // A verification is the approver's own attestation, not a change someone else wrote
+        // (decision D63): applying one's own is not self-approval.
+        caller.actor.text() == proposal.proposer.actor.text() && proposal.change.op != Op::Verify
+    };
+    let exception = if self_approval {
         if !area.allow_self_approval {
             return Err(failure(
                 "PROPOSAL_SELF_APPROVAL",
-                "the area does not let an actor approve its own proposal",
+                "the area does not let an actor approve its own proposal, or a draft of memory records that are its own",
                 "Ask another approver of the area, or set allow_self_approval for the area in umbel.toml.",
             ));
         }
@@ -227,7 +251,82 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
     } else {
         None
     };
-    apply(caller, proposal, record, &area, exception)
+    apply(caller, proposal, record, &area, exception, Decider::Person)
+}
+
+/// Who records the decision an apply starts with.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Decider<'r> {
+    /// The caller, a person at a terminal: `decision.by` is the caller, `channel = "terminal"`,
+    /// `policy.rule = "person"`.
+    Person,
+    /// The area's auto-approval rule (phase 4 section 8.3; step 1, amendment 8): `decision.by` is
+    /// `{ kind: "service", id: "policy:<area>" }`, its `principal` the effective principal of the
+    /// call that ran the rule, `channel = "policy"` and `policy.rule = "auto:<rule>"`. Never a
+    /// person's terminal decision.
+    Policy(&'r str),
+}
+
+impl Decider<'_> {
+    fn actor(self, caller: &Caller<'_>, area: &Area) -> ActorRef {
+        match self {
+            Self::Person => caller.actor.clone(),
+            Self::Policy(_) => ActorRef {
+                kind: "service".to_owned(),
+                id: Some(format!("policy:{}", area.id)),
+                on_behalf_of: None,
+            },
+        }
+    }
+
+    fn channel(self, proposal: &Proposal) -> Option<String> {
+        match self {
+            Self::Person => proposal.terminal_channel(),
+            Self::Policy(_) => Some(CHANNEL_POLICY.to_owned()),
+        }
+    }
+
+    fn policy(self, area: &Area) -> Policy {
+        match self {
+            Self::Person => propose::policy_of(area),
+            Self::Policy(rule) => propose::policy_auto(area, rule),
+        }
+    }
+}
+
+/// Apply a proposal the area's auto-approval rule `rule` holds for, as the policy's decision
+/// (phase 4 section 8.3), through the same steps as an approval. The caller has checked the rule
+/// ([`super::auto`]); a stopped apply that the policy decided resumes here, keeping that decision.
+pub(crate) fn apply_by_policy(
+    caller: &Caller<'_>,
+    proposal: Proposal,
+    record: Record,
+    area: &Area,
+    rule: &str,
+) -> Result<Outcome, Outcome> {
+    if !proposal.is_v2() {
+        // Version 1 has no `channel` to say a policy decided: never decided by one.
+        return Err(common::wrong_state(
+            &proposal,
+            "only a version 2 proposal is decided by an area's rule",
+        ));
+    }
+    // Only a pending proposal, or one this rule decided whose apply stopped: never one a person
+    // decided, rejected, withdrew or that is applied.
+    let resumes = proposal.state == State::Approved
+        && proposal.redacted.is_none()
+        && proposal.policy.rule == format!("auto:{rule}")
+        && proposal
+            .decision
+            .as_ref()
+            .is_some_and(|decision| decision.channel.as_deref() == Some(CHANNEL_POLICY));
+    if proposal.state != State::Pending && !resumes {
+        return Err(common::wrong_state(
+            &proposal,
+            "an area's rule decides only a pending proposal, or resumes the apply it decided",
+        ));
+    }
+    apply(caller, proposal, record, area, None, Decider::Policy(rule))
 }
 
 /// Record the decision if it is not recorded, then write the file, the document and `applied`.
@@ -237,6 +336,7 @@ fn apply(
     record: Record,
     area: &Area,
     exception: Option<String>,
+    decider: Decider<'_>,
 ) -> Result<Outcome, Outcome> {
     let cx = caller.cx;
     let space = &caller.space;
@@ -255,7 +355,7 @@ fn apply(
     // Who decided and when: a resumed apply keeps the first decision, so the same bytes result.
     let (by, at) = match (&proposal.state, &proposal.decision) {
         (State::Approved, Some(decision)) => (decision.by.text(), decision.at.clone()),
-        _ => (caller.actor.text(), caller.now.clone()),
+        _ => (decider.actor(caller, area).text(), caller.now.clone()),
     };
     let change = proposal.change.clone();
     let text_now = current
@@ -308,16 +408,16 @@ fn apply(
     if proposal.state == State::Pending {
         proposal.state = State::Approved;
         proposal.decision = Some(Decision {
-            by: caller.actor.clone(),
+            by: decider.actor(caller, area),
             principal: caller.principal.clone(),
             at: caller.now.clone(),
             reason: None,
             trace_id: caller.cx.call().trace_id.clone(),
             proposer_kind: proposal.proposer.actor.kind.clone(),
-            channel: proposal.terminal_channel(),
+            channel: decider.channel(&proposal),
         });
         proposal.exception = exception;
-        proposal.policy = propose::policy_of(area);
+        proposal.policy = decider.policy(area);
         proposal.updated_at = caller.now.clone();
         let meta = save_next(caller, &proposal, &record)?;
         (meta_hash, last_rev) = (meta.content_hash.to_string(), meta.rev);
@@ -358,7 +458,9 @@ fn apply(
         .as_ref()
         .map_or("document", |info| info.default_type.as_str())
         .to_owned();
-    let doc_origin = if proposal.proposer.actor.kind == "human" {
+    // A person's own proposal is their statement; an agent's, or any drafted one (whoever ran
+    // the drafter's pipeline), is an inference (phase 4 section 8.2, D102).
+    let doc_origin = if proposal.proposer.actor.kind == "human" && proposal.drafter.is_none() {
         Origin::UserStated
     } else {
         Origin::AgentInferred
@@ -478,7 +580,11 @@ fn save_next(
     let mut envelope = record.envelope.clone();
     envelope.origin = Origin::UserStated;
     envelope.observed_at.clone_from(&caller.now);
-    envelope.derived_from = None;
+    // A draft keeps naming the memory records it was derived from (D81) until a redaction
+    // removes them (section 9.1).
+    if proposal.redacted.is_some() {
+        envelope.derived_from = None;
+    }
     envelope.content_hash =
         Some(ContentHash::of(canonical_json(&proposal.to_value()).as_bytes()).to_string());
     common::save(
@@ -580,7 +686,10 @@ fn reject_inner(caller: &Caller<'_>, id: &str, reason: &str) -> Result<Outcome, 
         "dev.umbel/record",
         json!({ "kind": "proposal", "id": proposal.id, "version": meta.rev }),
     )
-    .with_metadata("dev.umbel/provenance", common::provenance_meta(&envelope)))
+    .with_metadata(
+        "dev.umbel/provenance",
+        common::record_provenance_meta(&proposal, &envelope),
+    ))
 }
 
 /// Apply a proposal the caller just submitted as their own verification: no self-approval
@@ -592,5 +701,5 @@ pub(crate) fn apply_own(
     record: Record,
     area: &Area,
 ) -> Result<Outcome, Outcome> {
-    apply(caller, proposal, record, area, None)
+    apply(caller, proposal, record, area, None, Decider::Person)
 }

@@ -21,6 +21,45 @@
 			"default": ["bm25"],
 			"description": "The retrieval lanes; bm25 is the only one (no embedding model by default)"
 		},
+		"drafters": {
+			"type": "object",
+			"default": {},
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]{0,62}$"
+			},
+			"description": "Plugin instances whose pipeline steps this instance accepts drafted proposals from, each with where its creates go (phase 4 section 3.2; step 3c, amendment 14): the host attests who drafted, and every other claim is verified here. Default {}: an attested submission is PROPOSAL_DRAFTER_NOT_ALLOWED",
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"targets": {
+						"type": "object",
+						"default": {},
+						"propertyNames": {
+							"pattern": "^[a-z][a-z0-9-]{0,62}$"
+						},
+						"description": "By space: the collection, and an optional fixed prefix, a drafted create must use exactly, <collection>/<prefix>/<derived id>. A drafter with no target in a space cannot draft creates there; its verify and deprecate drafts are unaffected. The drafter's own configuration must name the same target; this one is enforced",
+						"additionalProperties": {
+							"type": "object",
+							"properties": {
+								"collection": {
+									"type": "string",
+									"pattern": "^[a-z][a-z0-9-]{0,62}$",
+									"description": "A markdown collection of the space"
+								},
+								"prefix": {
+									"type": "string",
+									"pattern": "^[a-z0-9][a-z0-9_-]{0,62}(/[a-z0-9][a-z0-9_-]{0,62}){0,7}$",
+									"description": "One to eight plain segments joined by /: lowercase letters, digits, - and _, no dots, no leading or trailing /"
+								}
+							},
+							"required": ["collection"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"additionalProperties": false
+			}
+		},
 		"areas": {
 			"type": "object",
 			"default": {},
@@ -54,6 +93,15 @@
 					"allow_self_approval": {
 						"type": "boolean",
 						"default": false
+					},
+					"auto": {
+						"type": "array",
+						"default": [],
+						"uniqueItems": true,
+						"items": {
+							"enum": ["deprecate-declared"]
+						},
+						"description": "The auto-approval rules the area opts into (phase 4 section 8.3, owner decision 1); default [], off. The one kind, deprecate-declared, lets knowledge-auto-approve apply a drafted deprecate whose declaration a person's applied proposal wrote; nothing else is ever applied without a person"
 					}
 				},
 				"required": ["space", "collection"],

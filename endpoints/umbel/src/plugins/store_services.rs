@@ -9,11 +9,11 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use umbel_sdk::{HostError as ServiceError, HostServices, Reader};
+use umbel_sdk::{CollectionMeta, HostError as ServiceError, HostServices, Reader};
 use umbel_store::{
-    Actor, ActorKind, Change, ChunkHit, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
-    Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
-    Page, ReaderFilter, Record, RecordMeta, Rev, Subgraph,
+    AccessSet, Actor, ActorKind, Change, ChunkHit, Direction, DocMeta, Document, DocumentWrite,
+    Edge, EdgeKey, Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession,
+    ListQuery, Node, Page, ReaderFilter, Record, RecordMeta, Rev, Subgraph,
 };
 
 use super::grants::CallServices;
@@ -255,6 +255,38 @@ impl CallServices {
             .map_err(host_error)
     }
 
+    /// The space's collections whose default access set the caller's reader filter admits, as
+    /// metadata only (phase 4 step 4, amendment 1): under `documents`, since it says of a
+    /// collection only who reads the documents in it, which reading them under the same filter
+    /// already says. Nothing of a collection's root, globs or files.
+    pub(super) fn svc_readable_collections(&self, space: &str) -> Result<Vec<CollectionMeta>> {
+        self.scoped("documents", space)?;
+        let filter = self.filter(space)?;
+        self.note_use();
+        let config = self.shared.workspace.config();
+        let declared = config
+            .spaces
+            .iter()
+            .find(|declared| declared.id.as_str() == space)
+            .ok_or_else(|| {
+                ServiceError::NotFound(format!("the space `{space}` is not declared"))
+            })?;
+        Ok(declared
+            .collections
+            .iter()
+            .filter(|collection| {
+                AccessSet::new(collection.access.iter().map(String::as_str))
+                    .is_ok_and(|access| filter.admits(&access))
+            })
+            .map(|collection| CollectionMeta {
+                id: collection.id.clone(),
+                kind: collection.kind.as_str().to_owned(),
+                access: collection.access.clone(),
+                sensitivity: collection.sensitivity.clone(),
+            })
+            .collect())
+    }
+
     pub(super) fn svc_reader_tokens(&self, space: &str) -> Result<Vec<String>> {
         self.scoped("documents", space)?;
         let filter = self.filter(space)?;
@@ -371,6 +403,21 @@ impl CallServices {
             .map_err(host_error)?;
         self.note_write(meta.rev);
         Ok(meta)
+    }
+
+    /// The change log's hashes of a record's earlier versions, forgotten (phase 4 section 9.1):
+    /// a write grant on the instance's own namespace, as `record_put` needs.
+    pub(super) fn svc_record_forget_history(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<u64> {
+        let stores = self.writing("records_write", space, None)?;
+        stores
+            .documents
+            .forget_record_history(&self.shared.instance, kind, id)
+            .map_err(host_error)
     }
 
     pub(super) fn svc_index_search(
@@ -495,6 +542,43 @@ impl CallServices {
     /// Best-effort maintenance after a run that wrote: the instance must hold a write grant
     /// allowed for the space (a `Reader`'s view holds none).
     pub(super) fn svc_checkpoint(&self, space: &str) -> Result<()> {
+        self.maintaining(space)?;
+        self.stores(space)?
+            .documents
+            .checkpoint()
+            .map_err(host_error)
+    }
+
+    /// A reporting checkpoint (phase 4 section 9.1): `wal_checkpoint(TRUNCATE)` on the space's
+    /// `store.sqlite3` with no lock wait, answering `Clean` or `Pending`, under the same rules as
+    /// [`Self::svc_checkpoint`]. A redaction says with it whether the removed bytes are gone.
+    pub(super) fn svc_truncate_wal(&self, space: &str) -> Result<umbel_sdk::WalCheckpoint> {
+        self.maintaining(space)?;
+        let stores = self.stores(space)?;
+        #[cfg(feature = "store-embedded")]
+        {
+            use umbel_store_embedded::WalCheckpoint as Embedded;
+            stores
+                .sqlite
+                .truncate_wal()
+                .map(|state| match state {
+                    Embedded::Clean => umbel_sdk::WalCheckpoint::Clean,
+                    Embedded::Pending => umbel_sdk::WalCheckpoint::Pending,
+                })
+                .map_err(host_error)
+        }
+        #[cfg(not(feature = "store-embedded"))]
+        {
+            let _ = stores;
+            Err(ServiceError::Io(
+                "this build of umbel links no store backend (feature store-embedded)".to_owned(),
+            ))
+        }
+    }
+
+    /// Store maintenance needs a writable call holding a write grant allowed for `space`, in one
+    /// of the call's spaces.
+    fn maintaining(&self, space: &str) -> Result<()> {
         self.writable()?;
         let held = WRITE_GRANTS.iter().any(|grant| {
             self.shared.granted.contains(*grant)
@@ -519,10 +603,7 @@ impl CallServices {
             )));
         }
         self.note_use();
-        self.stores(space)?
-            .documents
-            .checkpoint()
-            .map_err(host_error)
+        Ok(())
     }
 
     pub(super) fn svc_as_reader(&self, principal: &str) -> Result<Reader> {

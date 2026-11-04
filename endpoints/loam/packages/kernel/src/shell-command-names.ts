@@ -46,6 +46,7 @@ export const SHELL_COMMAND_NAMES = [
 	'project-update',
 	'project-archive',
 	'project-restore',
+	'project-summary-get',
 	'workspace-get',
 	'workspace-app-list',
 	'workspace-app-set',

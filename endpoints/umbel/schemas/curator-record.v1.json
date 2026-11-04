@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/umbel/schemas/curator-record.v1.json",
 	"title": "Umbel curator records, version 1",
-	"description": "The curator instance's records, kept in its own namespace through records_write (phase 4 section 2.3, D90): candidate, run, consent and state, each per space and principal. No curator record holds memory text, and no envelope of one holds a memory hash. Ids are content-free: a candidate's is c- and 20 hex of SHA-256 of <space>\\0<principal>\\0<lowest source memory id>; a run's r- and 20 hex of the run's trace id; a consent's n- and the candidate id's hex; the state's s- and 20 hex of SHA-256 of <space>\\0<principal>. When a source is erased the candidate keeps no contentHash, subjectKey, reason or sources and is erased, and its consent record is removed. Rules that need more than a schema, such as each id matching its derivation, the access set containing principal:<caller>, and a candidate's sources sharing one content hash and class, are checked by the curator.",
+	"description": "The curator instance's records, kept in its own namespace through records_write (phase 4 section 2.3, D90): candidate, run, consent, state and review, each per space and principal. No curator record holds memory text, and no envelope of one holds a memory hash. Ids are content-free: a candidate's is c- and 20 hex of SHA-256 of <space>\\0<principal>\\0<lowest source memory id>; a run's r- and 20 hex of the run's trace id; a consent's n- and the candidate id's hex; the state's s- and 20 hex of SHA-256 of <space>\\0<principal>; a review's v- and 20 hex of SHA-256 of <space>\\0<principal>\\0<document id>. When a source is erased the candidate keeps no contentHash, subjectKey, reason or sources and is erased, and its consent record keeps no sources (erased). Rules that need more than a schema, such as each id matching its derivation, the access set containing principal:<caller>, and a candidate's sources sharing one content hash and class, are checked by the curator.",
 	"type": "object",
 	"required": ["version", "kind", "id", "space", "principal", "access"],
 	"additionalProperties": false,
@@ -11,12 +11,12 @@
 			"const": 1
 		},
 		"kind": {
-			"enum": ["candidate", "run", "consent", "state"]
+			"enum": ["candidate", "run", "consent", "state", "review"]
 		},
 		"id": {
-			"description": "c-, r-, n- or s- and 20 hex, by kind; never derived from content.",
+			"description": "c-, r-, n-, s- or v- and 20 hex, by kind; never derived from content.",
 			"type": "string",
-			"pattern": "^[crns]-[0-9a-f]{20}$"
+			"pattern": "^[crnsv]-[0-9a-f]{20}$"
 		},
 		"space": {
 			"type": "string",
@@ -98,8 +98,11 @@
 				"skipped",
 				"rejected",
 				"applied",
-				"erased"
-			]
+				"erased",
+				"refused",
+				"withdrawn"
+			],
+			"description": "A candidate's status (settling to erased), or a review's (ready, drafted, rejected, applied, refused, withdrawn)."
 		},
 		"reason": {
 			"description": "skipped: the reason code; rejected: the approver's reason (content, never in a message); otherwise null. Removed when a source is erased.",
@@ -156,6 +159,18 @@
 				{
 					"type": "string",
 					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"proposal": {
+			"description": "The proposal of the latest draft that may still be open: the id the knowledge plugin derives from the draft's idempotency key (umbel_okf::draft::proposal_id), recorded by curator-plan before it submits and corrected by curator-finish from the batch's answer; null once it is decided or withdrawn.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^p-[0-9a-f]{20}$"
 				}
 			]
 		},
@@ -245,6 +260,38 @@
 					}
 				}
 			]
+		},
+		"reviewAfter": {
+			"description": "The rotating document cursor of re-verification: the last document id read; null starts again from the first.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				}
+			]
+		},
+		"doc": {
+			"description": "Review: the knowledge document a verify or deprecate draft is for.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"op": {
+			"description": "Review: verify (section 6.1) or deprecate (section 6.2).",
+			"enum": ["verify", "deprecate"]
+		},
+		"baseHash": {
+			"description": "Review: the document's content hash the draft was made against.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"erased": {
+			"description": "Consent: a source was erased, so the consent keeps no sources and covers nothing.",
+			"const": true
 		}
 	},
 	"allOf": [
@@ -273,7 +320,8 @@
 					"firstSeenAt",
 					"promotedTo",
 					"conflictSet",
-					"quietUntil"
+					"quietUntil",
+					"proposal"
 				],
 				"propertyNames": {
 					"enum": [
@@ -292,6 +340,7 @@
 						"promotedTo",
 						"conflictSet",
 						"quietUntil",
+						"proposal",
 						"contentHash",
 						"subjectKey",
 						"sources",
@@ -319,6 +368,18 @@
 								}
 							}
 						}
+					},
+					"status": {
+						"enum": [
+							"settling",
+							"ready",
+							"drafted",
+							"needs-promotion",
+							"skipped",
+							"rejected",
+							"applied",
+							"erased"
+						]
 					}
 				},
 				"allOf": [
@@ -509,19 +570,20 @@
 				"required": ["kind"]
 			},
 			"then": {
-				"required": [
-					"version",
-					"kind",
-					"id",
-					"space",
-					"principal",
-					"access",
-					"by",
-					"at",
-					"sources"
-				],
+				"required": ["version", "kind", "id", "space", "principal", "access", "by", "at"],
 				"propertyNames": {
-					"enum": ["version", "kind", "id", "space", "principal", "access", "by", "at", "sources"]
+					"enum": [
+						"version",
+						"kind",
+						"id",
+						"space",
+						"principal",
+						"access",
+						"by",
+						"at",
+						"sources",
+						"erased"
+					]
 				},
 				"properties": {
 					"id": {
@@ -561,6 +623,22 @@
 								}
 							}
 						}
+					},
+					{
+						"oneOf": [
+							{
+								"required": ["sources"],
+								"not": {
+									"required": ["erased"]
+								}
+							},
+							{
+								"required": ["erased"],
+								"not": {
+									"required": ["sources"]
+								}
+							}
+						]
 					}
 				]
 			}
@@ -586,7 +664,8 @@
 					"memoryAfter",
 					"scanAfter",
 					"lastRun",
-					"lock"
+					"lock",
+					"reviewAfter"
 				],
 				"propertyNames": {
 					"enum": [
@@ -600,13 +679,82 @@
 						"memoryAfter",
 						"scanAfter",
 						"lastRun",
-						"lock"
+						"lock",
+						"reviewAfter"
 					]
 				},
 				"properties": {
 					"id": {
 						"type": "string",
 						"pattern": "^s-[0-9a-f]{20}$"
+					}
+				},
+				"allOf": [
+					{
+						"properties": {
+							"access": {
+								"maxItems": 1,
+								"items": {
+									"type": "string",
+									"pattern": "^principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "review"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"required": [
+					"version",
+					"kind",
+					"id",
+					"space",
+					"principal",
+					"access",
+					"doc",
+					"op",
+					"baseHash",
+					"status",
+					"drafts",
+					"proposal",
+					"at",
+					"quietUntil"
+				],
+				"propertyNames": {
+					"enum": [
+						"version",
+						"kind",
+						"id",
+						"space",
+						"principal",
+						"access",
+						"doc",
+						"op",
+						"baseHash",
+						"status",
+						"drafts",
+						"proposal",
+						"at",
+						"quietUntil"
+					]
+				},
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^v-[0-9a-f]{20}$"
+					},
+					"status": {
+						"enum": ["ready", "drafted", "rejected", "applied", "refused", "withdrawn"]
 					}
 				},
 				"allOf": [

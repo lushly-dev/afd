@@ -147,6 +147,13 @@ const APP_CAPTURES: [string, string][] = [
 	['app-console-invalid', 'Error: This field is required.'],
 	['app-console-result', 'PROBE_REFUSED'],
 	['app-console-mounted', 'MOUNT_UNREACHABLE'],
+	// Phase 2's step 7: the projects section's list, its refused form, its empty state, a home, and a home of
+	// long, empty and right-to-left summaries at 320 CSS px.
+	['app-projects-section', 'table "Projects"'],
+	['app-projects-section-form', 'Error: A project already has'],
+	['app-projects-section-empty', 'No projects yet'],
+	['app-projects-section-home', 'article "Slow"'],
+	['app-projects-section-long', 'article "دفتر"'],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string],
 	[`${id}-compact`, expected] as [string, string],

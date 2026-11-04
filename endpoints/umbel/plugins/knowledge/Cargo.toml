@@ -66,7 +66,12 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # The tests boot a host with collections, readers and allow lists, and seed the graph the way
 # step 7a's indexer will.
 umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
-umbel-store-embedded = { path = "../../store-embedded" }
+# `conformance` for the store suite's memory samples: the verification tests write memory records
+# through the store, as phase 3's tests do (no crate is added; `tempfile` is already here).
+umbel-store = { path = "../../store", features = ["conformance"] }
+# `testkit` for `SqliteStore::hold_reader`: a reader holding the write-ahead log, so the redaction
+# tests see the checkpoint's `pending` answer without linking SQLite here.
+umbel-store-embedded = { path = "../../store-embedded", features = ["testkit"] }
 
 [lints]
 workspace = true

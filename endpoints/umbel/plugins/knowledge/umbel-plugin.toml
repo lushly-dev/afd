@@ -47,7 +47,12 @@ reason = "Reads proposals, the decision traces it keeps as records."
 
 [[grants]]
 name = "records_write"
-reason = "Stores a proposal when it is submitted and each time it is decided, withdrawn or applied."
+reason = "Stores a proposal when it is submitted and each time it is decided, withdrawn, redacted or applied."
+
+[[grants]]
+name = "memory"
+required = false
+reason = "Reads, never writes, the memory records a listed drafter's proposal cites, under the caller's reader filter, to verify every claim the drafter copied from them before the proposal is stored, and again before an approval applies it. Without it a draft citing memory is refused (PROPOSAL_DRAFT_UNVERIFIABLE)."
 
 [[grants]]
 name = "content"
@@ -72,6 +77,7 @@ input_schema = "schemas/knowledge-search.input.json"
 category = "knowledge"
 tags = ["knowledge", "search"]
 version = "1.0.0"
+journal = { mode = "plain" }
 first_class = true
 output_budget = { default_bytes = 24000, max_bytes = 96000 }
 examples = [{ title = "Find the rollback runbook", input = { query = "rollback canary", limit = 5 } }]
@@ -84,6 +90,7 @@ input_schema = "schemas/knowledge-open.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 first_class = true
 output_budget = { default_bytes = 32000, max_bytes = 128000 }
 examples = [{ title = "Open the start of a document", input = { doc = "handbook/deploy/rollback" } }]
@@ -96,6 +103,7 @@ input_schema = "schemas/knowledge-find.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -106,6 +114,7 @@ input_schema = "schemas/knowledge-describe.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -116,6 +125,7 @@ input_schema = "schemas/knowledge-list.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -126,6 +136,7 @@ input_schema = "schemas/knowledge-changes.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -136,6 +147,7 @@ input_schema = "schemas/knowledge-neighbors.input.json"
 category = "knowledge"
 tags = ["knowledge", "graph"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 examples = [{ title = "What links to a document", input = { doc = "handbook/deploy/rollback", kinds = ["links_to"], direction = "in" } }]
 
@@ -147,6 +159,7 @@ input_schema = "schemas/knowledge-related.input.json"
 category = "knowledge"
 tags = ["knowledge", "graph"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -157,6 +170,7 @@ input_schema = "schemas/knowledge-path.input.json"
 category = "knowledge"
 tags = ["knowledge", "graph"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -167,6 +181,7 @@ input_schema = "schemas/knowledge-outline.input.json"
 category = "knowledge"
 tags = ["knowledge", "read"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -177,6 +192,7 @@ input_schema = "schemas/knowledge-stale.input.json"
 category = "knowledge"
 tags = ["knowledge", "maintenance"]
 version = "1.0.0"
+journal = { mode = "plain" }
 output_budget = { default_bytes = 16000, max_bytes = 64000 }
 
 [[commands]]
@@ -187,6 +203,7 @@ input_schema = "schemas/knowledge-eval.input.json"
 category = "knowledge"
 tags = ["knowledge", "eval"]
 version = "1.0.0"
+journal = { mode = "plain" }
 expose = { mcp = false, agent = false, cli = true }
 examples = [{ title = "Evaluate both spaces", input = { spaces = ["alpha", "beta"] } }]
 
@@ -198,6 +215,7 @@ input_schema = "schemas/knowledge-index.input.json"
 category = "knowledge"
 tags = ["knowledge", "index"]
 version = "1.0.0"
+journal = { mode = "plain" }
 examples = [{ title = "Index what changed", input = {} }]
 
 [[commands]]
@@ -208,7 +226,29 @@ input_schema = "schemas/knowledge-propose.input.json"
 category = "knowledge"
 tags = ["knowledge", "proposal"]
 version = "1.0.0"
+journal = { mode = "plain" }
 examples = [{ title = "Propose an update", input = { idempotency_key = "run-17/step-2", change = { op = "update", doc = "handbook/deploy/rollback", baseHash = "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8", content = "---\ntitle: Rolling back\n---\nRoll back with the previous release tag.\n" }, rationale = "The release tag procedure changed.", evidence = [{ kind = "text", ref = "release notes 2026-10" }] } }]
+
+[[commands]]
+name = "knowledge-propose-batch"
+description = "Submit up to 50 proposals and 50 withdrawals in one call, with a result for each. Each proposal is knowledge-propose's. Called by a step of a drafter's pipeline that this instance lists in drafters, the host attests the drafter and its claims are verified; any other call is an ordinary batch by its caller, without drafter fields or withdrawals."
+effects = ["store-write"]
+input_schema = "schemas/knowledge-propose-batch.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+journal = { mode = "digest", keep = ["space"] }
+
+[[commands]]
+name = "knowledge-proposal-feed"
+description = "The decisions on a drafter's proposals after a store revision: rejected with the approver's reason, or applied. Answers only a step of a pipeline the host attests to a listed drafter, for its proposer's own proposals."
+effects = ["inspect"]
+input_schema = "schemas/knowledge-proposal-feed.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "after"] }
 
 [[commands]]
 name = "knowledge-proposal-list"
@@ -270,6 +310,18 @@ expose = { mcp = false, agent = false, cli = true }
 journal = { mode = "digest", keep = ["space", "proposal"] }
 
 [[commands]]
+name = "knowledge-auto-approve"
+description = "Apply the pending proposals that meet an auto-approval rule their area opts into, recorded as the policy's decision, never a person's. The one rule, deprecate-declared, applies a drafted deprecate only when a person's applied proposal wrote its superseded_by into the document's current bytes; never a create, update, verify, memory-derived, flagged or alternative proposal. Off unless an area lists it. Command line only; never a pipeline step."
+effects = ["store-write", "workspace-write"]
+input_schema = "schemas/knowledge-auto-approve.input.json"
+category = "knowledge"
+tags = ["knowledge", "proposal"]
+version = "1.0.0"
+confirm_prompt = "Apply every pending proposal that meets an auto-approval rule its area opts into, recorded as the area's policy decision, without a person deciding each one?"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "limit"] }
+
+[[commands]]
 name = "knowledge-reject"
 description = "Reject a proposal with a reason the proposer or curator reads next. Only a person at a terminal, who is one of the area's approvers and can read the target, may; the command line shows knowledge-proposal-preview before asking."
 effects = ["store-write"]
@@ -291,6 +343,7 @@ input_schema = "schemas/knowledge-verify.input.json"
 category = "knowledge"
 tags = ["knowledge", "verification"]
 version = "1.0.0"
+journal = { mode = "plain" }
 approval = "required"
 confirm = "require-human"
 confirm_prompt = "Record yourself as having verified this document, and rewrite its frontmatter?"
@@ -300,6 +353,7 @@ expose = { mcp = false, agent = false, cli = true }
 name = "knowledge-refresh"
 description = "Read a space's files into the document store, then bring its search index up to date."
 effects = ["store-write"]
+journal = { mode = "plain" }
 input_schema = { type = "object", properties = { space = { type = "string", description = "The space; default: the workspace's default space" } }, additionalProperties = false }
 steps = [
   { command = "sources-sync", input = { space = "$input.space" }, as = "sync" },

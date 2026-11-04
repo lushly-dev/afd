@@ -1,0 +1,23 @@
+{
+	"type": "object",
+	"required": ["candidate", "contentHash"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"candidate": {
+			"type": "string",
+			"minLength": 22,
+			"maxLength": 22,
+			"description": "The candidate's id, c- and 20 hex digits, as curator-candidates lists it with status needs-promotion"
+		},
+		"contentHash": {
+			"type": "string",
+			"minLength": 16,
+			"maxLength": 71,
+			"description": "The candidate's contentHash as curator-candidates or memory-show printed it, at least its first 16 hex digits: proof you looked at the records you are widening"
+		}
+	}
+}

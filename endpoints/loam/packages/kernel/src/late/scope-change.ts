@@ -20,7 +20,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { canOpen, disabled, setMain, setScopeProject } from './main-state.js';
+import { canOpen, disabledRefusal, setMain, setScopeProject } from './main-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -31,8 +31,14 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
-	/** A replay's recorded actor by trace ID: undefined when the journal has no such entry (10). */
-	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+	/**
+	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
+	 * entry, and `replaying`.
+	 */
+	internals?: {
+		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+		replaying?: boolean;
+	};
 }
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
@@ -211,7 +217,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 */
 		before(call, name) {
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
-			const recorded = deps.actorOf?.(call.traceId);
+			const recorded = deps.internals?.actorOf?.(call.traceId);
 			if (recorded) {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
@@ -230,18 +236,28 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			}
 		},
 		async run(name, input, call, next) {
+			// A replay answers a recorded call from its entry before the registry, so a recorded command that
+			// gets here, past validation, is one the journal does not hold as recorded: nested and unanswered,
+			// or a top-level entry whose context lost the mark, or a command a redeploy made mounted. It stops
+			// before its handler could reach a server (10 and 12). Recorded is the kernel's own word, never the
+			// context's: `app-instance-refresh`, or a command a mounted instance owns.
+			if (
+				deps.internals?.replaying &&
+				(name === 'app-instance-refresh' || deps.apps().owners.get(name)?.recorded)
+			) {
+				return kernelFailure(
+					'REPLAY_NOT_RECORDED',
+					`The journal does not record '${name}' under this call, so the replay does not run it`,
+					'Replay the whole journal the session recorded'
+				);
+			}
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;
 			if (owner !== undefined) {
 				// A gate, not an omission, so it takes effect at once and replays the same (4.1).
-				if (disabled(scope, owner)) {
-					return kernelFailure(
-						'APP_DISABLED',
-						`The app '${owner}' is disabled in this workspace`,
-						`Enable it with workspace-app-set { instance: "${owner}", enabled: true }`
-					);
-				}
+				const off = disabledRefusal(scope, owner);
+				if (off) return off;
 				// Line 2: the access decision, before anything else about the call.
 				if (!scope.allows(actorKey(call), requested)) return projectNotFound();
 				// Line 3: the owning app's levels.

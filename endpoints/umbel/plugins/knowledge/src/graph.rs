@@ -85,20 +85,10 @@ impl Collector {
     }
 }
 
-/// The document a `superseded_by` value names: an id or a `/`-prefixed path.
+/// The document a `superseded_by` value names: an id or a `/`-prefixed path
+/// ([`umbel_okf::links::successor`], shared with the curator).
 pub(crate) fn successor(value: &str, from: &str, collections: &[String]) -> Option<String> {
-    let value = value.trim();
-    let first = value.split('/').next().unwrap_or_default();
-    let rooted = value.starts_with('/') || collections.iter().any(|known| known == first);
-    let target = if rooted {
-        format!("/{}", value.trim_start_matches('/'))
-    } else {
-        value.to_owned()
-    };
-    match resolve(&target, from, collections) {
-        Target::Document { id, .. } if id != from => Some(id),
-        _ => None,
-    }
+    umbel_okf::links::successor(value, from, collections)
 }
 
 /// The contribution of `document`, whose parsed `structure` is empty for a document that has none

@@ -299,6 +299,24 @@ impl DocumentStore for Fake {
         Ok(self.lock().changes.last().map_or(0, |(c, _)| c.rev))
     }
 
+    fn forget_record_history(&self, ns: &str, kind: &str, id: &str) -> Result<u64, StoreError> {
+        let mut state = self.lock();
+        let key = (ns.to_owned(), kind.to_owned(), id.to_owned());
+        let current = state.records.get(&key).ok_or(StoreError::NotFound)?.0;
+        let target = record_target(ns, kind, id);
+        let mut forgotten = 0;
+        for (change, _) in &mut state.changes {
+            if change.kind == ChangeKind::Record
+                && change.target == target
+                && change.rev < current
+                && change.content_hash.take().is_some()
+            {
+                forgotten += 1;
+            }
+        }
+        Ok(forgotten)
+    }
+
     fn put_record(
         &self,
         ns: &str,

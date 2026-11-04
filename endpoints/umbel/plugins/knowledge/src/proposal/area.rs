@@ -8,7 +8,11 @@
 //! prefix = ""                      # a document id prefix inside the collection
 //! approvers = ["group:kb-owners"]  # "principal:human:<id>" or "group:<id>"; [] admits any human
 //! allow_self_approval = false
+//! auto = []                        # the auto-approval rules the area opts into (phase 4 section 8.3)
 //! ```
+//!
+//! `auto` is off by default: an area lists a rule kind only when its deployer enables it, and the
+//! only kind is `deprecate-declared` ([`super::auto`]). Any other value fails the configuration.
 
 use serde_json::{Value, json};
 use umbel_sdk::{Cx, Outcome, failure};
@@ -23,21 +27,35 @@ pub(crate) struct Area {
     pub(crate) prefix: String,
     pub(crate) approvers: Vec<String>,
     pub(crate) allow_self_approval: bool,
+    /// The auto-approval rules the area opts into, each one of [`super::auto::RULES`]; empty by
+    /// default (owner decision 1, D98).
+    pub(crate) auto: Vec<String>,
 }
 
 impl Area {
-    /// The policy as the record keeps its version: the canonical JSON of what governs a decision.
-    pub(crate) fn policy_version(&self) -> String {
-        let policy = json!({
+    /// The policy as the record keeps its version: the canonical JSON of what governs a decision
+    /// under `rule` (`person`, or `auto:<rule>`). It covers the area's `auto` list when the area
+    /// lists one (phase 4 section 8.3); an area that lists none keeps the version it had before
+    /// the list existed.
+    pub(crate) fn policy_version(&self, rule: &str) -> String {
+        let mut policy = json!({
             "area": self.id,
             "space": self.space,
             "collection": self.collection,
             "prefix": self.prefix,
             "approvers": self.approvers,
             "allowSelfApproval": self.allow_self_approval,
-            "rule": "person",
+            "rule": rule,
         });
+        if !self.auto.is_empty() {
+            policy["auto"] = json!(self.auto);
+        }
         ContentHash::of(canonical_json(&policy).as_bytes()).to_string()
+    }
+
+    /// Whether the area opts into the auto-approval rule `rule`.
+    pub(crate) fn lists(&self, rule: &str) -> bool {
+        self.auto.iter().any(|listed| listed == rule)
     }
 
     /// Whether the area governs the document `id` of `space`.
@@ -92,7 +110,7 @@ pub(crate) fn load(cx: &Cx) -> Result<Vec<Area>, Outcome> {
         failure(
             "AREA_CONFIG_INVALID",
             &format!("the area `{id}` is not usable: {why}"),
-            "Fix [plugins.knowledge.config.areas.<id>] in umbel.toml: space and collection are required, approvers are principal:human:<id> or group:<id> entries.",
+            "Fix [plugins.knowledge.config.areas.<id>] in umbel.toml: space and collection are required, approvers are principal:human:<id> or group:<id> entries, and auto lists only deprecate-declared.",
         )
     };
     let mut out = Vec::new();
@@ -122,6 +140,33 @@ pub(crate) fn load(cx: &Cx) -> Result<Vec<Area>, Outcome> {
                 "an approver is neither principal:human:<id> nor group:<id>",
             ));
         }
+        // The auto-approval rules (phase 4 section 8.3): only the kinds this plugin implements,
+        // each once. The configuration schema refuses anything else at load; this is the second
+        // check, so no value can widen what a rule applies to.
+        let auto = match area.get("auto") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::Array(list)) => {
+                let mut rules: Vec<String> = Vec::new();
+                for entry in list {
+                    match entry.as_str() {
+                        Some(rule)
+                            if super::auto::RULES.contains(&rule)
+                                && !rules.iter().any(|seen| seen == rule) =>
+                        {
+                            rules.push(rule.to_owned());
+                        }
+                        _ => {
+                            return Err(invalid(
+                                id,
+                                "auto lists a rule that is not deprecate-declared, or lists it twice",
+                            ));
+                        }
+                    }
+                }
+                rules
+            }
+            Some(_) => return Err(invalid(id, "auto is a list of rule kinds")),
+        };
         out.push(Area {
             id: id.clone(),
             space: space.to_owned(),
@@ -132,6 +177,7 @@ pub(crate) fn load(cx: &Cx) -> Result<Vec<Area>, Outcome> {
                 .get("allow_self_approval")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            auto,
         });
     }
     Ok(out)

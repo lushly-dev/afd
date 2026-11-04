@@ -29,7 +29,13 @@ services (store grants with allow lists, reader filters), the `sources` plugin t
 the stores, and the `knowledge` plugin (search, open, the structural graph, code symbols, proposals
 and verification, the eval harness) are in, behind the `umbel-knowledge` binary. Its fixture is
 synthetic with planted terms, so its recall measures the pipeline and regressions, not quality on
-real content. Access filtering is exact only for embedders until phase 5
+real content. Phase 3, memory and context, is done (its
+[specification](docs/phases/3-memory-context/spec.md) is met, with the exit criterion in
+`first-party/tests/exit_memory.rs`): the `memory` and `context` plugins and the `umbel-hook` harness
+adapter. Phase 4, the curator, is done (its [specification](docs/phases/4-curator/spec.md) is met,
+with the exit criterion in `first-party/tests/exit_curator.rs`): settled memory drafted as knowledge
+proposals that a person approves at a terminal ([below](#run-the-curator)). Both run in the
+`umbel-first-party` binary. Access filtering is exact only for embedders until phase 5
 (see [below](#access-is-not-a-security-boundary-yet)). Nothing is released or published; the
 crate is `publish = false` and its release unit is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
@@ -166,6 +172,36 @@ is required for a document to be proposed. To apply a proposal the instance also
 `documents_write` and `content_write` allowed for the collection. An approved document is searchable
 after the next `knowledge-refresh`.
 
+`knowledge-propose-batch` submits up to 50 proposals in one call, with a result for each. Called as a
+step of a drafter's pipeline (the curator's `curator-run`, from phase 4), the host attests the drafter,
+and the knowledge instance accepts it only when its configuration lists that instance as
+`[plugins.knowledge.config.drafters.<instance>]` (default none), with the target its creates go to in each
+space: a markdown `collection` and an optional `prefix` of plain segments. A drafted create must be exactly
+`<collection>/<prefix>/<derived id>`; a drafter with no target in a space drafts no create there. The
+drafter's own configuration names the same target, and the knowledge instance's is the one enforced. A drafter's claims are verified, not trusted: through its read-only `memory`
+grant, under the caller's reader filter, the knowledge instance reads every memory record a draft
+cites and checks that it is live, at the cited version, and copied field by field, and that the
+content, rationale, candidate, key and document id are the curator's fixed rendering and derivations
+of those records; a mismatch is `PROPOSAL_DRAFT_MISMATCH`, naming the check, and nothing is stored.
+`knowledge-approve` reads the sources again: a source gone is `PROPOSAL_SOURCE_GONE`, a target now
+wider than its sources is `PROPOSAL_ACCESS_WIDENED`, and approving a draft of your own memory is
+self-approval. The `memory` grant needs no `allow` list; deny it (`deny = ["memory"]` under
+`[plugins.knowledge]`) and memory-derived drafts are refused with `PROPOSAL_DRAFT_UNVERIFIABLE`. The
+same pipeline withdraws its own drafts, and redacts one whose memory source was forgotten, and reads
+the decisions on them with `knowledge-proposal-feed`.
+
+**Auto-approval, off by default.** One kind of proposal may be applied without a person, and only in an
+area whose deployer lists it: `auto = ["deprecate-declared"]` under `[plugins.knowledge.config.areas.<id>]`
+(default `[]`; any other value fails the configuration). `knowledge-auto-approve` (command line only, a
+prompt that `--yes` answers from cron, never as a pipeline step) then applies each pending drafted
+`deprecate` of that area whose `supersededBy` equals the document's `superseded_by`, when a person's
+applied `create` or `update` wrote that declaration into the document's current bytes (its diff added
+the line) and the successor is a document every reader of the deprecated one can read and that is not
+itself deprecated. A `superseded_by` typed into a file, or carried through a later edit or verification,
+never triggers it, and no `create`, `update`, `verify`, memory-derived, flagged or alternative proposal is
+ever applied this way. The record says `decision.channel = "policy"`, decided by `policy:<area>` for the
+principal who ran it; the caller must be one of the area's approvers.
+
 `plugin check` does not run AFD's surface validation, which is a TypeScript tool: run `afd validate
 --surface` against `umbel serve --http` with the plugin enabled.
 
@@ -187,7 +223,9 @@ explicit `allow` list in `umbel.toml`: a plugin whose required grant has none do
 | `content_write` | `knowledge` | applying a proposal (it writes the file) | `<space>/<collection>` or `<space>/*` |
 
 The first five are required. The last two are optional and only for applying proposals; without
-them the workspace loads and an approval is recorded, then stops with `PROPOSAL_APPLY_UNAVAILABLE`. A proposal also needs an *area* that says who may approve changes to
+them the workspace loads and an approval is recorded, then stops with `PROPOSAL_APPLY_UNAVAILABLE`.
+`knowledge` also declares `memory`, read only and optional, to verify drafted proposals; a read grant
+needs no `allow` entry, so the file below is unchanged by it. A proposal also needs an *area* that says who may approve changes to
 a collection. This `umbel.toml` runs everything (a workspace made with `umbel-knowledge init
 ~/umbel-ws` starts with only `config_version = 3`; add the rest):
 
@@ -238,6 +276,13 @@ space = "main"
 collection = "handbook"
 approvers = ["principal:human:ada"]
 allow_self_approval = true              # a one-person workspace; leave it out otherwise
+
+# Drafted proposals (phase 4): accept the curator's pipeline, and send its creates in the space
+# main exactly to handbook/learned/<derived id>. The curator's own configuration names the same
+# target; this one is enforced. Leave it out if you run no curator.
+[plugins.knowledge.config.drafters.curator.targets.main]
+collection = "handbook"
+prefix = "learned"
 ```
 
 Then put Markdown under `spaces/main/handbook` and source files under `spaces/main/src`, and:
@@ -263,6 +308,126 @@ hash, flags and evidence, and the first 80 lines of its diff, each line prefixed
 (`knowledge-reject` shows it too). `knowledge-proposal-show` has the whole diff. It refuses without a
 terminal and to `--yes` or `--approve`, and refuses with `CONFIRMATION_PREVIEW_FAILED` when the
 preview cannot be shown, such as for a proposal you may not read.
+
+## Run the curator
+
+`umbel-first-party` is the `umbel` command line with all five first-party plugins compiled in:
+`sources`, `knowledge`, `memory`, `context` and `curator`. The curator reads the memory you can read
+(never anyone else's), finds the semantic and procedural records that have *settled* (unchanged for 7
+days, 14 for procedural, observed in at least 2 sessions, and of authority `person` unless the space's
+`settle` pack admits more), and drafts each as a knowledge proposal through a pipeline the host attests,
+`curator-run`. The knowledge plugin verifies every draft against the memory store before it stores it,
+and a person still approves each one at a terminal. The curator writes no memory and no knowledge, uses
+no model, and runs only on the command line: no curator command is listed or callable over MCP.
+
+Besides the knowledge plugin's grants above, the curator needs `records_write` allowed for the space
+(its own candidates, consents, run reports and lock, each readable by the person it belongs to). It
+reads memory and documents through read grants, which need no `allow` entry. Its target, the
+collection and prefix it drafts into, must be named twice, once for each plugin, and the knowledge
+plugin's entry is the one enforced. This `umbel.toml` runs everything (`umbel-first-party init
+~/umbel-ws` writes only `config_version = 4` and `[principal]`; add the rest):
+
+```toml
+config_version = 4
+default_space = "main"
+
+# The person at this machine's command line is human:ada; their agents are agent:ada.
+[principal]
+local_id = "ada"
+on_behalf_of = "ada"
+
+[spaces.main.collections.handbook]
+root = "spaces/main/handbook"
+
+[plugins]
+enabled = ["sources", "knowledge", "memory", "context", "curator"]
+
+[plugins.sources]
+source = "compiled:sources"
+[plugins.sources.grants.documents_write]
+allow = ["main/*"]
+[plugins.sources.grants.records_write]
+allow = ["main"]
+
+[plugins.knowledge]
+source = "compiled:knowledge"
+[plugins.knowledge.grants.index_write]
+allow = ["main"]
+[plugins.knowledge.grants.graph_write]
+allow = ["main"]
+[plugins.knowledge.grants.records_write]
+allow = ["main"]
+[plugins.knowledge.grants.documents_write]
+allow = ["main/*"]
+[plugins.knowledge.grants.content_write]
+allow = ["main/*"]
+
+# Who may approve a change to the handbook. In a one-person workspace every draft of your own
+# memory is self-approval, so allow it; it is recorded as the exception "self-approval".
+[plugins.knowledge.config.areas.handbook]
+space = "main"
+collection = "handbook"
+approvers = ["principal:human:ada"]
+allow_self_approval = true
+auto = ["deprecate-declared"]           # optional: the one rule knowledge-auto-approve applies
+
+# The curator's drafts: accepted only from this instance, and its creates only at
+# handbook/learned/<derived id>. This entry is the one enforced.
+[plugins.knowledge.config.drafters.curator.targets.main]
+collection = "handbook"
+prefix = "learned"
+
+[plugins.memory]
+source = "compiled:memory"
+[plugins.memory.grants.memory_write]
+allow = ["main"]
+
+[plugins.context]
+source = "compiled:context"
+
+[plugins.curator]
+source = "compiled:curator"
+[plugins.curator.grants.records_write]
+allow = ["main"]
+
+# Where the curator drafts in each space: the same target as the drafters entry above.
+[plugins.curator.config.spaces.main]
+collection = "handbook"
+prefix = "learned"
+```
+
+Then:
+
+```sh
+cd ~/umbel-ws
+umbel-first-party workspace doctor                         # "healthy": true
+umbel-first-party call curator-candidates '{}'             # settling, ready, needs-promotion, ...
+umbel-first-party call curator-run '{}'                    # drafts what is ready; ids and counts only
+umbel-first-party call knowledge-proposal-list '{"state": "pending"}'
+umbel-first-party call knowledge-approve '{"proposal": "p-..."}'   # a terminal: the preview, then the prompts
+umbel-first-party call curator-run '{}'                    # reads the decision back
+umbel-first-party call curator-status '{}'                 # the last run, overdue, what you may promote
+```
+
+A record only you can read is never drafted for a wider collection on its own: it is
+`needs-promotion` until you consent, at a terminal, with `curator-promote '{"candidate": "c-...",
+"contentHash": "sha256:..."}'` (the hash `curator-candidates` printed for it), and the next run drafts it.
+A rejected draft is not drafted again for 90 days. When a record a draft cites is forgotten
+(`memory-forget`), the next run withdraws the draft and redacts its text; a draft that was approved
+stays in the knowledge base.
+
+**Scheduling.** `curator-run` asks nothing, and its output holds only ids and counts, so cron, CI or a
+session hook can run it and keep the log. `knowledge-auto-approve` is the only other command to run
+unattended, with `--yes` answering its prompt, and it applies only drafted deprecations of an area that
+lists `auto = ["deprecate-declared"]` (above); without that list it applies nothing. Never schedule an
+approval: `knowledge-approve`, `knowledge-reject`, `knowledge-verify` and `curator-promote` need a person
+at a terminal and refuse `--yes`.
+
+```cron
+# Every night: draft what has settled, then apply the declared deprecations the area allows.
+0 2 * * *  cd "$HOME/umbel-ws" && umbel-first-party call curator-run '{}' >> state/curator-cron.log 2>&1
+15 2 * * * cd "$HOME/umbel-ws" && umbel-first-party call knowledge-auto-approve '{}' --yes >> state/curator-cron.log 2>&1
+```
 
 ## Access is not a security boundary yet
 

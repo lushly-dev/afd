@@ -1,0 +1,6 @@
+pack_version = 1
+id = "settle"
+plugin = "curator"
+version = "1.0.0"
+title = "Settle"
+description = "When a memory record has settled into a candidate for the knowledge base: the settling window per class, the sessions, the authorities a space admits and an optional confidence gate; the bounds on what one call reads and drafts; how many alternatives a conflict set drafts; and the defaults of re-verification, rejection feedback and scheduling."

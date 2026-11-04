@@ -19,6 +19,8 @@ pub(crate) struct Caller<'a> {
     pub(crate) space: String,
     /// The command context's clock, RFC 3339 with milliseconds.
     pub(crate) now: String,
+    /// The same instant in epoch milliseconds.
+    pub(crate) now_ms: i64,
     pub(crate) actor: ActorRef,
     /// The effective principal string (section 6): the person behind the call, else the actor.
     pub(crate) principal: String,
@@ -47,6 +49,7 @@ impl<'a> Caller<'a> {
             cx,
             space,
             now: rfc3339(now_ms),
+            now_ms,
             actor,
             principal,
         })
@@ -173,6 +176,20 @@ pub(crate) fn provenance_meta(envelope: &Envelope) -> Value {
         serde_json::to_value(envelope.sensitivity).unwrap_or(Value::Null),
     );
     Value::Object(meta)
+}
+
+/// `dev.umbel/provenance` for a command that rewrote the proposal record itself (a decision or a
+/// withdrawal). A drafted proposal's carries no `contentHash`: that is the record body's hash, so
+/// the journal and the events would keep a hash of a body that may hold memory-derived text after
+/// a redaction removed it (phase 4 section 9.1; step 3b, amendment 13).
+pub(crate) fn record_provenance_meta(proposal: &Proposal, envelope: &Envelope) -> Value {
+    let mut meta = provenance_meta(envelope);
+    if proposal.drafter.is_some()
+        && let Some(map) = meta.as_object_mut()
+    {
+        map.remove("contentHash");
+    }
+    meta
 }
 
 /// The proposal `id` as the caller may read it, with the record it is stored in. `None` when it

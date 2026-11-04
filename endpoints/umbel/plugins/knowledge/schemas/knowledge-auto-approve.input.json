@@ -1,0 +1,17 @@
+{
+	"type": "object",
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 200,
+			"default": 50,
+			"description": "The most proposals one call applies; more says some were left for the next call"
+		}
+	},
+	"additionalProperties": false
+}

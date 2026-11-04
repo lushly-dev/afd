@@ -24,14 +24,17 @@ import type {
 } from '@lushly-dev/loam-manifest';
 import type {
 	AppDefinitionV1,
+	AppProjectV1,
 	AppStoreV1,
 	LoamClientV1,
 	OverlayResultV1,
+	ProjectSummaryV1,
+	ResourceLinkV1,
 	ScopeV1,
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { ShellKeybindingV0 } from './keybindings.js';
-import type { ScopeChangeV2 } from './scope/records.js';
+import type { ProjectV1, ScopeChangeV2 } from './scope/records.js';
 
 export type {
 	ProjectAccessV1,
@@ -186,7 +189,8 @@ export interface KernelPortsV1 {
 	fetchText(url: string): Promise<string>;
 	importNative(url: string): Promise<AppDefinitionV1>;
 	openHandlerFrame(instance: string, html: string): Promise<HandlerFrameV1>;
-	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV1>;
+	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
+	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
 }
 
 export interface HandlerFrameV1 {
@@ -470,6 +474,28 @@ export type AppStateV2 = AppStateV1 | 'disabled';
 export interface SelectionV2 {
 	id: string | null;
 	level: 'workspace' | 'project';
+}
+
+export type { ProjectSummaryV1, ResourceLinkV1 };
+
+/**
+ * One app's row of `project-summary-get` (phase 2 specification, 7.7): its summary, as the shell read it,
+ * or why there is none. One app's failure is its row alone.
+ */
+export interface ProjectSummaryRowV1 {
+	instance: string;
+	title: string;
+	icon: string;
+	summary?: ProjectSummaryV1;
+	/** How many of the summary's entries were malformed or over a bound, and dropped. */
+	dropped?: number;
+	error?: { code: string; message: string; suggestion: string };
+}
+
+/** `project-summary-get`'s answer: the project, through a port as an app sees it, and its rows. */
+export interface ProjectSummaryResultV1 {
+	project: ProjectV1 | AppProjectV1;
+	summaries: ProjectSummaryRowV1[];
 }
 
 export interface AppSummaryV2 extends Omit<AppSummaryV1, 'state'> {

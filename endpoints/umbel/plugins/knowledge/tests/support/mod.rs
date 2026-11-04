@@ -12,7 +12,9 @@ use umbel::cli::{Console, Environment};
 use umbel::plugins::sdk;
 use umbel::{Host, HostBuilder};
 
+pub mod drafter;
 pub mod eval;
+pub mod memory;
 pub mod records;
 
 /// Spaces `main` (collections `handbook`, `code`) and `beta` (`notes`); the group `platform` with
@@ -64,14 +66,29 @@ allow = ["main/*", "beta/*"]
 pub struct Fx {
     pub dir: TempDir,
     pub host: Host,
+    /// Whether the host also links the stand-in drafters of [`drafter`].
+    pub drafters: bool,
+}
+
+/// The compiled plugins every fixture links, and the stand-in drafters when `drafters` is set.
+pub fn plugins(builder: HostBuilder, drafters: bool) -> HostBuilder {
+    let builder = builder
+        .with_compiled(Arc::new(sdk(umbel_plugin_sources_filesystem::plugin())))
+        .with_compiled(Arc::new(sdk(umbel_plugin_knowledge::plugin())))
+        .with_clock(fixed_clock(1_767_225_600_000));
+    if drafters {
+        drafter::link(builder)
+    } else {
+        builder
+    }
 }
 
 pub fn build(dir: &Path) -> Host {
-    HostBuilder::open(dir)
-        .unwrap()
-        .with_compiled(Arc::new(sdk(umbel_plugin_sources_filesystem::plugin())))
-        .with_compiled(Arc::new(sdk(umbel_plugin_knowledge::plugin())))
-        .with_clock(fixed_clock(1_767_225_600_000))
+    build_with(dir, false)
+}
+
+pub fn build_with(dir: &Path, drafters: bool) -> Host {
+    plugins(HostBuilder::open(dir).unwrap(), drafters)
         .seal()
         .unwrap()
 }
@@ -83,18 +100,31 @@ impl Fx {
 
     /// A workspace whose `umbel.toml` is `config`, with every declared root created.
     pub fn with(config: &str) -> Self {
+        Self::open(config, false)
+    }
+
+    /// As [`Fx::with`], with the stand-in drafters linked (`config` enables them).
+    pub fn with_drafters(config: &str) -> Self {
+        Self::open(config, true)
+    }
+
+    fn open(config: &str, drafters: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("umbel.toml"), config).unwrap();
         for root in ["main/handbook", "main/code", "beta/notes"] {
             std::fs::create_dir_all(dir.path().join("spaces").join(root)).unwrap();
         }
-        let host = build(dir.path());
-        Self { dir, host }
+        let host = build_with(dir.path(), drafters);
+        Self {
+            dir,
+            host,
+            drafters,
+        }
     }
 
     pub fn reopen(&mut self, config: &str) {
         std::fs::write(self.dir.path().join("umbel.toml"), config).unwrap();
-        self.host = build(self.dir.path());
+        self.host = build_with(self.dir.path(), self.drafters);
     }
 
     pub fn path(&self, relative: &str) -> PathBuf {
@@ -166,16 +196,12 @@ impl Fx {
         environment.workspace = None;
         environment.console = console;
         let mut stdout = Vec::new();
+        let drafters = self.drafters;
         let code = umbel::cli::run(
             std::iter::once("umbel").chain(args.iter().copied()),
             &environment,
             &mut stdout,
-            |builder: HostBuilder| {
-                builder
-                    .with_compiled(Arc::new(sdk(umbel_plugin_sources_filesystem::plugin())))
-                    .with_compiled(Arc::new(sdk(umbel_plugin_knowledge::plugin())))
-                    .with_clock(fixed_clock(1_767_225_600_000))
-            },
+            move |builder: HostBuilder| plugins(builder, drafters),
         )
         .await;
         let text = String::from_utf8(stdout).unwrap();

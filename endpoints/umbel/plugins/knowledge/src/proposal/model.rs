@@ -20,6 +20,8 @@ pub(crate) const VERSIONS: [u32; 2] = [1, VERSION];
 const VERSION_2_KEYS: [&str; 4] = ["drafter", "conflictSet", "withdrawal", "redacted"];
 /// `decision.channel` of a person's decision at a terminal.
 pub(crate) const CHANNEL_TERMINAL: &str = "terminal";
+/// `decision.channel` of an area's auto-approval rule (phase 4 section 8.3).
+pub(crate) const CHANNEL_POLICY: &str = "policy";
 
 /// Where a proposal is in its life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,7 +187,26 @@ impl Drafter {
     pub(crate) fn widens(&self) -> bool {
         self.mode == "promoted"
     }
+
+    /// Whether `other` is the same drafter making the same claims, whatever the run: what an
+    /// idempotent retry must repeat (a later run renders the same draft under its own run).
+    pub(crate) fn same_draft(&self, other: &Self) -> bool {
+        self.plugin == other.plugin
+            && self.instance == other.instance
+            && self.pipeline == other.pipeline
+            && self.mode == other.mode
+            && self.candidate == other.candidate
+            && self.promoted_by == other.promoted_by
+    }
+
+    /// Whether this drafter is the attested step's: the same plugin and instance.
+    pub(crate) fn is(&self, attestation: &umbel_sdk::PipelineAttestation) -> bool {
+        self.plugin == attestation.plugin && self.instance == attestation.instance
+    }
 }
+
+/// `mode` of a draft that widens nobody's readers.
+pub(crate) const MODE_SCHEDULED: &str = "scheduled";
 
 /// Who withdrew a proposal, why and when (version 2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,9 +228,26 @@ impl Withdrawal {
             at: at.to_owned(),
         }
     }
+
+    /// The attested drafter withdrawing one of its own proposals (phase 4 section 9.1).
+    pub(crate) fn by_drafter(reason: &str, at: &str) -> Self {
+        Self {
+            by: "drafter".to_owned(),
+            reason: reason.to_owned(),
+            at: at.to_owned(),
+        }
+    }
 }
 
-/// When a forgotten source's text was removed (version 2, phase 4 section 9.1).
+/// A drafter's reasons for a withdrawal; `retracted` is a proposer's only (phase 4 section 2.1).
+pub(crate) const DRAFTER_REASONS: [&str; 3] =
+    ["source-erased", "source-changed", "superseded-alternative"];
+/// The reason a redaction records, and the only withdrawal reason that redacts.
+pub(crate) const SOURCE_ERASED: &str = "source-erased";
+
+/// When a forgotten source's text was removed (version 2, phase 4 section 9.1): beside a
+/// withdrawal, a rejection or an approval whose apply never landed, never on a pending or an
+/// applied proposal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Redacted {
@@ -295,6 +333,41 @@ impl Proposal {
     pub(crate) fn split_doc(&self) -> Option<(&str, &str)> {
         self.change.doc.split_once('/')
     }
+
+    /// Whether the proposal is still open: waiting for a decision, or approved with its apply
+    /// not finished.
+    pub(crate) fn is_open(&self) -> bool {
+        matches!(self.state, State::Pending | State::Approved)
+    }
+
+    /// The memory record ids its evidence cites, erased entries included.
+    pub(crate) fn memory_sources(&self) -> Vec<String> {
+        memory_sources(&self.evidence)
+    }
+}
+
+/// The memory record ids `evidence` cites: the `<mem id>` of each memory entry's
+/// `<mem id>@<recordVersion>` reference.
+pub(crate) fn memory_sources(evidence: &[Value]) -> Vec<String> {
+    evidence
+        .iter()
+        .filter(|entry| entry.get("kind").and_then(Value::as_str) == Some("memory"))
+        .filter_map(|entry| entry.get("ref").and_then(Value::as_str))
+        .map(|reference| {
+            reference
+                .split_once('@')
+                .map_or(reference, |(id, _)| id)
+                .to_owned()
+        })
+        .collect()
+}
+
+/// The change hash of a redacted proposal: `sha256:` of the canonical JSON
+/// `{ "redacted": "<proposal id>" }` (phase 4 section 9.1), the same for every redaction of it.
+pub(crate) fn redacted_hash(id: &str) -> String {
+    let mut whole = Map::new();
+    whole.insert("redacted".to_owned(), Value::String(id.to_owned()));
+    ContentHash::of(canonical_json(&Value::Object(whole)).as_bytes()).to_string()
 }
 
 /// `sha256:` of the canonical JSON of `change`, `rationale` and `evidence`: what an idempotent
@@ -310,9 +383,8 @@ pub(crate) fn change_hash(change: &Change, rationale: &str, evidence: &[Value]) 
     ContentHash::of(canonical_json(&Value::Object(whole)).as_bytes()).to_string()
 }
 
-/// `p-` and the first 20 hex digits of SHA-256 of `<space>\0<proposer actor string>\0<key>`.
+/// `p-` and the first 20 hex digits of SHA-256 of `<space>\0<proposer actor string>\0<key>`:
+/// [`umbel_okf::draft::proposal_id`], shared with the curator (phase 4 step 5).
 pub(crate) fn proposal_id(space: &str, actor: &str, key: &str) -> String {
-    let hash = ContentHash::of(format!("{space}\0{actor}\0{key}").as_bytes());
-    let hex = hash.as_str().strip_prefix("sha256:").unwrap_or_default();
-    format!("p-{}", &hex[..20])
+    umbel_okf::draft::proposal_id(space, actor, key)
 }

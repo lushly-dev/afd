@@ -202,7 +202,10 @@ export interface KernelParts {
 export interface KernelPartsInternals {
 	/**
 	 * A nested call's answer from the journal, in place of running it (7.6). Undefined runs it: a refusal
-	 * before the middleware leaves no entry, and answers the same again.
+	 * before the middleware leaves no entry, and answers the same again. A recorded call (`replay:
+	 * 'recorded'`) that passes validation then stops in the scope middleware as `REPLAY_NOT_RECORDED`,
+	 * before its handler could reach a server, and the outer call is reported diverged (phase 2
+	 * specification, 10 and 12).
 	 */
 	answerNested?(parent: string, name: string, input: unknown): CommandResult | undefined;
 	/** A nested call ran and reached the journal, so the record has no answer for what it did. */
@@ -381,7 +384,9 @@ export async function createKernelParts(
 				store: options.store,
 				generation: () => generation,
 				isMutation: (name) => mutations.get(name) === true,
-				...(internals.actorOf ? { actorOf: internals.actorOf } : {}),
+				internals,
+				summaries,
+				run,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -502,7 +507,7 @@ export async function createKernelParts(
 						? execute('palette', name, input, callOptions ?? {}, fields)
 						: run('palette', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
-				activeScope: () => scope.active(),
+				scope,
 			});
 			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
 		} catch (cause) {

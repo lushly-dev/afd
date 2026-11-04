@@ -32,7 +32,7 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 
 **Still the owner's:**
 
-1. **Review the index.** All 407 links open, but no person has reviewed the page. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
+1. **Review the index.** All 407 links open. On a first look on 2026-11-03 the owner asked for the page to be styled; it now groups stories by component, filters them and has its own small stylesheet, which no story's frame loads. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
 2. **Name the publisher,** and approve the release itself when it is ready.
 
 **Blocked until the packages can be installed:**

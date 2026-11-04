@@ -9,9 +9,12 @@
 
 ## Status
 
-- **State:** **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of
-  2026-11-03 (D24)**, after an independent review and a revision ([Review response](#review-response)). Written
-  2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
+- **State:** **done 2026-11-03: the exit criterion of section [13](#13-exit-criterion-and-tests) is met** by
+  `first-party/tests/exit_curator.rs` through the real `umbel-first-party` binary, with
+  `first-party/tests/curator_leaks.rs` beside it (step 7; the evidence per point is in
+  [STATUS.md](../../STATUS.md#phase-4-curator)). **Approved 2026-11-03, under the owner's 2026-10-31
+  delegation, with the owner's answers of 2026-11-03 (D24)**, after an independent review and a revision
+  ([Review response](#review-response)). Written 2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
   owner's answers, and the architecture amendments they need. The owner chose the recommended option on nine of
   the ten trust-model questions. On question 10 the owner chose **attest and verify**: the knowledge plugin checks
   every claim a drafter makes rather than trusting it (3.2). Section [16](#16-for-the-owner) records each answer as
@@ -82,9 +85,59 @@
     written and version 1 read and kept, the knowledge manifest at version 4, the digest set of 11.2, and
     `knowledge-proposal-preview` declared as `confirm_preview` by approve and reject; its
     [amendments](#amendments-from-step-3a) settle eleven details, fix one fault in step 1's schema, and change no
-    trust-model point.
-- **Not done:** steps 3b to 7 of section [15](#15-implementation-plan); step 3b (knowledge: the drafted path) is
-  next.
+    trust-model point. Merged in [#754](https://github.com/lushly-dev/afd/pull/754) as `37af26c9`.
+  - Step 3b (knowledge: the drafted path), 2026-11-03, in its pull request, from `37af26c9`: `drafters`,
+    `knowledge-propose-batch` and `knowledge-proposal-feed` on the host's attestation, `PROPOSAL_ALREADY_OPEN`,
+    a drafter's withdrawal and redaction with the checkpoint's state carried through a new `truncate_wal` host
+    service; a listed drafter's memory claims refused until step 3c (`PROPOSAL_DRAFT_UNVERIFIABLE`); every draft
+    that was not applied redacted when its source is erased, and the change log's earlier hashes of it
+    forgotten. Its [amendments](#amendments-from-step-3b) settle thirteen details and change no trust-model
+    point; 12 and 13 record the owner's decisions on its two questions, for the stronger guarantee. Merged in
+    [#763](https://github.com/lushly-dev/afd/pull/763) as `4a6b2de4`.
+  - Step 3c (knowledge: verifying drafts), 2026-11-03, in its pull request, from `4a6b2de4`: `umbel_okf::draft` (the
+    fixed rendering, the rationale, `subject_key` and the id and key derivations); the knowledge plugin's optional,
+    read-only `memory` grant and a `journal` on every command and pipeline; every check of 3.2, with
+    `PROPOSAL_DRAFT_MISMATCH` naming it, in place of step 3b's refusals, which stay only for claims this instance cannot
+    verify; approve's re-checks and authorship from the store (8.2); the "erased" claim checked. Its
+    [amendments](#amendments-from-step-3c) settle fourteen details and change no trust-model point; the
+    fourteenth, the drafter's target held and enforced by the knowledge instance, settles the question the step found,
+    under owner decision 10. Merged in [#765](https://github.com/lushly-dev/afd/pull/765) as `7e52e337`.
+  - Step 4 (curator: candidates), 2026-11-03, in its pull request, from `7e52e337`: the `umbel-plugin-curator` crate
+    with its manifest, `settle` pack, `curator-guide` skill and configuration; eligible records, groups, settling,
+    conflict sets and section 5.1's rule as a pure, public core; drafting through `umbel_okf::draft`, proven against
+    the real knowledge plugin's verification; `curator-candidates` and `curator-promote`; per-principal candidate and
+    consent records; the `memory` job gains the crate. Its [amendments](#amendments-from-step-4) settle twelve
+    details and change no trust-model point; the first adds a host service, `readable_collections` under `documents`,
+    for the metadata of collections the caller reads (in place of the `content` grant, for least privilege), and the
+    ninth a host field, `CallContext.person`, so `curator-promote` makes `memory-confirm`'s person check. Merged in
+    [#767](https://github.com/lushly-dev/afd/pull/767) as `0d46a9a0`.
+  - Step 5 (curator: runs), 2026-11-03, in its pull request, from `0d46a9a0`: `curator-plan`, `curator-finish`,
+    `curator-status` and the `curator-run` pipeline (command line only, `result = "last"`, digest); the lock, its
+    takeover and owner-only release; recovery by derived proposal ids; the rotating memory and document scans;
+    re-verification and deprecation drafts with per-document `review` records; rejection and apply feedback; the
+    re-check of open drafts and forgotten evidence (the `erased` notice, the curator's records erased, a consent that
+    keeps no sources). Its [amendments](#amendments-from-step-5) settle thirteen details and change no trust-model point;
+    the first refuses the run's steps outside the run, and the ninth declares one grant less (`graph`). Merged in
+    [#768](https://github.com/lushly-dev/afd/pull/768) as `9ea18e73`.
+  - Step 6 (auto-approval), 2026-11-03, in its pull request, from `9ea18e73`: `knowledge-auto-approve` (command line
+    only, a prompt `--yes` answers, digest-journaled, refused for a pipeline step or a caller that is not a person) and
+    the one rule kind, `deprecate-declared`, in an area's `auto` list (default `[]`). It applies a drafted deprecate only
+    when a person's applied `create` or `update` wrote the declaration into the document's current bytes, its diff adding
+    that line, and the successor is readable by the document's readers; as the policy's decision, never a person's. Its
+    [amendments](#amendments-from-step-6) settle eleven details and change no trust-model point; the seventh closes two
+    cases the text's predicate let through (a typed declaration carried through a verification or an edit). No host
+    `src/`, `wit/` or `schemas/` file changed. Merged in [#770](https://github.com/lushly-dev/afd/pull/770) as
+    `6e1c0a0a`.
+  - Step 7 (binary and exit), 2026-11-03, in its pull request, from `6e1c0a0a`: `umbel-first-party` links the
+    curator, so the binary has all five first-party plugins; `first-party/tests/exit_curator.rs` runs section 13's
+    seven points through the binary and writes its report to `UMBEL_CURATOR_EXIT_REPORT`, which the `memory` job
+    uploads; `first-party/tests/curator_leaks.rs` probes every curator surface and the knowledge plugin's proposal
+    surfaces for what `human:bo` learns of `human:ada`. The exit found no defect in the implementation, so no
+    plugin, host, schema or SDK file changed. Its [amendments](#amendments-from-step-7) settle eleven details of
+    section 13 and change no trust-model point.
+- **Not done:** nothing in section [15](#15-implementation-plan)'s plan. Open: the [follow-ups](#follow-ups), and
+  the one question for the owner in step 7's amendment 11 (a draft its proposer can no longer read is not reached
+  for redaction, the limit step 3b's amendment 12 stated).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -346,9 +399,12 @@ evidence, memory `derivedFrom`, a `conflictSet` or withdrawals, and is otherwise
 by its caller. **The knowledge instance accepts an attestation only from instances it lists**:
 
 ```toml
-[plugins.knowledge.config]
-drafters = ["curator"]          # default []: an attested submission is PROPOSAL_DRAFTER_NOT_ALLOWED
+[plugins.knowledge.config.drafters.curator.targets.main]   # no drafters: PROPOSAL_DRAFTER_NOT_ALLOWED
+collection = "notes"            # where the curator's creates go in the space main
+prefix = "learned"              # optional; a create is exactly notes/learned/<derived id>
 ```
+
+(This is step 3c's amendment 14; the approved text read `drafters = ["curator"]`, and named no target.)
 
 **Listing an instance is not trusting it.** The host attests who drafted (`plugin`, `instance`, `pipeline`,
 `run`). The knowledge plugin then **verifies every other claim itself**, through its read-only `memory` grant
@@ -365,7 +421,7 @@ the one item with `PROPOSAL_DRAFT_MISMATCH`, whose `details.check` names the che
 | Excerpt | Each `excerpt` is the record's text cut at 1000 characters | `excerpt` |
 | Content | `change.content` is byte-equal to `umbel_okf::draft::render` over the verified sources, the instance and `generated.at` | `content` |
 | Candidate | `candidate` equals `umbel_okf::draft::candidate_id(space, caller principal, lowest source id)` | `candidate` |
-| Document id | `change.doc` is the curator's configured target, ending in the candidate id, or in the conflict set id when `conflictSet` is set | `document` |
+| Document id | `change.doc` is exactly the drafter's target, as this instance's own configuration names it (step 3c, amendment 14), followed by the candidate id, or the conflict set id when `conflictSet` is set | `document` |
 | Conflict set | `conflictSet`, when set, has the `k-` form; every open proposal sharing it targets the same document, and their sources share `umbel_okf::draft::subject_key` of the subject and differ in content hash | `conflict-set` |
 | Widening and mode | Knowledge computes whether the target's access is wider than the sources' (5.1). If it is not, `mode` must be `scheduled` and `promotedBy` absent. If it is, `mode` must be `promoted`, and the caller's effective principal must be the principal of **every** source; `promotedBy` must equal it. Higher sensitivity is always refused | `mode`, `promoted-by`, `sensitivity` |
 | `generated.at` | At or after every source's current `recordedAt`, and at or before `now` | `generated-at` |
@@ -460,11 +516,12 @@ Per space, the curator configuration names where promotions go:
 ```toml
 [plugins.curator.config.spaces.main]
 collection = "notes"            # a markdown collection with an area
-prefix = "learned/"
+prefix = "learned"              # optional; plain segments, no trailing / (step 3c, amendment 14)
 ```
 
-- **Document id:** `<collection>/<prefix><candidate id>`, or `<prefix><conflict set id>` for alternatives.
-  Opaque and content-free.
+- **Document id:** `<collection>/<prefix>/<candidate id>`, or `<collection>/<prefix>/<conflict set id>` for
+  alternatives (`<collection>/<id>` without a prefix). Opaque and content-free. The knowledge instance's drafter
+  entry names the same target and is the one enforced (step 3c, amendment 14).
 - **Existing document:** the candidate is `skipped` with reason `target-exists`.
 - **Content:** fixed, as below.
 
@@ -835,16 +892,21 @@ The configuration adds `drafters` (3.2) and an `auto` list per area (8.3).
 | `CURATOR_CANDIDATE_NOT_FOUND` | Absent or not the caller's, alike | No |
 | `CURATOR_PROMOTE_NOT_ALLOWED` | A source is not the caller's own, or its hash changed | No |
 | `CURATOR_MODEL_UNAVAILABLE` | `config.model` is set (8.5) | No |
+| `CURATOR_RUN_REQUIRED` | `curator-plan` or `curator-finish` called other than as a step of the curator's own `curator-run` (step 5, amendment 1) | No |
 | `PROPOSAL_DRAFTER_NOT_ALLOWED` | An attested submission from an instance not in `drafters` | No |
+| `PROPOSAL_DRAFTER_TARGET_INVALID` | A drafter's configured target names a collection the space lacks, or one that is not markdown (step 3c, amendment 14) | No |
 | `PROPOSAL_EVIDENCE_INVALID` (extended) | Memory evidence, memory `derivedFrom`, a `conflictSet` or a withdrawal without an accepted attestation | No |
-| `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2); `details.check` names the check | No |
+| `PROPOSAL_DRAFT_MISMATCH` | A drafter's claim does not match the memory store or the fixed rendering (3.2, and step 3c's amendment 4); `details.check` names the check. Also at approve, for a copied field that no longer matches (8.2), and for an "erased" claim the store contradicts (step 3c, amendment 11) | No |
+| `PROPOSAL_DRAFT_UNVERIFIABLE` | A listed drafter's claim this instance cannot verify: memory without the `memory` grant or on an op other than `create`, or content citing no memory record (step 3b, amendment 1; step 3c, amendments 2 and 3); `details.claim` names it. Also at approve, for a memory draft without the grant | No |
 | `PROPOSAL_ALREADY_OPEN` | A drafted proposal for a document or source that has an open proposal | No |
 | `PROPOSAL_BATCH_TOO_LARGE` | More than 50 proposals, 50 withdrawals or 400 cited sources | No |
 | `PROPOSAL_ACCESS_WIDENED` | Approve's re-check of 5.1 fails | No |
 | `PROPOSAL_SOURCE_GONE` | Approve finds a source gone (8.2) | No |
-| `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation | No |
+| `PROPOSAL_AUTO_NOT_ALLOWED` | `knowledge-auto-approve` with a pipeline attestation, or from a caller that is not a person (step 6, amendment 2) | No |
 | `CONFIRMATION_PREVIEW_FAILED` | The preview failed; nothing ran | No |
 | `CURATOR_CANDIDATES_SKIPPED` (warning) | A run skipped candidates; details hold counts by reason | |
+| `CURATOR_LOCK_TAKEN_OVER` (warning) | `curator-finish` found its expired lock taken over by another run, so it recorded its report and left the state (step 5, amendment 3) | |
+| `PROPOSAL_REDACTION_PENDING` (warning) | A redaction's checkpoint found a reader holding the write-ahead log (step 3b, amendment 8) | |
 
 ## 12. Security
 
@@ -877,8 +939,9 @@ The exit criterion is met when `umbel.yml` is green on `main` with every test be
 - the real `umbel-first-party` binary, run as a child process;
 - `testkit`'s frozen clock and stand-in person;
 - a space `alpha` with a `notes` collection and an area over it;
-- `drafters = ["curator"]`;
-- the target `notes/learned/`;
+- the curator listed in `drafters`, with its target `notes` and prefix `learned` (step 3c, amendment 14);
+- the target `notes/learned/` (collection `notes`, prefix `learned`), named alike in the curator's and the
+  knowledge instance's configuration;
 - memory records written as `human:ada` through the store API into the binary's workspace (as phase 3's
   `support/stores.rs`), while the CLI is `human:local`.
 
@@ -939,7 +1002,7 @@ It asserts:
 | `plugins/knowledge/tests/preview.rs` | knowledge | Rendering, labels, reader rules |
 | `plugins/knowledge/tests/redaction.rs` | knowledge | 9.1's redacted record; idempotent; applied proposals untouched |
 | `plugins/knowledge/tests/journal_modes.rs` | knowledge | 11.2's digest set: a canary in a drafted proposal never in the journal |
-| `plugins/knowledge/tests/auto_approve.rs` | knowledge | 8.3, if built |
+| `plugins/knowledge/tests/auto_approve.rs` | knowledge | 8.3, with step 6's amendments |
 | `plugins/knowledge/tests/proposals.rs`, `verification.rs` (existing) | knowledge | Phase 2 behaviour unchanged |
 | `plugins/curator/tests/settle.rs` | curator | 4.1 to 4.3 |
 | `plugins/curator/tests/conflicts.rs` | curator | 4.4 |
@@ -1171,6 +1234,731 @@ schema. None changes who may draft, verify, approve or read anything, or what th
     batch writes them. Approve's re-checks of a drafted proposal (8.2) and `agent-inferred` for its document stay
     steps 3b and 3c's.
 
+### Amendments from step 3b
+
+Step 3b settled these details of sections 2.1, 3.1, 3.2, 7.1, 8.2, 9.1, 11.2 and 11.3 that the text left open.
+None lets a non-drafter submit drafted proposals, weakens the attestation or leaves more forgotten text readable
+than the text alone; the first holds owner decision 10 in place until step 3c can verify, and the sixth removes
+more than 9.1 lists. The two questions this step found were put to the owner, who decided both for the stronger
+forget guarantee, with no accepted residue (2026-11-03): amendments 12 and 13 close them, and 7 and 8 are written as
+they now stand.
+
+1. **A listed drafter's memory claims are refused until step 3c verifies them.** Owner decision 10 is attest
+   *and verify*, and the checks of 3.2 that read the memory store and `umbel_okf::draft` are step 3c's. So in
+   step 3b `knowledge-propose-batch` refuses, from an attested, listed drafter, every claim 3.2 would verify
+   that way, item by item, with a new code, **`PROPOSAL_DRAFT_UNVERIFIABLE`** (not retryable), whose
+   `details.claim` names the claim and never the content:
+   - `memory-evidence`: a `memory` evidence entry;
+   - `derived-from`: a `derivedFrom` (which 2.1 makes memory only);
+   - `candidate`: `drafter.candidate` (its derivation needs the sources);
+   - `promotion`: `mode = "promoted"` or a `promotedBy` (the widening check needs the sources);
+   - `conflict-set`: a `conflictSet` (its consistency check reads the sources' subject keys);
+   - `content`: a `create` or `update` (3.2's content row compares it byte for byte with the fixed rendering).
+
+   What a listed drafter can store in step 3b is therefore a `verify` or `deprecate` draft citing `document`,
+   `url`, `text` or `record` evidence, with `mode = "scheduled"`, which this plugin computes (nothing is
+   widened) rather than takes on trust. `PROPOSAL_EVIDENCE_INVALID` and `PROPOSAL_DRAFT_MISMATCH` did not fit:
+   the first means "no accepted attestation", and the second that a check ran and failed. The preview labels a
+   draft that cites no memory record "Drafter, checked at submission: it cites no memory record, so it widens
+   no one's readers", never "verified against memory at submission". So no proposal carrying that label can
+   be stored before the verification exists. Step 3c lifts each refusal as its check lands, and settles
+   whether the code stays for an instance whose `memory` grant is withheld. `drafted.rs`
+   (`a_listed_drafters_memory_claims_are_refused_until_they_can_be_verified`) holds each claim refused and
+   nothing stored.
+2. **The batch's shapes.** An item is `knowledge-propose`'s input without `space`, plus `drafter: { mode?,
+   candidate?, promotedBy? }` (the claims only: `plugin`, `instance`, `pipeline` and `run` come from the
+   attestation and are never input), `conflictSet` and `derivedFrom`; an evidence entry may have 2.1's
+   memory shape. AFD's schema subset has no `pattern` or `oneOf`, so the host's schema checks types, enums
+   and lengths, and the handler the rest. The lists carry no `maxItems`, so the caps answer
+   `PROPOSAL_BATCH_TOO_LARGE` rather than `VALIDATION_ERROR`; the 400 counts distinct memory record ids
+   across the batch, before any item, whoever calls. The result is `{ space, drafter, results, withdrawals,
+   erased, counts, checkpoint }`: `drafter` the attestation or `null`; `results[i]` `{ index, ok: true, created,
+   rev?, proposal }` (the summary) or `{ index, ok: false, error }`; `withdrawals[i]` `{ index, ok: true,
+   withdrawn, redacted, proposal }` or `{ index, ok: false, proposal: <id>, error }`; `erased` (amendment 12)
+   `{ sources, redacted: [ids], withdrawn: [ids], refused: [{ proposal, error }] }` or `null`; `counts` `{ created,
+   existing, refused, withdrawn, redacted, withdrawalsRefused }`. Only `PROPOSAL_DRAFTER_NOT_ALLOWED`,
+   `PROPOSAL_BATCH_TOO_LARGE` and a missing space refuse the whole call. Without an attestation, a non-null
+   `drafter`, `conflictSet` or `derivedFrom`, a memory entry, or any withdrawal is `PROPOSAL_EVIDENCE_INVALID`
+   for its item. 3.1's `finish` step reads `$steps.submit.results`; step 5 also passes
+   `$steps.submit.withdrawals` and `$steps.submit.checkpoint`.
+3. **Withdrawals run first**, then the proposals, so a run that withdraws a stale draft and submits its
+   replacement for the same document (7.3's recovery) is not refused as already open.
+4. **`PROPOSAL_ALREADY_OPEN`.** "Open" is `pending` or `approved` (an apply that stopped). The caller's
+   readable proposals are read once per attested batch and the set is kept up to date as items are stored,
+   so a batch's second draft for a document is refused. The idempotent retry is checked first, so a rerun
+   gets its own existing proposal back (`created: false`). Members of one conflict set do not block each
+   other on their shared document (3.2's conflict-set row; step 3c passes the set). An ordinary batch and
+   `knowledge-propose` are not held to it, as phase 2 allows several proposals per document. The
+   memory-source half is in place and is first exercised in step 3c, since no draft cites memory before it.
+5. **A retry repeats the drafter's claims.** The same key with the same change hash returns the existing
+   proposal only when its drafter's `plugin`, `instance`, `pipeline`, `mode`, `candidate` and `promotedBy`
+   and its conflict set are the ones asked for, and drafted and undrafted never match; anything else is
+   `PROPOSAL_KEY_REUSED`. The `run` is not compared, since a later run renders the same draft (7.3).
+6. **What a redaction removes, beyond 9.1's list.** Also the rationale, replaced by a fixed sentence (a
+   drafter's rationale is its own text, which 3.2 bounds only by its counts); every evidence `excerpt`, not
+   only memory entries'; a verify's `verification.note`; and `derivedFrom` in the stored record's envelope as
+   well as the body's. The id, the document id, the idempotency key, `flags` and `confidence` stay.
+7. **Who withdraws and redacts, and in which states.** A drafter's withdrawal needs the proposal's `drafter`
+   to name the attested plugin and instance and its proposer to be the batch's caller, since a run works for
+   its caller; otherwise `PROPOSAL_NOT_PROPOSER`. Its reasons are `source-erased`, `source-changed` and
+   `superseded-alternative` (the schema refuses `retracted`), and `redact: true` goes exactly with
+   `source-erased` (`PROPOSAL_INVALID` otherwise), as `redacted.reason` is always `source-erased`. A `pending`
+   draft is withdrawn, and with `redact` withdrawn with `source-erased` and redacted. With `redact`, any other
+   draft that was not applied is redacted in place, keeping its state and its withdrawal or decision
+   (amendment 12). Without it, a withdrawn draft is left as it is, and an approved or rejected one is
+   `PROPOSAL_STATE_INVALID`, as only a pending proposal is withdrawn. An applied one is always
+   `PROPOSAL_STATE_INVALID`: 9.1 never retracts it. A redacted draft is not written again (idempotent:
+   `withdrawn` and `redacted` false), though the change log still forgets any earlier hash of it (amendment
+   13).
+8. **The checkpoint's state, carried through (step 2's amendment 9).** A new host service,
+   `HostServices::truncate_wal` (SDK `Cx::truncate_wal`, answering `WalCheckpoint::Clean` or `Pending`), runs
+   step 2's `SqliteStore::truncate_wal` under the rules of `checkpoint` (a write grant allowed for the space,
+   in one of the call's spaces). It is compiled-only, as `CallContext.pipeline` is; WIT world 1.0.0 is
+   unchanged. After a batch that redacted anything, or made the change log forget a hash (amendment 13), the
+   plugin runs it once and reports `checkpoint: "clean"` or `"pending"` (`null` otherwise; an error reads as
+   `pending`). `pending` adds the warning
+   **`PROPOSAL_REDACTION_PENDING`**, which suggests `store-check`, whose checkpoint finishes it, as does a
+   later write's best-effort checkpoint. A pipeline with `result = "last"` returns only the last step's data
+   (step 2's amendment 5), so a step's warnings do not reach the pipeline's result; the batch's `checkpoint`
+   field is what reaches `curator-finish`, and the step's digest journal entry keeps the warning's code.
+   Step 5 surfaces it in the run's answer.
+9. **The feed.** Its input is `{ space, after }`, `after` a required integer. A call without an attestation,
+   or with one of an unlisted instance, is `PROPOSAL_DRAFTER_NOT_ALLOWED` (11.3 names it for submissions; 11.2
+   says the feed refuses such a call). It reads the store's change log after `after` under the caller's
+   reader filter, in pages of 500 and at most 5000 changes per call, and reports each readable proposal of
+   this instance whose `drafter` names the attested plugin and instance, whose proposer is the caller, and
+   which is `rejected` or `applied` at a revision after `after`, once per call, in revision order: `{
+   proposal, state, doc, candidate, conflictSet, rev, decidedAt, decidedBy, channel }`, with `reason` for a
+   rejection and `contentHash` for an apply, and `redacted`. A withdrawal is not a decision and is not
+   reported. A redaction writes the record again, so a redacted rejection is reported once more, with
+   `redacted: true` and no reason. `next` is the
+   last revision read, for `feedAfter`; `more` says the bound stopped it. A rejection's reason is an
+   approver's text, so the data carries `trust: "content"`, as the result's metadata does. Its journal keeps
+   `space` and `after`; the batch's keeps `space`.
+10. **Drafted proposals are `agent-inferred`**, in the body's provenance, the stored record's envelope and the
+    document an approval writes, whoever ran the pipeline (8.2). Approve's authorship rule for a draft, which
+    compares the approver with every source's principal read from the memory store and with `promotedBy`,
+    comes with step 3c's `memory` grant, as do 8.2's re-checks. Until then a draft keeps phase 2's rule: the
+    runner approving it is self-approval. That is stricter than 8.2, under which a `verify` or `deprecate`
+    draft needs no exception, and never looser.
+11. **Test support.** `plugins/knowledge/tests/support/drafter.rs` holds two stand-in drafters, `curator`
+    (listed) and `scribe` (not): compiled plugins whose pipelines' only steps are the batch and the feed, so
+    the host attests them as it will the curator's. `umbel-store-embedded`'s `testkit` feature gains
+    `SqliteStore::hold_reader`, a reader holding the write-ahead log, so `redaction.rs` sees `pending` without
+    linking SQLite into the plugin's tests; the knowledge crate's dev-dependency enables that feature, and no
+    crate is added.
+12. **Every draft that was not applied is redacted when its source is erased** (the owner's decision of
+    2026-11-03, closing step 3b's first question). 9.1 and step 1's schema redacted only a draft the drafter
+    withdrew, so a rejected draft, one its proposer withdrew with `knowledge-withdraw`, and one approved whose
+    apply never landed kept their memory-derived text readable by the target's readers after the source was
+    forgotten. Now:
+    - **`proposal.v2.json`** allows `redacted` beside `withdrawn` (whoever withdrew it), `rejected` and
+      `approved`, and never beside `pending` or `applied`; it no longer requires a redacted record's withdrawal
+      to be a drafter's for `source-erased`. A redacted record keeps no `verification.note`, no
+      `decision.reason` and no evidence `excerpt` of any kind, beside 9.1's fields. The schema changed, with
+      `tests/schemas/phase4.rs`.
+    - **The redaction** keeps the decision (who, when, the channel and the outcome) or the withdrawal as it was,
+      and removes the rest as amendment 6 says, now including a rejection's reason, which is an approver's text
+      and may quote the draft. A pending draft is withdrawn by the drafter with `source-erased` first. An
+      applied proposal is never retracted (owner decision 7).
+    - **How it reaches drafts that are not open.** The curator re-checks only its open drafts (9.1), so the
+      batch gains an **`erased`** notice: up to 400 memory record ids (`mem-` and 24 hex digits) the drafter saw
+      `Erased` in the memory store's changes feed. The knowledge plugin redacts each of that drafter's own drafts
+      for the caller that cites one of them and was not applied, whatever its state, and answers which it
+      redacted and withdrew. The notice needs an accepted attestation (`PROPOSAL_EVIDENCE_INVALID` for the whole
+      call otherwise; `PROPOSAL_INVALID` for a malformed id; `PROPOSAL_BATCH_TOO_LARGE` over 400). A `withdraw`
+      item with `redact: true` reaches the same states by id. Step 3c may check that a named source is in fact
+      gone before redacting; nothing is lost by redacting early, since a redaction only removes text.
+    - **Approve** refuses a redacted draft with `PROPOSAL_SOURCE_GONE` (8.2's code) before anything else, since
+      nothing is left to apply.
+    - **Limit, stated:** proposals are read under the caller's reader filter, so a draft its own proposer can no
+      longer read (the proposer removed from the record's readers since) is reached by neither path. Its readers
+      are then only those the record still admits.
+13. **No earlier body hash of a redacted draft is left in the change log** (the owner's decision of 2026-11-03,
+    closing step 3b's second question). `store.sqlite3`'s `changes` table kept every version's record hash, a
+    hash of a body that held the forgotten text, which may confirm a guess as the change hash 9.1 redacts would.
+    Now:
+    - **The store:** `DocumentStore::forget_record_history(ns, kind, id)` sets `content_hash` to null on the
+      record's earlier changes (the current version's keeps its hash; revisions, trace ids and times stay) and
+      answers how many it changed; the embedded store does it in one `BEGIN IMMEDIATE` transaction, under
+      `secure_delete`, and the batch's checkpoint (amendment 8) truncates the write-ahead log after it. `NotFound`
+      for an absent record. `store-embedded/tests/secure_delete.rs` holds that the old hashes are gone from the
+      database file and its log after the checkpoint.
+    - **The host:** a compiled-only service, `HostServices::record_forget_history(space, kind, id)` (SDK
+      `Cx::record_forget_history`), under `records_write` for the space and only in the instance's own
+      namespace. `tests/store_truncate_wal.rs` holds its rules.
+    - **The plugin** calls it after every redaction, and again for a redacted draft a later notice or item names,
+      so an interrupted run leaves nothing behind.
+    - **The journal and the events.** A decision or withdrawal of a drafted proposal (`knowledge-reject`,
+      `knowledge-withdraw`) no longer puts the record's hash in `dev.umbel/provenance`'s `contentHash`, since
+      those keys enter both. Undrafted proposals keep it. `redaction.rs`
+      (`no_earlier_body_hash_of_a_redacted_draft_remains`) holds, for a draft the batch stored and a person
+      rejected, that neither earlier hash is left in the change log, the files, the journal or the events.
+
+### Amendments from step 3c
+
+Step 3c settled these details of sections 2.1, 3.2, 4.5, 8.1, 8.2, 9.1, 10.3, 11.2, 11.3 and 13 that the text left
+open.
+None accepts a drafter's claim unverified, reads memory beyond the caller's reader filter, or changes who may draft,
+approve or read anything. Every one refuses where the text was silent, or reads the store where the text allowed
+trust; the tenth ends step 3b's interim authorship rule for 8.2's, as 3b's amendment 10 said it would.
+
+1. **`umbel_okf::draft`'s bytes.** The rendering's frontmatter holds `title`, `type`, `tags` and `generated`, in that
+   order. Each value is a YAML double-quoted scalar with JSON's escapes, plus `\u` escapes for C1 controls, U+2028,
+   U+2029 and U+FEFF, so no record's text can break a line. `tags` is `[]` when there are none. Tags and constraints
+   are the records' union, sorted, each once. The text gets one final newline when it has none. `Holds only` appears
+   only with constraints.
+   - `generated.by` is `umbel:<plugin>/<instance>` from the host's attestation, which is 4.5's `umbel:curator/<instance>`
+     for the curator plugin.
+   - `generated.at` is the canonical instant `YYYY-MM-DDTHH:MM:SS.mmmZ` (`format_instant`), so it reads back as one
+     value.
+   - The rationale, 4.5's "fixed text from the snapshot", is `Drafted from <class> memory of authority <authority>,
+     observed in <n> session(s) by <m> principal(s), settled at <instant>.` `Rationale::parse` is its exact inverse.
+   - The idempotency key is `<instance>/<candidate id>/<drafts>`: 4.5's `curator/...` for the instance `curator`, and
+     two curator instances never share a key.
+
+   `okf/tests/draft.rs` pins each of these byte for byte.
+2. **The `memory` grant is optional.** It is declared `required = false`, so a deployer who runs no curator may deny
+   it (`deny = ["memory"]` under `[plugins.knowledge]`) and the instance still loads. This settles step 3b's amendment
+   1 question: for such an instance `PROPOSAL_DRAFT_UNVERIFIABLE` stays. Every memory claim is refused with claim
+   `memory-evidence`, and approve refuses a stored memory draft with the same code, so nothing is accepted or applied
+   unverified.
+   - It is a read grant, so it needs no `allow` list and the README's `umbel.toml` is unchanged.
+   - The reads are `memory_get` and, only when no version is current, `memory_history`, both under the caller's reader
+     filter, never a derivation read (owner decision 4).
+   - Holding it, phase 3 section 2.3 requires a `journal` on every command and pipeline. The read and index commands,
+     `knowledge-propose`, `-verify` and `knowledge-refresh` declare `plain`, as they behaved before. The digest set is
+     unchanged.
+3. **What stays unverifiable**, claim by claim, with `PROPOSAL_DRAFT_UNVERIFIABLE`:
+   - `memory-evidence`: without the grant, or on an op other than `create`, since 4.5 drafts memory only as a new
+     document's fixed rendering.
+   - `content`: a drafter's `create` or `update` that cites no memory record, since there is no rendering to compare it
+     with.
+
+   The other claims step 3b refused now have checks. A candidate, a promotion, a conflict set or a `derivedFrom` on a
+   draft citing no memory record is false on its face: `PROPOSAL_DRAFT_MISMATCH` with `candidate`, `mode` or
+   `promoted-by`, `conflict-set`, or `derived-from`.
+4. **Checks the table did not name**, each `PROPOSAL_DRAFT_MISMATCH`:
+   - `source-authority`: a source whose authority is not `person`, `agent`, `tool` or `import`. A transcript never
+     settles (owner decision 9), and step 1's amendment 9 already kept it out of the evidence schema.
+   - `evidence`: a draft citing memory cites only memory. Any other entry's `ref` is free text that would outlive a
+     redaction.
+   - `derived-from`: `derivedFrom` names each source exactly once, as kind `memory` (2.1's "per source"). A missing or
+     extra entry fails here; a differing hash is `source-hash`, as the table says.
+   - `rationale`: the rationale is amendment 1's fixed text, of the group's class, with an authority no higher than the
+     highest source's, at the content's settling instant. Counts above the store's are `counts`, as the table says.
+   - `key`: the idempotency key is amendment 1's derivation for the attested instance and the verified candidate, with
+     any draft count. A key survives a redaction (step 3b, amendment 6), so it must be content-free.
+   - `run`: a drafted item's `run` is absent or the attested run. It is stored as `proposer.run` and the envelope's
+     `session`, which also survive a redaction.
+
+   A memory entry not in 2.1's exact shape (an unknown key, a malformed `ref`) is `PROPOSAL_INVALID`. Two entries for
+   one record are `group`.
+5. **How the checks read the store.** Each source is read once per batch, at the call's `now`, with flagged and expired
+   versions let through, so a refusal can name its cause:
+   - `source-missing`: no version readable under the caller's filter. Never written, forgotten, purged and another
+     person's private record are one answer.
+   - `source-not-live`: versions readable but none current (invalidated or superseded), or a current version that is
+     invalidated, superseded, outside its validity or expired.
+   - `source-flagged`, `source-class` and `source-authority`, as named.
+
+   The checks run in this order, and the first that fails refuses the item: `run`, source exists, version and hash, group
+   (before the copied fields, since the rendering needs one group), copied fields, confidence, counts, excerpt,
+   `generated-at`, content, rationale, candidate, key, the conflict set's form, document, the conflict set's
+   consistency, sensitivity, widening and mode. Further:
+   - `confidence` is the highest of the sources' asserted confidences, and absent when none asserts one.
+   - An entry without an `excerpt` claims none.
+   - `generated-at`'s lower bound is each source's current `recordedAt`.
+6. **Document and conflict set.**
+   - Document: `change.doc` is a `create` at `<collection>/<path>` whose path ends in the candidate id, or in the
+     conflict set id when one is set. Submit already requires a collection an area governs. **Superseded by
+     amendment 14**: the path is exactly the configured target's.
+   - Conflict set: it has the form `k-` and 20 hex digits. Every *open* proposal sharing it targets the same document,
+     the `subject_key` of its title (the verified rendering's subject) equals this draft's, and none cites this draft's
+     content hash.
+   - The set id's derivation from the lowest member is not checked: 4.4 fixes it when the set first forms, and later
+     members may be lower.
+   - A verified conflict set goes to `PROPOSAL_ALREADY_OPEN`, so alternatives do not block each other on their shared
+     document (step 3b, amendment 4).
+7. **Verification and the idempotent retry.** A retry that repeats the change and the drafter's claims returns the
+   stored draft before any check, as step 3b's amendment 4 says, since it accepts nothing new. A different draft under
+   a used key is verified before it is called `PROPOSAL_KEY_REUSED`, so a replayed batch with a tampered copied field
+   is `PROPOSAL_DRAFT_MISMATCH` naming that field (section 13, point 1). Verification also comes before
+   `PROPOSAL_ALREADY_OPEN`.
+8. **What is stored.** A verified draft stores:
+   - its `derivedFrom`, in the body's provenance and the record's envelope, each entry of kind `memory`;
+   - its conflict set;
+   - its claimed and verified `mode`, `candidate` and `promotedBy`.
+
+   A later save (a decision, a withdrawal) keeps the envelope's `derivedFrom`, and only a redaction removes it. Phase
+   2's approve cleared it on every save, when no proposal had one. No result's `dev.umbel/provenance` carries it, as
+   11.2 requires.
+9. **Approve's re-checks (8.2)** run in this order: the redaction refusal (step 3b, amendment 12), the state, the
+   target, each source, then authorship.
+   - Target, scheduled draft: the target's current resolved access set must lie within every source's copied set, and
+     its sensitivity must not be below any source's.
+   - Target, promoted draft: 5.1 lets its target be wider, so the current target must lie within the target's access
+     set recorded at submission (the proposal's `provenance.access`). No reader is added after the owner's consent.
+   - A target that fails either rule is `PROPOSAL_ACCESS_WIDENED`.
+   - Sources: one absent, not live, flagged, or not at its cited version and hash is `PROPOSAL_SOURCE_GONE`; a copied
+     field no longer equal to the record's is `PROPOSAL_DRAFT_MISMATCH` naming it.
+
+   An apply resumed from `approved` re-checks too. The approver reads under their own filter (owner decision 4), so a
+   promoted draft of a private record can be approved only by someone who can read it: its owner, which is
+   self-approval.
+10. **Authorship from the store (8.2, D102).** Approving a drafted proposal is self-approval when the approver's
+    effective principal or actor string equals a source record's principal, read at approve, or `promotedBy`. The
+    proposer, who ran the pipeline, is no longer compared. So a draft of another person's shared memory, and a drafted
+    `verify` or `deprecate` (which cite no memory), are approved by the runner with no exception, as 8.2 says, and
+    step 3b's stricter interim rule (its amendment 10) ends. Undrafted proposals keep phase 2's rule.
+11. **The "erased" claim is checked.** Step 3b's amendment 12 left this open. Two paths redact: a `withdraw` item with
+    `redact: true`, and each draft the `erased` notice reaches. Either redacts only when the memory store, read under
+    the caller's filter, no longer holds one of the sources named. Otherwise the draft is unchanged and the item is
+    `PROPOSAL_DRAFT_MISMATCH` with `details.check = "source-erased"`; the notice reports it in `erased.refused`.
+    - An erased record never returns, so the check never keeps forgotten text.
+    - A record the caller can no longer read counts as gone, since a redaction only removes.
+    - A draft citing no memory record is never redacted as if a source were erased.
+    - Without the `memory` grant nothing can be checked, and the redaction proceeds, for the same reason.
+    - A draft already redacted is not checked again.
+12. **The preview's labels.** They stand as steps 3a and 3b set them, and every field under "verified against memory at
+    submission" is now checked by a row of 3.2: the drafter's `mode`, `candidate` and `promotedBy`, and each memory
+    entry's principal, class, sensitivity, authority, origin, constraints, access, confirmation and content hash.
+    - The observed sessions (bounded only) and the settling instant (bounded) stay under "drafter's policy".
+    - The principals count, now verified exactly, stays beside them rather than change the layout: it says less than
+      is known, never more.
+    - A draft citing no memory still reads "checked at submission: it cites no memory record".
+    - Records a library embedder writes are trusted, as before (D14).
+13. **Tests.**
+    - `okf/tests/draft.rs` (10 tests, with amendment 14's).
+    - `plugins/knowledge/tests/verify_drafts.rs` (20, with amendment 14's), with `tests/support/memory.rs`, which writes memory records
+      through the store and builds drafts through `umbel_okf::draft`. It enables `umbel-store`'s `conformance` feature
+      for the knowledge crate's tests, for the suite's memory samples; no crate is added.
+    - `drafted.rs` gains approve's authorship from the store, and its step 3b refusal test becomes the test of what
+      stays refused.
+    - `journal_modes.rs` approves a verified draft (a seeded draft citing a record the store never held is now
+      `PROPOSAL_SOURCE_GONE`) and holds the manifest's `plain` journals and its optional `memory` grant.
+    - `redaction.rs` redacts a verified draft after its source is forgotten, and holds that a draft citing no memory is
+      not redacted as erased.
+    - The 400-source cap stays in `drafted.rs`.
+14. **The drafter's target, held and enforced by the knowledge instance** (settled 2026-11-03 as the faithful
+    application of the owner's decision 10, attest and verify, closing the question this step found). 3.2's
+    document row named "the curator's configured target", which lives in the curator's namespace and which knowledge
+    cannot read, so a faulty drafter could have put text in the path before the id, and a document id outlives a
+    redaction.
+    - **Configuration.** `drafters` becomes a table keyed by instance, each entry with its `targets` by space:
+      `[plugins.knowledge.config.drafters.curator.targets.main]` with `collection` and an optional `prefix`. A table
+      rather than a sibling map, so a target can never name an instance that is not listed. A drafter listed with no
+      target in a space (`[plugins.knowledge.config.drafters.<instance>]` alone) drafts no create there; its `verify`
+      and `deprecate` drafts are unaffected. Targets are per space because collections are.
+    - **Validated at load**, by the configuration schema the host checks (`PLUGIN_CONFIG_INVALID`): the shapes, a
+      collection id, and a prefix of one to eight plain segments joined by `/`, each a lowercase letter or digit then
+      letters, digits, `-` or `_` (`umbel_okf::draft::is_safe_prefix`): no `.` or `..`, no empty segment, no leading
+      or trailing `/`. **Checked at use**, on every drafted create, because a plugin's schema cannot see the
+      workspace's collections: the collection must be a markdown collection of the space, else
+      **`PROPOSAL_DRAFTER_TARGET_INVALID`** (11.3). That the knowledge instance writes it (`content_write` and
+      `documents_write` allowed for it) is not visible to a plugin at all; an approval of a draft there stops with
+      `PROPOSAL_APPLY_UNAVAILABLE`, as for any proposal.
+    - **The check.** A drafter's create must be exactly `umbel_okf::draft::document_id(collection, prefix, id)`,
+      `<collection>/<prefix>/<id>` (its file `<prefix>/<id>.md`), or `<collection>/<id>` without a prefix, where `id`
+      is the verified candidate id or the conflict set id. Anything else, and a create with no target, is
+      `PROPOSAL_DRAFT_MISMATCH` with `check = "document"`. With the key, the `run`, the candidate and the conflict
+      set already checked, no drafter-chosen text survives in a drafted proposal's path, id or key.
+    - **The curator (step 4)** reads its own target from its configuration (4.5, where the prefix loses its trailing
+      `/`). The curator's configuration and knowledge's drafter entry must agree; **knowledge's entry is the one
+      enforced**, so a curator configured otherwise has its creates refused, never written elsewhere.
+    - Tests: `okf/tests/draft.rs` (`a_target_prefix_is_a_safe_relative_path_of_plain_segments`, and the derivation
+      with and without a prefix); `verify_drafts.rs` (`the_document_is_exactly_the_configured_targets_path`: an extra
+      or a different path segment, no prefix where one is configured, and the wrong collection refused; the exact path
+      accepted, with and without a prefix; a drafter with no target refused its create and accepted its verify; a
+      target naming a missing or a code collection; and `an_unsafe_target_prefix_is_refused_when_the_configuration_loads`).
+      The conflict-set test's "another document" case now reaches the check by moving the target between drafts.
+
+### Amendments from step 4
+
+Step 4 settled these details of sections 2.3, 4, 5, 10.3, 11.1, 11.3 and 13 that the text left open. None reads memory
+beyond the caller's reader filter, writes memory, widens a reader without the owner's promotion at a terminal, settles a
+`transcript` record or changes what the knowledge plugin verifies. The first adds a host service under the `documents`
+grant the curator already holds, for the metadata of collections the caller reads, in place of the `content` grant; the
+ninth gives `curator-promote` the host's own person check, as `memory-confirm` has it.
+
+1. **The target's readers: `readable_collections`, under `documents` (host and SDK).** Section 5.1 compares the target
+   collection's resolved access set and sensitivity with each source's, and none of D90's grants gave them. The
+   `content` grant's collection list does, but `content` also carries `content_read` of every file of every collection
+   in the space, outside any reader filter, and `content_replace` wherever an allow list permits: far more than the
+   rule needs. So the host gains a narrow, read-only service, **`readable_collections(space)`**, returning for each
+   collection only its id, kind, default access set and sensitivity (the SDK's `CollectionMeta`), and only for
+   collections whose access set the caller's reader filter admits; it lists and reads no file and returns no root or
+   glob. Compiled plugins only, as `CallContext.pipeline` and `person` are; WIT world 1.0.0 and the schemas are
+   unchanged, and a component or mounted server answers `NotGranted`.
+   - **Why `documents` and not a new grant.** `documents` already means "read the space's documents under the caller's
+     reader filter", and holds `reader_tokens`. A collection's default access set and sensitivity are what reading
+     its documents under the same filter already reveals of each of them, and the filter is the same one, so the
+     service adds no reach the grant did not have. A new grant would add a catalog name, a manifest and configuration
+     surface and a deny to reason about, for metadata a `documents` holder can already infer. `content` is untouched.
+   - **Readers only.** A collection the caller cannot read is left out, so the curator answers
+     `CURATOR_TARGET_UNCONFIGURED` with `details.reason = "collection-missing"` for it, the same answer as for one that
+     does not exist, and shows none of its readers or sensitivity. **5.1 still works**: the caller reads every source,
+     so a target within every source's readers that the caller cannot read is possible (a source shared with `space`
+     and `group:<g>`, a target for `group:<g>` alone, a caller outside the group), and refusing it is the stronger
+     answer. Its proposal would carry the target's access set, so the run's caller could not read it: not follow it in
+     the feed, retry it, withdraw it, or redact it when a source is forgotten (step 3b's amendment 12 reaches only
+     drafts the caller can read). A target the caller reads is unaffected, and its readers can use it.
+   - The curator declares no `content` grant. `documents` is required, so denying it fails the instance at load
+     (`PLUGIN_GRANT_DENIED`) and no command runs on a guess; the handler's own answer to a withheld service is
+     `collection-unknown`, fail closed. The other reasons are `unconfigured` (no `spaces.<space>` target, or a prefix
+     that is not `umbel_okf::draft::is_safe_prefix`) and `not-markdown`. `graph` is not declared in this step, which
+     reads no graph; step 5 declares it with re-verification, which does.
+   - Tests: `tests/readable_collections.rs` (metadata and never file data, filtered by readers, refused without
+     `documents` and not carried by `content`, refused outside the call's spaces); the curator's `config.rs` (an
+     unreadable target is missing, its readers use it, the denied grant fails the load) and `target.rs`'s unit test
+     (`collection-unknown`).
+2. **When a group settles.** A candidate's members are every eligible record the caller can read with one content hash
+   and class (eligible: semantic or procedural, live, unflagged, an authority the pack admits, and at least
+   `min_confidence` when set, a record asserting none failing a set gate). It has settled when **every** member's current
+   version has stood for the class's window and the members' sessions sum to `min_sessions`. A member still in its
+   window holds the group back rather than splitting it, so the id, which derives from the lowest member, does not move
+   as members settle. **`settledAt` is the latest member's `recordedAt` plus the window**, the instant the stability rule
+   first held for every member: a pure function of the records, so `curator-candidates`, which writes nothing, and a run
+   agree, and it lies within knowledge's `generated-at` bounds. A run's recorded snapshot is kept while its `settledAt`
+   still bounds every member's current version; a confirmation or another new version re-settles it.
+3. **`curator-candidates` computes; it writes nothing.** It is `inspect`, so it computes the caller's candidates at the
+   call's `now` (section 4.6) and merges the caller's recorded candidates. It shows, per candidate, the id, status, skip
+   reason, class, authority, source count, sessions, principals, `own`, `contentHash` (own candidates only), the candidate
+   record's access set, sensitivity, conflict set, document, mode, `stableAt` (when the window ends), `settledAt`,
+   `drafts`, `quietUntil` and `promotedTo`; the target's collection, prefix, readers and sensitivity; counts by status and
+   of what was listed, eligible, read, left unread by `max_gets` and unopened; `more` when `max_records` stopped the list.
+   It filters by `status` and pages by `after` and `limit` (at most 500). A recorded outcome whose sources the caller no
+   longer reads is listed from its record. **No subject, text, tag, constraint or rejection reason** is in the result or
+   the journal. The list itself runs newest first, as the store orders it, up to `max_records`; of the eligible records
+   it found, the oldest are read in full first, so `max_gets` leaves out the newest, which are furthest from settling.
+   Step 5's rotating scan (`scanAfter`) is what reaches records past `max_records` across runs.
+4. **A caller with no principal** has no curator records and no candidate id: `CURATOR_PRINCIPAL_UNKNOWN`. The effective
+   principal is derived as the knowledge plugin derives it, so the candidate ids agree.
+5. **The status order and a run's records.** First that holds: a recorded `applied` or `erased` (never drafted again);
+   `too-many-sources`; `sensitivity-higher` (even while settling, as it cannot change); `settling`; `conflict-too-large`;
+   a recorded `drafted`, or `rejected` inside `quietUntil`; `target-exists` (`doc_get` under the caller's filter);
+   `ready` with `scheduled`; `ready` with `promoted` when a consent covers the candidate; `needs-promotion`. A run's
+   `drafts` count and conflict set are kept. Only records whose `principal` and `space` are the caller's are read as
+   theirs, whoever else they are readable by.
+6. **Conflict sets.** A candidate skipped for too many sources or higher sensitivity can never be drafted, so it joins no
+   set and takes no alternative's place. Every other candidate with the subject key joins; the set's id is the lowest id
+   a member was recorded with, else derived from the lowest member; members past `max_alternatives` that are settling or
+   ready are skipped, and every member carries the id.
+7. **Section 5.1 compares tokens.** The target's readers are within a source's when each of the target's tokens is in
+   the source's access set, token for token, as the knowledge plugin compares them: `space` does not stand for
+   `group:<g>`. Sensitivity is compared first.
+8. **`curator-promote`'s details.** The `contentHash` is `sha256:` and 16 to 64 hex digits, or the hex alone, as
+   `memory-confirm` takes it. Refusals, in order after `CURATOR_CANDIDATE_NOT_FOUND`, carry `details.reason`:
+   `not-a-person` (amendment 9), `not-own`, `content-hash`, and `status` with the status, for anything but
+   `needs-promotion` (a recorded outcome included); `not-own` comes before the hash, so nothing is learned of another
+   person's records. A consent covering exactly the candidate's sources is `created: false`; one for earlier versions is
+   replaced by compare-and-set (`CURATOR_CONFLICT`, retryable, if it changed meanwhile). A consent covers a candidate only
+   for exactly its sources at their versions and hashes, given by the caller, who owns every one. Its record's access is
+   `principal:<caller>`, its envelope `user-stated` with no hash or `derivedFrom`.
+9. **`CallContext.person` (host).** `memory-confirm` mirrors D88 on two host mechanisms: the `require-human` gate, and the
+   memory service's own person check, which also withholds the person from a caller with an agent's environment variable
+   (D86). A plugin cannot see that check, so the SDK's `CallContext` gains `person`, filled by the host for a compiled
+   plugin's command from the same function (`CallServices::person`, which the memory services now share); a component
+   (WIT world 1.0.0 unchanged) and a mounted server see `false`. `curator-promote` refuses a call without it, so an agent
+   that answers the prompt in a pseudo-terminal with an agent variable set is refused as `memory-confirm` refuses it. Not
+   an attestation (D86). `tests/call_person.rs` holds it.
+10. **Configuration and pack.** The schema accepts `model` with any value, so a configured model is refused by every
+    command with `CURATOR_MODEL_UNAVAILABLE` (before anything is read; `curator-promote`'s terminal prompt comes first,
+    as the host asks before any handler) rather than failing the load. The prefix has the knowledge plugin's pattern and
+    is refused at load. The pack holds sections 4, 6 and 7's defaults, including step 5's (`quiet_days`, `every_hours`,
+    `[reverify]`), with ceilings: `max_records` at most 5000, `max_gets` 500, `max_proposals` 50 (the batch's cap),
+    `max_alternatives` 2 to 8, windows 1 to 3650 days, `min_sessions` 1 to 1000; `authorities` lists only `person`,
+    `agent`, `tool` and `import`.
+11. **Records.** This step writes only `consent` records. The `candidate` record's body (`records::candidate_body`) and
+    its reading are here, valid against `curator-record.v1.json` in every status, for step 5's run to write. A call reads
+    at most 5000 records of a kind. New codes beside 11.3's: `CURATOR_INVALID` (input), `CURATOR_PRINCIPAL_UNKNOWN`,
+    `CURATOR_CONFLICT` (retryable) and `CURATOR_FAILED` (a store failure).
+12. **Tests, and the proof against knowledge.** The curator crate depends on no plugin crate, so its `draft.rs` re-derives
+    every row of 3.2 from the store's records beside the curator's own drafting, byte for byte. The strongest check is
+    in `first-party/tests/curator_drafts.rs`: the curator's own `evaluate` and `draft` code drafts from records the store
+    holds, and a pipeline step the host attests to the instance `curator` submits them to the real
+    `knowledge-propose-batch`. A scheduled draft, both alternatives of a conflict set and a promotion of the caller's own
+    record are stored, a rerun returns them (`created: false`), and the same draft with its copied authority changed, or
+    the promotion claiming `scheduled`, is `PROPOSAL_DRAFT_MISMATCH` (`copied-authority`, `mode`). The pipeline belongs to
+    a stand-in with the plugin id `curator` until step 5 ships `curator-run`. `umbel-first-party` takes the curator as a
+    dev-dependency only; step 7 links it into the binary.
+
+### Amendments from step 5
+
+Step 5 settled these details of sections 2.3, 3.1, 4.6, 6, 7, 9.1, 10.3, 11.1, 11.3 and 13 that the text left open.
+None puts the curator in the request path, reads memory beyond the caller's reader filter, writes memory or
+knowledge, approves anything or keeps forgotten text; the first refuses where the text was silent, the seventh
+removes more than the text said and the ninth declares less. No host `src/` file changed; `schemas/` did (amendments
+2, 5, 6 and 7), and `umbel-okf` and the knowledge plugin by two shared derivations (amendments 2 and 5).
+
+1. **The run's steps run only inside the run.** `curator-plan` and `curator-finish` refuse any call the host does not
+   attest as a step of the curator plugin's `curator-run` (new code **`CURATOR_RUN_REQUIRED`**, not retryable): a
+   person calling them at the command line, and another plugin's pipeline naming them as steps. So no caller takes the
+   lock without finishing, prints a plan's drafts (memory text) to stdout, or feeds `finish` invented results. `finish`
+   also refuses a `run` that is not the attestation's.
+2. **Recovery by derived proposal ids** (7.3). The proposal id is phase 2's derivation, `p-` and 20 hex of SHA-256 of
+   `<space>\0<proposer actor string>\0<key>`, now shared as `umbel_okf::draft::proposal_id`, which the knowledge
+   plugin's `proposal_id` calls (byte for byte the same; `okf/tests/draft.rs` pins it). Before it returns, `plan`
+   records each draft on its candidate record (or review, amendment 5): `status` stays `ready`, `drafts` becomes the
+   key's draft number plus one, and the new **`proposal`** field holds the derived id; `finish` sets `drafted` with the
+   id the batch answered. `curator-record.v1.json`'s candidate gains `proposal` (null or `p-` and 20 hex), the
+   proposal of the latest draft that may be open. Then:
+   - a `ready` record whose `proposal` is the id of its key `drafts - 1` and whose candidate renders as recorded (the
+     same sources at the same versions, content hash, snapshot and conflict set) is submitted again under that key, and
+     the batch returns the stored proposal (`created: false`);
+   - otherwise its proposal is withdrawn (`source-changed`; `PROPOSAL_NOT_FOUND` when it was never stored), and the
+     candidate is not drafted again in the same run: once `finish` records the withdrawal, the next run drafts under
+     the key `drafts`, so no key is used for two drafts;
+   - a refusal that may hide a stored proposal under the key (`PROPOSAL_KEY_REUSED`, `PROPOSAL_DRAFT_MISMATCH`) moves
+     `drafts` on by one more, so the next run withdraws whatever the key holds and drafts under a new one. Any other
+     refusal (such as `PROPOSAL_ALREADY_OPEN`) keeps the key for the next run.
+
+   A draft that may be open keeps its candidate record until it is decided, withdrawn or submitted again, so its
+   proposal is never lost from the caller's records. A rejection keeps its record while it is quiet, whatever the live status (a confirmation
+   re-settling it), so the same content is not drafted again before `quietUntil`.
+3. **What passes from `plan` to `finish`.** The pipeline's batch step also passes `erased = "$steps.plan.erased"`, and
+   `finish` takes `{ space, run, plan, results, withdrawals, erased, checkpoint, feed }`: `plan` is `plan`'s
+   content-free bookkeeping (each draft's record id, proposal id and key in the batch's order, each withdrawal's, the
+   next cursors, the counts and inconsistencies, `plan`'s own checkpoint and the run's start), and the others are the
+   batch's `results`, `withdrawals`, `erased` and `checkpoint` (step 3b's amendment 2) and the feed's whole answer. The
+   state's cursors (`feedAfter` from the feed's `next`, `memoryAfter`, `scanAfter`, `reviewAfter`) move only when
+   `finish` runs and still holds the lock, so a run that stopped part way is read again in full by the next. A `finish`
+   that finds the lock taken over records its run and leaves the state to the other run, with the warning **`CURATOR_LOCK_TAKEN_OVER`**
+   on its own result.
+4. **A confirmation withdraws the draft it replaced.** 9.1's row "`Confirmed`: Nothing" holds for the changes feed (no
+   redaction, nothing withdrawn from it). But a confirmation writes a new version, and approve refuses a draft whose
+   source is not at its cited version (8.2), so the re-check, which reads each source with `memory_get`, withdraws it
+   with `source-changed`, as any other version change. The candidate re-settles from the new version, and the next draft
+   cites the raised authority, as 9.1 says the next plan may. A flagged source reads as changed too.
+5. **Re-verification's records, checks and scan** (section 6).
+   - A new record kind, **`review`**, one per (space, principal, document): `v-` and 20 hex of SHA-256 of
+     `<space>\0<principal>\0<document id>`, readable by its principal alone, with `doc`, `op` (`verify` or
+     `deprecate`), `baseHash`, `status` (`ready`, `drafted`, `rejected`, `applied`, `refused`, `withdrawn`), `drafts`,
+     `proposal`, `at` and `quietUntil`. It is what keeps 6.1's "it has no open proposal" for the caller's own drafts
+     (another proposer's open proposal is the batch's `PROPOSAL_ALREADY_OPEN`), quiets a rejected review for
+     `quiet_days` and a refused one for `every_hours`, and withdraws a draft whose document changed (`source-changed`).
+     The key is `<instance>/<review id>/<drafts>`, and a verify's `staleAfter` counts from `at`, the instant the draft
+     was first planned, so a rerun renders the same draft.
+   - **`sources-unchanged`** checks every frontmatter `sources` entry with a `resource` that resolves to a document of
+     the space and a `contentHash`, and every envelope `derivedFrom` entry of kind `document`; an unreadable cited
+     document fails it. **`not-flagged`** is none of the content scan's flags (`hidden-text`, `instruction-like`,
+     `schema-invalid`); `broken-links` is `links-resolve`'s, and the structural `fields-limited` and `type-defaulted` are
+     not checks.
+   - A **deprecated** document is never verified, and is `successor-missing` when it names no successor that resolves
+     to a readable document (knowledge-stale's rule). A document that is not deprecated and names one that is readable
+     and not deprecated gets the `deprecate` draft first, with `supersededBy` the value as written and one `document`
+     evidence entry, the successor at its current hash. The resolution is the knowledge plugin's, now shared as
+     `umbel_okf::links::successor`.
+   - Verify and deprecate drafts together count toward `reverify.max_per_run`, in document id order, after the
+     candidates (4.6). Documents are read under the caller's filter through `documents`, from a rotating cursor
+     (`reviewAfter`, a new field of the state record) at most 2000 a run, as `knowledge-stale` bounds its scan.
+6. **The report** (7.2). `curator-report.v1.json` gains `checkpoint` (`null`, `clean` or `pending`: `pending` when
+   either `plan`'s own checkpoint or the batch's is), so the batch's `PROPOSAL_REDACTION_PENDING` reaches the run's
+   answer (step 3b's amendment 8); `refused`, at most 50 `{ code, candidate?, doc?, check? }`, the knowledge plugin's
+   refusals of this run's drafts by code; and the counts `deprecate` and `refused`. `remaining` is the work the caps left:
+   drafts and withdrawals deferred by `max_proposals`, `reverify.max_per_run` and the batch's caps, plus the readable
+   semantic and procedural records the rotating scan did not reach, an upper bound from the store's counts. `finish`'s
+   own result also carries the warnings `PROPOSAL_REDACTION_PENDING` and `CURATOR_CANDIDATES_SKIPPED` (counts by
+   reason), which reach the journal; only its data is the pipeline's answer. The run record keeps the report.
+7. **A consent after a forget keeps no sources.** The host has no record deletion, so step 1's amendment 12 ("the
+   consent record is removed") is met by rewriting it as `{ version, kind, id, space, principal, access, by, at,
+   erased: true }`, which covers nothing (`curator-record.v1.json` allows it). `plan` erases what the caller's records
+   keep of each record the changes feed shows `Erased`, before the batch: each candidate citing one becomes `erased`
+   (9.1) and each consent citing one keeps no sources; each rewritten record's earlier hashes are forgotten
+   (`record_forget_history`, step 3b's amendment 13) and a reporting checkpoint runs (`truncate_wal`), so the source's
+   hash is gone from the document store's bytes. A run names at most 400 erased records to the batch (its cap) and reads
+   at most 5000 changes; the rest wait for the next run, whose cursor has not moved.
+8. **The batch's caps are `plan`'s.** A run's batch holds at most 50 drafts, 50 withdrawals and 400 distinct cited
+   memory records, so it is never refused whole with `PROPOSAL_BATCH_TOO_LARGE`; what does not fit is `remaining`.
+9. **Grants and effects.** The curator does not declare `graph`: re-verification reads documents only, through
+   `documents` (step 4's amendment 1 deferred the choice to this step), so it holds one grant less than D90 lists. No
+   grant is added: `doc_list`, `doc_get` and `memory_counts` are under `documents` and `memory`, `record_forget_history`
+   and `truncate_wal` under `records_write`. `curator-run`'s effects are `store-write` alone: no step writes the
+   workspace, so 3.1's `workspace-write` is dropped.
+10. **Shared memory, one open draft.** The knowledge plugin's `PROPOSAL_ALREADY_OPEN` holds across proposers (step 3b's
+    amendment 4), so while one person's draft of a shared record is open, another's run is refused for it and reports
+    `refused` with that code; it drafts once the first is decided. A candidate drafted alone that later joins a conflict
+    set is reported `conflict-after-draft` by every run while its draft is open.
+11. **`draft::item` leaves out `confidence`** when no source asserts one. Step 4 wrote `null`, which the batch's input
+    schema refuses (`type: number`), and step 3c's amendment 5 says a draft claims none.
+12. **`curator-status`** returns `{ space, principal, at, lastRun, overdue, overdueAfter, locked, promotable, promoted,
+    invalidatable }`: the last run record's report, `overdue` (also when no run of the caller's ever finished), the
+    caller's lock while it is held, the needs-promotion candidates whose sources are all the caller's, the promoted ones,
+    and the caller's own live sources of applied candidates. It is `inspect` and writes nothing.
+13. **Tests.** In `plugins/curator/tests`, with a stand-in for the knowledge plugin's batch and feed in their shapes
+    (`support/knowledge.rs`; the crate links no plugin, D3), whose stubs hold ids and never text: `run.rs` (7),
+    `feedback.rs` (6), `forgotten.rs` (7), `reverify.rs` (5), `deterministic.rs` (3), `poisoning.rs` (5) and
+    `not_request_path.rs` (7, through the host's MCP server on every lane, the same server the binary serves on stdio).
+    Against the real knowledge plugin, `first-party/tests/curator_run.rs` (5): drafts verified and stored, a rejection
+    and an apply read back, a forgotten source redacted with its text and hash gone from the store's bytes, verify and
+    deprecate drafts accepted, and a pipeline whose step is `knowledge-approve` refused (`CONFIRMATION_REQUIRED`) even
+    when a person answers yes.
+
+### Amendments from step 6
+
+Step 6 settled these details of sections 8.3, 11.2, 11.3 and 12 that the text left open. None applies a proposal without
+a person beyond `deprecate-declared`, lets a pipeline trigger it, or records a policy's decision as a person's. Each
+refuses where the text was silent; the seventh closes two cases the text's predicate let through, so a `superseded_by`
+typed into a file never triggers the rule, as owner decision 1 says. No host `src/`, `wit/` or `schemas/` file changed:
+`proposal.v2.json` already held the policy decision (step 1, amendment 8).
+
+1. **Shape and confirmation.** `knowledge-auto-approve` is command line only (`expose = { mcp = false, agent = false,
+   cli = true }`), `store-write` and `workspace-write`, digest-journaled keeping `space` and `limit`, with no AFD
+   `approval`. The text names no confirmation, so it takes the stricter of the two consistent with it: a
+   `confirm_prompt`, asked at a terminal, answered from cron by `--yes`, and refusing a call with neither
+   (`CONFIRMATION_REQUIRED`). Not `confirm = "require-human"`: the rule is the one under which a proposal is applied
+   "without a person" (Terms), a policy and not a person decides (step 1, amendment 8), and a person-only prompt would
+   refuse the cron run 7.3 describes. As with every plain prompt, `umbel batch` and a library call do not ask; the
+   rule is the same whoever runs it.
+2. **Who runs it.** Refused with `PROPOSAL_AUTO_NOT_ALLOWED` (`details.reason`), before anything is read, for any call
+   the host attests as a pipeline step (`pipeline`), whoever ships the pipeline, and for a caller that is not a person
+   with an id (`not-a-person`), as a library could call it. Per proposal, the caller must be one of the area's
+   approvers (`area.admits`), else it is skipped `not-approver`: only someone who could have approved it by hand runs
+   the policy over it. `CallContext.person` is not required: it is a terminal check, and cron has none; the decision is
+   recorded as the policy's, never as the caller's.
+3. **The `auto` list.** The configuration schema allows only `["deprecate-declared"]`, each kind once
+   (`PLUGIN_CONFIG_INVALID` at load), and the area reader checks it again (`AREA_CONFIG_INVALID`). An area admits no
+   other key. What the rule never applies (create, update, verify, memory-derived, flagged, alternatives) is code, not
+   configuration, so no area setting widens it.
+4. **The policy version covering `auto`.** `policy.version` hashes the area's keys and the decision's rule (`person` or
+   `auto:<rule>`), and the `auto` list when the area has one; an area without one keeps the version it had before.
+5. **Which area.** The proposal's recorded area must list the rule and still be the area governing the document now,
+   else `area-changed`: a more specific area added since, which lists nothing, governs it.
+6. **"Drafted, no flags, no `conflictSet`", read exactly.** A version 2 `deprecate` with a `drafter` whose instance
+   `drafters` still lists (`drafter-not-listed`), `mode = "scheduled"` with no candidate or promotion, no memory evidence
+   and no `derivedFrom` (all `memory`), no flags (`flagged`), no conflict set (`alternative`), and a `supersededBy`
+   (`no-successor`). Any other op is `op`; an undrafted deprecate is `not-drafted`.
+7. **"The target's current bytes were written by an applied proposal", made exact** (owner decision 1). The document is
+   readable and not deprecated (`target-missing`, `already-deprecated`); its hash is the draft's `baseHash`
+   (`target-changed`); its file holds bytes of that hash (`bytes-changed`: an edit not yet synced); its frontmatter's
+   `superseded_by` equals `change.supersededBy` as written (`declaration-differs`). Its envelope names exactly one
+   `derivedFrom` entry, of kind `proposal`, whose record, read from this instance's own namespace, where no other plugin
+   writes, is `applied`, of this space and document, with `result.contentHash` and the hash of its `change.content` both
+   the document's; else `not-written-by-proposal`. So an envelope another writer put proves nothing the record does
+   not. **Two further conditions close what the text's predicate let through:**
+   - The writer is a `create` or `update`, decided by a person (`decision.by` a human, not `channel = "policy"`), citing
+     no memory. A `verify` rewrites only its own keys, so a declaration typed into a file followed by a person's
+     `knowledge-verify` would otherwise pass.
+   - **Its diff adds the frontmatter line that declares `superseded_by`** (`declaration-not-written`). A declaration
+     typed into a file and carried, as context, through a person's approved edit of the body would otherwise pass. The
+     line must be a top-level key with its value on that line; anything else (a block scalar, an anchor, a flow or
+     nested mapping, two such lines) fails closed.
+
+   Limits, stated: a declaration a person's proposal wrote and a later proposal carried through does not count, and the
+   area waits for a person (fail closed). The person who approved the writer approved its whole content; whether their
+   preview's first 80 diff lines showed that line is not checked, as for any line of any approval (section 12's
+   rubber-stamping row).
+8. **The successor.** `change.supersededBy` resolves with `umbel_okf::links::successor` to a document the caller reads
+   (absent, unreadable and an address outside the space are one answer, `successor-missing`), not deprecated
+   (`successor-deprecated`), and readable by every reader of the target: each of the target's access tokens is in the
+   successor's set (`successor-narrower`). A deprecated document drops out of search for all its readers (D58), so none
+   of them is pointed to a document they cannot open. These are read at the call's `now`; the successor is not
+   compare-and-set protected through the apply, the same window a person's approval has.
+9. **Races.** The proposal is read again, under approve's reader rules, just before the rule is checked, and must still
+   be pending or a stopped apply this rule decided (`state` otherwise); `apply::apply_by_policy` refuses any other state
+   itself (`PROPOSAL_STATE_INVALID`), so a proposal rejected or withdrawn after it was listed is never applied. The rule
+   is checked on that record, the document and the file read in this call, then applied through approve's steps: the
+   proposal record is compare-and-set against the version read,
+   the file against its hash, which must be the `baseHash` and so the checked bytes, and the document against its
+   stored hash. A writer between the check and the apply makes it `PROPOSAL_CONFLICT` and nothing unchecked is
+   written. An apply the policy decided that stopped stays `approved` with the policy's decision; a later call resumes it
+   only when the rule holds again in full, keeping the first decision. A person's approval that stopped is the person's
+   to resume, and `knowledge-auto-approve` does not consider it; `knowledge-approve` may still resume either, as phase
+   2's resume does, keeping the decision recorded.
+10. **Input and result.** The input is closed: `{ space?, limit? }`, `limit` 1 to 200 (default 50), the most proposals
+    one call applies. It reads every proposal record of the space under the caller's filter, cheapest checks first,
+    and considers those whose recorded area lists a rule. The result is `{ space, applied: [{ proposal, doc, rule, rev
+    }], skipped: [{ proposal, doc, reason }], failed: [{ proposal, doc, code }], counts: { examined, applied, skipped,
+    failed }, reasons, more, indexed: false, nextStep }`: ids, document ids and codes, at most 200 listed of each, the
+    counts covering all. Approve's reader rules apply (`not-readable`). Without the `content` grant it is
+    `PROPOSAL_APPLY_UNAVAILABLE`.
+11. **Tests.** `plugins/knowledge/tests/auto_approve.rs` (20): off unless the document's area lists the rule; applied as
+    the policy's decision, valid against `proposal.v2.json`, read back by the drafter's feed, digest-journaled; a typed
+    declaration; a declaration carried through an edit and through a verification; bytes changed on disk and after a
+    sync; forged envelopes (other bytes under the writer's lineage, another document's proposal, two lineages, a
+    `document` lineage); the declaration differing; each op, and an undrafted deprecate; memory evidence, `derivedFrom`, a
+    promotion, flags, a conflict set and an unlisted drafter; the successor deprecated, gone, outside the space,
+    unreadable and narrower; every widening of `auto` refused at load; the governing area changed and the list removed;
+    a caller outside the approvers; a pipeline step of a listed and an unlisted instance, an agent and MCP refused; the
+    prompt, declined and `--yes`; `limit` and `more`, and the closed input; two calls at once applying once; a stopped
+    policy apply resumed only when the rule holds again; a person's stopped approval left alone. Two unit tests cover
+    the declaring line and a diff's added lines. `first-party/tests/curator_run.rs` gains the real curator's deprecate
+    draft applied by the rule after a person declared the successor, and read back by the next run. `journal_modes.rs`
+    adds the command to the digest set.
+
+### Amendments from step 7
+
+Step 7 settled these details of section 13 that the text left open. None changes who may draft, verify, approve or
+read anything; the exit and the leak probes found no defect, so no plugin, host, schema or SDK file changed. The
+eleventh restates, for the owner, the one limit an earlier step stated and nobody has decided.
+
+1. **Memory is written through the binary.** Section 13 wrote ada's records "through the store API". The exit
+   writes every record with `memory-remember` at the `testkit` terminal of the binary instead, switching
+   `principal.local_id` to `ada` for her calls (the command line is always `human:<local_id>`, phase 2), and ada
+   forgets through `memory-forget` the same way. So "memory written" and "forget" are proven through the binary
+   too. A second `memory-remember` of the same content in another session observes the record rather than writing
+   a second one, so point 1's fact is one record with two sessions and one memory evidence entry, as the point
+   says.
+2. **The tampered replay runs beside the binary, not in it.** The binary links only the real curator, whose drafts
+   are faithful, so point 1's "batch replayed with one copied field changed" runs in process on the binary's own
+   workspace and clock, with the real `sources`, `knowledge` and `memory` plugins and a stand-in of plugin id
+   `curator` in the curator's place (the workspace's curator grants and configuration are left out while it runs,
+   since the stand-in declares neither). The batch is the curator's own rendering of the record, by its public
+   `evaluate` and `draft` code. Replayed unchanged it returns the binary's stored draft (`created: false`, the same
+   id and key), which shows the binary drafted exactly that rendering; with `authority` changed it is
+   `PROPOSAL_DRAFT_MISMATCH`, `details.check = "copied-authority"`, and nothing is stored. The stand-in's pipeline
+   is named `curator-run`, since a retry repeats the drafter's pipeline (step 3b, amendment 5) and any other name
+   is `PROPOSAL_KEY_REUSED` before verification.
+3. **The days.** Point 1's fact is written on day 0 and is `settling` on day 3 and `ready` on day 8, when the first
+   run drafts exactly one proposal. The facts of points 4, 5 and 6 are written on day 9, so that run is the only
+   one; on day 17 a run drafts ada's two shared facts and leaves the caller's private one `needs-promotion`.
+   Point 5's quiet period is checked on day 77, inside the 90 days, and point 6 runs on day 78.
+4. **"The fixed rendering", checked.** The applied file's bytes equal the curator's own rendering of the record
+   (amendment 2), with `Holds only` and its constraint. The document's provenance (`agent-inferred`,
+   `generated.by = "umbel:curator/curator"`, `generated.at` the candidate's `settledAt`, `derivedFrom` the proposal)
+   is read with `knowledge-describe` right after the approval and again after `knowledge-refresh`, so the sync of
+   the file does not replace it.
+5. **Point 2's preview.** The binary's stand-in person writes what the terminal shows to stderr; the test holds that
+   the `> ` lines name the proposal and the curator, carry the "verified against memory" label and diff lines
+   (`> | +`), and come before approve's prompt.
+6. **Point 6's absence is checked wider than listed:** in the raw bytes of `store.sqlite3`, its log and shared memory,
+   the journal, the log and the events, every curator record's body and envelope, and the run's stdout, as listed,
+   and also in every file of the workspace. The source's hash is searched for as its hex digits, so a hash without
+   its `sha256:` prefix is found too.
+7. **Point 7's lanes and commands.** Over the binary's stdio MCP server, every curator command and pipeline, and
+   every proposal command of the knowledge plugin that is command line only (`knowledge-approve`, `-reject`,
+   `-verify`, `-auto-approve`, `-proposal-preview`), is absent from `tools/list` and `afd-discover` and refused by
+   `afd-call`, a direct `tools/call`, `afd-batch` and `afd-pipe`; afterwards no proposal changed state and no run
+   record was added.
+8. **The report's variable.** The `memory` job runs phase 3's and phase 4's exit tests in one `cargo test`, and
+   `UMBEL_EXIT_REPORT` is phase 3's, so `exit_curator.rs` writes to **`UMBEL_CURATOR_EXIT_REPORT`**; the job uploads
+   both files in its `memory-exit-report-<os>` artifact.
+9. **The leak probes are differential.** `curator_leaks.rs` builds two workspaces with the same records bo can read and
+   the same runs of ada's over them; one also holds what bo cannot read (two private facts of ada's, one promoted and
+   one forgotten after a run, a space `beta` only she reads with a scheduled draft in it, her candidate, consent, run
+   and state records, and a lock she holds). Bo's 32 answers (`curator-candidates` with every status and with
+   `after` set to ada's ids, `curator-status`, `curator-run` twice, `curator-plan` and `-finish`, `curator-promote`
+   of ada's candidate at a terminal, the proposal list, show and preview, `knowledge-auto-approve`, and each in
+   `beta`) are equal in both, with two things left out: the random run ids, and `rev`, the document store's
+   revisions, whose gaps phase 2 section 6 already accepts as able to show how many hidden things exist. None of
+   ada's 16 hidden ids, hashes, run ids or her lock's trace is in any answer. A probe that planted one of ada's
+   records in bo's readers made the differential fail at its first answer, so it can see a leak.
+10. **What the store admits and what a surface shows.** Section 2.3 gives a candidate record the intersection of its
+    sources' access sets with its principal's token added, and every other curator record its principal's token
+    alone. So a candidate of ada's of a record shared with the space is admitted by bo's reader filter in the store,
+    as the record itself is. No surface shows it to him: the curator reads only the caller's own records (step 4,
+    amendment 5), and the host has no command that reads another plugin's records. `curator_leaks.rs` holds both:
+    each record's access set is 2.3's, and bo is told nothing of ada's candidates. A future surface that reads plugin
+    records must filter by principal as well (follow-ups).
+11. **For the owner: a draft its proposer can no longer read.** Step 3b's amendment 12 stated a limit: proposals are
+    read under the caller's reader filter, so a draft its own proposer can no longer read (removed from the
+    target's readers since it was drafted) is reached neither by the run's re-check nor by the `erased` notice, and
+    is not redacted when its source is forgotten. Its text then stays readable by the readers the record still
+    admits, which are never wider than they were. Nothing in phases 3 or 4 decides whether that is accepted. It is
+    listed for the owner in [STATUS.md](../../STATUS.md#phase-4-curator) and not changed here, since closing it
+    (a redaction path outside the caller's filter, such as one the host or the knowledge instance runs on a
+    forget) changes who may act on a record.
+
 ## 16. For the owner
 
 ### Owner decisions, 2026-11-03
@@ -1253,6 +2041,9 @@ follows owner decisions 4 and 8.
 | 2026-11-03 | Edits that need judgment (6.2's reported kinds) | A new owner decision on a model |
 | 2026-11-03 | Exact session counts need session ids the store does not return (4.3) | When it matters |
 | 2026-11-03 | A doctor API for plugins, so `overdue` reaches `workspace-doctor` (7.3) | When a second plugin needs one |
+| 2026-11-03 | A host hook for plugin configuration checks that need the workspace: a knowledge drafter target's collection exists, is markdown and is one the instance may write. Today these fail closed per draft, with `PROPOSAL_DRAFTER_TARGET_INVALID` or `PROPOSAL_APPLY_UNAVAILABLE`, not at load (step 3c, amendment 14); a run now reports each such refusal by code in its report's `refused` (step 5, amendment 6). Pair it with the doctor API above. Not built in step 7, whose plan row and exit do not need it: it is a new host interface, and every case still fails closed | Before real use, with the doctor API |
+| 2026-11-03 | Any future surface that reads plugin records (an export, a records command) must filter by principal, not only by access set: a curator candidate of a shared source is admitted by every reader of its sources (step 7, amendment 10) | When such a surface is specified |
+| 2026-11-03 | A draft its proposer can no longer read is not redacted when its source is forgotten (step 3b, amendment 12; step 7, amendment 11) | Owner's decision |
 | 2026-11-03 | A `MemoryMeta` projection with `contentHash` and `observations`, if `max_gets` proves too small (4.1) | When a deployer asks |
 | 2026-11-03 | A memory retrieval eval before ranking candidates beyond fixed rules | After phase 4 |
 | 2026-11-03 | Phase 3's follow-up on sharing writers closing others' records bears on 9.2's listed invalidations | Owner, before phase 5 |

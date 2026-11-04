@@ -43,6 +43,30 @@ describe('tasks', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
+	it('P2-E9: summarizes a project for its home, as a nested query at that project, read by the shell', async () => {
+		const { kernel } = await kernelIn('atlas');
+		await kernel.call('tasks-add', { title: 'Plan' });
+		await kernel.call('tasks-add', { title: 'Review' });
+		await kernel.call('tasks-complete', { task: 't-1' });
+		const home = await kernel.call('project-summary-get', { project: 'atlas' });
+		expect(home.data).toMatchObject({
+			project: { slug: 'atlas' },
+			summaries: [
+				{
+					instance: 'tasks',
+					title: 'Tasks',
+					summary: {
+						counts: [
+							{ label: 'Open', value: 1 },
+							{ label: 'Done', value: 1 },
+						],
+						recent: [{ title: 'Review' }, { title: 'Plan' }],
+					},
+				},
+			],
+		});
+	});
+
 	it('keeps each project apart, refuses another project’s task with its name, and needs a project', async () => {
 		const { kernel } = await kernelIn('atlas');
 		await kernel.call('tasks-add', { title: 'In Atlas' });

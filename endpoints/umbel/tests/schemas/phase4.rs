@@ -336,13 +336,67 @@ fn a_redacted_proposal_keeps_no_memory_text_or_hash() {
             with(&|p| {
                 p["provenance"]["derivedFrom"] = drafted["provenance"]["derivedFrom"].clone()
             }),
-            with(&|p| p["withdrawal"]["reason"] = json!("source-changed")),
-            with(&|p| p["withdrawal"]["by"] = json!("proposer")),
             with(&|p| p["state"] = json!("applied")),
+            with(&|p| p["state"] = json!("pending")),
             with(&|p| p["redacted"]["reason"] = json!("tidy")),
             with(&|p| p["evidence"][0]["excerpt"] = json!("kept")),
+            // No excerpt of any kind, no verify note and no decision reason survive (step 3b).
+            with(&|p| {
+                p["evidence"] = json!([{ "kind": "text", "ref": "notes", "excerpt": "kept" }])
+            }),
+            with(
+                &|p| p["change"] = json!({ "op": "verify", "doc": "notes/a", "baseHash": format!("sha256:{}", "1".repeat(64)), "verification": { "note": "kept" } }),
+            ),
+            with(&|p| {
+                p["state"] = json!("rejected");
+                p["withdrawal"] = Value::Null;
+                p["decision"] = decision(Some("kept"));
+            }),
         ],
     );
+    // Every draft that was not applied may be redacted, keeping its decision or withdrawal
+    // (phase 4 step 3b, amendment 12): a drafter's withdrawal for another reason, a proposer's,
+    // a rejection and an approval whose apply never landed.
+    for (state, withdrawal, decided) in [
+        (
+            "withdrawn",
+            json!({ "by": "drafter", "reason": "source-changed", "at": "2026-11-09T09:00:00.000Z" }),
+            false,
+        ),
+        (
+            "withdrawn",
+            json!({ "by": "proposer", "reason": "retracted", "at": "2026-11-09T09:00:00.000Z" }),
+            false,
+        ),
+        ("rejected", Value::Null, true),
+        ("approved", Value::Null, true),
+    ] {
+        let kept = with(&|p| {
+            p["state"] = json!(state);
+            p["withdrawal"] = withdrawal.clone();
+            if decided {
+                p["decision"] = decision(None);
+            }
+        });
+        let errors: Vec<String> = validator
+            .iter_errors(&kept)
+            .map(|e| e.to_string())
+            .collect();
+        assert!(errors.is_empty(), "a redacted {state} draft: {errors:?}");
+    }
+}
+
+/// A person's decision at a terminal, with or without a reason.
+fn decision(reason: Option<&str>) -> Value {
+    let mut decision = json!({
+        "by": { "kind": "human", "id": "bo" }, "principal": "human:bo",
+        "at": "2026-11-09T09:00:00.000Z", "traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+        "proposerKind": "human", "channel": "terminal",
+    });
+    if let Some(reason) = reason {
+        decision["reason"] = json!(reason);
+    }
+    decision
 }
 
 // ── Curator records and the run report (sections 2.3 and 7.2) ──────────────────────────────────
@@ -393,6 +447,28 @@ fn every_curator_record_kind_needs_its_fields_and_only_them() {
             edited(&state, |r| r["scanAfter"]["id"] = json!("doc-1")),
             edited(&state, |r| r["feedAfter"] = json!(-1)),
             edited(&run, |r| r["report"]["counts"]["read"] = json!(-1)),
+        ],
+    );
+    // Phase 4 step 5: a review per document, the state's document cursor, a candidate's open
+    // proposal, and a consent that keeps no sources once one of them was erased.
+    let review = example("curator-record.v1", "review");
+    let forgotten = example("curator-record.v1", "consent-erased");
+    assert_refuses(
+        &validator,
+        "curator-record.v1 step 5",
+        &[
+            edited(&review, |r| r["id"] = candidate["id"].clone()),
+            edited(&review, |r| r["status"] = json!("settling")),
+            edited(&review, |r| r["op"] = json!("create")),
+            edited(&review, |r| r["baseHash"] = json!("abc")),
+            edited(&review, |r| r["contentHash"] = hash('9')),
+            edited(&review, |r| r["access"] = json!(["space"])),
+            edited(&candidate, |r| r["status"] = json!("refused")),
+            edited(&candidate, |r| r["proposal"] = json!("p-1")),
+            edited(&state, |r| r["reviewAfter"] = json!("")),
+            edited(&forgotten, |r| r["sources"] = consent["sources"].clone()),
+            edited(&forgotten, |r| r["erased"] = json!(false)),
+            edited(&consent, |r| r["erased"] = json!(true)),
         ],
     );
 }
@@ -488,6 +564,18 @@ fn the_run_report_holds_ids_and_counts_only() {
             }),
             with(&|r| r["next"] = json!({})),
             with(&|r| r["text"] = json!("memory text")),
+            // Phase 4 step 5: the checkpoint's state, and refusals by code only.
+            with(&|r| r["checkpoint"] = json!("done")),
+            with(&|r| r["refused"] = json!([{ "candidate": "c-6f708192a3b4c5d6e7f8" }])),
+            with(&|r| r["refused"] = json!([{ "code": "PROPOSAL_ALREADY_OPEN", "reason": "x" }])),
+            with(&|r| r["refused"] = json!([{ "code": "not a code" }])),
         ],
     );
+    assert!(validator.is_valid(&with(&|r| {
+        r["checkpoint"] = json!("pending");
+        r["refused"] = json!([{
+            "code": "PROPOSAL_DRAFT_MISMATCH", "candidate": "c-6f708192a3b4c5d6e7f8",
+            "check": "copied-authority",
+        }]);
+    })));
 }

@@ -14,7 +14,7 @@ use umbel_store::{
     Page, Record, RecordMeta, Rev, Subgraph,
 };
 
-use crate::cx::{Cx, HostError, HostServices};
+use crate::cx::{Cx, HostError, HostServices, WalCheckpoint};
 
 /// One file of a collection, as `content_list` reports it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +50,22 @@ pub struct CollectionInfo {
     pub strict: bool,
     /// The largest file read, in bytes.
     pub max_file_bytes: u64,
+}
+
+/// One collection of a space as a reader of its documents sees it (phase 4 step 4, amendment 1):
+/// its id, kind, default access set and sensitivity, and nothing else. No root, no glob, no file
+/// name and no file byte: it says who reads what the collection holds, which is what a document
+/// read already reveals of each document, not what it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CollectionMeta {
+    /// The collection id.
+    pub id: String,
+    /// `markdown` or `code`.
+    pub kind: String,
+    /// The default access set of its documents (tokens): who can read a document created there.
+    pub access: Vec<String>,
+    /// The default sensitivity of its documents.
+    pub sensitivity: String,
 }
 
 /// The read methods as another principal, from [`Cx::as_reader`]: the same filter the host
@@ -143,6 +159,18 @@ macro_rules! reads {
             pub fn reader_tokens(&self, space: &str) -> Result<Vec<String>, HostError> {
                 self.guard(space)?;
                 self.services()?.reader_tokens(space)
+            }
+            /// Grant `documents`: the space's collections whose readers include the caller, as
+            /// metadata only (phase 4 step 4, amendment 1).
+            ///
+            /// # Errors
+            /// See [`HostServices::readable_collections`].
+            pub fn readable_collections(
+                &self,
+                space: &str,
+            ) -> Result<Vec<CollectionMeta>, HostError> {
+                self.guard(space)?;
+                self.services()?.readable_collections(space)
             }
             /// Grant `records`: one record of the instance's own namespace.
             ///
@@ -454,6 +482,29 @@ impl Cx {
     pub fn checkpoint(&self, space: &str) -> Result<(), HostError> {
         self.check_space(space)?;
         self.host()?.checkpoint(space)
+    }
+
+    /// Grant `records_write`: forget the change log's hashes of a record's earlier versions.
+    ///
+    /// # Errors
+    /// See [`HostServices::record_forget_history`].
+    pub fn record_forget_history(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<u64, HostError> {
+        self.check_space(space)?;
+        self.host()?.record_forget_history(space, kind, id)
+    }
+
+    /// A reporting checkpoint of the document store after a write that removed text.
+    ///
+    /// # Errors
+    /// See [`HostServices::truncate_wal`].
+    pub fn truncate_wal(&self, space: &str) -> Result<WalCheckpoint, HostError> {
+        self.check_space(space)?;
+        self.host()?.truncate_wal(space)
     }
 
     /// The read methods as another principal, in the call's spaces.

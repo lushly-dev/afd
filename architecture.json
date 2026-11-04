@@ -297,6 +297,12 @@
 			"publicSurfaces": ["rust-library"]
 		},
 		{
+			"manifest": "endpoints/umbel/plugins/curator/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library"]
+		},
+		{
 			"manifest": "endpoints/umbel/first-party/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",

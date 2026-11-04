@@ -27,5 +27,6 @@
 	"firstSeenAt": "2026-11-03T09:00:00.000Z",
 	"promotedTo": null,
 	"conflictSet": null,
-	"quietUntil": null
+	"quietUntil": null,
+	"proposal": "p-1a2b3c4d5e6f708192a3"
 }

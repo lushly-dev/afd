@@ -18,7 +18,11 @@ const REASON_CANARY: &str = "bilbyreason";
 const PLAIN_CANARY: &str = "dingoplain";
 
 /// The digest set and the input keys each keeps.
-const DIGEST: [(&str, &[&str]); 6] = [
+const DIGEST: [(&str, &[&str]); 9] = [
+    // Phase 4 step 3b: the drafted path. The batch has no proposal input, and the feed's `after`
+    // is a store revision.
+    ("knowledge-propose-batch", &["space"]),
+    ("knowledge-proposal-feed", &["space", "after"]),
     (
         "knowledge-proposal-list",
         &["space", "state", "area", "after", "limit"],
@@ -28,13 +32,9 @@ const DIGEST: [(&str, &[&str]); 6] = [
     ("knowledge-approve", &["space", "proposal"]),
     ("knowledge-reject", &["space", "proposal"]),
     ("knowledge-withdraw", &["space", "proposal"]),
+    // Phase 4 step 6: auto-approval (section 11.2), which has no proposal input.
+    ("knowledge-auto-approve", &["space", "limit"]),
 ];
-
-const AREA: &str = r#"
-[plugins.knowledge.config.areas.handbook]
-space = "main"
-collection = "handbook"
-"#;
 
 fn manifest() -> toml::Table {
     umbel_plugin_knowledge::MANIFEST.parse().unwrap()
@@ -59,16 +59,48 @@ fn the_manifest_declares_the_digest_set_and_nothing_else_changes_mode() {
                 assert_eq!(kept, *keep, "{name}");
             }
             // knowledge-propose and -verify never take a drafter attestation, and the read and
-            // index commands never touch a proposal: plain, as before.
-            None => assert!(journal.is_none(), "{name} changed its journal mode"),
+            // index commands never touch a proposal: plain. Holding the `memory` grant (phase 4
+            // step 3c), the plugin must declare a journal on every command and pipeline (phase 3
+            // section 2.3), so they say `plain` where they said nothing.
+            None => {
+                let journal = journal.unwrap_or_else(|| panic!("{name} declares no journal"));
+                assert_eq!(
+                    journal.as_table().unwrap().keys().collect::<Vec<_>>(),
+                    ["mode"],
+                    "{name}"
+                );
+                assert_eq!(journal["mode"].as_str(), Some("plain"), "{name}");
+            }
         }
     }
+    for pipeline in manifest["pipelines"].as_array().unwrap() {
+        let name = pipeline["name"].as_str().unwrap();
+        assert_eq!(
+            pipeline["journal"]["mode"].as_str(),
+            Some("plain"),
+            "{name}"
+        );
+    }
+    // The memory grant it declares reads only, and is optional: withheld, memory claims are
+    // refused, never accepted unverified.
+    let grants = manifest["grants"].as_array().unwrap();
+    let memory: Vec<&toml::Value> = grants
+        .iter()
+        .filter(|grant| {
+            grant["name"]
+                .as_str()
+                .is_some_and(|n| n.starts_with("memory"))
+        })
+        .collect();
+    assert_eq!(memory.len(), 1, "{memory:?}");
+    assert_eq!(memory[0]["name"].as_str(), Some("memory"));
+    assert_eq!(memory[0]["required"].as_bool(), Some(false));
 }
 
 async fn fixture() -> Fx {
-    let fx = Fx::with(&format!(
-        "{CONFIG}\n[principal]\nlocal_id = \"ada\"\n{AREA}"
-    ));
+    // The stand-in curator is linked, so a draft can be submitted, verified and approved; the
+    // person at the command line, who approves, is `human:ada`.
+    let fx = Fx::with_drafters(&support::drafter::config(&["curator"], "ada"));
     fx.handbook(
         "runbook.md",
         "---\ntitle: Rolling back\n---\n# Rolling back\n\nUse the previous tag.\n",
@@ -88,7 +120,36 @@ fn seed(fx: &Fx, candidate: &str) -> Value {
     body
 }
 
-/// `text` holds none of what a drafted proposal says.
+/// A draft the stand-in curator submits, for `human:local`'s run, of `human:bo`'s shared fact
+/// holding [`CANARY`] in its subject, text and constraint, verified against the memory store
+/// (phase 4 step 3c): its stored body. Approving it re-reads its source, so a seeded draft
+/// citing a record the store never held would be `PROPOSAL_SOURCE_GONE`.
+async fn verified_draft(fx: &Fx) -> Value {
+    use support::memory as mem;
+    let mut fact = mem::entry(
+        1,
+        "human:bo",
+        &["space"],
+        &format!("Staging uses {CANARY}"),
+        &format!("Rollbacks in staging use {CANARY}."),
+    );
+    fact.envelope.constraints = Some(vec![format!("staging only {CANARY}")]);
+    mem::write(fx, vec![fact]);
+    let record = mem::record(fx, &mem::id(1));
+    let (result, _) = support::drafter::submit(
+        fx,
+        json!([mem::drafted(&[record], &mem::Place::default())]),
+        None,
+    )
+    .await;
+    let id = data(&result)["results"][0]["proposal"]["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{result}"))
+        .to_owned();
+    records::read(fx, &id).body
+}
+
+/// `text` holds none of what a drafted proposal says, nor its sources' hashes.
 fn holds_nothing_of(what: &str, text: &str, drafts: &[&Value]) {
     for needle in [CANARY, REASON_CANARY, records::SOURCE_HASH] {
         assert!(!text.contains(needle), "{needle} reached {what}");
@@ -96,13 +157,17 @@ fn holds_nothing_of(what: &str, text: &str, drafts: &[&Value]) {
     for draft in drafts {
         let hash = draft["changeHash"].as_str().unwrap();
         assert!(!text.contains(hash), "a change hash reached {what}");
+        for entry in draft["evidence"].as_array().unwrap() {
+            let source = entry["contentHash"].as_str().unwrap();
+            assert!(!text.contains(source), "a source hash reached {what}");
+        }
     }
 }
 
 #[tokio::test]
 async fn a_canary_in_a_drafted_proposal_never_reaches_the_journal_or_the_events() {
     let fx = fixture().await;
-    let approved = seed(&fx, "4a1b2c3d4e5f60718293");
+    let approved = verified_draft(&fx).await;
     let rejected = seed(&fx, "5b2c3d4e5f6071829304");
     let withdrawn = seed(&fx, "6c3d4e5f607182930415");
     let id = |body: &Value| body["id"].as_str().unwrap().to_owned();
@@ -178,6 +243,29 @@ async fn a_canary_in_a_drafted_proposal_never_reaches_the_journal_or_the_events(
         )
         .await;
     assert_eq!(data(&plain)["created"], true, "{plain}");
+
+    // The batch and the feed (step 3b). A batch's proposals are digested whoever sends them; a
+    // feed outside a drafter's pipeline is refused, and journaled as a digest all the same.
+    let batched = fx
+        .as_actor(
+            agent("x"),
+            "knowledge-propose-batch",
+            json!({ "proposals": [{
+                "idempotency_key": "batched",
+                "change": { "op": "create", "doc": "handbook/batched", "content": format!("---\ntitle: Batched\n---\n{CANARY}\n") },
+                "rationale": format!("Batched {CANARY}."),
+                "evidence": [{ "kind": "text", "ref": "notes", "excerpt": CANARY }],
+            }] }),
+        )
+        .await;
+    assert_eq!(data(&batched)["results"][0]["created"], true, "{batched}");
+    let fed = fx
+        .cli("knowledge-proposal-feed", json!({ "after": 0 }))
+        .await;
+    assert_eq!(code(&fed), "PROPOSAL_DRAFTER_NOT_ALLOWED", "{fed}");
+    // Auto-approval (step 6): its result names proposals and documents, so it is digested too.
+    let auto = fx.cli("knowledge-auto-approve", json!({})).await;
+    assert_eq!(data(&auto)["counts"]["applied"], 0, "{auto}");
 
     let journal = records::journal(&fx);
     assert!(journal.contains(PLAIN_CANARY), "the control is journaled");

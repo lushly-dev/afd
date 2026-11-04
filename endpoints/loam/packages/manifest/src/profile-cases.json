@@ -1152,7 +1152,7 @@
 			"accepted": true
 		},
 		{
-			"id": "not-yet-served-ui-project-summary",
+			"id": "project-summary-served",
 			"base": "native",
 			"set": {
 				"/manifest_version": 2,
@@ -1160,10 +1160,109 @@
 					"command": "hello-list"
 				}
 			},
+			"accepted": true
+		},
+		{
+			"id": "project-summary-command-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-nothing"
+				}
+			},
 			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
+			"code": "MANIFEST_SUMMARY_INVALID",
+			"key": "ui.project_summary"
+		},
+		{
+			"id": "project-summary-not-inspect",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-forget"
+				},
+				"/commands/2/input_schema": {
+					"type": "object",
+					"properties": {},
+					"additionalProperties": false
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SUMMARY_INVALID",
 			"key": "ui.project_summary",
-			"suggestion": "until phase 2 serves it"
+			"suggestion": "only reads"
+		},
+		{
+			"id": "project-summary-needs-input",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						}
+					},
+					"required": ["name"],
+					"additionalProperties": false
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SUMMARY_INVALID",
+			"key": "ui.project_summary",
+			"suggestion": "needs no input"
+		},
+		{
+			"id": "project-summary-workspace-only",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/app/scope_levels": ["workspace"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SUMMARY_INVALID",
+			"key": "ui.project_summary"
+		},
+		{
+			"id": "project-summary-linked-resource",
+			"base": "view",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list"
+				},
+				"/commands/1/tool_meta": {
+					"ui": {
+						"resourceUri": "ui://hello/main"
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SUMMARY_INVALID",
+			"key": "ui.project_summary",
+			"suggestion": "names no resource"
+		},
+		{
+			"id": "project-summary-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/project_summary": {
+					"command": "hello-list"
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_SUMMARY_INVALID",
+			"key": "ui.project_summary"
 		},
 		{
 			"id": "not-yet-served-ui-documents",

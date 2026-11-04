@@ -37,6 +37,19 @@ const files = (toml = NATIVE) => ({
 });
 
 describe('checkApp', () => {
+	it("G2: refuses a project summary against ui.project_summary's rule, through readManifest", () => {
+		const summarized = (levels: string) =>
+			NATIVE.replace('manifest_version = 1', 'manifest_version = 2').concat(
+				`\n[app]\nscope_levels = ${levels}\n\n[ui]\nproject_summary = { command = "hello-greet" }\n`
+			);
+		expect(checkApp(files(summarized('["project"]'))).refusals).toEqual([]);
+		const refused = checkApp(files(summarized('["workspace"]')));
+		expect(refused.ok).toBe(false);
+		expect(refused.refusals).toEqual([
+			expect.objectContaining({ code: 'MANIFEST_SUMMARY_INVALID', key: 'ui.project_summary' }),
+		]);
+	});
+
 	it('inlines, reports the effective exposure and says what a native app is', () => {
 		const report = checkApp(files());
 		expect(report.refusals).toEqual([]);

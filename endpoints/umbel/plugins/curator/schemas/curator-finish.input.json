@@ -1,0 +1,40 @@
+{
+	"type": "object",
+	"required": ["run", "plan", "results", "withdrawals", "feed"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"run": {
+			"type": "string",
+			"maxLength": 128,
+			"description": "curator-plan's run: the pipeline call's trace id"
+		},
+		"plan": {
+			"type": "object",
+			"description": "curator-plan's content-free bookkeeping"
+		},
+		"results": {
+			"type": "array",
+			"description": "knowledge-propose-batch's results, one per draft"
+		},
+		"withdrawals": {
+			"type": "array",
+			"description": "knowledge-propose-batch's withdrawals, one per withdrawal"
+		},
+		"erased": {
+			"type": ["object", "null"],
+			"description": "knowledge-propose-batch's answer to the erased notice"
+		},
+		"checkpoint": {
+			"type": ["string", "null"],
+			"description": "knowledge-propose-batch's checkpoint: clean, pending or null"
+		},
+		"feed": {
+			"type": "object",
+			"description": "knowledge-proposal-feed's answer"
+		}
+	}
+}

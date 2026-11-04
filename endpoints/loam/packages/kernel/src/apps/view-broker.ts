@@ -6,7 +6,7 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
-import type { LoamClientV1 } from '@lushly-dev/loam-sdk';
+import type { LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import type { LinkedCallV1, ViewBrokerV1 } from '../types.js';
 import { toolCallResult, visibleToApp } from './handler-frame.js';
 import { asJson, refuseRequest } from './support.js';
@@ -26,10 +26,20 @@ export interface ViewHost {
 	 */
 	brokerFor(
 		call: LoamClientV1['call'],
-		readResource: (uri: string) => Promise<string>
+		readResource: (uri: string) => Promise<string>,
+		scope?: ScopeV1
 	): ViewBrokerV1;
-	/** A command of this app finished: tell whoever listens for the resource it names. */
-	notifyCall(name: string, input: unknown, result: CommandResult, signal?: AbortSignal): void;
+	/**
+	 * A command of this app finished in `scope`, its effective one: tell whoever listens for the resource it
+	 * names, from a surface made in that scope, so no result crosses into another project (3.6).
+	 */
+	notifyCall(
+		name: string,
+		input: unknown,
+		result: CommandResult,
+		signal?: AbortSignal,
+		scope?: ScopeV1
+	): void;
 }
 
 /** The resource a command's `tool_meta.ui.resourceUri` names, if any. */
@@ -40,13 +50,13 @@ function linkedResource(manifest: ManifestV2, name: string): string | undefined 
 }
 
 export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions): ViewHost {
-	const listeners = new Map<string, Set<(call: LinkedCallV1) => void>>();
+	const listeners = new Map<string, Set<(call: LinkedCallV1, scope?: ScopeV1) => void>>();
 	const own = new Set((manifest.commands ?? []).map((command) => command.name));
 	const refuse = (message: string, suggestion: string) =>
 		refuseRequest({ code: 'VIEW_CALL_REFUSED', rpcCode: -32602, message, suggestion });
 
 	return {
-		brokerFor: (call, readResource) => ({
+		brokerFor: (call, readResource, bound) => ({
 			sandboxOrigin,
 			async toolsCall(params) {
 				const { name, arguments: input } = (params ?? {}) as {
@@ -95,22 +105,30 @@ export function createViewBroker({ manifest, sandboxOrigin }: ViewBrokerOptions)
 			onLinkedCall(uri, listener) {
 				const held = listeners.get(uri) ?? new Set();
 				listeners.set(uri, held);
-				held.add(listener);
+				const each = (linked: LinkedCallV1, scope?: ScopeV1) => {
+					// Fails closed: a broker with no surface, or a call with no scope, is told nothing (T4). The project
+					// decides, as `scopeKeyOf` does: one workspace per deployment in phase 2 (D32), checked first (3.4).
+					if (bound && scope && bound.project === scope.project) listener(linked);
+				};
+				held.add(each);
 				return () => {
-					held.delete(listener);
+					held.delete(each);
 				};
 			},
 		}),
-		notifyCall(name, input, result, signal) {
+		notifyCall(name, input, result, signal, scope) {
 			const uri = linkedResource(manifest, name);
 			if (uri === undefined) return;
 			for (const listener of listeners.get(uri) ?? []) {
-				listener({
-					command: name,
-					input,
-					result: toolCallResult(result),
-					...(signal !== undefined ? { signal } : {}),
-				});
+				listener(
+					{
+						command: name,
+						input,
+						result: toolCallResult(result),
+						...(signal !== undefined ? { signal } : {}),
+					},
+					scope
+				);
 			}
 		},
 	};

@@ -12,5 +12,6 @@
 	"lock": {
 		"trace": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
 		"until": "2026-11-08T09:10:00.000Z"
-	}
+	},
+	"reviewAfter": null
 }

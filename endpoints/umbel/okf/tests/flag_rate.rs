@@ -40,6 +40,10 @@ fn the_scan_flags_a_few_percent_of_ordinary_documents() {
     for sub in [
         "docs",
         "endpoints/umbel/docs",
+        "endpoints/loam/docs",
+        "endpoints/botcore/docs",
+        "alfred",
+        "foundations",
         "packages",
         ".claude/skills",
         "spec",
