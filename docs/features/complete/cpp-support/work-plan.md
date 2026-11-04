@@ -536,7 +536,7 @@ backends/cpp/
   - `spec/wire/README.md`: the list of round-trip tests, and "all four languages in the same PR".
   - `docs/features/README.md`.
   - `.claude/skills/do-release`: a C++ section.
-- **`botcore.toml` `[packages.cpp]`:** check first whether botcore's package detection recognizes a CMake package. It looks for `pyproject.toml` or `package.json`, per Botcore's package detection in `endpoints/botcore/src/botcore/utils/workspace.py`.
+- **`botcore.toml` `[packages.cpp]`:** check first whether botcore's package detection recognizes a CMake package. It looks for `pyproject.toml`, `package.json` or `Cargo.toml`, per Botcore's package detection in `endpoints/botcore/src/botcore/utils/workspace.py`.
 
 **Exit:** `alfred.yml` is green with a C++ budget, and the skill passes the skill linter.
 
