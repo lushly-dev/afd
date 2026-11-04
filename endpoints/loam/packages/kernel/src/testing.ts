@@ -130,13 +130,15 @@ export interface ReplayKernelResult {
 
 /**
  * Queries whose answers depend on what has loaded, not on a command, so a replay answers them from the
- * record (phase 1 specification, 7.6).
+ * record (phase 1 specification, 7.6). `project-summary-get` too: a wall-clock deadline decided its rows,
+ * and a summary that timed out left no nested entry to answer from (phase 2 specification, 7.7 and 10).
  */
 export const REPLAY_RECORDED_QUERIES: readonly string[] = Object.freeze([
 	'app-list',
 	'app-get',
 	'app-command-list',
 	'app-instance-list',
+	'project-summary-get',
 ]);
 
 /** Whether a replay answers `entry` from its record, because re-running it would prove nothing. */

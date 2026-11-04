@@ -8,6 +8,7 @@
  */
 
 import type { AppSummaryV2, KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamShell } from './elements/shell.js';
 import { formatRoute } from './route-format.js';
 import type { RouterV1, RouteV1 } from './router.js';
 
@@ -93,6 +94,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	const view = host.ownerDocument.defaultView ?? window;
 	let queue: Promise<void> = Promise.resolve();
 	let applying = 0;
+	/** Whether the projects section has been shown, so its chunk follows every later state. */
+	let sections = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -224,6 +227,21 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	 */
 	async function follow(history: 'push' | 'replace'): Promise<void> {
 		const state = await host.readState();
+		// Main's projects section follows the same state, from a chunk of its own, loaded once it shows: here,
+		// where every change of scope or of main is heard, so first paint holds no boundary for it (7.7, 2.4).
+		if (sections || (state.section === 'projects' && state.active === null)) {
+			sections = true;
+			void import('./sections/sections.js').then(
+				({ syncSection }) => syncSection(host as unknown as LoamShell),
+				(cause) => {
+					// Tried again at the next change, as this chunk's own load is; meanwhile main says it could not
+					// load, as for the late commands (2.2), not "Choose an app" (A11).
+					sections = false;
+					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+					reportError(cause);
+				}
+			);
+		}
 		const wanted = routeOf(state);
 		const here = view.location.origin + view.location.pathname;
 		if (!wanted) return;

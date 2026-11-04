@@ -21,6 +21,10 @@ import type { LoamProjectSwitcher } from '../dist/elements/project-switcher.js';
 import { attachTooltip } from '../dist/elements/tooltip.js';
 import type { LoamShell } from '../dist/index.js';
 import { openSwitcher } from '../dist/rail/switcher.js';
+import {
+	LoamProjectsSection,
+	projectsSectionDefinition,
+} from '../dist/sections/projects-section.js';
 import { defineViewFrame, type LoamViewFrame } from '../dist/view/view.js';
 import { type Density, themePart } from './support.js';
 
@@ -560,4 +564,186 @@ export const [ConsoleMounted, ConsoleMountedCompact] = both(
 		});
 	},
 	CONSOLE_BOX
+);
+
+// ─── The projects section (phase 2 specification, 7.7) ─────────────────────────────
+
+const AT = Date.UTC(2026, 10, 3, 12);
+const SECTION_PROJECTS = [
+	{
+		id: 'prj_atlas',
+		slug: 'atlas',
+		name: 'Atlas',
+		icon: 'system/folder',
+		status: 'active',
+		updatedAt: AT,
+	},
+	{
+		id: 'prj_beacon',
+		slug: 'beacon',
+		name: 'Beacon',
+		icon: 'system/folder',
+		status: 'active',
+		updatedAt: AT,
+	},
+	{
+		id: 'prj_cove',
+		slug: 'cove',
+		name: 'Cove',
+		icon: 'system/folder',
+		status: 'archived',
+		updatedAt: AT,
+	},
+].map((project) => ({
+	workspace: 'personal',
+	access: { mode: 'workspace' },
+	memberEpoch: 0,
+	createdAt: AT,
+	createdBy: 'local',
+	updatedBy: 'local',
+	...project,
+}));
+const ATLAS_SCOPE = { workspace: 'personal', project: 'prj_atlas' };
+/** A home's rows: an app with counts, an app whose text is markup rendered as text, one that timed out, one trimmed. */
+const SECTION_SUMMARIES = [
+	{
+		instance: 'plans',
+		title: 'Plans',
+		icon: 'system/checkmark',
+		summary: {
+			counts: [
+				{ label: 'Open', value: 3 },
+				{ label: 'Done', value: 2 },
+			],
+			recent: [{ title: 'Review the plan', updatedAt: AT }, { title: 'Book the room' }],
+		},
+	},
+	{
+		instance: 'board',
+		title: 'Board',
+		icon: 'system/calendar',
+		summary: {
+			recent: [
+				{
+					title: '<b>Not bold</b>',
+					link: { kind: 'app', instance: 'board', route: 'card/7', scope: ATLAS_SCOPE },
+				},
+			],
+			links: [
+				{ label: 'Open the board', link: { kind: 'app', instance: 'board', scope: ATLAS_SCOPE } },
+			],
+		},
+	},
+	{
+		instance: 'slow',
+		title: 'Slow',
+		icon: 'system/clock',
+		error: {
+			code: 'PROJECT_SUMMARY_TIMEOUT',
+			message: 'Slow did not answer within 2 seconds',
+			suggestion: "Report this to the app's owner",
+		},
+	},
+	{
+		instance: 'wide',
+		title: 'Wide',
+		icon: 'system/document',
+		summary: { counts: [{ label: 'Items', value: 8 }] },
+		dropped: 4,
+	},
+];
+
+/** A section over a kernel that answers the list and the home, and refuses a taken slug. */
+const section =
+	(
+		view: 'list' | 'home',
+		projects: unknown[],
+		prepare?: (element: LoamProjectsSection) => Promise<void>,
+		summaries: unknown[] = SECTION_SUMMARIES
+	) =>
+	async (wrapper: HTMLElement) => {
+		if (!customElements.get(projectsSectionDefinition.name)) {
+			await LoamProjectsSection.define(projectsSectionDefinition);
+		}
+		const element = document.createElement('loam-projects-section') as LoamProjectsSection;
+		element.kernel = {
+			subscribe: () => () => {},
+			call: async (name: string): Promise<CommandResult> =>
+				name === 'project-list'
+					? { success: true, data: { projects, total: projects.length } }
+					: name === 'project-summary-get'
+						? { success: true, data: { project: projects[0], summaries } }
+						: {
+								success: false,
+								error: {
+									code: 'PROJECT_SLUG_TAKEN',
+									message: "A project already has the slug 'atlas'",
+									suggestion: 'Choose another slug; a slug cannot change once created',
+								},
+							},
+		} as never;
+		element.base = 'https://loam.example/';
+		wrapper.append(element);
+		await element.show(view, view === 'home' ? (projects[0] as never) : null, 'personal');
+		await element.read();
+		await prepare?.(element);
+	};
+
+const SECTION_BOX: Box = { inline: '960px', block: '720px' };
+export const [ProjectsSection, ProjectsSectionCompact] = both(
+	'loam-projects-section',
+	section('list', SECTION_PROJECTS),
+	SECTION_BOX
+);
+export const [ProjectsSectionForm, ProjectsSectionFormCompact] = both(
+	'loam-projects-section',
+	section('list', SECTION_PROJECTS, async (element) => {
+		// A refused slug, beside its field.
+		await element.openForm();
+		const name = element.shadowRoot?.querySelector('[data-ref="nameField"]') as {
+			value: string;
+		} | null;
+		if (name) name.value = 'Atlas';
+		await element.create();
+	}),
+	SECTION_BOX
+);
+export const [ProjectsSectionEmpty, ProjectsSectionEmptyCompact] = both(
+	'loam-projects-section',
+	// The form opens itself on the first read that finds no projects (7.7, A3).
+	section('list', []),
+	SECTION_BOX
+);
+export const [ProjectsSectionHome, ProjectsSectionHomeCompact] = both(
+	'loam-projects-section',
+	section('home', SECTION_PROJECTS),
+	SECTION_BOX
+);
+
+/** At 320 CSS px: text at 7.7's bounds, an empty summary and right-to-left text, each wrapping in its card (A2). */
+const SECTION_LONG = [
+	{
+		instance: 'plans',
+		title: 'Plans',
+		icon: 'system/checkmark',
+		summary: {
+			counts: [{ label: 'L'.repeat(40), value: 1234567 }],
+			recent: [{ title: 'T'.repeat(120), updatedAt: AT }],
+			links: [
+				{ label: 'K'.repeat(40), link: { kind: 'app', instance: 'plans', scope: ATLAS_SCOPE } },
+			],
+		},
+	},
+	{ instance: 'board', title: 'Board', icon: 'system/calendar', summary: {} },
+	{
+		instance: 'ledger',
+		title: 'دفتر',
+		icon: 'system/document',
+		summary: { counts: [{ label: 'مفتوح', value: 3 }], recent: [{ title: 'مراجعة الخطة' }] },
+	},
+];
+export const [ProjectsSectionLong, ProjectsSectionLongCompact] = both(
+	'loam-projects-section',
+	section('home', SECTION_PROJECTS, undefined, SECTION_LONG),
+	{ inline: '320px', block: '900px' }
 );

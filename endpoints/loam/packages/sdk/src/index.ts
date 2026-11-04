@@ -40,6 +40,11 @@ export interface AppCallContextV1 {
 	/** Present with the `store` grant. */
 	readonly store?: AppStoreV1;
 	readonly config: Readonly<Record<string, unknown>>;
+	/**
+	 * Aborted when the caller gives up on the call, as a project summary's deadline does (phase 2
+	 * specification, 7.7). Optional to an app: a handler that ignores it runs on, and its result is unused.
+	 */
+	readonly signal?: AbortSignal;
 	/** For queries only: a nested mutation answers NESTED_MUTATION_REFUSED (5.3). */
 	readonly client: LoamClientV1;
 	/** The call's effective scope (phase 2 specification, 3.2). */
@@ -73,6 +78,27 @@ export function projectsOver(client: LoamClientV1, active: string | undefined): 
 		},
 		get,
 	};
+}
+
+/**
+ * A link to a resource (documents specification, 9.1): navigation, never execution, so it names no command.
+ * An app gives one as data, as in a project summary, and it does nothing until a person follows it.
+ */
+export type ResourceLinkV1 =
+	| { kind: 'document'; document: string; scope: ScopeV1; anchor?: unknown }
+	| { kind: 'app'; instance: string; route?: string; scope: ScopeV1 };
+
+/**
+ * What an app's `ui.project_summary` command returns, for a project's home (phase 2 specification, 7.7).
+ * Text, rendered as text. The shell drops what is over a bound.
+ */
+export interface ProjectSummaryV1 {
+	/** At most 8; a label of 1 to 40 characters. */
+	counts?: Array<{ label: string; value: number }>;
+	/** At most 10; a title of 1 to 120 characters. */
+	recent?: Array<{ title: string; updatedAt?: number; link?: ResourceLinkV1 }>;
+	/** At most 6. */
+	links?: Array<{ label: string; link: ResourceLinkV1 }>;
 }
 
 /** A project as an app sees it: no members, and no one who wrote it (phase 2 specification, 4.3). */

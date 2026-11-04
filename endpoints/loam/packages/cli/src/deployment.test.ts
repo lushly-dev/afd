@@ -874,6 +874,31 @@ describe('deployment check', () => {
 		expect((await write_(paths)).ok).toBe(true);
 	});
 
+	it("G2: refuses a package whose project summary breaks ui.project_summary's rule, as the kernel would", async () => {
+		const summarized = (levels: string[]) =>
+			nativePackage('hello', {
+				manifest_version: 2,
+				app: { scope_levels: levels },
+				commands: [
+					{
+						name: 'hello-count',
+						description: 'Count the names greeted.',
+						effects: ['inspect'],
+						input_schema: { type: 'object', properties: {}, additionalProperties: false },
+					},
+				],
+				ui: { project_summary: { command: 'hello-count' } },
+			});
+		const file = 'deployment_version = 1\n\n[apps.hello]\napp = "hello"\npackage = "p"\n';
+		expect(await refusalCodes(file, { p: summarized(['project']) })).toEqual([]);
+		const { instanceRefusals } = await analyzeDeployment(
+			(await layout(file, { p: summarized(['workspace']) })).config
+		);
+		expect(instanceRefusals.map(({ code, key }) => [code, key])).toEqual([
+			['MANIFEST_SUMMARY_INVALID', 'apps.hello: ui.project_summary'],
+		]);
+	});
+
 	it('refuses a package holding another app', async () => {
 		expect(
 			await refusalCodes('deployment_version = 1\n\n[apps.hello]\napp = "hello"\npackage = "p"\n', {

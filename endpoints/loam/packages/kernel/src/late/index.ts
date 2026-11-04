@@ -16,6 +16,7 @@ import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createPortRefusals } from './port-refusals.js';
+import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
@@ -33,7 +34,7 @@ export type LateCommandDeps = ShellCommandDeps &
 		isMutation(name: string): boolean;
 		/** What only a replay sets: its recorded actor by trace ID, and `replaying` (phase 2 specification, 10). */
 		internals?: LateScopeDeps['internals'];
-	};
+	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'>;
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -148,6 +149,7 @@ export function createLateParts(
 				activeApp: () => deps.state.activeApp(),
 			}),
 			...scoped,
+			createProjectSummaryCommand(deps),
 		].map((command) => [command.name, command])
 	);
 	return {

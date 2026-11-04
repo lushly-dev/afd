@@ -78,11 +78,9 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
  * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
  * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
  * holds a `ManifestV2`, so nothing narrows a manifest any longer. Step 6 served the `tree` sidebar, whose
- * one rule, a `command`, the schema holds.
+ * one rule, a `command`, the schema holds. Step 7 served `ui.project_summary` (`summaryRules`).
  */
 export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
-	// Step 7 serves `ui.project_summary`. Its rules: `MANIFEST_SUMMARY_INVALID`, not `mounted`.
-	{ pointer: '/ui/project_summary' },
 	// Step 9 serves `ui.documents`. Its rules are the documents specification's 2.1, and `content_schema`'s `MANIFEST_NOT_PACKED`.
 	{ pointer: '/ui/documents' },
 	// Step 11 serves `ui.new`. Its rules: `MANIFEST_COMMAND_UNKNOWN`, `MANIFEST_COMMAND_NEEDS_INPUT`.
@@ -564,6 +562,42 @@ function resourceKeyRules(manifest: ManifestV2, found: Findings): void {
 	}
 }
 
+/**
+ * `ui.project_summary` (phase 2 specification, 7.7 and 8.3): a declared command with `effects =
+ * ["inspect"]` that needs no input and is linked to no view's resource, for a native or view app whose
+ * levels include `project`, since it runs at a project's scope with `{}` and outside any surface. A mounted
+ * app's commands are unknown until discovery, so it has none. One refusal, the first that applies.
+ */
+function summaryRules(manifest: ManifestV2, found: Findings): void {
+	const command = manifest.ui?.project_summary?.command;
+	if (command === undefined) return;
+	const declared = manifest.commands?.find((candidate) => candidate.name === command);
+	const required = (declared?.input_schema as { required?: unknown[] } | undefined)?.required;
+	const why =
+		manifest.plugin.kind === 'mounted'
+			? 'A mounted app has no project summary'
+			: !manifest.app?.scope_levels?.includes('project')
+				? 'A project summary runs in a project, and this app takes none'
+				: !declared
+					? `\`${command}\` is not a command this manifest declares`
+					: (declared.effects as readonly string[]).join() !== 'inspect'
+						? `\`${command}\` must have \`effects = ["inspect"]\``
+						: required?.length
+							? `\`${command}\` needs input, and a summary is called with \`{}\``
+							: (declared.tool_meta?.ui as { resourceUri?: unknown } | undefined)?.resourceUri !==
+									undefined
+								? `\`${command}\` is linked to a view's resource, and a summary runs outside any view`
+								: '';
+	if (why) {
+		found.refuse(
+			'MANIFEST_SUMMARY_INVALID',
+			'/ui/project_summary',
+			`${why}.`,
+			'Name a command of this app that only reads, needs no input and names no resource, in an app whose levels include project.'
+		);
+	}
+}
+
 /** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
@@ -577,6 +611,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	layoutRules(manifest, found);
 	compositionRules(manifest, found);
 	resourceKeyRules(manifest, found);
+	summaryRules(manifest, found);
 	textRules(manifest, found);
 	return found;
 }

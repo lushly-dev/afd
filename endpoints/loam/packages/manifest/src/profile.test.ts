@@ -6,6 +6,7 @@ import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from 
 import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
+
 import { validateManifest } from './validate.generated.js';
 import { pointerOf, type ValidatorError } from './validator-errors.js';
 
@@ -128,8 +129,9 @@ describe("Loam's profile", () => {
 			'ui-new',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
-			// until its step serves it: `app.resource_keys` is step 4's and `tree` step 6's, with their own cases.
-			const served = key === 'app-resource-keys' || key === 'sidebar-tree';
+			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's and
+			// `ui.project_summary` step 7's, with their own cases.
+			const served = ['app-resource-keys', 'sidebar-tree', 'ui-project-summary'].includes(key);
 			expect(ids.has(`version-keys-${key}`), key).toBe(true);
 			expect(ids.has(`not-yet-served-${key}`), key).toBe(!served);
 		}

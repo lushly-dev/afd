@@ -123,6 +123,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 			scope,
 			...(granted.has('projects') ? { projects: projectsOver(client, scope.project) } : {}),
 			...(context.actor !== undefined ? { actor: context.actor } : {}),
+			...(context.signal ? { signal: context.signal } : {}),
 			...(granted.has('clock') ? { now: () => readClock(context) } : {}),
 			...(granted.has('random') ? { random: () => readRandom(context) } : {}),
 			...(granted.has('store')

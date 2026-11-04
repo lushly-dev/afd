@@ -131,4 +131,28 @@ describe('the view broker', () => {
 		notifyCall('probe-linked', {}, success({}));
 		expect(heard.length).toBe(1);
 	});
+
+	it('T4: tells a surface only of a linked call in its own scope, so nothing of Beacon reaches a view in Atlas', () => {
+		const call = vi.fn(async () => success({}));
+		const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test' });
+		const atlas = view.brokerFor(call as never, vi.fn(), { workspace: 'w', project: 'prj_atlas' });
+		const beacon = view.brokerFor(call as never, vi.fn(), {
+			workspace: 'w',
+			project: 'prj_beacon',
+		});
+		const workspace = view.brokerFor(call as never, vi.fn(), { workspace: 'w' });
+		const heard: string[] = [];
+		atlas.onLinkedCall(RESOURCE, () => heard.push('atlas'));
+		beacon.onLinkedCall(RESOURCE, () => heard.push('beacon'));
+		workspace.onLinkedCall(RESOURCE, () => heard.push('workspace'));
+		// A call that ran in Beacon, as a nested summary for Beacon's home would.
+		view.notifyCall('probe-linked', {}, success({}), undefined, {
+			workspace: 'w',
+			project: 'prj_beacon',
+		});
+		expect(heard).toEqual(['beacon']);
+		heard.length = 0;
+		view.notifyCall('probe-linked', {}, success({}), undefined, { workspace: 'w' });
+		expect(heard).toEqual(['workspace']);
+	});
 });

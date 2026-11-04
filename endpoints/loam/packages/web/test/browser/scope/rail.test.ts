@@ -1,7 +1,7 @@
 /**
  * The rail and the parts (phase 2 specification, 7.1 to 7.6 and 7.8; step 6): E3 so far, E12 so far, E11's
  * "tasks as version 2, side by side", and 7.6's guarantee that nothing of one project stays under another.
- * E3's clauses that land in the projects section wait for step 7: here they assert the state and the URL.
+ * E3's clauses that land in the projects section assert what it shows, since step 7 renders it.
  * D29 is open with the owner: a dual-scope app with no project is in the bottom band, as specified. Every
  * expectation that reads it is marked `D29`, here and in `first-paint.test.ts` and `chrome/src/rail/bands.test.ts`.
  */
@@ -227,10 +227,17 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect(await marked(page, 'tasks-main')).toBe(false);
 		await expect.poll(() => page.locator('loam-sidebar loam-list p.empty').count()).toBe(1);
 		expect(await deepText(page)).not.toContain('Only in Atlas');
-		// To no project from tasks: the projects section, which step 7 renders.
+		// To no project from tasks: the projects section, its list, with focus on its heading as the app left.
+		await page.locator('tasks-main').locator('input, button').first().focus();
 		await scopeTo(page, null);
 		expect(await stateOf(page)).toMatchObject({ active: null, section: 'projects' });
 		expect(new URL(page.url()).pathname).toBe('/personal/~/projects');
+		const heading = page.locator('loam-main loam-projects-section h1');
+		await expect.poll(() => heading.textContent()).toBe('Projects');
+		await expect
+			.poll(() => page.locator('loam-projects-section tbody a').allTextContents())
+			.toEqual(['Atlas', 'Beacon']);
+		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
 		expect(await deepText(page)).not.toContain('Only in Atlas');
 		await opened.context.close();
 	});
@@ -242,6 +249,11 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await scopeTo(page, 'atlas');
 		expect(await stateOf(page)).toMatchObject({ active: null, section: 'projects' });
 		expect(new URL(page.url()).pathname).toBe('/personal/p/atlas');
+		// The project's home: its name, and tasks' card, the one app here with a summary.
+		await expect.poll(() => page.locator('loam-projects-section h1').textContent()).toBe('Atlas');
+		await expect
+			.poll(() => page.locator('loam-projects-section .card h2').allTextContents())
+			.toEqual([expect.stringContaining('Tasks')]);
 		expect(await agentCall(page, 'tally-add')).toMatchObject({ success: true });
 		const added = (await journal(page)).at(-1);
 		expect(added?.command).toBe('tally-add');
@@ -288,6 +300,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await home.click();
 		await expect.poll(async () => (await stateOf(page)).section).toBe('projects');
 		await expect.poll(() => page.title()).toBe('Projects · Atlas · Personal');
+		await expect.poll(() => page.locator('loam-projects-section h1').textContent()).toBe('Atlas');
 		// No project, chosen by pointer.
 		await switcher.click();
 		await list.locator('violet-option', { hasText: 'No project' }).click();
@@ -331,6 +344,9 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect((await stateOf(page)).active).toBeNull();
 		await expect.poll(() => new URL(page.url()).pathname).toBe('/personal/~/projects');
 		await expect.poll(async () => (await focused(page)).tag).toBe('h1');
+		// The section's heading, in its own shadow root, not main's hidden landing.
+		expect((await focused(page)).hosts).toContain('loam-projects-section');
+		expect((await focused(page)).label).toBe('Projects');
 		expect(await switcher.getAttribute('aria-expanded')).toBe('false');
 		await opened.context.close();
 	});
