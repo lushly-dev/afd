@@ -37,6 +37,8 @@ function definitions() {
 			store: new MemoryAdapter(),
 			generation: () => 'test',
 			isMutation: () => false,
+			summaries: () => [],
+			run: () => Promise.resolve({ success: true }) as never,
 		}).shell,
 	};
 }

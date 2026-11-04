@@ -128,8 +128,9 @@ describe("Loam's profile", () => {
 			'ui-new',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
-			// until its step serves it: `app.resource_keys` is step 4's and `tree` step 6's, with their own cases.
-			const served = key === 'app-resource-keys' || key === 'sidebar-tree';
+			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's and
+			// `ui.project_summary` step 7's, with their own cases.
+			const served = ['app-resource-keys', 'sidebar-tree', 'ui-project-summary'].includes(key);
 			expect(ids.has(`version-keys-${key}`), key).toBe(true);
 			expect(ids.has(`not-yet-served-${key}`), key).toBe(!served);
 		}

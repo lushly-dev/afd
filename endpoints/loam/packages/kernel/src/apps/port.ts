@@ -58,7 +58,12 @@ export interface AppPortOptions {
 	granted: ReadonlySet<string>;
 	load(): Promise<AppDefinitionV1>;
 	/** A view's broker, closed over one caller's `call`: the port's, or a surface's (3.6). */
-	view?(call: LoamClientV1['call'], readResource: (uri: string) => Promise<string>): ViewBrokerV1;
+	/** `scope`, the surface's: a linked call's result reaches it only from a call in that scope. */
+	view?(
+		call: LoamClientV1['call'],
+		readResource: (uri: string) => Promise<string>,
+		scope?: ScopeV1
+	): ViewBrokerV1;
 }
 
 /**
@@ -249,7 +254,7 @@ export function createAppPort(options: AppPortOptions): {
 				scope,
 				readOnly,
 				call: surfaceCall,
-				...(options.view ? { view: options.view(surfaceCall, readResource) } : {}),
+				...(options.view ? { view: options.view(surfaceCall, readResource, scope) } : {}),
 			});
 		},
 		...(granted.has('store')
@@ -269,6 +274,7 @@ export function createAppPort(options: AppPortOptions): {
 					}),
 				}
 			: {}),
+		// The port's own broker, unbound: it hears no linked call, and only tests use it (T4).
 		...(options.view ? { view: options.view(call, readResource) } : {}),
 	};
 	return {

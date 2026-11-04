@@ -47,7 +47,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * an empty shell, which never loads `surfaces` (7.8), 41,057 of 45,163, its measurement plus 10%, unrounded,
  * as `urlMinified`'s is. No other ceiling rose. Step 8 changed none: first paint 285,270 and 87,954 gzip,
  * the kernel alone 111,019, `late` 50,851, `apps` 378,907 (86 left) and `mount` 215,943, with 9.2's checks in
- * `apps` and the disabled gate's refusals moved to `late`, which `apps` had no room for. Step 9 leaves
+ * `apps` and the disabled gate's refusals moved to `late`, which `apps` had no room for. Step 7
+ * added `sectionsMinified`, the projects section with
+ * the kernel's summary rows that `project-summary-get` loads on its first call, 42,975 of 45,000, its first
+ * estimate kept as the measurement is above 70% of it; and raised `appsMinified` by 833, to 379,826, for
+ * `ui.project_summary`'s rule in the one validator, measured as the closure with it less without it (379,007
+ * less 378,174 on step 6's base), approved by the coordinator, 2026-11-03. On step 8's base: first paint
+ * 285,404 and 87,998 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
+ * `events` chunk; the kernel alone 111,238, `late` 51,893, `url-sync` 4,347, `apps` 379,806 (20 left).
+ * Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
  */
 export const CEILINGS = Object.freeze({
@@ -57,7 +65,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	urlMinified: 5_091,
-	appsMinified: 378_993,
+	appsMinified: 379_826,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,
@@ -65,6 +73,7 @@ export const CEILINGS = Object.freeze({
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
+	sectionsMinified: 45_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -133,12 +142,41 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip)-/.test(
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows)-/.test(
 			name
 		)
 	);
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
+	}
+	// `vite.config.ts`'s `events` group keeps Vite's preload helper in first paint's `events` chunk (step 7):
+	// a chunk of its own would cost first paint an import line and its gzip overhead.
+	if ([...initial].some((name) => /^assets\/preload-helper-/.test(name))) {
+		throw new Error(
+			'budget: first paint holds a `preload-helper-` chunk: check the `events` group'
+		);
+	}
+	// Exactly one `events-` chunk, holding the helper and the group's four chrome modules: a module renamed
+	// or moved out of the group's pattern fails here, not silently in a larger first paint.
+	const events = [...initial].filter((name) => /^assets\/events-/.test(name));
+	if (events.length !== 1) {
+		throw new Error(
+			`budget: first paint holds ${events.length} \`events-\` chunks, not 1: check the \`events\` group`
+		);
+	}
+	const held = Object.keys(chunks.get(events[0]).modules ?? {}).map((id) => id.replace(/\\/g, '/'));
+	for (const module of [
+		'vite/preload-helper',
+		'chrome/dist/elements/events.js',
+		'chrome/dist/elements/entry-styles.js',
+		'chrome/dist/elements/app-entry.js',
+		'chrome/dist/elements/notice-loader.js',
+	]) {
+		if (!held.some((id) => id.includes(module))) {
+			throw new Error(
+				`budget: first paint's \`events\` chunk does not hold ${module}: check the \`events\` group`
+			);
+		}
 	}
 	// With what it imports statically and what loaded before it has not, such as the listbox.
 	const closure = (pattern, loaded) => {
@@ -183,6 +221,13 @@ async function measurePage() {
 	// The rail's tooltip, loaded on its first hover, focus or press, which can come before `late` (7.5).
 	const tooltip = closure(/^assets\/tooltip-/, initial);
 	if (tooltip.size === 0) throw new Error('budget: the build has no `tooltip` chunk to measure');
+	// The projects section (phase 2 specification, 7.7), loaded when main first shows it, in "the rest" of
+	// 2.4's order, so after the surfaces; with the kernel's summary rows, which `project-summary-get` loads on
+	// its first call, from the section's home: what showing the section costs.
+	const sections = closure(/^assets\/(sections|project-summary-rows)-/, afterSurfaces);
+	if (closure(/^assets\/sections-/, afterSurfaces).size === 0) {
+		throw new Error('budget: the build has no `sections` chunk to measure');
+	}
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -210,6 +255,7 @@ async function measurePage() {
 		switcherMinified: sizeOf(switcher),
 		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
+		sectionsMinified: sizeOf(sections),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -281,6 +327,7 @@ const ROWS = [
 	['switcherMinified', "The chrome's `switcher` chunk and its imports, minified"],
 	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
+	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
 ];
 
 export async function measure() {

@@ -74,7 +74,18 @@ const stateOf = (page: Page): Promise<ShownState> =>
 	);
 
 const pathOf = (page: Page) => new URL(page.url()).pathname;
-const heading = (page: Page) => page.locator('loam-main h1').textContent();
+/** Main's heading: the projects section's where it shows, which hides the landing (7.7), else main's own. */
+const heading = (page: Page) =>
+	page.evaluate(() => {
+		const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+		const section = main?.querySelector('loam-projects-section');
+		return (
+			(main?.getAttribute('route') !== 'not-found' &&
+				section?.shadowRoot?.querySelector('h1')?.textContent) ||
+			main?.shadowRoot?.querySelector('h1')?.textContent ||
+			''
+		);
+	});
 const historyLength = (page: Page) => page.evaluate(() => history.length);
 
 /** A same-document navigation, as a link or the address bar inside the page makes it. */
@@ -240,7 +251,8 @@ describe.each(['/', '/loam/'])('P2-E8: the URL scheme, with base_path = %s', (ba
 		expect(await visit('personal/p/atlas')).toEqual([
 			ran('section-open', { section: 'projects', path: '' }),
 		]);
-		expect(await heading(page)).not.toBe('Nothing here');
+		// E8's projects-section shape: the project's home, its heading the project's name (step 7).
+		await expect.poll(() => heading(page)).toBe('Atlas');
 		expect(await stateOf(page)).toMatchObject({
 			project: { slug: 'atlas' },
 			section: 'projects',

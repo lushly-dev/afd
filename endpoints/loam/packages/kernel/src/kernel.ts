@@ -385,6 +385,8 @@ export async function createKernelParts(
 				generation: () => generation,
 				isMutation: (name) => mutations.get(name) === true,
 				internals,
+				summaries,
+				run,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];

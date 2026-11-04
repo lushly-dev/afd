@@ -477,6 +477,8 @@ export class AppSurfaces implements ShellApps {
 	}
 
 	#applyToggles(): void {
+		// With no app, the projects section's chunk marks the toggles itself, as it declares main alone (7.7).
+		if (this.#declared === null && this.#part<HTMLElement>('main').dataset.section) return;
 		const titlebar = this.#part<HTMLElement>('titlebar');
 		for (const part of PARTS) {
 			const toggle = titlebar.shadowRoot?.querySelector(`[data-toggle="${part}"]`);

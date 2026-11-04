@@ -9,6 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RouterV1, RouteV1 } from './router.js';
 import { createUrlSync, type MainStateV1, routeOf, type UrlHostV1 } from './url-sync.js';
 
+// The projects section's chunk, which state to URL loads once main shows the section (7.7): a page's own.
+const sections = vi.hoisted(() => ({ syncSection: vi.fn(async () => {}) }));
+vi.mock('./sections/sections.js', () => sections);
+
 const BASE = 'http://127.0.0.1:4173/loam/';
 const ATLAS = { id: 'prj_atlas', slug: 'atlas' };
 const BEACON = { id: 'prj_beacon', slug: 'beacon' };
@@ -302,6 +306,24 @@ describe('P2-E8: a command moves the URL', () => {
 			['push', `${BASE}acme/p/atlas/hello`],
 			['replace', `${BASE}acme/p/atlas/hello/x`],
 		]);
+	});
+
+	it('P2-E9: the projects section follows the state once main shows it, and not before', async () => {
+		sections.syncSection.mockClear();
+		const { kernel, sync, timers } = await fixture('acme/hello', { active: 'hello' });
+		await kernel.call('app-open', { instance: 'hello' });
+		sync.changed(event({ command: 'app-open', mainChanged: 'push' }));
+		await timers();
+		expect(sections.syncSection).not.toHaveBeenCalled();
+		await kernel.call('section-open', { section: 'projects', path: '' });
+		sync.changed(event({ command: 'section-open', mainChanged: 'push' }));
+		await timers();
+		expect(sections.syncSection).toHaveBeenCalledTimes(1);
+		// Once shown, every later state is the section's to follow, so it can leave main.
+		await kernel.call('app-open', { instance: 'hello' });
+		sync.changed(event({ command: 'app-open', mainChanged: 'push' }));
+		await timers();
+		expect(sections.syncSection).toHaveBeenCalledTimes(2);
 	});
 
 	it('P2-E8: ignores a failure, and an event that changes neither scope nor main', async () => {

@@ -16,6 +16,7 @@ import { readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
+import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
 import { type AppKeybinding, needsInput } from '../keybindings.js';
 import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
@@ -178,7 +179,13 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			port,
 			async invoke(name, input, context) {
 				const result = await frame.invoke(name, input, context);
-				viewHost?.notifyCall(name, input, result, context.signal);
+				viewHost?.notifyCall(
+					name,
+					input,
+					result,
+					context.signal,
+					(context as KernelFieldContext).scope
+				);
 				return result;
 			},
 		};

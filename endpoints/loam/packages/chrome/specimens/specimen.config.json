@@ -437,6 +437,66 @@
 			"title": "Loam/Apps/ConsoleMountedCompact",
 			"module": "./apps.specimens.ts",
 			"exportName": "ConsoleMountedCompact"
+		},
+		{
+			"id": "app-projects-section",
+			"title": "Loam/Apps/ProjectsSection",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSection"
+		},
+		{
+			"id": "app-projects-section-compact",
+			"title": "Loam/Apps/ProjectsSectionCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionCompact"
+		},
+		{
+			"id": "app-projects-section-form",
+			"title": "Loam/Apps/ProjectsSectionForm",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionForm"
+		},
+		{
+			"id": "app-projects-section-form-compact",
+			"title": "Loam/Apps/ProjectsSectionFormCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionFormCompact"
+		},
+		{
+			"id": "app-projects-section-empty",
+			"title": "Loam/Apps/ProjectsSectionEmpty",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionEmpty"
+		},
+		{
+			"id": "app-projects-section-empty-compact",
+			"title": "Loam/Apps/ProjectsSectionEmptyCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionEmptyCompact"
+		},
+		{
+			"id": "app-projects-section-home",
+			"title": "Loam/Apps/ProjectsSectionHome",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionHome"
+		},
+		{
+			"id": "app-projects-section-home-compact",
+			"title": "Loam/Apps/ProjectsSectionHomeCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionHomeCompact"
+		},
+		{
+			"id": "app-projects-section-long",
+			"title": "Loam/Apps/ProjectsSectionLong",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionLong"
+		},
+		{
+			"id": "app-projects-section-long-compact",
+			"title": "Loam/Apps/ProjectsSectionLongCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionLongCompact"
 		}
 	]
 }
