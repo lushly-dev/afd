@@ -167,8 +167,10 @@ export const styles = css`
 		border-radius: var(--radius-md);
 		background: var(--color-surface-card);
 		min-inline-size: 0;
-		/* Any text within 7.7's bounds wraps at 320 CSS px (WCAG 1.4.10). */
+		/* Any text within 7.7's bounds wraps at 320 CSS px (WCAG 1.4.10), and a stack of combining marks paints
+		   inside its own card, never over a neighbour's. */
 		overflow-wrap: anywhere;
+		overflow: clip;
 	}
 	.counts {
 		display: flex;

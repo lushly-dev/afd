@@ -5,6 +5,8 @@ import type { LinkedCallV1 } from '../types.js';
 import { createViewBroker } from './view-broker.js';
 
 const RESOURCE = 'ui://probe/main';
+/** The scope a surface was made in, and its calls ran in. */
+const AT = { workspace: 'w', project: 'prj_atlas' };
 
 const manifest = {
 	view: { handlers: 'handlers.html' },
@@ -20,7 +22,7 @@ function setup() {
 	const call = vi.fn(async () => success({ ok: true }));
 	const readResource = vi.fn(async () => '<h1>Probe</h1>');
 	const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test' });
-	const broker = view.brokerFor(call as never, readResource);
+	const broker = view.brokerFor(call as never, readResource, AT);
 	return { call, readResource, broker, notifyCall: view.notifyCall };
 }
 
@@ -116,8 +118,8 @@ describe('the view broker', () => {
 		const other = vi.fn();
 		broker.onLinkedCall('ui://probe/other', other);
 		const { signal } = new AbortController();
-		notifyCall('probe-plain', {}, success({}));
-		notifyCall('probe-linked', { a: 1 }, success({ b: 2 }), signal);
+		notifyCall('probe-plain', {}, success({}), undefined, AT);
+		notifyCall('probe-linked', { a: 1 }, success({ b: 2 }), signal, AT);
 		expect(heard).toEqual([
 			{
 				command: 'probe-linked',
@@ -128,7 +130,7 @@ describe('the view broker', () => {
 		]);
 		expect(other).not.toHaveBeenCalled();
 		stop();
-		notifyCall('probe-linked', {}, success({}));
+		notifyCall('probe-linked', {}, success({}), undefined, AT);
 		expect(heard.length).toBe(1);
 	});
 
@@ -154,5 +156,18 @@ describe('the view broker', () => {
 		heard.length = 0;
 		view.notifyCall('probe-linked', {}, success({}), undefined, { workspace: 'w' });
 		expect(heard).toEqual(['workspace']);
+	});
+
+	it('T4: fails closed: a broker with no surface, or a call with no scope, is told nothing', () => {
+		const view = createViewBroker({ manifest, sandboxOrigin: 'https://s.test' });
+		const heard: string[] = [];
+		view.brokerFor(vi.fn() as never, vi.fn()).onLinkedCall(RESOURCE, () => heard.push('unbound'));
+		view.brokerFor(vi.fn() as never, vi.fn(), AT).onLinkedCall(RESOURCE, () => heard.push('atlas'));
+		// No scope on the call: nobody hears it.
+		view.notifyCall('probe-linked', {}, success({}));
+		expect(heard).toEqual([]);
+		// A call in Atlas reaches the surface of Atlas, and not the port's unbound broker.
+		view.notifyCall('probe-linked', {}, success({}), undefined, AT);
+		expect(heard).toEqual(['atlas']);
 	});
 });

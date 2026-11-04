@@ -353,6 +353,58 @@ describe('P2-E4: the reviews of step 7 (T3)', () => {
 	}, 60_000);
 });
 
+describe('P2-E4: the trust re-check of step 7 (N3)', () => {
+	it("N3: signing out on the list at workspace level, with no change of scope, leaves a restricted project's name nowhere", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await signIn(page);
+		await page.locator('loam-rail loam-section-entry[section="projects"] button').click();
+		const section = page.locator('loam-main loam-projects-section');
+		await expect.poll(() => section.locator('h1').textContent()).toBe('Projects');
+		await expect.poll(() => section.locator('form#create').count()).toBe(1);
+		await section
+			.locator('violet-text-field')
+			.filter({ has: page.locator('label:text-is("Name")') })
+			.locator('input')
+			.fill('Vault');
+		// The form makes a project open to the workspace; this one is restricted to the person, as
+		// `project-create` takes, so the section's own create, and its status line, name a restricted project.
+		await page.evaluate((member) => {
+			const element = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main loam-projects-section') as unknown as {
+				kernel: { call(name: string, input?: unknown): Promise<unknown> };
+			};
+			const real = element.kernel;
+			element.kernel = {
+				...real,
+				call: (name: string, input?: unknown) =>
+					real.call(
+						name,
+						name === 'project-create'
+							? { ...(input as object), access: { mode: 'restricted', members: [member] } }
+							: input
+					),
+			};
+		}, PERSON);
+		await section.locator('violet-button', { hasText: 'Create' }).click();
+		await expect.poll(() => section.locator('.said').textContent()).toBe('Vault created');
+		const scopeOf = async () =>
+			((await kernelCall(page, 'scope-get')) as { data: { scope: unknown } }).data.scope;
+		const before = await scopeOf();
+		await page
+			.locator('loam-titlebar violet-button, loam-titlebar button', { hasText: 'Sign out' })
+			.first()
+			.click();
+		await settle(page);
+		// No change of scope, the workspace before and after: only the auth event reached the section.
+		expect(await scopeOf()).toEqual(before);
+		await expect.poll(() => section.locator('.said').textContent()).toBe('');
+		await expect.poll(() => deepText(page)).not.toContain('Vault');
+		await opened.context.close();
+	}, 60_000);
+});
+
 describe('P2-E7: a cross-project mutation is refused after the access decision, in Chromium', () => {
 	it('P2-E7: through the palette’s interface and kernel.agent, with the journal read after each', async () => {
 		const opened = await openShell(browser, site.root);
@@ -364,7 +416,7 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			name: 'Vault',
 			access: { mode: 'restricted', members: [PERSON] },
 		});
-		// A task in Beacon, t-1; two in Vault, t-1 and t-2; one in Atlas, t-1.
+		// A task in Beacon, t-1; two in Vault, t-1 and t-2; none in Atlas.
 		await kernelCall(page, 'scope-set', { project: 'beacon' });
 		await kernelCall(page, 'tasks-add', { title: 'In Beacon' });
 		await kernelCall(page, 'scope-set', { project: 'vault' });
@@ -388,26 +440,32 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			expect(entry).toMatchObject({ command: 'tasks-complete', success: false, interface: iface });
 			expect(entry?.error?.code).toBe('SCOPE_MISMATCH');
 		}
-		// Only in a project the actor may not enter: it reaches the handler as a missing key, naming nothing,
-		// through both interfaces.
-		for (const call of [
-			() => kernelCall(page, 'tasks-complete', { task: 't-2' }),
-			() => agentCall(page, 'tasks-complete', { task: 't-2' }),
-		]) {
-			const hidden = await call();
-			expect(hidden).toMatchObject({ success: false, error: { code: 'TASK_NOT_FOUND' } });
-			expect(JSON.stringify(hidden)).not.toMatch(/vault/i);
-		}
-		expect(
-			(await journal(page)).findLast(({ command }) => command === 'tasks-complete')?.error?.code
-		).toBe('TASK_NOT_FOUND');
-		// A scope naming the restricted project: the same bytes as one that does not exist.
 		const vaultId = (
 			(await entriesOf(page)).find(
 				(entry) =>
 					entry.command === 'project-create' && (entry.input as { name: string }).name === 'Vault'
 			)?.result.data as { id: string } | undefined
-		)?.id;
+		)?.id as string;
+		expect(vaultId).toMatch(/^prj_/);
+		// Only in a project the actor may not enter: it reaches the handler as a missing key, naming nothing,
+		// through both interfaces, the journal read after each.
+		for (const [call, iface] of [
+			[() => kernelCall(page, 'tasks-complete', { task: 't-2' }), 'palette'],
+			[() => agentCall(page, 'tasks-complete', { task: 't-2' }), 'agent'],
+		] as const) {
+			const hidden = await call();
+			expect(hidden).toMatchObject({ success: false, error: { code: 'TASK_NOT_FOUND' } });
+			expect(JSON.stringify(hidden)).not.toMatch(/vault/i);
+			expect(JSON.stringify(hidden)).not.toContain(vaultId);
+			const entry = (await journal(page)).findLast(({ command }) => command === 'tasks-complete');
+			expect(entry).toMatchObject({
+				success: false,
+				interface: iface,
+				error: { code: 'TASK_NOT_FOUND' },
+			});
+			expect(JSON.stringify(entry)).not.toContain(vaultId);
+		}
+		// A scope naming the restricted project: the same bytes as one that does not exist.
 		const restricted = await scopedCall(
 			page,
 			'tasks-list',
@@ -450,6 +508,26 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			'agent',
 			'agent',
 		]);
+		// A native app's store refuses a key that would name another scope's record with a `TypeError`.
+		const thrown = await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: {
+					appPort(instance: string): {
+						store?: { put(key: string, value: unknown): Promise<void> };
+					};
+				};
+			};
+			try {
+				await shell.kernel.appPort('hello').store?.put('p~prj_beacon~x', 'v');
+				return null;
+			} catch (cause) {
+				return { name: (cause as Error).name, message: (cause as Error).message };
+			}
+		});
+		expect(thrown).toEqual({
+			name: 'TypeError',
+			message: 'A store key is a nonempty string other than "." and "..", not starting "p~"',
+		});
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	}, 60_000);
@@ -476,19 +554,40 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 		expect(asked.result?.structuredContent?.data).toEqual({ scope: inAtlas });
 		const where = (await journal(page)).findLast(({ command }) => command === 'scoped-where');
 		expect(where?.context?.scope).toEqual(inAtlas);
-		// A nested query keeps the outer call's scope, from the frame and from an agent.
-		const nested = await viewCall(frame, { name: 'scoped-nested', arguments: {} });
-		expect(nested.result?.structuredContent?.data).toEqual({ outer: inAtlas, nested: inAtlas });
-		const fromAgent = (await agentCall(page, 'scoped-nested')) as { data: unknown };
-		expect(fromAgent.data).toEqual({ outer: inAtlas, nested: inAtlas });
-		const entries = await journal(page);
-		const outer = entries.findLast(({ command }) => command === 'scoped-nested');
-		expect(outer).toMatchObject({ interface: 'agent', context: { scope: inAtlas } });
-		const inner = entries.filter(
-			({ command, context }) => command === 'scoped-where' && context?.parent !== undefined
-		);
-		expect(inner.length).toBeGreaterThanOrEqual(2);
-		for (const entry of inner) expect(entry.context?.scope).toEqual(inAtlas);
+		// A nested query keeps the outer call's scope, which here is not the active one (Atlas): the frame
+		// asks the workspace level, and an agent names Beacon. A nested call that took the active scope fails.
+		const atWorkspace = { workspace: 'personal' };
+		const inBeacon = { workspace: 'personal', project: beacon };
+		const wide = await viewCall(frame, {
+			name: 'scoped-nested',
+			arguments: {},
+			_meta: { 'dev.loam/level': 'workspace' },
+		});
+		expect(wide.result?.structuredContent?.data).toEqual({
+			outer: atWorkspace,
+			nested: atWorkspace,
+		});
+		const fromAgent = (await page.evaluate(
+			({ scope }) =>
+				(
+					document.querySelector('loam-shell') as unknown as {
+						kernel: { agent: { call(n: string, i: unknown, o: unknown): Promise<unknown> } };
+					}
+				).kernel.agent.call('scoped-nested', {}, { scope }),
+			{ scope: inBeacon }
+		)) as { data: unknown };
+		expect(fromAgent.data).toEqual({ outer: inBeacon, nested: inBeacon });
+		// Each nested entry is journaled with its parent's trace ID, at that parent's scope.
+		const raw = await entriesOf(page);
+		const parents = raw.filter((entry) => entry.command === 'scoped-nested');
+		expect(parents.map((entry) => entry.context?.scope)).toEqual([atWorkspace, inBeacon]);
+		for (const parent of parents) {
+			const child = raw.find(
+				(entry) => entry.command === 'scoped-where' && entry.context?.parent === parent.traceId
+			);
+			expect(child?.context?.scope, parent.traceId).toEqual(parent.context?.scope);
+		}
+		expect(parents.at(-1)?.contextDigest?.interface).toBe('agent');
 		expect(opened.violations.filter((violation) => !violation.includes('frame-ancestors'))).toEqual(
 			[]
 		);
@@ -509,9 +608,11 @@ describe('P2-E7: a cross-project mutation is refused after the access decision, 
 			data: { items: Array<{ id: string }> };
 		};
 		expect(listed.data.items.map((item) => item.id)).not.toContain('Only Beacon');
-		// A key that would name another scope's record is refused by the frame's store.
+		// A key that would name another scope's record is refused by the frame's store, `VALIDATION_ERROR`
+		// there (step 4), which the handler's command answers as a throw; natively it is a `TypeError` (E7's
+		// palette case above). Nothing is stored.
 		const named = await kernelCall(page, 'hello-greet', { name: 'p~prj_beacon~x' });
-		expect(named).toMatchObject({ success: false });
+		expect(named).toMatchObject({ success: false, error: { code: 'HANDLER_THREW' } });
 		const relisted = (await kernelCall(page, 'hello-list')) as {
 			data: { items: Array<{ id: string }> };
 		};

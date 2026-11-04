@@ -65,6 +65,9 @@ function manifestOf(
 
 const HOSTILE = '<img src=x onerror="globalThis.hit=1">';
 
+/** When `slow`'s summary saw its signal abort. */
+const aborted: number[] = [];
+
 /** Each fixture's summary handler, by app. `stopped`: every handler throws, as a replay's must not run. */
 function definitions(stopped = false) {
 	const summary = (run: (context: AppCallContextV1) => Promise<unknown>) =>
@@ -102,7 +105,14 @@ function definitions(stopped = false) {
 				scope: context.scope,
 			});
 		}),
-		slow: named('slow', () => new Promise(() => {})),
+		// Never answers; it records the deadline's abort, which reaches a native handler as `signal` (T5).
+		slow: named(
+			'slow',
+			(context) =>
+				new Promise(() => {
+					context.signal?.addEventListener('abort', () => aborted.push(Date.now()));
+				})
+		),
 		boom: named('boom', async () => {
 			throw new Error('boom');
 		}),
@@ -242,6 +252,9 @@ describe('P2-E9 (kernel unit): project-summary-get', () => {
 			},
 		});
 		expect(slow?.error?.code).toBe('PROJECT_SUMMARY_TIMEOUT');
+		// The deadline aborted the native handler's signal, at the deadline (T5).
+		expect(aborted).toHaveLength(1);
+		expect((aborted[0] as number) - started).toBeGreaterThanOrEqual(1_900);
 		expect(boom?.error).toMatchObject({ suggestion: expect.any(String) });
 		expect(boom?.summary).toBeUndefined();
 		expect(wide?.summary?.counts).toHaveLength(8);
@@ -500,5 +513,107 @@ describe('P2-E9 (kernel unit): what the reader keeps of a time and of text (T1, 
 		// An id holding one is no link: an id is never altered.
 		expect(read?.summary.links).toEqual([]);
 		expect(read?.dropped).toBe(2);
+	});
+});
+
+describe('P2-E9 (kernel unit): the trust re-check of step 7 (N1, N5)', () => {
+	it('N1: a title of zero-width or filler characters alone is no title', () => {
+		for (const title of ['\u200b', '\ufeff', '\u2060', '\u3164', ' \u200b ', '\u200d']) {
+			expect(
+				readProjectSummary({ recent: [{ title }] })?.summary.recent,
+				JSON.stringify(title)
+			).toEqual([]);
+		}
+	});
+
+	it('N1: strips tag characters, but keeps a flag’s tag sequence, ZWJ and ZWNJ', () => {
+		const payload = 'Plan\u{E0069}\u{E0067}\u{E006E}\u{E006F}\u{E0072}\u{E0065}';
+		const flag = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+		const family = '\u{1F468}\u200d\u{1F469}';
+		const read = readProjectSummary({
+			recent: [
+				{ title: payload },
+				{ title: `Team ${flag}` },
+				{ title: family },
+				{ title: 'می\u200cخواهم' },
+			],
+		});
+		expect(read?.summary.recent).toEqual([
+			{ title: 'Plan' },
+			{ title: `Team ${flag}` },
+			{ title: family },
+			{ title: 'می\u200cخواهم' },
+		]);
+	});
+
+	it("N1: an app's error is cleaned and bounded in code points, never splitting a pair", async () => {
+		const rows = await summaryRows(
+			{
+				scope: { opensIn: () => true } as never,
+				apps: () =>
+					({
+						port: () => ({ manifest: { ui: { project_summary: { command: 'x-summary' } } } }),
+						owners: new Map([['x-summary', { instance: 'x' }]]),
+					}) as never,
+				summaries: () => [
+					{ instance: 'x', title: 'X', icon: 'system/document', state: 'ready' } as never,
+				],
+				run: async () =>
+					({
+						success: false,
+						error: {
+							code: '\u202eNWOD',
+							message: `${'😀'.repeat(399)}\u{E0041}😀😀`,
+							suggestion: '\u200b\u2060',
+						},
+					}) as never,
+				isMutation: () => false,
+			},
+			{ workspace: 'personal', project: 'prj_a' },
+			'trace',
+			'palette'
+		);
+		const error = rows[0]?.error;
+		expect(error?.code).toBe('NWOD');
+		// 400 code points, the tag character gone, each emoji whole.
+		expect([...(error?.message ?? '')]).toHaveLength(400);
+		expect(error?.message).toBe('😀'.repeat(400));
+		// Nothing visible: the default.
+		expect(error?.suggestion).toBe("Report this to the app's owner");
+	});
+
+	it('N5: a result that throws as it is read is that row’s PROJECT_SUMMARY_INVALID, and the rest stand', async () => {
+		const throwing = {
+			get counts(): never {
+				throw new Error('read me and fail');
+			},
+		};
+		const rows = await summaryRows(
+			{
+				scope: { opensIn: () => true } as never,
+				apps: () =>
+					({
+						port: (instance: string) => ({
+							manifest: { ui: { project_summary: { command: `${instance}-summary` } } },
+						}),
+						owners: new Map([
+							['bad-summary', { instance: 'bad' }],
+							['good-summary', { instance: 'good' }],
+						]),
+					}) as never,
+				summaries: () =>
+					['bad', 'good'].map(
+						(instance) =>
+							({ instance, title: instance, icon: 'system/document', state: 'ready' }) as never
+					),
+				run: async (_iface, name) =>
+					({ success: true, data: name === 'bad-summary' ? throwing : { counts: [] } }) as never,
+				isMutation: () => false,
+			},
+			{ workspace: 'personal', project: 'prj_a' },
+			'trace',
+			'palette'
+		);
+		expect(rows.map((row) => row.error?.code ?? 'ok')).toEqual(['PROJECT_SUMMARY_INVALID', 'ok']);
 	});
 });

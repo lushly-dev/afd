@@ -156,8 +156,27 @@ async function measurePage() {
 			'budget: first paint holds a `preload-helper-` chunk: check the `events` group'
 		);
 	}
-	if (![...initial].some((name) => /^assets\/events-/.test(name))) {
-		throw new Error('budget: first paint holds no `events-` chunk: check the `events` group');
+	// Exactly one `events-` chunk, holding the helper and the group's four chrome modules: a module renamed
+	// or moved out of the group's pattern fails here, not silently in a larger first paint.
+	const events = [...initial].filter((name) => /^assets\/events-/.test(name));
+	if (events.length !== 1) {
+		throw new Error(
+			`budget: first paint holds ${events.length} \`events-\` chunks, not 1: check the \`events\` group`
+		);
+	}
+	const held = Object.keys(chunks.get(events[0]).modules ?? {}).map((id) => id.replace(/\\/g, '/'));
+	for (const module of [
+		'vite/preload-helper',
+		'chrome/dist/elements/events.js',
+		'chrome/dist/elements/entry-styles.js',
+		'chrome/dist/elements/app-entry.js',
+		'chrome/dist/elements/notice-loader.js',
+	]) {
+		if (!held.some((id) => id.includes(module))) {
+			throw new Error(
+				`budget: first paint's \`events\` chunk does not hold ${module}: check the \`events\` group`
+			);
+		}
 	}
 	// With what it imports statically and what loaded before it has not, such as the listbox.
 	const closure = (pattern, loaded) => {

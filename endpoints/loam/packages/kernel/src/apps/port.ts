@@ -274,6 +274,7 @@ export function createAppPort(options: AppPortOptions): {
 					}),
 				}
 			: {}),
+		// The port's own broker, unbound: it hears no linked call, and only tests use it (T4).
 		...(options.view ? { view: options.view(call, readResource) } : {}),
 	};
 	return {

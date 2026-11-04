@@ -6,7 +6,6 @@ import { COMPOSITIONS_V1, ICONS_V1, SHELL_DOMAINS_V1, SURFACE_CATALOG_V1 } from 
 import { valueAt } from './pointers.js';
 import { readCoreManifest } from './read-core-manifest.js';
 import { readManifest } from './read-manifest.js';
-
 import { validateManifest } from './validate.generated.js';
 import { pointerOf, type ValidatorError } from './validator-errors.js';
 

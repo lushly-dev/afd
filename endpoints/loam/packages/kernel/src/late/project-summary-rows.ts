@@ -15,22 +15,41 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Control and bidirectional formatting characters: in shown text they could hide or reorder what a row says,
- * as an override that makes one title read as another (13).
+ * Control and format characters, bidirectional overrides, zero-width marks and tag characters among them:
+ * in shown text they could hide or reorder what a row says, or carry a payload no person sees that an agent
+ * reads (13). A flag's tag sequence, U+1F3F4 and its tags, is kept, as are ZWNJ and ZWJ, which join scripts
+ * and emoji.
  */
-const UNSAFE = /[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
+const UNSAFE = /(\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F})|[\p{Cc}\p{Cf}]/gu;
 
-/** Shown text: the unsafe characters stripped, then 1 to `max` code points, or undefined. */
+/** Text with nothing in it a person can see: ignorable code points and white space alone. */
+const BLANK = /^[\p{Default_Ignorable_Code_Point}\p{White_Space}]*$/u;
+
+/** `value` with the unsafe characters stripped, cut at `max` code points so no surrogate pair splits. */
+const clean = (value: string, max = Number.POSITIVE_INFINITY): string =>
+	[
+		...value.replace(
+			UNSAFE,
+			(found: string, flag?: string) =>
+				flag ?? (found === '\u200c' || found === '\u200d' ? found : '')
+		),
+	]
+		.slice(0, max)
+		.join('');
+
+/** Shown text: cleaned, then 1 to `max` code points with something visible, or undefined. */
 const text = (value: unknown, max: number): string | undefined => {
 	if (typeof value !== 'string') return undefined;
-	const clean = value.replace(UNSAFE, '');
-	const length = [...clean].length;
-	return length > 0 && length <= max ? clean : undefined;
+	const cleaned = clean(value);
+	return !BLANK.test(cleaned) && [...cleaned].length <= max ? cleaned : undefined;
 };
 
-/** An id or a route: kept as it is, so never stripped, and refused when it holds an unsafe character. */
+/** An id or a route: kept as it is, so never stripped, and refused when it holds a control or format character. */
 const id = (value: unknown, max: number): string | undefined =>
-	typeof value === 'string' && value.length > 0 && value.length <= max && !value.match(UNSAFE)
+	typeof value === 'string' &&
+	value.length > 0 &&
+	value.length <= max &&
+	!/[\p{Cc}\p{Cf}]/u.test(value)
 		? value
 		: undefined;
 
@@ -146,11 +165,18 @@ export function readProjectSummary(value: unknown): ReadSummary | undefined {
 /** A command's own failure, as a row shows it: three strings, each bounded. */
 const rowError = (
 	error: { code?: unknown; message?: unknown; suggestion?: unknown } | undefined
-) => ({
-	code: String(error?.code ?? 'COMMAND_FAILED').slice(0, 64),
-	message: String(error?.message ?? 'The summary failed').slice(0, 400),
-	suggestion: String(error?.suggestion ?? "Report this to the app's owner").slice(0, 400),
-});
+) => {
+	// Cleaned as shown text is, bounded in code points; one with nothing visible reads the default (N1).
+	const shown = (value: unknown, max: number, fallback: string) => {
+		const cleaned = clean(String(value ?? ''), max);
+		return BLANK.test(cleaned) ? fallback : cleaned;
+	};
+	return {
+		code: shown(error?.code, 64, 'COMMAND_FAILED'),
+		message: shown(error?.message, 400, 'The summary failed'),
+		suggestion: shown(error?.suggestion, 400, "Report this to the app's owner"),
+	};
+};
 
 const REPORT = "Report this to the app's owner";
 
@@ -204,8 +230,15 @@ export function summaryRows(
 				},
 			};
 		}
-		if (!result.success) return { ...row, error: rowError(result.error) };
-		const read = readProjectSummary(result.data);
+		// What the app returned is read inside a guard: a result that throws as it is read, a getter or a
+		// proxy, is that row's PROJECT_SUMMARY_INVALID, never every row's (N5).
+		let read: ReadSummary | undefined;
+		try {
+			if (!result.success) return { ...row, error: rowError(result.error) };
+			read = readProjectSummary(result.data);
+		} catch {
+			read = undefined;
+		}
 		if (!read) {
 			return {
 				...row,

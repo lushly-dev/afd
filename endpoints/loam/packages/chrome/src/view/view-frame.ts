@@ -27,8 +27,11 @@ export const packageViewSource = (port: AppPortV2): ViewSource => ({
 
 export interface ViewFrameOptions {
 	port: AppPortV2;
-	/** The surface's own broker, closed over its scope (phase 2 specification, 3.6). Default: the port's. */
-	view?: ViewBrokerV1;
+	/**
+	 * The surface's own broker, closed over its scope (phase 2 specification, 3.6). Required, with no fallback
+	 * to the port's unbound broker, which hears no linked call and is for tests alone (T4).
+	 */
+	view: ViewBrokerV1 | undefined;
 	source: ViewSource;
 	/** The app's title: the frame's name. */
 	heading: string;
@@ -178,7 +181,7 @@ export class LoamViewFrame extends FASTElement {
 	}
 
 	async #start(options: ViewFrameOptions): Promise<void> {
-		const broker = options.view ?? options.port.view;
+		const broker = options.view;
 		const sandboxOrigin = broker?.sandboxOrigin;
 		if (!broker || !sandboxOrigin) {
 			this.#fail({
