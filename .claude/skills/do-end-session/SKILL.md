@@ -1,135 +1,124 @@
 ---
 name: do-end-session
 description: >
-  Close out an AFD session so it can be archived without losing work: verify every
-  PR landed (by content, not commit identity), file issues for findings raised but
-  never tracked, capture durable knowledge into skills, docs or memory, clean up
-  surviving remote branches last, and emit an archive-readiness report. `check`
-  audits read-only; `park` pauses unfinished work with a resume pointer. Third stage
-  of the session loop (do-init-afd → do-prepare-pr → do-end-session). Use when
-  ending, closing out, or wrapping up a session, or asking whether a session is safe
-  to archive. Triggers: end session, close out, wrap up, session done, ready to
-  archive, park session.
+  Closes an AFD session so it can be archived without losing work: checks each PR
+  landed by content, files untracked findings, captures knowledge and deletes
+  surviving remote branches last. Use when wrapping up ("end session", "close out",
+  "safe to archive?"); `check` is read-only, `park` pauses.
 argument-hint: check | park
 ---
 
 # Do End Session
 
-Closes the loop `do-init-afd` opened. The goal: nothing durable exists only in this
-session's transcript, and nothing unlanded is lost when the worktree is reclaimed.
+The goal: nothing durable exists only in this transcript, and nothing unlanded is
+lost when the harness reclaims the worktree.
 
 ## Modes
 
-| Argument | Mode | What runs |
-|---|---|---|
-| `check` | **Audit** | Phase 1 only. Read-only apart from `git fetch`; no issue creation, doc edits, or branch deletion. |
-| _(none)_ | **Full** | Audit → land → capture → verify → clean up → report. |
-| `park` | **Park** | Audit → capture → report with an explicit resume pointer. |
+- **`check`:** the audit only. Read-only apart from `git fetch`: no issues, edits,
+  merges or deletions.
+- **Full** (no argument): audit, land, capture, clean up, report.
+- **`park`:** audit, capture, then report with a resume pointer.
 
-**Ordering is the safety property.** Cleanup is last, because an earlier phase may
-still need the branch. Never remove the local branch or the worktree itself; the
-harness owns those.
+Order is the safety property: cleanup comes last because an earlier phase may still
+need the branch. Never remove the local branch or the worktree; the harness owns
+both.
 
 ## 1. Audit
 
-Machine state, from commands:
+Audit every branch the session pushed, not only the current one: list the session's
+PRs (`gh pr list --author @me --state all --limit 20`) and run the checks below for
+each branch.
 
 ```bash
 git status --short
 git fetch origin '+refs/heads/main:refs/remotes/origin/main'
-git rev-parse --verify -q "origin/<branch>"            # no output: never pushed (a stale ref can outlive a deleted branch)
-git log --oneline "origin/<branch>..HEAD"              # unpushed commits (only if the ref exists)
-gh pr list --state all --head <branch> --json number,state,headRefName,url \
-  --jq '.[] | select(.headRefName == "<branch>")'        # the select is load-bearing
+git ls-remote --heads origin <branch>        # empty: never pushed, or deleted on merge
+# only when it exists:
+git fetch origin "+refs/heads/<branch>:refs/remotes/origin/<branch>"
+git log --oneline "origin/<branch>..HEAD"    # unpushed commits
+gh pr list --state all --head <branch> --json number,headRefName,url \
+  --jq '.[] | select(.headRefName == "<branch>")'   # keep the select
+gh api repos/lushly-dev/afd/pulls/<n> --jq .merged  # per PR
 ```
 
-Read `.merged` per PR (`gh api repos/lushly-dev/afd/pulls/<n> --jq .merged`). The
-REST `.state` is `closed` for merged and abandoned alike. For any ambiguity (branch
-auto-deleted, "0 commits ahead"), the content-based landing check in `do-init-afd`
-is authoritative. A missing `origin/<branch>` is not "nothing unpushed": resolve
-it through the PR's `.merged` and the content check before moving on.
+Read `.merged`, not `.state`, which is `closed` for merged and abandoned alike. A
+missing remote branch is not "nothing unpushed": head branches are deleted on merge,
+but a never-pushed or hand-deleted branch looks the same, so resolve it through
+`.merged` and the content check. That check settles every ambiguous signal ("0
+commits ahead", a squash merge): after the fetch, run do-init-afd's landing check;
+a diff of the branch's files against `origin/main` that is empty, or shows only
+other PRs' later changes, means landed.
 
 Then the part no script can do: **sweep this session's conversation** for problems
-raised but never fixed, filed, or carried by a PR. That includes deferred review
-findings, flaky tests, parity gaps between TypeScript and the Python, Rust or C++
-ports, surprising behavior, and "we should probably…" asides. List them before
-touching anything.
+raised but never fixed, filed or carried by a PR: deferred review findings, flaky
+tests, parity gaps between the language ports, surprising behavior, "we should
+probably…" asides. List them before touching anything.
 
 ## 2. Land the work
 
-Every session PR reaches merged, or is closed with a recorded reason.
+Every session PR ends merged, or closed with a recorded reason.
 
 - **Check for supersession before waiting.** A parallel session may have landed an
-  equivalent change; close redundant PRs as superseded instead of babysitting them.
-- If CI is red, fix it through the normal loop (`do-prepare-pr` owns push and
-  update).
-- Merge only when the user authorized it, following `do-prepare-pr` step 9.
-- If a wait would block the close-out indefinitely, switch to `park` with a resume
-  pointer instead.
+  equivalent change; close a redundant PR as superseded.
+- **Red CI** goes back through `do-prepare-pr`, which owns push and update.
+- **Merge only when the user authorized it**, through `do-prepare-pr`'s merge step.
+  `main` has no required checks, so bind the merge to the head whose checks you
+  verified: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
+  40-character SHA (a short one is rejected).
+- **A wait that would block the close-out indefinitely** switches to `park`.
 
-`park` describes a stopped owner, not merely unfinished work. Finish or stop this
-session's own background waits and child processes before reporting parked; never
-stop another session's processes. A session still running or awaiting live CI is in
+**Park** describes a stopped owner, not merely unfinished work. Finish or stop this
+session's own background waits and child processes before reporting parked, and
+never stop another session's. A session still running or awaiting live CI is in
 flight, not parked. A draft awaiting human validation can close out as not ready,
-naming the PR, who validates it, and what they check.
+naming the PR, who validates it and what they check.
 
 ## 3. Capture
 
-- **Untracked findings → issues or an explicit decline.** Findings worth acting on
-  become GitHub issues (`gh issue create`); "not worth tracking" is a recorded
-  verdict, not a skipped step. Parity gaps go against the matching
-  `docs/features/active/*-parity` effort when one exists.
-- **Durable knowledge → the owning skill, doc, or memory.** Repo conventions go to
-  the owning skill under `.claude/skills/` (Codex reads the same directory through
-  `.codex/skills`). Cross-session facts go to memory. Capture only what a future
-  session cannot cheaply re-derive.
-- **Close the task.** Verify the `docs/features/` plan was updated or moved to
-  `complete/` in the PR itself; don't assume it. Close or comment on the claimed
-  issue if the PR did not close it.
-- Repository edits made during close-out ship through a new PR. Never push doc
-  edits onto an already-merged branch.
+- **Untracked findings** become GitHub issues (`gh issue create`) or an explicit
+  decline; "not worth tracking" is a recorded verdict, not a skipped step. File
+  parity gaps against the Language Parity Closure plan
+  (`docs/features/active/parity-closure/`).
+- **Durable knowledge** goes to its owner: repository conventions to the owning
+  skill under `.claude/skills/` (`.codex/skills` mirrors it; a Botcore projection is
+  edited at its canonical source, per AGENTS.md), cross-session facts to memory.
+  Capture only what a future session cannot cheaply re-derive.
+- **Close the task.** Verify that the PR itself updated the `docs/features/` plan or
+  moved it to `complete/`; don't assume it. Close or comment on the claimed issue if
+  the PR did not close it.
+- **Close-out edits ship through a new PR.** Never push onto an already-merged
+  branch; those commits would not reach `main`.
 
-## 4. Verify nothing is left behind
+## 4. Clean up: last, and confirmed
 
-Re-check: clean tree, no unpushed commits, no open session PRs. Unverifiable state
-blocks the same as known-unpushed work; "could not check" is not "nothing to lose".
-For squash-merged branches, verify by content diff, not by branch SHA.
+Only when every PR is merged or explicitly abandoned and a fresh re-read shows a
+clean tree, no unpushed commits and no open session PRs. State you could not check
+blocks like known unpushed work. `remote ref does not exist` is the expected end
+state after a merge, not a failure. For a surviving remote branch, confirm with the
+user, then `git push origin --delete <branch>`. Never delete `main`, a
+`changeset-release/*` branch, or any branch whose content has not landed.
 
-## 5. Clean up: last, and confirmed
+## Report
 
-Only after every PR is merged or explicitly abandoned. The repo deletes head
-branches on merge, so `remote ref does not exist` is the desired end state, not a
-failure. For a remote branch that survived, confirm with the user, then
-`git push origin --delete <branch>`. Never delete `main`, a `changeset-release/*`
-branch, or any branch whose content has not landed.
-
-## The close-out report
-
-End every mode with exactly this layout; the status is the literal last line:
+End every mode with this layout; the status is the literal last line:
 
 ```markdown
-## Session close — <session title>
+## Session close: <title>
 
-- Verified at: <UTC timestamp of the final PR/branch re-read — state expires; re-read immediately before composing this>
+- Verified at: <UTC time of the final PR and branch re-read>
 - Pull requests: #N merged | #N closed (<reason>) | none
 - Issues filed: #N <title> | none
-- Knowledge captured: <skill/doc/memory touched> | none
-- Task/plan: <issue closed / plan moved / n/a>
-- Remote branches: <deleted / auto-deleted / retained (why)>
-- Left behind: <knowingly-not-done items needing nothing from the reader> | none
+- Knowledge captured: <skill, doc or memory> | none
+- Task/plan: <issue closed, plan moved> | n/a
+- Remote branches: deleted | auto-deleted | retained (<why>)
+- Left behind: <known items needing nothing from the reader> | none
 
-**Follow-ups:** <numbered items needing the user's action> | none
+**Follow-ups:** <numbered items needing the user> | none
 
-**Ready to archive** | **Not ready to archive: <specific reason>** | **Not ready to archive: parked — resume at <next action>**
+**Ready to archive** | **Not ready to archive: <reason>** | **Not ready to archive: parked, resume at <next action>**
 ```
 
-Every row is always present (`none` or `n/a` rather than omitted; a missing row
-reads as unchecked). PR state is volatile: take the final read after the last piece
-of work, immediately before composing the report, and stamp `Verified at` from that
-read. When re-reading is impossible, claim the act ("pushed at 14:02Z"), not the
-state ("PR is ready").
-
-## Workflow chain
-
-`do-init-afd` → build → `do-prepare-pr` → `do-end-session`. Use `check` anytime to
-ask "is this session safe to archive?" without changing anything.
+Keep every row (`none` or `n/a`; a missing row reads as unchecked). PR state is
+volatile: take the final read after the last piece of work, just before writing.
+When you cannot re-read, claim the act ("pushed at 14:02Z"), not the state.

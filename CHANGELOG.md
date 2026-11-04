@@ -6,7 +6,7 @@ AFD's four implementations are versioned and released independently, and each ke
 |---|---|---|---|
 | TypeScript | Nine `@lushly-dev/*` packages on npm, which share one version | One per package, [listed below](#npm-packages) | `@lushly-dev/<package>@X.Y.Z` |
 | Python | [`afd`](https://pypi.org/project/afd/) on PyPI | [python/CHANGELOG.md](python/CHANGELOG.md) | `python-vX.Y.Z` |
-| Rust | `afd` on crates.io (first release pending) | [packages/rust/CHANGELOG.md](packages/rust/CHANGELOG.md) | `rust-vX.Y.Z` |
+| Rust | [`afd`](https://crates.io/crates/afd) on crates.io | [packages/rust/CHANGELOG.md](packages/rust/CHANGELOG.md) | `rust-vX.Y.Z` |
 | C++ | `afd-cpp`, consumed through CMake | [packages/cpp/CHANGELOG.md](packages/cpp/CHANGELOG.md) | `cpp-vX.Y.Z` |
 
 ## npm packages

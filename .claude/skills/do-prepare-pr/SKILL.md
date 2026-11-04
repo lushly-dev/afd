@@ -1,212 +1,81 @@
 ---
 name: do-prepare-pr
 description: >
-  Ready-to-ship orchestrator for AFD: syncs the base, runs an independent review,
-  updates changesets, CHANGELOG and docs, commits, runs every quality gate the diff
-  needs (TypeScript, Python, Rust, C++, conformance, alfred), then creates or updates the
-  PR and drives it to merge when authorized. Inspect mode reports readiness without
-  mutating anything; quick mode skips review and docs already done. Second stage of
-  the session loop. Use when inspecting readiness or ready to ship. Triggers:
-  prepare pr, prep pr, ready to ship, ship it, open pr, create pr, push and open pr,
-  finalize pr, quick pr.
+  Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
+  PR and readiness, merging only when separately authorized. `inspect` changes
+  nothing; `quick` reruns gates and the PR. Use when the user says ship it, open a
+  PR or prepare the PR.
 argument-hint: inspect | quick
 ---
 
 # Do Prepare PR
 
-Run this workflow in the harness the session started in, Claude Code or Codex. Do
-not hand any step to the other harness or attribute one harness's work to the
-other.
-
-This is an orchestration contract, not a rigid script. Keep the ordering where it
-protects correctness: base sync before review, fixes before commit, gates on the
-final tree, PR after the gates.
+Keep the order where it protects correctness: base sync before review, so the review sees the integrated tree; fixes before the commit; gates on the final tree; the PR after the gates.
 
 ## Modes
 
-| Argument | What runs |
-|---|---|
-| `inspect` | Readiness report only. No fetch, edits, commit, push, or PR mutation. |
-| _(none)_ | Base sync → review → docs → commit → gates → push → create/update PR → merge if authorized. |
-| `quick` | Steps 5–9: gates → push → create/update PR → readiness → merge if authorized. Only when review and docs already cover the exact final diff. |
+- `inspect`: readiness facts only. No fetch, edit, commit, push or PR change.
+- No argument: steps 1 to 9.
+- `quick`: steps 5 to 9, only when review and docs evidence covers the exact final diff and base. Otherwise run full mode.
 
-## Readiness facts (all modes)
-
-Derive from commands, never memory:
+## Readiness facts (every mode)
 
 ```bash
-git status --short                                  # dirty tree + ownership classification
-git log --oneline origin/main..HEAD                 # commits to ship (see caveat)
-git rev-list --count HEAD..origin/main              # how far behind the last fetch
-git diff --name-only origin/main...HEAD             # what the gates must cover
-pnpm changeset status --since origin/main           # changeset presence (read, don't gate)
+git status --short                          # classify every dirty file
+git log --oneline origin/main..HEAD
+git rev-list --count HEAD..origin/main      # behind the last fetch
+git diff --name-only origin/main...HEAD
+pnpm verify --list                          # suites this diff triggers; runs nothing
+pnpm changeset status --since origin/main   # read it, don't gate on it
 ```
 
-After a squash merge, "0 commits ahead" is ambiguous. If anything is surprising,
-use the content-based landing check from `do-init-afd`.
-
-Blockers: unknown dirty files, an in-progress git operation, or work that already
-landed (do not open a duplicate PR).
+Stop on unknown dirty files, an in-progress merge or rebase, or work that already landed. After a squash merge "0 ahead" is ambiguous; use `do-init-afd`'s content-based landing check, and never open a duplicate PR.
 
 ## Full mode
 
-1. **Base sync.** `git fetch origin '+refs/heads/main:refs/remotes/origin/main'`,
-   then `git merge --no-edit "$(git rev-parse origin/main)"`. If the harness that
-   created the worktree offers its own base-sync tool, use that instead. Never stash; the stash is shared across
-   worktrees. Preserve uncommitted work with a WIP commit if needed. Review runs
-   after this so conflicts and stale assumptions are reviewed in final context.
+1. **Base sync.** `git fetch origin '+refs/heads/main:refs/remotes/origin/main'`, then `git merge --no-edit "$(git rev-parse origin/main)"` (or the harness's base-sync tool). Set work aside with a WIP commit, never `git stash`: the stash stack is shared across worktrees. If the base moved, `pnpm install --frozen-lockfile`.
 
-2. **Review.** Self-review with `review-code` against the full branch diff
-   (`git diff origin/main...HEAD` plus uncommitted work), then dispatch a fresh,
-   independent reviewer that did not write the code: a subagent in Claude Code, or
-   the equivalent in Codex. Give it the diff, the task's acceptance criteria and
-   the `review-code` methodology. Choose and pin the reviewer's available model
-   and effort using [development model routing](../../../docs/operations/model-routing.md)
-   and the review's actual risk; do not treat the routing table as a fixed reviewer
-   assignment. Reviewers report and never edit; the session
-   fixes. An unavailable independent reviewer blocks Full mode: stop and report
-   that review is incomplete rather than shipping on self-review alone. Converge
-   with one broad pass and at most one focused verification pass. A third pass may
-   only verify an unresolved blocker. Check AFD-specific risks explicitly:
-   - **Contract:** every `failure()` carries a `suggestion`; commands use
-     `domain-action` naming; no silent change to `CommandResult` shape.
-   - **Parity:** agent-visible behavior changed in one language is either matched
-     in the others or has a tracked follow-up. `spec/` and the todo conformance
-     suite are the shared contract; the alfred MCP server's parity command reports
-     export-surface gaps.
-   - **Public API:** a removed or renamed export is a breaking change and needs a
-     `major` changeset or a breaking entry in that implementation's changelog.
-   Record passes, findings, fixes and dispositions for the PR body.
+2. **Review.** Self-review with `review-code`, then brief a fresh reviewer in this harness as `review-code` describes, with the acceptance criteria; take its model and effort from [model routing](../../../docs/operations/model-routing.md) and the change's risk. It checks AFD's risks explicitly:
+   - **Contract:** every `failure()` has a `suggestion`; `domain-action` names; no silent `CommandResult` shape change.
+   - **Parity:** agent-visible behaviour changed in one language is matched in the others or has a tracked follow-up; `spec/` and the todo conformance suite are the shared contract; an added or removed export can break alfred's parity budget.
+   - **Public API:** a removed or renamed export needs a `major` changeset or a breaking entry in that implementation's changelog.
+
+   Reviewers report and never edit; the session fixes. Converge in one broad pass plus at most one focused pass verifying the fixes; a third pass may only verify an unresolved blocker. Every independent pass so far has found real defects, so full mode never ships on self-review alone: with no independent reviewer available, stop and report the review incomplete. Record findings, fixes, dispositions and the reviewer's actual model and effort for the PR body.
 
 3. **Docs.**
-   - **Changeset** (`pnpm changeset`) when a published `@lushly-dev/*` package
-     changes user-facing behavior. All packages share one version, so pick the
-     bump by impact: `major` breaking, `minor` new capability, `patch` fix. No
-     changeset for Python-, Rust-, C++-, alfred-, example- or tooling-only changes.
-   - **Changelogs**: the root `CHANGELOG.md` is an index; never add entries to
-     it. Add user-facing Python, Rust and C++ changes to the unreleased section of
-     `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md` or
-     `packages/cpp/CHANGELOG.md`; npm packages get theirs from the changeset.
-     Correct an existing entry rather than stacking a contradictory one.
-   - **Feature plans**: if a `docs/features/` plan tracks the work, update it in
-     the same PR. When it ships, move the folder to `complete/` and update the
-     tables in `docs/features/README.md`.
-   - **Instructions and skills**: `AGENTS.md` is the only project instruction
-     file; never add or restore a `CLAUDE.md`. When a change alters a
-     pattern a skill teaches (for example `afd-rust`, `afd-typescript`), update
-     that skill in the same PR.
-   - **Package READMEs** for new or changed public surface.
+   - **Changeset** for a user-facing change to a `@lushly-dev/*` npm package; write the fragment in `.changeset/` by hand (`pnpm changeset` prompts). Bump by impact on that package: `major` breaking, `minor` capability, `patch` fix. Only the nine `afd-npm` packages share a version (`fixed` in `.changeset/config.json`), so a bump to one moves all nine; other families are independent, and a quarantined unit's fragment waits for admission. None for Python, Rust, C++, alfred, example, docs or tooling changes.
+   - **Changelogs:** the root `CHANGELOG.md` is an index; never add entries there. Python, Rust and C++ changes go under unreleased in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md` or `packages/cpp/CHANGELOG.md`. A quarantined imported unit (Botcore, Violet, FAST-AF, Specimen, Health) keeps its own `CHANGELOG.md` and provenance records; editing its files means updating both, and its provenance tests fail until you do. Correct an existing entry rather than stacking a contradictory one.
+   - **Feature plans:** update the tracking plan under `docs/features/`; when the work ships, move its folder to `complete/` and update `docs/features/README.md`.
+   - Never add a `CLAUDE.md`. Update any skill or package README the change makes wrong, in the same PR.
 
-4. **Commit.** Commit with a message that explains why. commitlint
-   enforces Conventional Commits: the scope must come from `scope-enum` in
-   `commitlint.config.js` (`core`, `server`, `python`, `rust`, `alfred`, …) or be
-   omitted for cross-cutting work, and the subject is at most 72 characters. Stage
-   only intended files. The pre-commit hook runs Biome, portability, file-size and
-   typecheck.
+4. **Commit** with a message that says why: type and scope from `commitlint.config.js` (no scope for cross-cutting work), subject at most 72 characters. Stage only intended files.
 
-5. **Gates on the final tree.** The pre-push hook covers TypeScript only. CI's
-   workflows are path-filtered; run every gate whose paths the diff touches (the
-   `on.paths` lists in `.github/workflows/*.yml` are authoritative):
+5. **Gates on the final tree.** Run `pnpm verify` on the `.nvmrc` Node (see `do-init-afd`'s Runtime; for example `fnm exec --using "$(cat .nvmrc)" -- pnpm verify`). It runs `pnpm check`, then each triggered workflow's local suite, and prints what only CI covers. It stops at the first failure; `--keep-going` runs the rest so one pass shows every failure.
+   - **Missing tool.** It preflights `uv`, `cargo`, `cmake` and `openssl` and aborts before running anything if a planned suite lists a missing one, even one its planned steps don't use (a `python/README.md` change plans conformance, which lists `cmake`). Then run `pnpm check` and each `--list` step yourself, in its directory, one command per step: brace-expanding `test:conformance:{ts,py}` runs only the first script and passes the rest as ignored arguments. Chromium isn't preflighted; a missing browser fails mid-run. Report what could not run as not run, never as passed.
+   - **Wide plans.** A docs-only edit can trigger heavy suites: a `packages/rust` README change runs Loam and Umbel (Chromium, a Rust build, about 14 GB of Umbel target directory). Read `--list` before choosing what to touch, and check `df -h` before an Umbel run.
+   - **Fresh worktree.** Install first (`do-init-afd` explains the `npx` trap), and run tools by hand as `pnpm exec <tool>`.
 
-   | Workflow | Runs when the diff touches | Local commands |
-   |---|---|---|
-   | `ci.yml` | anything | `pnpm check` |
-   | `python.yml` | `python/**`, `spec/VERSION` | `cd python && uv lock --check && uv sync --frozen --all-extras`, then `uv run ruff check --select F821,F841,B904 src` and `uv run pytest -q` |
-   | `rust.yml` | `packages/rust/**`, `spec/wire/**`, `spec/VERSION` | in `packages/rust`: `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings` and `cargo test`, each also with `--no-default-features`; `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm` |
-   | `cpp.yml` | `packages/cpp/**`, `spec/wire/**`, `spec/vectors/**`, `spec/pipeline-variables.md`, `spec/VERSION`, `packages/examples/todo/spec/**`, `packages/examples/todo/backends/cpp/**` | in `packages/cpp`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`; CI also runs clang-format (pinned: `uvx --from clang-format==<version in cpp.yml>`), sanitizer, MSVC, Emscripten and fuzz jobs |
-   | `conformance.yml` | `packages/examples/todo/**`, `packages/server/**`, `packages/core/**`, `packages/rust/**`, `packages/cpp/**`, `python/**`, `pnpm-lock.yaml` | see below |
-   | `alfred.yml` | `alfred/**`, `python/**`, `spec/**`, `packages/**` | `cd alfred && uv sync --all-extras --dev --frozen`, then `uv run ruff check .` and `uv run pytest tests/` |
-
-   Conformance runs as separate commands. Do not brace-expand the script names:
-   pnpm runs only the first script and passes the rest as ignored arguments, so
-   the Python, Rust and C++ backends would silently not run.
-
-   ```bash
-   pnpm build
-   (cd packages/examples/todo/backends/python && uv sync --locked && uv run --locked pytest -q)
-   pnpm --dir packages/examples/todo test:conformance:ts
-   pnpm --dir packages/examples/todo test:conformance:py
-   (cd packages/examples/todo/backends/rust && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked)
-   pnpm --dir packages/examples/todo test:conformance:rs
-   (cd packages/examples/todo/backends/cpp && cmake --preset release && cmake --build --preset release && ctest --preset release)
-   pnpm --dir packages/examples/todo test:conformance:cpp
-   git status --porcelain   # unchanged from before the run: the stores never write tracked files
-   ```
-
-   `alfred.yml` matters for TypeScript changes too: its parity test enforces an
-   export-gap budget, so adding or removing a TypeScript export can turn it red. Changes
-   to `.github/workflows/**` must pin actions to a full commit SHA with a
-   `# vX.Y.Z` comment (`scripts/repository-contract.test.mjs` enforces this).
-
-   A gate that could not run (missing toolchain, network) is reported as not run,
-   never as passed.
-
-6. **Push.** `git push -u origin <branch>`. The pre-push hook runs lint, test,
-   typecheck, portability, file-size, orphan-files and the tooling tests. If it
-   fails, fix and push again. Never `--no-verify` without explicit user approval
-   and separate gate evidence for the exact commit.
+6. **Push.** `git push -u origin <branch>`; on a hook failure, fix and push again. Never `--no-verify` without the user's explicit approval and separate gate evidence for that exact commit.
 
 7. **Create or update the PR.**
-   - **New:** `gh pr create --base main --title "<type>(scope): description"`.
-     Body sections: **Summary** (why, and what changed at the behavior level),
-     **Changes**, **Scope notes** (what is deliberately not done, parity
-     follow-ups, why there is or is not a changeset), and **Test plan** (exact
-     commands and results, tests that failed before the fix). Match the body to the
-     change; no filler and no restated diff. Use `--draft` when the ship decision
-     belongs to someone else.
-   - **Existing:** the push updates it; refresh the title and body with
-     `gh pr edit` if scope changed. Never open a second PR for the same work.
-   - **Closing an issue:** after creation, verify GitHub parsed the link with
-     `gh pr view <n> --json closingIssuesReferences`. A keyword inside a code span
-     looks right but does nothing.
+   - **New:** `gh pr create --base main --title "<type>(scope): description"`, body **Summary** (why, and the behaviour change), **Changes**, **Scope notes** (deliberately not done, parity follow-ups, why a changeset or not), **Review** (passes, dispositions) and **Test plan** (exact commands and results, and what was not run). No filler or restated diff. `--draft` when someone else owns the ship decision.
+   - **Existing:** the push updates it; `gh pr edit` the title and body if scope changed. Never open a second PR for the same work.
+   - **Closing an issue:** confirm `gh pr view <n> --json closingIssuesReferences` lists it; a keyword inside a code span looks right and does nothing.
 
-8. **Own PR readiness.** After publication, and after every head or base change,
-   read `gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup,headRefOid,baseRefOid`.
-   - `DIRTY`: resolve now. Merge the latest `origin/main` into the branch,
-     preserve both sides, re-run the affected gates, push normally.
-   - `UNKNOWN`: GitHub has not computed mergeability yet. Re-read; do not infer a
-     conflict.
-   - Workflows are path-filtered, so the set of checks varies by PR. Every check
-     that ran on the current head must be green, and none may be pending.
-   - A base advance does not reset the review. Only re-review seams that the
-     integration actually changed.
+8. **Own readiness.** After publication and every head or base change, read `gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup,headRefOid,baseRefOid`.
+   - `DIRTY`: merge the latest `origin/main`, keep both sides, rerun the affected gates, push.
+   - `UNKNOWN`: not computed yet. Read again; don't infer a conflict.
+   - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
+   - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Merge only when authorized.** `main` has no branch protection or required
-   checks, so nothing on GitHub stops a red merge, and auto-merge would not wait
-   for CI. Do not enable auto-merge. When the user has authorized the merge, verify
-   every check on the exact head is green, then bind the merge to that head:
+9. **Merge only when authorized.** `main` has no branch protection or required checks, so nothing stops a red merge and auto-merge would not wait for CI: never enable it. With the user's authorization and every check on the exact head green, bind the merge to that head:
 
    ```bash
-   gh pr merge <n> --squash --match-head-commit <verified-head-sha>
+   gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8>
    ```
 
-   A head mismatch sends you back to step 8. After GitHub reports merged, verify
-   the content landed with the landing check from `do-init-afd` before calling it
-   done. The repo deletes head branches on merge. When the merge was not authorized, stop with the PR URL, head SHA, check
-   state and the next action for its owner.
-
-## Quick mode
-
-Steps 5–9 only. Do not use it to bypass review: it requires review and docs
-evidence for the exact unchanged diff and base. Otherwise run Full.
+   A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `do-init-afd`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Report
 
-```markdown
-## Prepare PR complete
-- Base: origin/main @ <short-sha> (merged in | already current)
-- Review: self-review + independent reviewer, <N> passes | independent review not run (<why>: not ready); <N> fixed; <dispositions | none>
-- Docs: changeset <bump | none needed (why)>; CHANGELOG <updated | n/a>; plans/skills <updated | n/a>
-- Commit: <type>(scope): subject (<short-sha>)
-- Gates: <each gate run and its result; gates not run and why>
-- PR: created #N | updated #N → <url>
-- PR state: head <short-sha>; mergeability <state>; checks <green | pending | failing: names>; <merged | next action>
-- Remaining risks: <none | list>
-```
-
-## Workflow chain
-
-`do-init-afd` → build → `do-prepare-pr` → `do-end-session`.
-
-Standalone phases: `review-code` (review only) and `do-release` (versioning and
-publish, after merge).
+A few lines: base (`origin/main` SHA, merged or current); review (passes, findings fixed, dispositions, or why it did not run); docs (changeset and changelog, or why none); gates run and their results, and gates not run with the reason; PR number, head SHA, mergeability and checks; merged or the next action.

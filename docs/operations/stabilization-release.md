@@ -1,6 +1,6 @@
 # October stabilization release readiness
 
-Updated: 2026-10-11. Stabilization PR #367 landed at `f19257e`. Tracks [#347](https://github.com/lushly-dev/afd/issues/347),
+Updated: 2026-10-11; [later releases](#later-releases) added 2026-11-04. Stabilization PR #367 landed at `f19257e`. Tracks [#347](https://github.com/lushly-dev/afd/issues/347),
 [#359](https://github.com/lushly-dev/afd/issues/359) and
 [#360](https://github.com/lushly-dev/afd/issues/360). Publication recovery in
 [#369](https://github.com/lushly-dev/afd/issues/369) is complete; remaining
@@ -131,6 +131,11 @@ no environment name, **Allow npm publish** enabled and dist-tag management
 disabled. Existing credentials and publishing-access settings were preserved.
 Both successful uploads selected OIDC; this establishes recovery after setup.
 
+Trusted publishing is now the only npm upload path: `release.yml` passes no
+`NODE_AUTH_TOKEN`, and there is no token fallback. Keep `id-token: write`,
+`registry-url` and `NPM_CONFIG_PROVENANCE` in the workflow. A later upload
+failure is fixed in the trusted-publisher configuration, never with a token.
+
 The historical 2.0.0 candidate was independently rebuilt and inspected before
 its rerun. It does **not** include October stabilization fixes. The refreshed
 [release PR #338](https://github.com/lushly-dev/afd/pull/338), head
@@ -195,3 +200,35 @@ DirectClient execution, absent optional dependencies in base, transport imports,
 actual server tool registration/execution and installed CLI help. A separate
 unpinned, uncached install selected 0.9.0 and passed the base smoke. #347 was
 closed only after these registry consumer checks passed.
+
+## Later releases
+
+### npm 2.2.0
+
+All nine `afd-npm` packages were published at 2.2.0 on 2026-10-27 from #453's
+merge commit `7cf22865df7fa4aae49b6bf04f734c5429dfc596`. Each became `latest`,
+with `_npmUser` `npm-oidc-no-reply@github.com` and SLSA provenance. The registry
+took a few minutes to list all nine, so the check queried
+`https://registry.npmjs.org/<name>` directly rather than a cached `npm view`.
+
+Two release-workflow gaps surfaced on the way:
+
+- **The version PR started without CI.** `release.yml` opens it with
+  `GITHUB_TOKEN`, and GitHub starts no workflows for events that token causes,
+  so #453 showed no checks until a person closed and reopened it.
+  [#470](https://github.com/lushly-dev/afd/issues/470) tracks running CI on the
+  version PR (a GitHub App or fine-grained token for that step) and surfacing
+  Release failures.
+- **Release failures on `main` were silent.** Before 2.2.0, `release.yml` failed
+  on every push for about a day: a private workspace package without a
+  `version` sat inside the then-glob fixed group. #452 fixed it, and #464 made
+  the group's membership explicit.
+
+### Python 0.10.0
+
+Published on 2026-10-27 from #454's merge commit
+`ddb42ad294e79fcbb096d03d7351f45d56f6c2ce`, tagged `python-v0.10.0`.
+[Publish Python run 40472309686](https://github.com/lushly-dev/afd/actions/runs/40472309686)
+passed the 3.10–3.12 matrix, the isolated wheels and the PyPI upload; the wheel
+carries a provenance attestation. A fresh `pip install 'afd[server,client]==0.10.0'`
+reported 0.10.0.
