@@ -8,8 +8,8 @@
 //! - [`render`]: a draft's file, from its memory sources, the drafter and the settling instant;
 //! - [`Rationale`]: a draft's fixed rationale and its exact inverse;
 //! - [`subject_key`] and [`subject_key_digest`]: the normalised subject a conflict set groups on;
-//! - [`candidate_id`], [`conflict_set_id`], [`document_id`] (with [`is_safe_prefix`]) and
-//!   [`idempotency_key`];
+//! - [`candidate_id`], [`conflict_set_id`], [`document_id`] (with [`is_safe_prefix`]),
+//!   [`idempotency_key`] and [`proposal_id`];
 //! - [`excerpt`]: the first [`EXCERPT_CHARS`] characters of a record's text;
 //! - [`settled_at`]: the settling instant a rendering carries in `generated.at`.
 
@@ -312,6 +312,21 @@ pub fn document_id(collection: &str, prefix: Option<&str>, id: &str) -> String {
 #[must_use]
 pub fn idempotency_key(instance: &str, candidate: &str, drafts: u32) -> String {
     format!("{instance}/{candidate}/{drafts}")
+}
+
+/// A proposal's id (phase 2's derivation, shared since phase 4 step 5): `p-` and 20 hex of SHA-256
+/// of `<space>\0<proposer actor string>\0<idempotency key>`, the actor string `<kind>:<id>`. The
+/// knowledge plugin assigns it; the curator derives it for the key it submits, so a run that
+/// stopped after its batch can withdraw what it drafted. Content-free whenever the key is.
+#[must_use]
+pub fn proposal_id(space: &str, actor: &str, key: &str) -> String {
+    derive("p-", &[space, actor, key])
+}
+
+/// Whether `id` has a proposal id's form.
+#[must_use]
+pub fn is_proposal_id(id: &str) -> bool {
+    has_form(id, "p-")
 }
 
 /// Whether `key` is [`idempotency_key`] of `instance` and `candidate` for some draft count, the

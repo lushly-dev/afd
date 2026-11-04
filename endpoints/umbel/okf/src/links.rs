@@ -79,6 +79,38 @@ fn is_external(target: &str) -> bool {
         && !target[..colon].contains('/')
 }
 
+/// The document a `superseded_by` value names, written in the document `from`: a document id
+/// (`<collection>/<path>`, its first segment a collection of the space) or a `/`-prefixed path,
+/// else a path relative to `from`. `None` when it names nothing, or `from` itself. Shared by the
+/// knowledge plugin's graph and stale list and the curator's deprecation drafts (phase 4
+/// specification, section 6.2), so both read a successor alike.
+///
+/// ```
+/// use umbel_okf::links::successor;
+///
+/// let collections = ["handbook".to_owned()];
+/// assert_eq!(
+///     successor("handbook/deploy/v2", "handbook/deploy/v1", &collections).as_deref(),
+///     Some("handbook/deploy/v2")
+/// );
+/// assert_eq!(successor("v1", "handbook/deploy/v1", &collections), None);
+/// ```
+#[must_use]
+pub fn successor(value: &str, from: &str, collections: &[String]) -> Option<String> {
+    let value = value.trim();
+    let first = value.split('/').next().unwrap_or_default();
+    let rooted = value.starts_with('/') || collections.iter().any(|known| known == first);
+    let target = if rooted {
+        format!("/{}", value.trim_start_matches('/'))
+    } else {
+        value.to_owned()
+    };
+    match resolve(&target, from, collections) {
+        Target::Document { id, .. } if id != from => Some(id),
+        _ => None,
+    }
+}
+
 /// Resolve `target`, a link destination as written in the document `from` (an id,
 /// `<collection>/<path>`), against the collections of the space.
 ///

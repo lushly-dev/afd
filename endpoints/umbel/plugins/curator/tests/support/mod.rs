@@ -1,8 +1,11 @@
 //! A workspace with the curator plugin and its grants, memory records and documents written
 //! through the `umbel-store` API with fixed ids into the files the host then opens, a clock the
 //! tests move by days, and the command line in process with a scripted terminal. No other plugin
-//! is linked: the curator reads what the stores hold (D3).
+//! crate is linked (D3): the curator reads what the stores hold, and `curator-run`'s knowledge
+//! steps are a stand-in's ([`knowledge`]).
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
+
+pub mod knowledge;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -74,11 +77,16 @@ root = "spaces/beta/notes"
 members = ["human:ada", "human:local"]
 
 [plugins]
-enabled = ["curator"]
+enabled = ["curator", "knowledge"]
 
 [plugins.curator]
 source = "compiled:curator"
 [plugins.curator.grants.records_write]
+allow = ["main", "beta"]
+
+[plugins.knowledge]
+source = "compiled:knowledge"
+[plugins.knowledge.grants.records_write]
 allow = ["main", "beta"]
 
 {target}
@@ -97,6 +105,7 @@ pub fn build(dir: &Path, clock: i64) -> Host {
     HostBuilder::open(dir)
         .unwrap()
         .with_compiled(Arc::new(sdk(umbel_plugin_curator::plugin())))
+        .with_compiled(Arc::new(sdk(knowledge::StandIn)))
         .with_clock(fixed_clock(clock))
         .seal()
         .unwrap()
@@ -452,6 +461,7 @@ impl Fx {
             move |builder: HostBuilder| {
                 builder
                     .with_compiled(Arc::new(sdk(umbel_plugin_curator::plugin())))
+                    .with_compiled(Arc::new(sdk(knowledge::StandIn)))
                     .with_clock(fixed_clock(clock))
             },
         )
@@ -494,6 +504,215 @@ impl Fx {
         }
         text
     }
+}
+
+impl Fx {
+    /// `curator-run` in `main` as the person `human:local` on the command-line interface,
+    /// through the library: the pipeline's answer, finish's report.
+    pub async fn run(&self) -> Value {
+        self.run_as(human("local"), "main").await
+    }
+
+    /// `curator-run` in `space` as `actor` on the command-line interface.
+    pub async fn run_as(&self, actor: Actor, space: &str) -> Value {
+        self.call(
+            actor,
+            CommandInterface::Cli,
+            "curator-run",
+            json!({ "space": space }),
+        )
+        .await
+    }
+
+    /// The report of a successful run.
+    pub async fn report(&self) -> Value {
+        let result = self.run().await;
+        data(&result).clone()
+    }
+
+    /// `curator-run` through the command line in process, with no terminal: the exit code and
+    /// stdout as JSON.
+    pub async fn run_cli(&self) -> (i32, Value) {
+        self.command_line(
+            Terminal::new(false, false),
+            &["call", "curator-run", r#"{"space": "main"}"#],
+        )
+        .await
+    }
+
+    /// Override `main`'s settle pack with the shipped one edited by `edit`, then reopen.
+    pub fn pack(&mut self, edit: impl FnOnce(String) -> String) {
+        let dir = self.path("spaces/main/packs/curator/settle");
+        std::fs::create_dir_all(dir.join("data")).unwrap();
+        std::fs::write(
+            dir.join("pack.toml"),
+            include_str!("../../packs/settle/pack.toml"),
+        )
+        .unwrap();
+        let text = edit(include_str!("../../packs/settle/data/settle.toml").to_owned());
+        std::fs::write(dir.join("data/settle.toml"), text).unwrap();
+        self.at(self.clock);
+    }
+
+    /// `curator-status` in `main` as `human:local`.
+    pub async fn status(&self) -> Value {
+        let result = self
+            .call(
+                human("local"),
+                CommandInterface::Cli,
+                "curator-status",
+                json!({}),
+            )
+            .await;
+        data(&result).clone()
+    }
+
+    fn document_store(&self) -> SqliteStore {
+        SqliteStore::open(&self.space_dir("main"), "main", StoreOptions::default()).unwrap()
+    }
+
+    /// Every proposal stub the stand-in knowledge plugin holds in `main`, by id.
+    pub fn stubs(&self) -> Vec<Value> {
+        let store = self.document_store();
+        let mut out = Vec::new();
+        let mut after: Option<String> = None;
+        loop {
+            let page = store
+                .list_records("knowledge", "proposal", after.as_deref(), 500, &everyone())
+                .unwrap();
+            out.extend(page.items.into_iter().map(|record| record.body));
+            match page.next {
+                Some(next) => after = Some(next),
+                None => return out,
+            }
+        }
+    }
+
+    /// The stand-in's stubs drafted for `candidate`.
+    pub fn stubs_of(&self, candidate: &str) -> Vec<Value> {
+        self.stubs()
+            .into_iter()
+            .filter(|stub| stub["drafter"]["candidate"] == candidate)
+            .collect()
+    }
+
+    /// A person's decision on `proposal` at a terminal, as the stand-in records it.
+    pub async fn decide(&self, proposal: &str, state: &str, reason: Option<&str>) {
+        let mut input = json!({ "proposal": proposal, "state": state });
+        if let Some(reason) = reason {
+            input["reason"] = json!(reason);
+        }
+        let result = self
+            .call(
+                human("local"),
+                CommandInterface::Cli,
+                "knowledge-decide",
+                input,
+            )
+            .await;
+        data(&result);
+    }
+
+    /// Set the stand-in knowledge plugin's test controls (`held`, `failFeed`, `hook`).
+    pub async fn controls(&self, controls: Value) {
+        let result = self
+            .call(
+                human("local"),
+                CommandInterface::Cli,
+                "knowledge-stand-in",
+                controls,
+            )
+            .await;
+        data(&result);
+    }
+
+    /// Run `hook` inside the next run's submit step, between plan and finish.
+    pub async fn between_steps(&self, name: &str, hook: impl FnOnce() + Send + 'static) {
+        knowledge::HOOKS
+            .lock()
+            .unwrap()
+            .insert(name.to_owned(), Box::new(hook));
+        self.controls(json!({ "hook": name })).await;
+    }
+
+    /// A curator record's body, as the store holds it.
+    pub fn curator_body(&self, kind: &str, id: &str) -> Option<Value> {
+        self.curator_record(kind, id).map(|record| record.body)
+    }
+
+    /// Every curator record of `kind` in `main`.
+    pub fn curator_records(&self, kind: &str) -> Vec<umbel_store::Record> {
+        let store = self.document_store();
+        store
+            .list_records("curator", kind, None, 500, &everyone())
+            .unwrap()
+            .items
+    }
+
+    /// A markdown document `id` of `main` with `frontmatter` keys, readable by the space, then
+    /// reopen. `edit` adjusts the write (status, flags, stale_after, superseded_by) after it.
+    pub fn markdown(
+        &mut self,
+        id: &str,
+        body: &str,
+        edit: impl FnOnce(&mut umbel_store::DocumentWrite),
+    ) {
+        {
+            let store = self.document_store();
+            let mut write = samples::document(id, &["space"], body, "seed");
+            write.space = "main".to_owned();
+            write.envelope.space = "main".to_owned();
+            edit(&mut write);
+            store.put_document(write, Expect::Any).unwrap();
+        }
+        self.at(self.clock);
+    }
+
+    /// The raw bytes of every file of `main`'s document store (the database, its write-ahead log
+    /// and shared memory), as lossy text.
+    pub fn store_bytes(&self) -> String {
+        let mut text = String::new();
+        let dir = self
+            .document_store()
+            .database_path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if path.is_file() && name.starts_with("store.sqlite3") {
+                text.push_str(&String::from_utf8_lossy(&std::fs::read(&path).unwrap()));
+            }
+        }
+        assert!(!text.is_empty(), "no store files");
+        text
+    }
+}
+
+/// Put a curator record of `main` straight into the store under `dir`, with no host: what another
+/// process (a second run) or a library embedder (D14) writes.
+pub fn put_record_at(dir: &Path, kind: &str, id: &str, body: Value) {
+    let store = SqliteStore::open(
+        &dir.join("state/spaces/main"),
+        "main",
+        StoreOptions::default(),
+    )
+    .unwrap();
+    let access: Vec<String> = body["access"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t.as_str().unwrap().to_owned())
+        .collect();
+    let tokens: Vec<&str> = access.iter().map(String::as_str).collect();
+    let mut envelope = samples::envelope(&tokens, "curator", &format_instant(T0));
+    envelope.version = 2;
+    envelope.space = "main".to_owned();
+    envelope.plugin = Some("curator".to_owned());
+    store
+        .put_record("curator", kind, id, body, envelope, Expect::Any)
+        .unwrap();
 }
 
 /// A scripted terminal: whether a person can answer, what they answer, and what was asked.

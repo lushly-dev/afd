@@ -162,6 +162,7 @@ async fn a_set_keeps_the_id_it_was_first_recorded_with() {
             "contentHash": format!("sha256:{}", "0".repeat(64)),
             "subjectKey": format!("sha256:{}", "1".repeat(64)),
             "sources": [{ "id": mem(3), "recordVersion": 1 }], "reason": null,
+            "proposal": null,
         }),
         &["principal:human:local", "space"],
     );

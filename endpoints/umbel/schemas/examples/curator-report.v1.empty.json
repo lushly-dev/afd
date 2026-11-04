@@ -15,11 +15,15 @@
 		"applied": 0,
 		"withdrawn": 0,
 		"reverify": 0,
+		"deprecate": 0,
+		"refused": 0,
 		"remaining": 0
 	},
 	"skipped": [],
 	"inconsistencies": [],
+	"refused": [],
 	"proposals": [],
+	"checkpoint": null,
 	"next": {
 		"overdueAfter": "2026-11-10T09:00:00.000Z"
 	}

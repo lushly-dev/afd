@@ -235,7 +235,7 @@ fn stored(id: &str, principal: &str, status: &str, extra: Value) -> Value {
         "promotedTo": null, "conflictSet": null, "quietUntil": null,
         "contentHash": format!("sha256:{}", "0".repeat(64)),
         "subjectKey": format!("sha256:{}", "1".repeat(64)),
-        "sources": [{ "id": mem(1), "recordVersion": 1 }], "reason": null,
+        "sources": [{ "id": mem(1), "recordVersion": 1 }], "reason": null, "proposal": null,
     });
     for (key, value) in extra.as_object().unwrap() {
         body[key] = value.clone();

@@ -20,9 +20,20 @@
 //! - [`draft`]: a candidate as a `knowledge-propose-batch` item, through `umbel_okf::draft` (4.5);
 //! - [`records`]: the curator's records, `curator-record.v1.json` (2.3).
 //!
-//! The commands of this step are `curator-candidates` (the caller's candidates by status, with no
-//! memory text) and `curator-promote` (a person's consent at a terminal, `require-human`, own
-//! records only). Both are CLI only and digest-journaled. `curator-run` and its steps are step 5's.
+//! - [`review`]: re-verification and inconsistencies (section 6);
+//! - [`recheck`]: which open drafts a run withdraws (sections 7.3 and 9.1);
+//! - [`state`] and [`run`]: the caller's lock and cursors, and what a run's steps share.
+//!
+//! The commands, every one CLI only and digest-journaled, never first-class:
+//! - `curator-candidates`: the caller's candidates by status, with no memory text;
+//! - `curator-promote`: a person's consent at a terminal, `require-human`, own records only;
+//! - `curator-status`: the caller's last report, `overdue`, the promotable candidates and the
+//!   records an owner may invalidate;
+//! - `curator-run`, a pipeline the plugin ships as data (section 3.1): `curator-plan`, the
+//!   knowledge plugin's `knowledge-propose-batch` and `knowledge-proposal-feed`, then
+//!   `curator-finish`, which returns the report. `curator-plan` and `curator-finish` refuse any
+//!   call that is not a step of it (`CURATOR_RUN_REQUIRED`). The curator never calls the
+//!   knowledge plugin, never approves, and its answer holds ids and counts only.
 //!
 //! Memory text is untrusted content: it never appears in a message, warning, reasoning or log
 //! line (D67), and no command's result holds it.
@@ -30,16 +41,25 @@
 
 pub mod access;
 mod candidates;
+mod changes;
 pub mod conflicts;
 pub mod draft;
+mod erase;
 pub mod evaluate;
 mod fail;
+mod finish;
 pub mod pack;
+mod plan;
 mod promote;
 mod read;
+pub mod recheck;
 pub mod records;
+pub mod review;
+pub mod run;
 mod settings;
 pub mod settle;
+pub mod state;
+mod status;
 pub mod target;
 
 use serde_json::Value;
@@ -73,10 +93,13 @@ impl Plugin for Curator {
         match name {
             "curator-candidates" => candidates::run(&input, cx),
             "curator-promote" => promote::run(&input, cx),
+            "curator-status" => status::run(&input, cx),
+            "curator-plan" => plan::run(&input, cx),
+            "curator-finish" => finish::run(&input, cx),
             other => failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the curator plugin has no command `{other}`"),
-                "Call curator-candidates or curator-promote; curator-guide describes them.",
+                "Call curator-candidates, curator-promote, curator-status or curator-run; curator-guide describes them.",
             ),
         }
     }

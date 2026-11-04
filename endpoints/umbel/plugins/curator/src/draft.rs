@@ -16,7 +16,7 @@
 //! - `conflictSet`, for an alternative;
 //! - `idempotency_key`: `<instance>/<candidate>/<drafts>`, so a rerun renders byte-equal input and
 //!   gets the existing proposal back, and a changed source (a new draft count) a new key;
-//! - `confidence`: the highest asserted, or `null`.
+//! - `confidence`: the highest asserted, absent when no source asserts one.
 
 use serde_json::{Value, json};
 use umbel_okf::draft::{self, Draft, Rationale};
@@ -108,7 +108,6 @@ pub fn item(candidate: &Candidate, drafter: Drafter<'_>) -> Option<Value> {
             .iter()
             .map(|s| evidence(s, candidate.principals))
             .collect::<Vec<_>>(),
-        "confidence": candidate.confidence,
         "drafter": claims,
         "derivedFrom": candidate
             .sources
@@ -116,6 +115,11 @@ pub fn item(candidate: &Candidate, drafter: Drafter<'_>) -> Option<Value> {
             .map(|s| json!({ "kind": "memory", "id": s.id, "contentHash": s.content_hash }))
             .collect::<Vec<_>>(),
     });
+    // The highest asserted confidence; absent when no source asserts one, which the knowledge
+    // plugin's `confidence` check requires (step 3c's amendment 5) and `null` would not pass.
+    if let Some(confidence) = candidate.confidence {
+        item["confidence"] = json!(confidence);
+    }
     if let Some(set) = &candidate.conflict_set {
         item["conflictSet"] = json!(set);
     }

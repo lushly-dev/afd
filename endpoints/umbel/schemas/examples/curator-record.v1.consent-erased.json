@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"kind": "consent",
+	"id": "n-4a1b2c3d4e5f60718293",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["principal:human:local"],
+	"by": "human:local",
+	"at": "2026-11-07T17:30:00.000Z",
+	"erased": true
+}
