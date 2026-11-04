@@ -49,11 +49,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * the kernel alone 111,019, `late` 50,851, `apps` 378,907 (86 left) and `mount` 215,943, with 9.2's checks in
  * `apps` and the disabled gate's refusals moved to `late`, which `apps` had no room for. Step 7
  * added `sectionsMinified`, the projects section with
- * the kernel's summary rows that `project-summary-get` loads on its first call, 41,358 of 45,000, its first
+ * the kernel's summary rows that `project-summary-get` loads on its first call, 41,998 of 45,000, its first
  * estimate kept as the measurement is above 70% of it; and raised `appsMinified` by 833, to 379,826, for
  * `ui.project_summary`'s rule in the one validator, measured as the closure with it less without it (379,007
  * less 378,174 on step 6's base), approved by the coordinator, 2026-11-03. On step 8's base: first paint
- * 285,404 and 88,000 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
+ * 285,404 and 87,999 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
  * `events` chunk; the kernel alone 111,238, `late` 51,893, `url-sync` 4,347, `apps` 379,806 (20 left).
  * Step 9 leaves
  * `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4).
