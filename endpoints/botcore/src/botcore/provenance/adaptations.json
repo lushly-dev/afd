@@ -5447,7 +5447,7 @@
       "path": "tests/test_skill_seed.py",
       "upstream_sha256": "9382144522fdf35e2292dff558aa29f8414a6e564315af839ec032f9651c2027",
       "staged_sha256": "9382144522fdf35e2292dff558aa29f8414a6e564315af839ec032f9651c2027",
-      "current_import_sha256": "a4457d04ca1c14c59e5316ee8eb8cd375c1071263014175ae37d14d4f34df421",
+      "current_import_sha256": "9992fe1b1d7bc6f94af3e62d24e7266538ec59da9584a5b3bdd4f61765559565",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",

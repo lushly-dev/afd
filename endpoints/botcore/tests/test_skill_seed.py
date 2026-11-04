@@ -726,12 +726,23 @@ async def test_seed_unlinks_symlinked_retired_skill(tmp_path: Path) -> None:
     assert (shared / "SKILL.md").exists()
 
 
-async def test_seed_removes_stale_retired_mirror(tmp_path: Path) -> None:
-    """A managed retired mirror goes even when its primary copy is already gone."""
+@pytest.mark.parametrize(
+    ("config", "dry_run", "removed"),
+    [
+        ("", False, True),
+        ("", True, False),
+        ("skip = ['write-tests']", False, False),
+        ("include = ['docs-manager']", False, False),
+    ],
+)
+async def test_seed_stale_retired_mirror(
+    tmp_path: Path, config: str, dry_run: bool, removed: bool
+) -> None:
+    """A managed retired mirror goes even without its primary, unless config or dry run keeps it."""
     ws = _setup_workspace(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
         "[project]\nname = 'test'\nversion = '0.1.0'"
-        "\n\n[tool.botcore.skills]\nagent_skills = true\n",
+        f"\n\n[tool.botcore.skills]\nagent_skills = true\n{config}\n",
         encoding="utf-8",
     )
     agent_dir = ws / ".agent" / "skills"
@@ -741,8 +752,8 @@ async def test_seed_removes_stale_retired_mirror(tmp_path: Path) -> None:
     source_dir = tmp_path / "source"
     _make_source_skill(source_dir, "docs-manager", "2.0.0")
 
-    result = await _seed(ws, _discovered(source_dir, "docs-manager"))
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"), dry_run=dry_run)
 
     assert assert_success(result)["retired"] == []
-    assert not (agent_dir / "write-tests").exists()
+    assert (agent_dir / "write-tests").exists() is not removed
     assert (agent_dir / "manage-git").exists()
