@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"kind": "review",
+	"id": "v-2b3c4d5e6f708192a3b4",
+	"space": "main",
+	"principal": "human:local",
+	"access": ["principal:human:local"],
+	"doc": "handbook/deploy/rollback",
+	"op": "verify",
+	"baseHash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+	"status": "drafted",
+	"drafts": 1,
+	"proposal": "p-2b3c4d5e6f708192a3b4",
+	"at": "2026-11-08T09:00:00.000Z",
+	"quietUntil": null
+}

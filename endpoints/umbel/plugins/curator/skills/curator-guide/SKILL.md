@@ -1,6 +1,6 @@
 ---
 name: curator-guide
-description: What the curator does with memory, when a memory record settles into a candidate for the knowledge base, what each candidate status means, how a person widens their own records with curator-promote, and why a draft is data a person still approves.
+description: What the curator does with memory, when a memory record settles into a candidate for the knowledge base, what each candidate status means, what a curator-run does and how to schedule it, how a person widens their own records with curator-promote, and why a draft is data a person still approves.
 ---
 
 # Curator guide
@@ -11,7 +11,8 @@ Every draft it makes is the same fixed rendering of the records, which the knowl
 renders again and checks field by field before it stores the proposal. A person then reads the
 preview and decides.
 
-All curator commands run only at the command line. None is offered over MCP.
+All curator commands run only at the command line. None is offered over MCP or to an agent in
+process, and none can be named a first-class tool.
 
 ## What it reads
 
@@ -52,6 +53,38 @@ accident, not an adversary: authority is the real gate.
 
 Candidates with the same subject and different text form a **conflict set**: each is drafted as an
 alternative for the same document, and a person chooses. The curator never chooses.
+
+## Runs
+
+`curator-run` does the work, for you and one space at a time. It is a pipeline the curator
+ships: it plans under your reader filter, hands the drafts to the knowledge plugin (which checks
+every one against the memory store before it stores it), reads what people decided about your
+earlier drafts, and answers with a report of ids and counts, never memory text.
+
+```text
+umbel call curator-run '{"space": "main"}'
+umbel call curator-status '{"space": "main"}'
+```
+
+Schedule it from cron, CI or a session-end hook; there is no daemon. `curator-status` shows your
+last report, whether your runs are `overdue` (none, or none within twice `every_hours`), the
+candidates you may promote, and the memory records of yours a person applied as knowledge, which
+you may close with `memory-invalidate` (reason `outdated`). The curator never writes memory.
+
+A run:
+- takes your lock in the space; a second run of yours gets `CURATOR_BUSY` (retry later), and a
+  lock left by a run that stopped is taken over after 10 minutes;
+- re-checks every open draft of yours: a forgotten source withdraws the draft and removes its text;
+  an invalidated, expired, confirmed or unreadable source withdraws it;
+- drafts at most `max_proposals` candidates, in id order, then verify proposals for documents due
+  within `lead_days` of their `stale_after` and deprecate proposals for documents naming a
+  successor, at most `max_per_run`;
+- reports what it skipped, what failed a check and what the knowledge plugin refused, by code;
+- reads memory from where the last run stopped, so every record is reached across runs.
+
+A rejected draft is not drafted again for `quiet_days`; a changed record is a new candidate. An
+applied one is never drafted again. A run that stopped part way is completed by the next. The
+`curator-plan` and `curator-finish` steps refuse to run anywhere but inside `curator-run`.
 
 ## Widening your own records
 

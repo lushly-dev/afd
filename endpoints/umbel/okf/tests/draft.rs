@@ -5,8 +5,8 @@
 
 use umbel_okf::draft::{
     self, Draft, EXCERPT_CHARS, Rationale, candidate_id, conflict_set_id, document_id,
-    idempotency_key, is_candidate_id, is_conflict_set_id, is_idempotency_key, subject_key,
-    subject_key_digest,
+    idempotency_key, is_candidate_id, is_conflict_set_id, is_idempotency_key, is_proposal_id,
+    proposal_id, subject_key, subject_key_digest,
 };
 use umbel_okf::{Ingest, Kind, analyze};
 use umbel_store::memory::parse_instant;
@@ -271,6 +271,31 @@ fn the_idempotency_key_carries_the_instance_the_candidate_and_the_draft_count() 
         "curatorx/c-43315d53cc285fb704d6/1",
     ] {
         assert!(!is_idempotency_key(bad, "curator", candidate), "{bad}");
+    }
+}
+
+#[test]
+fn a_proposal_id_is_phase_twos_derivation_from_the_space_the_actor_and_the_key() {
+    // `p-` and the first 20 hex digits of SHA-256 of `<space>\0<actor>\0<key>`, as the knowledge
+    // plugin has assigned it since phase 2; the curator derives the same id for the key it submits.
+    let key = idempotency_key("curator", "c-43315d53cc285fb704d6", 0);
+    let id = proposal_id("main", "human:local", &key);
+    let whole = umbel_store::ContentHash::of(format!("main\0human:local\0{key}").as_bytes());
+    let hex = whole.as_str().strip_prefix("sha256:").unwrap();
+    assert_eq!(id, format!("p-{}", &hex[..20]));
+    assert!(is_proposal_id(&id));
+    assert_ne!(
+        proposal_id("main", "human:ada", &key),
+        id,
+        "another proposer"
+    );
+    assert_ne!(
+        proposal_id("beta", "human:local", &key),
+        id,
+        "another space"
+    );
+    for bad in ["p-0123", "c-43315d53cc285fb704d6", "p-0123456789ABCDEF0123"] {
+        assert!(!is_proposal_id(bad), "{bad}");
     }
 }
 

@@ -12,5 +12,6 @@
 		"id": "mem-3f9a1c0d7b2e4a6f8c1d5e90"
 	},
 	"lastRun": "r-5e1f0a2b3c4d5e6f7081",
-	"lock": null
+	"lock": null,
+	"reviewAfter": "handbook/deploy/rollback"
 }

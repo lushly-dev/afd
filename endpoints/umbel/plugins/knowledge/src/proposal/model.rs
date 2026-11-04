@@ -381,9 +381,8 @@ pub(crate) fn change_hash(change: &Change, rationale: &str, evidence: &[Value]) 
     ContentHash::of(canonical_json(&Value::Object(whole)).as_bytes()).to_string()
 }
 
-/// `p-` and the first 20 hex digits of SHA-256 of `<space>\0<proposer actor string>\0<key>`.
+/// `p-` and the first 20 hex digits of SHA-256 of `<space>\0<proposer actor string>\0<key>`:
+/// [`umbel_okf::draft::proposal_id`], shared with the curator (phase 4 step 5).
 pub(crate) fn proposal_id(space: &str, actor: &str, key: &str) -> String {
-    let hash = ContentHash::of(format!("{space}\0{actor}\0{key}").as_bytes());
-    let hex = hash.as_str().strip_prefix("sha256:").unwrap_or_default();
-    format!("p-{}", &hex[..20])
+    umbel_okf::draft::proposal_id(space, actor, key)
 }

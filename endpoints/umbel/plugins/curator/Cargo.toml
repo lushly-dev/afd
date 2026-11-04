@@ -35,9 +35,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # the command line in process for `curator-promote`'s terminal.
 umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
 # The tests write memory records and documents through the store API, with fixed ids and a fixed
-# clock, into the files the host then opens.
+# clock, into the files the host then opens. `testkit` for `SqliteStore::hold_reader`, a reader
+# holding the write-ahead log, so `forgotten.rs` sees a run's checkpoint `pending`.
 umbel-store = { path = "../../store", features = ["conformance"] }
-umbel-store-embedded = { path = "../../store-embedded" }
+umbel-store-embedded = { path = "../../store-embedded", features = ["testkit"] }
 
 [lints]
 workspace = true

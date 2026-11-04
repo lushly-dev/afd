@@ -24,6 +24,8 @@
 			"applied": 0,
 			"withdrawn": 0,
 			"reverify": 0,
+			"deprecate": 0,
+			"refused": 0,
 			"remaining": 0
 		},
 		"skipped": [
@@ -44,7 +46,9 @@
 				"check": "links-resolve"
 			}
 		],
+		"refused": [],
 		"proposals": ["p-1a2b3c4d5e6f708192a3"],
+		"checkpoint": "clean",
 		"next": {
 			"overdueAfter": "2026-11-10T09:00:00.000Z"
 		}

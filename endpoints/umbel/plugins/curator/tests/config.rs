@@ -154,6 +154,16 @@ async fn a_configured_model_is_refused_by_every_command() {
     fx.at(day(8));
     let refused = fx.candidates().await;
     assert_eq!(code(&refused), "CURATOR_MODEL_UNAVAILABLE");
+    assert_eq!(code(&fx.run().await), "CURATOR_MODEL_UNAVAILABLE");
+    let status = fx
+        .call(
+            human("local"),
+            afd::CommandInterface::Cli,
+            "curator-status",
+            json!({}),
+        )
+        .await;
+    assert_eq!(code(&status), "CURATOR_MODEL_UNAVAILABLE");
     let hash = fx.record(&mem(1)).content_hash.as_str().to_owned();
     let candidate = umbel_okf::draft::candidate_id("main", "human:local", &mem(1));
     let (promote, asked) = fx
@@ -290,16 +300,49 @@ fn the_manifest_reads_memory_and_writes_only_its_own_records() {
         assert_eq!(command["journal"]["keep"][0].as_str(), Some("space"));
         assert!(command.get("first_class").is_none(), "{name}");
     }
-    assert!(
-        manifest.get("pipelines").is_none(),
-        "curator-run is step 5's"
+    // The one pipeline, curator-run: command line only, the last step's report alone, digest.
+    let pipelines = manifest["pipelines"].as_array().unwrap();
+    assert_eq!(pipelines.len(), 1);
+    let run = &pipelines[0];
+    assert_eq!(run["name"].as_str(), Some("curator-run"));
+    assert_eq!(
+        (
+            run["expose"]["mcp"].as_bool(),
+            run["expose"]["agent"].as_bool(),
+            run["expose"]["cli"].as_bool()
+        ),
+        (Some(false), Some(false), Some(true))
+    );
+    assert_eq!(run["result"].as_str(), Some("last"));
+    assert_eq!(run["journal"]["mode"].as_str(), Some("digest"));
+    let steps: Vec<&str> = run["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|step| step["command"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        steps,
+        [
+            "curator-plan",
+            "knowledge-propose-batch",
+            "knowledge-proposal-feed",
+            "curator-finish"
+        ]
     );
 }
 
 #[tokio::test]
-async fn neither_command_is_offered_over_mcp() {
+async fn no_command_is_offered_over_mcp() {
     let fx = Fx::new();
-    for name in ["curator-candidates", "curator-promote"] {
+    for name in [
+        "curator-candidates",
+        "curator-promote",
+        "curator-status",
+        "curator-plan",
+        "curator-finish",
+        "curator-run",
+    ] {
         let definition = fx.host.registry().get(name).unwrap();
         assert!(
             !definition.expose.mcp && !definition.expose.agent && definition.expose.cli,

@@ -449,6 +449,28 @@ fn every_curator_record_kind_needs_its_fields_and_only_them() {
             edited(&run, |r| r["report"]["counts"]["read"] = json!(-1)),
         ],
     );
+    // Phase 4 step 5: a review per document, the state's document cursor, a candidate's open
+    // proposal, and a consent that keeps no sources once one of them was erased.
+    let review = example("curator-record.v1", "review");
+    let forgotten = example("curator-record.v1", "consent-erased");
+    assert_refuses(
+        &validator,
+        "curator-record.v1 step 5",
+        &[
+            edited(&review, |r| r["id"] = candidate["id"].clone()),
+            edited(&review, |r| r["status"] = json!("settling")),
+            edited(&review, |r| r["op"] = json!("create")),
+            edited(&review, |r| r["baseHash"] = json!("abc")),
+            edited(&review, |r| r["contentHash"] = hash('9')),
+            edited(&review, |r| r["access"] = json!(["space"])),
+            edited(&candidate, |r| r["status"] = json!("refused")),
+            edited(&candidate, |r| r["proposal"] = json!("p-1")),
+            edited(&state, |r| r["reviewAfter"] = json!("")),
+            edited(&forgotten, |r| r["sources"] = consent["sources"].clone()),
+            edited(&forgotten, |r| r["erased"] = json!(false)),
+            edited(&consent, |r| r["erased"] = json!(true)),
+        ],
+    );
 }
 
 #[test]
@@ -542,6 +564,18 @@ fn the_run_report_holds_ids_and_counts_only() {
             }),
             with(&|r| r["next"] = json!({})),
             with(&|r| r["text"] = json!("memory text")),
+            // Phase 4 step 5: the checkpoint's state, and refusals by code only.
+            with(&|r| r["checkpoint"] = json!("done")),
+            with(&|r| r["refused"] = json!([{ "candidate": "c-6f708192a3b4c5d6e7f8" }])),
+            with(&|r| r["refused"] = json!([{ "code": "PROPOSAL_ALREADY_OPEN", "reason": "x" }])),
+            with(&|r| r["refused"] = json!([{ "code": "not a code" }])),
         ],
     );
+    assert!(validator.is_valid(&with(&|r| {
+        r["checkpoint"] = json!("pending");
+        r["refused"] = json!([{
+            "code": "PROPOSAL_DRAFT_MISMATCH", "candidate": "c-6f708192a3b4c5d6e7f8",
+            "check": "copied-authority",
+        }]);
+    })));
 }

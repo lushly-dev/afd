@@ -13,7 +13,9 @@
 		"counts",
 		"skipped",
 		"inconsistencies",
+		"refused",
 		"proposals",
+		"checkpoint",
 		"next"
 	],
 	"additionalProperties": false,
@@ -50,6 +52,8 @@
 				"applied",
 				"withdrawn",
 				"reverify",
+				"deprecate",
+				"refused",
 				"remaining"
 			],
 			"additionalProperties": false,
@@ -91,6 +95,14 @@
 					"minimum": 0
 				},
 				"reverify": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"deprecate": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"refused": {
 					"type": "integer",
 					"minimum": 0
 				},
@@ -192,6 +204,35 @@
 				]
 			}
 		},
+		"refused": {
+			"description": "Drafts the knowledge plugin refused this run, by error code (and details.check for a mismatch): a candidate's by id, a review's by document. A refusal is the plugin verifying the drafter, never content.",
+			"type": "array",
+			"maxItems": 50,
+			"items": {
+				"type": "object",
+				"required": ["code"],
+				"additionalProperties": false,
+				"properties": {
+					"code": {
+						"type": "string",
+						"pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+					},
+					"candidate": {
+						"type": "string",
+						"pattern": "^c-[0-9a-f]{20}$"
+					},
+					"doc": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512
+					},
+					"check": {
+						"type": "string",
+						"pattern": "^[a-z][a-z-]{0,63}$"
+					}
+				}
+			}
+		},
 		"proposals": {
 			"description": "The proposals the run's batch submitted or found, by id.",
 			"type": "array",
@@ -201,6 +242,10 @@
 				"type": "string",
 				"pattern": "^p-[0-9a-f]{20}$"
 			}
+		},
+		"checkpoint": {
+			"description": "Whether the run's redactions are gone from the document store's write-ahead log (clean) or wait for a later checkpoint (pending: run store-check once no reader holds the store); null when the run redacted nothing. The batch's PROPOSAL_REDACTION_PENDING warning reaches the run's answer only here.",
+			"enum": [null, "clean", "pending"]
 		},
 		"next": {
 			"type": "object",
