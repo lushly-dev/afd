@@ -65,6 +65,7 @@ let result = registry
 7. **Middleware, then the handler.** With `timeout_ms`, a late finish is `TIMEOUT`. A panic becomes `COMMAND_EXECUTION_ERROR`, "An internal error occurred", and the payload is never shown, since Rust has no dev mode.
 
 - **The handler isn't called when any check fails.** `CommandDefinition::execute` calls it directly and skips every check, so call commands through the registry.
+- **No stream executor and no stock middleware.** Rust has batch and pipeline executors only, and no default, retry, rate-limit or tracing middleware; see the Middleware rows of `docs/language-parity.md`.
 - **Middleware** (`add_middleware`; the first added is outermost) gets the name, the validated input, the context and `next`. `next` takes no arguments, so middleware cannot change the input, context or actor the handler sees. Set the actor on the context before `execute`, or in the server's context hook.
 - **Context defaults.** Handlers always get `context.clock()` and `context.random()`; use `with_clock(fixed_clock(ms))` and `with_random(seeded_random(seed))` in tests. An actor (`with_actor(ActorKind::Human)`) is reported as `metadata.actorKind`, never its id.
 

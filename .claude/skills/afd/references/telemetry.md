@@ -1,6 +1,6 @@
 # Telemetry and default middleware (TypeScript)
 
-All from `@lushly-dev/afd-server`. Python's equivalents are in the afd-python skill; which
+All from `@lushly-dev/afd-server`. Python's equivalents are described in [`python/README.md`](../../../../python/README.md); which
 languages have what is in the "Handoff, telemetry and similarity" rows of
 [`docs/language-parity.md`](../../../../docs/language-parity.md).
 

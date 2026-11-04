@@ -84,6 +84,8 @@ Every option: `packages/cli/README.md`.
 
 Languages share capabilities and agent-visible behaviour, not identical API names. The capability
 matrix and the intended gaps are in [`docs/language-parity.md`](../../../docs/language-parity.md).
+The command layer stays framework-agnostic: React and browser integrations belong in ecosystem
+layers (UI packages, adapters, examples), outside the core parity target.
 
 ## References
 

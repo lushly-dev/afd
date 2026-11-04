@@ -231,7 +231,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
   - connectors;
   - `CommandParameter`;
   - streamable-command metadata.
-- **Rust** (the `afd-rust` skill's parity note): `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
+- **Rust** (the rows above): `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
 
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
