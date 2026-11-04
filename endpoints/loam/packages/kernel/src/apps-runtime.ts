@@ -72,6 +72,11 @@ export interface AppsRuntime {
 	instances(): AppInstanceV1[];
 	/** `app-instance-refresh`: a mounted instance's discovery, or why it cannot run. */
 	refreshInstance(instance: string): Promise<CommandResult>;
+	/**
+	 * After `workspace-app-set` enabled `instance`: a mounted one's `app-instance-refresh`, nested in the
+	 * call `parent`, or nothing (phase 2 specification, 4.1). Absent until stage B has loaded `apps/`.
+	 */
+	refreshEnabled?(instance: string, parent: string): Promise<unknown> | undefined;
 	/** What a call of `name` carries in its context: who owns it, and whether it is recorded (7.6). */
 	contextOf(name: string, input: unknown): KernelFieldContext;
 	/** A journal entry as it is kept: a mounted server's result is bounded (7.6). */

@@ -131,7 +131,7 @@ export function createAppPort(options: AppPortOptions): {
 	): Promise<CommandResult<T>> {
 		const command = typeof name === 'string' ? name : String(name);
 		const { level, scope: _scope, ...rest } = callOptions ?? {};
-		const bound = binding.scope ?? host.activeScope();
+		const bound = binding.scope ?? host.scope.active();
 		// A workspace-only app runs at the workspace whatever is active, so it learns no project, even of
 		// the shell's commands, as `scope-get` (phase 2 specification, 4.3).
 		const wide = level === 'workspace' || !record.scopeLevels.includes('project');
@@ -260,7 +260,7 @@ export function createAppPort(options: AppPortOptions): {
 						instance,
 						// The active scope at each operation; a workspace-only app's is the workspace, as its calls'.
 						scope: () => {
-							const active = host.activeScope();
+							const active = host.scope.active();
 							return record.scopeLevels.includes('project')
 								? active
 								: { workspace: active.workspace };

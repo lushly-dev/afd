@@ -212,7 +212,10 @@ describe('deployment write', () => {
 			],
 		});
 		expect(written.mounts).toEqual([{ instance: 'work', url: URL_SECRET, bearer: TOKEN }]);
-		expect(written.warnings).toEqual([]);
+		// The umbel package names no levels, so the workspace's alone, and `projects` overrides them (9.1).
+		expect(written.warnings.map(({ code, key }) => [code, key])).toEqual([
+			['INSTANCE_LEVELS_OVERRIDDEN', 'apps.work.projects'],
+		]);
 		expect(existsSync(join(paths.out, 'assets/app.js'))).toBe(true);
 		expect(existsSync(join(paths.out, 'apps/hello/dist/native.js'))).toBe(true);
 		expect(existsSync(join(paths.out, 'apps/home/app-manifest.json'))).toBe(true);
@@ -799,6 +802,59 @@ describe('deployment check', () => {
 		]);
 		expect(JSON.stringify(result)).not.toContain(TOKEN);
 		expect(JSON.stringify(result)).not.toContain(COMMAND_SECRET);
+	});
+
+	describe('P2-E6 (CLI unit): a mounted instance and its projects (9.1, 4.2)', () => {
+		const mounted = (extra: string, levels?: string[]) =>
+			layout(
+				`deployment_version = 2\n\n[apps.work]\napp = "umbel"\npackage = "umbel"\nprefix = "work"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\n${extra}`,
+				{
+					umbel: {
+						...mountedPackage('umbel'),
+						...(levels ? { app: { scope_levels: levels } } : {}),
+					},
+				}
+			);
+		const warned = async (extra: string, levels?: string[]) => {
+			const { code, result } = await check(await mounted(extra, levels));
+			expect(code).toBe(0);
+			return result.data.warnings.map(({ code: found, key }: { code: string; key: string }) => [
+				found,
+				key,
+			]);
+		};
+
+		it('warns INSTANCE_LEVELS_OVERRIDDEN where `projects` overrides a workspace-only manifest', async () => {
+			const listed = 'audience = "person"\nprojects = ["atlas"]\n';
+			expect(await warned(listed, ['workspace'])).toEqual([
+				['INSTANCE_LEVELS_OVERRIDDEN', 'apps.work.projects'],
+			]);
+			expect(await warned(listed)).toEqual([['INSTANCE_LEVELS_OVERRIDDEN', 'apps.work.projects']]);
+			expect(await warned(listed, ['workspace', 'project'])).toEqual([]);
+			expect(await warned(listed, ['project'])).toEqual([]);
+			expect(await warned('audience = "person"\n', ['workspace'])).toEqual([]);
+		});
+
+		it('warns TEAM_INSTANCE_WHOLE_WORKSPACE for a team instance with no `projects`, and keeps its notice', async () => {
+			const paths = await mounted('audience = "team"\n', ['workspace', 'project']);
+			const { code, result } = await check(paths);
+			expect(code).toBe(0);
+			expect(result.data.warnings).toEqual([
+				{
+					code: 'TEAM_INSTANCE_WHOLE_WORKSPACE',
+					key: 'apps.work',
+					message: 'This team instance serves every member of the workspace.',
+					suggestion:
+						'List the projects it serves under `projects`, if every member should not reach it.',
+				},
+			]);
+			expect(result.data.notices.map(({ code: found }: { code: string }) => found)).toContain(
+				'TEAM_INSTANCE_SINGLE_PRINCIPAL'
+			);
+			expect(
+				await warned('audience = "team"\nprojects = ["atlas"]\n', ['workspace', 'project'])
+			).toEqual([]);
+		});
 	});
 
 	const refusalCodes = async (toml: string, packages: Record<string, unknown>) => {

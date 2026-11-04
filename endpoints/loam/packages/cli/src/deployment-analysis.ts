@@ -211,6 +211,38 @@ function transportFindings(
 	return found;
 }
 
+/**
+ * A mounted instance and its projects (phase 2 specification, 9.1 and 4.2): warnings, which fail nothing.
+ * `projects` makes an instance project-only whatever its manifest says, and a team instance with none
+ * serves every member of the workspace.
+ */
+function projectWarnings(effect: InstanceEffect): DeploymentFinding[] {
+	const { id, entry, manifest } = effect;
+	if (!effect.mounted) return [];
+	const found: DeploymentFinding[] = [];
+	const levels = manifest?.app?.scope_levels ?? ['workspace'];
+	if (entry.projects !== undefined && manifest && !levels.includes('project')) {
+		found.push({
+			code: 'INSTANCE_LEVELS_OVERRIDDEN',
+			key: appKey(id, '/projects'),
+			message:
+				'The manifest serves the workspace alone, and `projects` makes this instance serve only those projects.',
+			suggestion:
+				'Remove `projects` to serve the workspace, or keep it to serve only those projects.',
+		});
+	}
+	if (entry.projects === undefined && entry.audience === 'team') {
+		found.push({
+			code: 'TEAM_INSTANCE_WHOLE_WORKSPACE',
+			key: appKey(id),
+			message: 'This team instance serves every member of the workspace.',
+			suggestion:
+				'List the projects it serves under `projects`, if every member should not reach it.',
+		});
+	}
+	return found;
+}
+
 function noticesFor(effect: InstanceEffect): DeploymentNotice[] {
 	if (!effect.mounted) return [];
 	const instance = effect.id;
@@ -458,6 +490,7 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 		}
 	}
 	instanceRefusals.push(...domainFindings(instances));
+	warnings.push(...instances.flatMap(projectWarnings));
 	refusals.push(...(await secretsServed(config, deployment, instances)));
 	return {
 		refusals,

@@ -20,7 +20,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { canOpen, disabled, setMain, setScopeProject } from './main-state.js';
+import { canOpen, disabledRefusal, setMain, setScopeProject } from './main-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -235,13 +235,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const owner = apps.owners.get(name)?.instance;
 			if (owner !== undefined) {
 				// A gate, not an omission, so it takes effect at once and replays the same (4.1).
-				if (disabled(scope, owner)) {
-					return kernelFailure(
-						'APP_DISABLED',
-						`The app '${owner}' is disabled in this workspace`,
-						`Enable it with workspace-app-set { instance: "${owner}", enabled: true }`
-					);
-				}
+				const off = disabledRefusal(scope, owner);
+				if (off) return off;
 				// Line 2: the access decision, before anything else about the call.
 				if (!scope.allows(actorKey(call), requested)) return projectNotFound();
 				// Line 3: the owning app's levels.

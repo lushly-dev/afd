@@ -736,6 +736,10 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				updatedBy: actorKey(context),
 			};
 			await stores.putWorkspaceApp(next);
+			// Enabled again: a mounted instance left undiscovered while disabled is discovered now (4.1).
+			if (record.overrides.enabled === false && overrides.enabled !== false) {
+				await deps.apps().refreshEnabled?.(input.instance, context.traceId as string);
+			}
 			return success(next, { undoCommand: 'workspace-app-set', undoArgs });
 		},
 	});

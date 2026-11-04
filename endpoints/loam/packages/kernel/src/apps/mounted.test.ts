@@ -12,7 +12,7 @@ import type {
 	KernelPortsV1,
 	LoamKernelV2,
 	McpToolCallResult,
-	MountTransportV1,
+	MountTransportV2,
 } from '../types.js';
 import {
 	AUTO_DISCOVERY_MS,
@@ -23,6 +23,7 @@ import {
 	parseMountedResult,
 	pinMountedInput,
 	RECORDED_RESULT_MAX_BYTES,
+	unlistedProject,
 } from './mounted.js';
 
 const umbelManifest = (extra: Record<string, unknown> = {}): ManifestV1 =>
@@ -61,17 +62,25 @@ function fakeTransport(
 	} = {}
 ) {
 	const calls: Array<{ tool: string; args: unknown }> = [];
+	/** Each request's `_meta`, by tool, kept apart so `calls` reads as phase 1's tests wrote it. */
+	const metas: Array<{ tool: string; meta: Record<string, unknown> | undefined }> = [];
 	let closed = 0;
 	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
-	const transport: MountTransportV1 & { calls: typeof calls; readonly closed: number } = {
+	const transport: MountTransportV2 & {
+		calls: typeof calls;
+		metas: typeof metas;
+		readonly closed: number;
+	} = {
 		calls,
+		metas,
 		get closed() {
 			return closed;
 		},
 		connect: async () => ({ protocolVersion: '2025-11-25' }),
 		listTools: () => Promise.reject(new Error('Discovery lists no tools')),
-		async callTool(tool, args) {
+		async callTool(tool, args, _signal, meta) {
 			calls.push({ tool, args });
+			metas.push({ tool, meta });
 			if (tool === 'afd-help') {
 				if (options.help) return options.help();
 				return asResult({
@@ -118,7 +127,7 @@ const work = (extra: Record<string, unknown> = {}) => ({
 });
 
 async function boot(
-	transports: Record<string, (url: string) => Promise<MountTransportV1> | MountTransportV1>,
+	transports: Record<string, (url: string) => Promise<MountTransportV2> | MountTransportV2>,
 	entries: Array<Record<string, unknown>> = [work()],
 	options: { manifest?: ManifestV1; clock?: () => number; held?: Promise<void> } = {}
 ) {
@@ -1054,6 +1063,266 @@ describe('P2-E3 (kernel unit): an instance that lists projects opens only in the
 		expect(
 			(await kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
 		).toBe(atlas.data?.id);
+		await kernel.dispose();
+	});
+});
+
+/** The tool calls a command made, without discovery's meta-tools. */
+const commandCalls = (transport: ReturnType<typeof fakeTransport>) =>
+	transport.metas.filter(({ tool }) => !['afd-help', 'afd-detail'].includes(tool));
+
+describe('P2-E6 (kernel unit): a mounted call carries its scope, and stays in its projects (9.2)', () => {
+	async function scoped(entry: Record<string, unknown>) {
+		const transport = fakeTransport(
+			{ 'hello-greet': { mutation: false }, 'hello-whisper': { mutation: false } },
+			{ firstClass: ['hello-greet'] }
+		);
+		const booted = await boot({ work: () => transport }, [work(entry)]);
+		const atlas = await booted.kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+		const beacon = await booted.kernel.call<{ id: string }>('project-create', { name: 'Beacon' });
+		await booted.kernel.startInstances();
+		return {
+			...booted,
+			transport,
+			atlas: atlas.data?.id as string,
+			beacon: beacon.data?.id as string,
+		};
+	}
+
+	it('refuses a project its `projects` does not list, journaled, before any request', async () => {
+		const { kernel, journal, transport, beacon } = await scoped({ projects: ['atlas'] });
+		const before = transport.calls.length;
+		const refused = await kernel.call(
+			'work-hello-greet',
+			{ name: 'Ada' },
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(refused.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance does not serve the project `beacon`',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(transport.calls.length).toBe(before);
+		expect((await journal.read()).at(-1)).toMatchObject({
+			command: 'work-hello-greet',
+			context: { instance: 'work', replay: 'recorded', scope: { project: beacon } },
+			result: { success: false, error: { code: 'MOUNT_PROJECT_NOT_LISTED' } },
+		});
+		// Through `afd-call` as well: the check is the instance's, before the tool is chosen.
+		const lazy = await kernel.agent.call(
+			'work-hello-whisper',
+			{},
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(lazy.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('refuses the workspace level by 3.4 line 3, which runs first, also before any request', async () => {
+		const { kernel, transport } = await scoped({ projects: ['atlas'] });
+		const before = transport.calls.length;
+		const refused = await kernel.call('work-hello-greet', {}, { scope: 'workspace' });
+		expect(refused.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('answers no project, and an unlisted one, itself, with the slugs it serves', () => {
+		const entry = { projects: ['atlas', 'borealis'] };
+		expect(unlistedProject(entry, undefined)?.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance serves only its projects',
+			suggestion: 'Switch to a project this instance serves: atlas, borealis',
+		});
+		expect(unlistedProject(entry, 'beacon')?.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
+		expect(unlistedProject(entry, 'atlas')).toBeUndefined();
+		expect(unlistedProject({}, undefined)).toBeUndefined();
+		expect(unlistedProject({}, 'beacon')).toBeUndefined();
+	});
+
+	it("pins a project's mapped space by its slug, and refuses another, before any request", async () => {
+		const { kernel, transport, atlas } = await scoped({
+			projects: ['atlas'],
+			space: { atlas: 'main' },
+		});
+		const inAtlas = { scope: { workspace: 'personal', project: atlas } };
+		const answered = await kernel.call('work-hello-greet', { name: 'Ada' }, inAtlas);
+		expect(answered.success).toBe(true);
+		expect(transport.calls.at(-1)).toEqual({
+			tool: 'hello-greet',
+			args: { name: 'Ada', space: 'main' },
+		});
+		const before = transport.calls.length;
+		const other = await kernel.call('work-hello-greet', { space: 'other' }, inAtlas);
+		expect(other.error).toMatchObject({
+			code: 'MOUNT_SPACE_PINNED',
+			details: { project: 'atlas', space: 'main' },
+		});
+		const spaces = await kernel.call('work-hello-whisper', { spaces: ['main'] }, inAtlas);
+		expect(spaces.error?.code).toBe('MOUNT_SPACE_PINNED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it("sends the effective scope's ids in `_meta` on every command, afd-call too, and none on discovery", async () => {
+		const { kernel, transport, atlas } = await scoped({ projects: ['atlas'] });
+		// Discovery: `afd-help` and `afd-detail` carry nothing.
+		expect(transport.metas.filter(({ meta }) => meta !== undefined)).toEqual([]);
+		const inAtlas = { scope: { workspace: 'personal', project: atlas } };
+		await kernel.call('work-hello-greet', {}, inAtlas);
+		await kernel.agent.call('work-hello-whisper', {}, inAtlas);
+		const claim = { 'dev.loam/scope': { workspace: 'personal', project: atlas } };
+		expect(commandCalls(transport)).toEqual([
+			{ tool: 'hello-greet', meta: claim },
+			{ tool: 'afd-call', meta: claim },
+		]);
+		// Ids alone: no project's name or slug reaches the server.
+		expect(JSON.stringify(transport.metas)).not.toMatch(/Atlas|atlas/);
+		await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect(transport.metas.at(-1)).toEqual({ tool: 'afd-detail', meta: undefined });
+		await kernel.dispose();
+	});
+
+	it('sends a workspace-only instance its narrowed scope, the workspace alone', async () => {
+		const { kernel, transport, atlas } = await scoped({});
+		await kernel.call('work-hello-greet', {}, { scope: { workspace: 'personal', project: atlas } });
+		expect(commandCalls(transport)).toEqual([
+			{ tool: 'hello-greet', meta: { 'dev.loam/scope': { workspace: 'personal' } } },
+		]);
+		await kernel.dispose();
+	});
+
+	it('agrees with the kernel: a call succeeds exactly where the app is available (7.1, 9.1)', async () => {
+		for (const entry of [{ projects: ['atlas'] }, {}]) {
+			const { kernel, atlas, beacon } = await scoped(entry);
+			for (const project of [undefined, atlas, beacon]) {
+				await kernel.call('scope-set', { project: project ?? null });
+				const available = (await kernel.call<{ apps: Array<{ available: boolean }> }>('app-list'))
+					.data?.apps[0]?.available;
+				const called = await kernel.call('work-hello-greet', {});
+				const opened = await kernel.call('app-open', { instance: 'work' });
+				expect([project, called.success, opened.success]).toEqual([project, available, available]);
+				await kernel.call('app-close');
+			}
+			await kernel.dispose();
+		}
+	});
+
+	it('journals the scope of a refused call and replays it with zero differences', async () => {
+		const { kernel, journal, deployment, packages, atlas, beacon } = await scoped({
+			projects: ['atlas'],
+			space: { atlas: 'main' },
+		});
+		await kernel.call('scope-set', { project: atlas });
+		await kernel.call('work-hello-greet', { name: 'Ada' });
+		await kernel.call('work-hello-greet', { space: 'other' });
+		await kernel.call('scope-set', { project: beacon });
+		await kernel.call('work-hello-greet', {});
+		const entries: JournalEntry[] = await journal.read();
+		const { report } = await replayKernel(entries, {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+});
+
+describe('4.1: a disabled mounted instance is not discovered, and enabling one discovers it', () => {
+	it('leaves it undiscovered, refuses its refresh, and discovers it once enabled', async () => {
+		let made = 0;
+		const transport = fakeTransport({ 'a-read': { mutation: false } });
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => {
+				made++;
+				return transport;
+			},
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		expect(made).toBe(0);
+		expect((await journal.read()).map(({ command }) => command)).not.toContain(
+			'app-instance-refresh'
+		);
+		expect((await instance(kernel))?.state).toBe('loading');
+		const refused = await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect(refused.error).toMatchObject({
+			code: 'APP_DISABLED',
+			suggestion: 'Enable it with workspace-app-set { instance: "work", enabled: true }',
+		});
+		expect(made).toBe(0);
+
+		const enabled = await kernel.call<{ overrides: Record<string, unknown> }>('workspace-app-set', {
+			instance: 'work',
+			enabled: true,
+		});
+		expect(enabled.success).toBe(true);
+		expect(made).toBe(1);
+		expect((await instance(kernel))?.state).toBe('ready');
+		expect((await kernel.call('work-a-read', {})).success).toBe(true);
+		const entries: JournalEntry[] = await journal.read();
+		const set = entries.findLast(({ command }) => command === 'workspace-app-set');
+		const nested = entries.find(
+			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
+		);
+		expect(nested?.context).toMatchObject({
+			parent: set?.traceId,
+			instance: 'work',
+			replay: 'recorded',
+		});
+		// A second enable, of an instance already enabled, discovers nothing again.
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		expect(made).toBe(1);
+
+		const { report } = await replayKernel(await journal.read(), {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+
+	it("discovers it when a disable's override is cleared with null, as its undo does", async () => {
+		let made = 0;
+		const { kernel } = await boot({
+			work: () => {
+				made++;
+				return fakeTransport({});
+			},
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: null });
+		expect(made).toBe(1);
+		await kernel.dispose();
+	});
+});
+
+describe('9.1: INSTANCE_PROJECT_UNKNOWN', () => {
+	it('warns of a listed slug no project has, until a project is created with it', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({}) }, [
+			work({ projects: ['atlas', 'borealis'] }),
+		]);
+		const codes = async () =>
+			((await instance(kernel))?.warnings ?? []).map(({ code, message }) => [code, message]);
+		expect(await codes()).toEqual([
+			[
+				'INSTANCE_PROJECT_UNKNOWN',
+				'No project has the slug `atlas` yet, so this instance serves none there',
+			],
+			[
+				'INSTANCE_PROJECT_UNKNOWN',
+				'No project has the slug `borealis` yet, so this instance serves none there',
+			],
+		]);
+		await kernel.call('project-create', { name: 'Atlas' });
+		expect((await codes()).map(([, message]) => message)).toEqual([
+			'No project has the slug `borealis` yet, so this instance serves none there',
+		]);
 		await kernel.dispose();
 	});
 });

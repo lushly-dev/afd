@@ -520,6 +520,9 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../../../packages/server
       '@lushly-dev/loam-app-hello':
         specifier: workspace:*
         version: link:../../apps/hello

@@ -502,7 +502,7 @@ export async function createKernelParts(
 						? execute('palette', name, input, callOptions ?? {}, fields)
 						: run('palette', name, input, callOptions, fields),
 				clock: () => options.clock?.() ?? Date.now(),
-				activeScope: () => scope.active(),
+				scope,
 			});
 			keybindings = createKeybindings(SHELL_KEYBINDINGS_V0, apps.keybindings);
 		} catch (cause) {

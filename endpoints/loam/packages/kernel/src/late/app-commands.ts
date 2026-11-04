@@ -18,7 +18,7 @@ import type { KernelFieldContext } from '../context-fields.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { AppDetailV1, AppInstanceV1, SelectionV2 } from '../types.js';
-import { canOpen, setMain } from './main-state.js';
+import { canOpen, disabledRefusal, setMain } from './main-state.js';
 
 const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
 const instanceInput = z.strictObject({ instance: instanceName });
@@ -167,7 +167,24 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		handler: async () => success({ instances: apps().instances() }),
+		handler: async () =>
+			success({
+				instances: apps()
+					.instances()
+					.map((row) => ({
+						...row,
+						// A slug no project has yet: the instance is unavailable there until one has it (9.1).
+						warnings: [
+							...row.warnings,
+							...(scope.workspaceApps.get(row.instance)?.projects ?? [])
+								.filter((slug) => !scope.project(slug))
+								.map((slug) => ({
+									code: 'INSTANCE_PROJECT_UNKNOWN',
+									message: `No project has the slug \`${slug}\` yet, so this instance serves none there`,
+								})),
+						],
+					})),
+			}),
 	});
 
 	const appInstanceRefresh = defineCommandWithSchema<typeof instanceInput, unknown>({
@@ -179,7 +196,9 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'slow',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: (input) => apps().refreshInstance(input.instance),
+		// A disabled instance is not discovered until it is enabled (4.1).
+		handler: async (input) =>
+			disabledRefusal(scope, input.instance) ?? apps().refreshInstance(input.instance),
 	});
 
 	const appSelectionGet = defineCommandWithSchema<typeof instanceInput, SelectionV2>({
