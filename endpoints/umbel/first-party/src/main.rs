@@ -1,7 +1,7 @@
-//! `umbel-first-party`: the `umbel` command line with the four first-party plugins compiled in,
-//! `sources`, `knowledge`, `memory` and `context` (decisions D57 and D80). Enable them in
-//! `umbel.toml` with `plugins.enabled` and allow their write grants for a space; the stock `umbel`
-//! binary compiles in no plugin. It is what `umbel-hook` runs by default.
+//! `umbel-first-party`: the `umbel` command line with the five first-party plugins compiled in,
+//! `sources`, `knowledge`, `memory`, `context` and `curator` (decisions D57, D80 and D90). Enable
+//! them in `umbel.toml` with `plugins.enabled` and allow their write grants for a space; the stock
+//! `umbel` binary compiles in no plugin. It is what `umbel-hook` runs by default.
 #![forbid(unsafe_code)]
 
 use std::io::Write;
@@ -19,6 +19,7 @@ async fn main() {
             .with_compiled(umbel::plugins::sdk(umbel_plugin_knowledge::plugin()))
             .with_compiled(umbel::plugins::sdk(umbel_plugin_memory::plugin()))
             .with_compiled(umbel::plugins::sdk(umbel_plugin_context::plugin()))
+            .with_compiled(umbel::plugins::sdk(umbel_plugin_curator::plugin()))
     };
     // Not `.lock()`: `umbel serve --stdio` writes JSON-RPC through the same stdout from another
     // thread (the same reasoning as the stock binary's `main`).

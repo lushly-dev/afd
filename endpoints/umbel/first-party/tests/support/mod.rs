@@ -1,8 +1,9 @@
-//! The phase 3 exit tests' workspace (specification section 12): the four first-party plugins
-//! together, as only this crate links them (D80), called as library actors (exact until phase 5),
-//! through the command line in process with a scripted terminal, or through the real binary
-//! (`binary`). `probes` holds the leak probes, which `leak_probes.rs` runs on a workspace of its
-//! own and `exit_memory.rs` on the exit's stores.
+//! The phase 3 and phase 4 exit tests' workspace (phase 3 section 12, phase 4 section 13): the
+//! first-party plugins together, as only this crate links them (D80; the curator from phase 4),
+//! called as library actors (exact until phase 5), through the command line in process with a
+//! scripted terminal, or through the real binary (`binary`). `probes` holds phase 3's leak probes,
+//! which `leak_probes.rs` runs on a workspace of its own and `exit_memory.rs` on the exit's stores;
+//! `curator_leaks.rs` and `exit_curator.rs` are phase 4's.
 #![allow(
     dead_code,
     unreachable_pub,
@@ -111,13 +112,14 @@ source = "compiled:context"
     )
 }
 
-/// The four first-party plugins, as the binary compiles them in.
+/// The five first-party plugins, as the binary compiles them in (the curator from phase 4).
 pub fn with_plugins(builder: HostBuilder) -> HostBuilder {
     builder
         .with_compiled(sdk(umbel_plugin_sources_filesystem::plugin()))
         .with_compiled(sdk(umbel_plugin_knowledge::plugin()))
         .with_compiled(sdk(umbel_plugin_memory::plugin()))
         .with_compiled(sdk(umbel_plugin_context::plugin()))
+        .with_compiled(sdk(umbel_plugin_curator::plugin()))
 }
 
 /// A workspace directory and its host, on a fixed clock.
@@ -135,6 +137,20 @@ impl Ws {
         let dir = temp.path().join("ws");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("umbel.toml"), config(options)).unwrap();
+        let mut ws = Self::open(&dir, CLOCK);
+        ws._temp = Some(temp);
+        ws
+    }
+
+    /// A fresh workspace with `config` as its `umbel.toml` and the directories `dirs` in it.
+    pub fn with_config(config: &str, dirs: &[&str]) -> Self {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("ws");
+        std::fs::create_dir_all(&dir).unwrap();
+        for relative in dirs {
+            std::fs::create_dir_all(dir.join(relative)).unwrap();
+        }
+        std::fs::write(dir.join("umbel.toml"), config).unwrap();
         let mut ws = Self::open(&dir, CLOCK);
         ws._temp = Some(temp);
         ws

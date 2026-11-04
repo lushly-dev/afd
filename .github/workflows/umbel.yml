@@ -212,7 +212,9 @@ jobs:
   # The memory stack's crates (phase 3 specification, section 12): the memory and context
   # plugins, and from phase 4 step 4 the curator, whose tests boot a host with the embedded stores
   # and no loader, so no wasmtime; the `umbel-first-party` binary, the only crate with both (D80),
-  # whose `curator_drafts` runs the curator's drafts through the knowledge plugin; and
+  # which from phase 4 step 7 links the curator too, and whose `curator_drafts`, `curator_run`,
+  # `curator_leaks` and `exit_curator` (the phase 4 exit criterion) run it beside the knowledge
+  # plugin; and
   # `umbel-hook`, on serde alone, whose tests run a fixture binary in place of
   # `umbel-first-party`. `cargo fmt` and the
   # workspace clippy are the `check` job's, which leaves these crates' tests to this job; the
@@ -249,16 +251,21 @@ jobs:
         run: cargo clippy --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets -- -D warnings
       # `exit_memory` (the phase 3 exit criterion) writes its report here, as the knowledge job's
       # `exit_thousand` does; `leak_probes`, `poisoning` and `forget_bytes` are in the same crate.
+      # `exit_curator` (the phase 4 exit criterion) writes its own beside it; `curator_leaks` is
+      # in the same crate.
       - name: Test
         env:
           UMBEL_EXIT_REPORT: ${{ runner.temp }}/memory-exit-report.json
+          UMBEL_CURATOR_EXIT_REPORT: ${{ runner.temp }}/curator-exit-report.json
         run: cargo test --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook
-      - name: Upload the exit report
+      - name: Upload the exit reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: memory-exit-report-${{ matrix.os }}
-          path: ${{ runner.temp }}/memory-exit-report.json
+          path: |
+            ${{ runner.temp }}/memory-exit-report.json
+            ${{ runner.temp }}/curator-exit-report.json
           if-no-files-found: warn
       - name: Install Rust 1.97
         if: matrix.os == 'ubuntu-latest'

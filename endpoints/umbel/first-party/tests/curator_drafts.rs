@@ -10,7 +10,7 @@
 //! The curator ships no pipeline until step 5's `curator-run`, so the pipeline here belongs to a
 //! stand-in with the plugin id `curator`: the attestation, and so `generated.by`, are the ones the
 //! real run will carry. This crate is the only one that links the curator beside the knowledge
-//! plugin, as a dev-dependency (D3).
+//! plugin (D3), in the binary since step 7.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::sync::Arc;
