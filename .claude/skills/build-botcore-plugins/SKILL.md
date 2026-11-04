@@ -1,166 +1,87 @@
 ---
 name: build-botcore-plugins
-source: afd
+source: botcore
 description: >
-  Guides development of botcore plugins from protocol implementation to distribution. Covers BotCorePlugin protocol, PluginRegistry API, async command authoring with AFD/CommandResult, MCP server factory (create_mcp_server, meta-tool pattern), CLI generation (build_namespace), entry-point registration, docs registration, and skills directory bundling. Use when building a new botcore plugin, adding commands to a plugin, registering entry points, or integrating with the MCP server factory. Triggers: plugin, botcore plugin, BotCorePlugin, PluginRegistry, entry point, command authoring, CommandResult, MCP server, create_mcp_server, build_namespace, plugin protocol, register commands.
-
-version: 1.0.0
-triggers:
-  - plugin
-  - botcore plugin
-  - BotCorePlugin
-  - PluginRegistry
-  - entry point
-  - command authoring
-  - CommandResult
-  - MCP server
-  - create_mcp_server
-  - build_namespace
-  - plugin protocol
-  - register commands
-  - plugin development
-  - plugin registration
+  Builds Botcore plugins: commands that return AFD CommandResults, registration,
+  entry points, and serving them through a managed host with command policies.
+  Use when writing or changing a Botcore plugin or exposing its commands over
+  MCP or a CLI.
+version: 2.0.0
 portable: true
 ---
 
-# Building Botcore Plugins
+<!-- Generated from skills/exports.json; edit the canonical plugin-builder skill. -->
 
-Expert guidance for creating plugins that extend botcore with new commands, documentation, skills, and MCP server integration.
+# Botcore plugins
 
-## Capabilities
+Serve plugins through a managed host (`build_host`). It admits only the plugins you name and only commands that have an effect policy. The sources are `docs/host-composition.md`, `botcore/plugin.py` and `botcore/host.py`.
 
-1. **Implement Plugin Protocol** -- Create classes that satisfy `BotCorePlugin` with `register()` and `config_schema()` methods
-2. **Author Async Commands** -- Write async functions returning `CommandResult` using the AFD success/error pattern
-3. **Register with PluginRegistry** -- Add commands, docs, skills dirs, CLI/MCP names to the plugin registry
-4. **Configure MCP Server** -- Use `create_mcp_server()` factory to expose plugin commands as MCP tools
-5. **Set Up Entry Points** -- Configure `pyproject.toml` so plugins are auto-discovered via `importlib.metadata`
-6. **Bundle Skills** -- Package skill directories alongside plugin code for distribution
-
-## Routing Logic
-
-| Request Type | Load Reference |
-|---|---|
-| BotCorePlugin interface, register() contract, config_schema() | [references/plugin-protocol.md](references/plugin-protocol.md) |
-| Writing async commands, CommandResult, success/error returns | [references/command-authoring.md](references/command-authoring.md) |
-| create_mcp_server(), build_namespace(), meta-tool pattern | [references/server-factory.md](references/server-factory.md) |
-| pyproject.toml entry points, importlib.metadata discovery | [references/entry-points.md](references/entry-points.md) |
-
-## Core Principles
-
-### 1. Protocol Over Inheritance
-
-<rules>
-Plugins implement the `BotCorePlugin` protocol — there is no base class to inherit.
-The protocol requires exactly two methods: `register(registry)` and `config_schema()`.
-</rules>
-
-This keeps plugins decoupled from botcore internals. Any class with the right method signatures satisfies the protocol. Type checkers verify compliance at development time.
-
-### 2. Commands Are Async, Returns Are Typed
-
-<rules>
-Every command must be an `async` function returning `CommandResult[T]`.
-Use `success(data, reasoning=...)` for successful outcomes and `error(message)` for failures.
-Never raise exceptions for expected failure modes — return `error()` instead.
-</rules>
-
-The AFD framework handles serialization, error formatting, and transport. Commands that raise exceptions break the MCP tool contract.
-
-### 3. Register Everything Explicitly
-
-<rules>
-All commands, docs, and skills dirs must be registered in `register()`.
-Do not rely on auto-discovery within the plugin itself — only entry-point discovery is automatic.
-</rules>
-
-Explicit registration makes the plugin's surface area visible in one place. Reviewers and agents can read `register()` to understand what a plugin provides.
-
-### 4. One Plugin Per Package
-
-<rules>
-Each Python package should expose at most one `BotCorePlugin` via entry points.
-Split orthogonal concerns into separate packages rather than overloading one plugin.
-</rules>
-
-## Workflow
-
-### Step 1: Scaffold the Plugin
-
-Create the package structure:
-
-```
-my-plugin/
-├── src/my_plugin/
-│   ├── __init__.py
-│   ├── plugin.py          # BotCorePlugin implementation
-│   ├── commands/           # Command modules
-│   │   ├── __init__.py
-│   │   └── core.py
-│   └── skills/             # Optional bundled skills
-│       └── my-skill/
-│           └── SKILL.md
-└── pyproject.toml          # Entry point registration
-```
-
-### Step 2: Implement the Plugin Class
+## Write the plugin
 
 ```python
-from botcore import BotCorePlugin, PluginRegistry
 from pathlib import Path
-from my_plugin.commands import my_command, my_other_command
+from afd import error, success
+from botcore import CommandPolicy
 
-class MyPlugin(BotCorePlugin):
-    def register(self, registry: PluginRegistry) -> None:
-        registry.add_commands([my_command, my_other_command])
-        registry.add_docs("my-plugin", MY_DOCS)
-        registry.set_cli_name("myplugin")
-        registry.set_mcp_name("my")
+async def notes_count(path: str, pattern: str = "*.md"):
+    """Count files matching a pattern under a directory."""
+    root = Path(path)
+    if not root.is_dir():
+        return error("NOT_A_DIRECTORY", f"{path} is not a directory",
+                     suggestion="Pass a directory inside the selected target")
+    count = sum(1 for _ in root.rglob(pattern))
+    return success({"count": count}, reasoning=f"Found {count} files")
 
-        skills_dir = Path(__file__).parent / "skills"
-        if skills_dir.exists():
-            registry.add_skills_dir(skills_dir)
+class NotesPlugin:
+    host_context_safe = True  # audited: no state shared between hosts
+
+    def register(self, registry):
+        registry.add_commands([notes_count])
+        registry.add_docs("notes", "notes_count(path, pattern='*.md') -> {count}")
 
     def config_schema(self):
-        return None  # Or return a Pydantic model
+        return None
+
+def host_policies():
+    return {"notes_count": CommandPolicy(paths=("path",))}
 ```
-
-### Step 3: Write Commands
-
-```python
-from afd import CommandResult, success, error
-
-async def my_command(name: str, verbose: bool = False) -> CommandResult[dict]:
-    """One-line description of what this command does."""
-    if not name:
-        return error("name is required")
-    result = {"name": name, "processed": True}
-    return success(result, reasoning=f"Processed {name}")
-```
-
-### Step 4: Register Entry Point
-
-In `pyproject.toml`:
 
 ```toml
 [project.entry-points."botcore.plugins"]
-my-plugin = "my_plugin.plugin:MyPlugin"
+notes = "notes_plugin:NotesPlugin"
 ```
 
-### Step 5: Verify Discovery
+- **Plain class.** `BotCorePlugin` is a runtime-checkable `Protocol`, so there is nothing to subclass.
+- **Errors.** Use `error(code, message, *, suggestion=...)`; `error("msg")` raises `TypeError`. Return failures rather than raising them, because the host turns an exception into a bare `COMMAND_EXECUTION_ERROR`.
+- **Names.** A command's name is its function's `__name__`. A duplicate command name or docs topic, including a clash with core, raises.
+- **Docs.** MCP clients see names, policies and docs topics but not docstrings. Put call signatures in the `add_docs` topic.
+- **`host_context_safe`.** `build_host` refuses a plugin without it. Set it only once the plugin keeps no module-global state.
+- **Config.** `config_schema()` returns a Pydantic model class that validates `[tool.botcore.plugins.<entry-point name>]`. `build_host` and `botcore serve` pass the result to an optional `configure(config)`; the other `botcore` subcommands don't.
+- **Skills.** `add_skills_dir` only records a path. Nothing in Botcore reads `registry.skills_dirs`, and `botcore skill-seed` passes no plugin directories.
 
-Install the package and confirm the plugin loads:
+## Serve it through a host
 
-```bash
-pip install -e .
-python -c "from botcore.plugin import discover_plugins; print(discover_plugins())"
+```python
+from pathlib import Path
+from botcore import ExecutionContext, build_host, create_host_mcp_server
+from notes_plugin import host_policies
+
+host = build_host("notes", ExecutionContext(Path.cwd()), plugins=("notes",),
+                  policies=host_policies(), core_commands=())  # () leaves out core commands
+create_host_mcp_server(host).run()  # notes-start, notes-call, notes-docs
 ```
 
-## Checklist
+- **Selection fails closed.** A missing, duplicated or failing plugin in `plugins=` stops construction. Legacy discovery also raises on duplicate entry-point names.
+- **Policies.** A command without a policy raises `Declare command effects before admission`. Effects come from `EFFECTS` in `host.py`. Effects that depend on arguments need a callable plus `possible_effects`.
+- **Profile.** `ExecutionContext` defaults to `inspection`, which denies every effect except `inspect` before the command runs. Writers and subprocesses need `profile="trusted-local"`.
+- **Paths.** Arguments named in `paths` resolve inside the target, and escapes are rejected. Only arguments the caller passes are resolved, never a parameter's default, so make path parameters required (a default of `"."` would read the process cwd, outside the target). The host never changes the cwd, so commands use `botcore.context.current_context()` or `botcore.utils.workspace.find_workspace()`.
+- **Identity.** The host name wins: `set_cli_name`/`set_mcp_name` do nothing under a host. On the legacy path, two plugins that set different names raise.
+- **Checking.** `host.catalog()` lists what was admitted. `add_middleware` wraps the handler call, after the effect check and path resolution, so middleware never sees a denied call.
 
-- [ ] Plugin class implements `register()` and `config_schema()`
-- [ ] All commands are async and return `CommandResult`
-- [ ] Commands use `success()` / `error()` — no raw exceptions for expected failures
-- [ ] Docs registered via `registry.add_docs(topic, content)`
-- [ ] Entry point configured in `pyproject.toml` under `botcore.plugins`
-- [ ] Skills directory registered if present
-- [ ] Plugin installs and is discovered by `discover_plugins()`
+## Legacy path: trusted local only
+
+`create_mcp_server(name, *, version=..., extra_commands=..., extra_docs: dict[str, str] | None)`, `build_namespace()` and the `botcore` CLI:
+- load every installed plugin and ignore both policies and `host_context_safe`;
+- skip, with a log, any plugin that fails to load.
+
+`create_mcp_server` also exposes `{name}-run`, which runs unrestricted Python and bypasses plugin middleware. Use these only on your own machine, never to serve an inspection host. The managed alternative is `create_host_mcp_server(host, raw_python=True)`. It requires `trusted-local`, and its command calls still go through policy, but the Python is unconfined.

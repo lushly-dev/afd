@@ -2,244 +2,83 @@
 name: audit-security
 source: botcore
 description: >
-  Performs comprehensive security audits of web applications, APIs, MCP servers, and AI agent
-  systems. Covers OWASP/CWE vulnerability discovery, threat modeling, SAST/DAST/SCA tooling,
-  MCP server hardening, agentic review orchestration, supply chain security, secret management,
-  risk prioritization, and structured reporting.
-  Use when performing security audits, reviewing code for vulnerabilities, hardening MCP servers,
-  designing agent permission models, building CI/CD security gates, or generating audit reports.
-  Triggers: security audit, vulnerability, OWASP, CWE, threat model, injection, XSS, SSRF,
-  MCP security, agent security, SAST, DAST, SCA, secrets scanning, supply chain, SBOM,
-  penetration test, security checklist, access control, authentication, sanitize.
-version: "1.0.0"
-triggers:
-  - security audit
-  - vulnerability
-  - OWASP
-  - CWE
-  - threat model
-  - injection
-  - XSS
-  - SSRF
-  - MCP security
-  - agent security
-  - SAST
-  - DAST
-  - SCA
-  - secrets scanning
-  - supply chain
-  - SBOM
-  - security checklist
-  - access control
-  - authentication
-  - sanitize
+  Audits MCP servers, AFD and Botcore command surfaces and agent setups for
+  security: tool authorization, approval gates, code-execution tools, agent
+  permissions and supply chain. Use for a security audit or a security review
+  lane on a server, command, agent or dependency change.
+version: 2.0.0
 portable: true
 ---
 
 <!-- Generated from skills/exports.json; edit the canonical security-auditor skill. -->
 
-# Security Audit
+# Security audit of MCP servers and agent systems
 
-Expert guidance for comprehensive security audits of web applications, services, MCP servers, and AI agent systems.
+Every AFD command is an MCP tool, so any command surface counts as an MCP server here. For each tool, ask what it can do, who or what content can reach it, and what stops misuse at call time. Calibrate findings to those answers, not to a generic score. A repository's review lane sets the output format.
 
-## Capabilities
+- **Evidence.** Cite file and line, a config key or command output for every finding, with a severity and a confidence. Mark anything below high confidence for human validation.
+- **Secrets.** Report where a secret is, never its value.
+- **No live attacks.** Don't run exploits, brute force or traffic against live systems.
 
-1. **Scope and plan audits** -- Define review targets, set objectives, and establish definition of done
-2. **Threat model** -- Identify assets, trust boundaries, abuse cases, and route audit effort to high-risk paths
-3. **Vulnerability discovery** -- Apply OWASP/CWE-mapped checklists across injection, auth, XSS, SSRF, and more
-4. **Secure coding review** -- Evaluate code against defense-in-depth principles (least privilege, complete mediation, fail securely)
-5. **Tooling guidance** -- Select and integrate SAST, DAST, SCA, secrets scanning, and fuzzing into CI/CD pipelines
-6. **MCP server hardening** -- Audit MCP-specific risks: tool authorization, prompt injection, egress controls, sandbox policy
-7. **Agent security** -- Review permission models, subagent inheritance, `--dangerously-skip-permissions` usage, and supply chain threats
-8. **Risk prioritization** -- Combine CVSS with contextual risk, exploit likelihood, and MCP severity multipliers
-9. **Reporting** -- Generate findings with standard schemas, executive summaries, remediation plans, and metrics
+## Classify every tool
 
-## Routing Logic
+| | Low sensitivity | High sensitivity |
+|---|---|---|
+| Read | Standard user auth | Elevated scope plus audit logging |
+| Write | User auth plus confirmation | Elevated auth plus human approval |
 
-| Request type | Load reference |
-|---|---|
-| Audit scope, objectives, definition of done | [references/scope-and-objectives.md](references/scope-and-objectives.md) |
-| Threat modeling, STRIDE, abuse cases, trust boundaries | [references/threat-modeling.md](references/threat-modeling.md) |
-| Secure coding principles, defense in depth | [references/secure-coding-principles.md](references/secure-coding-principles.md) |
-| Vulnerability classes, OWASP, CWE, injection, XSS, SSRF | [references/vulnerability-classes.md](references/vulnerability-classes.md) |
-| SAST, DAST, SCA, secrets scanning, CI/CD security gates | [references/tooling-and-cicd.md](references/tooling-and-cicd.md) |
-| MCP server security, tool authorization, prompt injection, sandbox | [references/mcp-server-security.md](references/mcp-server-security.md) |
-| Agent security, permissions, subagents, supply chain, secrets | [references/agent-and-supply-chain.md](references/agent-and-supply-chain.md) |
-| Agentic review, automated audit workflow, agent safety | [references/agentic-review-workflow.md](references/agentic-review-workflow.md) |
-| Manual review checklists, web app checklist, MCP checklist | [references/checklists.md](references/checklists.md) |
-| Findings schema, report templates, metrics, KPIs | [references/reporting-and-metrics.md](references/reporting-and-metrics.md) |
-| Risk prioritization, CVSS, severity rubric, remediation SLAs | [references/risk-prioritization.md](references/risk-prioritization.md) |
-| OWASP Top 10 quick reference | [references/owasp-top-10.md](references/owasp-top-10.md) |
+High sensitivity means PII, credentials or audit logs; high impact means deployments, code changes, money or bulk operations. A tool that fetches URLs (check private ranges and cloud metadata endpoints are blocked), runs commands, touches files, reaches internal services or takes free-form command or path arguments is high-risk until shown otherwise.
 
-## Core Principles
+## Calibrate severity
 
-### 1. Risk-Driven Scope
+Severity runs from P0 (emergency) to P3 (low); in a review lane that uses BLOCKER and IMPROVEMENT, P0 and P1 are BLOCKERs. Start from the usual rating, then apply these rules:
+- **Write-capable tool:** raise one level. Injection against it does operational damage without any memory-corruption primitive.
+- **Sensitive data at scale:** raise one level.
+- **No per-tool authorization enforced server-side on every call:** P0 or P1, whatever the CVSS says.
+- **Destructive action with no approval gate:** P1 at least.
 
-Threat model first, then route effort to high-risk code paths. Never "review everything" -- prioritize hotspots identified by the threat model.
+Before rating a sandbox escape, ask three questions:
+- **Trackable:** is the action logged with the caller's identity?
+- **Recoverable:** is the worst case restorable content, rather than credentials or lateral movement?
+- **Proportionate:** does the defence match the threat model?
 
-### 2. Evidence-Based Findings
+For an identity-authenticated, audit-logged internal tool whose worst case is recoverable content, a theoretical escape is Low or Medium with those controls noted, not Critical. This never excuses missing authorization.
 
-Every finding must cite file path, line range, config key, or tool output. Assign severity and confidence; if confidence is not High, recommend human validation.
+## Check declarations against enforcement
 
-### 3. Layered Discovery
+Metadata that nothing checks at call time is not a control.
 
-Combine automated tools (SAST/DAST/SCA) with targeted manual review. No single technique catches everything.
+- **AFD `requires`** is metadata only.
+- **AFD `mutation` and `destructive`** become MCP `readOnlyHint` and `destructiveHint`. These are hints to the client, not gates.
+- **AFD `approval: 'required'`** is enforced only where `createApprovalMiddleware` from `@lushly-dev/afd-server` is installed. Without it, the approval gate is missing.
+- **Client prompts** don't count as the server's gate. Claude Code's permission modes bind only that client.
+- **Botcore hosts** deny every effect except `inspect` before execution under the `inspection` profile, and undeclared commands fail closed (`botcore/host.py`). This is cooperative policy: installed plugins and their subprocesses are trusted code, so a hostile plugin is a supply-chain finding.
 
-### 4. No Exploit Attempts
+## Code-execution tools
 
-Agents must not run active exploitation, brute force, or production traffic generation. Use static reasoning and safe scanning only.
+Botcore's execute tools are unconfined by design (`docs/host-composition.md`):
+- **Legacy `create_mcp_server`.** Its `{name}-run` executes any Python, checked only for syntax and a 32,000-character limit.
+- **Managed hosts.** `create_host_mcp_server(host, raw_python=True)` requires the `trusted-local` profile. Command calls go through policy, but the code can still `import os`.
 
-### 5. Consistent Severity
+They are fine for the local user who could run the code anyway. Rate one as RCE (P0/P1) when another user or a network transport can reach it, when the legacy factory serves an inspection host, or when the agent calling it also reads untrusted content (web pages, issues, third-party tool output).
 
-Use CVSS as baseline, adjust with contextual risk (exposure, blast radius, compensating controls). Apply MCP severity multipliers for write-capable tools.
+If code execution must face untrusted input, require all of the following:
+- **Import allowlist.** Use an allowlist, not a blocklist, enforced by a `__import__` wrapper.
+- **AST validation before execution.** Reject dunder attribute access, dynamic `__import__`, nested `exec`/`eval`/`compile`, and `getattr` on blocked names. Namespace functions expose their module through `__globals__`, so without the dunder rule the allowlist confines nothing.
+- **Curated builtins.** Remove `open`, `eval`, `exec`, `compile`, `__import__`, `globals`, `vars`, `breakpoint` and `input`. An `exec` namespace without `__builtins__` gets them all, as Botcore's do.
+- **No `asyncio` on the allowlist,** even in an async runtime. `asyncio.create_subprocess_shell` and `create_subprocess_exec` start processes and bypass every builtins restriction.
+- **Limits** on code length, run time and output.
 
-### 6. Actionable Output
+These raise the cost of an escape. They don't isolate: adversarial input needs a separate process, container or VM.
 
-Findings include recommended fixes, verification steps, remediation SLAs, and owner assignments. Reports serve both executives and engineers.
+## Agent permissions (Claude Code)
 
-### 7. Never Expose Secrets
+- **`--dangerously-skip-permissions`** is `bypassPermissions` mode, which skips permission prompts, including for writes to `.git` and `.claude`. Intentional use in an isolated container, VM or CI runner is informational; default-on, user-facing, or on a host with credentials and network access, it is critical. Managed settings can forbid it with `permissions.disableBypassPermissionsMode: "disable"`.
+- **Subagents** inherit every tool of the main conversation, MCP tools included, unless `tools` or `disallowedTools` narrows them.
+  - A parent in `bypassPermissions`, `acceptEdits` or auto mode overrides the subagent's `permissionMode`. A "read-only" reviewer spawned from a bypass session can therefore write unless its tool list stops it.
+  - Plugin subagents ignore `permissionMode`, `hooks` and `mcpServers`.
+- **Secret files.** Claude Code ignores `.claudeignore`; check `permissions.deny` rules such as `Read(./.env)`. They cover the built-in file tools and recognized Bash file commands such as `cat`, not a script that opens the file itself; only the sandbox enforces access at the OS level.
 
-Never include actual secret values in audit output. Report that secrets exist and their location, but redact values. Redact tokens, keys, and credentials from all outputs.
+## Supply chain
 
-## Workflow
-
-### Security Audit Protocol
-
-#### 1. Pre-Audit Checks
-
-- [ ] Verify `.claudeignore` exists (protects secrets from agent access)
-- [ ] Check `.gitignore` includes `.env`, credentials
-- [ ] Verify `.env` files are NOT readable by agents
-- [ ] Note any existing security documentation
-
-#### 2. Threat Model
-
-- Identify assets (credentials, PII, business-critical workflows)
-- Map trust boundaries (browser, edge, app, services, data stores, MCP client/server)
-- Enumerate entry points (endpoints, file uploads, webhooks, tool adapters)
-- Develop abuse cases using STRIDE or equivalent framework
-- Route audit effort to high-risk paths
-
-#### 3. Automated Scanning
-
-- Run SAST with high-confidence rules
-- Run SCA for known vulnerable dependencies
-- Run secrets scanning
-- Triage results, set baselines, reduce false positives
-
-#### 4. Manual Review
-
-Use checklists from `references/checklists.md` covering:
-
-- Authentication and session management
-- Authorization and access control
-- Input validation and injection
-- Output encoding and XSS
-- SSRF and network safety
-- Cryptography and secrets
-- MCP tool authorization and argument safety
-- Agent permission models
-
-#### 5. Report and Remediate
-
-Output findings using the standard report format below.
-
-### Output Format -- Full Audit
-
-```markdown
-## Security Audit Report
-
-### Scope
-[Components reviewed, exclusions, commit hash, date]
-
-### Threat Model Summary
-[Key assets, trust boundaries, top abuse cases]
-
-### Findings
-
-| ID | Severity | Confidence | Category | Title | Location | Fix |
-|---|---|---|---|---|---|---|
-| FND-001 | Critical | High | AccessControl | [Title] | [file:line] | [Remediation] |
-
-### Systemic Recommendations
-- [Patterns to adopt, guardrails to add, pipeline gates to enforce]
-
-### Remediation Plan
-
-| Finding | Owner | SLA | Retest Criteria |
-|---|---|---|---|
-```
-
-### Output Format -- Quick Security Check
-
-```markdown
-## Security Check: [Component]
-
-### CRITICAL (Immediate Action Required)
-[List or "None"]
-
-### WARNINGS (Review Required)
-[List or "None"]
-
-### INFORMATIONAL
-[List or "None"]
-
-### Summary
-[2-3 sentence assessment]
-```
-
-## Quick Reference -- OWASP Top 10
-
-| Risk | Prevention |
-|---|---|
-| Injection | Parameterized queries, input validation, strict allowlists |
-| Broken Auth | Strong sessions, MFA, secure tokens, rotation |
-| XSS | Output encoding, CSP, DOMPurify, sanitization |
-| Insecure Design | Threat modeling, secure defaults, rate limiting |
-| Security Misconfiguration | Hardened defaults, least privilege, remove debug |
-| Vulnerable Components | Regular updates, dependency audits, slopsquatting checks |
-| Auth Failures | MFA, strong password policy, secure session flags |
-| Integrity Failures | Sign commits, verify CI artifacts, use SRI |
-| Logging Failures | Log auth events, centralize logs, monitor anomalies |
-| SSRF | URL allowlists, block private IPs, DNS pinning, timeouts |
-
-## Checklist
-
-### Traditional Security
-
-- [ ] **Auth**: Backend access control enforced on every object access
-- [ ] **Input**: All input validated against schema at trust boundaries
-- [ ] **Output**: User content sanitized with contextual encoding
-- [ ] **Secrets**: No hardcoded secrets; `.env` protected; ephemeral credentials preferred
-- [ ] **Deps**: No high/critical vulnerabilities; slopsquatting checks done
-- [ ] **Logs**: No sensitive data logged; security events captured with context
-- [ ] **Crypto**: Standard libraries, correct parameters, strong password hashing
-
-### Agent and MCP Security
-
-- [ ] **Agent Access**: `.claudeignore` protects secrets from agent access
-- [ ] **MCP Input**: All tool inputs validated with strict JSON schemas
-- [ ] **MCP Output**: External data wrapped/sanitized against prompt injection
-- [ ] **MCP Auth**: Per-tool authorization enforced server-side; user identity propagated
-- [ ] **Permissions**: Subagents use least privilege; write tools require elevated auth
-- [ ] **Supply Chain**: New packages verified before install; SBOM generated
-- [ ] **Approval Gates**: Human approval required for high-impact actions
-
-### CI/CD Security Gates
-
-- [ ] **PR merge**: No new Critical/High SAST findings; no detected secrets
-- [ ] **Release**: No known-exploited vulnerabilities; SBOM generated and signed
-- [ ] **Deploy**: DAST clean on Critical; no unresolved P0/P1 from manual review
-
-## When to Escalate
-
-Escalate to human review immediately when any of these are suspected:
-
-- Authentication bypass or credential leakage
-- Cross-tenant data access
-- Remote code execution
-- Write-capable MCP tool without authorization checks
-- Suspected supply chain compromise (slopsquatting, typosquatting, compromised packages)
-- Findings requiring production access to validate
-- Signing key exposure
-- Missing per-tool authorization in MCP servers
+Models invent plausible package names, and attackers register them (slopsquatting). Before an agent-suggested dependency goes in, confirm it exists, has a release history and a maintainer, and isn't a near-typo of a popular package. Give third-party MCP servers and skills the same scrutiny: their descriptions reach the model and their code runs with the user's permissions.

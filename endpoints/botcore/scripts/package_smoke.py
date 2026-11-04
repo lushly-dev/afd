@@ -101,7 +101,7 @@ def audit(artifacts: Path) -> list[dict]:
                         path.startswith("botcore/skills/") and path.endswith("/SKILL.md")
                         for path in names
                     )
-                    == 12
+                    == 9
                 )
                 verify_records(lambda path: archive.read("botcore/provenance/" + path))
                 for path in (ROOT / "provenance").glob("*.json"):
@@ -162,7 +162,7 @@ async def main():
     assert {tool.name for tool in await server.list_tools()} == {
         "consumer-start", "consumer-docs", "consumer-call"
     }
-    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 12
+    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 9
     print(json.dumps({"installed_wheel": True, "application_platform_dependencies": [],
                       "directclient": True, "managed_mcp": True, "effects_denied": True}))
 asyncio.run(main())

@@ -142,8 +142,9 @@ def test_render_basic() -> None:
 
     assert result.startswith("---\n")
     assert "name: testing" in result
-    assert ("version: '2.0.0'" in result or 'version: "2.0.0"' in result
-            or "version: 2.0.0" in result)
+    assert (
+        "version: '2.0.0'" in result or 'version: "2.0.0"' in result or "version: 2.0.0" in result
+    )
     assert "---\n" in result
     assert "# Testing" in result
 
@@ -322,7 +323,7 @@ def _frontmatter_yaml(content: str) -> dict:
 
 
 def test_bundled_skills_found() -> None:
-    assert len(_BUNDLED_SKILLS) > 10
+    assert len(_BUNDLED_SKILLS) >= 9
 
 
 @pytest.mark.parametrize("skill_file", _BUNDLED_SKILLS, ids=lambda p: p.parent.name)
@@ -360,8 +361,23 @@ def test_set_source_round_trips_bundled_skill(skill_file: Path) -> None:
 @pytest.mark.parametrize(
     "trigger",
     [
-        "!bash", "@file", "*glob", "&anchor", "key: value", "# hash", "- dash", "[x]",
-        "{y}", "yes", "1.0", "'q'", '"dq"', "%dir", "`tick`", "|pipe", ">gt",
+        "!bash",
+        "@file",
+        "*glob",
+        "&anchor",
+        "key: value",
+        "# hash",
+        "- dash",
+        "[x]",
+        "{y}",
+        "yes",
+        "1.0",
+        "'q'",
+        '"dq"',
+        "%dir",
+        "`tick`",
+        "|pipe",
+        ">gt",
     ],
 )
 def test_render_quotes_special_triggers(trigger: str) -> None:

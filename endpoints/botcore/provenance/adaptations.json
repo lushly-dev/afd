@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "24e0a29c93062b953786d3f092dd843fb04aeec8e55f75163c56b8932ae07459",
+      "current_import_sha256": "7d1dc538fbb18976d66a9a317556e97e8ba02eacbbfe19028792a5d56843becd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -37,7 +37,7 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "8d9821ddbb31ad6e8ad292f7a19d706213a86e8d22d0ff865f512a4e86fcf907",
+      "current_import_sha256": "4bbe297f6ca09539bdd14f8379d8e4c96900f0559bf88ce704e90342e74a79dc",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
@@ -1477,7 +1477,7 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "ae22f98d9569b9a11de2c7856826ead7f638fed17bf7c69680f35803f9078951",
+      "current_import_sha256": "6bcc6f5d2c51b35ebc5678f9e8e0bf4e6ee91a36c80b00a246808701bccddfd2",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "a817e6122cd8ec0ee9a67c361e99522d72fa6d056a10b1426d47008a115db322",
+      "current_import_sha256": "bd635db6b2f99307a0ff86ed655950a4851bdaf9e297d45f7311d831f348b567",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -1807,7 +1807,7 @@
       "path": "src/botcore/commands/skill/renames.py",
       "upstream_sha256": "a8b289bf5f6f1f9532a1f550e812dbb89b6127d26b7a635bfddf517a15e67630",
       "staged_sha256": "a8b289bf5f6f1f9532a1f550e812dbb89b6127d26b7a635bfddf517a15e67630",
-      "current_import_sha256": "ef96d0c906b2f635592b7e6bbca0b9835344505350f0fc2721f6cbc190a8da8f",
+      "current_import_sha256": "8bee558108f8c2d9750031b61696940912638b0467b5e4b11b9492eb2dcb2eb8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -1887,11 +1887,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "b9d513b57a2d367d91f538534b5f2492bcc8cdec0fdad43ab3ddc5b088acb5ec",
+      "current_import_sha256": "0c0f3170fbcd229cae345d30096c443464fc7832c72182a28aa80229e596a021",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired-skill handling in skill_seed and skill_status"
+      "import_reason": "Document retired skills and the docs commands' real behaviour"
     },
     {
       "path": "src/botcore/host.py",
@@ -2297,21 +2297,21 @@
       "path": "src/botcore/skills/agent-config/SKILL.md",
       "upstream_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
       "staged_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
-      "current_import_sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
+      "current_import_sha256": "f4407bc6c9fa1e425418403c66a09bf00dc71e6968c30d9276d065cb4e542e90",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Rewrite to the agents plugin's verified fields; add the state block"
     },
     {
       "path": "src/botcore/skills/agent-config/references/examples.md",
       "upstream_sha256": "d4257de3adb625da2183525cd5ec9b2e732456820ca08100df490763d1f34217",
       "staged_sha256": "d4257de3adb625da2183525cd5ec9b2e732456820ca08100df490763d1f34217",
-      "current_import_sha256": "d4257de3adb625da2183525cd5ec9b2e732456820ca08100df490763d1f34217",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/api-designer/SKILL.md",
@@ -2497,111 +2497,111 @@
       "path": "src/botcore/skills/botcore-config/SKILL.md",
       "upstream_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
       "staged_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
-      "current_import_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
+      "current_import_sha256": "57015dbd55716f6bbffd455b5677b3464007405df869886e8c1e4acc38195aed",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "State only wired settings; add the [skills] section and retired skills"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/config-reference.md",
       "upstream_sha256": "a1a25234e84215a9d1f983eb0354af82ad5bd4d2c6a9ab28437ed3f927a1ae97",
       "staged_sha256": "a1a25234e84215a9d1f983eb0354af82ad5bd4d2c6a9ab28437ed3f927a1ae97",
-      "current_import_sha256": "a1a25234e84215a9d1f983eb0354af82ad5bd4d2c6a9ab28437ed3f927a1ae97",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/language-detection.md",
       "upstream_sha256": "a9dc5b44184fb6f4a54316e2801af6e69499eb5bb6465793035188b503eb4dbe",
       "staged_sha256": "a9dc5b44184fb6f4a54316e2801af6e69499eb5bb6465793035188b503eb4dbe",
-      "current_import_sha256": "a9dc5b44184fb6f4a54316e2801af6e69499eb5bb6465793035188b503eb4dbe",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/per-package.md",
       "upstream_sha256": "9e37c89d37789349020c468a46a1d1cd204fc60115a94c3d25ca47af26581b9b",
       "staged_sha256": "9e37c89d37789349020c468a46a1d1cd204fc60115a94c3d25ca47af26581b9b",
-      "current_import_sha256": "9e37c89d37789349020c468a46a1d1cd204fc60115a94c3d25ca47af26581b9b",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/precedence.md",
       "upstream_sha256": "42aa6eeae2796282d5616088e260d391d0041c5295d45e4d597ee1cfd6e32579",
       "staged_sha256": "42aa6eeae2796282d5616088e260d391d0041c5295d45e4d597ee1cfd6e32579",
-      "current_import_sha256": "42aa6eeae2796282d5616088e260d391d0041c5295d45e4d597ee1cfd6e32579",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/browser-automation/SKILL.md",
       "upstream_sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
       "staged_sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
-      "current_import_sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
+      "current_import_sha256": "2d66433ed5e159743f619a3b02592e1a0389f9e8ed738e3d9b38264a531b2438",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Rewrite to the cdp commands' verified behaviour, including traces"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/diagnostics.md",
       "upstream_sha256": "88a9f8a4b8c2b29319ec2f9accd0d2968459afec35bc0472f3964d94f6237526",
       "staged_sha256": "88a9f8a4b8c2b29319ec2f9accd0d2968459afec35bc0472f3964d94f6237526",
-      "current_import_sha256": "88a9f8a4b8c2b29319ec2f9accd0d2968459afec35bc0472f3964d94f6237526",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/forms-and-pages.md",
       "upstream_sha256": "1c4d17c82f92763ffc60abf0d04e6c0118df2c0ed5d1f8bc07efadbdb431e8a7",
       "staged_sha256": "1c4d17c82f92763ffc60abf0d04e6c0118df2c0ed5d1f8bc07efadbdb431e8a7",
-      "current_import_sha256": "1c4d17c82f92763ffc60abf0d04e6c0118df2c0ed5d1f8bc07efadbdb431e8a7",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/inspection.md",
       "upstream_sha256": "3b91163949e7a7d9ecc39dea13e8b830eb4c0392af54b64483ad938c7cb20e1a",
       "staged_sha256": "3b91163949e7a7d9ecc39dea13e8b830eb4c0392af54b64483ad938c7cb20e1a",
-      "current_import_sha256": "3b91163949e7a7d9ecc39dea13e8b830eb4c0392af54b64483ad938c7cb20e1a",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/interaction.md",
       "upstream_sha256": "d3f882c7c9de61be4da10efcb49e082d9371765aee1fb1877ee7425438a172b5",
       "staged_sha256": "d3f882c7c9de61be4da10efcb49e082d9371765aee1fb1877ee7425438a172b5",
-      "current_import_sha256": "d3f882c7c9de61be4da10efcb49e082d9371765aee1fb1877ee7425438a172b5",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/browser-automation/references/session-management.md",
       "upstream_sha256": "e4976f94b11efef79567b71802a305941e8f2d99b2c5aa3b6499ce58a2219102",
       "staged_sha256": "e4976f94b11efef79567b71802a305941e8f2d99b2c5aa3b6499ce58a2219102",
-      "current_import_sha256": "e4976f94b11efef79567b71802a305941e8f2d99b2c5aa3b6499ce58a2219102",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/caching-learn/SKILL.md",
@@ -2677,51 +2677,51 @@
       "path": "src/botcore/skills/code-reviewer/SKILL.md",
       "upstream_sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
       "staged_sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
-      "current_import_sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
+      "current_import_sha256": "d4aef75a1e425947b6bcdfb3e7331f273aed56587a06b76bf9219dcc24fce368",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Rewrite for current models and merge the review skill into it"
     },
     {
       "path": "src/botcore/skills/code-reviewer/references/feedback-format.md",
       "upstream_sha256": "7df3c25100ce111d02fc8f93aef0e8d874e47a3c635edf7b9417874e680dd0a4",
       "staged_sha256": "7df3c25100ce111d02fc8f93aef0e8d874e47a3c635edf7b9417874e680dd0a4",
-      "current_import_sha256": "7df3c25100ce111d02fc8f93aef0e8d874e47a3c635edf7b9417874e680dd0a4",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/code-reviewer/references/orchestrator-workflow.md",
       "upstream_sha256": "5db9610ddb3ef1b5db126468a4d0950a610e869288ae4418fba00c28ae117094",
       "staged_sha256": "5db9610ddb3ef1b5db126468a4d0950a610e869288ae4418fba00c28ae117094",
-      "current_import_sha256": "5db9610ddb3ef1b5db126468a4d0950a610e869288ae4418fba00c28ae117094",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/code-reviewer/references/review-checklists.md",
       "upstream_sha256": "4c7dedd37c1f0c3a92ae6f0d972c9634e3694e593baac0d2a20992f06491574d",
       "staged_sha256": "4c7dedd37c1f0c3a92ae6f0d972c9634e3694e593baac0d2a20992f06491574d",
-      "current_import_sha256": "4c7dedd37c1f0c3a92ae6f0d972c9634e3694e593baac0d2a20992f06491574d",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/code-reviewer/references/spec-review-rules.md",
       "upstream_sha256": "14a92e9b63741f4153f97b0bb5d2d91002c4aa72e91b256b024b9a91f10de594",
       "staged_sha256": "14a92e9b63741f4153f97b0bb5d2d91002c4aa72e91b256b024b9a91f10de594",
-      "current_import_sha256": "14a92e9b63741f4153f97b0bb5d2d91002c4aa72e91b256b024b9a91f10de594",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/code-standards-learn/SKILL.md",
@@ -3067,41 +3067,41 @@
       "path": "src/botcore/skills/content-humanizer/SKILL.md",
       "upstream_sha256": "4d9d4d46e8f340d41a764b0b50d3559900aec070a17e821aebe29c6581ab205b",
       "staged_sha256": "4d9d4d46e8f340d41a764b0b50d3559900aec070a17e821aebe29c6581ab205b",
-      "current_import_sha256": "4d9d4d46e8f340d41a764b0b50d3559900aec070a17e821aebe29c6581ab205b",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/content-humanizer/references/remediation.md",
       "upstream_sha256": "bf270658c17deabde25b76d4f9ac9b3cf43ba7874836c616e73eb48f8aab4a95",
       "staged_sha256": "bf270658c17deabde25b76d4f9ac9b3cf43ba7874836c616e73eb48f8aab4a95",
-      "current_import_sha256": "bf270658c17deabde25b76d4f9ac9b3cf43ba7874836c616e73eb48f8aab4a95",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/content-humanizer/references/syntax.md",
       "upstream_sha256": "36833a23e252e00f9638bf24226ebafd4f652cf8d241c40974c18f14d1957ef1",
       "staged_sha256": "36833a23e252e00f9638bf24226ebafd4f652cf8d241c40974c18f14d1957ef1",
-      "current_import_sha256": "36833a23e252e00f9638bf24226ebafd4f652cf8d241c40974c18f14d1957ef1",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/content-humanizer/references/vocabulary.md",
       "upstream_sha256": "0b46b79a8555dc61048cea3a9ae4afa4d2eb0199204ce8b23738523e7fd87b80",
       "staged_sha256": "0b46b79a8555dc61048cea3a9ae4afa4d2eb0199204ce8b23738523e7fd87b80",
-      "current_import_sha256": "0b46b79a8555dc61048cea3a9ae4afa4d2eb0199204ce8b23738523e7fd87b80",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/css-learn/SKILL.md",
@@ -3457,71 +3457,71 @@
       "path": "src/botcore/skills/docs-manager/SKILL.md",
       "upstream_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
       "staged_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
-      "current_import_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
+      "current_import_sha256": "3e3e80790d46d5236c5d14d6fb742981488412eb93cd15770476bfc3d389c93f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",
       "upstream_sha256": "b5c6512d3dfd68afaef58078ab800c10f90d99114e1dca5853f6d836d2f54c13",
       "staged_sha256": "b5c6512d3dfd68afaef58078ab800c10f90d99114e1dca5853f6d836d2f54c13",
-      "current_import_sha256": "b5c6512d3dfd68afaef58078ab800c10f90d99114e1dca5853f6d836d2f54c13",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-formats.md",
       "upstream_sha256": "941fb0b7f2b8ca706353ecbb06c703d80b98b8f9f952aec38a08262bc9ff8389",
       "staged_sha256": "941fb0b7f2b8ca706353ecbb06c703d80b98b8f9f952aec38a08262bc9ff8389",
-      "current_import_sha256": "941fb0b7f2b8ca706353ecbb06c703d80b98b8f9f952aec38a08262bc9ff8389",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-site-and-indexing.md",
       "upstream_sha256": "f4d942cd7ea626769cd7dff7920159d792bb0482e763523fcd77de2604e9af5e",
       "staged_sha256": "f4d942cd7ea626769cd7dff7920159d792bb0482e763523fcd77de2604e9af5e",
-      "current_import_sha256": "f4d942cd7ea626769cd7dff7920159d792bb0482e763523fcd77de2604e9af5e",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/staleness-detection.md",
       "upstream_sha256": "1ab34a8eb74cac447a24d9a3e128e78d79025e72e330e600c3ddbbace4361826",
       "staged_sha256": "1ab34a8eb74cac447a24d9a3e128e78d79025e72e330e600c3ddbbace4361826",
-      "current_import_sha256": "1ab34a8eb74cac447a24d9a3e128e78d79025e72e330e600c3ddbbace4361826",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/docs-update/SKILL.md",
       "upstream_sha256": "4960e61ace00ee3dc17e8f1fc4dfd3ae3f440329a709c0549466a191f6ddb237",
       "staged_sha256": "4960e61ace00ee3dc17e8f1fc4dfd3ae3f440329a709c0549466a191f6ddb237",
-      "current_import_sha256": "bb1d2c3caae8eebcda5d7d92ad5f88cebbdaa671a1defad18c793aee44ec4b61",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Drop the pointer to the retired commit skill"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/docs-update/references/changelog-versioning.md",
       "upstream_sha256": "5ce4f2e2dc0e9a497b067561f9b7fa33dd1bca78d98bc04d901193ed18dea7fa",
       "staged_sha256": "5ce4f2e2dc0e9a497b067561f9b7fa33dd1bca78d98bc04d901193ed18dea7fa",
-      "current_import_sha256": "5ce4f2e2dc0e9a497b067561f9b7fa33dd1bca78d98bc04d901193ed18dea7fa",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/duplication-finder/SKILL.md",
@@ -3837,41 +3837,41 @@
       "path": "src/botcore/skills/mcp-builder/SKILL.md",
       "upstream_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
       "staged_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
-      "current_import_sha256": "0b3e2c47941894246b7e9d3bd00fc659df656340818d6317cebc2fbfa747e1fc",
+      "current_import_sha256": "5f2e50092967f43777aef1423aeff35584bff9d16b97431b8edee2e4e5147488",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
+      "import_reason": "Rewrite on the MCP SDK and managed raw Python; fix client config locations"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/fastmcp-patterns.md",
       "upstream_sha256": "958558b0e8e8e9d34b36b022a39863924c3fbe89283fdba5e1351af49d33d5bb",
       "staged_sha256": "958558b0e8e8e9d34b36b022a39863924c3fbe89283fdba5e1351af49d33d5bb",
-      "current_import_sha256": "958558b0e8e8e9d34b36b022a39863924c3fbe89283fdba5e1351af49d33d5bb",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/token-budget.md",
       "upstream_sha256": "230748a6ff9852f9fc3b2d155f3598489950728d3b2c4ae3e2eccf29c868e0bd",
       "staged_sha256": "230748a6ff9852f9fc3b2d155f3598489950728d3b2c4ae3e2eccf29c868e0bd",
-      "current_import_sha256": "8433800c81bc3a4e23e96d876842f3a2f7b28538e5e202c9ec2743d346eae78b",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Replace fixed tool-count and description caps with tools/list payload measurement"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/troubleshooting.md",
       "upstream_sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
       "staged_sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
-      "current_import_sha256": "ebf2584c7e26fdc01281eef668e17a61d1739918a2cbda735f4b521c666e15bd",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Describe schema failures model-neutrally; re-test before adding the execute fallback"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/migration-learn/SKILL.md",
@@ -4047,51 +4047,51 @@
       "path": "src/botcore/skills/plugin-builder/SKILL.md",
       "upstream_sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
       "staged_sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
-      "current_import_sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
+      "current_import_sha256": "8b8507571f4de338d33a853d2a53d51fd4da53ef9357f52f470465b0319a4890",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Rebase on the managed host and the real error() and discovery APIs"
     },
     {
       "path": "src/botcore/skills/plugin-builder/references/command-authoring.md",
       "upstream_sha256": "0b6422cca6167b50bbed3147606929f631d57ffca8413b4b1bcf468e8b7c94c3",
       "staged_sha256": "0b6422cca6167b50bbed3147606929f631d57ffca8413b4b1bcf468e8b7c94c3",
-      "current_import_sha256": "0b6422cca6167b50bbed3147606929f631d57ffca8413b4b1bcf468e8b7c94c3",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/plugin-builder/references/entry-points.md",
       "upstream_sha256": "d66453111969c4f0e2501c334489cbc8b71cee99b91fdf94d6a2b6953ea3860b",
       "staged_sha256": "d66453111969c4f0e2501c334489cbc8b71cee99b91fdf94d6a2b6953ea3860b",
-      "current_import_sha256": "d66453111969c4f0e2501c334489cbc8b71cee99b91fdf94d6a2b6953ea3860b",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/plugin-builder/references/plugin-protocol.md",
       "upstream_sha256": "3f6be1f4832127a2bfa08ae82e4474432de55da768f182e5c61b43dc366248b8",
       "staged_sha256": "3f6be1f4832127a2bfa08ae82e4474432de55da768f182e5c61b43dc366248b8",
-      "current_import_sha256": "3f6be1f4832127a2bfa08ae82e4474432de55da768f182e5c61b43dc366248b8",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/plugin-builder/references/server-factory.md",
       "upstream_sha256": "9d28ba1817aa65faeb686f1037aaa6f55cba011aff063a1635dc97435a315b28",
       "staged_sha256": "9d28ba1817aa65faeb686f1037aaa6f55cba011aff063a1635dc97435a315b28",
-      "current_import_sha256": "3bcc10a0ed95e119222735ab367f1145fbaf0b646c07e5a269ae10ca59dda783",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Document the run input guard and the shared output budget"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/pr/SKILL.md",
@@ -4397,141 +4397,141 @@
       "path": "src/botcore/skills/review/SKILL.md",
       "upstream_sha256": "a2822c07c8c80d4032b0f9bcaa1c8c80d1a152aabe79bc11b522d8510bdb4a08",
       "staged_sha256": "a2822c07c8c80d4032b0f9bcaa1c8c80d1a152aabe79bc11b522d8510bdb4a08",
-      "current_import_sha256": "f4f66455cc2d6f29a5e74e16389745e26086802fe0636f0637512bcadb273c47",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Drop the pointer to the retired commit skill"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/SKILL.md",
       "upstream_sha256": "33abed3ec8792cfc5f0693985c5af2677afac15a1f10010593b4988d9a36eb47",
       "staged_sha256": "33abed3ec8792cfc5f0693985c5af2677afac15a1f10010593b4988d9a36eb47",
-      "current_import_sha256": "33abed3ec8792cfc5f0693985c5af2677afac15a1f10010593b4988d9a36eb47",
+      "current_import_sha256": "2495c8771488344174644a46a608e9e2398c21e2d5b0dc9a3333c68fcac44a49",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Refocus on MCP, command and agent security with Botcore's real boundaries"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/agent-and-supply-chain.md",
       "upstream_sha256": "e6d846343b8f7c03f259953ca1d64ac283037d87e95438fe9df7c87bdc91ed59",
       "staged_sha256": "e6d846343b8f7c03f259953ca1d64ac283037d87e95438fe9df7c87bdc91ed59",
-      "current_import_sha256": "e6d846343b8f7c03f259953ca1d64ac283037d87e95438fe9df7c87bdc91ed59",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/agentic-review-workflow.md",
       "upstream_sha256": "352b5fb995e3fab21f93adfc02af578f27fcf006a06d6e4bd09bab3967308df5",
       "staged_sha256": "352b5fb995e3fab21f93adfc02af578f27fcf006a06d6e4bd09bab3967308df5",
-      "current_import_sha256": "352b5fb995e3fab21f93adfc02af578f27fcf006a06d6e4bd09bab3967308df5",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/checklists.md",
       "upstream_sha256": "19e2433dbf962c9643c61d555f5cdca374e6098e28ee8101c7a85e962b5b2eda",
       "staged_sha256": "19e2433dbf962c9643c61d555f5cdca374e6098e28ee8101c7a85e962b5b2eda",
-      "current_import_sha256": "19e2433dbf962c9643c61d555f5cdca374e6098e28ee8101c7a85e962b5b2eda",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/mcp-server-security.md",
       "upstream_sha256": "17dd49951a67420cc4b08ed7b1bb69346caf79177e1de147cb9a18960c0cbf90",
       "staged_sha256": "17dd49951a67420cc4b08ed7b1bb69346caf79177e1de147cb9a18960c0cbf90",
-      "current_import_sha256": "17dd49951a67420cc4b08ed7b1bb69346caf79177e1de147cb9a18960c0cbf90",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/owasp-top-10.md",
       "upstream_sha256": "09d4450354ba10f1f876148e1736051dadc13ab86fc76492aeb89db4da3af07a",
       "staged_sha256": "09d4450354ba10f1f876148e1736051dadc13ab86fc76492aeb89db4da3af07a",
-      "current_import_sha256": "09d4450354ba10f1f876148e1736051dadc13ab86fc76492aeb89db4da3af07a",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/reporting-and-metrics.md",
       "upstream_sha256": "e10df827d12dd77397908d7f686a04e57aefff16338f116eae9f48dd25f598da",
       "staged_sha256": "e10df827d12dd77397908d7f686a04e57aefff16338f116eae9f48dd25f598da",
-      "current_import_sha256": "e10df827d12dd77397908d7f686a04e57aefff16338f116eae9f48dd25f598da",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/risk-prioritization.md",
       "upstream_sha256": "7aa8a2c1a44877360f99d2d6bf32d5e82dc44391cb24acaf8664eb42cb2bb56e",
       "staged_sha256": "7aa8a2c1a44877360f99d2d6bf32d5e82dc44391cb24acaf8664eb42cb2bb56e",
-      "current_import_sha256": "7aa8a2c1a44877360f99d2d6bf32d5e82dc44391cb24acaf8664eb42cb2bb56e",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/scope-and-objectives.md",
       "upstream_sha256": "c8447f79f026bcdc64af6fea05709c2e5cd220026083afe8d608da45f1feb423",
       "staged_sha256": "c8447f79f026bcdc64af6fea05709c2e5cd220026083afe8d608da45f1feb423",
-      "current_import_sha256": "c8447f79f026bcdc64af6fea05709c2e5cd220026083afe8d608da45f1feb423",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/secure-coding-principles.md",
       "upstream_sha256": "2d86ae020b5d72d2889a5897a04b5795152814a8b5aea8c7d747cad21ed5afde",
       "staged_sha256": "2d86ae020b5d72d2889a5897a04b5795152814a8b5aea8c7d747cad21ed5afde",
-      "current_import_sha256": "2d86ae020b5d72d2889a5897a04b5795152814a8b5aea8c7d747cad21ed5afde",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/threat-modeling.md",
       "upstream_sha256": "46d0b75daa4d6024459120badf28d6ede90b2a3ff6819120ef888acb55c0bd55",
       "staged_sha256": "46d0b75daa4d6024459120badf28d6ede90b2a3ff6819120ef888acb55c0bd55",
-      "current_import_sha256": "46d0b75daa4d6024459120badf28d6ede90b2a3ff6819120ef888acb55c0bd55",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/tooling-and-cicd.md",
       "upstream_sha256": "d76f064ccf0f353b2eb29a9f6d95e1c2c2fe41b8198b6817610d3dbf7f271f65",
       "staged_sha256": "d76f064ccf0f353b2eb29a9f6d95e1c2c2fe41b8198b6817610d3dbf7f271f65",
-      "current_import_sha256": "d76f064ccf0f353b2eb29a9f6d95e1c2c2fe41b8198b6817610d3dbf7f271f65",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/security-auditor/references/vulnerability-classes.md",
       "upstream_sha256": "f2fbc55cb0587cb24aaf43743f00e39741f5e99642cc0015bdcc0ce498758704",
       "staged_sha256": "f2fbc55cb0587cb24aaf43743f00e39741f5e99642cc0015bdcc0ce498758704",
-      "current_import_sha256": "f2fbc55cb0587cb24aaf43743f00e39741f5e99642cc0015bdcc0ce498758704",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Explicitly excluded during reviewed import"
     },
     {
       "path": "src/botcore/skills/skill-manager/README.md",
@@ -5107,11 +5107,11 @@
       "path": "tests/test_cdp_session.py",
       "upstream_sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
       "staged_sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
-      "current_import_sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
+      "current_import_sha256": "43ec2a3b2579c84b3d555b1d760c5818432dc9d16e13ef80a3be81dbd7de25ab",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Assert the browser-automation skill names every exported cdp command"
     },
     {
       "path": "tests/test_changeset.py",
@@ -5247,11 +5247,11 @@
       "path": "tests/test_frontmatter.py",
       "upstream_sha256": "fc17eb52ea1131b58ad61680b7e019926d23af0caa0bb2bb86c00b3838fe6e18",
       "staged_sha256": "fc17eb52ea1131b58ad61680b7e019926d23af0caa0bb2bb86c00b3838fe6e18",
-      "current_import_sha256": "fc17eb52ea1131b58ad61680b7e019926d23af0caa0bb2bb86c00b3838fe6e18",
+      "current_import_sha256": "85a3bf5fb819af299202d03d7eb7dc8bba2d44a2edee572c66f7cc69ec9e726b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Expect the nine bundled skills that remain"
     },
     {
       "path": "tests/test_host.py",
@@ -5447,7 +5447,7 @@
       "path": "tests/test_skill_seed.py",
       "upstream_sha256": "9382144522fdf35e2292dff558aa29f8414a6e564315af839ec032f9651c2027",
       "staged_sha256": "9382144522fdf35e2292dff558aa29f8414a6e564315af839ec032f9651c2027",
-      "current_import_sha256": "9992fe1b1d7bc6f94af3e62d24e7266538ec59da9584a5b3bdd4f61765559565",
+      "current_import_sha256": "0aea19ca1914cfdcb2d5fa990b6c623796c8c67da065d7acf1e8b6597bc9e147",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -5457,7 +5457,7 @@
       "path": "tests/test_skill_status.py",
       "upstream_sha256": "f24a3c2838846d004158d98ab0bf3af1c9182ded28617406cd97ccd05ec6c354",
       "staged_sha256": "f24a3c2838846d004158d98ab0bf3af1c9182ded28617406cd97ccd05ec6c354",
-      "current_import_sha256": "c261d5744e17e58756c7cc94399df627a75e2796bcda17a28d3e0aedceecf89f",
+      "current_import_sha256": "a0e43a25a0bc7c5c4262c79339703c0f0fea7ac66a1a4297fa18b4a8686ee176",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",

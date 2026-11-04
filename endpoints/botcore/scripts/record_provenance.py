@@ -116,20 +116,8 @@ IMPORT_REASONS = {
     "src/botcore/commands/research.py": (
         "Make the answer budget a per-call parameter with a long-context default"
     ),
-    "src/botcore/skills/plugin-builder/references/server-factory.md": (
-        "Document the run input guard and the shared output budget"
-    ),
     "src/botcore/skills/skill-manager/SKILL.md": (
         "Rewrite skill authoring for current models; drop legacy references and trigger lists"
-    ),
-    "src/botcore/skills/mcp-builder/SKILL.md": (
-        "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
-    ),
-    "src/botcore/skills/mcp-builder/references/token-budget.md": (
-        "Replace fixed tool-count and description caps with tools/list payload measurement"
-    ),
-    "src/botcore/skills/mcp-builder/references/troubleshooting.md": (
-        "Describe schema failures model-neutrally; re-test before adding the execute fallback"
     ),
     "README.md": ("List the bundled skills that remain after the generic ones were retired"),
     "src/botcore/commands/skill/renames.py": (
@@ -141,9 +129,35 @@ IMPORT_REASONS = {
     "src/botcore/commands/skill/status.py": ("Report local copies of retired skills as retired"),
     "tests/test_skill_seed.py": ("Cover retired-skill removal, reporting and include/skip"),
     "tests/test_skill_status.py": ("Cover the retired skill status"),
-    "src/botcore/skills/review/SKILL.md": ("Drop the pointer to the retired commit skill"),
-    "src/botcore/skills/docs-update/SKILL.md": ("Drop the pointer to the retired commit skill"),
-    "src/botcore/docs.py": ("Document retired-skill handling in skill_seed and skill_status"),
+    "src/botcore/docs.py": ("Document retired skills and the docs commands' real behaviour"),
+    "src/botcore/skills/code-reviewer/SKILL.md": (
+        "Rewrite for current models and merge the review skill into it"
+    ),
+    "src/botcore/skills/docs-manager/SKILL.md": (
+        "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer"
+    ),
+    "src/botcore/skills/plugin-builder/SKILL.md": (
+        "Rebase on the managed host and the real error() and discovery APIs"
+    ),
+    "src/botcore/skills/mcp-builder/SKILL.md": (
+        "Rewrite on the MCP SDK and managed raw Python; fix client config locations"
+    ),
+    "src/botcore/skills/security-auditor/SKILL.md": (
+        "Refocus on MCP, command and agent security with Botcore's real boundaries"
+    ),
+    "src/botcore/skills/browser-automation/SKILL.md": (
+        "Rewrite to the cdp commands' verified behaviour, including traces"
+    ),
+    "src/botcore/skills/botcore-config/SKILL.md": (
+        "State only wired settings; add the [skills] section and retired skills"
+    ),
+    "src/botcore/skills/agent-config/SKILL.md": (
+        "Rewrite to the agents plugin's verified fields; add the state block"
+    ),
+    "tests/test_cdp_session.py": (
+        "Assert the browser-automation skill names every exported cdp command"
+    ),
+    "tests/test_frontmatter.py": ("Expect the nine bundled skills that remain"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),

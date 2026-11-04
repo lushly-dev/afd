@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
+from botcore.commands import cdp
 from botcore.commands.cdp.core import (
     CdpSession,
     ConsoleEntry,
     _clear_session,
     _load_session,
     _save_session,
+)
+
+_BROWSER_SKILL = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "botcore"
+    / "skills"
+    / "browser-automation"
+    / "SKILL.md"
 )
 
 
@@ -69,3 +82,13 @@ def test_session_with_console_log(tmp_path) -> None:
 def test_clear_session_no_file(tmp_path) -> None:
     """_clear_session is safe when no file exists."""
     _clear_session(tmp_path)  # Should not raise
+
+
+def test_browser_automation_skill_names_every_cdp_command() -> None:
+    """The bundled browser-automation skill names every exported cdp_* command."""
+    commands = [name for name in cdp.__all__ if name.startswith("cdp_")]
+    assert commands
+
+    skill = _BROWSER_SKILL.read_text(encoding="utf-8")
+    missing = [name for name in commands if not re.search(rf"\b{name}\b", skill)]
+    assert not missing, f"browser-automation/SKILL.md does not name: {missing}"

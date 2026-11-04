@@ -1,107 +1,50 @@
 ---
 name: manage-documentation
-source: afd
+source: botcore
 description: >
-  Manages documentation architecture, review, staleness detection, and maintenance policy across project repositories. Covers README, AGENTS.md, CHANGELOG, ROADMAP, doc sites, and skill indexing. Use when creating docs, reviewing documentation structure, auditing for staleness, updating changelogs, maintaining roadmaps, or enforcing documentation standards. Triggers: docs, documentation, readme, changelog, roadmap, agents.md, doc site, docsify, update docs, documentation audit, docs review.
-
-version: 1.0.0
-triggers:
-  - docs
-  - documentation
-  - readme
-  - changelog
-  - roadmap
-  - agents.md
-  - doc site
-  - docsify
-  - update docs
-  - sync docs
-  - documentation audit
-  - docs review
+  Keeps a repository's documentation true to the code: AGENTS.md as the only
+  instruction file, changelog entries, counts, links and sourced prose. Use when
+  updating docs after a change, auditing them, or editing README, AGENTS.md or a
+  changelog.
+version: 2.0.0
 portable: true
 ---
 
-# Managing Documentation
+<!-- Generated from skills/exports.json; edit the canonical docs-manager skill. -->
 
-Documentation architecture, review, staleness detection, and maintenance policy for project repositories.
+# Docs manager
 
-## Capabilities
+Documentation is worth keeping only while it matches the code. Keep root files short, give each fact one owner, and check every number and link you touch.
 
-1. **Architecture guidance** -- define where documentation belongs and enforce layer boundaries
-2. **Format enforcement** -- apply format standards per document type (README, AGENTS, CHANGELOG, ROADMAP)
-3. **Staleness detection** -- identify outdated docs via git history, version mismatches, and count drift
-4. **Documentation review** -- run structured audits across all project documentation
-5. **Rot prevention** -- enforce the "drive content to skills" principle to keep root docs lean
-6. **Doc site management** -- Docsify configuration for browsable skill documentation
-7. **Index generation** -- auto-generate skill indexes and sidebars from frontmatter
-8. **AGENTS.md governance** -- keep the canonical agent instructions accurate without generating alternate instruction files
+## Where things live
 
-## Routing Logic
+- **Skills hold depth; AGENTS.md routes.** AGENTS.md carries what every session needs: commands, layout, hard rules and an index of skills. Every line there costs every session, so when a topic grows past a few lines, move it into a skill or the document that owns it and leave a one-line pointer.
+- **AGENTS.md is the only project instruction file.** Never generate, sync or restore a `CLAUDE.md`. By default Claude Code reads AGENTS.md only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above it, so a generated copy quietly replaces AGENTS.md with a stale one. If you find one, merge its unique lines into AGENTS.md, then delete it and any script that regenerated it. Claude-only rules go in `.claude/rules/`, which loads alongside AGENTS.md.
+- **Link, don't copy.** A fact written in two places drifts. README.md stays a self-contained quick start and links out for depth.
 
-| Trigger | Load Reference |
-|---------|----------------|
-| Architecture, doc layers, where docs belong | [doc-architecture.md](references/doc-architecture.md) |
-| Format specs, AGENTS/README/CHANGELOG/ROADMAP format | [doc-formats.md](references/doc-formats.md) |
-| Staleness, audit, review, freshness checks | [staleness-detection.md](references/staleness-detection.md) |
-| Doc site, docsify, sidebar, index generation | [doc-site-and-indexing.md](references/doc-site-and-indexing.md) |
-| Skill creation and structure | See `skill-manager` skill (cross-link, not duplicated) |
+## Changelogs
 
-## Core Principles
+- Give every user-visible change an entry saying what changed and why it matters to users: one per logical change, not a commit log. Refactors, tests and CI changes need none.
+- When later work changes or reverses what an existing entry says, correct that entry (or its changeset) instead of adding a second one that contradicts it.
+- Follow the repository's release mechanism. Where Changesets or a similar tool generates changelogs, write a changeset rather than editing the output, and keep any root CHANGELOG.md as an index of the package changelogs. Versions, tags and bump rules belong to the release skill.
 
-### 1. Skills Are Truth
+## Botcore commands
 
-All detailed knowledge lives in `.claude/skills/`. AGENTS.md and README.md route readers to skills for depth. If you are writing more than 5-10 lines about a topic in a root doc, it belongs in a skill.
+The `docs_*` checks are Python functions in `botcore.commands`, not `botcore` CLI subcommands; call them from a bot's `<name>-run` MCP tool or a host that registers them. A pass can mean nothing was checked, and both staged-file checks pass with "skipping check" when the root CHANGELOG.md or AGENTS.md is absent:
 
-### 2. Single Source of Truth
+- `docs_lint(path=None)` checks internal links and anchors in every `*.md` under a directory (default `docs/`) and fails with `BROKEN_LINKS`; missing `status`, `author` or `created` frontmatter on `*.proposal.md` and `*.spec.md` is a warning. It skips external URLs. Given a file it checks nothing and passes, and it walks `node_modules` and `.venv`, so check root README.md and AGENTS.md links yourself.
+- `docs_check_changelog()` flags only staged `.py` files under a top-level `src/` with no staged CHANGELOG.md and no `.changeset/*.md`. Code anywhere else passes unseen.
+- `docs_check_agents()` flags staged Python under a `commands/` directory, or a staged `src/**/__init__.py`, without a staged AGENTS.md. Other structural changes pass unseen.
+- `docs_preflight()` runs both checks as one pipeline.
+- `changeset_create(change_type, description)` (CLI: `botcore changeset-create`) writes a category fragment to `.changeset/`. The checks above suggest it, but it refuses any repository with a `package.json`, `pnpm-workspace.yaml` or `.changeset/config.json`; use that repository's own Changesets command.
 
-AGENTS.md is the canonical agent instruction file. Update AGENTS.md directly when its routing or repository guidance changes. Never create, edit, or regenerate a CLAUDE.md from it.
+## Before finishing
 
-### 3. Link, Don't Duplicate
+- Recount every number the docs state (skills, packages, commands) against what it describes, and drop counts nobody needs.
+- Check each link you added or moved, anchors to headings you renamed, and references to anything you renamed or removed.
+- If the work completes a spec or plan, update its status.
 
-Reference skills and other docs instead of copying content. Duplication leads to rot. For skill and prompt format standards, defer to the `skill-manager` and related skills.
+## Prose
 
-### 4. Each Document Has an Audience
-
-README.md serves developers (self-contained quick start). AGENTS.md serves AI tools (canonical instructions). Per-implementation changelogs serve users; root CHANGELOG.md is their index. ROADMAP.md serves stakeholders (aspirational direction). Skills serve AI agents and developers (deep guidance).
-
-### 5. Keep a Changelog
-
-Each implementation changelog follows Keep a Changelog 1.1.0, with human-curated entries and an `[Unreleased]` section. npm changelogs are generated by Changesets. Root `CHANGELOG.md` remains an index; never add release entries there. Follow the `do-release` skill for track-specific versioning.
-
-## Workflow
-
-### Documentation Update Pass
-
-1. **Gather changes** -- `git log --oneline -20` to identify recent activity
-2. **Check track changelogs/Changesets** -- are recent user-visible changes captured in the affected implementation, with root CHANGELOG.md remaining an index?
-3. **Check AGENTS.md** -- does it reflect current architecture, skill count, component count?
-4. **Check README.md** -- are commands, descriptions, and quick start current?
-5. **Check ROADMAP.md** -- should any items move phases based on shipped work?
-6. **Verify counts** -- list `.claude/skills/`, `src/components/`, `.github/prompts/` and compare to doc claims
-7. **Apply updates** -- follow each doc's format spec from the reference files
-8. **Report** -- summarize what was updated and what was already current
-
-### Documentation Rot Prevention
-
-Keep the documentation policy in AGENTS.md. README.md may link to that policy; do not create or generate a CLAUDE.md.
-
-## Checklist
-
-- [ ] AGENTS.md reflects current architecture and counts
-- [ ] All skills have `category` in frontmatter
-- [ ] No content blocks exceeding 10 lines in AGENTS.md for topics covered by skills
-- [ ] Skill index is up to date (count matches directories)
-- [ ] Each distribution manifest matches its current README/language-parity version; exclude the private root package.json version
-- [ ] Each track changelog captures its merged work; root `CHANGELOG.md` remains an index
-- [ ] ROADMAP shipped items link to CHANGELOG versions
-- [ ] Internal links resolve (no broken references)
-- [ ] Doc site reflects current skills
-
-## When to Escalate
-
-- Major restructuring of documentation architecture
-- Adding new documentation layers or document types
-- Changing the skill specification format
-- New document type needed -- discuss format before creating
-- Conflicting information across documents that cannot be resolved independently
-- Architecture changes requiring simultaneous updates to multiple docs
+- Audit a finished draft against a list of AI tells (stock vocabulary, stacked hedges, signposting). Keep the list out of the generation prompt, because naming the words anchors the model toward them; to set a voice, show a short sample and name the audience.
+- Never invent figures, names, dates or quotes to sound specific. Use what the code, the user or a cited source provides; otherwise state the claim plainly, cut it, or mark it `[source needed]`.

@@ -365,6 +365,38 @@ def test_rename_targets_are_current_bundled_skills() -> None:
     assert {resolve_rename(old) for old in SKILL_RENAMES} <= set(bundled)
     assert resolve_rename("manage-documentation") == "docs-manager"
     assert resolve_rename("docs-manager") is None
+    # Skills merged into another resolve, through any earlier name, to the merge target.
+    for old_name in ("review", "do-review"):
+        assert resolve_rename(old_name) == "code-reviewer"
+    for old_name in (
+        "docs-update",
+        "do-documentation-update",
+        "content-humanizer",
+        "humanize-content",
+    ):
+        assert resolve_rename(old_name) == "docs-manager"
+
+
+async def test_seed_migrates_two_merged_skills_into_one(tmp_path: Path) -> None:
+    """Both managed skills merged into docs-manager go, and docs-manager is seeded once."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    _make_source_skill(skills_dir, "docs-update", "1.0.0", source="botcore")
+    _make_source_skill(skills_dir, "content-humanizer", "1.0.0", source="botcore")
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"))
+
+    data = assert_success(result)
+    assert data["migrated"] == [
+        {"from": "content-humanizer", "to": "docs-manager"},
+        {"from": "docs-update", "to": "docs-manager"},
+    ]
+    assert data["seeded"] == ["docs-manager"]
+    assert not (skills_dir / "docs-update").exists()
+    assert not (skills_dir / "content-humanizer").exists()
 
 
 async def test_seed_migrates_botcore_owned_renamed_skill(tmp_path: Path) -> None:
@@ -434,29 +466,30 @@ async def test_seed_keeps_locally_owned_renamed_skill(tmp_path: Path, owner: str
     original = (old_skill / "SKILL.md").read_text(encoding="utf-8")
 
     source_dir = tmp_path / "source"
-    _make_source_skill(source_dir, "review", "2.0.0")
+    _make_source_skill(source_dir, "code-reviewer", "2.0.0")
 
-    result = await _seed(ws, _discovered(source_dir, "review"), update=True)
+    result = await _seed(ws, _discovered(source_dir, "code-reviewer"), update=True)
 
     data = assert_success(result)
     assert data["migrated"] == []
     assert data["seeded"] == []
     assert (old_skill / "SKILL.md").read_text(encoding="utf-8") == original
-    assert not (skills_dir / "review").exists()
+    assert not (skills_dir / "code-reviewer").exists()
 
     [entry] = data["renamed_locally_owned"]
     assert entry["name"] == "do-review"
-    assert entry["renamed_to"] == "review"
+    assert entry["renamed_to"] == "code-reviewer"
     assert entry["owner"] == owner
     assert ".claude/skills/do-review" in entry["suggestion"]
     if owner is None:
-        assert "skill_adopt('review')" in entry["suggestion"]
+        assert "skill_adopt('code-reviewer')" in entry["suggestion"]
     else:
         assert "skill_adopt" not in entry["suggestion"]
         assert f"source: {owner}" in entry["suggestion"]
-    assert {"name": "review", "reason": "renamed from 'do-review', which is locally owned"} in (
-        data["skipped"]
-    )
+    assert {
+        "name": "code-reviewer",
+        "reason": "renamed from 'do-review', which is locally owned",
+    } in (data["skipped"])
 
 
 async def test_seed_leaves_renamed_skill_when_new_name_filtered(tmp_path: Path) -> None:
@@ -488,11 +521,11 @@ async def test_seed_ignores_old_name_still_shipped_by_a_source(tmp_path: Path) -
     _make_source_skill(skills_dir, "do-review", "1.0.0", source="my-plugin")
 
     botcore_dir = tmp_path / "botcore"
-    _make_source_skill(botcore_dir, "review", "2.0.0")
+    _make_source_skill(botcore_dir, "code-reviewer", "2.0.0")
     plugin_dir = tmp_path / "my-plugin"
     _make_source_skill(plugin_dir, "do-review", "1.0.0")
     available = {
-        **_discovered(botcore_dir, "review"),
+        **_discovered(botcore_dir, "code-reviewer"),
         **_discovered(plugin_dir, "do-review", source="my-plugin"),
     }
 
@@ -501,7 +534,7 @@ async def test_seed_ignores_old_name_still_shipped_by_a_source(tmp_path: Path) -
     data = assert_success(result)
     assert data["renamed_locally_owned"] == []
     assert data["migrated"] == []
-    assert data["seeded"] == ["review"]
+    assert data["seeded"] == ["code-reviewer"]
     assert (skills_dir / "do-review").exists()
 
 
@@ -535,16 +568,16 @@ async def test_seed_keeps_locally_owned_old_name_when_new_name_present(tmp_path:
     ws = _setup_workspace(tmp_path)
     skills_dir = ws / ".claude" / "skills"
     _make_source_skill(skills_dir, "do-review", "0.3.5")
-    _make_source_skill(skills_dir, "review", "1.0.0", source="botcore")
+    _make_source_skill(skills_dir, "code-reviewer", "1.0.0", source="botcore")
 
     source_dir = tmp_path / "source"
-    _make_source_skill(source_dir, "review", "2.0.0")
+    _make_source_skill(source_dir, "code-reviewer", "2.0.0")
 
-    result = await _seed(ws, _discovered(source_dir, "review"), update=True)
+    result = await _seed(ws, _discovered(source_dir, "code-reviewer"), update=True)
 
     data = assert_success(result)
     assert [e["name"] for e in data["renamed_locally_owned"]] == ["do-review"]
-    assert data["updated"] == ["review"]
+    assert data["updated"] == ["code-reviewer"]
     assert (skills_dir / "do-review").exists()
 
 

@@ -87,14 +87,16 @@ Generate `_index.md` table of all installed skills.
     "docs": """\
 # Docs Commands
 
-## docs_lint()
-Run markdown linting.
+## docs_lint(path=None)
+Check markdown under `path` (default `docs/`) for broken internal links and anchors;
+missing frontmatter on specs and proposals is a warning. External URLs are skipped.
 
 ## docs_check_changelog()
-Verify CHANGELOG.md structure and freshness.
+Flag staged source changes that have no CHANGELOG.md update or pending changeset.
 
 ## docs_check_agents()
-Validate AGENTS.md exists and has content.
+Flag staged structural changes (commands, package `__init__.py`) that may need an
+AGENTS.md update.
 
 ## docs_preflight()
 Run changelog and AGENTS.md checks together via a DirectClient pipeline.

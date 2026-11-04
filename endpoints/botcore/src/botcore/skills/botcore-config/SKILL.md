@@ -2,139 +2,86 @@
 name: botcore-config
 source: botcore
 description: >
-  Guides configuration of botcore projects via botcore.toml or pyproject.toml.
-  Covers BotCoreConfig model, SkillsConfig, PackageOverrideConfig, EnvConfig,
-  language detection and tool defaults, per-package overrides, precedence rules,
-  plugin config validation, and common misconfiguration pitfalls.
-  Use when setting up a new botcore project, configuring thresholds, adding
-  per-package overrides, troubleshooting config-related silent failures, or
-  understanding the config loading flow.
-  Triggers: config, configuration, botcore.toml, pyproject.toml, BotCoreConfig,
-  thresholds, language detection, tool defaults, per-package, SkillsConfig.
-version: "1.0.1"
-triggers:
-  - config
-  - configuration
-  - botcore.toml
-  - pyproject.toml
-  - BotCoreConfig
-  - thresholds
-  - language detection
-  - tool defaults
-  - per-package
-  - SkillsConfig
-  - PackageOverrideConfig
-  - EnvConfig
-  - coverage threshold
-  - file size limit
-  - configure botcore
+  Configures botcore through botcore.toml or [tool.botcore] in pyproject.toml:
+  which file wins, validation, defaults, per-package and per-language settings,
+  and the [skills] section. Use when writing botcore config or when a setting
+  seems to be ignored.
+version: "2.0.0"
 portable: true
 ---
 
-# Configuring Botcore
+# Configuring botcore
 
-Expert guidance for configuring botcore behavior through TOML configuration files, environment variables, and per-package overrides.
+`load_config()` in `src/botcore/config.py` is the source of truth; read it when this page and the code disagree.
 
-## Capabilities
+## Which file is read
 
-1. **Write Project Config** -- Set up `botcore.toml` or `[tool.botcore]` in `pyproject.toml` with correct fields and types
-2. **Configure Quality Thresholds** -- Set file size, coverage, duplication, and dependency staleness limits
-3. **Add Per-Package Overrides** -- Apply different thresholds to specific packages in a monorepo
-4. **Configure Skills** -- Control which skills are included, skipped, or sourced from alternate directories
-5. **Set Up Plugin Config** -- Define plugin-specific configuration sections validated by plugin schemas
-6. **Understand Precedence** -- Know how CLI flags, project config, language defaults, and core defaults layer
+- **Workspace:** commands load config from `find_workspace()`: the nearest directory at or above the working directory holding `pnpm-workspace.yaml`, `Cargo.toml`, `pyproject.toml`, `package.json` or `.git`. A managed host passes its target instead. In a monorepo, a command run inside a package with its own manifest reads that package's directory, not the repository root.
+- **pyproject wins wholesale:** if that directory's `pyproject.toml` has a `[tool.botcore]` table, it is the whole config and `botcore.toml` is ignored entirely. This applies even when the table is empty, or is created only by a subtable such as `[tool.botcore.plugins.agents]`. Otherwise botcore reads the top level of `botcore.toml`.
+- **Section names differ:** `botcore.toml` uses `[skills]`, `[packages.x]` and `[plugins.x]`; `pyproject.toml` uses `[tool.botcore.skills]`, `[tool.botcore.packages.x]` and `[tool.botcore.plugins.x]`.
+- **Syntax errors are silent:** a `pyproject.toml` that fails to parse falls through to `botcore.toml`, and a `botcore.toml` that fails to parse yields all defaults, with no warning. If every setting seems ignored, parse the file with `tomllib`.
+- **Unknown keys are loud:** every model uses `extra="forbid"`, so a misspelt key raises a `ValidationError` from any command that loads config. Plugin sections are validated by the plugin's own schema instead (see below).
 
-## Routing Logic
+## Precedence
 
-| Request Type | Load Reference |
-|---|---|
-| All config fields, types, defaults, annotated example | [references/config-reference.md](references/config-reference.md) |
-| load_config() flow, layered merge, CLI overrides | [references/precedence.md](references/precedence.md) |
-| Per-package overrides, get_config_for_path() | [references/per-package.md](references/per-package.md) |
-| Language auto-detection, _TOOL_DEFAULTS map | [references/language-detection.md](references/language-detection.md) |
+What is wired, highest first:
 
-## Core Principles
+1. Values in the project file.
+2. Language defaults. If `language` is unset, `detect_language()` sets it. Then any unset `linter`, `test_runner` or `formatter` is filled from `_TOOL_DEFAULTS`.
+3. Model defaults.
 
-### 1. Convention Over Configuration
+`load_config(cli_overrides=...)` and its docstring describe a "CLI flags" layer on top, but no caller passes `cli_overrides`, and no CLI flag sets a config value. Some commands take arguments that beat config for that call, for example `dev_check_size(warn_threshold=..., error_threshold=...)`.
 
-<rules>
-Botcore auto-detects language and applies tool defaults. Only configure what differs from defaults.
-An empty config section is valid — language detection + defaults handle the common case.
-</rules>
+## Language detection and tool defaults
 
-For a standard Python project, botcore auto-detects Python and sets linter=ruff, test_runner=pytest, formatter=ruff without any config.
+`detect_language()` checks the workspace root only, in this order: `Cargo.toml` → rust; `pyproject.toml` with `[build-system]` → python; `package.json` → typescript; any other `pyproject.toml` → python. A TypeScript repository with a root `Cargo.toml` is detected as Rust, so set `language` explicitly in mixed repositories.
 
-### 2. Config Sources Have Clear Precedence
-
-<rules>
-Precedence (highest to lowest): CLI flags → project config → plugin defaults → core defaults.
-Per-package overrides use REPLACE semantics, not additive merge.
-</rules>
-
-A CLI flag always wins. A per-package `coverage_paths=["lib/"]` completely replaces the root `coverage_paths=["src/"]`.
-
-### 3. Fail Fast on Unknown Fields
-
-<rules>
-All config models use `extra="forbid"`. Typos and unknown fields cause immediate validation errors.
-This prevents silent misconfiguration — a misspelled field name is caught on load.
-</rules>
-
-### 4. Secrets Stay in Environment
-
-<rules>
-API keys and tokens go in environment variables (`EnvConfig`), never in TOML files.
-TOML config is committed to the repo. Secrets must not be.
-</rules>
-
-## Quick Reference
-
-### Minimal Config (usually sufficient)
-
-```toml
-# pyproject.toml
-[tool.botcore]
-# Language auto-detected. Defaults applied automatically.
-```
-
-### Common Overrides
-
-```toml
-[tool.botcore]
-language = "python"
-file_size_warn = 300       # Lines (default: 500)
-file_size_error = 600      # Lines (default: 1000)
-coverage_threshold = 90    # Percent (default: 80)
-```
-
-### Default Thresholds
-
-| Field | Default | Unit |
-|---|---|---|
-| `file_size_warn` | 500 | lines |
-| `file_size_error` | 1000 | lines |
-| `coverage_threshold` | 80 | percent |
-| `coverage_warn_threshold` | 60 | percent |
-| `duplication_threshold` | 5 | occurrences |
-| `duplication_min_lines` | 10 | lines |
-| `circular_deps_allowed` | 0 | count |
-| `deps_max_major_behind` | 1 | versions |
-| `deps_max_minor_behind` | 3 | versions |
-
-### Tool Defaults by Language
-
-| Language | Linter | Test Runner | Formatter |
+| `_TOOL_DEFAULTS` | linter | test_runner | formatter |
 |---|---|---|---|
-| Python | ruff | pytest | ruff |
-| TypeScript | biome | vitest | biome |
-| Rust | clippy | cargo-test | rustfmt |
+| python | ruff | pytest | ruff |
+| typescript | biome | vitest | biome |
+| rust | clippy | cargo-test | rustfmt |
 
-## Checklist
+Other languages get no tool defaults.
 
-- [ ] Config placed in `pyproject.toml [tool.botcore]` or standalone `botcore.toml`
-- [ ] No unknown fields (would cause validation error)
-- [ ] Language explicitly set or auto-detection verified
-- [ ] Quality thresholds appropriate for project maturity
-- [ ] Per-package overrides use `[tool.botcore.packages.NAME]` syntax
-- [ ] Secrets in environment variables, not TOML
-- [ ] Plugin config sections match installed plugins
+For several languages, add two or more `[language_config.<lang>]` tables (`root`, `linter`, `test_runner`, `formatter`); one table alone doesn't switch on dispatch. Their keys then become the active languages, and dev commands called without `language` or `path` (`dev_lint`, `dev_test`, `dev_build`, `dev_check_deps` and the analysis commands) run once per language. A path resolves to a language in this order: the `language` argument, the longest matching `root`, the package override's `language`, marker detection in the path's directory, then `language`. Loading warns when `language` isn't one of the `language_config` keys, and when two roots overlap.
+
+## Defaults and who reads them
+
+| Field | Default | Read by |
+|---|---|---|
+| `file_size_warn`, `file_size_error` | 500, 1000 lines | `dev_check_size` |
+| `coverage_threshold`, `coverage_warn_threshold` | 80, 60 % | `dev_check_coverage` |
+| `coverage_paths` | `["src/"]` | `dev_check_coverage`, Python only |
+| `deps_max_major_behind`, `deps_max_minor_behind` | 1, 3 | `dev_check_deps`, PyPI packages only |
+| `path_check_exclude`, `path_check_allowlist` | `[]` | `dev_check_paths` |
+| `circular_deps_allowed` | 0 | `dev_circular_imports` |
+
+Defined but not used, so setting them changes nothing:
+
+- `duplication_threshold` (5), `duplication_min_lines` (10), `coverage_exclude` (`[]`), `check_changelog` and `check_agents` (`true`): no command reads them.
+- `telemetry_enabled` (`false`) and `telemetry_format` (`"text"`): only `registry.get_client(config=...)` reads them, and no caller passes a config.
+- `botcore_version` is an informational stamp.
+- `EnvConfig` (`openai_api_key`, `github_token`, `convex_url`) is exported but never loaded, so nothing reads environment variables through it.
+
+## Per-package overrides
+
+- Keys match the manifest name that `detect_package()` finds by walking up from a file: `package.json` `name`, `[project].name` or Cargo `[package].name`. They don't match directory names, so `[packages.python]` does nothing for a `python/` directory whose `pyproject.toml` names it `afd`. Quote scoped names: `[packages."@scope/pkg"]`.
+- **Allowed fields:** `language`, the size and coverage fields, `coverage_paths`, `coverage_exclude`, the two `duplication_*` fields and `circular_deps_allowed`.
+- **REPLACE semantics:** `get_config_for_path()` applies an override with `dict.update`. So a package's `coverage_paths = ["lib/"]` replaces the root's `["src/"]` rather than adding to it.
+- **Only `language` takes effect in core:** it is read by `resolve_language()`. No core command calls `get_config_for_path()`, so the other per-package fields affect only plugins or scripts that call it.
+
+## Plugin sections
+
+`[plugins.<name>]` stays a raw dict unless config is loaded with discovered plugins, as `botcore serve` (`build_namespace`) and `build_host` do. In that case the plugin's `config_schema()` validates the section and replaces it with the model, and a section with no installed plugin produces a warning. Those two paths then call the plugin's `configure()` with it. The CLI's plugin registration and plain `load_config()` calls do neither.
+
+## `[skills]`
+
+| Key | Default | Effect |
+|---|---|---|
+| `source_dir` | `".claude/skills"` | Directory, relative to the workspace, that skill-seed, list, status, lint, adopt and index use |
+| `include` | unset (all) | Only these are seeded or updated; when set, `skip` is ignored |
+| `skip` | `[]` | Never seeded or updated |
+| `agent_skills` | `false` | Also copy seeded and updated skills to `.agent/skills/` |
+
+Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `source: botcore`). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `src/botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.

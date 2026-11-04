@@ -24,12 +24,9 @@ skip = [
     "botcore-config",
     "browser-automation",
     "code-reviewer",
-    "content-humanizer",
     "docs-manager",
-    "docs-update",
     "mcp-builder",
     "plugin-builder",
-    "review",
     "security-auditor",
     "skill-manager",
 
