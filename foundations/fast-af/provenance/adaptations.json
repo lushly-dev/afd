@@ -105,11 +105,11 @@
       "upstream_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
       "staged_path": "packages/element/packages/fast-element/CHANGELOG.md",
       "staged_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
-      "current_import_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
+      "current_import_sha256": "6e1f171b6f608da3b71083b53401d9e355336f3cb198d623024e6c29e219317c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/DESIGN.md",
@@ -705,11 +705,11 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "2d203d549bac508274b9c279d1c20e2c89a5057ad87ec6dc24da3b497dcf0d42",
+      "current_import_sha256": "09eccc87cef84fde1a91f23a9c56d8f051777a29685b213b58e825ef23e19171",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
