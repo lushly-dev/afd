@@ -11,6 +11,7 @@ import {
 	type AppCallContextV1,
 	defineApp,
 	documentContentKey,
+	failure,
 	success,
 } from '@lushly-dev/loam-sdk';
 import { scopedDeployment, scopedPackages } from './scope/fixtures.js';
@@ -64,6 +65,12 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 			required: ['document', 'text'],
 			additionalProperties: false,
 		}),
+		command('probe-content-refuse', ['store-write'], {
+			type: 'object',
+			properties: { document: { type: 'string' }, text: { type: 'string' } },
+			required: ['document', 'text'],
+			additionalProperties: false,
+		}),
 		command('probe-export', ['inspect'], documentOnly),
 		command('probe-import', ['store-write'], {
 			type: 'object',
@@ -94,7 +101,12 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 				},
 				content_version: 2,
 				autosave_ms: 2000,
-				instance_commands: ['probe-content-get', 'probe-content-set', 'probe-export'],
+				instance_commands: [
+					'probe-content-get',
+					'probe-content-set',
+					'probe-content-refuse',
+					'probe-export',
+				],
 				export_command: 'probe-export',
 				import_command: 'probe-import',
 				editor: { element: 'probe-editor' },
@@ -134,6 +146,18 @@ export const PROBE_DOCUMENTS_DEFINITION = defineApp({
 		) => {
 			await context.store?.put(documentContentKey(input.document), { text: input.text });
 			return success({ document: input.document });
+		}) as never,
+		// Writes, then answers the kernel's own size code: an app's refusal, which the journal keeps whole.
+		'probe-content-refuse': (async (
+			input: { document: string; text: string },
+			context: AppCallContextV1
+		) => {
+			await context.store?.put(documentContentKey(input.document), { text: input.text });
+			return failure({
+				code: 'DOCUMENT_CONTENT_TOO_LARGE',
+				message: 'The app says this is too large',
+				suggestion: 'It is the app speaking, not the kernel',
+			});
 		}) as never,
 		'probe-export': (async (input: { document: string }, context: AppCallContextV1) =>
 			success({

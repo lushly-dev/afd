@@ -26,6 +26,22 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * `APP_DISABLED` when a `workspace-app` record disables `instance`: a gate, not an omission, so it takes
  * effect at once and replays the same (4.1). A call into it, `app-open` and its discovery all answer it.
  */
+/**
+ * `SCOPE_MISMATCH` for a person's or an agent's call (3.5; documents specification, 4.2): `what` is in
+ * `target`'s project, or the workspace with none, not in `current`'s, with the switch that reaches it.
+ */
+export const mismatchRefusal = (
+	what: string,
+	target: ProjectV1 | undefined,
+	current: ProjectV1 | undefined
+): CommandResult<never> =>
+	kernelFailure(
+		'SCOPE_MISMATCH',
+		`\`${what}\` is in ${target ? `the project ${target.name}` : 'the workspace'}, not ${current ? current.name : 'the workspace'}`,
+		`Switch with scope-set { project: ${target ? `"${target.slug}"` : 'null'} } and run this again.`,
+		{ details: target ? { project: { id: target.id, slug: target.slug, name: target.name } } : {} }
+	);
+
 /** Line 6 of a call, and an archived project's documents (3.4; documents specification, 4.2). */
 export const archivedRefusal = (project: ProjectV1): CommandResult<never> =>
 	kernelFailure(

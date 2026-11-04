@@ -54,6 +54,10 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 	'auth-sign-out',
 ]);
 
+/** Report a failure of stage B's own work, which fails alone (2.2). */
+const reportLate = (cause: unknown): void =>
+	(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+
 /** A projection as stage B keeps it in the workspace store (4.1). */
 export interface AppliedProjection {
 	generation: string;
@@ -192,7 +196,7 @@ export async function createLateParts(
 					? projection.apps.length === 0
 					: await applyDeployment(stores, projection, run);
 			} catch (cause) {
-				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+				reportLate(cause);
 			}
 			// Then the trash older than the workspace's `trashDays`, journaled, and only when there is some
 			// (documents specification, 4.1); a replay's entries are what ran. A failure fails it alone.
@@ -208,7 +212,7 @@ export async function createLateParts(
 						);
 				if (before !== undefined) await run('document-trash-expire', { before });
 			} catch (cause) {
-				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+				reportLate(cause);
 			}
 			if (settle) await parts.settle(run);
 		},
@@ -218,7 +222,7 @@ export async function createLateParts(
 			try {
 				if (!replaying && lateScope.activeRefusal()) await run('app-settle', {});
 			} catch (cause) {
-				(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+				reportLate(cause);
 			}
 		},
 		async reload() {

@@ -32,6 +32,7 @@ import {
 	DOCUMENT_INPUT_MAX_BYTES,
 	DOCUMENT_TABLE,
 	documentContentKey,
+	markOversized,
 	sameScope,
 } from './document-types.js';
 import { archivedRefusal } from './main-state.js';
@@ -50,6 +51,7 @@ export const DOCUMENT_KIT = Object.freeze({
 	sameScope,
 	table: DOCUMENT_TABLE,
 	maxBytes: DOCUMENT_INPUT_MAX_BYTES,
+	markOversized,
 	z: Object.freeze({
 		array,
 		boolean,

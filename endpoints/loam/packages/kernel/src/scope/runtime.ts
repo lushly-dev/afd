@@ -51,6 +51,12 @@ export interface ScopeRuntime {
 	 * a switch's keep or leave all read it.
 	 */
 	opensIn(instance: string, levels: readonly string[], project: string | undefined): boolean;
+	/**
+	 * The trace IDs of calls the kernel's own 256 KiB bound refused (documents specification, 4.4), so
+	 * `apps.redact` journals them without their input. Set by `late/` at that check, consumed by the
+	 * redaction, and never read from a result, so no app can ask for it. Absent until a refusal.
+	 */
+	oversized?: Set<string>;
 	/** By trace ID: what the handler and the middleware leave for `run`'s event. */
 	readonly seen: Map<string, ScopeSeen>;
 	note(traceId: string | undefined, seen: ScopeSeen): void;

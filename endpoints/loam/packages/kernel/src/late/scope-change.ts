@@ -25,6 +25,7 @@ import {
 	archivedRefusal,
 	canOpen,
 	disabledRefusal,
+	mismatchRefusal,
 	setMain,
 	setScopeProject,
 } from './main-state.js';
@@ -176,27 +177,14 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		const target = projects[0];
 		if (target === undefined && !inWorkspace) return undefined;
 		const current = here.project === undefined ? undefined : scope.projects.get(here.project);
-		const where = target ? `the project ${target.name}` : 'the workspace';
-		const answer = (message: string, suggestion: string, details?: Record<string, unknown>) =>
-			kernelFailure(
-				'SCOPE_MISMATCH',
-				message,
-				suggestion,
-				details === undefined ? {} : { details }
-			);
 		if (call.caller !== undefined) {
-			return answer(
+			return kernelFailure(
+				'SCOPE_MISMATCH',
 				`\`${key}\` is in another scope`,
 				'It is not in the scope this surface runs in; open it where it is, and run this again.'
 			);
 		}
-		return answer(
-			`\`${key}\` is in ${where}, not ${current ? current.name : 'the workspace'}`,
-			target
-				? `Switch with scope-set { project: "${target.slug}" } and run this again.`
-				: 'Switch with scope-set { project: null } and run this again.',
-			target ? { project: { id: target.id, slug: target.slug, name: target.name } } : {}
-		);
+		return mismatchRefusal(key, target, current);
 	}
 
 	let lastActor: string | undefined;

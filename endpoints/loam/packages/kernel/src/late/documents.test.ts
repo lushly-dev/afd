@@ -136,7 +136,12 @@ describe('P2-D3: types and the registry', () => {
 				locator: 'text-range',
 				conflict: 'last-writer-wins',
 			},
-			instanceCommands: ['probe-content-get', 'probe-content-set', 'probe-export'],
+			instanceCommands: [
+				'probe-content-get',
+				'probe-content-set',
+				'probe-content-refuse',
+				'probe-export',
+			],
 			editorKind: 'native',
 		});
 		expect(JSON.stringify(probe)).not.toContain('Hello');
@@ -767,6 +772,61 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 		// The handler never ran: the template's content is still there.
 		const content = await store.get<AppStoreRecord>('app-probe', documentContentKey(record.id));
 		expect(content?.value).toEqual({ text: '' });
+	});
+
+	it('journals the kernel’s own refusal without its input, by its mark, and a replay answers it from the record', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const record = await created(workspace);
+		const text = 'x'.repeat(DOCUMENT_INPUT_MAX_BYTES);
+		await kernel.call('probe-content-set', { document: record.id, text });
+		await kernel.call('document-import', {
+			type: 'probe',
+			envelope: { loam_document: 1, content_version: 1, content: { text } },
+		});
+		const entries = await workspace.journal.read();
+		const refused = entries.filter(
+			(entry) => entry.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE'
+		);
+		expect(refused.map((entry) => [entry.command, entry.input, entry.context?.replay])).toEqual([
+			['probe-content-set', { document: record.id }, 'recorded'],
+			['document-import', {}, 'recorded'],
+		]);
+		const { report } = await replayKernel(entries, {
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.recorded).toEqual(expect.arrayContaining(refused.map((entry) => entry.seq)));
+	});
+
+	it('keeps an app’s own DOCUMENT_CONTENT_TOO_LARGE whole in the journal, and a replay re-runs it', async () => {
+		const workspace = await documents();
+		const { kernel, store } = workspace;
+		const record = await created(workspace);
+		const answered = await kernel.call('probe-content-refuse', {
+			document: record.id,
+			text: 'kept',
+		});
+		expect(answered.error?.code).toBe('DOCUMENT_CONTENT_TOO_LARGE');
+		const entries = await workspace.journal.read();
+		const entry = entries.at(-1);
+		expect(entry?.command).toBe('probe-content-refuse');
+		// The app chose the code, not what the journal keeps: its input is whole and it is not marked.
+		expect(entry?.input).toEqual({ document: record.id, text: 'kept' });
+		expect(entry?.context?.replay).toBeUndefined();
+		// The handler ran and wrote: a replay runs it again, which an answer from the record would not.
+		expect(
+			(await store.get<AppStoreRecord>('app-probe', documentContentKey(record.id)))?.value
+		).toEqual({
+			text: 'kept',
+		});
+		const { report } = await replayKernel(entries, {
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.recorded).not.toContain(entry?.seq);
 	});
 
 	it('refuses a mutation of a document in an archived project, and reads it', async () => {

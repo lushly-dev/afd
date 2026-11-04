@@ -154,10 +154,7 @@ function answeredFromRecord(entry: JournalEntry): boolean {
 		REPLAY_RECORDED_QUERIES.includes(entry.command) ||
 		entry.context?.replay === 'recorded' ||
 		entry.context?.parent !== undefined ||
-		details?.[PAGE_DECIDED] === true ||
-		// Refused before any handler, and journaled without its input, which a replay cannot re-run
-		// (documents specification, 4.4): nothing ran, so the record is the answer.
-		entry.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE'
+		details?.[PAGE_DECIDED] === true
 	);
 }
 

@@ -15,7 +15,7 @@ import { kernelFailure } from '../errors.js';
 import { actorKey } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
-import { archivedRefusal } from './main-state.js';
+import { archivedRefusal, mismatchRefusal } from './main-state.js';
 import { checkStamped } from './stores.js';
 
 /** The record table (documents specification, 3). */
@@ -153,6 +153,24 @@ export interface DocumentCheck {
 	put(record: DocumentRecordV1): Promise<void>;
 }
 
+/** Leave the call without its input in the journal, and answered from its record in a replay (4.4). */
+export function markOversized(scope: ScopeRuntime, call: CommandContext): void {
+	if (typeof call.traceId === 'string') {
+		scope.oversized ??= new Set();
+		scope.oversized.add(call.traceId);
+	}
+	(call as CommandContext & KernelFieldContext).replay = 'recorded';
+}
+
+/** An instance's manifest, or undefined for one with no port: refused, or not deployed. */
+function manifestOf(apps: AppsRuntime, instance: string): ManifestV2 | undefined {
+	try {
+		return apps.port(instance).manifest;
+	} catch {
+		return undefined;
+	}
+}
+
 /** The time of the call's clock, so a replay reproduces it. */
 export const callNow = (context: CommandContext): number => context.clock?.now() ?? Date.now();
 
@@ -171,13 +189,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 				scope.workspaceApps.get(summary.instance)?.overrides.enabled === false
 			)
 				continue;
-			let manifest: ManifestV2 | undefined;
-			try {
-				manifest = apps.port(summary.instance).manifest;
-			} catch {
-				continue;
+			const manifest = manifestOf(apps, summary.instance);
+			if (manifest) {
+				typed.push({ instance: summary.instance, app: summary.app, kind: summary.kind, manifest });
 			}
-			typed.push({ instance: summary.instance, app: summary.app, kind: summary.kind, manifest });
 		}
 		return buildDocumentTypes(typed);
 	}
@@ -187,13 +202,9 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		const apps = deps.apps();
 		const instance = apps.owners.get(name)?.instance;
 		if (instance === undefined) return undefined;
-		let manifest: ManifestV2 | undefined;
-		try {
-			manifest = apps.port(instance).manifest;
-		} catch {
-			return undefined;
-		}
-		const declared = manifest.ui?.documents?.find((type) => type.instance_commands.includes(name));
+		const declared = manifestOf(apps, instance)?.ui?.documents?.find((type) =>
+			type.instance_commands.includes(name)
+		);
 		return declared ? { type: declared.id, instance } : undefined;
 	}
 
@@ -222,14 +233,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 		const project =
 			record.scope.project === undefined ? undefined : scope.projects.get(record.scope.project);
 		if (!sameScope(record.scope, here) && !ACROSS.has(name)) {
-			const current = here.project === undefined ? undefined : scope.projects.get(here.project);
-			return kernelFailure(
-				'SCOPE_MISMATCH',
-				`\`${record.title}\` is in ${project ? `the project ${project.name}` : 'the workspace'}, not ${current ? current.name : 'the workspace'}`,
-				`Switch with scope-set { project: ${project ? `"${project.slug}"` : 'null'} } and run this again.`,
-				project
-					? { details: { project: { id: project.id, slug: project.slug, name: project.name } } }
-					: {}
+			return mismatchRefusal(
+				record.title,
+				project,
+				here.project === undefined ? undefined : scope.projects.get(here.project)
 			);
 		}
 		if (deps.isMutation(name)) {
@@ -270,6 +277,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			// Measured before anything is read, and refused before the handler, so a refused save never runs;
 			// the journal keeps the entry without its input (4.4).
 			if (new TextEncoder().encode(JSON.stringify(input) ?? '').length > DOCUMENT_INPUT_MAX_BYTES) {
+				// The kernel's own marks: `apps.redact` journals the call without its input, by trace ID, and
+				// `replay: 'recorded'`, a field only trusted code sets, has a replay answer the entry from its
+				// record, since it cannot re-run what the journal does not hold. Nothing ran.
+				markOversized(scope, call);
 				return kernelFailure(
 					'DOCUMENT_CONTENT_TOO_LARGE',
 					`The input of '${name}' is over 256 KiB of JSON`,

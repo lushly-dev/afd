@@ -56,11 +56,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 285,404 and 87,998 gzip, with `vite.config.ts`'s `events` group keeping the preload helper in first paint's
  * `events` chunk; the kernel alone 111,238, `late` 51,893, `url-sync` 4,347, `apps` 379,806 (20 left).
  * Step 9 leaves `late-documents-` out of the `late` closure, as that chunk gets a row of its own (2.4),
- * `lateDocumentsMinified`, set at its measurement plus 10% (12,060, so 13,266); and raised `appsMinified` by
- * 4,268, to 384,094, approved by the coordinator, 2026-11-03: the manifest's document rules in the one
- * validator over untrusted input (4,072), the over-limit redaction in `apps.redact` (138) and the port's
+ * `lateDocumentsMinified`, set at its measurement plus 10% (12,085, so 13,294), over its ledger's 11,000,
+ * accepted by the coordinator; and raised `appsMinified` by 4,283, to 384,109, approved by the coordinator,
+ * 2026-11-03: the manifest's document rules in the one validator over untrusted input (4,072), the
+ * redaction of a call the kernel's own bound refused, by its mark, in `apps.redact` (153), and the port's
  * `documents` row (58), each measured as the closure with it less without it, with no slack. First paint
- * 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,886, `apps` 384,074.
+ * 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,665, `apps` 384,089.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -68,9 +69,9 @@ export const CEILINGS = Object.freeze({
 	cssMinified: 8_496,
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
-	lateDocumentsMinified: 13_266,
+	lateDocumentsMinified: 13_294,
 	urlMinified: 5_091,
-	appsMinified: 384_094,
+	appsMinified: 384_109,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

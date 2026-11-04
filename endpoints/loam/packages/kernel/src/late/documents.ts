@@ -78,6 +78,7 @@ export function createDocumentCommands(
 		sameScope,
 		table: DOCUMENT_TABLE,
 		maxBytes: DOCUMENT_INPUT_MAX_BYTES,
+		markOversized,
 	} = kit;
 	// Destructured, so the minifier names each once: a property access keeps its name.
 	const {
@@ -641,6 +642,8 @@ export function createDocumentCommands(
 				new TextEncoder().encode(JSON.stringify(input.envelope) ?? '').length >
 				DOCUMENT_INPUT_MAX_BYTES
 			) {
+				// The kernel's own bound, so its own marks (4.4): journaled without the envelope.
+				markOversized(scope, context);
 				return kernelFailure(
 					'DOCUMENT_CONTENT_TOO_LARGE',
 					'The envelope is over 256 KiB of JSON',

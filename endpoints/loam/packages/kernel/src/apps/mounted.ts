@@ -206,10 +206,11 @@ export const RECORDED_RESULT_MAX_BYTES = 256 * 1024;
 const RECORDED_TEXT_MAX = 2_000;
 
 /** A recorded entry over the bound keeps what a replay and a reader need of it, and no `data`. */
-export function boundRecorded(record: JournalRecord): JournalRecord {
-	// An input over 256 KiB, refused before any handler, is journaled with only its document's id, so a
-	// refused save does not itself store what it refused (documents specification, 4.4).
-	if (record.result.error?.code === 'DOCUMENT_CONTENT_TOO_LARGE') {
+export function boundRecorded(record: JournalRecord, oversized?: Set<string>): JournalRecord {
+	// A call the kernel's own 256 KiB bound refused, by the mark it set at that check, is journaled with
+	// only its document's id, so a refused save does not itself store what it refused (documents
+	// specification, 4.4). The result is never read for it: an app's own refusal keeps its input.
+	if (record.traceId !== undefined && oversized?.delete(record.traceId)) {
 		const { document } = (record.input ?? {}) as { document?: unknown };
 		return { ...record, input: typeof document === 'string' ? { document } : {} };
 	}
