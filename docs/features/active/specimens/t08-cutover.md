@@ -160,6 +160,19 @@ AFD's configuration turns it on, so `pnpm test:stories` and the `stories` job ru
 
 All 407 stories pass both checks. The third failure, Lushly's settings surface at 3.03:1, is in Lushly's repository, and the check finds it when Lushly turns the setting on ([lushly#2116](https://github.com/lushly-dev/lushly/issues/2116)).
 
+### The release route
+
+Specimen's release unit is fixed: the core and its four prebuilt hosts release together, at one version. Each host must be built on its own platform, and the publishing job runs on one Linux runner. So when an approved intent selects `specimen`, `release.yml` first builds the four hosts, each on the image `specimen.yml` checks it on, with no build cache and read-only permissions. The publishing job then stages each into its package through `stage.mjs`, after the quality gate and before the planner packs. The steps are in [platform release controls](../../../operations/platform-releases.md#npm-workflow), and `scripts/repository-contract.test.mjs` keeps the workflow building and staging every platform package.
+
+**A local rehearsal packed the unit and uploaded nothing.** In a scratch worktree, never pushed, the unit was admitted and an intent recorded for it. The four hosts CI built for #785 were staged the way the workflow stages them, and `pnpm release:plan` packed all five packages under `npm-main`:
+
+- each host package holds an executable `bin/specimen-host`, byte-identical to CI's build, with its `os`, `cpu` and, on Linux, `libc: glibc`;
+- the core's `optionalDependencies` name all four hosts at its version, 2.2.0;
+- with one host removed, packing fails at that package's `prepack`: `no host binary at …/host-darwin-x64/bin/specimen-host`;
+- staging a Linux build as `darwin-x64` is refused: `built for linux-x64, not darwin-x64`.
+
+The unit stays quarantined, and nothing here publishes. Two things remain before a prerelease: the owner's choice of its version and npm tag, which the workflow must then select through the planner's `npm-prerelease` route, and a named publisher.
+
 ### Qualifying pairs
 
 `experiments/run-afd-pairs.mjs` compares the two runners on AFD's exact stories and components. AFD has no Storybook, so that side is an overlay outside the repository: upstream's Storybook configuration and dependencies, with AFD's `src`, tokens, manifest and built packages over them, and Storybook's helpers restored in each story. Specimen's side is AFD's own configuration. So the two sides share no helper code.
