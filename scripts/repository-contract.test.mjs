@@ -87,6 +87,27 @@ test('publish workflows check the tag against the manifest before publishing', (
 	);
 	assert.ok(python.indexOf('uses: pypa/gh-action-pypi-publish@') > pythonCheck);
 
+	const botcore = read('.github/workflows/publish-botcore.yml');
+	const botcoreCheck = botcore.indexOf('- name: Validate admission and version matches tag');
+	assert.ok(botcoreCheck >= 0, 'publish-botcore.yml must validate source identity and tag');
+	const botcoreCheckStep = botcore.slice(botcoreCheck, botcore.indexOf('\n  test:', botcoreCheck));
+	assert.match(botcoreCheckStep, /release-native\.py/);
+	assert.match(botcoreCheckStep, /--unit botcore --route pypi-botcore --tag/);
+	assert.doesNotMatch(
+		botcoreCheckStep,
+		/^\s+if:/m,
+		'the Botcore version check must run for tag pushes and GitHub Releases alike'
+	);
+	assert.match(
+		botcore,
+		/if: github\.event_name == 'push' \|\| startsWith\(github\.event\.release\.tag_name, 'botcore-v'\)/,
+		'GitHub Releases for other tracks must not publish Botcore'
+	);
+	const botcoreCi = botcore.indexOf('uses: ./.github/workflows/botcore.yml');
+	assert.ok(botcoreCi > botcoreCheck, 'publish-botcore.yml must run botcore.yml first');
+	assert.ok(botcore.indexOf('uses: pypa/gh-action-pypi-publish@') > botcoreCi);
+	assert.match(read('.github/workflows/botcore.yml'), /^ {2}workflow_call:/m);
+
 	const rust = read('.github/workflows/publish-rust.yml');
 	const rustCheck = rust.indexOf('- name: Validate version matches tag');
 	const rustCi = rust.indexOf('uses: ./.github/workflows/rust.yml');

@@ -57,9 +57,9 @@ botcore = "botcore.cli:cli"
 # lushbot = "lushbot_plugin:LushbotPlugin"
 
 [project.urls]
-Homepage = "https://github.com/lushly-dev/botcore"
-Repository = "https://github.com/lushly-dev/botcore"
-Changelog = "https://github.com/lushly-dev/botcore/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/lushly-dev/afd/tree/main/endpoints/botcore"
+Repository = "https://github.com/lushly-dev/afd"
+Changelog = "https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

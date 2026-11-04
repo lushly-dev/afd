@@ -23,21 +23,60 @@ else:
             archive.addfile(member, io.BytesIO(data))
 `;
 
+/** Each guard track, with versions around its fixture candidate for the progression cases. */
+const tracks = {
+	python: {
+		unit: 'afd-python',
+		route: 'pypi-tag',
+		prefix: 'python-v',
+		format: 'python',
+		manifest: 'python/pyproject.toml',
+		name: 'afd',
+		version: '0.10.0',
+		previous: '0.9.9',
+		next: '0.10.1',
+	},
+	rust: {
+		unit: 'afd-rust',
+		route: 'crates-tag',
+		prefix: 'rust-v',
+		format: 'rust',
+		manifest: 'packages/rust/Cargo.toml',
+		name: 'afd',
+		version: '0.2.1',
+		previous: '0.2.0',
+		next: '0.2.2',
+	},
+	botcore: {
+		unit: 'botcore',
+		route: 'pypi-botcore',
+		prefix: 'botcore-v',
+		format: 'python',
+		manifest: 'endpoints/botcore/pyproject.toml',
+		name: 'lushly-botcore',
+		version: '0.6.0',
+		previous: '0.5.0',
+		next: '0.6.1',
+	},
+};
+
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, { encoding: 'utf8', ...options });
 	assert.ifError(result.error);
 	return result;
 }
 
-function fixture(t, format = 'python', change = () => {}, candidateVersion) {
+function fixture(t, track = 'python', change = () => {}, candidateVersion, manifestName) {
 	const root = mkdtempSync(join(tmpdir(), 'afd-native-boundary-'));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const unit = structuredClone(inventory.units.find((item) => item.id === `afd-${format}`));
+	const { unit: id, route, prefix, format, manifest, name } = tracks[track];
+	const unit = structuredClone(inventory.units.find((item) => item.id === id));
 	const selected = { units: [unit] };
 	change(unit, selected);
-	const manifest = format === 'python' ? 'python/pyproject.toml' : 'packages/rust/Cargo.toml';
-	const version = candidateVersion ?? (format === 'python' ? '0.10.0' : '0.2.1');
-	const manifestText = `# name = "decoy"\n[${format === 'python' ? 'project' : 'package'}]\nname = 'afd'\nversion = '${version}'\n`;
+	const version = candidateVersion ?? tracks[track].version;
+	// Wheel and sdist file names and the sdist root use the normalized stem, metadata the name.
+	const stem = `${name.replace(/[-_.]+/g, '_').toLowerCase()}-${version}`;
+	const manifestText = `# name = "decoy"\n[${format === 'python' ? 'project' : 'package'}]\nname = '${manifestName ?? name}'\nversion = '${version}'\n`;
 	function write(file, text) {
 		mkdirSync(dirname(join(root, file)), { recursive: true });
 		writeFileSync(join(root, file), text);
@@ -61,7 +100,7 @@ function fixture(t, format = 'python', change = () => {}, candidateVersion) {
 		'-qm',
 		'fixture'
 	);
-	const tag = `${format}-v${version}`;
+	const tag = `${prefix}${version}`;
 	git('tag', tag);
 	const source = git('rev-parse', 'HEAD');
 	const artifacts = join(root, 'artifacts');
@@ -73,9 +112,9 @@ function fixture(t, format = 'python', change = () => {}, candidateVersion) {
 			'--root',
 			root,
 			'--unit',
-			`afd-${format}`,
+			id,
 			'--route',
-			format === 'python' ? 'pypi-tag' : 'crates-tag',
+			route,
 			'--tag',
 			tag,
 			...extra,
@@ -88,26 +127,30 @@ function fixture(t, format = 'python', change = () => {}, candidateVersion) {
 		assert.equal(result.status, 0, result.stderr);
 	}
 	function pythonArtifacts({
-		wheelName = 'afd',
+		wheelName = name,
 		wheelVersion = version,
+		sdistName = name,
 		sdistVersion = version,
+		wheelFile = `${stem}-py3-none-any.whl`,
+		sdistFile = `${stem}.tar.gz`,
+		sdistRoot = stem,
 		wheelExtra = [],
 		sdistExtra = [],
 	} = {}) {
-		archive(`afd-${version}-py3-none-any.whl`, [
+		archive(wheelFile, [
 			{
-				name: `afd-${version}.dist-info/METADATA`,
+				name: `${stem}.dist-info/METADATA`,
 				text: `Metadata-Version: 2.1\nName: ${wheelName}\nVersion: ${wheelVersion}\n`,
 			},
 			{ name: 'afd/__init__.py', text: '# fixture\n' },
 			...wheelExtra,
 		]);
-		archive(`afd-${version}.tar.gz`, [
+		archive(sdistFile, [
 			{
-				name: `afd-${version}/PKG-INFO`,
-				text: `Metadata-Version: 2.1\nName: afd\nVersion: ${sdistVersion}\n`,
+				name: `${sdistRoot}/PKG-INFO`,
+				text: `Metadata-Version: 2.1\nName: ${sdistName}\nVersion: ${sdistVersion}\n`,
 			},
-			{ name: `afd-${version}/pyproject.toml`, text: manifestText },
+			{ name: `${sdistRoot}/pyproject.toml`, text: manifestText },
 			...sdistExtra,
 		]);
 	}
@@ -144,6 +187,7 @@ function fixture(t, format = 'python', change = () => {}, candidateVersion) {
 		tag,
 		version,
 		source,
+		stem,
 	};
 }
 
@@ -152,7 +196,8 @@ function rejected(result, pattern) {
 	assert.match(result.stderr, pattern);
 }
 
-for (const format of ['python', 'rust']) {
+for (const format of Object.keys(tracks)) {
+	const track = tracks[format];
 	test(`${format}: admitted route binds exact source TOML version and tag`, (t) => {
 		const candidate = fixture(t, format);
 		const result = candidate.check();
@@ -160,7 +205,9 @@ for (const format of ['python', 'rust']) {
 		const receipt = JSON.parse(result.stdout);
 		assert.equal(receipt.source, candidate.source);
 		assert.equal(receipt.version, candidate.version);
-		assert.equal(receipt.name, 'afd');
+		assert.equal(receipt.unit, track.unit);
+		assert.equal(receipt.route, track.route);
+		assert.equal(receipt.name, track.name);
 	});
 	for (const state of ['held', 'quarantined', 'unknown']) {
 		test(`${format}: ${state} units reject before authentication`, (t) => {
@@ -228,7 +275,7 @@ for (const format of ['python', 'rust']) {
 	}
 	test(`${format}: an admitted unit cannot publish its exact held candidate`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.heldVersions = [format === 'python' ? '0.10.0' : '0.2.1'];
+			unit.heldVersions = [track.version];
 		});
 		// Admission must fail even before inspecting this missing artifact directory.
 		rejected(
@@ -238,14 +285,14 @@ for (const format of ['python', 'rust']) {
 	});
 	test(`${format}: a hold on another exact version preserves release eligibility`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.heldVersions = [format === 'python' ? '0.9.0' : '0.2.0'];
+			unit.heldVersions = [track.previous];
 		});
 		const result = candidate.check();
 		assert.equal(result.status, 0, result.stderr);
 	});
 	test(`${format}: versions below initialVersion reject before artifact inspection`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.distributions[0].initialVersion = format === 'python' ? '0.10.1' : '0.2.2';
+			unit.distributions[0].initialVersion = track.next;
 		});
 		rejected(
 			candidate.check(['--artifacts', join(candidate.root, 'missing')]),
@@ -254,21 +301,21 @@ for (const format of ['python', 'rust']) {
 	});
 	test(`${format}: versions above initialVersion remain admitted`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.distributions[0].initialVersion = format === 'python' ? '0.9.9' : '0.2.0';
+			unit.distributions[0].initialVersion = track.previous;
 		});
 		const result = candidate.check();
 		assert.equal(result.status, 0, result.stderr);
 	});
 	test(`${format}: build metadata does not change baseline precedence`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.distributions[0].initialVersion = `${format === 'python' ? '0.10.0' : '0.2.1'}+trace.1`;
+			unit.distributions[0].initialVersion = `${track.version}+trace.1`;
 		});
 		const result = candidate.check();
 		assert.equal(result.status, 0, result.stderr);
 	});
 	test(`${format}: stable versions follow prerelease baselines`, (t) => {
 		const candidate = fixture(t, format, (unit) => {
-			unit.distributions[0].initialVersion = `${format === 'python' ? '0.10.0' : '0.2.1'}-rc.1`;
+			unit.distributions[0].initialVersion = `${track.version}-rc.1`;
 		});
 		const result = candidate.check();
 		assert.equal(result.status, 0, result.stderr);
@@ -334,8 +381,8 @@ for (const format of ['python', 'rust']) {
 	test(`${format}: manifest version really comes from TOML and must match tag`, (t) => {
 		const candidate = fixture(t, format);
 		candidate.git('tag', '-d', candidate.tag);
-		candidate.git('tag', `${format}-v9.9.9`);
-		rejected(candidate.check(['--tag', `${format}-v9.9.9`]), /version does not match tag/);
+		candidate.git('tag', `${track.prefix}9.9.9`);
+		rejected(candidate.check(['--tag', `${track.prefix}9.9.9`]), /version does not match tag/);
 	});
 }
 
@@ -364,72 +411,171 @@ for (const [version, baseline, admitted] of [
 	});
 }
 
-test('Python: exact wheel and sdist produce a hash receipt and unchanged readback', (t) => {
-	const candidate = fixture(t);
-	candidate.pythonArtifacts();
-	const result = candidate.check([
-		'--artifacts',
-		candidate.artifacts,
-		'--receipt',
-		candidate.receipt,
-	]);
-	assert.equal(result.status, 0, result.stderr);
-	const receipt = JSON.parse(result.stdout);
-	assert.equal(receipt.artifacts.length, 2);
-	assert.ok(receipt.artifacts.every((artifact) => /^[a-f0-9]{64}$/.test(artifact.sha256)));
-	assert.equal(
-		candidate.check(['--artifacts', candidate.artifacts, '--verify-receipt', candidate.receipt])
-			.status,
-		0
-	);
-	candidate.pythonArtifacts({
-		wheelExtra: [{ name: 'afd/changed.py', text: '# changed payload\n' }],
+for (const track of ['python', 'botcore']) {
+	const label = track === 'python' ? 'Python' : 'Botcore';
+	test(`${label}: exact wheel and sdist produce a hash receipt and unchanged readback`, (t) => {
+		const candidate = fixture(t, track);
+		candidate.pythonArtifacts();
+		const result = candidate.check([
+			'--artifacts',
+			candidate.artifacts,
+			'--receipt',
+			candidate.receipt,
+		]);
+		assert.equal(result.status, 0, result.stderr);
+		const receipt = JSON.parse(result.stdout);
+		assert.equal(receipt.name, tracks[track].name);
+		assert.deepEqual(
+			receipt.artifacts.map((artifact) => artifact.file),
+			[`${candidate.stem}-py3-none-any.whl`, `${candidate.stem}.tar.gz`]
+		);
+		assert.ok(receipt.artifacts.every((artifact) => /^[a-f0-9]{64}$/.test(artifact.sha256)));
+		assert.equal(
+			candidate.check(['--artifacts', candidate.artifacts, '--verify-receipt', candidate.receipt])
+				.status,
+			0
+		);
+		candidate.pythonArtifacts({
+			wheelExtra: [{ name: 'afd/changed.py', text: '# changed payload\n' }],
+		});
+		rejected(
+			candidate.check(['--artifacts', candidate.artifacts, '--verify-receipt', candidate.receipt]),
+			/receipt no longer matches/
+		);
 	});
-	rejected(
-		candidate.check(['--artifacts', candidate.artifacts, '--verify-receipt', candidate.receipt]),
-		/receipt no longer matches/
+
+	for (const [name, options, pattern] of [
+		['wrong wheel identity', () => ({ wheelName: 'foreign' }), /metadata name mismatch/],
+		['wrong wheel version', () => ({ wheelVersion: '9.9.9' }), /metadata version mismatch/],
+		['wrong sdist version', () => ({ sdistVersion: '9.9.9' }), /metadata version mismatch/],
+		[
+			'unsafe sdist member',
+			() => ({ sdistExtra: [{ name: '../outside', text: 'bad' }] }),
+			/Unsafe archive member/,
+		],
+		[
+			'duplicate wheel metadata',
+			(candidate) => ({
+				wheelExtra: [
+					{
+						name: `${candidate.stem}.dist-info/METADATA`,
+						text: `Name: ${tracks[track].name}\nVersion: ${candidate.version}\n`,
+					},
+				],
+			}),
+			/Duplicate archive member/,
+		],
+	]) {
+		test(`${label}: ${name} rejects the entire artifact set`, (t) => {
+			const candidate = fixture(t, track);
+			candidate.pythonArtifacts(options(candidate));
+			rejected(candidate.check(['--artifacts', candidate.artifacts]), pattern);
+		});
+	}
+
+	test(`${label}: unexpected files and missing sdists are never silently skipped`, (t) => {
+		const candidate = fixture(t, track);
+		candidate.pythonArtifacts();
+		writeFileSync(join(candidate.artifacts, 'foreign.whl'), 'foreign');
+		rejected(
+			candidate.check(['--artifacts', candidate.artifacts]),
+			/exactly one wheel and one sdist/
+		);
+		rmSync(join(candidate.artifacts, 'foreign.whl'));
+		rmSync(join(candidate.artifacts, `${candidate.stem}.tar.gz`));
+		rejected(
+			candidate.check(['--artifacts', candidate.artifacts]),
+			/exactly one wheel and one sdist/
+		);
+	});
+}
+
+test('Botcore: the inventory admits lushly-botcore alone, on the AFD publisher', () => {
+	const family = inventory.units.filter((unit) => unit.family === 'botcore');
+	const botcore = family.find((unit) => unit.id === 'botcore');
+	assert.equal(botcore.state, 'admitted');
+	assert.equal(botcore.authority, 'github: lushly-dev/afd');
+	assert.deepEqual(botcore.routes, ['pypi-botcore']);
+	assert.deepEqual(
+		botcore.distributions.map(({ name, registry, manifest, format }) => ({
+			name,
+			registry,
+			manifest,
+			format,
+		})),
+		[
+			{
+				name: tracks.botcore.name,
+				registry: 'pypi',
+				manifest: tracks.botcore.manifest,
+				format: 'python',
+			},
+		]
 	);
+	const others = family.filter((unit) => unit !== botcore);
+	assert.equal(others.length, 5);
+	for (const unit of others) {
+		assert.equal(unit.state, 'quarantined', unit.id);
+		assert.equal(unit.authority, 'github: lushly-dev/botcore', unit.id);
+	}
 });
 
-for (const [label, options, pattern] of [
-	['wrong wheel identity', { wheelName: 'foreign' }, /metadata name mismatch/],
-	['wrong wheel version', { wheelVersion: '9.9.9' }, /metadata version mismatch/],
-	['wrong sdist version', { sdistVersion: '9.9.9' }, /metadata version mismatch/],
+test('Botcore: the guard has no track for the quarantined distributions', (t) => {
+	const candidate = fixture(t, 'botcore');
+	for (const unit of inventory.units.filter(
+		(item) => item.family === 'botcore' && item.id !== 'botcore'
+	)) {
+		const result = run('python3', [
+			guard,
+			'--root',
+			candidate.root,
+			'--unit',
+			unit.id,
+			'--route',
+			unit.routes[0] ?? 'pypi-botcore',
+			'--tag',
+			candidate.tag,
+		]);
+		rejected(result, /Unknown native release unit/);
+	}
+});
+
+test('Botcore: restoring the old authority closes the AFD route', (t) => {
+	const candidate = fixture(t, 'botcore', (unit) => {
+		unit.state = 'quarantined';
+		unit.authority = 'github: lushly-dev/botcore';
+	});
+	rejected(candidate.check(), /not admitted/);
+});
+
+for (const [name, options, pattern] of [
 	[
-		'unsafe sdist member',
-		{ sdistExtra: [{ name: '../outside', text: 'bad' }] },
-		/Unsafe archive member/,
+		'an unnormalized sdist file name',
+		{ sdistFile: 'lushly-botcore-0.6.0.tar.gz' },
+		/Sdist filename identity/,
 	],
 	[
-		'duplicate wheel metadata',
-		{
-			wheelExtra: [{ name: 'afd-0.10.0.dist-info/METADATA', text: 'Name: afd\nVersion: 0.10.0\n' }],
-		},
-		/Duplicate archive member/,
+		'an unnormalized wheel file name',
+		{ wheelFile: 'lushly-botcore-0.6.0-py3-none-any.whl' },
+		/Wheel filename identity/,
 	],
+	['an unnormalized sdist root', { sdistRoot: 'lushly-botcore-0.6.0' }, /expected PKG-INFO/],
+	['normalized wheel metadata', { wheelName: 'lushly_botcore' }, /metadata name mismatch/],
+	['normalized sdist metadata', { sdistName: 'lushly_botcore' }, /metadata name mismatch/],
 ]) {
-	test(`Python: ${label} rejects the entire artifact set`, (t) => {
-		const candidate = fixture(t);
+	test(`Botcore: ${name} rejects the artifact set`, (t) => {
+		const candidate = fixture(t, 'botcore');
 		candidate.pythonArtifacts(options);
 		rejected(candidate.check(['--artifacts', candidate.artifacts]), pattern);
 	});
 }
 
-test('Python: unexpected files and missing sdists are never silently skipped', (t) => {
-	const candidate = fixture(t);
-	candidate.pythonArtifacts();
-	writeFileSync(join(candidate.artifacts, 'foreign.whl'), 'foreign');
-	rejected(
-		candidate.check(['--artifacts', candidate.artifacts]),
-		/exactly one wheel and one sdist/
-	);
-	rmSync(join(candidate.artifacts, 'foreign.whl'));
-	rmSync(join(candidate.artifacts, 'afd-0.10.0.tar.gz'));
-	rejected(
-		candidate.check(['--artifacts', candidate.artifacts]),
-		/exactly one wheel and one sdist/
-	);
-});
+for (const manifestName of ['botcore', 'lushly_botcore', 'afd']) {
+	test(`Botcore: source manifest name ${manifestName} is rejected`, (t) => {
+		const candidate = fixture(t, 'botcore', () => {}, undefined, manifestName);
+		rejected(candidate.check(), /Source manifest name mismatch/);
+	});
+}
 
 test('Rust: actual packaged manifest, source payload and candidate revision produce a receipt', (t) => {
 	const candidate = fixture(t, 'rust');
@@ -479,8 +625,9 @@ test('Rust: source edits after packaging invalidate the pre-upload check', (t) =
 
 test('Native publisher workflow contracts preserve events, pins, gates and guard ordering', () => {
 	const python = readFileSync('.github/workflows/publish-python.yml', 'utf8');
+	const botcore = readFileSync('.github/workflows/publish-botcore.yml', 'utf8');
 	const rust = readFileSync('.github/workflows/publish-rust.yml', 'utf8');
-	for (const workflow of [python, rust]) {
+	for (const workflow of [python, botcore, rust]) {
 		for (const line of workflow
 			.split('\n')
 			.filter((line) => line.includes('uses:') && !line.includes('uses: ./'))) {
@@ -505,6 +652,44 @@ test('Native publisher workflow contracts preserve events, pins, gates and guard
 			python.indexOf('uses: pypa/gh-action-pypi-publish')
 	);
 	assert.match(python, /skip-existing: true/);
+	// The Botcore publisher mirrors the Python one on its own tag, route, gate and environment.
+	assert.match(botcore, /release:\n\s+types: \[published\]/);
+	assert.match(botcore, /push:\n\s+tags:\n\s+- 'botcore-v\*'/);
+	assert.match(
+		botcore,
+		/if: github.event_name == 'push' \|\| startsWith\(github.event.release.tag_name, 'botcore-v'\)/
+	);
+	assert.match(botcore, /^permissions:\n {2}contents: read\n/m);
+	assert.equal(botcore.match(/id-token: write/g)?.length, 1);
+	assert.ok(botcore.indexOf('id-token: write') > botcore.indexOf('\n  publish:'));
+	assert.match(botcore, /needs: \[version, test\]/);
+	assert.match(botcore, /uses: \.\/\.github\/workflows\/botcore.yml/);
+	assert.match(readFileSync('.github/workflows/botcore.yml', 'utf8'), /^ {2}workflow_call:/m);
+	assert.match(
+		botcore,
+		/environment:\n\s+name: pypi-botcore\n\s+url: https:\/\/pypi.org\/project\/lushly-botcore\//
+	);
+	assert.ok(
+		botcore.indexOf('--receipt "$RUNNER_TEMP/native-botcore-receipt.json"') <
+			botcore.indexOf('--verify-receipt')
+	);
+	assert.match(
+		botcore,
+		/--verify-receipt "\$RUNNER_TEMP\/native-botcore-receipt\/native-botcore-receipt.json"/
+	);
+	assert.equal(
+		botcore.match(/--unit botcore --route pypi-botcore --tag "\$RELEASE_TAG"/g)?.length,
+		4
+	);
+	assert.doesNotMatch(botcore, /--unit afd-|--route pypi-tag|secrets\./);
+	assert.ok(
+		botcore.lastIndexOf('--unit botcore --route pypi-botcore') <
+			botcore.indexOf('uses: pypa/gh-action-pypi-publish')
+	);
+	assert.match(botcore, /skip-existing: true/);
+	// The same action pins as the Python publisher.
+	const pins = (workflow) => new Set(workflow.match(/uses: [\w./-]+@[a-f0-9]{40} # v[\d.]+/g));
+	assert.deepEqual(pins(botcore), pins(python));
 	assert.match(rust, /needs: \[version, check\]/);
 	assert.match(rust, /uses: \.\/\.github\/workflows\/rust.yml/);
 	assert.ok(

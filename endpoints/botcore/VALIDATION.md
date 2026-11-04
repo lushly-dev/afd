@@ -1,5 +1,8 @@
 # Phase 2 Botcore import validation
 
+> Historical record of the 2026-10 import. Publishing has since moved: AFD publishes
+> `lushly-botcore` (see `docs/features/active/platform-monorepo/botcore-handoff.md`).
+
 Imported 541 reviewed frozen **staged-input** files, verifying each staging hash
 before copying. That input includes staging additions and modified upstream files;
 it is not an immutable upstream source manifest. The exact original bytes are retained

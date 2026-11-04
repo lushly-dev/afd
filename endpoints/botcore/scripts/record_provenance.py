@@ -13,7 +13,13 @@ import os
 import subprocess
 from pathlib import Path
 
-from verify_provenance import REVISION, STAGED_MANIFEST_SHA256, classify
+from verify_provenance import (
+    PUBLICATION_STATE,
+    PUBLISHER_AUTHORITY,
+    REVISION,
+    STAGED_MANIFEST_SHA256,
+    classify,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -48,10 +54,6 @@ IMPORT_REASONS = {
     "CHANGELOG.md": (
         "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
     ),
-    "VALIDATION.md": ("Record actual import checks, scope and provenance corrections"),
-    "docs/host-composition.md": (
-        "Describe actual versioning, SDK compatibility and optional integration"
-    ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
     ),
@@ -61,17 +63,15 @@ IMPORT_REASONS = {
     "packages/botcore-agents/src/botcore_agents/state.py": (
         "Normalize imports under package Ruff rules"
     ),
-    "pyproject.toml": (
-        "Set root version 0.6.0, package provenance and local AFD bootstrap override"
-    ),
     "scripts/package_smoke.py": (
         "Build/audit all six artifacts and an isolated installed- wheel app"
     ),
     "scripts/record_provenance.py": (
-        "Derive immutable Git-object evidence and explicit adaptation chain"
+        "Derive immutable Git-object evidence and explicit adaptation chain; "
+        "record the lushly-botcore publisher handoff"
     ),
     "scripts/verify_provenance.py": (
-        "Pin immutable digests and verify classifications/current hashes"
+        "Pin immutable digests and verify classifications/current hashes and publication state"
     ),
     "src/botcore/__init__.py": ("Set additive host API version to 0.6.0"),
     "src/botcore/_mcp.py": ("Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"),
@@ -174,6 +174,13 @@ IMPORT_REASONS = {
     "tests/test_skill_lint.py": ("Cover the shared rules, strict mode and the listing budget"),
     "tests/test_skill_lint_sk008.py": ("Check references on skills without a references directory"),
     "tests/test_skill_list.py": ("Cover ownership read from metadata"),
+    "pyproject.toml": (
+        "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
+    ),
+    "docs/host-composition.md": (
+        "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
+    ),
+    "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),
@@ -311,8 +318,8 @@ def main() -> None:
         ),
         "license": "MIT",
         "source_authority": staged["source"],
-        "publisher_authority": "original Botcore repository; no handoff authorized",
-        "publication_state": "quarantined",
+        "publisher_authority": PUBLISHER_AUTHORITY,
+        "publication_state": PUBLICATION_STATE,
     }
     for directory in (ROOT / "provenance", ROOT / "src/botcore/provenance"):
         directory.mkdir(exist_ok=True)

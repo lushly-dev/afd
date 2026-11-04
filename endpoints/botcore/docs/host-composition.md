@@ -80,8 +80,8 @@ before mutation. This is safe denial, not an npm release-protocol adapter.
 Source relocation does not transfer publication authority. The root Botcore
 adaptation is versioned 0.6.0 for the additive host API; optional distributions
 retain upstream versions. Registry dependency floors and bundled skill assets
-remain preserved. All distributions remain quarantined until a separately
-approved release plan. The agents package declares its optional `connectors`
+remain preserved. `lushly-botcore` publishes from AFD (`publish-botcore.yml`); the
+other distributions remain quarantined until a separately approved release plan. The agents package declares its optional `connectors`
 extra for wildcard discovery; requesting that integration while unavailable
 returns actionable INTEGRATION_UNAVAILABLE before creating an LLM session.
 
