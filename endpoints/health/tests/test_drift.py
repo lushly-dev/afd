@@ -19,6 +19,7 @@ from lushly_health import (
     write_report,
 )
 from lushly_health.__main__ import main
+from lushly_health.drift import _pnpm_resolution
 
 # The privacy scan reads these sources, and a pinned package name looks like an email address.
 PNPM = """lockfileVersion: '9.0'
@@ -216,7 +217,8 @@ def test_a_long_list_is_sampled(tmp_path):
     write(
         tmp_path,
         "pnpm-lock.yaml",
-        f"importers:\n\n  a:\n    dependencies:\n{rows}\n  b:\n    dependencies:\n{other}",
+        f"lockfileVersion: '9.0'\n\nimporters:\n\n"
+        f"  a:\n    dependencies:\n{rows}\n  b:\n    dependencies:\n{other}",
     )
     outcome = drift(tmp_path)
     assert "and 2 more" in outcome["message"]
@@ -237,6 +239,82 @@ def test_an_escaping_lockfile_is_unavailable(tmp_path):
     (repo / "nested").mkdir(parents=True)
     (repo / "nested/uv.lock").symlink_to(outside)
     assert drift(repo)["status"] == "unavailable"
+
+
+def test_an_escaping_lockfile_in_a_tree_it_never_reads_is_ignored(tmp_path):
+    outside = tmp_path / "outside.lock"
+    outside.write_text(uv_lock("1.0.0"))
+    repo = tmp_path / "repo"
+    (repo / "node_modules/pkg").mkdir(parents=True)
+    (repo / "node_modules/pkg/uv.lock").symlink_to(outside)
+    write(repo, "uv.lock", uv_lock("1.0.0"))
+    assert drift(repo)["status"] == "passed"
+
+
+def test_a_marker_fork_is_one_requirement_not_drift(tmp_path):
+    lock = """version = 1
+
+[[package]]
+name = "unit"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "ws", version = "16.0", marker = "python_version < '3.12'" },
+    { name = "ws", version = "17.0", marker = "python_version >= '3.12'" },
+]
+
+[[package]]
+name = "ws"
+version = "16.0"
+source = { registry = "r" }
+
+[[package]]
+name = "ws"
+version = "17.0"
+source = { registry = "r" }
+"""
+    write(tmp_path, "uv.lock", lock)
+    outcome = drift(tmp_path)
+    assert outcome["status"] == "passed"
+    assert outcome["evidence"]["metric"] == "direct=0 all=1"
+
+
+def test_peer_metadata_is_not_a_package(tmp_path):
+    lock = PNPM.replace(
+        "  transitive{at}1.0.0:".replace("{at}", "@"),
+        "  transitive{at}1.0.0:\n    peerDependenciesMeta:\n      '@scope/x{at}1':\n"
+        "        optional: true".replace("{at}", "@"),
+    ).replace("{at}", "@")
+    write(tmp_path, "pnpm-lock.yaml", lock)
+    assert drift(tmp_path)["evidence"]["metric"] == "direct=1 all=2"
+
+
+@pytest.mark.parametrize(
+    ("version", "package", "resolved"),
+    [
+        ("link:../b", None, None),
+        ("file:vendor/x.tgz", None, None),
+        ("other{at}file:vendor/x.tgz", None, None),
+        ("1.2.3(peer{at}2.0.0)", "dep", "1.2.3"),
+        ("other{at}4.0.0", "other", "4.0.0"),
+        (
+            "git+ssh://git{at}host.invalid/o/r.git#abc",
+            "dep",
+            "git+ssh://git{at}host.invalid/o/r.git#abc",
+        ),
+    ],
+)
+def test_pnpm_importer_versions(version, package, resolved):
+    version = version.replace("{at}", "@")
+    expected = (package, resolved.replace("{at}", "@")) if package else None
+    assert _pnpm_resolution("dep", version) == expected
+
+
+def test_an_older_pnpm_lockfile_warns_instead_of_passing_empty(tmp_path):
+    write(tmp_path, "pnpm-lock.yaml", "lockfileVersion: '6.0'\n\npackages:\n\n  /foo/1.0.0:\n")
+    outcome = drift(tmp_path)
+    assert outcome["status"] == "warn"
+    assert "version 6" in outcome["message"]
 
 
 def test_drift_audit_reads_only(tmp_path):
@@ -273,6 +351,23 @@ def test_repository_checks_read_the_root_and_target_checks_read_the_unit(monorep
     assert "base" not in results["plain", "gitattributes_lf"]["evidence"]
     assert report["targets"][0]["repository_root"] == str(monorepo.resolve())
     assert "repository_root" not in report["targets"][1]
+
+
+def test_typescript_units_use_root_tooling_and_python_units_their_own(monorepo):
+    write(monorepo, "biome.json", '{"noUnusedImports": 1, "noExplicitAny": 1}')
+    write(monorepo, "package.json", '{"devDependencies": {"knip": "1"}}')
+    (monorepo / "ts").mkdir()
+    write(monorepo, "ts/package.json", "{}")
+    ts = Target("ts", monorepo / "ts", "typescript", monorepo)
+    py = Target("py", monorepo / "python", "python", monorepo)
+    report = audit((ts, py), Policy(("linter_strict", "dead_code_tool")))
+    results = {(o["target"], o["check_id"]): o for o in report["outcomes"]}
+    assert results["ts", "linter_strict"]["status"] == "passed"
+    assert results["ts", "dead_code_tool"]["status"] == "passed"
+    assert results["ts", "linter_strict"]["evidence"]["base"] == "repository_root"
+    assert results["py", "linter_strict"]["status"] == "passed"
+    assert "base" not in results["py", "linter_strict"]["evidence"]
+    assert results["py", "dead_code_tool"]["status"] == "failed"
 
 
 def test_a_target_must_lie_within_its_repository_root(tmp_path, monorepo):

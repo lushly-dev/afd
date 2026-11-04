@@ -97,7 +97,7 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 | `gitattributes_lf` | `eol=lf` in `.gitattributes` |
 | `changesets_configured` | `.changeset/` and its tooling |
 | `last_commit` | Latest commit timestamp; requires `git` |
-| `dependency_version_drift` | `pnpm-lock.yaml`, `uv.lock` and `Cargo.lock` files, compared within each ecosystem; advisory by default. `warn` when a direct dependency resolves to several versions; other splits are only counted (`evidence.metric`). Skips `node_modules`, `target`, `dist`, `build`, `venv` and hidden directories |
+| `dependency_version_drift` | `pnpm-lock.yaml`, `uv.lock` and `Cargo.lock` files, compared within each ecosystem; advisory by default. `warn` when a direct dependency resolves to several versions; other splits are only counted (`evidence.metric`). A lockfile format it can't read, such as pnpm's older versions, gives `warn`. Skips `node_modules`, `target`, `dist`, `build`, `venv` and hidden directories |
 
 ### Units inside a larger repository
 
@@ -105,9 +105,10 @@ A target can name the repository that contains it with `repository_root` (in a t
 file) or `--repository-root` (on the command line). Checks about the repository then read
 that root: `node_version_alignment`, `codex_skills_mirror`, `lefthook_configured`,
 `ci_present`, `dependabot_configured`, `commitlint_configured`, `gitattributes_lf`,
-`changesets_configured`, `last_commit` and `dependency_version_drift`. The rest
-(`linter_strict`, `coverage_thresholds`, `dead_code_tool`) keep reading the target. Such an
-outcome has `evidence.base = "repository_root"`, the report's target row records the root,
+`changesets_configured`, `last_commit` and `dependency_version_drift`. `linter_strict` and
+`dead_code_tool` read it for TypeScript, whose Biome and knip configuration sits at the
+root, and the target for Python, where each unit has its own `pyproject.toml`.
+`coverage_thresholds` always reads the target. Such an outcome has `evidence.base = "repository_root"`, the report's target row records the root,
 and the root also counts as audited, so reports can't be written inside it. A target
 without a root is treated as its own repository, as before.
 

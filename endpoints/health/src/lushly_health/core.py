@@ -110,8 +110,12 @@ class CheckSpec:
     languages: frozenset[str] | None = None
     tools: tuple[str, ...] = ()
     evidence_paths: tuple[str, ...] = ()
-    # "repository" checks read the target's repository_root when it declares one.
+    # "repository" checks read the target's repository_root when it declares one, and so
+    # do "target" checks for these languages, whose configuration lives at the root.
     scope: Literal["target", "repository"] = "target"
+    repository_languages: frozenset[str] = frozenset()
+    # Inputs found by the check itself; declared globs would visit trees it never reads.
+    find_inputs: Callable[[Path], list[Path]] | None = None
     default_severity: Severity = "required"
 
 
@@ -258,6 +262,7 @@ CHECKS: dict[str, CheckSpec] = {
         checks.check_linter_strict,
         frozenset({"typescript", "python"}),
         evidence_paths=("biome.json", "pyproject.toml"),
+        repository_languages=frozenset({"typescript"}),
     ),
     "ci_present": CheckSpec(_ci_present, evidence_paths=(".github/workflows",), scope="repository"),
     "dependabot_configured": CheckSpec(
@@ -280,6 +285,7 @@ CHECKS: dict[str, CheckSpec] = {
         checks.check_dead_code_tool,
         frozenset({"typescript", "python"}),
         evidence_paths=("package.json", "pyproject.toml"),
+        repository_languages=frozenset({"typescript"}),
     ),
     "gitattributes_lf": CheckSpec(
         checks.check_gitattributes_lf, evidence_paths=(".gitattributes",), scope="repository"
@@ -297,6 +303,7 @@ CHECKS: dict[str, CheckSpec] = {
         evidence_paths=drift.EVIDENCE_PATHS,
         scope="repository",
         default_severity="advisory",
+        find_inputs=drift.find_lockfiles,
     ),
 }
 
@@ -318,6 +325,7 @@ def capabilities() -> dict:
                 "effects": ["target_read", "subprocess"] if spec.tools else ["target_read"],
                 "network": False,
                 "scope": spec.scope,
+                "repository_languages": sorted(spec.repository_languages),
                 "default_severity": spec.default_severity,
             }
             for key, spec in CHECKS.items()
@@ -347,6 +355,10 @@ def _boundary_issue(root: Path, spec: CheckSpec) -> str | None:
     local virtual environment's interpreter) do not affect it. Git metadata is
     read by git itself and only its top-level entry is inspected.
     """
+    if spec.find_inputs is not None:
+        if any(_escapes(root, found) for found in spec.find_inputs(root)):
+            return "A declared input resolves outside the selected target"
+        return None
     for declared in spec.evidence_paths:
         candidates = list(root.glob(declared)) if "*" in declared else [root / declared]
         for candidate in candidates:
@@ -370,7 +382,8 @@ def _evaluate(target: Target, check_id: str, spec: CheckSpec, policy: Policy, is
     }
     remediation = None
     base = target.path
-    if spec.scope == "repository" and target.repository_root is not None:
+    reads_root = spec.scope == "repository" or target.language in spec.repository_languages
+    if reads_root and target.repository_root is not None:
         base = target.repository_root
         evidence["base"] = "repository_root"
     if check_id in policy.disabled:

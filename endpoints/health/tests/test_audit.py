@@ -174,6 +174,50 @@ class HealthFixture(unittest.TestCase):
         )
         self.assertEqual(self.run_check("ci_present")["message"], "CI workflow found: main.yml")
 
+    def test_ci_quoted_references_and_values_that_are_not_versions(self):
+        self.write(".nvmrc", "24\n")
+        for reference in ('"${{ matrix.node }}"', "'${{ matrix.node }}'"):
+            self.write(
+                ".github/workflows/ci.yml",
+                f"matrix:\n  node: [24.x]\nnode-version: {reference}\n",
+            )
+            self.assertEqual(self.run_check("node_version_alignment")["status"], "passed")
+        for expression in (
+            'fromJSON(\'["24","lts/*"]\')',
+            "fromJSON(inputs.versions || '[\"24\"]')",
+        ):
+            self.write(".github/workflows/ci.yml", f"node-version: ${{{{ {expression} }}}}\n")
+            self.assertEqual(self.run_check("node_version_alignment")["status"], "warn")
+
+    def test_ci_list_items_and_inputs_named_node_version(self):
+        self.write(".nvmrc", "24\n")
+        self.write(
+            ".github/workflows/ci.yml",
+            "on:\n  workflow_dispatch:\n    inputs:\n      node-version:\n"
+            "        description: Which Node\n"
+            "matrix:\n  include:\n    - node-version: 24.x\n    - os: linux\n"
+            "steps:\n  - with:\n      node-version:\n  - run: test\n",
+        )
+        result = self.run_check("node_version_alignment")
+        self.assertEqual(result["status"], "passed")
+        self.assertIn("CI=[24]", result["message"])
+
+    def test_ci_present_trigger_forms(self):
+        job = "jobs: {test: 1, build: 1}\n"
+        cases = {
+            "on:\n- push\n- pull_request\n": "passed",
+            "on:\n# comment\n  pull_request:\n": "passed",
+            "on: workflow_call\n": "passed",
+            "on: {push: {tags: [v1]}}\n": "failed",
+            "on:\n  pull_request_review:\n": "failed",
+            "on:\n  workflow_dispatch:\n    inputs:\n      x:\n"
+            "        description: push image\n": "failed",
+            "on:\n  push:\n    tags-ignore: [v1]\n": "passed",
+        }
+        for triggers, expected in cases.items():
+            self.write(".github/workflows/ci.yml", triggers + job)
+            self.assertEqual(self.run_check("ci_present")["status"], expected, triggers)
+
     def test_ci_matrix_and_env(self):
         self.write(".nvmrc", "24\n")
         self.write(

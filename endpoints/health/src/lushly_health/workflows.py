@@ -11,7 +11,9 @@ from pathlib import Path
 _BLOCK_SCALARS = {">", ">-", ">+", "|", "|-", "|+"}
 _VERSION = re.compile(r"v?(\d+)(?:\.(?:\d+|x)){0,2}")
 _REFERENCE = re.compile(r"\${{\s*(?:matrix|env)\.([A-Za-z_][A-Za-z0-9_-]*)\s*}}")
-_TRIGGERS = re.compile(r"^(?:on|\"on\"|'on'|true)\s*:(.*(?:\n(?:[ \t].*)?)*)", re.MULTILINE)
+_CALLER_VALUE = re.compile(r"\b(?:inputs|vars|needs|steps|env|matrix)\.")
+_TRIGGER_KEY = re.compile(r"""^(?:on|"on"|'on'|true)\s*:\s*(.*)$""")
+_CHANGE_EVENTS = {"pull_request", "pull_request_target", "merge_group"}
 
 
 def _strip_comment(value: str) -> str:
@@ -19,30 +21,37 @@ def _strip_comment(value: str) -> str:
 
 
 def _declared_values(content: str, key: str) -> list[str]:
-    """Each value a workflow gives ``key``, joining block scalars and dash lists."""
+    """Each value a workflow gives ``key``, joining block scalars and dash lists.
+
+    A key with only a nested mapping, such as a ``workflow_dispatch`` input of the same
+    name, declares no value.
+    """
     lines = content.splitlines()
     values = []
-    pattern = re.compile(rf"^(\s*)(?:-\s+)?{re.escape(key)}:\s*(.*)$")
+    pattern = re.compile(rf"^(\s*(?:-\s+)?){re.escape(key)}:\s*(.*)$")
     for index, line in enumerate(lines):
         match = pattern.match(line)
         if not match:
             continue
-        indent = len(match.group(1))
+        column = len(match.group(1))
         value = _strip_comment(match.group(2))
         if value and value not in _BLOCK_SCALARS:
             values.append(value)
             continue
         nested = []
         for following in lines[index + 1 :]:
-            outdented = following.strip() and len(following) - len(following.lstrip()) <= indent
-            # A dash list may sit at its key's own indent.
-            if outdented and (value or not following.lstrip().startswith("- ")):
+            if not following.strip():
+                continue
+            indent = len(following) - len(following.lstrip())
+            # A dash list may sit at its key's own column.
+            is_item = following.lstrip().startswith("- ")
+            if indent < column or (indent == column and (value or not is_item)):
                 break
             nested.append(_strip_comment(following))
         if value:
             values.append(" ".join(item for item in nested if item))
         else:
-            values.extend(item.removeprefix("- ").strip() for item in nested if item)
+            values.extend(item[2:].strip() for item in nested if item.startswith("- "))
     return values
 
 
@@ -62,7 +71,7 @@ def _value_majors(content: str, value: str, seen: frozenset[str] = frozenset()) 
     """Majors one ``node-version`` value can take; None when it cannot be read."""
     if "${{" not in value:
         return _literal_majors(value)
-    reference = _REFERENCE.fullmatch(value.strip())
+    reference = _REFERENCE.fullmatch(value.strip().strip("\"'"))
     if reference:
         name = reference.group(1)
         if name in seen:
@@ -74,13 +83,12 @@ def _value_majors(content: str, value: str, seen: frozenset[str] = frozenset()) 
                 return None
             majors |= found
         return majors or None
-    # fromJSON over a literal list: every version it can select is written out.
-    if "fromjson" in value.lower():
-        return {
-            int(match.group(1))
-            for quoted in re.findall(r"\"([^\"]*)\"", value)
-            if (match := _VERSION.fullmatch(quoted))
-        } or None
+    # fromJSON over literal lists: every version it can select is written out, so any
+    # caller-supplied value or item that isn't a version leaves it unread.
+    if "fromjson" in value.lower() and not _CALLER_VALUE.search(value):
+        matches = [_VERSION.fullmatch(item) for item in re.findall(r"\"([^\"]*)\"", value)]
+        if matches and all(matches):
+            return {int(match.group(1)) for match in matches}
     return None
 
 
@@ -99,23 +107,56 @@ def ci_node_majors(workflows: Path) -> tuple[set[int], str | None]:
     return majors, None
 
 
+def _trigger_events(content: str) -> dict[str, str] | None:
+    """Events in a workflow's ``on`` key with their settings; None when it has none."""
+    lines = content.splitlines()
+    start = next((i for i, line in enumerate(lines) if _TRIGGER_KEY.match(line)), None)
+    if start is None:
+        return None
+    inline = _strip_comment(_TRIGGER_KEY.match(lines[start]).group(1))
+    if inline:
+        return dict.fromkeys(re.findall(r"[a-z_]+", inline), inline)
+    block = []
+    for line in lines[start + 1 :]:
+        text = _strip_comment(line)
+        if not text:
+            continue
+        # Only an indented line or a dash list at the first column stays in the block.
+        if not line[0].isspace() and not text.startswith("- "):
+            break
+        block.append(line)
+    if not block:
+        return {}
+    column = min(len(line) - len(line.lstrip()) for line in block)
+    events: dict[str, str] = {}
+    current = None
+    for line in block:
+        if len(line) - len(line.lstrip()) == column:
+            current = re.match(r"(?:-\s+)?([\w-]+)", line.strip()).group(1)
+            events[current] = ""
+        else:
+            events[current] += f"{_strip_comment(line)}\n"
+    return events
+
+
 def _rank(content: str) -> int | None:
     """Order a workflow as CI evidence; None when its triggers rule it out.
 
-    Pull request runs are the strongest evidence and branch pushes the next. A workflow
+    Pull request runs are the strongest evidence and branch pushes the next. A reusable
+    workflow is called by another one, so it runs on whatever that one runs on. A workflow
     only run by tags, releases, schedules or by hand publishes or maintains; it does not
-    check changes. Triggers that cannot be read keep the source's mention heuristic.
+    check changes. A file with no readable triggers keeps the source's mention heuristic.
     """
-    match = _TRIGGERS.search(content)
-    if not match:
+    events = _trigger_events(content)
+    if events is None or "workflow_call" in events:
         return 2
-    triggers = "\n".join(_strip_comment(line) for line in match.group(1).splitlines())
-    if "pull_request" in triggers or "merge_group" in triggers:
+    if _CHANGE_EVENTS & set(events):
         return 0
-    if re.search(r"\bpush\b", triggers) and (
-        re.search(r"\bbranches\b", triggers) or not re.search(r"\btags\b", triggers)
-    ):
-        return 1
+    if "push" in events:
+        settings = events["push"]
+        branches = re.search(r"\bbranches(?:-ignore)?\s*:", settings)
+        if branches or not re.search(r"\btags\s*:", settings):
+            return 1
     return None
 
 
