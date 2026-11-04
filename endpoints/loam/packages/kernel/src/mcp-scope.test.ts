@@ -193,6 +193,35 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect((await workspace.journal.read()).at(-1)?.result.error?.code).toBe('SCOPE_MISMATCH');
 	});
 
+	it("P2-D6: decides the call's own scope for document-list, -create and -import, writing nothing", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { scopes, store } = workspace;
+		const client = await connect(await serve(workspace), mode);
+		const before = (await store.list('document')).data.length;
+		for (const [name, input] of [
+			['document-list', {}],
+			['document-create', { type: 'probe' }],
+			[
+				'document-import',
+				{
+					type: 'probe',
+					envelope: { loam_document: 1, type: 'probe', content_version: 1, content: { text: 'x' } },
+				},
+			],
+		] as const) {
+			const restricted = await client.call(name, input, { 'dev.loam/scope': scopes.citadel });
+			const missing = await client.call(name, input, {
+				'dev.loam/scope': { workspace: 'personal', project: 'prj_nowhere' },
+			});
+			expect(restricted.error?.code, name).toBe('PROJECT_NOT_FOUND');
+			expect(JSON.stringify(restricted.error), name).toBe(JSON.stringify(missing.error));
+		}
+		expect((await store.list('document')).data.length).toBe(before);
+	});
+
 	it('runs the middleware: a project restricted to a named member is refused, as a missing one', async () => {
 		const workspace = await createScopedWorkspace();
 		const client = await connect(await serve(workspace), mode);

@@ -147,8 +147,12 @@ export interface DocumentCheck {
 		input: unknown,
 		call: CommandContext
 	): Promise<CommandResult<never> | undefined>;
-	/** After an instance command that is a mutation succeeded: the record's `updatedAt`, and the event's `document`. */
-	after(name: string, input: unknown, call: CommandContext): Promise<void>;
+	/**
+	 * After an instance command: when it is a mutation and succeeded, the record the check found gets its
+	 * `updatedAt`, and the event its `document`. The record is the one checked, held by the call, never read
+	 * again from an input the handler could have changed.
+	 */
+	after(name: string, call: CommandContext, succeeded: boolean): Promise<void>;
 	/** A record written with its workspace, actor and time, or refused (architecture section 7). */
 	put(record: DocumentRecordV1): Promise<void>;
 }
@@ -176,6 +180,8 @@ export const callNow = (context: CommandContext): number => context.clock?.now()
 
 export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	const { scope, store } = deps;
+	/** The record each instance command's call was checked against, by the call itself (4.2). */
+	const checked = new WeakMap<CommandContext, string>();
 
 	function types(): DocumentTypesV1 {
 		const apps = deps.apps();
@@ -293,13 +299,15 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 				call,
 				owned.type
 			);
-			return 'success' in found ? found : undefined;
+			if ('success' in found) return found;
+			checked.set(call, found.id);
+			return undefined;
 		},
-		async after(name, input, call) {
-			if (!deps.isMutation(name) || !typeOfCommand(name)) return;
-			const id = (input as { document?: unknown } | null)?.document;
-			const record =
-				typeof id === 'string' ? await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id) : undefined;
+		async after(name, call, succeeded) {
+			const id = checked.get(call);
+			checked.delete(call);
+			if (id === undefined || !succeeded || !deps.isMutation(name)) return;
+			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
 			if (!record) return;
 			// So `document-list`'s recents are right however the content changes (3).
 			await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });

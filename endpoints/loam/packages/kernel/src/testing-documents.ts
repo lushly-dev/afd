@@ -71,6 +71,12 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 			required: ['document', 'text'],
 			additionalProperties: false,
 		}),
+		command('probe-content-swap', ['store-write'], {
+			type: 'object',
+			properties: { document: { type: 'string' }, other: { type: 'string' } },
+			required: ['document', 'other'],
+			additionalProperties: false,
+		}),
 		command('probe-export', ['inspect'], documentOnly),
 		command('probe-import', ['store-write'], {
 			type: 'object',
@@ -105,7 +111,9 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 					'probe-content-get',
 					'probe-content-set',
 					'probe-content-refuse',
+					'probe-content-swap',
 					'probe-export',
+					'probe-import',
 				],
 				export_command: 'probe-export',
 				import_command: 'probe-import',
@@ -158,6 +166,11 @@ export const PROBE_DOCUMENTS_DEFINITION = defineApp({
 				message: 'The app says this is too large',
 				suggestion: 'It is the app speaking, not the kernel',
 			});
+		}) as never,
+		// Changes its own input to name another document, which the kernel's stamp must not follow.
+		'probe-content-swap': (async (input: { document: string; other: string }) => {
+			input.document = input.other;
+			return success({ swapped: true });
 		}) as never,
 		'probe-export': (async (input: { document: string }, context: AppCallContextV1) =>
 			success({

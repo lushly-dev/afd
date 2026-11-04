@@ -1696,7 +1696,7 @@
 								"content": {}
 							}
 						],
-						"instance_commands": ["hello-read"],
+						"instance_commands": ["hello-read", "hello-load"],
 						"export_command": "hello-read",
 						"import_command": "hello-load",
 						"autosave_ms": 2000,
@@ -2610,7 +2610,7 @@
 								"content": {}
 							}
 						],
-						"instance_commands": ["hello-read"],
+						"instance_commands": ["hello-read", "hello-load"],
 						"export_command": "hello-load"
 					}
 				]
@@ -2764,6 +2764,170 @@
 			"code": "DOCUMENT_COMMAND_INVALID",
 			"key": "ui.documents[0].import_command",
 			"suggestion": "`content`"
+		},
+		{
+			"id": "documents-export-not-instance",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-load"],
+						"export_command": "hello-read",
+						"import_command": "hello-load",
+						"autosave_ms": 2000,
+						"scope_levels": ["project"],
+						"embed": {
+							"element": "hello-embed"
+						},
+						"inspector": {
+							"element": "hello-inspector"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].export_command",
+			"suggestion": "`instance_commands`"
+		},
+		{
+			"id": "documents-import-not-instance",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object"
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {}
+							}
+						],
+						"instance_commands": ["hello-read"],
+						"export_command": "hello-read",
+						"import_command": "hello-load",
+						"autosave_ms": 2000,
+						"scope_levels": ["project"],
+						"embed": {
+							"element": "hello-embed"
+						},
+						"inspector": {
+							"element": "hello-inspector"
+						}
+					}
+				]
+			},
+			"accepted": false,
+			"code": "DOCUMENT_COMMAND_INVALID",
+			"key": "ui.documents[0].import_command",
+			"suggestion": "`instance_commands`"
 		},
 		{
 			"id": "documents-scope-invalid",

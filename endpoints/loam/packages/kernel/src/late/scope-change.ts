@@ -10,6 +10,7 @@ import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppStoreRecord } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
+import { BOOT_ONLY } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { SHELL_OWNER } from '../overlay-owner.js';
@@ -50,6 +51,13 @@ export interface LateScopeDeps {
 		replaying?: boolean;
 	};
 }
+
+/**
+ * The shell commands that read or write at the call's scope, naming no project (3.4): the documents
+ * specification's commands, which check a record on top, and the `app-*` commands that keep a value per
+ * project, the status values, the selection. `layout-*` is first paint's own. Boot's own work is not one.
+ */
+const AT_CALL_SCOPE = /^(document-|editor-|new-list$|app-get$|app-selection-|status-item-set$)/;
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
 	a.workspace === b.workspace && a.project === b.project;
@@ -251,6 +259,16 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;
+			// A shell command that acts at the call's scope: the access decision on that scope first, so a
+			// project an actor may not enter answers as a missing one, on every path, MCP's `_meta` too (3.4).
+			if (
+				owner === undefined &&
+				AT_CALL_SCOPE.test(name) &&
+				!BOOT_ONLY.includes(name) &&
+				!scope.allows(actorKey(call), requested)
+			) {
+				return projectNotFound();
+			}
 			if (owner !== undefined) {
 				// A gate, not an omission, so it takes effect at once and replays the same (4.1).
 				const off = disabledRefusal(scope, owner);
@@ -280,7 +298,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					return archivedRefusal(project);
 			}
 			const result = await next();
-			if (owner !== undefined && result.success) await deps.documents?.after(name, input, call);
+			if (owner !== undefined) await deps.documents?.after(name, call, result.success);
 			if (
 				result.success &&
 				name.startsWith('auth-') &&

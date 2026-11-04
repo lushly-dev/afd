@@ -140,7 +140,9 @@ describe('P2-D3: types and the registry', () => {
 				'probe-content-get',
 				'probe-content-set',
 				'probe-content-refuse',
+				'probe-content-swap',
 				'probe-export',
+				'probe-import',
 			],
 			editorKind: 'native',
 		});
@@ -591,7 +593,10 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 			['document-restore', { document: record.id }],
 			[
 				'document-import',
-				{ type: 'probe', envelope: { loam_document: 1, content_version: 1, content: {} } },
+				{
+					type: 'probe',
+					envelope: { loam_document: 1, type: 'probe', content_version: 1, content: {} },
+				},
 			],
 		] as const) {
 			expect((await kernel.call(name, input, at)).success, name).toBe(true);
@@ -829,6 +834,48 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 		expect(report.recorded).not.toContain(entry?.seq);
 	});
 
+	it('journals a refused call whose `document` is no id with no input at all', async () => {
+		const workspace = await documents();
+		const refused = await workspace.kernel.call('probe-content-get', {
+			document: 'x'.repeat(DOCUMENT_INPUT_MAX_BYTES),
+		});
+		expect(refused.error?.code).toBe('DOCUMENT_CONTENT_TOO_LARGE');
+		const entry = (await workspace.journal.read()).at(-1);
+		expect(entry?.input).toEqual({});
+		expect(JSON.stringify(entry)).not.toContain('xxxxxxxx');
+	});
+
+	it('stamps the document it checked, whatever the handler does to its input', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
+		const other = await created(workspace, { type: 'probe', title: 'Other' });
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		expect(
+			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))
+				.success
+		).toBe(true);
+		expect(events.filter((event) => event.document).map((event) => event.document)).toEqual([
+			checkedOne.id,
+		]);
+		const read = async (id: string) =>
+			(await kernel.call<DocumentRecordV1>('document-get', { document: id })).data?.updatedAt;
+		expect(await read(other.id)).toBe(other.updatedAt);
+		expect(await read(checkedOne.id)).toBeGreaterThan(checkedOne.updatedAt);
+	});
+
+	it('refuses an envelope that names no type, or another', async () => {
+		const workspace = await documents();
+		for (const type of [undefined, 'probe-memo']) {
+			const refused = await workspace.kernel.call('document-import', {
+				type: 'probe',
+				envelope: { loam_document: 1, ...(type ? { type } : {}), content_version: 1, content: {} },
+			});
+			expect(refused.error?.code, String(type)).toBe('DOCUMENT_TYPE_MISMATCH');
+		}
+	});
+
 	it('refuses a mutation of a document in an archived project, and reads it', async () => {
 		const workspace = await documents();
 		const { kernel, scopes } = workspace;
@@ -842,6 +889,106 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 		expect(
 			(await kernel.call('probe-content-set', { document: record.id, text: 'X' }, at)).error?.code
 		).toBe('PROJECT_ARCHIVED');
+	});
+});
+
+describe("P2-D6: the call's own scope is decided too", () => {
+	const NOWHERE = { workspace: 'personal', project: 'prj_nowhere' };
+	const ENVELOPE = { loam_document: 1, type: 'probe', content_version: 1, content: { text: 'x' } };
+	const CALLS: Array<[string, object]> = [
+		['document-list', {}],
+		['document-create', { type: 'probe' }],
+		['document-import', { type: 'probe', envelope: ENVELOPE }],
+	];
+	const count = async (store: ScopedWorkspace['store']) =>
+		(await store.list('document')).data.length;
+
+	it('answers a restricted project and a missing one in the same bytes, writing nothing, for a person and an agent', async () => {
+		const workspace = await documents();
+		const { kernel, scopes, store } = workspace;
+		await citadelDocument(workspace);
+		const before = await count(store);
+		for (const [path, call] of [
+			['person', kernel.call],
+			['agent', kernel.agent.call],
+		] as const) {
+			for (const [name, input] of CALLS) {
+				const restricted = await call(name, input, { scope: scopes.citadel });
+				const missing = await call(name, input, { scope: NOWHERE });
+				expect(restricted.error?.code, `${path} ${name}`).toBe('PROJECT_NOT_FOUND');
+				expect(errorOf(restricted), `${path} ${name}`).toBe(errorOf(missing));
+				expect(JSON.stringify(restricted), `${path} ${name}`).not.toContain('Vault');
+			}
+		}
+		expect(await count(store)).toBe(before);
+	});
+
+	it('answers them the same through a surface port, writing nothing', async () => {
+		const workspace = await documents();
+		const { kernel, scopes, store } = workspace;
+		await citadelDocument(workspace);
+		const before = await count(store);
+		const port = kernel.appPort('probe');
+		for (const [name, input] of CALLS) {
+			const restricted = await port.surface({ scope: scopes.citadel }).call(name, input);
+			const missing = await port.surface({ scope: NOWHERE }).call(name, input);
+			expect(errorOf(restricted), name).toBe(errorOf(missing));
+			// An app may list; it may never create or import, whatever the scope.
+			expect(restricted.error?.code, name).toBe(
+				name === 'document-list' ? 'PROJECT_NOT_FOUND' : 'CALL_NOT_GRANTED'
+			);
+		}
+		expect(await count(store)).toBe(before);
+	});
+
+	it('lets a member act in the restricted project', async () => {
+		const workspace = await documents();
+		const { kernel, scopes } = workspace;
+		const vault = await citadelDocument(workspace);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'someone@example.com',
+			password: 'x',
+		});
+		const listed = await kernel.call<{ documents: DocumentRecordV1[] }>(
+			'document-list',
+			{},
+			{ scope: scopes.citadel }
+		);
+		expect(listed.data?.documents.map((record) => record.id)).toEqual([vault.id]);
+	});
+
+	it("decides the app commands that keep a value per project the same way (3.4's audit)", async () => {
+		const workspace = await documents();
+		const { kernel, scopes } = workspace;
+		for (const [name, input] of [
+			['app-get', { instance: 'dual' }],
+			['app-selection-get', { instance: 'dual' }],
+			['app-selection-set', { instance: 'dual', id: 'k' }],
+		] as const) {
+			const restricted = await kernel.call(name, input, { scope: scopes.citadel });
+			const missing = await kernel.call(name, input, { scope: NOWHERE });
+			expect(restricted.error?.code, name).toBe('PROJECT_NOT_FOUND');
+			expect(errorOf(restricted), name).toBe(errorOf(missing));
+			expect((await kernel.call(name, input, { scope: scopes.atlas })).success, name).toBe(true);
+		}
+		// `status-item-set` is an app's own: through its surface, in a restricted project and a missing one.
+		const dual = kernel.appPort('dual');
+		const restricted = await dual
+			.surface({ scope: scopes.citadel })
+			.call('status-item-set', { id: 'count', value: '1' });
+		const missing = await dual
+			.surface({ scope: NOWHERE })
+			.call('status-item-set', { id: 'count', value: '1' });
+		expect(restricted.error?.code).toBe('PROJECT_NOT_FOUND');
+		expect(errorOf(restricted)).toBe(errorOf(missing));
+		expect(
+			(
+				await dual
+					.surface({ scope: scopes.atlas })
+					.call('status-item-set', { id: 'count', value: '1' })
+			).success
+		).toBe(true);
 	});
 });
 
@@ -900,6 +1047,12 @@ describe('P2-D6: through a port, nothing widens', () => {
 			// Its own project, named, is its own level.
 			expect((await call('document-list', { project: 'atlas' })).success, path).toBe(true);
 		}
+		// At workspace level too, `all` is refused: it is never the call's own level.
+		const wide = workspace.kernel.appPort('probe').surface({ scope: WORKSPACE });
+		expect((await wide.call('document-list', { project: 'all' })).error?.code).toBe(
+			'SCOPE_NOT_GRANTED'
+		);
+		expect((await wide.call('document-list', { project: null })).success).toBe(true);
 	});
 
 	it('lets no app create, rename, move or trash a record, and one without the grant read none', async () => {

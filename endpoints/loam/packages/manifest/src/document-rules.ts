@@ -98,18 +98,21 @@ export function documentRules(
 				instance
 			);
 		});
+		// Each is one of the type's instance commands, so its content passes 4.2's check and 4.4's bound.
+		const listed = (name: string | undefined) => type.instance_commands.includes(name as string);
 		const exported = commands.get(type.export_command as string);
 		command(
 			type.export_command,
 			`${at}/export_command`,
-			takes(exported, ['document']) && exported?.effects.join() === 'inspect',
-			`${instance}, with \`effects = ["inspect"]\``
+			listed(type.export_command) && exported?.effects.join() === 'inspect',
+			`is one of \`instance_commands\`, with \`effects = ["inspect"]\``
 		);
 		command(
 			type.import_command,
 			`${at}/import_command`,
-			takes(commands.get(type.import_command as string), ['document', 'content']),
-			'takes `document` and `content`'
+			listed(type.import_command) &&
+				takes(commands.get(type.import_command as string), ['document', 'content']),
+			'is one of `instance_commands`, and takes `document` and `content`'
 		);
 		if (type.scope_levels?.some((level) => !levels.includes(level))) {
 			refuse(

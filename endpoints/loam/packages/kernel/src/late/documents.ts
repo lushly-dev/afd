@@ -186,7 +186,9 @@ export function createDocumentCommands(
 		context: CommandContext
 	): ScopeV1 | CommandResult<never> {
 		const here = callOf(context).scope as ScopeV1;
-		if (named === undefined) return here;
+		// The call's own scope, which the middleware already decided; decided here too, as a named one is.
+		if (named === undefined)
+			return scope.allows(actorKey(context), here) ? here : projectNotFound();
 		if (named === null) return { workspace };
 		const found = scope.project(named);
 		const at = { workspace, project: found?.id as string };
@@ -401,10 +403,11 @@ export function createDocumentCommands(
 			if (
 				call.caller !== undefined &&
 				named !== undefined &&
-				(named === null
-					? here.project !== undefined
-					: named !== here.project &&
-						(here.project === undefined || named !== scope.projects.get(here.project)?.slug))
+				(named === 'all' ||
+					(named === null
+						? here.project !== undefined
+						: named !== here.project &&
+							(here.project === undefined || named !== scope.projects.get(here.project)?.slug)))
 			) {
 				return kernelFailure(
 					'SCOPE_NOT_GRANTED',
@@ -667,7 +670,8 @@ export function createDocumentCommands(
 			if (isRefusal(at)) return at;
 			const type = typeOf(input.type);
 			if (isRefusal(type)) return type;
-			if (envelope.type !== undefined && envelope.type !== type.id) {
+			// The envelope names its type, and it is this one (4.1).
+			if (envelope.type !== type.id) {
 				return kernelFailure(
 					'DOCUMENT_TYPE_MISMATCH',
 					`The envelope holds a '${String(envelope.type).slice(0, 64)}', not a '${type.id}'`,
