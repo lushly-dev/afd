@@ -2,14 +2,14 @@
 name: do-release
 description: >
   Prepares an AFD release on its track: npm (the Changesets version PR), Python (PyPI),
-  Rust (crates.io) or C++ (tag only), with tag schemes, the contract version and
-  post-publish checks. Use when asked to cut a release, bump a version or check a publish.
-argument-hint: npm | python | rust | cpp
+  Rust (crates.io), C++ (tag only) or Botcore (PyPI), with tag schemes, the contract version
+  and post-publish checks. Use when asked to cut a release, bump a version or check a publish.
+argument-hint: npm | python | rust | cpp | botcore
 ---
 
 # Do Release
 
-AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are the four admitted units in `scripts/release/inventory.json`. Every other unit there is quarantined and has no release path: stop and ask.
+AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the five admitted units in `scripts/release/inventory.json`; the fifth is `botcore`, which publishes `lushly-botcore` alone. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask.
 
 **Publishing is irreversible and is the maintainer's job.** An agent prepares the release PR: version, changelog and docs. It does not push tags, create GitHub Releases, merge the npm version PR (merging it publishes), run a publish workflow, or change repository or registry settings. The one exception is when the session's user, in the current turn, names that irreversible step ("push the `rust-v0.2.2` tag", "merge the version PR"); a request to cut, ship or prepare a release is not that. Then run only the named step, on the reviewed merge commit.
 
@@ -21,11 +21,12 @@ AFD's four implementations each follow semver on their own API, with their own v
 | Python `afd` | `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py` | `python/CHANGELOG.md` | `python-vX.Y.Z` | `publish-python.yml` to PyPI |
 | Rust `afd` crate | `packages/rust/Cargo.toml` | `packages/rust/CHANGELOG.md` | `rust-vX.Y.Z` | `publish-rust.yml` to crates.io |
 | C++ `afd-cpp` | `project(afd VERSION …)` in `packages/cpp/CMakeLists.txt` | `packages/cpp/CHANGELOG.md` | `cpp-vX.Y.Z` | Nothing: consumers fetch the tag with CMake |
+| Botcore `lushly-botcore` | `endpoints/botcore/pyproject.toml` and `__version__` in `endpoints/botcore/src/botcore/__init__.py` | `endpoints/botcore/CHANGELOG.md` | `botcore-vX.Y.Z` | `publish-botcore.yml` to PyPI |
 
 Read current versions from those manifests, and published ones from the registries and `git tag -l`. The private root `package.json` version is not a release; never set one there.
 
 - The root `CHANGELOG.md` is an index; never add release notes to it.
-- No no-op changeset for Python, Rust, C++ or docs-only work. A docs or package-description fix waits for the next release; never claim a published artifact changed.
+- No no-op changeset for Python, Rust, C++, Botcore or docs-only work. A docs or package-description fix waits for the next release; never claim a published artifact changed.
 - A hotfix has no separate path: branch from `main` (there are no `release/*` branches), add a `patch` changeset or the track's changelog entry, and follow the track's steps.
 - Until the new version or tag is verified, install snippets stay on the last published one. Then update package READMEs, skills, `site/index.html`, `site/js/runtime.js` and `site/llms.txt` together.
 
@@ -36,7 +37,7 @@ Read current versions from those manifests, and published ones from the registri
 ## Every release
 
 - The track's CI and `conformance.yml` are green on the exact candidate, and again on the merge commit.
-- Python, Rust and C++ changelogs get a dated section, breaking changes first with migration notes, under a new empty `Unreleased` section.
+- Python, Rust, C++ and Botcore changelogs get a dated section, breaking changes first with migration notes, under a new empty `Unreleased` section.
 - `node scripts/check-versions.mjs --write` sets the Version row of `docs/language-parity.md`; check its Distribution row by hand and set its Updated date.
 - Verify what the registry or tag actually serves. Never retry a successful publication because a response looked stale.
 
@@ -78,3 +79,13 @@ A new crate's first version is a one-time manual upload, because crates.io offer
 2. Merge after `cpp.yml` and `conformance.yml` pass. Tag only after a daily or `workflow_dispatch` run of the full `cpp.yml` matrix (sanitizer, macOS, MSVC, Emscripten, package and fuzz legs) passes at the merge commit, or at a later `main` with the same C++ inputs.
 3. **Maintainer** tags the merge commit `cpp-vX.Y.Z` (annotated), pushes it, and creates the GitHub Release from the changelog section with `gh release create cpp-vX.Y.Z --verify-tag --latest=false`, so the npm release keeps "Latest".
 4. Verify fresh consumers built from the public tag through `FetchContent` (`GIT_TAG cpp-vX.Y.Z`) and an installed `find_package`, checking the header, library and contract versions.
+
+## Botcore (PyPI)
+
+The first AFD release, 0.6.0, waits for the owner steps in the [handoff record](../../../docs/features/active/platform-monorepo/botcore-handoff.md): `lushly-dev/botcore` loses its PyPI publisher before AFD's is added, so two repositories never publish at once.
+
+1. Set the version in `endpoints/botcore/pyproject.toml` and `__version__`, keeping them equal, then run `uv lock` in `endpoints/botcore`.
+2. These are imported files: re-hash their rows in both `adaptations.json` copies (`endpoints/botcore/provenance/` and `src/botcore/provenance/`), and the `adaptations` digest in both `provenance.json` copies, with an `IMPORT_REASONS` entry in `scripts/record_provenance.py` for each. The provenance test and `package_smoke.py` fail otherwise.
+3. Commit `chore(botcore): release lushly-botcore X.Y.Z`; merge after `botcore.yml` passes.
+4. **Maintainer** tags the merge commit `botcore-vX.Y.Z` (annotated) and pushes it. `publish-botcore.yml` checks the tag against admission and `pyproject.toml`, runs `botcore.yml`, builds, inspects the `lushly_botcore-X.Y.Z` wheel and sdist into a receipt, and uploads after re-verifying it. A GitHub Release on the tag (`--latest=false`) reruns it, skipping existing files.
+5. Verify <https://pypi.org/pypi/lushly-botcore/json>: the version, the uploaded files' SHA-256 against the receipt, and a fresh install on Python 3.11 and 3.12 that imports `botcore` and reports the version.

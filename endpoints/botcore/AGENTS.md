@@ -2,7 +2,10 @@
 
 This endpoint was imported from public Botcore main. Read `provenance/provenance.json`
 and `docs/host-composition.md` for authority, compatibility and managed-host boundaries.
-All six distributions remain quarantined; source import authorizes no publishing.
+`lushly-botcore` publishes to PyPI from AFD: the root inventory admits the `botcore` unit on
+`pypi-botcore`, and `.github/workflows/publish-botcore.yml` runs on a `botcore-vX.Y.Z` tag that
+only the owner pushes (see `docs/features/active/platform-monorepo/botcore-handoff.md`). The
+other five distributions remain quarantined; source import authorizes no publishing.
 
 Use the repository Python AFD source through `[tool.uv.sources]`. Distribution
 metadata retains `afd>=0.9.0`. Run `uv sync --frozen --extra dev --extra mcp --extra cdp`,

@@ -10,6 +10,12 @@ from pathlib import Path
 REVISION = "7d5c54cae8aae90e145374467456af619cf54e41"
 UPSTREAM_MANIFEST_SHA256 = "860ae21493bc9092558c5da3be50be62b218783b4ca04ae82d453af317226514"
 STAGED_MANIFEST_SHA256 = "343a1ef0f35d0e069f70e85c73acbac70a30c778ec72a30620207a0aa6dabc45"
+# Publisher authority moved to AFD for lushly-botcore alone; the release inventory gates the route.
+PUBLISHER_AUTHORITY = (
+    "lushly-dev/afd for lushly-botcore (handoff from lushly-dev/botcore); "
+    "no publisher for the other distributions"
+)
+PUBLICATION_STATE = "lushly-botcore admitted; other distributions quarantined"
 
 
 def classify(upstream, staged, current):
@@ -38,7 +44,8 @@ def verify_records(read: Callable[[str], bytes], current: Path | None = None) ->
     """Pinned source/staging digests cannot be replaced by rehashing a false claim."""
     envelope = json.loads(read("provenance.json"))
     assert envelope["source_revision"] == REVISION
-    assert envelope["publication_state"] == "quarantined"
+    assert envelope["publisher_authority"] == PUBLISHER_AUTHORITY
+    assert envelope["publication_state"] == PUBLICATION_STATE
     records = {}
     for key in ("upstream", "staged_input", "adaptations"):
         reference = envelope["records"][key]

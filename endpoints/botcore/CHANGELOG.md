@@ -14,10 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quality verdicts:** strict adapters keep execution success separate from passing checks,
   with target/evidence and nonpassing empty/skipped/unavailable aggregate behavior.
 - **Provenance:** imported from upstream Botcore main with exact source allowlist and MIT notices;
-  all distributions remain quarantined under original publisher authority.
+  the envelope records the publisher authority and publication state below.
 
 ### Changed
 
+- **Publishing moves to AFD for `lushly-botcore` only.** PyPI releases come from AFD's
+  `publish-botcore.yml` on a `botcore-vX.Y.Z` tag, after the release inventory admits the
+  `botcore` unit on the `pypi-botcore` route and the native guard checks the tag, manifest and
+  built artifacts. 0.5.0 was the last release from `lushly-dev/botcore`; 0.6.0 is the first
+  from AFD. `botcore-connectors`, `botcore-llm`, `botcore-agents`, `botcore-memory` and
+  `botcore-teams` stay quarantined with no publisher. The handoff record is
+  `docs/features/active/platform-monorepo/botcore-handoff.md` in AFD.
 - **skills: one lint rule set, and ownership in `metadata:`** -- `skill_lint` (MCP, Alfred)
   and `botcore skill-lint` / `skill_lint_spec` (CLI) now share one rule set. Before, the
   first warned when `triggers` or `version` were missing while the second called them

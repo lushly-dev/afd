@@ -14,12 +14,12 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "04232419b0f87b4e701cc199d77c38fe5e9468872e31d9421481293724e2f938"
+      "sha256": "4754ecebcf9eaa9d39bf1d45370ff0c08222a35321ff4eceadc4b8d16b2f0097"
     }
   },
   "interpretation": "Only upstream-selected.json describes upstream bytes. The exact frozen staged input includes adaptations/additions; its revision is context, not upstream hash identity. adaptations.json records both transitions.",
   "license": "MIT",
   "source_authority": "https://github.com/lushly-dev/botcore",
-  "publisher_authority": "original Botcore repository; no handoff authorized",
-  "publication_state": "quarantined"
+  "publisher_authority": "lushly-dev/afd for lushly-botcore (handoff from lushly-dev/botcore); no publisher for the other distributions",
+  "publication_state": "lushly-botcore admitted; other distributions quarantined"
 }

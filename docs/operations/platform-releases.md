@@ -26,6 +26,8 @@ Changesets' own version/publish branch decision is not a publication-admission m
 
 Existing Python and Rust tag routes remain distinct. Each checks exact admitted unit/route, triggering tag and checked-out source, manifest identity/version, and packaged metadata before authentication/upload. Python validates its complete wheel/sdist set and hashes; Rust validates its packaged Cargo identity and VCS/source data, then rechecks before `cargo publish`. Cargo repackages source during upload, so the local archive receipt is trace evidence rather than proof of the registry's exact bytes.
 
+Botcore's `lushly-botcore` has its own PyPI route, `pypi-botcore`: a `botcore-vX.Y.Z` tag runs `publish-botcore.yml`, which applies the same guard as the Python route (`scripts/release-native.py --unit botcore`), runs `botcore.yml`, and publishes from the `pypi-botcore` environment. Its wheel and sdist file names and the sdist root use the normalized stem `lushly_botcore`; the metadata keeps `Name: lushly-botcore`. The route is a publisher handoff from `lushly-dev/botcore`, recorded in [botcore-handoff.md](../features/active/platform-monorepo/botcore-handoff.md); the other five Botcore distributions stay quarantined with no route.
+
 C++ remains a source distribution. Immutable tags, `packages/cpp`, `afd::afd`, FetchContent, installed find_package, and vendoring contracts remain intact. Any relocation needs the migration's explicit compatibility decision and external consumer evidence.
 
 ## Holds and recovery

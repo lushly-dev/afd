@@ -1,18 +1,22 @@
 name: Botcore
 
 on:
+  # publish-botcore.yml runs this suite before it builds a release.
+  workflow_call:
   push:
     branches: [main]
     paths:
       - 'endpoints/botcore/**'
       - 'python/**'
       - '.github/workflows/botcore.yml'
+      - '.github/workflows/publish-botcore.yml'
   pull_request:
     branches: [main]
     paths:
       - 'endpoints/botcore/**'
       - 'python/**'
       - '.github/workflows/botcore.yml'
+      - '.github/workflows/publish-botcore.yml'
 
 permissions:
   contents: read
@@ -33,6 +37,8 @@ jobs:
         working-directory: endpoints/botcore
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:

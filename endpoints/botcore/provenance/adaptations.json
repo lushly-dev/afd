@@ -7,7 +7,7 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "345a2f1bbc1708eaab5e89a14e336f9ad97ccc16e8fa908d575cf5a802dbcf6c",
+      "current_import_sha256": "717c37fde540edf37e76689b4b88f9e7d2b62440750dab01d83ce7bc1406172f",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "3852444290cf7f523e60cba26ec4e1b913e6f916043a9a1026117a043b63e156",
+      "current_import_sha256": "052a0913865129c6ec206b8ea520f11f7c48dbb534f1eb67faeec80eb527358d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -1487,21 +1487,21 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "3d5d3984524e61034a54e91a8191c073520ad2e8761842b9dc5c7a833435f6f0",
+      "current_import_sha256": "55b3d13b1d69a870859e532cb1f54e135a578724097c163e7865bda9ea21bb7a",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain"
+      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff"
     },
     {
       "path": "scripts/verify_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "dfab67548ea6a08bb308a1392b45399e0ed141193bb034a9de48b5cfa0c00a33",
+      "current_import_sha256": "ae6fe166b943db8a9a5fcef53e32adcef29ba9e3ef8b60b03945559b1f975153",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Pin immutable digests and verify classifications/current hashes"
+      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state"
     },
     {
       "path": "src/botcore/__init__.py",

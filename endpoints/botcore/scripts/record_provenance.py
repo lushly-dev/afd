@@ -13,7 +13,13 @@ import os
 import subprocess
 from pathlib import Path
 
-from verify_provenance import REVISION, STAGED_MANIFEST_SHA256, classify
+from verify_provenance import (
+    PUBLICATION_STATE,
+    PUBLISHER_AUTHORITY,
+    REVISION,
+    STAGED_MANIFEST_SHA256,
+    classify,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,10 +74,11 @@ IMPORT_REASONS = {
         "Build/audit all six artifacts and an isolated installed- wheel app"
     ),
     "scripts/record_provenance.py": (
-        "Derive immutable Git-object evidence and explicit adaptation chain"
+        "Derive immutable Git-object evidence and explicit adaptation chain; "
+        "record the lushly-botcore publisher handoff"
     ),
     "scripts/verify_provenance.py": (
-        "Pin immutable digests and verify classifications/current hashes"
+        "Pin immutable digests and verify classifications/current hashes and publication state"
     ),
     "src/botcore/__init__.py": ("Set additive host API version to 0.6.0"),
     "src/botcore/_mcp.py": ("Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"),
@@ -311,8 +318,8 @@ def main() -> None:
         ),
         "license": "MIT",
         "source_authority": staged["source"],
-        "publisher_authority": "original Botcore repository; no handoff authorized",
-        "publication_state": "quarantined",
+        "publisher_authority": PUBLISHER_AUTHORITY,
+        "publication_state": PUBLICATION_STATE,
     }
     for directory in (ROOT / "provenance", ROOT / "src/botcore/provenance"):
         directory.mkdir(exist_ok=True)

@@ -1,0 +1,174 @@
+# Publish lushly-botcore to PyPI
+#
+# Triggers on:
+#   - Tag push matching 'botcore-v*' (e.g., botcore-v0.6.0)
+#   - A published GitHub Release whose tag matches 'botcore-v*'. Releases for the
+#     other tracks (python-v*, rust-v*, cpp-v*, npm packages) do not run the jobs.
+#
+# Either way, the tag must match `version` in endpoints/botcore/pyproject.toml,
+# and scripts/release/inventory.json must admit the `botcore` unit on the
+# `pypi-botcore` route. Only `lushly-botcore` publishes here; the other five
+# Botcore distributions stay quarantined and have no route.
+#
+# Publishing a GitHub Release with a new tag also pushes that tag, so both
+# events run this workflow. The upload skips files that are already on PyPI, so
+# the second run passes without publishing.
+#
+# Uses PyPI Trusted Publishing (OIDC) - no API tokens needed.
+#
+# Publisher handoff from lushly-dev/botcore: see
+# docs/features/active/platform-monorepo/botcore-handoff.md. There is never more
+# than one publisher: remove the old repository's PyPI trusted publisher before
+# adding this one.
+#
+# Setup required on PyPI:
+#   1. Go to https://pypi.org/manage/project/lushly-botcore/settings/publishing/
+#   2. Add a new trusted publisher:
+#      - Owner: lushly-dev
+#      - Repository: afd
+#      - Workflow: publish-botcore.yml
+#      - Environment: pypi-botcore
+#
+name: Publish Botcore Package
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'botcore-v*'
+
+# Read-only by default; only the publish job requests an OIDC token.
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+
+jobs:
+  version:
+    name: Validate Botcore release version
+    if: github.event_name == 'push' || startsWith(github.event.release.tag_name, 'botcore-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: endpoints/botcore
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: endpoints/botcore/pyproject.toml
+
+      - name: Validate admission and version matches tag
+        run: >-
+          python ../../scripts/release-native.py --root ../..
+          --unit botcore --route pypi-botcore --tag "$RELEASE_TAG"
+
+  test:
+    name: Botcore core suite and six-distribution smoke
+    needs: version
+    uses: ./.github/workflows/botcore.yml
+
+  build:
+    name: Build Package
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: endpoints/botcore
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Validate build admission
+        run: >-
+          python ../../scripts/release-native.py --root ../..
+          --unit botcore --route pypi-botcore --tag "$RELEASE_TAG"
+
+      - name: Install build
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Inspect built distribution identities and hashes
+        run: >-
+          python ../../scripts/release-native.py --root ../..
+          --unit botcore --route pypi-botcore --tag "$RELEASE_TAG"
+          --artifacts dist --receipt "$RUNNER_TEMP/native-botcore-receipt.json"
+
+      - name: Upload inspection receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-botcore-receipt
+          path: ${{ runner.temp }}/native-botcore-receipt.json
+          retention-days: 7
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: botcore-dist
+          path: endpoints/botcore/dist/
+          # Allow same-run publishing and failed-job retries within one week.
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI
+    permissions:
+      contents: read
+      id-token: write
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-botcore
+      url: https://pypi.org/project/lushly-botcore/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Download inspection receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-botcore-receipt
+          path: ${{ runner.temp }}/native-botcore-receipt/
+
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: botcore-dist
+          path: dist/
+
+      - name: Validate admission and downloaded artifacts before OIDC upload
+        run: >-
+          python scripts/release-native.py
+          --unit botcore --route pypi-botcore --tag "$RELEASE_TAG"
+          --artifacts dist
+          --verify-receipt "$RUNNER_TEMP/native-botcore-receipt/native-botcore-receipt.json"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        # No credentials needed - uses OIDC trusted publishing
+        with:
+          # A release and its tag push both run this workflow; see the header.
+          skip-existing: true

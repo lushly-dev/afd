@@ -20,6 +20,7 @@ import zipfile
 
 TRACKS = {
     "afd-python": {
+        "name": "afd",
         "route": "pypi-tag",
         "prefix": "python-v",
         "registry": "pypi",
@@ -28,12 +29,22 @@ TRACKS = {
         "section": "project",
     },
     "afd-rust": {
+        "name": "afd",
         "route": "crates-tag",
         "prefix": "rust-v",
         "registry": "crates",
         "format": "rust",
         "manifest": "packages/rust/Cargo.toml",
         "section": "package",
+    },
+    "botcore": {
+        "name": "lushly-botcore",
+        "route": "pypi-botcore",
+        "prefix": "botcore-v",
+        "registry": "pypi",
+        "format": "python",
+        "manifest": "endpoints/botcore/pyproject.toml",
+        "section": "project",
     },
 }
 AUTHORITY = "github: lushly-dev/afd"
@@ -60,6 +71,11 @@ def tracked_bytes(root, file):
 
 def normalize_name(name):
     return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def artifact_stem(name):
+    """Wheel and sdist file names use the PEP 427/625 stem; metadata keeps the project name."""
+    return re.sub(r"[-_.]+", "_", name).lower()
 
 
 def semver_parts(version):
@@ -135,10 +151,10 @@ def inspect_python(files, name, version, manifest_bytes):
     sdists = [file for file in files if file.name.endswith(".tar.gz")]
     require(len(files) == 2 and len(wheels) == 1 and len(sdists) == 1,
             "Expected exactly one wheel and one sdist, with no other artifacts")
-    stem = f"{name.replace('-', '_')}-{version}"
+    stem = f"{artifact_stem(name)}-{version}"
     require(re.fullmatch(re.escape(stem) + r"-[^-]+-[^-]+-[^-]+\.whl", wheels[0].name),
             "Wheel filename identity/version mismatch")
-    require(sdists[0].name == f"{name}-{version}.tar.gz", "Sdist filename identity/version mismatch")
+    require(sdists[0].name == f"{stem}.tar.gz", "Sdist filename identity/version mismatch")
     with zipfile.ZipFile(wheels[0]) as wheel:
         members = wheel.infolist()
         safe_members([member.filename for member in members])
@@ -149,12 +165,12 @@ def inspect_python(files, name, version, manifest_bytes):
         require(metadata == [expected], "Wheel must contain exactly the expected METADATA")
         assert_metadata(wheel.read(expected), name, version)
     contents = tar_contents(sdists[0])
-    expected = f"{name}-{version}/PKG-INFO"
+    expected = f"{stem}/PKG-INFO"
     require([key for key in contents if key.endswith("/PKG-INFO")] == [expected],
             "Sdist must contain exactly the expected PKG-INFO")
-    require(all(key.startswith(f"{name}-{version}/") for key in contents), "Sdist root mismatch")
+    require(all(key.startswith(f"{stem}/") for key in contents), "Sdist root mismatch")
     assert_metadata(contents[expected], name, version)
-    require(contents.get(f"{name}-{version}/pyproject.toml") == manifest_bytes,
+    require(contents.get(f"{stem}/pyproject.toml") == manifest_bytes,
             "Sdist manifest differs from candidate source")
 
 
@@ -218,13 +234,13 @@ def inspect(args):
     distributions = unit.get("distributions", [])
     require(len(distributions) == 1, "Native release unit must own exactly one distribution")
     distribution = distributions[0]
-    for key, expected in {"name": "afd", "registry": track["registry"], "format": track["format"],
-                          "manifest": track["manifest"]}.items():
+    for key, expected in {"name": track["name"], "registry": track["registry"],
+                          "format": track["format"], "manifest": track["manifest"]}.items():
         require(distribution.get(key) == expected, f"Distribution {key} identity mismatch")
     owners = [item for owner in units for item in owner.get("distributions", [])
               if item.get("manifest") == track["manifest"] or
               (item.get("registry") == track["registry"] and
-               normalize_name(item.get("name", "")) == "afd")]
+               normalize_name(item.get("name", "")) == normalize_name(track["name"]))]
     require(len(owners) == 1, "Distribution has ambiguous inventory ownership")
     manifest_bytes = (root / track["manifest"]).read_bytes()
     require(manifest_bytes == tracked_bytes(root, track["manifest"]), "Manifest differs from candidate source")
@@ -232,7 +248,7 @@ def inspect(args):
                     str(PurePosixPath(track["manifest"]).parent)).strip(),
             "Candidate source has uncommitted changes")
     metadata = tomllib.loads(manifest_bytes.decode())[track["section"]]
-    require(metadata.get("name") == "afd", "Source manifest name mismatch")
+    require(metadata.get("name") == track["name"], "Source manifest name mismatch")
     require(metadata.get("version") == version, "Source manifest version does not match tag")
     held_versions = unit.get("heldVersions", [])
     require(isinstance(held_versions, list) and all(isinstance(item, str) for item in held_versions),
@@ -252,13 +268,13 @@ def inspect(args):
         require(all(file.is_file() and not file.is_symlink() for file in files),
                 "Artifact set contains a directory, link, or special file")
         if track["format"] == "python":
-            inspect_python(files, "afd", version, manifest_bytes)
+            inspect_python(files, track["name"], version, manifest_bytes)
         else:
-            inspect_rust(files, "afd", version, root, track["manifest"], manifest_bytes, source)
+            inspect_rust(files, track["name"], version, root, track["manifest"], manifest_bytes, source)
         artifacts = [{"file": file.name, "sha256": digest(file.read_bytes())} for file in files]
     receipt = {
         "schemaVersion": 1, "unit": args.unit, "route": args.route, "tag": args.tag,
-        "source": source, "name": "afd", "registry": track["registry"], "version": version,
+        "source": source, "name": track["name"], "registry": track["registry"], "version": version,
         "manifestSha256": digest(manifest_bytes), "inventorySha256": digest(inventory_bytes),
         "artifacts": artifacts, "evidence": "local-native-artifact-inspection",
     }
