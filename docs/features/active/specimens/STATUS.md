@@ -42,7 +42,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 **An agent can do these without a decision:**
 
-- Once the release PR opens, record the Changesets edits to imported files with each family's provenance, and check it; after the publication, verify the nine packages on npm and move the install docs to `@preview`.
+- Once the release PR opens, check it (the version step records its provenance itself, and nothing should be pushed to it); after the publication, verify the nine packages on npm and move the install docs to `@preview`.
 - Measure full suites under T04's policy and profile the per-story time. The owner accepts the extra CPU for now (1.59× and 1.84× per verified case), and the proposal's resource goal stands.
 - Fix [#707](https://github.com/lushly-dev/afd/issues/707), `settle` hanging on an element only a scoped registry holds, and [#662](https://github.com/lushly-dev/afd/issues/662), the empty ARIA snapshot while a modal dialog is open.
 - Add Windows support for the native host (G13), and take on the smaller items under [Follow-ups not yet issues](#follow-ups-not-yet-issues).
@@ -61,7 +61,7 @@ Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is
 
 | Work | Notes |
 | --- | --- |
-| The preview's release PR | It replaces AFD 2.3.0's ([#559](https://github.com/lushly-dev/afd/pull/559)), which returns after the preview publishes. Record its provenance, check it, and leave the merge to the owner; then verify the publication ([T08](t08-cutover.md#the-preview-release)) |
+| The preview's release PR | It replaces AFD 2.3.0's ([#559](https://github.com/lushly-dev/afd/pull/559)), which returns after the preview publishes. Check it, push nothing to it, and leave the merge to the owner; then verify the publication ([T08](t08-cutover.md#the-preview-release)) |
 | Full-suite measurement and per-story profile | Under T04's policy, on `random`, in its isolated copy and after the quiet gate |
 | [#707](https://github.com/lushly-dev/afd/issues/707), [#662](https://github.com/lushly-dev/afd/issues/662) | Both raised by Loam |
 | Lushly's move | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) is Lushly's work, in its repository, once the packages can be installed |

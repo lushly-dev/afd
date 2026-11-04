@@ -190,8 +190,8 @@ The owner approved the release on 2026-11-04 as a preview. Five units are admitt
 **Before the release PR is merged:**
 
 1. The owner publishes a placeholder, `0.0.0-bootstrap.0`, for each of the nine new names. npm sets up a trusted publisher only for a package that exists. The owner then links each name to `release.yml` and deprecates the placeholder.
-2. The release PR's checks pass. Changesets edits imported Specimen and FAST-AF files in it, so their provenance is recorded on that PR, as on [#480](https://github.com/lushly-dev/afd/pull/480).
-3. The owner merges it. `release.yml` builds the four hosts, publishes the nine packages under `preview` with provenance, tags them and creates GitHub prereleases. The owner then points `latest` at the preview.
+2. The release PR's checks pass. Changesets edits imported Specimen and FAST-AF files in it, and the version step records them in each family's provenance before it writes the intent, so the PR needs no hand-made fix. A later edit to the PR would stale the intent and hold publication.
+3. The owner merges it. `release.yml` builds the four hosts, publishes the nine packages under `preview` with provenance, tags them and creates GitHub prereleases. The owner then points `latest` at the preview, and again after each later preview, since `release.yml` never moves `latest`.
 
 ### Qualifying pairs
 

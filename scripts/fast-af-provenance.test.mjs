@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const directory = 'foundations/fast-af/provenance';
+const directory = PROVENANCE_FAMILIES['fast-af'].directory;
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const blob = (bytes) =>
 	createHash('sha1')
@@ -17,7 +17,6 @@ const record = (name) => JSON.parse(readFileSync(join(root, directory, name), 'u
 const provenance = record('provenance.json');
 const upstream = record('upstream-selected.json');
 const adaptations = record('adaptations.json');
-const git = (args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
 
 test("FAST-AF provenance records are bound by hash and match each unit's release state", () => {
 	for (const entry of Object.values(provenance.records))
@@ -71,18 +70,7 @@ test('upstream license and notice files are imported verbatim', () => {
 test('every imported FAST-AF file is present, recorded and unchanged since review', () => {
 	const recorded = new Map(adaptations.files.map((file) => [file.path, file]));
 	// Untracked-but-unignored files count; an ignored source file would fail as missing.
-	const present = git([
-		'ls-files',
-		'--cached',
-		'--others',
-		'--exclude-standard',
-		'--',
-		'foundations/fast-af',
-		'tests/consumers/fast-af',
-	])
-		.toString()
-		.split('\n')
-		.filter((path) => path && !path.startsWith(`${directory}/`));
+	const present = provenancePaths(root, 'fast-af');
 	const unrecorded = present.filter((path) => !recorded.has(path));
 	assert.deepEqual(unrecorded, [], 'record new FAST-AF files in adaptations.json');
 	for (const file of adaptations.files) {

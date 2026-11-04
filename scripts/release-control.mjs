@@ -11,6 +11,7 @@ import {
 	planRelease,
 	releaseChannel,
 } from './release/control.mjs';
+import { recordReleaseProvenance } from './release/provenance.mjs';
 import { createPublishPlan, publishPlan } from './release-operations/publish.mjs';
 import { pendingUnits, selectDefault } from './release-operations/selection.mjs';
 import { json, readRegistry, registryNames, run } from './release-operations/shared.mjs';
@@ -54,7 +55,10 @@ export function selectRelease({ root, selectedUnits, registryEvidence = [], rout
 		const blocked = [];
 		for (const candidate of route ? [route] : AUTOMATIC_ROUTES) {
 			automatic = selectDefault({ root, inventory, fragments, registryEvidence, route: candidate });
-			blocked.push(...automatic.blocked);
+			// A fragment spanning both routes blocks the same batch on each; report it once.
+			for (const entry of automatic.blocked)
+				if (!blocked.some((seen) => JSON.stringify(seen) === JSON.stringify(entry)))
+					blocked.push(entry);
 			if (automatic.selectedUnits.length) break;
 		}
 		automatic.blocked = blocked;
@@ -140,6 +144,11 @@ export function main(args = process.argv.slice(2)) {
 			result = versionSelected({ root, plan: selected, inventory: loadInventory(root) });
 			if (existsSync(resolve(root, 'scripts/check-versions.mjs')))
 				run(process.execPath, ['scripts/check-versions.mjs', '--write'], root);
+			// Before the intent, which binds the records too, so the release PR can pass and publish.
+			result.provenance = recordReleaseProvenance(
+				root,
+				`Versioned for release by pnpm version-packages (${result.selectedUnits.join(', ')})`
+			);
 			if (result.changed.length) {
 				result.intent = saveIntent(root, result.selectedUnits, opts.intent);
 				formatIntent(root, opts.intent);

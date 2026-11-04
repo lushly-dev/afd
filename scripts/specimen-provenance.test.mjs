@@ -5,9 +5,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const directory = 'foundations/specimen/provenance';
+const directory = PROVENANCE_FAMILIES.specimen.directory;
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const record = (name) => JSON.parse(readFileSync(join(root, directory, name), 'utf8'));
 const provenance = record('provenance.json');
@@ -41,20 +42,8 @@ test("Specimen provenance records are bound by hash and match each unit's releas
 
 test('every imported Specimen file is present, recorded and unchanged since review', () => {
 	const recorded = new Map(adaptations.files.map((file) => [file.path, file]));
-	const paths = [
-		'foundations/specimen',
-		'integrations/specimen-afd',
-		'endpoints/specimen-cli',
-		'docs/features/active/specimens',
-		'docs/features/proposed/specimens',
-		'docs/features/active/platform-monorepo/specimen-transition.md',
-		'tests/consumers/specimen',
-	];
 	// Untracked-but-unignored files count; an ignored source file would fail as missing.
-	const present = git(['ls-files', '--cached', '--others', '--exclude-standard', '--', ...paths])
-		.toString()
-		.split('\n')
-		.filter((path) => path && !path.startsWith(`${directory}/`));
+	const present = provenancePaths(root, 'specimen');
 	const unrecorded = present.filter((path) => !recorded.has(path));
 	assert.deepEqual(unrecorded, [], 'record new Specimen files in adaptations.json');
 	for (const file of adaptations.files) {

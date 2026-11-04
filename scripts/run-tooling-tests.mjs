@@ -30,6 +30,7 @@ export const testFiles = [
 	'scripts/release/fragments.test.mjs',
 	'scripts/release/language.test.mjs',
 	'scripts/release/manifest-requirements.test.mjs',
+	'scripts/release/provenance.test.mjs',
 	'scripts/release-native.test.mjs',
 	'scripts/release-finalize.test.mjs',
 	'scripts/release-claim.test.mjs',
