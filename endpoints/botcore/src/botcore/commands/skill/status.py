@@ -16,6 +16,7 @@ from botcore.commands.skill.renames import (
     locally_owned_rename_suggestion,
     resolve_rename,
     retired_suggestion,
+    seed_manages_retired,
 )
 from botcore.config import load_config
 from botcore.utils.workspace import find_workspace
@@ -167,8 +168,8 @@ async def skill_status(
                         dir_name,
                         config.skills.source_dir,
                         owner,
-                        filtered=not filter_skills(
-                            {dir_name: None}, config.skills.include, config.skills.skip
+                        managed=seed_manages_retired(
+                            dir_name, config.skills.include, config.skills.skip
                         ),
                     ),
                 }

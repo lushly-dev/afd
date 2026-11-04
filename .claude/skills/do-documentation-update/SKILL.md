@@ -2,7 +2,7 @@
 name: do-documentation-update
 source: afd
 description: >
-  Run a documentation update pass across CHANGELOG, AGENTS.md, README.md, and skill files. Ensures docs reflect current code state with proper changelog formatting, semver alignment, and version-tag consistency. Standalone skill — invoke directly, not only as part of do-commit.
+  Run a documentation update pass across CHANGELOG, AGENTS.md, README.md, and skill files. Ensures docs reflect current code state with proper changelog formatting, semver alignment, and version-tag consistency. Standalone skill — invoke directly, not only when committing.
 
 version: 1.0.0
 triggers:

@@ -335,7 +335,11 @@ async def test_status_renamed_when_new_name_excluded(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("owner", "hint"),
-    [("botcore", "run skill-seed to remove"), (None, "skill_adopt('manage-git')")],
+    [
+        ("botcore", "run skill-seed to remove"),
+        (None, "skill_adopt('manage-git')"),
+        ("afd", "No action is needed"),
+    ],
 )
 async def test_status_retired(tmp_path: Path, owner: str | None, hint: str) -> None:
     """A local skill botcore retired shows 'retired', not 'unmanaged'."""

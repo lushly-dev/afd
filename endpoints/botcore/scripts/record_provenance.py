@@ -143,6 +143,7 @@ IMPORT_REASONS = {
     "tests/test_skill_status.py": ("Cover the retired skill status"),
     "src/botcore/skills/review/SKILL.md": ("Drop the pointer to the retired commit skill"),
     "src/botcore/skills/docs-update/SKILL.md": ("Drop the pointer to the retired commit skill"),
+    "src/botcore/docs.py": ("Document retired-skill handling in skill_seed and skill_status"),
     "uv.lock": (
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),

@@ -149,24 +149,33 @@ def locally_owned_rename_suggestion(
     )
 
 
+def seed_manages_retired(name: str, include: list[str] | None, skip: list[str]) -> bool:
+    """Whether skill-seed may remove a botcore-owned copy of a retired skill.
+
+    An include list names what the project wants, so a retired name on it is kept, and
+    one off it is outside seed's scope; skip keeps seed away from a name entirely.
+    """
+    return include is None and name not in skip
+
+
 def retired_suggestion(
-    name: str, source_dir: str, owner: str | None = None, filtered: bool = False
+    name: str, source_dir: str, owner: str | None = None, managed: bool = True
 ) -> str:
     """Explain how to resolve a local copy of a skill botcore no longer ships."""
     path = PurePosixPath(source_dir, name)
-    if owner == "botcore" and filtered:
+    if owner == "botcore" and managed:
+        return f"botcore no longer ships '{name}'; run skill-seed to remove its managed copy."
+    if owner == "botcore":
         return (
             f"botcore no longer ships '{name}', and [skills] include/skip keeps skill-seed "
             f"from removing it. Delete {path} if you no longer use it."
         )
-    if owner == "botcore":
-        return f"botcore no longer ships '{name}'; run skill-seed to remove its managed copy."
-    keep = (
-        f"run skill_adopt('{name}') to mark it yours"
-        if owner is None
-        else f"its source: {owner} field already keeps skill-seed away"
-    )
+    if owner is None:
+        return (
+            f"botcore no longer ships '{name}'. If it is an unmodified copy, delete "
+            f"{path}. To keep it, run skill_adopt('{name}') to mark it yours."
+        )
     return (
-        f"botcore no longer ships '{name}'. If it is an unmodified copy, delete "
-        f"{path}. To keep it, {keep}."
+        f"'{name}' shares a name botcore retired, but its source: {owner} field marks it "
+        f"as yours, so skill-seed keeps it. No action is needed."
     )

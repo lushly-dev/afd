@@ -19,6 +19,7 @@ from botcore.commands.skill.renames import (
     locally_owned_rename_suggestion,
     resolve_rename,
     retired_suggestion,
+    seed_manages_retired,
 )
 from botcore.config import SkillsConfig, load_config
 from botcore.utils.workspace import find_workspace
@@ -42,7 +43,7 @@ async def skill_seed(
        - no source: or different → leave it, report it, and don't seed the
          new name alongside it (that would duplicate the skill)
     5. For each local skill botcore retired that no source still ships:
-       - source: botcore, and include/skip lets seed manage it → remove it (retired)
+       - source: botcore, no include list and not skipped → remove it (retired)
        - otherwise → leave it and report it (retired_locally_owned)
     6. For each skill:
        - Not present locally → copy tree, inject source: in frontmatter
@@ -123,7 +124,13 @@ async def skill_seed(
     if skills_config.agent_skills and not dry_run:
         agent_dir = ws / ".agent" / "skills"
         agent_dir.mkdir(parents=True, exist_ok=True)
-        _remove_botcore_owned(agent_dir, [m["from"] for m in migrated] + retired)
+        # Retired mirrors go even when the primary copy is already gone.
+        stale = [
+            name
+            for name in sorted(RETIRED_SKILLS - set(available))
+            if seed_manages_retired(name, skills_config.include, skills_config.skip)
+        ]
+        _remove_botcore_owned(agent_dir, [m["from"] for m in migrated] + stale)
         for name in seeded + updated:
             src = skills_dir / name
             dst = agent_dir / name
@@ -202,8 +209,8 @@ def _remove_retired_skills(
 ) -> tuple[list[str], list[dict]]:
     """Remove botcore-owned copies of retired skills; report the ones seed must keep.
 
-    A name some source still ships is not retired there, so it is left alone, and
-    include/skip keeps seed away from a retired name just as it does from a live one.
+    A name some source still ships is not retired there, so it is left alone; see
+    seed_manages_retired for how include/skip keep a retired name.
 
     Returns:
         (retired, retired_locally_owned)
@@ -216,8 +223,8 @@ def _remove_retired_skills(
             continue
 
         owner = manifest.source if manifest else None
-        filtered = not filter_skills({name: None}, skills_config.include, skills_config.skip)
-        if owner == "botcore" and not filtered:
+        managed = seed_manages_retired(name, skills_config.include, skills_config.skip)
+        if owner == "botcore" and managed:
             if not dry_run:
                 _remove_skill_dir(path)
             retired.append(name)
@@ -227,7 +234,7 @@ def _remove_retired_skills(
                     "name": name,
                     "owner": owner,
                     "suggestion": retired_suggestion(
-                        name, skills_config.source_dir, owner, filtered
+                        name, skills_config.source_dir, owner, managed
                     ),
                 }
             )

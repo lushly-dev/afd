@@ -26,10 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplication-finder, git-manager, license-auditor, persona-creator, problem-solver,
   project-manager, prompt-creator, research, spec-writer, storybook-builder,
   systems-architect and test-writer. `RETIRED_SKILLS` lists them under their current and
-  earlier names. `skill_seed` removes botcore-managed copies, unless `[skills]`
-  include/skip keeps seed away from the name. It reports copies it keeps in
-  `retired_locally_owned`, and `skill_status` reports them as `retired`. Renames whose
-  target was retired are dropped.
+  earlier names. `skill_seed` removes botcore-managed copies, and their `.agent/skills`
+  mirrors, when no `include` list is set and `skip` doesn't name them. It reports the
+  copies it keeps in `retired_locally_owned` and never suggests deleting a copy another
+  source owns. `skill_status` reports them as `retired`. Renames whose target was
+  retired are dropped.
 - **skills: skill-manager rewritten for current models** -- the skill now covers what belongs
   in a skill (context an agent can't derive, observed gotchas, repository workflows) and what
   belongs in a hook, script, AGENTS.md or the owning doc instead; descriptions of a sentence
