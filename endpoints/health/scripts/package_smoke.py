@@ -32,10 +32,20 @@ from privacy import load_deny_terms, scan_member
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = ROOT.parents[1]
-MODULES = {"__init__.py", "__main__.py", "checks.py", "commands.py", "config.py", "core.py"}
+MODULES = {
+    "__init__.py",
+    "__main__.py",
+    "checks.py",
+    "commands.py",
+    "config.py",
+    "core.py",
+    "drift.py",
+    "workflows.py",
+}
 WHEEL_PACKAGE = {f"lushly_health/{name}" for name in MODULES} | {
     "lushly_health/schemas/report-1.0.json",
     "lushly_health/schemas/report-1.1.json",
+    "lushly_health/schemas/report-1.2.json",
 }
 SDIST_ROOT_FILES = {
     "PKG-INFO",
@@ -88,7 +98,7 @@ def audit_artifacts(artifacts: Path, deny: list[str]) -> list[dict]:
         assert archive.read("lushly_health-0.1.0.dist-info/licenses/LICENSE") == license_text
         entry_points = archive.read("lushly_health-0.1.0.dist-info/entry_points.txt").decode()
         assert "[botcore.plugins]\nhealth = lushly_health:HealthPlugin" in entry_points
-        for version in ("1.0", "1.1"):
+        for version in ("1.0", "1.1", "1.2"):
             schema = (ROOT / f"src/lushly_health/schemas/report-{version}.json").read_bytes()
             assert archive.read(f"lushly_health/schemas/report-{version}.json") == schema
         for name in sorted(names):
@@ -238,7 +248,7 @@ def main() -> None:
     parser.add_argument("--skip-botcore", action="store_true", help="Skip the Botcore consumer")
     options = parser.parse_args()
     deny = load_deny_terms(options.deny_file)
-    schema = json.loads((ROOT / "src/lushly_health/schemas/report-1.1.json").read_text())
+    schema = json.loads((ROOT / "src/lushly_health/schemas/report-1.2.json").read_text())
     with tempfile.TemporaryDirectory(prefix="health-wheel-smoke-") as temporary:
         work = Path(temporary).resolve()
         assert not work.is_relative_to(REPOSITORY)

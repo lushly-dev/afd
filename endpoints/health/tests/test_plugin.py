@@ -72,7 +72,7 @@ async def test_admitted_audit_is_inspection_only_and_confined(workspace):
     denied = await host.execute("health_audit", selection(check_ids=("last_commit",)))
     assert denied.error.code == "EFFECT_DENIED"
     capabilities = await host.execute("health_capabilities", {})
-    assert capabilities.success and capabilities.data["schema_version"] == "1.1"
+    assert capabilities.success and capabilities.data["schema_version"] == "1.2"
 
 
 async def test_trusted_local_host_may_run_the_git_metric(workspace):

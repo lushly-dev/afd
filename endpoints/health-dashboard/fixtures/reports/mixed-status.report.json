@@ -1,5 +1,5 @@
 {
-	"schema_version": "1.1",
+	"schema_version": "1.2",
 	"generator": {
 		"name": "lushly-health",
 		"version": "0.1.0"
@@ -62,7 +62,7 @@
 				"metric": "LF"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "lefthook_configured",
@@ -79,7 +79,7 @@
 				"metric": "0/2"
 			},
 			"remediation": "Run 'lefthook install' and add lefthook.yml",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "node_version_alignment",
@@ -98,7 +98,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Resolve the declaration to a concrete Node major before comparison",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "commitlint_configured",
@@ -116,7 +116,7 @@
 				"metric": "no"
 			},
 			"remediation": "Create commitlint.config.mjs with conventional commit rules",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "linter_strict",
@@ -133,7 +133,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Run 'pnpm biome init' to create biome.json",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "dependabot_configured",
@@ -149,7 +149,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "last_commit",
@@ -167,7 +167,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Select the checkout root or disable this check",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "gitattributes_lf",
@@ -184,7 +184,7 @@
 				"metric": "no"
 			},
 			"remediation": "Create .gitattributes with '* text=auto eol=lf'",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "lefthook_configured",
@@ -201,7 +201,7 @@
 				"metric": "0/2"
 			},
 			"remediation": "Run 'lefthook install' and add lefthook.yml",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "node_version_alignment",
@@ -221,7 +221,7 @@
 				"error_type": "JSONDecodeError"
 			},
 			"remediation": "Validate configuration syntax and inspect the check implementation",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "commitlint_configured",
@@ -239,7 +239,7 @@
 				"metric": "no"
 			},
 			"remediation": "Create commitlint.config.mjs with conventional commit rules",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "linter_strict",
@@ -256,7 +256,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Run 'pnpm biome init' to create biome.json",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "dependabot_configured",
@@ -272,7 +272,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "last_commit",
@@ -290,7 +290,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Select the checkout root or disable this check",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "gitattributes_lf",
@@ -307,7 +307,7 @@
 				"metric": "LF"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "lefthook_configured",
@@ -324,7 +324,7 @@
 				"metric": "0/2"
 			},
 			"remediation": "Run 'lefthook install' and add lefthook.yml",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "node_version_alignment",
@@ -343,7 +343,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "commitlint_configured",
@@ -360,7 +360,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "linter_strict",
@@ -378,7 +378,7 @@
 				"metric": "ruff"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "dependabot_configured",
@@ -394,7 +394,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "last_commit",
@@ -412,7 +412,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": "Select the checkout root or disable this check",
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		}
 	],
 	"summary": {

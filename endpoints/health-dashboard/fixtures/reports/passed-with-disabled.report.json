@@ -1,5 +1,5 @@
 {
-	"schema_version": "1.1",
+	"schema_version": "1.2",
 	"generator": {
 		"name": "lushly-health",
 		"version": "0.1.0"
@@ -44,7 +44,7 @@
 				"metric": "LF"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "lefthook_configured",
@@ -61,7 +61,7 @@
 				"metric": "2/2"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		},
 		{
 			"check_id": "dependabot_configured",
@@ -77,7 +77,7 @@
 				"kind": "local_configuration_heuristic"
 			},
 			"remediation": null,
-			"schema_version": "1.1"
+			"schema_version": "1.2"
 		}
 	],
 	"summary": {

@@ -15,7 +15,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
-from . import checks
+from . import checks, drift, workflows
 
 Status = Literal["passed", "failed", "warn", "skipped", "disabled", "unavailable", "error"]
 Severity = Literal["required", "advisory"]
@@ -25,8 +25,8 @@ VERDICTS = ("passed", "not_passed", "no_required_checks")
 # Remediation is not implemented; a policy may only declare that it is off.
 REMEDIATION_POLICIES = ("none",)
 # The report contract this version emits; earlier report schemas stay readable.
-SCHEMA_VERSION = "1.1"
-REPORT_SCHEMA_VERSIONS = ("1.0", "1.1")
+SCHEMA_VERSION = "1.2"
+REPORT_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2")
 # Caller-owned policy and targets files have their own, separate version.
 CONFIG_SCHEMA_VERSION = "1.0"
 GENERATOR = {"name": "lushly-health", "version": "0.1.0"}
@@ -35,11 +35,16 @@ _IDENTIFIER = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]*")
 
 @dataclass(frozen=True)
 class Target:
-    """One explicitly selected local directory. Health never discovers targets."""
+    """One explicitly selected local directory. Health never discovers targets.
+
+    A unit inside a larger repository names that repository's root too, because
+    repository-level checks read files that live there. Without it the target is the root.
+    """
 
     id: str
     path: Path
     language: str
+    repository_root: Path | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or not _IDENTIFIER.fullmatch(self.id):
@@ -47,6 +52,17 @@ class Target:
         if not isinstance(self.language, str) or not _IDENTIFIER.fullmatch(self.language):
             raise ValueError("Target language must be a nonempty identifier")
         object.__setattr__(self, "path", Path(self.path).resolve())
+        if self.repository_root is not None:
+            root = Path(self.repository_root).resolve()
+            if not self.path.is_relative_to(root):
+                raise ValueError("Target path must lie within its repository_root")
+            object.__setattr__(self, "repository_root", root)
+
+    def describe(self) -> dict:
+        row = {"id": self.id, "path": str(self.path), "language": self.language}
+        if self.repository_root is not None:
+            row["repository_root"] = str(self.repository_root)
+        return row
 
 
 @dataclass(frozen=True)
@@ -77,7 +93,7 @@ class Policy:
             raise ValueError("No remediation is implemented; remediation must be none")
 
     def severity_of(self, check_id: str) -> Severity:
-        return self.severity.get(check_id, "required")
+        return self.severity.get(check_id, CHECKS[check_id].default_severity)
 
     def describe(self) -> dict:
         return {
@@ -94,6 +110,13 @@ class CheckSpec:
     languages: frozenset[str] | None = None
     tools: tuple[str, ...] = ()
     evidence_paths: tuple[str, ...] = ()
+    # "repository" checks read the target's repository_root when it declares one, and so
+    # do "target" checks for these languages, whose configuration lives at the root.
+    scope: Literal["target", "repository"] = "target"
+    repository_languages: frozenset[str] = frozenset()
+    # Inputs found by the check itself; declared globs would visit trees it never reads.
+    find_inputs: Callable[[Path], list[Path]] | None = None
+    default_severity: Severity = "required"
 
 
 @dataclass(frozen=True)
@@ -165,25 +188,59 @@ def _node_alignment(path: Path, language: str) -> dict:
                 "message": "Node version declaration is not a literal version",
                 "suggestion": "Resolve the declaration to a concrete Node major before comparison",
             }
-    workflows = path / ".github/workflows"
-    if workflows.is_dir():
-        for workflow in (*workflows.glob("*.yml"), *workflows.glob("*.yaml")):
-            content = workflow.read_text()
-            for raw in re.findall(r"^\s*node-version:\s*(.+)$", content, re.MULTILINE):
-                if "${{" in raw:
-                    if not checks._resolve_workflow_version_reference(content, raw):
-                        return {
-                            "status": "warn",
-                            "message": "CI Node expression could not be resolved",
-                            "suggestion": "Resolve the CI expression before comparing Node majors",
-                        }
-                elif not re.fullmatch(r"[\"']?v?\d+(?:\.(?:\d+|x)){0,2}[\"']?", raw.strip()):
-                    return {
-                        "status": "warn",
-                        "message": "CI Node declaration exceeds the literal heuristic",
-                        "suggestion": "Resolve the CI declaration before comparing Node majors",
-                    }
-    return checks.check_node_version_alignment(path, language)
+    majors, unreadable = workflows.ci_node_majors(path / ".github/workflows")
+    if unreadable:
+        return {
+            "status": "warn",
+            "message": f"CI Node version in {unreadable} could not be resolved",
+            "suggestion": "Resolve the CI expression before comparing Node majors",
+        }
+    result = checks.check_node_version_alignment(path, language)
+    local = checks._read_local_node_majors(path)
+    if not majors or len(set(local.values())) != 1:
+        return result
+    if result["status"] != "pass" and "does not match CI" not in result["message"]:
+        return result
+    # The source function misreads lists and misses matrix expressions and folded values,
+    # so the CI comparison is decided here. It stops at that comparison, so engines follow.
+    declared = next(iter(local.values()))
+    if declared not in majors:
+        return {
+            "status": "fail",
+            "message": f"Local Node version {declared} does not match CI versions {sorted(majors)}",
+            "suggestion": "Align .nvmrc/.node-version with the Node version used in GitHub Actions",
+        }
+    floor = checks._read_package_engines_node_major(path)
+    if floor is not None and declared < floor:
+        return {
+            "status": "fail",
+            "message": (
+                f"Local Node version {declared} is below package.json engines minimum {floor}"
+            ),
+            "suggestion": "Raise .nvmrc/.node-version to satisfy package.json engines.node",
+        }
+    sources = ", ".join(f"{name}={major}" for name, major in sorted(local.items()))
+    engines = f", engines>={floor}" if floor is not None else ""
+    return {
+        "status": "pass",
+        "message": f"Node version declarations aligned ({sources}, CI={sorted(majors)}{engines})",
+        "metric": str(declared),
+    }
+
+
+def _ci_present(path: Path, language: str) -> dict:
+    """Keep the source check's failures, but only a workflow that runs on changes is CI."""
+    result = checks.check_ci_present(path, language)
+    if result["status"] != "pass":
+        return result
+    found = workflows.find_ci_workflow(path / ".github/workflows")
+    if found is None:
+        return {
+            "status": "fail",
+            "message": "Workflows mention test and build but none runs on pushes or pull requests",
+            "suggestion": "Add a workflow that tests and builds pull requests or branch pushes",
+        }
+    return {**result, "message": f"CI workflow found: {found}"}
 
 
 CHECKS: dict[str, CheckSpec] = {
@@ -191,26 +248,33 @@ CHECKS: dict[str, CheckSpec] = {
         _node_alignment,
         frozenset({"typescript"}),
         evidence_paths=(".nvmrc", ".node-version", "package.json", ".github/workflows"),
+        scope="repository",
     ),
     "codex_skills_mirror": CheckSpec(
-        checks.check_codex_skills_mirror, evidence_paths=(".claude/skills", ".codex/skills")
+        checks.check_codex_skills_mirror,
+        evidence_paths=(".claude/skills", ".codex/skills"),
+        scope="repository",
     ),
     "lefthook_configured": CheckSpec(
-        checks.check_lefthook_configured, evidence_paths=("lefthook.yml",)
+        checks.check_lefthook_configured, evidence_paths=("lefthook.yml",), scope="repository"
     ),
     "linter_strict": CheckSpec(
         checks.check_linter_strict,
         frozenset({"typescript", "python"}),
         evidence_paths=("biome.json", "pyproject.toml"),
+        repository_languages=frozenset({"typescript"}),
     ),
-    "ci_present": CheckSpec(checks.check_ci_present, evidence_paths=(".github/workflows",)),
+    "ci_present": CheckSpec(_ci_present, evidence_paths=(".github/workflows",), scope="repository"),
     "dependabot_configured": CheckSpec(
-        checks.check_dependabot_configured, evidence_paths=(".github/dependabot.yml",)
+        checks.check_dependabot_configured,
+        evidence_paths=(".github/dependabot.yml",),
+        scope="repository",
     ),
     "commitlint_configured": CheckSpec(
         checks.check_commitlint_configured,
         frozenset({"typescript"}),
         evidence_paths=("commitlint.config.mjs", "commitlint.config.js"),
+        scope="repository",
     ),
     "coverage_thresholds": CheckSpec(
         checks.check_coverage_thresholds,
@@ -221,14 +285,26 @@ CHECKS: dict[str, CheckSpec] = {
         checks.check_dead_code_tool,
         frozenset({"typescript", "python"}),
         evidence_paths=("package.json", "pyproject.toml"),
+        repository_languages=frozenset({"typescript"}),
     ),
     "gitattributes_lf": CheckSpec(
-        checks.check_gitattributes_lf, evidence_paths=(".gitattributes",)
+        checks.check_gitattributes_lf, evidence_paths=(".gitattributes",), scope="repository"
     ),
     "changesets_configured": CheckSpec(
-        checks.check_changesets_configured, evidence_paths=(".changeset", "package.json")
+        checks.check_changesets_configured,
+        evidence_paths=(".changeset", "package.json"),
+        scope="repository",
     ),
-    "last_commit": CheckSpec(_last_commit, tools=("git",), evidence_paths=(".git",)),
+    "last_commit": CheckSpec(
+        _last_commit, tools=("git",), evidence_paths=(".git",), scope="repository"
+    ),
+    "dependency_version_drift": CheckSpec(
+        drift.check_dependency_version_drift,
+        evidence_paths=drift.EVIDENCE_PATHS,
+        scope="repository",
+        default_severity="advisory",
+        find_inputs=drift.find_lockfiles,
+    ),
 }
 
 
@@ -248,6 +324,9 @@ def capabilities() -> dict:
                 "required_tools": list(spec.tools),
                 "effects": ["target_read", "subprocess"] if spec.tools else ["target_read"],
                 "network": False,
+                "scope": spec.scope,
+                "repository_languages": sorted(spec.repository_languages),
+                "default_severity": spec.default_severity,
             }
             for key, spec in CHECKS.items()
         ],
@@ -276,6 +355,10 @@ def _boundary_issue(root: Path, spec: CheckSpec) -> str | None:
     local virtual environment's interpreter) do not affect it. Git metadata is
     read by git itself and only its top-level entry is inspected.
     """
+    if spec.find_inputs is not None:
+        if any(_escapes(root, found) for found in spec.find_inputs(root)):
+            return "A declared input resolves outside the selected target"
+        return None
     for declared in spec.evidence_paths:
         candidates = list(root.glob(declared)) if "*" in declared else [root / declared]
         for candidate in candidates:
@@ -298,10 +381,15 @@ def _evaluate(target: Target, check_id: str, spec: CheckSpec, policy: Policy, is
         "kind": "local_configuration_heuristic",
     }
     remediation = None
+    base = target.path
+    reads_root = spec.scope == "repository" or target.language in spec.repository_languages
+    if reads_root and target.repository_root is not None:
+        base = target.repository_root
+        evidence["base"] = "repository_root"
     if check_id in policy.disabled:
         return "disabled", "Explicitly disabled by selected policy", evidence, None
     try:
-        boundary = issue or _boundary_issue(target.path, spec)
+        boundary = issue or _boundary_issue(base, spec)
     except (OSError, RuntimeError):
         boundary = "Target boundary could not be inspected"
     if boundary:
@@ -313,7 +401,7 @@ def _evaluate(target: Target, check_id: str, spec: CheckSpec, policy: Policy, is
         remediation = "Install the declared tool or disable this check explicitly"
         return "unavailable", "A declared required tool is unavailable", evidence, remediation
     try:
-        result = spec.run(target.path, target.language)
+        result = spec.run(base, target.language)
         status = {"pass": "passed", "fail": "failed"}.get(result["status"], result["status"])
         if status not in STATUSES:
             raise ValueError("Invalid check outcome")
@@ -391,7 +479,7 @@ def audit(
         "schema_version": SCHEMA_VERSION,
         "generator": dict(GENERATOR),
         "generated_at": timestamp,
-        "targets": [{"id": t.id, "path": str(t.path), "language": t.language} for t in targets],
+        "targets": [t.describe() for t in targets],
         "policy": policy.describe(),
         "outcomes": outcomes,
         "summary": {status: counts[status] for status in STATUSES},
@@ -434,7 +522,8 @@ def write_report(report: dict, scope: ArtifactScope, name: str = "health-report.
     """Write an already computed audit; never implicitly rerun checks or open a browser."""
     if report.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("Unsupported audit schema version")
-    return _write_artifact(report, scope, name, tuple(Path(t["path"]) for t in report["targets"]))
+    audited = tuple(Path(t.get("repository_root", t["path"])) for t in report["targets"])
+    return _write_artifact(report, scope, name, audited)
 
 
 def onboard(
@@ -451,14 +540,15 @@ def onboard(
     """
     if not selected:
         raise ValueError("Onboarding requires explicit selection")
-    if not target.path.is_dir() or not (target.path / ".git").exists():
+    checkout = target.repository_root or target.path
+    if not target.path.is_dir() or not (checkout / ".git").exists():
         raise ValueError("Onboarding requires an existing Git repository")
     return _write_artifact(
         {
             "schema_version": CONFIG_SCHEMA_VERSION,
-            "targets": [{"id": target.id, "path": str(target.path), "language": target.language}],
+            "targets": [target.describe()],
         },
         scope,
         name,
-        (target.path,),
+        (checkout,),
     )

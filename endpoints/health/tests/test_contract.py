@@ -248,7 +248,7 @@ def test_generated_at_is_utc_and_can_be_pinned(project):
 
 
 def test_earlier_report_schemas_stay_available():
-    assert REPORT_SCHEMA_VERSIONS == ("1.0", SCHEMA_VERSION)
+    assert REPORT_SCHEMA_VERSIONS == ("1.0", "1.1", SCHEMA_VERSION)
     earlier = report_schema("1.0")
     jsonschema.Draft202012Validator.check_schema(earlier)
     assert earlier["properties"]["schema_version"]["const"] == "1.0"

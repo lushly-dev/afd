@@ -19,6 +19,7 @@ Targets::
     id = "sample-project"
     path = "../sample-project"
     language = "typescript"
+    # repository_root = "../monorepo"  # optional; for a unit inside a larger repository
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from .core import CONFIG_SCHEMA_VERSION, Policy, Target
 
 _POLICY_KEYS = {"schema_version", "checks", "disabled", "severity", "remediation"}
 _TARGET_KEYS = {"id", "path", "language"}
+_OPTIONAL_TARGET_KEYS = {"repository_root"}
 
 
 def _read(path: Path) -> dict:
@@ -81,11 +83,25 @@ def targets_from_mapping(data: Mapping, base: Path) -> tuple[Target, ...]:
         raise ValueError("targets must be a nonempty list")
     result = []
     for row in rows:
-        if not isinstance(row, Mapping) or set(row) != _TARGET_KEYS:
-            raise ValueError("Each target declares exactly id, path and language")
-        if not all(isinstance(row[key], str) for key in _TARGET_KEYS):
-            raise ValueError("Target id, path and language must be strings")
-        result.append(Target(row["id"], Path(base) / row["path"], row["language"]))
+        if (
+            not isinstance(row, Mapping)
+            or not set(row) >= _TARGET_KEYS
+            or set(row) - _TARGET_KEYS - _OPTIONAL_TARGET_KEYS
+        ):
+            raise ValueError(
+                "Each target declares id, path and language, and optionally repository_root"
+            )
+        if not all(isinstance(value, str) for value in row.values()):
+            raise ValueError("Target id, path, language and repository_root must be strings")
+        root = row.get("repository_root")
+        result.append(
+            Target(
+                row["id"],
+                Path(base) / row["path"],
+                row["language"],
+                Path(base) / root if root is not None else None,
+            )
+        )
     return tuple(result)
 
 

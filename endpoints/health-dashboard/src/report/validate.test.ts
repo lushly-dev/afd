@@ -12,7 +12,7 @@ const mixed = () => JSON.parse(fixture('reports/mixed-status.report.json')) as H
 
 describe('parseReport', () => {
 	it('supports exactly the schema version Health publishes', () => {
-		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.1');
+		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.2');
 	});
 
 	it.each(fixtureNames('reports'))('accepts the Health CLI fixture %s', (name) => {

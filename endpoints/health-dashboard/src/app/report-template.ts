@@ -43,7 +43,15 @@ const targetTemplate = html<TargetRow>`
 	<tr>
 		<th scope="row">${(x) => x.target.id}</th>
 		<td>${(x) => x.target.language}</td>
-		<td><code class="path">${(x) => x.target.path}</code></td>
+		<td>
+			<code class="path">${(x) => x.target.path}</code>
+			${when(
+				(x) => x.target.repository_root,
+				html<TargetRow>`<div class="path-root">
+					In repository <code class="path">${(x) => x.target.repository_root}</code>
+				</div>`
+			)}
+		</td>
 		<td>
 			<span class="verdict-chip" data-passed="${(x) => String(x.verdict.passed)}">
 				<violet-icon icon="${(x) => verdictIcon(x.verdict)}" decorative></violet-icon>
