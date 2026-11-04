@@ -3621,11 +3621,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8b30e0d61699bf24fefeca8b693b92af002434c6cb0caa9d1837318b6b87de1a",
+      "current_import_sha256": "5604602feac97788b22774b8daaf41e62b22405ed946b6ef7eb7bbd78e5aa7a2",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged"
+      "import_reason": "Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Widen the review page to fit the Wide preset and drop the stage background"
     }
   ]
 }
