@@ -1,7 +1,7 @@
 {
   "name": "@lushly-dev/fast-element",
   "description": "A library for constructing Web Components",
-  "version": "3.0.1-preview",
+  "version": "3.0.1-preview.0",
   "author": "Lushly Dev (forked from Microsoft FAST)",
   "homepage": "https://github.com/lushly-dev/afd/tree/main/foundations/fast-af/packages/element/packages/fast-element#readme",
   "license": "MIT",
@@ -196,7 +196,7 @@
     "test:migration-rules": "sg test --config migration/fast-html/sgconfig.yml --skip-snapshot-tests",
     "test:playwright:declarative": "playwright test --config=playwright.declarative.config.ts",
     "test:coverage:command": "node ./scripts/command-coverage.mjs",
-    "test:chromium":"playwright test --project=chromium && npm run test:chromium:declarative",
+    "test:chromium": "playwright test --project=chromium && npm run test:chromium:declarative",
     "test:chromium:declarative": "playwright test --config=playwright.declarative.config.ts --project=chromium",
     "test-server": "npx vite test/ --clearScreen false",
     "test-server:declarative": "npx vite test/declarative --clearScreen false --port 5174 --strictPort",
