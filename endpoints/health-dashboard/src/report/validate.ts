@@ -2,7 +2,7 @@
  * Turn untrusted file text into a validated report or an actionable failure.
  *
  * Nothing is rendered from a file until it parses as JSON, declares the supported
- * schema_version, validates against Health's report-1.1 schema and is internally
+ * schema_version, validates against Health's report-1.2 schema and is internally
  * consistent, including Health's own verdict against the outcomes. A failure never carries a partially accepted report.
  */
 import { schemaVersion, validateReport } from 'virtual:health-report-schema';

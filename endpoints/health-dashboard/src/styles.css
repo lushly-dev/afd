@@ -236,6 +236,10 @@ tbody th {
 	overflow-wrap: anywhere;
 }
 
+.path-root {
+	margin-block-start: var(--space-1, 0.25rem);
+}
+
 .severity[data-severity="advisory"] {
 	font-style: italic;
 }

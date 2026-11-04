@@ -1,6 +1,6 @@
 # Health dashboard
 
-A static, local page for reading Health audit reports (report schema 1.1). You pick
+A static, local page for reading Health audit reports (report schema 1.2). You pick
 or drop report files and it shows each report's targets, every check result and an
 overall verdict. It's an optional endpoint: Health audits and CI run without it, and
 nothing here is installed with Health.
@@ -68,10 +68,10 @@ filter by status and target and sort.
   advisory results stay visible but never decide it; an empty report, or one with no
   counted required checks, is "Not passing: no required checks".
 - **Invalid files are never shown as reports.** A file is rendered only when it parses
-  as JSON, declares `schema_version` 1.1, validates against Health's
-  [`report-1.1.json`](../health/src/lushly_health/schemas/report-1.1.json) and is
+  as JSON, declares `schema_version` 1.2, validates against Health's
+  [`report-1.2.json`](../health/src/lushly_health/schemas/report-1.2.json) and is
   consistent (unique targets, outcomes naming known targets and checks, summary counts
-  and the verdict equal to what the outcomes give). Reports with schema 1.0 are refused
+  and the verdict equal to what the outcomes give). Reports with an earlier schema are refused
   with an explanation: write them again with the current Health. Otherwise you get an error naming the file, what's wrong and
   what to do. Files over 10 MB aren't read.
 

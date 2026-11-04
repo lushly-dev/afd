@@ -30,7 +30,13 @@ async def health_audit(
     """Audit explicitly selected targets with an explicit check policy (read-only)."""
     try:
         selection = tuple(
-            Target(t["id"], _selected_path(t["path"]), t["language"]) for t in targets
+            Target(
+                t["id"],
+                _selected_path(t["path"]),
+                t["language"],
+                _selected_path(t["repository_root"]) if t.get("repository_root") else None,
+            )
+            for t in targets
         )
         policy = Policy(tuple(check_ids), frozenset(disabled or []), dict(severity or {}))
         return success(

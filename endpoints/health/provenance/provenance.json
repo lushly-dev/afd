@@ -229,7 +229,12 @@
     {
       "name": "check_node_version_alignment",
       "imported_as": "core._node_alignment (wrapper)",
-      "change": "the source function is imported unchanged; an added wrapper returns warn for engine ranges, version files and CI expressions outside its literal heuristic, and error for malformed package.json"
+      "change": "the source function is imported unchanged; an added wrapper returns warn for engine ranges, version files and CI expressions it cannot read, error for malformed package.json, and compares against CI majors read by workflows.py (lists, matrix references and fromJSON over literal lists)"
+    },
+    {
+      "name": "check_ci_present",
+      "imported_as": "core._ci_present (wrapper)",
+      "change": "the source function is imported unchanged; an added wrapper keeps its failures, but only a workflow that runs on pull requests or branch pushes counts as CI, and the choice is deterministic"
     },
     {
       "name": "HealthPlugin",
@@ -379,6 +384,10 @@
       "origin": "authored"
     },
     {
+      "path": "src/lushly_health/drift.py",
+      "origin": "authored"
+    },
+    {
       "path": "src/lushly_health/schemas/report-1.0.json",
       "origin": "authored"
     },
@@ -387,11 +396,23 @@
       "origin": "authored"
     },
     {
+      "path": "src/lushly_health/schemas/report-1.2.json",
+      "origin": "authored"
+    },
+    {
+      "path": "src/lushly_health/workflows.py",
+      "origin": "authored"
+    },
+    {
       "path": "tests/test_audit.py",
       "origin": "authored"
     },
     {
       "path": "tests/test_contract.py",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_drift.py",
       "origin": "authored"
     },
     {

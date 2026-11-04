@@ -74,7 +74,7 @@ integrations/violet-afd/    # @lushly-dev/violet-afd — Violet commands, regist
 endpoints/violet-cli/       # @lushly-dev/violet-cli — the `violet` CLI; quarantined
 endpoints/violet-server/    # @lushly-dev/violet-server — `violet-mcp`, MCP server and local REST API; quarantined
 endpoints/health/           # lushly-health (tentative) — explicit-target repository audits, versioned report schema, opt-in Botcore plugin; stdlib-only core; quarantined
-endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.1 files; local-only, private, quarantined, no route
+endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.2 files; local-only, private, quarantined, no route
 endpoints/umbel/            # AFD Umbel — Rust host for capability plugins over MCP and CLI; host skeleton; quarantined; read docs/STATUS.md first
 endpoints/loam/             # AFD Loam — application shell; private, quarantined packages in packages/ (manifest, sdk, testing, cli, theme, kernel, console, chrome, web) and apps in apps/ (hello, tally); read docs/STATUS.md first
 ```

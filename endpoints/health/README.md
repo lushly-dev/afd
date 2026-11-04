@@ -22,7 +22,7 @@ the headless audit core uses only the Python standard library.
   (turned off by the policy), `unavailable` and `error`, each with its own summary
   count. The report also records `generated_at` (UTC, whole seconds) and Health's
   `verdict`. The contract is the JSON Schema
-  [`src/lushly_health/schemas/report-1.1.json`](src/lushly_health/schemas/report-1.1.json),
+  [`src/lushly_health/schemas/report-1.2.json`](src/lushly_health/schemas/report-1.2.json),
   also available as `lushly_health.report_schema()` and `python -m lushly_health schema`.
   The earlier [`report-1.0.json`](src/lushly_health/schemas/report-1.0.json) stays
   available as `report_schema("1.0")`.
@@ -85,11 +85,11 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 
 | Check id | Reads |
 | --- | --- |
-| `node_version_alignment` | `.nvmrc`, `.node-version`, `package.json` engines, workflow `node-version` (TypeScript); unsupported ranges or expressions produce `warn` |
+| `node_version_alignment` | `.nvmrc`, `.node-version`, `package.json` engines, workflow `node-version` including lists, matrix references and `fromJSON` over literal lists (TypeScript); other ranges or expressions produce `warn` |
 | `codex_skills_mirror` | `.codex/skills` is a live mirror of `.claude/skills` |
 | `lefthook_configured` | `lefthook.yml` declares pre-commit and pre-push |
 | `linter_strict` | Biome rules (TypeScript) or `[tool.ruff]` (Python) |
-| `ci_present` | A workflow mentioning test and build |
+| `ci_present` | A workflow mentioning test and build that runs on pull requests or branch pushes; one only run by tags, releases, schedules or by hand doesn't count |
 | `dependabot_configured` | `.github/dependabot.yml` |
 | `commitlint_configured` | A commitlint config (TypeScript) |
 | `coverage_thresholds` | Vitest thresholds or Botcore `coverage_threshold` |
@@ -97,9 +97,22 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 | `gitattributes_lf` | `eol=lf` in `.gitattributes` |
 | `changesets_configured` | `.changeset/` and its tooling |
 | `last_commit` | Latest commit timestamp; requires `git` |
+| `dependency_version_drift` | `pnpm-lock.yaml`, `uv.lock` and `Cargo.lock` files, compared within each ecosystem; advisory by default. `warn` when a direct dependency resolves to several versions; other splits are only counted (`evidence.metric`). Skips `node_modules`, `target`, `dist`, `build`, `venv` and hidden directories |
 
-A check whose declared inputs (its `evidence.paths`) resolve outside the target
-through a link is `unavailable`; unrelated links, such as a local virtual
+### Units inside a larger repository
+
+A target can name the repository that contains it with `repository_root` (in a targets
+file) or `--repository-root` (on the command line). Checks about the repository then read
+that root: `node_version_alignment`, `codex_skills_mirror`, `lefthook_configured`,
+`ci_present`, `dependabot_configured`, `commitlint_configured`, `gitattributes_lf`,
+`changesets_configured`, `last_commit` and `dependency_version_drift`. The rest
+(`linter_strict`, `coverage_thresholds`, `dead_code_tool`) keep reading the target. Such an
+outcome has `evidence.base = "repository_root"`, the report's target row records the root,
+and the root also counts as audited, so reports can't be written inside it. A target
+without a root is treated as its own repository, as before.
+
+A check whose declared inputs (its `evidence.paths`) resolve outside the target, or
+outside its repository root for a repository check, through a link is `unavailable`; unrelated links, such as a local virtual
 environment's interpreter, do not affect it. `last_commit` requires the target to be
 the checkout root, so it never reports an enclosing repository, and it ignores
 inherited `GIT_*` variables. A check exception becomes `error` with only the exception

@@ -6,16 +6,16 @@ import { contentSecurityPolicy } from './single-file';
 describe('report validator plugin', () => {
 	it('reads the schema Health publishes, not a copy', () => {
 		expect(REPORT_SCHEMA_PATH.replaceAll('\\', '/')).toMatch(
-			/endpoints\/health\/src\/lushly_health\/schemas\/report-1\.1\.json$/
+			/endpoints\/health\/src\/lushly_health\/schemas\/report-1\.2\.json$/
 		);
 		const schema = JSON.parse(readFileSync(REPORT_SCHEMA_PATH, 'utf8'));
-		expect(schema.$id).toBe('urn:lushly-health:report:1.1');
+		expect(schema.$id).toBe('urn:lushly-health:report:1.2');
 	});
 
 	it('emits ESM with no runtime eval or require', () => {
 		const source = compileReportValidator();
 		expect(source).toContain('export const validateReport');
-		expect(source).toContain('export const schemaVersion = "1.1";');
+		expect(source).toContain('export const schemaVersion = "1.2";');
 		expect(source).not.toMatch(/\brequire\(|new Function|\beval\(/);
 	});
 

@@ -104,6 +104,14 @@ describe('helpers', () => {
 			{ label: 'Error type', values: ['JSONDecodeError'] },
 		]);
 		expect(
+			describeEvidence({
+				paths: ['.gitattributes'],
+				base: 'repository_root',
+				required_tools: [],
+				kind: 'local_configuration_heuristic',
+			})
+		).toEqual([{ label: 'Reads in repository', values: ['.gitattributes'] }]);
+		expect(
 			describeEvidence({ paths: [], required_tools: [], kind: 'local_configuration_heuristic' })
 		).toEqual([]);
 	});

@@ -1,7 +1,7 @@
 /**
  * Overall verdict under the platform's documented aggregate rule
  * (docs/features/active/platform-monorepo/proposal.md, "Quality verdicts and command
- * effects"). Health writes the same verdict into report 1.1; the dashboard recomputes it
+ * effects"). Health writes the same verdict into report 1.2; the dashboard recomputes it
  * for its explanation and rejects a report whose verdict disagrees (see validate.ts).
  *
  * - a result passes only when it has at least one counted required check and every
@@ -131,7 +131,7 @@ export function deriveVerdict(outcomes: readonly Outcome[]): Verdict {
 	};
 }
 
-/** The report-1.1 `verdict` object Health should have written for these outcomes. */
+/** The report-1.2 `verdict` object Health should have written for these outcomes. */
 export function expectedReportVerdict(verdict: Verdict): {
 	status: ReportVerdictStatus;
 	required_count: number;
