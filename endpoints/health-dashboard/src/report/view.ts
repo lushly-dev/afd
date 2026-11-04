@@ -163,6 +163,12 @@ export function describeEvidence(evidence: Evidence): EvidenceItem[] {
 	return items;
 }
 
+/** Only a result that needs attention can lack guidance; the others don't call for any. */
+export function describeRemediation({ remediation, status }: Outcome): string {
+	if (remediation !== null) return remediation;
+	return ['passed', 'skipped', 'disabled'].includes(status) ? 'None needed' : 'No guidance';
+}
+
 export const plural = (count: number, one: string, many: string) =>
 	`${count} ${count === 1 ? one : many}`;
 

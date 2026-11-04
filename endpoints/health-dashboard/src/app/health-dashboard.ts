@@ -47,6 +47,7 @@ const template = html<HealthDashboard>`
 			<violet-file-upload
 				class="report-files"
 				appearance="dropzone"
+				?data-compact="${(x) => x.reports.length > 0}"
 				label="Report files"
 				supporting-text="${() => `Health report JSON files, schema ${SUPPORTED_SCHEMA_VERSION}, up to ${MAX_REPORT_BYTES / 1024 / 1024} MB each.`}"
 				accept=".json,application/json"
