@@ -9,9 +9,12 @@
 
 ## Status
 
-- **State:** **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of
-  2026-11-03 (D24)**, after an independent review and a revision ([Review response](#review-response)). Written
-  2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
+- **State:** **done 2026-11-03: the exit criterion of section [13](#13-exit-criterion-and-tests) is met** by
+  `first-party/tests/exit_curator.rs` through the real `umbel-first-party` binary, with
+  `first-party/tests/curator_leaks.rs` beside it (step 7; the evidence per point is in
+  [STATUS.md](../../STATUS.md#phase-4-curator)). **Approved 2026-11-03, under the owner's 2026-10-31
+  delegation, with the owner's answers of 2026-11-03 (D24)**, after an independent review and a revision
+  ([Review response](#review-response)). Written 2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
   owner's answers, and the architecture amendments they need. The owner chose the recommended option on nine of
   the ten trust-model questions. On question 10 the owner chose **attest and verify**: the knowledge plugin checks
   every claim a drafter makes rather than trusting it (3.2). Section [16](#16-for-the-owner) records each answer as
@@ -123,8 +126,18 @@
     that line, and the successor is readable by the document's readers; as the policy's decision, never a person's. Its
     [amendments](#amendments-from-step-6) settle eleven details and change no trust-model point; the seventh closes two
     cases the text's predicate let through (a typed declaration carried through a verification or an edit). No host
-    `src/`, `wit/` or `schemas/` file changed.
-- **Not done:** step 7 of section [15](#15-implementation-plan), which is next.
+    `src/`, `wit/` or `schemas/` file changed. Merged in [#770](https://github.com/lushly-dev/afd/pull/770) as
+    `6e1c0a0a`.
+  - Step 7 (binary and exit), 2026-11-03, in its pull request, from `6e1c0a0a`: `umbel-first-party` links the
+    curator, so the binary has all five first-party plugins; `first-party/tests/exit_curator.rs` runs section 13's
+    seven points through the binary and writes its report to `UMBEL_CURATOR_EXIT_REPORT`, which the `memory` job
+    uploads; `first-party/tests/curator_leaks.rs` probes every curator surface and the knowledge plugin's proposal
+    surfaces for what `human:bo` learns of `human:ada`. The exit found no defect in the implementation, so no
+    plugin, host, schema or SDK file changed. Its [amendments](#amendments-from-step-7) settle eleven details of
+    section 13 and change no trust-model point.
+- **Not done:** nothing in section [15](#15-implementation-plan)'s plan. Open: the [follow-ups](#follow-ups), and
+  the one question for the owner in step 7's amendment 11 (a draft its proposer can no longer read is not reached
+  for redaction, the limit step 3b's amendment 12 stated).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1873,6 +1886,79 @@ typed into a file never triggers the rule, as owner decision 1 says. No host `sr
     draft applied by the rule after a person declared the successor, and read back by the next run. `journal_modes.rs`
     adds the command to the digest set.
 
+### Amendments from step 7
+
+Step 7 settled these details of section 13 that the text left open. None changes who may draft, verify, approve or
+read anything; the exit and the leak probes found no defect, so no plugin, host, schema or SDK file changed. The
+eleventh restates, for the owner, the one limit an earlier step stated and nobody has decided.
+
+1. **Memory is written through the binary.** Section 13 wrote ada's records "through the store API". The exit
+   writes every record with `memory-remember` at the `testkit` terminal of the binary instead, switching
+   `principal.local_id` to `ada` for her calls (the command line is always `human:<local_id>`, phase 2), and ada
+   forgets through `memory-forget` the same way. So "memory written" and "forget" are proven through the binary
+   too. A second `memory-remember` of the same content in another session observes the record rather than writing
+   a second one, so point 1's fact is one record with two sessions and one memory evidence entry, as the point
+   says.
+2. **The tampered replay runs beside the binary, not in it.** The binary links only the real curator, whose drafts
+   are faithful, so point 1's "batch replayed with one copied field changed" runs in process on the binary's own
+   workspace and clock, with the real `sources`, `knowledge` and `memory` plugins and a stand-in of plugin id
+   `curator` in the curator's place (the workspace's curator grants and configuration are left out while it runs,
+   since the stand-in declares neither). The batch is the curator's own rendering of the record, by its public
+   `evaluate` and `draft` code. Replayed unchanged it returns the binary's stored draft (`created: false`, the same
+   id and key), which shows the binary drafted exactly that rendering; with `authority` changed it is
+   `PROPOSAL_DRAFT_MISMATCH`, `details.check = "copied-authority"`, and nothing is stored. The stand-in's pipeline
+   is named `curator-run`, since a retry repeats the drafter's pipeline (step 3b, amendment 5) and any other name
+   is `PROPOSAL_KEY_REUSED` before verification.
+3. **The days.** Point 1's fact is written on day 0 and is `settling` on day 3 and `ready` on day 8, when the first
+   run drafts exactly one proposal. The facts of points 4, 5 and 6 are written on day 9, so that run is the only
+   one; on day 17 a run drafts ada's two shared facts and leaves the caller's private one `needs-promotion`.
+   Point 5's quiet period is checked on day 77, inside the 90 days, and point 6 runs on day 78.
+4. **"The fixed rendering", checked.** The applied file's bytes equal the curator's own rendering of the record
+   (amendment 2), with `Holds only` and its constraint. The document's provenance (`agent-inferred`,
+   `generated.by = "umbel:curator/curator"`, `generated.at` the candidate's `settledAt`, `derivedFrom` the proposal)
+   is read with `knowledge-describe` right after the approval and again after `knowledge-refresh`, so the sync of
+   the file does not replace it.
+5. **Point 2's preview.** The binary's stand-in person writes what the terminal shows to stderr; the test holds that
+   the `> ` lines name the proposal and the curator, carry the "verified against memory" label and diff lines
+   (`> | +`), and come before approve's prompt.
+6. **Point 6's absence is checked wider than listed:** in the raw bytes of `store.sqlite3`, its log and shared memory,
+   the journal, the log and the events, every curator record's body and envelope, and the run's stdout, as listed,
+   and also in every file of the workspace. The source's hash is searched for as its hex digits, so a hash without
+   its `sha256:` prefix is found too.
+7. **Point 7's lanes and commands.** Over the binary's stdio MCP server, every curator command and pipeline, and
+   every proposal command of the knowledge plugin that is command line only (`knowledge-approve`, `-reject`,
+   `-verify`, `-auto-approve`, `-proposal-preview`), is absent from `tools/list` and `afd-discover` and refused by
+   `afd-call`, a direct `tools/call`, `afd-batch` and `afd-pipe`; afterwards no proposal changed state and no run
+   record was added.
+8. **The report's variable.** The `memory` job runs phase 3's and phase 4's exit tests in one `cargo test`, and
+   `UMBEL_EXIT_REPORT` is phase 3's, so `exit_curator.rs` writes to **`UMBEL_CURATOR_EXIT_REPORT`**; the job uploads
+   both files in its `memory-exit-report-<os>` artifact.
+9. **The leak probes are differential.** `curator_leaks.rs` builds two workspaces with the same records bo can read and
+   the same runs of ada's over them; one also holds what bo cannot read (two private facts of ada's, one promoted and
+   one forgotten after a run, a space `beta` only she reads with a scheduled draft in it, her candidate, consent, run
+   and state records, and a lock she holds). Bo's 32 answers (`curator-candidates` with every status and with
+   `after` set to ada's ids, `curator-status`, `curator-run` twice, `curator-plan` and `-finish`, `curator-promote`
+   of ada's candidate at a terminal, the proposal list, show and preview, `knowledge-auto-approve`, and each in
+   `beta`) are equal in both, with two things left out: the random run ids, and `rev`, the document store's
+   revisions, whose gaps phase 2 section 6 already accepts as able to show how many hidden things exist. None of
+   ada's 16 hidden ids, hashes, run ids or her lock's trace is in any answer. A probe that planted one of ada's
+   records in bo's readers made the differential fail at its first answer, so it can see a leak.
+10. **What the store admits and what a surface shows.** Section 2.3 gives a candidate record the intersection of its
+    sources' access sets with its principal's token added, and every other curator record its principal's token
+    alone. So a candidate of ada's of a record shared with the space is admitted by bo's reader filter in the store,
+    as the record itself is. No surface shows it to him: the curator reads only the caller's own records (step 4,
+    amendment 5), and the host has no command that reads another plugin's records. `curator_leaks.rs` holds both:
+    each record's access set is 2.3's, and bo is told nothing of ada's candidates. A future surface that reads plugin
+    records must filter by principal as well (follow-ups).
+11. **For the owner: a draft its proposer can no longer read.** Step 3b's amendment 12 stated a limit: proposals are
+    read under the caller's reader filter, so a draft its own proposer can no longer read (removed from the
+    target's readers since it was drafted) is reached neither by the run's re-check nor by the `erased` notice, and
+    is not redacted when its source is forgotten. Its text then stays readable by the readers the record still
+    admits, which are never wider than they were. Nothing in phases 3 or 4 decides whether that is accepted. It is
+    listed for the owner in [STATUS.md](../../STATUS.md#phase-4-curator) and not changed here, since closing it
+    (a redaction path outside the caller's filter, such as one the host or the knowledge instance runs on a
+    forget) changes who may act on a record.
+
 ## 16. For the owner
 
 ### Owner decisions, 2026-11-03
@@ -1955,7 +2041,9 @@ follows owner decisions 4 and 8.
 | 2026-11-03 | Edits that need judgment (6.2's reported kinds) | A new owner decision on a model |
 | 2026-11-03 | Exact session counts need session ids the store does not return (4.3) | When it matters |
 | 2026-11-03 | A doctor API for plugins, so `overdue` reaches `workspace-doctor` (7.3) | When a second plugin needs one |
-| 2026-11-03 | A host hook for plugin configuration checks that need the workspace: a knowledge drafter target's collection exists, is markdown and is one the instance may write. Today these fail closed per draft, with `PROPOSAL_DRAFTER_TARGET_INVALID` or `PROPOSAL_APPLY_UNAVAILABLE`, not at load (step 3c, amendment 14); a run now reports each such refusal by code in its report's `refused` (step 5, amendment 6). Pair it with the doctor API above | Phase 4 step 7, before real use |
+| 2026-11-03 | A host hook for plugin configuration checks that need the workspace: a knowledge drafter target's collection exists, is markdown and is one the instance may write. Today these fail closed per draft, with `PROPOSAL_DRAFTER_TARGET_INVALID` or `PROPOSAL_APPLY_UNAVAILABLE`, not at load (step 3c, amendment 14); a run now reports each such refusal by code in its report's `refused` (step 5, amendment 6). Pair it with the doctor API above. Not built in step 7, whose plan row and exit do not need it: it is a new host interface, and every case still fails closed | Before real use, with the doctor API |
+| 2026-11-03 | Any future surface that reads plugin records (an export, a records command) must filter by principal, not only by access set: a curator candidate of a shared source is admitted by every reader of its sources (step 7, amendment 10) | When such a surface is specified |
+| 2026-11-03 | A draft its proposer can no longer read is not redacted when its source is forgotten (step 3b, amendment 12; step 7, amendment 11) | Owner's decision |
 | 2026-11-03 | A `MemoryMeta` projection with `contentHash` and `observations`, if `max_gets` proves too small (4.1) | When a deployer asks |
 | 2026-11-03 | A memory retrieval eval before ranking candidates beyond fixed rules | After phase 4 |
 | 2026-11-03 | Phase 3's follow-up on sharing writers closing others' records bears on 9.2's listed invalidations | Owner, before phase 5 |
