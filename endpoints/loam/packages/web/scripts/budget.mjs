@@ -61,7 +61,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 2026-11-03: the manifest's document rules in the one validator over untrusted input (4,072), the
  * redaction of a call the kernel's own bound refused, by its mark, in `apps.redact` (153), and the port's
  * `documents` row (58), each measured as the closure with it less without it, with no slack. First paint
- * 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,665, `apps` 384,089.
+ * 285,348 and 87,989 gzip, the kernel alone 111,350, `late` 56,677, `apps` 384,089.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
