@@ -21,7 +21,7 @@ from pathlib import Path
 from afd import error, success
 from botcore import CommandPolicy
 
-async def notes_count(path: str = ".", pattern: str = "*.md"):
+async def notes_count(path: str, pattern: str = "*.md"):
     """Count files matching a pattern under a directory."""
     root = Path(path)
     if not root.is_dir():
@@ -35,7 +35,7 @@ class NotesPlugin:
 
     def register(self, registry):
         registry.add_commands([notes_count])
-        registry.add_docs("notes", "notes_count(path='.', pattern='*.md') -> {count}")
+        registry.add_docs("notes", "notes_count(path, pattern='*.md') -> {count}")
 
     def config_schema(self):
         return None
@@ -54,7 +54,7 @@ notes = "notes_plugin:NotesPlugin"
 - **Names.** A command's name is its function's `__name__`. A duplicate command name or docs topic, including a clash with core, raises.
 - **Docs.** MCP clients see names, policies and docs topics but not docstrings. Put call signatures in the `add_docs` topic.
 - **`host_context_safe`.** `build_host` refuses a plugin without it. Set it only once the plugin keeps no module-global state.
-- **Config.** `config_schema()` returns a Pydantic model class that validates `[tool.botcore.plugins.<entry-point name>]`. Hosts pass the result to an optional `configure(config)`, which the `botcore` CLI never calls.
+- **Config.** `config_schema()` returns a Pydantic model class that validates `[tool.botcore.plugins.<entry-point name>]`. `build_host` and `botcore serve` pass the result to an optional `configure(config)`; the other `botcore` subcommands don't.
 - **Skills.** `add_skills_dir` only records a path. Nothing in Botcore reads `registry.skills_dirs`, and `botcore skill-seed` passes no plugin directories.
 
 ## Serve it through a host
@@ -72,9 +72,9 @@ create_host_mcp_server(host).run()  # notes-start, notes-call, notes-docs
 - **Selection fails closed.** A missing, duplicated or failing plugin in `plugins=` stops construction. Legacy discovery also raises on duplicate entry-point names.
 - **Policies.** A command without a policy raises `Declare command effects before admission`. Effects come from `EFFECTS` in `host.py`. Effects that depend on arguments need a callable plus `possible_effects`.
 - **Profile.** `ExecutionContext` defaults to `inspection`, which denies every effect except `inspect` before the command runs. Writers and subprocesses need `profile="trusted-local"`.
-- **Paths.** Arguments named in `paths` resolve inside the target, and escapes are rejected. The host never changes the cwd, so commands use `botcore.context.current_context()` or `botcore.utils.workspace.find_workspace()`.
-- **Identity.** The host name wins, and `set_cli_name`/`set_mcp_name` are ignored under a host. No Botcore surface reads them, and two plugins that set different names raise.
-- **Checking.** `host.catalog()` lists what was admitted. `add_middleware` wraps `host.execute`.
+- **Paths.** Arguments named in `paths` resolve inside the target, and escapes are rejected. Only arguments the caller passes are resolved, never a parameter's default, so make path parameters required (a default of `"."` would read the process cwd, outside the target). The host never changes the cwd, so commands use `botcore.context.current_context()` or `botcore.utils.workspace.find_workspace()`.
+- **Identity.** The host name wins: `set_cli_name`/`set_mcp_name` do nothing under a host. On the legacy path, two plugins that set different names raise.
+- **Checking.** `host.catalog()` lists what was admitted. `add_middleware` wraps the handler call, after the effect check and path resolution, so middleware never sees a denied call.
 
 ## Legacy path: trusted local only
 

@@ -26,18 +26,17 @@ Documentation is worth keeping only while it matches the code. Keep root files s
 
 - Give every user-visible change an entry saying what changed and why it matters to users: one per logical change, not a commit log. Refactors, tests and CI changes need none.
 - When later work changes or reverses what an existing entry says, correct that entry (or its changeset) instead of adding a second one that contradicts it.
-- Follow the repository's release mechanism. Where Changesets or a similar tool generates changelogs, write a changeset rather than editing the output, and keep a root CHANGELOG.md that only indexes package changelogs as an index. Versions, tags and bump rules belong to the release skill.
+- Follow the repository's release mechanism. Where Changesets or a similar tool generates changelogs, write a changeset rather than editing the output, and keep any root CHANGELOG.md as an index of the package changelogs. Versions, tags and bump rules belong to the release skill.
 
 ## Botcore commands
 
-These are Python functions in `botcore.commands`, not `botcore` CLI subcommands; call them from a bot's `<name>-run` MCP tool or a host that registers them. A pass can mean nothing was checked:
+The `docs_*` checks are Python functions in `botcore.commands`, not `botcore` CLI subcommands; call them from a bot's `<name>-run` MCP tool or a host that registers them. A pass can mean nothing was checked, and both staged-file checks pass with "skipping check" when the root CHANGELOG.md or AGENTS.md is absent:
 
 - `docs_lint(path=None)` checks internal links and anchors in every `*.md` under a directory (default `docs/`) and fails with `BROKEN_LINKS`; missing `status`, `author` or `created` frontmatter on `*.proposal.md` and `*.spec.md` is a warning. It skips external URLs. Given a file it checks nothing and passes, and it walks `node_modules` and `.venv`, so check root README.md and AGENTS.md links yourself.
 - `docs_check_changelog()` flags only staged `.py` files under a top-level `src/` with no staged CHANGELOG.md and no `.changeset/*.md`. Code anywhere else passes unseen.
 - `docs_check_agents()` flags staged Python under a `commands/` directory, or a staged `src/**/__init__.py`, without a staged AGENTS.md. Other structural changes pass unseen.
 - `docs_preflight()` runs both checks as one pipeline.
 - `changeset_create(change_type, description)` (CLI: `botcore changeset-create`) writes a category fragment to `.changeset/`. The checks above suggest it, but it refuses any repository with a `package.json`, `pnpm-workspace.yaml` or `.changeset/config.json`; use that repository's own Changesets command.
-- `botcore skill-lint [path]` lints skill files.
 
 ## Before finishing
 

@@ -160,7 +160,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 |--------|----------|-------------|
 | **Dev** | `dev_lint`, `dev_test`, `dev_build` + 9 more | Language-aware linting, testing, building, quality gates, static analysis |
 | **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index` | Seed, track, lint, and manage skill ownership across repos |
-| **CDP** | 28 commands | Full browser automation — launch, navigate, click, screenshot, forms, network, console |
+| **CDP** | 33 `cdp_*` functions | Browser automation from Python (`botcore.commands.cdp`; not registered on the MCP server or CLI): launch, navigate, click, screenshot, forms, console, traces |
 | **Docs** | `docs_lint`, `docs_check_changelog`, `docs_check_agents` | Documentation quality checks |
 | **Info** | `info_workspace`, `info_env`, `info_scripts` | Workspace discovery and environment inspection |
 | **Spec** | `spec_create`, `spec_status`, `spec_validate` | Spec lifecycle management |
@@ -346,7 +346,7 @@ ruff check src/ --fix
 - [x] Shared config system (Pydantic models, multi-language)
 - [x] Plugin contract (Protocol-based, entry-point discovery)
 - [x] Command extraction (38+ commands across 8 domains)
-- [x] CDP browser automation (28 commands)
+- [x] CDP browser automation (33 functions)
 - [x] Skill registry (seed, lint, track, adopt, index)
 - [x] 9 bundled skills
 - [x] MCP server factory (meta-tool pattern)

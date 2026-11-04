@@ -219,6 +219,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 - Re-adopt the surviving canonical skills with `metadata:` ownership, so `skill-seed --update` refreshes them again.
 - Delete the copies Botcore removed and the Lushly removals listed above.
 - Register Lushly's session skills as local.
+- Lushly's `scripts/build-review-packet.mjs` lists trusted-base lane contracts that Batch 2 deleted: `review-code/references/review-checklists.md`, `review-code/references/feedback-format.md` and `audit-security/references/agent-and-supply-chain.md`. Remove them and their tests rather than recreating the files. The label definitions now live in `review-code/SKILL.md`, and the lane formats are already in Lushly's reviewer profiles. Keep the lane-specific tool boundary and the `[executed: coordinator]`/`[traced]` tags in `review-code-lushly` and the profiles.
 - Add Lushly's listing budget.
 
 **Batch 6: Lushly domain skills.**

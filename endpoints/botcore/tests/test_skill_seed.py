@@ -365,6 +365,38 @@ def test_rename_targets_are_current_bundled_skills() -> None:
     assert {resolve_rename(old) for old in SKILL_RENAMES} <= set(bundled)
     assert resolve_rename("manage-documentation") == "docs-manager"
     assert resolve_rename("docs-manager") is None
+    # Skills merged into another resolve, through any earlier name, to the merge target.
+    for old_name in ("review", "do-review"):
+        assert resolve_rename(old_name) == "code-reviewer"
+    for old_name in (
+        "docs-update",
+        "do-documentation-update",
+        "content-humanizer",
+        "humanize-content",
+    ):
+        assert resolve_rename(old_name) == "docs-manager"
+
+
+async def test_seed_migrates_two_merged_skills_into_one(tmp_path: Path) -> None:
+    """Both managed skills merged into docs-manager go, and docs-manager is seeded once."""
+    ws = _setup_workspace(tmp_path)
+    skills_dir = ws / ".claude" / "skills"
+    _make_source_skill(skills_dir, "docs-update", "1.0.0", source="botcore")
+    _make_source_skill(skills_dir, "content-humanizer", "1.0.0", source="botcore")
+
+    source_dir = tmp_path / "source"
+    _make_source_skill(source_dir, "docs-manager", "2.0.0")
+
+    result = await _seed(ws, _discovered(source_dir, "docs-manager"))
+
+    data = assert_success(result)
+    assert data["migrated"] == [
+        {"from": "content-humanizer", "to": "docs-manager"},
+        {"from": "docs-update", "to": "docs-manager"},
+    ]
+    assert data["seeded"] == ["docs-manager"]
+    assert not (skills_dir / "docs-update").exists()
+    assert not (skills_dir / "content-humanizer").exists()
 
 
 async def test_seed_migrates_botcore_owned_renamed_skill(tmp_path: Path) -> None:

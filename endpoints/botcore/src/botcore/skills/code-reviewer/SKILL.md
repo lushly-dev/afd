@@ -12,7 +12,7 @@ portable: true
 
 # Code reviewer
 
-A reviewer is useful only if it judges the artifact, not the story behind it. A repository's own review workflow or reviewer profile (lanes, pass limits, output format) takes precedence; this skill is the method inside it.
+A reviewer is useful only if it judges the artifact, not the story behind it. A repository's own review workflow or reviewer profile (lanes, pass limits, tool limits, output format) takes precedence; this skill is the method inside it. A lane that may not run commands reads instead, and says which findings it traced rather than ran.
 
 ## Brief a fresh reviewer
 
@@ -48,7 +48,7 @@ Ground each finding in something you read or ran, not in memory of how an API us
 
 **Phased delivery is normal.** Don't flag phasing itself; flag a phase that leaves the product broken or a contract half-changed, and deferred work the plan doesn't name.
 
-**Specs hold interfaces:** signatures, types, schemas, diagrams and usage examples a few lines long. An implementation body (handler logic, a component, test code) is a BLOCKER at any length, as is any code block over 50 lines.
+**Specs hold interfaces:** signatures, types, schemas, diagrams and usage examples a few lines long. An implementation body (handler logic, a component, test code) is a BLOCKER, because whoever implements the spec copies it instead of designing; keep illustrative blocks to a few lines.
 
 ## Classify and report
 

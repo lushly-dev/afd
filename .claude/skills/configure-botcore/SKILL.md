@@ -46,7 +46,7 @@ What is wired, highest first:
 
 Other languages get no tool defaults.
 
-For several languages, add `[language_config.<lang>]` tables (`root`, `linter`, `test_runner`, `formatter`). Their keys then become the active languages, and dev commands called without `language` or `path` (`dev_lint`, `dev_test`, `dev_build`, `dev_check_deps` and the analysis commands) run once per language. A path resolves to a language in this order: the `language` argument, the longest matching `root`, the package override's `language`, marker detection in the path's directory, then `language`. Loading warns when `language` isn't one of the `language_config` keys, and when two roots overlap.
+For several languages, add two or more `[language_config.<lang>]` tables (`root`, `linter`, `test_runner`, `formatter`); one table alone doesn't switch on dispatch. Their keys then become the active languages, and dev commands called without `language` or `path` (`dev_lint`, `dev_test`, `dev_build`, `dev_check_deps` and the analysis commands) run once per language. A path resolves to a language in this order: the `language` argument, the longest matching `root`, the package override's `language`, marker detection in the path's directory, then `language`. Loading warns when `language` isn't one of the `language_config` keys, and when two roots overlap.
 
 ## Defaults and who reads them
 

@@ -14,7 +14,7 @@ portable: true
 
 # Browser automation with botcore CDP
 
-The `cdp_*` functions in `botcore.commands.cdp` are async and return a `CommandResult`, so failures come back as `success=False`, not exceptions. They need `lushly-botcore[cdp]` (Playwright, httpx, Perfetto) and `playwright install chromium`. `cdp_launch` starts Playwright's Chromium, not a system Chrome.
+The `cdp_*` functions in `botcore.commands.cdp` are async and return a `CommandResult`, so most failures come back as `success=False`. The exceptions raise instead: `cdp_list_pages`, `cdp_new_page` and `cdp_close_page` when the browser is unreachable, and `cdp_console` given an invalid `grep` pattern. They need `lushly-botcore[cdp]` (Playwright, httpx, Perfetto) and `playwright install chromium`. `cdp_launch` starts Playwright's Chromium, not a system Chrome.
 
 Botcore core doesn't expose them. There is no `botcore cdp` command, and neither the MCP namespace (`botcore.commands.__all__`) nor `build_host` includes them. Call them from Python or register them in a plugin. An error suggestion that says "re-run with --force" means `force=True`. Parameters are documented only in the signatures and docstrings in `src/botcore/commands/cdp/`.
 

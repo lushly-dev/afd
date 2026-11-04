@@ -31,7 +31,7 @@ High sensitivity means PII, credentials or audit logs; high impact means deploym
 
 ## Calibrate severity
 
-Severity runs from P0 (emergency) to P3 (low). Start from the usual rating, then apply these rules:
+Severity runs from P0 (emergency) to P3 (low); in a review lane that uses BLOCKER and IMPROVEMENT, P0 and P1 are BLOCKERs. Start from the usual rating, then apply these rules:
 - **Write-capable tool:** raise one level. Injection against it does operational damage without any memory-corruption primitive.
 - **Sensitive data at scale:** raise one level.
 - **No per-tool authorization enforced server-side on every call:** P0 or P1, whatever the CVSS says.
@@ -51,7 +51,7 @@ Metadata that nothing checks at call time is not a control.
 - **AFD `requires`** is metadata only.
 - **AFD `mutation` and `destructive`** become MCP `readOnlyHint` and `destructiveHint`. These are hints to the client, not gates.
 - **AFD `approval: 'required'`** is enforced only where `createApprovalMiddleware` from `@lushly-dev/afd-server` is installed. Without it, the approval gate is missing.
-- **Client prompts** don't count as the server's gate. Claude Code's permission modes and `_meta["anthropic/requiresUserInteraction"]` bind only that client.
+- **Client prompts** don't count as the server's gate. Claude Code's permission modes bind only that client.
 - **Botcore hosts** deny every effect except `inspect` before execution under the `inspection` profile, and undeclared commands fail closed (`botcore/host.py`). This is cooperative policy: installed plugins and their subprocesses are trusted code, so a hostile plugin is a supply-chain finding.
 
 ## Code-execution tools

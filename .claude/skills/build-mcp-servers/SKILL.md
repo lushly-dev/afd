@@ -54,11 +54,7 @@ Claude Code sets its own limits on top:
 
 ## Subprocesses
 
-Use `asyncio.create_subprocess_exec` with `stdin=asyncio.subprocess.DEVNULL` and a timeout, as `run_command` does:
-- A synchronous subprocess blocks the event loop the server runs on.
-- On Windows, a child that inherits stdin shares the stdio transport's pipe, and the server and the child deadlock waiting on the same stream.
-
-On a stdio server, stdout carries JSON-RPC, so write diagnostics to stderr.
+Use `asyncio.create_subprocess_exec` with `stdin=asyncio.subprocess.DEVNULL` and a timeout, as `run_command` does. On Windows, a child that inherits stdin shares the stdio transport's pipe, and the server and the child deadlock waiting on the same stream.
 
 ## Execute tools are trusted-local only
 
