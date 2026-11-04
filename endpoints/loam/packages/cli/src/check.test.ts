@@ -50,6 +50,52 @@ describe('checkApp', () => {
 		]);
 	});
 
+	it('P2-D3: inlines a content schema, and refuses a template off it as DOCUMENT_TEMPLATE_INVALID', () => {
+		const typed = (content: string) =>
+			NATIVE.replace('manifest_version = 1', 'manifest_version = 2')
+				.replace('[native]', '[[grants]]\nname = "store"\nreason = "Keeps the text."\n\n[native]')
+				.replace(
+					'input_schema = "schemas/in.json"',
+					'input_schema = { type = "object", properties = { document = { type = "string" } }, required = ["document"], additionalProperties = false }'
+				)
+				.concat(
+					[
+						'',
+						'[[ui.documents]]',
+						'id = "hello"',
+						'title = "Greeting"',
+						'icon = "system/document"',
+						'content_schema = "schemas/content.json"',
+						'content_version = 1',
+						'instance_commands = ["hello-greet"]',
+						'editor = { element = "hello-editor" }',
+						'binding = { model = "command", selection = "none", locator = "none", conflict = "last-writer-wins" }',
+						'',
+						'[[ui.documents.templates]]',
+						'id = "blank"',
+						'title = "Blank"',
+						`content = ${content}`,
+						'',
+					].join('\n')
+				);
+		const tree = (content: string) => ({
+			...files(typed(content)),
+			'schemas/content.json':
+				'{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}',
+		});
+		const valid = checkApp(tree('{ text = "" }'));
+		expect(valid.refusals).toEqual([]);
+		expect(valid.manifest?.ui?.documents?.[0]?.content_schema).toMatchObject({
+			required: ['text'],
+		});
+		expect(checkApp(tree('{ text = 1 }')).refusals).toEqual([
+			expect.objectContaining({
+				code: 'DOCUMENT_TEMPLATE_INVALID',
+				key: 'ui.documents[0].templates[0].content',
+			}),
+		]);
+	});
+
 	it('inlines, reports the effective exposure and says what a native app is', () => {
 		const report = checkApp(files());
 		expect(report.refusals).toEqual([]);

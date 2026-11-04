@@ -387,6 +387,11 @@ export interface KernelEventV2 extends KernelEventV1 {
 	scopeChanged?: ScopeChangeV2;
 	/** What main shows changed, and how the URL should follow (6.3). */
 	mainChanged?: 'push' | 'replace';
+	/**
+	 * The document an instance command that is a mutation changed, when it succeeded, so every open editor
+	 * of it re-reads (documents specification, 5.7).
+	 */
+	document?: string;
 }
 
 /** A surface's port: fixed to the scope it was created in (phase 2 specification, 3.6; D83). */

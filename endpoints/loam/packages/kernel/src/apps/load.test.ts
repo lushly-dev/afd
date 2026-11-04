@@ -119,8 +119,8 @@ describe('E8: grants', () => {
 	it('loads an optional unserved grant without its API, and app-get says so', async () => {
 		const seen: Record<string, unknown> = {};
 		const app = manifest('opt', {
-			// `documents` is served from step 9 (phase 2 specification, 5).
-			grants: [{ name: 'documents', required: false, reason: 'Later.' }],
+			// `settings` is served from phase 4; `documents`, which this used, from step 9.
+			grants: [{ name: 'settings', required: false, reason: 'Later.' }],
 			commands: [
 				{
 					name: 'opt-read',
@@ -147,7 +147,7 @@ describe('E8: grants', () => {
 		const detail = (await kernel.call<AppDetailV1>('app-get', { instance: 'opt' })).data;
 		expect(detail?.state).toBe('ready');
 		expect(detail?.grants).toEqual([
-			{ name: 'documents', required: false, served: false, reason: 'Later.' },
+			{ name: 'settings', required: false, served: false, reason: 'Later.' },
 		]);
 		expect((await kernel.call('opt-read')).success).toBe(true);
 		// No grant: no store, no clock and no random reach the handler.
@@ -406,9 +406,9 @@ describe('mounted instances before discovery', () => {
 
 	it('lets a refused entry hold its domain, as deployment check does', async () => {
 		const { kernel } = await boot(
-			[entry('notes'), mounted('work', { prefix: 'notes' }), mounted('other')],
+			[entry('reports'), mounted('work', { prefix: 'reports' }), mounted('other')],
 			{
-				'apps/notes/': { manifest: { bad: true } },
+				'apps/reports/': { manifest: { bad: true } },
 				'apps/work/': { manifest: mountedManifest() },
 				'apps/other/': { manifest: mountedManifest() },
 			}

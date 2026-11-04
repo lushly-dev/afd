@@ -52,7 +52,10 @@ export interface AppsHost {
 	 * specification, 3.6 and 5), the project and workspace-app records a mounted instance is checked
 	 * against (4.1, 9), and `decideAccess` on them.
 	 */
-	scope: Pick<ScopeRuntime, 'active' | 'actorKey' | 'allows' | 'projects' | 'workspaceApps'>;
+	scope: Pick<
+		ScopeRuntime,
+		'active' | 'actorKey' | 'allows' | 'projects' | 'workspaceApps' | 'oversized'
+	>;
 }
 
 /**

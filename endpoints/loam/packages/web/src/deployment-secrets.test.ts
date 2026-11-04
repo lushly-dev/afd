@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const URL_SECRET = 'http://127.0.0.1:7410/mcp-secret-path';
 const TOKEN = 'token-that-must-stay-out-of-every-store';
-const COMMAND_SECRET = '/srv/notes-umbel-secret';
+const COMMAND_SECRET = '/srv/reports-umbel-secret';
 const CSP =
 	"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'";
 

@@ -12,7 +12,7 @@ import { registerShellState } from '../shell-state.js';
 import { createFixedEnvironment } from '../testing.js';
 import { createLateParts, createOverlayStore } from './index.js';
 
-function definitions() {
+async function definitions() {
 	const viewState = new ViewStateRegistry();
 	const state = registerShellState(viewState);
 	const auth = new MockAuthAdapter();
@@ -22,36 +22,38 @@ function definitions() {
 	const boot = createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] });
 	return {
 		boot,
-		all: createLateParts(boot, {
-			viewState,
-			state,
-			environment,
-			auth,
-			host: 'test',
-			storeKind: 'memory',
-			overlays: createOverlayStore(),
-			apps,
-			paletteRows: () => [],
-			commandSet: () => 0,
-			scope,
-			store: new MemoryAdapter(),
-			generation: () => 'test',
-			isMutation: () => false,
-			summaries: () => [],
-			run: () => Promise.resolve({ success: true }) as never,
-		}).shell,
+		all: (
+			await createLateParts(boot, {
+				viewState,
+				state,
+				environment,
+				auth,
+				host: 'test',
+				storeKind: 'memory',
+				overlays: createOverlayStore(),
+				apps,
+				paletteRows: () => [],
+				commandSet: () => 0,
+				scope,
+				store: new MemoryAdapter(),
+				generation: () => 'test',
+				isMutation: () => false,
+				summaries: () => [],
+				run: () => Promise.resolve({ success: true }) as never,
+			})
+		).shell,
 	};
 }
 
 describe('the shell commands on Zod Mini', () => {
-	it('hold each written JSON Schema equal to its schema', () => {
-		for (const command of definitions().all) {
+	it('hold each written JSON Schema equal to its schema', async () => {
+		for (const command of (await definitions()).all) {
 			expect(command.jsonSchema, command.name).toEqual(zodToJsonSchema(command.inputSchema));
 		}
 	});
 
-	it('list every name once, in order, with the boot commands among them', () => {
-		const { boot, all } = definitions();
+	it('list every name once, in order, with the boot commands among them', async () => {
+		const { boot, all } = await definitions();
 		expect(all.map((command) => command.name)).toEqual([...SHELL_COMMAND_NAMES]);
 		expect(boot.map((command) => command.name).sort()).toEqual([
 			'app-list',

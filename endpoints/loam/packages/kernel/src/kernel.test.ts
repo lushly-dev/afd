@@ -66,13 +66,13 @@ describe('E8: the kernel refuses a bad name', () => {
 		const refusal = error as LoamKernelError;
 		expect(refusal.code).toBe('COMMAND_NAME_INVALID');
 		expect(refusal.suggestion).toBe(COMMAND_NAME_SUGGESTION);
-		expect(refusal.suggestion).toBe('Rename it domain-action, e.g. notes-create');
+		expect(refusal.suggestion).toBe('Rename it domain-action, e.g. reports-create');
 		expect(refusal.details?.name).toBe('doThing');
 		expect(String(refusal.details?.reason)).toContain('kebab-case');
 		expect(refusal.message).toContain('doThing');
 	});
 
-	it.each(['notes', 'Notes-create', 'notes_create', ''])('refuses %j', async (name) => {
+	it.each(['reports', 'Reports-create', 'reports_create', ''])('refuses %j', async (name) => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const bad = command(name);
 		warn.mockRestore();
@@ -88,9 +88,9 @@ describe('E8: the kernel refuses a bad name', () => {
 	});
 
 	it('accepts good extra names and runs them signed out', async () => {
-		const { kernel: k } = await kernel({ commands: [command('notes-create')] });
-		const result = await k.agent.call('notes-create');
-		expect(result).toMatchObject({ success: true, data: { ran: 'notes-create' } });
+		const { kernel: k } = await kernel({ commands: [command('reports-create')] });
+		const result = await k.agent.call('reports-create');
+		expect(result).toMatchObject({ success: true, data: { ran: 'reports-create' } });
 	});
 });
 
@@ -123,11 +123,11 @@ describe('registries and exposure', () => {
 
 	it('keeps an extra command to the interfaces it is exposed to', async () => {
 		const { kernel: k } = await kernel({
-			commands: [command('notes-sync', { expose: { palette: false, agent: true } })],
+			commands: [command('reports-sync', { expose: { palette: false, agent: true } })],
 		});
-		expect(k.listCommands().some((summary) => summary.name === 'notes-sync')).toBe(false);
-		expect(k.agent.listCommands().some((summary) => summary.name === 'notes-sync')).toBe(true);
-		expect((await k.call('notes-sync')).error?.code).toBe('COMMAND_NOT_EXPOSED');
+		expect(k.listCommands().some((summary) => summary.name === 'reports-sync')).toBe(false);
+		expect(k.agent.listCommands().some((summary) => summary.name === 'reports-sync')).toBe(true);
+		expect((await k.call('reports-sync')).error?.code).toBe('COMMAND_NOT_EXPOSED');
 	});
 
 	it('returns COMMAND_NOT_FOUND for an unknown name, with a mutation-free event', async () => {
@@ -227,7 +227,7 @@ describe('the journal', () => {
 			result: { success: true },
 			durationMs: 0,
 		};
-		const other = { ...base, command: 'notes-create', input: { password: 'x' } };
+		const other = { ...base, command: 'reports-create', input: { password: 'x' } };
 		expect(redactJournalRecord(other)).toBe(other);
 		const noPassword = { ...base, command: 'auth-sign-in', input: { email: 'a@b.c' } };
 		expect(redactJournalRecord(noPassword)).toBe(noPassword);
@@ -424,15 +424,17 @@ describe('appearance', () => {
 
 describe('the palette commands', () => {
 	it('opens and closes, and searches the palette registry', async () => {
-		const { kernel: k } = await kernel({ commands: [command('notes-create')] });
+		const { kernel: k } = await kernel({ commands: [command('reports-create')] });
 		expect((await k.call('palette-open', { query: 'x' })).data).toEqual({ open: true });
 		expect((await k.call('palette-close')).data).toEqual({ open: false });
 		const search = await k.call<{ items: { name: string; field: string }[] }>('palette-search', {
 			query: 'layset',
 		});
 		expect(search.data?.items[0]).toMatchObject({ name: 'layout-set', field: 'name' });
-		const notes = await k.call<{ items: { name: string }[] }>('palette-search', { query: 'notes' });
-		expect(notes.data?.items.map((item) => item.name)).toContain('notes-create');
+		const reports = await k.call<{ items: { name: string }[] }>('palette-search', {
+			query: 'reports',
+		});
+		expect(reports.data?.items.map((item) => item.name)).toContain('reports-create');
 		const limited = await k.call<{ items: unknown[] }>('palette-search', { query: '', limit: 3 });
 		expect(limited.data?.items).toHaveLength(3);
 		const all = await k.call<{ items: unknown[] }>('palette-search', { query: '' });

@@ -326,7 +326,7 @@ export function createOperations(
 				...(owner.recorded ? { replay: 'recorded' } : {}),
 			};
 		},
-		redact: boundRecorded,
+		redact: (record) => boundRecorded(record, host.scope.oversized),
 		applyCatalog(instance, catalog) {
 			records.get(instance)?.mounted?.applyCatalog(catalog);
 		},
