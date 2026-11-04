@@ -121,6 +121,28 @@ describe('createMountTransport', () => {
 		expect((refused as Error).message).not.toContain('server');
 	});
 
+	it("P2-E6 (unit): puts a command call's meta in `_meta`, and sends none without it (9.2)", async () => {
+		const sent: Array<{ params: Record<string, unknown> }> = [];
+		const { Fake } = fakeTransport({
+			send: async (request) => {
+				sent.push(request as never);
+				return { result: { structuredContent: { success: true } } };
+			},
+		});
+		const port = createMountTransport('u', Fake);
+		const scope = { workspace: 'personal', project: 'prj_atlas0000' };
+		await port.callTool('afd-call', { command: 'hello-greet' }, undefined, {
+			'dev.loam/scope': scope,
+		});
+		await port.callTool('afd-help', { format: 'full' });
+		expect(sent[0]?.params).toEqual({
+			name: 'afd-call',
+			arguments: { command: 'hello-greet' },
+			_meta: { 'dev.loam/scope': scope },
+		});
+		expect(Object.keys(sent[1]?.params ?? {})).toEqual(['name', 'arguments']);
+	});
+
 	it('closes at once: disconnect is synchronous', async () => {
 		const { seen, Fake } = fakeTransport({});
 		await createMountTransport('u', Fake).close();

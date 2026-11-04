@@ -9,7 +9,7 @@ import {
 	StreamableHttpTransport,
 	type StreamableHttpTransportOptions,
 } from '@lushly-dev/afd-client/streamable-http';
-import type { McpTool, McpToolCallResult, MountTransportV1 } from '@lushly-dev/loam-kernel';
+import type { McpTool, McpToolCallResult, MountTransportV2 } from '@lushly-dev/loam-kernel';
 
 /** More than a `CommandResult` needs, and the journal keeps 256 KiB of one (7.6). */
 export const RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
@@ -90,7 +90,7 @@ type TransportClass = new (
 export function createMountTransport(
 	url: string,
 	Transport: TransportClass = StreamableHttpTransport
-): MountTransportV1 {
+): MountTransportV2 {
 	const transport = new Transport(url, CLIENT);
 	let id = 0;
 
@@ -137,10 +137,11 @@ export function createMountTransport(
 			}
 			return tools;
 		},
-		async callTool(name, args, signal) {
+		/** A command's call carries the kernel's `_meta`, its scope; discovery's carry none (phase 2, 9.2). */
+		async callTool(name, args, signal, meta) {
 			return (await request(
 				'tools/call',
-				{ name, arguments: args ?? {} },
+				{ name, arguments: args ?? {}, ...(meta ? { _meta: meta } : {}) },
 				signal
 			)) as McpToolCallResult;
 		},

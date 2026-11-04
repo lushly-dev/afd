@@ -6,7 +6,7 @@
  * deployment's mounted instance is discovered, after first paint (7.3).
  */
 
-import type { HandlerFrameV1, KernelPortsV1, MountTransportV1 } from '@lushly-dev/loam-kernel';
+import type { HandlerFrameV1, KernelPortsV1, MountTransportV2 } from '@lushly-dev/loam-kernel';
 
 /** What the chrome's view chunk gives this port. */
 export interface ViewChunk {
@@ -20,7 +20,7 @@ export interface ViewChunk {
 
 /** What the `mount` chunk gives this port. */
 export interface MountChunk {
-	createMountTransport(url: string): MountTransportV1;
+	createMountTransport(url: string): MountTransportV2;
 }
 
 async function ok(url: string): Promise<Response> {

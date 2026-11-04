@@ -21,9 +21,21 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
 	viewState.set(SCOPE_VIEW_STATE_ID, { project });
 }
 
-/** Whether a `workspace-app` record disables `instance`: a gate, not an omission (4.1). */
-export const disabled = (scope: ScopeRuntime, instance: string): boolean =>
-	scope.workspaceApps.get(instance)?.overrides.enabled === false;
+/**
+ * `APP_DISABLED` when a `workspace-app` record disables `instance`: a gate, not an omission, so it takes
+ * effect at once and replays the same (4.1). A call into it, `app-open` and its discovery all answer it.
+ */
+export const disabledRefusal = (
+	scope: ScopeRuntime,
+	instance: string
+): CommandResult<never> | undefined =>
+	scope.workspaceApps.get(instance)?.overrides.enabled === false
+		? kernelFailure(
+				'APP_DISABLED',
+				`The app '${instance}' is disabled in this workspace`,
+				`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
+			)
+		: undefined;
 
 /**
  * Why `instance` cannot open in a scope with `project`, or none: disabled (4.1), or not open there by
@@ -38,13 +50,8 @@ export function canOpen(
 ): CommandResult<never> | undefined {
 	const app = apps.summaries().find((candidate) => candidate.instance === instance);
 	if (!app) return unknownApp(instance);
-	if (disabled(scope, instance)) {
-		return kernelFailure(
-			'APP_DISABLED',
-			`The app '${instance}' is disabled in this workspace`,
-			`Enable it with workspace-app-set { instance: "${instance}", enabled: true }`
-		);
-	}
+	const off = disabledRefusal(scope, instance);
+	if (off) return off;
 	if (scope.opensIn(instance, app.scopeLevels, project)) return undefined;
 	return kernelFailure(
 		'SCOPE_PROJECT_REQUIRED',

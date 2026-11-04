@@ -18,8 +18,9 @@ import type { ManifestV2, ProjectionAppV1, ProjectionMountedV1 } from '@lushly-d
 import { deriveMutation, mountCommandName } from '@lushly-dev/loam-manifest/validate';
 import { z } from 'zod';
 import type { CommandOwner } from '../apps-runtime.js';
+import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, type LoamKernelErrorCode, PAGE_DECIDED } from '../errors.js';
-import type { KernelPortsV1, McpToolCallResult, MountTransportV1 } from '../types.js';
+import type { KernelPortsV1, McpToolCallResult, MountTransportV2 } from '../types.js';
 import type { AppRecord } from './operations.js';
 import type { AppsHost } from './types.js';
 
@@ -271,6 +272,31 @@ export function pinMountedInput(
 	return { ok: true, input: { ...given, space } };
 }
 
+/**
+ * 3.4's line 7, first (phase 2 specification, 9.2): an instance whose entry lists `projects` serves those
+ * projects alone, by slug, and nothing at workspace level. The kernel's `opensIn` reads the same list
+ * against the same slug, so an app that cannot open in a project has every call refused there too. This is
+ * the instance's own refusal, before any request: a call the kernel did not open, an agent's, still stops.
+ * Its suggestion names only the listed projects `visible` lets the caller enter, so a non-member learns of
+ * no restricted project, as `PROJECT_NOT_FOUND` keeps it (3.4).
+ */
+export function unlistedProject(
+	entry: Pick<ProjectionAppV1, 'projects'>,
+	slug: string | undefined,
+	visible: (slug: string) => boolean
+): CommandResult<never> | undefined {
+	const listed = entry.projects;
+	if (listed === undefined || (slug !== undefined && listed.includes(slug))) return undefined;
+	const shown = listed.filter(visible);
+	return kernelFailure(
+		'MOUNT_PROJECT_NOT_LISTED',
+		slug === undefined
+			? 'This instance serves only its projects'
+			: `This instance does not serve the project \`${slug}\``,
+		`Switch to a project this instance serves${shown.length > 0 ? `: ${shown.join(', ')}` : ''}`
+	);
+}
+
 // ─── Exposure ───────────────────────────────────────────────────────────────────
 
 type EntryOverride = NonNullable<ProjectionAppV1['commands']>[string];
@@ -344,7 +370,7 @@ class MountFailure extends Error {
 
 /** A meta-tool's result. A tool error or anything else is `MOUNT_NOT_AFD`: 7.3's third step. */
 async function metaTool(
-	transport: MountTransportV1,
+	transport: MountTransportV2,
 	name: string,
 	args: unknown,
 	signal: AbortSignal | undefined
@@ -389,7 +415,7 @@ const isMetaTool = (name: string): boolean => /^\s*afd[^a-z0-9]/i.test(name);
 export async function discoverInstance(
 	entry: Pick<ProjectionAppV1, 'instance' | 'prefix' | 'expose' | 'commands'>,
 	manifest: ManifestV2,
-	transport: MountTransportV1,
+	transport: MountTransportV2,
 	signal?: AbortSignal
 ): Promise<InstanceCatalogV1> {
 	const { protocolVersion } = await transport.connect(signal);
@@ -584,7 +610,7 @@ const looseInput = z.looseObject({});
 export function createMountedHost(options: MountedHostOptions): MountedHost {
 	const { record, entry, manifest, host, ports, commands, owners } = options;
 	const { instance, app } = record;
-	let transport: MountTransportV1 | undefined;
+	let transport: MountTransportV2 | undefined;
 	let running: Promise<CommandResult> | undefined;
 	let lastAutomatic = Number.NEGATIVE_INFINITY;
 	const approvals = new Map<string, 'required'>();
@@ -602,6 +628,20 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		input: unknown,
 		context: CommandContext
 	): Promise<CommandResult> {
+		// The effective scope, after the middleware's lines 1 to 6: ids, never a name (9.2).
+		const { scope } = context as KernelFieldContext;
+		const slug = scope?.project && host.scope.projects.get(scope.project)?.slug;
+		// Through the runtime, so this chunk imports nothing of first paint's and the bundler parts its
+		// shared chunks as before.
+		const actor = host.scope.actorKey(context);
+		const refused = unlistedProject(entry, slug, (listed) => {
+			const project = host.scope.projects.all().find((candidate) => candidate.slug === listed);
+			return (
+				project !== undefined &&
+				host.scope.allows(actor, { workspace: scope?.workspace ?? '', project: project.id })
+			);
+		});
+		if (refused) return refused;
 		const live = transport;
 		if (record.state === 'failed' || !live) {
 			const { message, suggestion, retryable } = MOUNT_FAILURES.MOUNT_UNREACHABLE;
@@ -613,16 +653,24 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 				},
 			});
 		}
-		const pinned = pinMountedInput(entry, null, command.inputSchema, input);
+		const pinned = pinMountedInput(
+			entry,
+			slug ? { project: slug } : null,
+			command.inputSchema,
+			input
+		);
 		if (!pinned.ok) return pinned.result;
 		const deadline = AbortSignal.timeout(MOUNTED_CALL_DEADLINE_MS);
 		const signal = context.signal ? AbortSignal.any([deadline, context.signal]) : deadline;
+		// A claim the shell makes on every call of a command, `afd-call` too, and on no discovery. A server
+		// that declares the field reads it; one that does not drops it (`spec/context-fields.md`).
+		const meta = scope ? { 'dev.loam/scope': scope } : undefined;
 		let answer: McpToolCallResult;
 		try {
 			answer = await raced(
 				command.firstClass
-					? live.callTool(command.tool, pinned.input, signal)
-					: live.callTool('afd-call', { command: command.tool, input: pinned.input }, signal),
+					? live.callTool(command.tool, pinned.input, signal, meta)
+					: live.callTool('afd-call', { command: command.tool, input: pinned.input }, signal, meta),
 				signal
 			);
 		} catch (cause) {
@@ -711,7 +759,7 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 
 	async function discover(): Promise<CommandResult> {
 		const signal = AbortSignal.timeout(DISCOVERY_DEADLINE_MS);
-		let next: MountTransportV1 | undefined;
+		let next: MountTransportV2 | undefined;
 		try {
 			const route = entry.route;
 			if (route === undefined) throw new MountFailure('MOUNT_UNREACHABLE');

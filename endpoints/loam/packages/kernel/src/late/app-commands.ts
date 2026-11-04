@@ -18,7 +18,7 @@ import type { KernelFieldContext } from '../context-fields.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import type { AppDetailV1, AppInstanceV1, SelectionV2 } from '../types.js';
-import { canOpen, setMain } from './main-state.js';
+import { canOpen, disabledRefusal, setMain } from './main-state.js';
 
 const instanceName = z.string().check(z.minLength(1), z.maxLength(64));
 const instanceInput = z.strictObject({ instance: instanceName });
@@ -49,6 +49,13 @@ export interface AppCommandDeps {
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
 	const { apps, scope } = deps;
+	/** An instance's notices, with `APP_DISABLED` and its suggestion when the workspace disables it. */
+	const noticesOf = (instance: string, notices: AppInstanceV1['notices']) => {
+		const off = disabledRefusal(scope, instance)?.error;
+		return off
+			? [...notices, { code: off.code, message: `${off.message}. ${off.suggestion}.` }]
+			: notices;
+	};
 	/**
 	 * A change of what main shows moves the URL (phase 2 specification, 6.3). Every success reports
 	 * `mainChanged`, so an app reopened from "Nothing here" brings the URL back to it; one that names the same
@@ -98,9 +105,17 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		// The status values of the call's scope, the active one for a person (phase 2 specification, 7.6).
-		handler: async (input, context) =>
-			apps().detail(input.instance, (context as KernelFieldContext).scope?.project),
+		// The status values of the call's scope, the active one for a person (phase 2 specification, 7.6),
+		// and a disabled instance's `APP_DISABLED` notice, as `app-instance-list` carries it (4.1).
+		handler: async (input, context) => {
+			const found = apps().detail(input.instance, (context as KernelFieldContext).scope?.project);
+			return found.data
+				? {
+						...found,
+						data: { ...found.data, notices: noticesOf(input.instance, found.data.notices) },
+					}
+				: found;
+		},
 	});
 
 	const appOpen = defineCommandWithSchema<
@@ -167,7 +182,37 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		handler: async () => success({ instances: apps().instances() }),
+		handler: async (_input, context) =>
+			success({
+				instances: apps()
+					.instances()
+					.map((row) => ({
+						...row,
+						// Disabled: never discovered, so its state stays as discovery left it, and the row says why
+						// (4.1). `AppInstanceV1.state` is version 1's, so this is a notice and not a state.
+						notices: noticesOf(row.instance, row.notices),
+						// A listed slug of no project the caller may enter (9.1): one that does not exist yet and one
+						// restricted to others look the same, so a non-member learns of no restricted project.
+						warnings: [
+							...row.warnings,
+							...(scope.workspaceApps.get(row.instance)?.projects ?? [])
+								.filter((slug) => {
+									const project = scope.project(slug);
+									return (
+										!project ||
+										!scope.allows(scope.actorKey(context), {
+											workspace: scope.workspace.id,
+											project: project.id,
+										})
+									);
+								})
+								.map((slug) => ({
+									code: 'INSTANCE_PROJECT_UNKNOWN',
+									message: `No project you can open has the slug \`${slug}\`, so this instance serves you none there`,
+								})),
+						],
+					})),
+			}),
 	});
 
 	const appInstanceRefresh = defineCommandWithSchema<typeof instanceInput, unknown>({
@@ -179,7 +224,9 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 		executionTime: 'slow',
 		input: instanceInput,
 		jsonSchema: INSTANCE_INPUT_JSON,
-		handler: (input) => apps().refreshInstance(input.instance),
+		// A disabled instance is not discovered until it is enabled (4.1).
+		handler: async (input) =>
+			disabledRefusal(scope, input.instance) ?? apps().refreshInstance(input.instance),
 	});
 
 	const appSelectionGet = defineCommandWithSchema<typeof instanceInput, SelectionV2>({

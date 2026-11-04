@@ -1,29 +1,40 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV2 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { createKernelParts } from '../kernel.js';
-import { createFixedEnvironment, createFixturePorts, replayKernel } from '../testing.js';
+import {
+	createFixedEnvironment,
+	createFixturePorts,
+	type KernelReplayReport,
+	nestedReplay,
+	replayKernel,
+} from '../testing.js';
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
 	LoamKernelV2,
 	McpToolCallResult,
-	MountTransportV1,
+	MountTransportV2,
 } from '../types.js';
 import {
 	AUTO_DISCOVERY_MS,
 	boundRecorded,
+	createMountedHost,
 	DISCOVERY_LIMITS,
 	discoverInstance,
 	flagsOf,
 	parseMountedResult,
 	pinMountedInput,
 	RECORDED_RESULT_MAX_BYTES,
+	unlistedProject,
 } from './mounted.js';
+import type { AppRecord } from './operations.js';
+import type { AppsHost } from './types.js';
 
 const umbelManifest = (extra: Record<string, unknown> = {}): ManifestV1 =>
 	({
@@ -61,17 +72,25 @@ function fakeTransport(
 	} = {}
 ) {
 	const calls: Array<{ tool: string; args: unknown }> = [];
+	/** Each request's `_meta`, by tool, kept apart so `calls` reads as phase 1's tests wrote it. */
+	const metas: Array<{ tool: string; meta: Record<string, unknown> | undefined }> = [];
 	let closed = 0;
 	const asResult = (body: unknown): McpToolCallResult => ({ structuredContent: body });
-	const transport: MountTransportV1 & { calls: typeof calls; readonly closed: number } = {
+	const transport: MountTransportV2 & {
+		calls: typeof calls;
+		metas: typeof metas;
+		readonly closed: number;
+	} = {
 		calls,
+		metas,
 		get closed() {
 			return closed;
 		},
 		connect: async () => ({ protocolVersion: '2025-11-25' }),
 		listTools: () => Promise.reject(new Error('Discovery lists no tools')),
-		async callTool(tool, args) {
+		async callTool(tool, args, _signal, meta) {
 			calls.push({ tool, args });
+			metas.push({ tool, meta });
 			if (tool === 'afd-help') {
 				if (options.help) return options.help();
 				return asResult({
@@ -118,7 +137,7 @@ const work = (extra: Record<string, unknown> = {}) => ({
 });
 
 async function boot(
-	transports: Record<string, (url: string) => Promise<MountTransportV1> | MountTransportV1>,
+	transports: Record<string, (url: string) => Promise<MountTransportV2> | MountTransportV2>,
 	entries: Array<Record<string, unknown>> = [work()],
 	options: { manifest?: ManifestV1; clock?: () => number; held?: Promise<void> } = {}
 ) {
@@ -1054,6 +1073,708 @@ describe('P2-E3 (kernel unit): an instance that lists projects opens only in the
 		expect(
 			(await kernel.call<{ scope: { project?: string } }>('scope-get')).data?.scope.project
 		).toBe(atlas.data?.id);
+		await kernel.dispose();
+	});
+});
+
+/** The tool calls a command made, without discovery's meta-tools. */
+const commandCalls = (transport: ReturnType<typeof fakeTransport>) =>
+	transport.metas.filter(({ tool }) => !['afd-help', 'afd-detail'].includes(tool));
+
+describe('P2-E6 (kernel unit): a mounted call carries its scope, and stays in its projects (9.2)', () => {
+	async function scoped(entry: Record<string, unknown>) {
+		const transport = fakeTransport(
+			{ 'hello-greet': { mutation: false }, 'hello-whisper': { mutation: false } },
+			{ firstClass: ['hello-greet'] }
+		);
+		const booted = await boot({ work: () => transport }, [work(entry)]);
+		const atlas = await booted.kernel.call<{ id: string }>('project-create', { name: 'Atlas' });
+		const beacon = await booted.kernel.call<{ id: string }>('project-create', { name: 'Beacon' });
+		await booted.kernel.startInstances();
+		return {
+			...booted,
+			transport,
+			atlas: atlas.data?.id as string,
+			beacon: beacon.data?.id as string,
+		};
+	}
+
+	it('refuses a project its `projects` does not list, journaled, before any request', async () => {
+		const { kernel, journal, transport, beacon } = await scoped({ projects: ['atlas'] });
+		const before = transport.calls.length;
+		const refused = await kernel.call(
+			'work-hello-greet',
+			{ name: 'Ada' },
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(refused.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance does not serve the project `beacon`',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(transport.calls.length).toBe(before);
+		expect((await journal.read()).at(-1)).toMatchObject({
+			command: 'work-hello-greet',
+			context: { instance: 'work', replay: 'recorded', scope: { project: beacon } },
+			result: { success: false, error: { code: 'MOUNT_PROJECT_NOT_LISTED' } },
+		});
+		// Through `afd-call` as well: the check is the instance's, before the tool is chosen.
+		const lazy = await kernel.agent.call(
+			'work-hello-whisper',
+			{},
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(lazy.error?.code).toBe('MOUNT_PROJECT_NOT_LISTED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('refuses the workspace level by 3.4 line 3, which runs first, also before any request', async () => {
+		const { kernel, transport } = await scoped({ projects: ['atlas'] });
+		const before = transport.calls.length;
+		const refused = await kernel.call('work-hello-greet', {}, { scope: 'workspace' });
+		expect(refused.error?.code).toBe('SCOPE_PROJECT_REQUIRED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('answers no project, and an unlisted one, itself, naming only the slugs the caller may see', () => {
+		const entry = { projects: ['atlas', 'borealis'] };
+		const all = () => true;
+		expect(unlistedProject(entry, undefined, all)?.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance serves only its projects',
+			suggestion: 'Switch to a project this instance serves: atlas, borealis',
+		});
+		expect(unlistedProject(entry, 'beacon', (slug) => slug === 'atlas')?.error).toMatchObject({
+			message: 'This instance does not serve the project `beacon`',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(unlistedProject(entry, 'beacon', () => false)?.error?.suggestion).toBe(
+			'Switch to a project this instance serves'
+		);
+		expect(unlistedProject(entry, 'atlas', all)).toBeUndefined();
+		expect(unlistedProject({}, undefined, all)).toBeUndefined();
+		expect(unlistedProject({}, 'beacon', all)).toBeUndefined();
+	});
+
+	it("B2: names no restricted project to a non-member in the refusal's suggestion", async () => {
+		const { kernel, transport, beacon } = await scoped({ projects: ['atlas', 'vault'] });
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const vault = await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		expect(vault.success).toBe(true);
+		const inBeacon = { scope: { workspace: 'personal', project: beacon } };
+		const before = transport.calls.length;
+		const member = await kernel.call('work-hello-greet', {}, inBeacon);
+		expect(member.error?.suggestion).toBe('Switch to a project this instance serves: atlas, vault');
+		await kernel.call('auth-sign-out');
+		const outsider = await kernel.call('work-hello-greet', {}, inBeacon);
+		expect(outsider.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			suggestion: 'Switch to a project this instance serves: atlas',
+		});
+		expect(JSON.stringify(outsider)).not.toMatch(/vault/i);
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it('B2: words the suggestion without slugs when the caller may enter none of them', async () => {
+		const { kernel, beacon } = await scoped({ projects: ['vault', 'later'] });
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		await kernel.call('auth-sign-out');
+		// `vault` is restricted to someone else, and no project has the slug `later` yet.
+		const refused = await kernel.call(
+			'work-hello-greet',
+			{},
+			{
+				scope: { workspace: 'personal', project: beacon },
+			}
+		);
+		expect(refused.error?.suggestion).toBe('Switch to a project this instance serves');
+		await kernel.dispose();
+	});
+
+	it("B4: refuses no project in the registered handler's own call, wired past the middleware", async () => {
+		const transport = fakeTransport(
+			{ 'hello-greet': { mutation: false } },
+			{ firstClass: ['hello-greet'] }
+		);
+		const commands: ZodCommandDefinition[] = [];
+		const record = { instance: 'work', app: 'umbel', state: 'loading', commands: [] };
+		const host = {
+			taken: new Set<string>(),
+			setCommands() {},
+			clock: () => 0,
+			commandRows: () => [],
+			runAs: async () => ({ success: true }),
+			scope: {
+				active: () => ({ workspace: 'personal' }),
+				actorKey: () => 'local',
+				allows: () => true,
+				projects: { get: () => undefined, all: () => [] },
+				workspaceApps: { get: () => undefined },
+			},
+		};
+		const mounted = createMountedHost({
+			record: record as unknown as AppRecord,
+			entry: work({ projects: ['atlas'] }) as never,
+			manifest: umbelManifest() as never,
+			host: host as unknown as AppsHost,
+			ports: { ...createFixturePorts({}), mountTransport: async () => transport },
+			commands,
+			owners: new Map(),
+		});
+		expect((await mounted.refresh()).success).toBe(true);
+		const greet = commands.find((command) => command.name === 'work-hello-greet');
+		expect(greet).toBeDefined();
+		const before = transport.calls.length;
+		// What 3.4's line 3 refuses first in a kernel: the handler's own check is there too.
+		const refused = (await greet?.handler({}, {
+			scope: { workspace: 'personal' },
+		} as never)) as { error?: Record<string, unknown> };
+		expect(refused.error).toMatchObject({
+			code: 'MOUNT_PROJECT_NOT_LISTED',
+			message: 'This instance serves only its projects',
+			suggestion: 'Switch to a project this instance serves',
+		});
+		expect(transport.calls.length).toBe(before);
+		await mounted.dispose();
+	});
+
+	it("pins a project's mapped space by its slug, and refuses another, before any request", async () => {
+		const { kernel, transport, atlas } = await scoped({
+			projects: ['atlas'],
+			space: { atlas: 'main' },
+		});
+		const inAtlas = { scope: { workspace: 'personal', project: atlas } };
+		const answered = await kernel.call('work-hello-greet', { name: 'Ada' }, inAtlas);
+		expect(answered.success).toBe(true);
+		expect(transport.calls.at(-1)).toEqual({
+			tool: 'hello-greet',
+			args: { name: 'Ada', space: 'main' },
+		});
+		const before = transport.calls.length;
+		const other = await kernel.call('work-hello-greet', { space: 'other' }, inAtlas);
+		expect(other.error).toMatchObject({
+			code: 'MOUNT_SPACE_PINNED',
+			details: { project: 'atlas', space: 'main' },
+		});
+		const spaces = await kernel.call('work-hello-whisper', { spaces: ['main'] }, inAtlas);
+		expect(spaces.error?.code).toBe('MOUNT_SPACE_PINNED');
+		expect(transport.calls.length).toBe(before);
+		await kernel.dispose();
+	});
+
+	it("sends the effective scope's ids in `_meta` on every command, afd-call too, and none on discovery", async () => {
+		const { kernel, transport, atlas } = await scoped({ projects: ['atlas'] });
+		// Discovery: `afd-help` and `afd-detail` carry nothing.
+		expect(transport.metas.filter(({ meta }) => meta !== undefined)).toEqual([]);
+		const inAtlas = { scope: { workspace: 'personal', project: atlas } };
+		await kernel.call('work-hello-greet', {}, inAtlas);
+		await kernel.agent.call('work-hello-whisper', {}, inAtlas);
+		const claim = { 'dev.loam/scope': { workspace: 'personal', project: atlas } };
+		expect(commandCalls(transport)).toEqual([
+			{ tool: 'hello-greet', meta: claim },
+			{ tool: 'afd-call', meta: claim },
+		]);
+		// Ids alone: no project's name or slug reaches the server.
+		expect(JSON.stringify(transport.metas)).not.toMatch(/Atlas|atlas/);
+		await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect(transport.metas.at(-1)).toEqual({ tool: 'afd-detail', meta: undefined });
+		await kernel.dispose();
+	});
+
+	it('sends a workspace-only instance its narrowed scope, the workspace alone', async () => {
+		const { kernel, transport, atlas } = await scoped({});
+		await kernel.call('work-hello-greet', {}, { scope: { workspace: 'personal', project: atlas } });
+		expect(commandCalls(transport)).toEqual([
+			{ tool: 'hello-greet', meta: { 'dev.loam/scope': { workspace: 'personal' } } },
+		]);
+		await kernel.dispose();
+	});
+
+	it('agrees with the kernel: a call succeeds exactly where the app is available (7.1, 9.1)', async () => {
+		for (const entry of [{ projects: ['atlas'] }, {}]) {
+			const { kernel, atlas, beacon } = await scoped(entry);
+			for (const project of [undefined, atlas, beacon]) {
+				await kernel.call('scope-set', { project: project ?? null });
+				const available = (await kernel.call<{ apps: Array<{ available: boolean }> }>('app-list'))
+					.data?.apps[0]?.available;
+				const called = await kernel.call('work-hello-greet', {});
+				const opened = await kernel.call('app-open', { instance: 'work' });
+				expect([project, called.success, opened.success]).toEqual([project, available, available]);
+				await kernel.call('app-close');
+			}
+			await kernel.dispose();
+		}
+	});
+
+	it('journals the scope of a refused call and replays it with zero differences', async () => {
+		const { kernel, journal, deployment, packages, atlas, beacon } = await scoped({
+			projects: ['atlas'],
+			space: { atlas: 'main' },
+		});
+		await kernel.call('scope-set', { project: atlas });
+		await kernel.call('work-hello-greet', { name: 'Ada' });
+		await kernel.call('work-hello-greet', { space: 'other' });
+		await kernel.call('scope-set', { project: beacon });
+		await kernel.call('work-hello-greet', {});
+		const entries: JournalEntry[] = await journal.read();
+		const { report } = await replayKernel(entries, {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+});
+
+describe('4.1: a disabled mounted instance is not discovered, and enabling one discovers it', () => {
+	it('leaves it undiscovered, refuses its refresh, and discovers it once enabled', async () => {
+		let made = 0;
+		const transport = fakeTransport({ 'a-read': { mutation: false } });
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => {
+				made++;
+				return transport;
+			},
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		expect(made).toBe(0);
+		expect((await journal.read()).map(({ command }) => command)).not.toContain(
+			'app-instance-refresh'
+		);
+		expect((await instance(kernel))?.state).toBe('loading');
+		const refused = await kernel.call('app-instance-refresh', { instance: 'work' });
+		expect(refused.error).toMatchObject({
+			code: 'APP_DISABLED',
+			suggestion: 'Enable it with workspace-app-set { instance: "work", enabled: true }',
+		});
+		expect(made).toBe(0);
+
+		const enabled = await kernel.call<{ overrides: Record<string, unknown> }>('workspace-app-set', {
+			instance: 'work',
+			enabled: true,
+		});
+		expect(enabled.success).toBe(true);
+		expect(made).toBe(1);
+		expect((await instance(kernel))?.state).toBe('ready');
+		expect((await kernel.call('work-a-read', {})).success).toBe(true);
+		const entries: JournalEntry[] = await journal.read();
+		const set = entries.findLast(({ command }) => command === 'workspace-app-set');
+		const nested = entries.find(
+			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
+		);
+		expect(nested?.context).toMatchObject({
+			parent: set?.traceId,
+			instance: 'work',
+			replay: 'recorded',
+		});
+		// A second enable, of an instance already enabled, discovers nothing again.
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		expect(made).toBe(1);
+
+		const { report } = await replayKernel(await journal.read(), {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+
+	it('B1: a replay whose journal lacks the nested refresh makes no transport, and reports it', async () => {
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => fakeTransport({ 'a-read': { mutation: false } }),
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		const recorded: JournalEntry[] = await journal.read();
+		const nested = recorded.find(
+			({ command, context }) => command === 'app-instance-refresh' && context?.parent !== undefined
+		);
+		expect(nested).toBeDefined();
+		const parent = recorded.find(({ traceId }) => traceId === nested?.context?.parent);
+		// As a journal recorded before step 8 would hold it, or one with the entry lost.
+		const entries = recorded.filter((entry) => entry !== nested);
+		let made = 0;
+		const refusal = await replayKernel(entries, {
+			deployment,
+			ports: {
+				...createFixturePorts(packages),
+				async mountTransport() {
+					made++;
+					return fakeTransport({ 'a-read': { mutation: false } });
+				},
+			},
+		}).then(
+			() => undefined,
+			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error
+		);
+		expect(made).toBe(0);
+		expect(refusal?.code).toBe('REPLAY_DIVERGED');
+		const differing = (refusal?.details?.report?.entries ?? []).filter(
+			({ status }) => status !== 'same'
+		);
+		expect(differing.map(({ seq }) => seq)).toContain(parent?.seq);
+		expect(JSON.stringify(differing)).toContain(
+			"The handler called 'app-instance-refresh', which the journal does not record there"
+		);
+		await kernel.dispose();
+	});
+
+	it('S1: says on its row that it is disabled, with the command that enables it, while it waits', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.startInstances();
+		const row = await instance(kernel);
+		// Version 1's state: never discovered, it reads as discovery left it, and the notice says why.
+		expect(row?.state).toBe('loading');
+		expect(row?.notices).toContainEqual({
+			code: 'APP_DISABLED',
+			message:
+				'The app \'work\' is disabled in this workspace. Enable it with workspace-app-set { instance: "work", enabled: true }.',
+		});
+		// `app-get` carries the same notice, beside `app-list`'s `disabled` (N-A).
+		const detail = await kernel.call<{ notices: Array<{ code: string; message: string }> }>(
+			'app-get',
+			{ instance: 'work' }
+		);
+		expect(detail.data?.notices).toContainEqual(
+			row?.notices.find(({ code }) => code === 'APP_DISABLED')
+		);
+		const listed = await kernel.call<{ apps: Array<{ instance: string; state: string }> }>(
+			'app-list'
+		);
+		expect(listed.data?.apps.find(({ instance: name }) => name === 'work')?.state).toBe('disabled');
+		// Its commands were never discovered, so none is registered: the registry's own answer.
+		expect((await kernel.call('work-a-read', {})).error?.code).toBe('COMMAND_NOT_FOUND');
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		const enabled = await instance(kernel);
+		expect(enabled?.state).toBe('ready');
+		expect(enabled?.notices.map(({ code }) => code)).not.toContain('APP_DISABLED');
+		const enabledDetail = await kernel.call<{ notices: Array<{ code: string }> }>('app-get', {
+			instance: 'work',
+		});
+		expect(enabledDetail.data?.notices.map(({ code }) => code)).not.toContain('APP_DISABLED');
+		// Discovered, then disabled: its commands are registered, and the gate answers them (4.1).
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		expect((await kernel.call('work-a-read', {})).error?.code).toBe('APP_DISABLED');
+		await kernel.dispose();
+	});
+
+	it('N5: enables it whatever its discovery answers, and warns of a failed one', async () => {
+		const { kernel, journal, deployment, packages } = await boot({
+			work: () => Promise.reject(new TypeError('fetch failed')),
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		const enabled = await kernel.call<{ overrides: Record<string, unknown> }>('workspace-app-set', {
+			instance: 'work',
+			enabled: true,
+		});
+		expect(enabled.success).toBe(true);
+		expect(enabled.data?.overrides.enabled).toBe(true);
+		expect(enabled.warnings).toEqual([
+			{
+				code: 'MOUNT_UNREACHABLE',
+				message: 'Enabled, and its discovery failed: The instance cannot be reached',
+			},
+		]);
+		expect((await instance(kernel))?.state).toBe('failed');
+		const { report } = await replayKernel(await journal.read(), {
+			deployment,
+			ports: createFixturePorts(packages),
+		});
+		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
+		await kernel.dispose();
+	});
+
+	it("discovers it when a disable's override is cleared with null, as its undo does", async () => {
+		let made = 0;
+		const { kernel } = await boot({
+			work: () => {
+				made++;
+				return fakeTransport({});
+			},
+		});
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: null });
+		expect(made).toBe(1);
+		await kernel.dispose();
+	});
+});
+
+describe('9.1: INSTANCE_PROJECT_UNKNOWN', () => {
+	it('warns of a listed slug no project has, until a project is created with it', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({}) }, [
+			work({ projects: ['atlas', 'borealis'] }),
+		]);
+		const codes = async () =>
+			((await instance(kernel))?.warnings ?? []).map(({ code, message }) => [code, message]);
+		expect(await codes()).toEqual([
+			[
+				'INSTANCE_PROJECT_UNKNOWN',
+				'No project you can open has the slug `atlas`, so this instance serves you none there',
+			],
+			[
+				'INSTANCE_PROJECT_UNKNOWN',
+				'No project you can open has the slug `borealis`, so this instance serves you none there',
+			],
+		]);
+		await kernel.call('project-create', { name: 'Atlas' });
+		expect((await codes()).map(([, message]) => message)).toEqual([
+			'No project you can open has the slug `borealis`, so this instance serves you none there',
+		]);
+		await kernel.dispose();
+	});
+});
+
+describe('9.1: INSTANCE_PROJECT_UNKNOWN per caller (the boundary re-check, item 4)', () => {
+	it('warns a non-member of a restricted listed project as of a missing one, and not a member', async () => {
+		const { kernel } = await boot({ work: () => fakeTransport({}) }, [
+			work({ projects: ['vault', 'later'] }),
+		]);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernel.call('project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		const warned = async () =>
+			((await instance(kernel))?.warnings ?? [])
+				.filter(({ code }) => code === 'INSTANCE_PROJECT_UNKNOWN')
+				.map(({ message }) => message);
+		const missing = (slug: string) =>
+			`No project you can open has the slug \`${slug}\`, so this instance serves you none there`;
+		expect(await warned()).toEqual([missing('later')]);
+		await kernel.call('auth-sign-out');
+		// Vault exists and is restricted to someone else: it reads exactly as a slug no project has.
+		expect(await warned()).toEqual([missing('vault'), missing('later')]);
+		await kernel.dispose();
+	});
+});
+
+describe('10: a replay and a nested call its journal does not hold (the boundary re-check, items 2 and 3)', () => {
+	/** A nested entry: `seq` given when the call finished, `call` the trace ID's number when it started. */
+	const recordedEntry = (seq: number, input: unknown, data: unknown, call = seq): JournalEntry =>
+		({
+			seq,
+			traceId: `loam-mgw0-${call}`,
+			command: 'work-a-read',
+			input,
+			context: { parent: 'outer-1', instance: 'work', replay: 'recorded' },
+			result: { success: true, data },
+		}) as unknown as JournalEntry;
+
+	it('answers two nested calls a handler made together, recorded in the other order', () => {
+		// The journal gives a call its seq when it finishes, so the second call made can finish first; its
+		// trace ID's number says the order the calls were made in.
+		const nested = nestedReplay([
+			recordedEntry(1, { n: 2 }, 'second', 8),
+			recordedEntry(2, { n: 1 }, 'first', 7),
+		]);
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })?.data).toBe('first');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 2 })?.data).toBe('second');
+		expect(nested.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		nested.finish('outer-1');
+		expect([...nested.problems]).toEqual([]);
+	});
+
+	it('R2: never answers a call with an entry recorded for another input, so the replay diverges', () => {
+		// Made in the other order from the one recorded: the head is the first call made, so the first
+		// call here, for another input, takes no entry, where a search of the queue took the second's.
+		const reordered = nestedReplay([
+			recordedEntry(1, { n: 1 }, 'one', 3),
+			recordedEntry(2, { n: 2 }, 'two', 4),
+		]);
+		expect(reordered.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		const other = nestedReplay([recordedEntry(1, { n: 1 }, 'one')]);
+		expect(other.answer('outer-1', 'work-a-read', { n: 2 })).toBeUndefined();
+		other.finish('outer-1');
+		expect([...other.problems.values()]).toEqual([
+			"The handler did not call 'work-a-read', which the journal records",
+		]);
+		// The reviewer's case: `{ n: 1 }` then `{}` recorded, and a handler that calls `{}` first. The head
+		// takes it, as a schema's default may fill an input in, and the call that follows cannot match.
+		const swapped = nestedReplay([
+			recordedEntry(1, { n: 1 }, 'one', 3),
+			recordedEntry(2, {}, 'empty', 4),
+		]);
+		swapped.answer('outer-1', 'work-a-read', {});
+		expect(swapped.answer('outer-1', 'work-a-read', { n: 1 })).toBeUndefined();
+		swapped.finish('outer-1');
+		expect(swapped.problems.size).toBe(1);
+	});
+
+	it('refuses a recorded call past validation, and lets validation answer as it did live, with no transport', async () => {
+		const live = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await live.kernel.startInstances();
+		const refresh = (await live.journal.read()).find(
+			({ command }) => command === 'app-instance-refresh'
+		);
+		expect(refresh).toBeDefined();
+		const { catalog } = (refresh as JournalEntry).result.data as { catalog: unknown };
+		await live.kernel.dispose();
+		let made = 0;
+		const parts = await createKernelParts(
+			{
+				store: new MemoryAdapter(),
+				storeKind: 'memory',
+				journal: new MemoryJournalSink(),
+				auth: new MockAuthAdapter(),
+				environment: createFixedEnvironment(),
+				host: 'test',
+				deployment: live.deployment,
+				ports: {
+					...createFixturePorts(live.packages),
+					async mountTransport() {
+						made++;
+						return fakeTransport({ 'a-read': { mutation: false } });
+					},
+				},
+			},
+			{ replaying: true }
+		);
+		parts.applyCatalog('work', catalog);
+		const nestedIn = (traceId: string) =>
+			({
+				traceId,
+				parent: 'outer-1',
+				app: 'umbel',
+				instance: 'work',
+				replay: 'recorded',
+			}) as never;
+		// What the registry refuses before the middleware answers the same as live: never journaled.
+		const invalid = await parts.registries.palette.execute(
+			'work-a-read',
+			'not an object',
+			nestedIn('t-1')
+		);
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+		const call = await parts.registries.palette.execute('work-a-read', {}, nestedIn('t-2'));
+		expect(call.error).toMatchObject({
+			code: 'REPLAY_NOT_RECORDED',
+			suggestion: 'Replay the whole journal the session recorded',
+		});
+		const discovery = await parts.registries.palette.execute(
+			'app-instance-refresh',
+			{ instance: 'work' },
+			nestedIn('t-3')
+		);
+		expect(discovery.error?.code).toBe('REPLAY_NOT_RECORDED');
+		// R1: the context's word does not decide. An entry that carries no mark, as a native command's
+		// does when a redeploy has made its owner a mounted instance, stops all the same.
+		const unmarked = await parts.registries.palette.execute('work-a-read', {}, {
+			traceId: 't-4',
+			app: 'umbel',
+			instance: 'work',
+		} as never);
+		expect(unmarked.error?.code).toBe('REPLAY_NOT_RECORDED');
+		const topLevelRefresh = await parts.registries.palette.execute(
+			'app-instance-refresh',
+			{ instance: 'work' },
+			{ traceId: 't-5' } as never
+		);
+		expect(topLevelRefresh.error?.code).toBe('REPLAY_NOT_RECORDED');
+		expect(made).toBe(0);
+		await parts.kernel.dispose();
+	});
+});
+
+describe('R1 and R3: a replay reaches no port, and a kept kernel is live again', () => {
+	async function liveJournal() {
+		const live = await boot({ work: () => fakeTransport({ 'a-read': { mutation: false } }) });
+		await live.kernel.startInstances();
+		expect((await live.kernel.call('work-a-read', {})).success).toBe(true);
+		const entries: JournalEntry[] = await live.journal.read();
+		await live.kernel.dispose();
+		return { ...live, entries };
+	}
+	const counting = (packages: Parameters<typeof createFixturePorts>[0]) => {
+		const ports = {
+			made: 0,
+			...createFixturePorts(packages),
+			async mountTransport() {
+				ports.made++;
+				return fakeTransport({ 'a-read': { mutation: false } });
+			},
+		};
+		return ports;
+	};
+
+	/** The journal with the `replay: 'recorded'` mark removed from the entries of `command`. */
+	const unmark = (entries: JournalEntry[], command: string) =>
+		entries.map((entry) => {
+			if (entry.command !== command) return entry;
+			const { replay: _replay, ...context } = entry.context as Record<string, unknown>;
+			return { ...entry, context } as JournalEntry;
+		});
+	const replayed = async (entries: JournalEntry[], deployment: ProjectionV2, ports: object) =>
+		replayKernel(entries, { deployment, ports: ports as KernelPortsV1 }).then(
+			() => undefined,
+			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error
+		);
+	const differing = (refusal: { details?: { report?: KernelReplayReport } } | undefined) =>
+		(refusal?.details?.report?.entries ?? []).filter(({ status }) => status !== 'same');
+
+	it('R1: an unmarked top-level discovery makes no transport, and diverges', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const refusal = await replayed(unmark(entries, 'app-instance-refresh'), deployment, ports);
+		// The reviewer's probe: with the context's mark trusted, this discovery ran, and made one.
+		expect(ports.made).toBe(0);
+		expect(refusal?.code).toBe('REPLAY_DIVERGED');
+		const refresh = entries.find(({ command }) => command === 'app-instance-refresh');
+		expect(differing(refusal).map(({ seq }) => seq)).toContain(refresh?.seq);
+		expect(JSON.stringify(differing(refusal))).toContain('REPLAY_NOT_RECORDED');
+	});
+
+	it('R1: an unmarked top-level mounted call stops before its handler, and diverges', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const refusal = await replayed(unmark(entries, 'work-a-read'), deployment, ports);
+		expect(ports.made).toBe(0);
+		const call = entries.find(({ command }) => command === 'work-a-read');
+		expect(differing(refusal).map(({ seq }) => seq)).toEqual([call?.seq]);
+		// Not the handler's MOUNT_UNREACHABLE: the guard answered, so the handler never ran.
+		expect(JSON.stringify(differing(refusal))).toContain('REPLAY_NOT_RECORDED');
+	});
+
+	it('R3: a kept kernel discovers and calls live once the replay has ended', async () => {
+		const { entries, deployment, packages } = await liveJournal();
+		const ports = counting(packages);
+		const { kernel } = await replayKernel(entries, { deployment, ports, keep: true });
+		expect(ports.made).toBe(0);
+		if (!kernel) throw new Error('No kept kernel');
+		await kernel.call('workspace-app-set', { instance: 'work', enabled: false });
+		const enabled = await kernel.call('workspace-app-set', { instance: 'work', enabled: true });
+		expect(enabled.warnings).toBeUndefined();
+		expect(ports.made).toBe(1);
+		expect((await kernel.call('app-instance-refresh', { instance: 'work' })).success).toBe(true);
+		expect((await kernel.call('work-a-read', {})).success).toBe(true);
 		await kernel.dispose();
 	});
 });

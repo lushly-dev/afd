@@ -242,8 +242,15 @@ export function createOperations(
 		clearSelections() {
 			for (const record of records.values()) unselect(record);
 		},
+		// A disabled instance is not discovered until it is enabled (4.1).
 		mountedInstances: () =>
-			[...records.values()].filter(startable).map((record) => record.instance),
+			[...records.values()]
+				.filter(
+					(record) =>
+						startable(record) &&
+						host.scope.workspaceApps.get(record.instance)?.overrides.enabled !== false
+				)
+				.map((record) => record.instance),
 		summaries: () =>
 			[...records.values()]
 				.sort((a, b) => a.order - b.order || (a.instance < b.instance ? -1 : 1))
@@ -342,6 +349,11 @@ export function createOperations(
 				}
 			);
 		},
+		// Nested in the call that enabled it, so a replay answers it from that call's entries (4.1).
+		refreshEnabled: (instance, parent) =>
+			records.get(instance)?.mounted
+				? host.runAs('app-instance-refresh', { instance }, undefined, { parent })
+				: undefined,
 		selection(instance, project) {
 			const record = records.get(instance);
 			return record ? success(selectionOf(record, project)) : unknownApp(instance);

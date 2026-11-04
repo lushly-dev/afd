@@ -186,7 +186,8 @@ export interface KernelPortsV1 {
 	fetchText(url: string): Promise<string>;
 	importNative(url: string): Promise<AppDefinitionV1>;
 	openHandlerFrame(instance: string, html: string): Promise<HandlerFrameV1>;
-	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV1>;
+	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
+	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
 }
 
 export interface HandlerFrameV1 {

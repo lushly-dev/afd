@@ -24,7 +24,7 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
-import { createKernelParts } from './kernel.js';
+import { createKernelParts, type KernelPartsInternals } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
@@ -176,16 +176,24 @@ function sameCall(recorded: unknown, given: unknown): boolean {
  * A handler's nested calls during a replay: answered from the entries with that `parent`, in order, and
  * what differs from them is kept against the outer call, whose result may not show it.
  */
-function nestedReplay(entries: readonly JournalEntry[]) {
+/** @internal Exported for its unit test alone. */
+export function nestedReplay(entries: readonly JournalEntry[]) {
 	const byParent = new Map<string, JournalEntry[]>();
 	for (const entry of entries) {
 		const parent = entry.context?.parent;
 		if (typeof parent !== 'string') continue;
 		byParent.set(parent, [...(byParent.get(parent) ?? []), entry]);
 	}
+	// In the order the calls were made: `run` numbers a trace ID when a call starts, and the journal gives
+	// it a `seq` when it finishes, so a handler's calls made together can be journaled in the other order.
+	for (const queue of byParent.values()) queue.sort((a, b) => callNumber(a) - callNumber(b));
 	const problems = new Map<string, string>();
 	return {
 		problems,
+		/**
+		 * The next call `parent` made, by its trace ID's number, when it is this one; undefined runs the call,
+		 * as `KernelPartsInternals.answerNested` says, and a call out of order or with another input diverges.
+		 */
 		answer(parent: string, name: string, input: unknown): CommandResult | undefined {
 			const queue = byParent.get(parent);
 			const next = queue?.[0];
@@ -207,6 +215,12 @@ function nestedReplay(entries: readonly JournalEntry[]) {
 			}
 		},
 	};
+}
+
+/** The number `run` gave a call's trace ID, `<base>-<n>`, in the order calls start; else its `seq`. */
+function callNumber(entry: JournalEntry): number {
+	const n = Number(entry.traceId?.slice(entry.traceId.lastIndexOf('-') + 1));
+	return Number.isInteger(n) ? n : entry.seq;
 }
 
 /** A replayed session ends where its trace IDs stop sharing their base: the page was reloaded. */
@@ -294,6 +308,17 @@ export async function replayKernel(
 	}
 	const nested = nestedReplay(ordered);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
+	// Shared with the kernel, which reads it at each call, so a kept kernel goes live when the replay ends.
+	const internals: KernelPartsInternals = {
+		answerNested: (parent, name, input) => nested.answer(parent, name, input),
+		nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
+		replaying: true,
+		// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
+		actorOf(traceId) {
+			const entry = traceId === undefined ? undefined : byTrace.get(traceId);
+			return entry ? { ...(entry.actor !== undefined ? { actor: entry.actor } : {}) } : undefined;
+		},
+	};
 	const parts = await createKernelParts(
 		{
 			store: new MemoryAdapter(),
@@ -306,16 +331,7 @@ export async function replayKernel(
 			...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 			...(options.ports !== undefined ? { ports: options.ports } : {}),
 		},
-		{
-			answerNested: (parent, name, input) => nested.answer(parent, name, input),
-			nestedUnrecorded: (parent, name) => nested.unrecorded(parent, name),
-			replaying: true,
-			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
-			actorOf(traceId) {
-				const entry = traceId === undefined ? undefined : byTrace.get(traceId);
-				return entry ? { ...(entry.actor !== undefined ? { actor: entry.actor } : {}) } : undefined;
-			},
-		}
+		internals
 	);
 	const { kernel } = parts;
 	let kept = false;
@@ -377,6 +393,11 @@ export async function replayKernel(
 		}
 		const layout = await kernel.call<LayoutStateV0>('layout-get');
 		const appearance = await kernel.call<AppearanceV0>('appearance-get');
+		// The replay is over: a kept kernel's calls are live ones, which no journal answers or refuses.
+		internals.replaying = false;
+		delete internals.answerNested;
+		delete internals.nestedUnrecorded;
+		delete internals.actorOf;
 		kept = options.keep === true;
 		return {
 			report,

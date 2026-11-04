@@ -30,6 +30,7 @@
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {
+		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/loam-app-hello": "workspace:*",
 		"@lushly-dev/loam-app-tally": "workspace:*",
 		"@lushly-dev/loam-app-tasks": "workspace:*",
