@@ -141,7 +141,7 @@ organization.
 | --- | --- | --- |
 | Surfaces | MCP 2026-07-28 over stdio and Streamable HTTP, and 2025-11-25 clients through the SDK; the CLI with JSON envelopes and the AFD CLI's exit codes; in-process library use | Defining behavior a sibling surface lacks |
 | Registry and discovery | One command registry; bootstrap help, docs and schema; lazy discover, detail and call; batch and pipe; AFD contexts; docs generated from the live registry | Advertising anything that cannot be called |
-| Auth middleware | The tower layer from [MCP Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md): token verification, protected-resource metadata, per-command scopes, then the principal projected onto the command context; modes from none to gateway-trusted | Owning any identity provider |
+| Auth middleware | The tower layer from [MCP Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md): token verification, protected-resource metadata, per-command scopes, then the principal projected onto the command context; modes from none to gateway-trusted. *Decided 2026-11-04 with the [phase 5 specification](phases/5-auth-hosted/spec.md) (D107, D108, D112, D114, D129):* modes `none`, `oauth` and `gateway`; RFC 9068 tokens with exactly one audience, the canonical resource URI; identity namespaces; per-space scopes resolved per call that only narrow access, checked after readability; a gateway verified by a pinned channel and a signed per-request assertion; one person, one principal across the CLI and hosted identity | Owning any identity provider; being an authorization server |
 | Approvals, confirmations, journal, telemetry | From the `afd` crate: approval policies and tokens, confirmation prompts, the append-only journal with replay, telemetry events | Business policy about what needs approval; that is per command and per workspace |
 | Event log | A journal projection: each mutation command's entry becomes an event with a record reference, the provenance envelope and per-principal cursors, in one stream per space; replay by cursor; the store behind subscriptions, webhooks, harness channels and audit | Guaranteeing delivery to a disconnected consumer; consumers resume by cursor |
 | Plugin loader | Three kinds: compiled-in crates, WebAssembly components against the host WIT world, mounted external MCP servers; the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md) protocol version, conflict policy, command origin and diagnostics; capability grants | Plugin discovery by scanning; plugins calling plugins |
@@ -300,8 +300,19 @@ sequenceDiagram
   an extension of the context and include at least the delegation chain,
   token binding, the human-presence flag and the policy decision with its
   version. A command that needs a present human uses AFD's confirmation
-  prompt under the `require-human` mode. Enterprise-managed authorization is
-  accepted on connections, as an extension of MCP Authorization.
+  prompt under the `require-human` mode. *Amended 2026-11-04 (phase 5, D106,
+  D115):* that holds at the CLI only; over MCP, AFD's form
+  answer is the client's, not a person's, so a person-gated command uses AFD's
+  per-command host-verified confirmation mode, which never sends a form and
+  defers to the host's person page. Enterprise-managed authorization is
+  accepted on connections, as an extension of MCP Authorization. *Decided
+  2026-11-04 with the [phase 5 specification](phases/5-auth-hosted/spec.md):* principal
+  version 1 gives the reserved fields their meanings, with `authentication`
+  `verified` and `gateway` (D110), an agent's reads narrowed to its token's
+  spaces (D111), and a person proven either at the CLI's terminal or on the
+  host's person page through a fresh login, with user verification required,
+  at the deployer's identity provider (D115). Inbound
+  enterprise-managed authorization needs no path of its own (D108).
 - **Provenance envelope.** The one list of fields every stored record carries,
   at least: origin kind (user-stated, agent-inferred, document-derived), the
   principal and agent, the session, validity from and until, observation
@@ -342,7 +353,9 @@ sequenceDiagram
   always private, with no tool use, summaries or harness lines; a `generic`
   caller may send artifacts on the contract ([D79](decisions.md)).
 - **Usage event.** Tool, principal, bytes and tokens served, per request, kept
-  in the event log for metering. AFD telemetry records only the actor's kind,
+  in the event log for metering. *Amended 2026-11-04 (phase 5, D122):* bytes
+  only, since the host has no tokenizer, in a content-free usage stream of its
+  own rather than the space streams. AFD telemetry records only the actor's kind,
   never its id, so metering is not telemetry.
 - **Pack.** A directory with a manifest, data, reference material and
   declarative rules, selected per instance, overriding a plugin's default.
@@ -376,8 +389,8 @@ sequenceDiagram
 | --- | --- | --- |
 | Command identity | `domain-action` names, validated at registration | Exists |
 | Results, citations, degradation | `CommandResult`: `sources` (with location and relevance), `warnings`, `confidence`, `metadata` | Exists |
-| Caller identity | `actor` with `onBehalfOf`; `credentials` | `actor` exists; `credentials` proposed in MCP Authorization |
-| Per-command scopes | `scopes` command field | Proposed in MCP Authorization |
+| Caller identity | `actor` with `onBehalfOf`; `credentials` | `actor` exists; `credentials` proposed in MCP Authorization; step 0 of the phase 5 plan (D106) |
+| Per-command scopes | `scopes` command field | Proposed in MCP Authorization; Umbel resolves its scopes per call and keeps manifest `scopes` reserved (D112) |
 | Human confirmation | `confirmPrompt` under `enforce` or `require-human` | Exists in the Rust server |
 | Approval of consequential commands | Approval policies and signed, short-lived, single-use tokens | Exists in Rust, with the private in-process exchange (#460, closed by #518); the MCP approval relay is parity work |
 | Record of calls and replay | Journal with `seq`, actor, context digest, clock and random tape, replay | Exists |
@@ -390,7 +403,7 @@ sequenceDiagram
 | Test kit | Scenario runner in `@lushly-dev/afd-testing`; journal replay | Exists |
 | CLI exit codes | 0, 1, 2 and 130, as the AFD CLI defines them | Exists |
 | Telemetry | `TelemetryEvent` and sinks, actor kind only | Exists |
-| Long jobs | MCP Tasks; MCP Progress; handoff | Tasks and Progress proposed; handoff exists |
+| Long jobs | MCP Tasks; MCP Progress; handoff | Tasks and Progress proposed; handoff exists. The Rust Tasks runtime over a `TaskStore` is step 0e of the phase 5 plan (D106, D127) |
 | Plugins in other languages | AFD's TypeScript, Python and C++ servers, mounted | Exists |
 | Distribution and authoring | `cargo-dist` and an `#[afd_command]` macro | Planned in Rust Support |
 | Prior art for scoped memory | Botcore's memory store | Exists, in Python |
@@ -493,7 +506,11 @@ material, from loosest to strongest:
   space readers are [D53](decisions.md). Until phase 5 verifies callers,
   filtering is exact only for embedders and tests, and hidden counts
   (scores, revision gaps, totals) are not hidden; both are accepted for
-  phase 2 by the owner and closed by a phase 5 prerequisite below.
+  phase 2 by the owner and closed by a phase 5 prerequisite below. *Decided
+  2026-11-04 with the [phase 5 specification](phases/5-auth-hosted/spec.md) (D125):*
+  statistics per reader filter, memory recall scored over readable matches
+  only, readable positions sealed deterministically, and readable-only totals, so that
+  filtering is exact and a boundary in modes `oauth` and `gateway`.
 - Proposals, approvals and artifacts are records with idempotency keys and
   content hashes; every mutation appears in the event log.
 - Every hit carries a stable locator: document id, section or line range,
@@ -506,7 +523,8 @@ material, from loosest to strongest:
   of 2026-11-01, [D42](decisions.md) and [D43](decisions.md)); no token forwarding to plugins or mounted
   servers; untrusted content labeled on read and scanned on write; size caps,
   and rate limits per agent (memory writes from phase 3,
-  [D74](decisions.md); read limits and verified agents from phase 5); audit on
+  [D74](decisions.md); read limits and verified agents from phase 5,
+  [D128](decisions.md)); audit on
   every write, recording both the agent and
   the person on whose behalf it acted. Over MCP, a held result never carries
   an approval token: approval evidence comes from trusted application code,
@@ -536,7 +554,10 @@ material, from loosest to strongest:
   fields named in advance ([D36](decisions.md)). Phase 2 adds the document
   record, the locator, the proposal record and the eval query set and report
   to that list; phase 4 adds proposal record version 2 and the curator's
-  records and run report ([D92](decisions.md)).
+  records and run report ([D92](decisions.md)); phase 5 adds principal version 1, workspace configuration version 5,
+  manifest version 5, envelope version 3 with event version 3, memory record
+  version 2 and proposal record version 3, cursor version 1, locator version 2,
+  the task record, the usage event and the person decision.
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
@@ -585,7 +606,7 @@ flowchart LR
 | 2. Knowledge | Sources from the filesystem, chunking, per-space lexical indexes and structural graphs, search, open, find, metadata, citations as AFD sources, the access field on every document and chunk, the eval harness | A thousand documents indexed across two spaces; no result crosses spaces without an explicit multi-space query; results filtered by principal; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; access field; chunking rules; query syntax; locator format; eval set shape |
 | 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 2 (version 1 came with phase 2's stores, [D55](decisions.md)); adapter contract; bundle budget rules; hygiene and redaction policy |
 | 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | A curator proposal approved from the CLI lands in the knowledge base with full provenance (amended 2026-11-01: phase 2 already lands person-written proposals, [D62](decisions.md)) | The curator's proposal fields on proposal record ~~version 1~~ version 2 (amended 2026-11-03: version 1, which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md), is closed with `rule` constant `person`, so the fields need a new version, [D92](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
-| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events, the MCP approval relay on approve and reject (moved from phase 4, [D99](decisions.md)) | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile |
+| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events, the MCP approval relay on approve and reject (moved from phase 4, [D99](decisions.md)) | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile. Written in the [phase 5 specification](phases/5-auth-hosted/spec.md) (approved 2026-11-04), with D106 to D130 |
 | 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
@@ -594,7 +615,8 @@ Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 [phase 1, plugin contract](phases/1-plugin-contract/spec.md) (approved, merged in #583);
 [phase 2, knowledge](phases/2-knowledge/spec.md) (approved, merged in #625);
 [phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685);
-[phase 4, curator](phases/4-curator/spec.md) (approved 2026-11-03 under the owner's delegation, with the owner's answers of 2026-11-03, after an independent review and a revision).
+[phase 4, curator](phases/4-curator/spec.md) (approved 2026-11-03 under the owner's delegation, with the owner's answers of 2026-11-03, after an independent review and a revision);
+[phase 5, auth and hosted](phases/5-auth-hosted/spec.md) (approved 2026-11-04 under the owner's delegation, with the owner's answers of 2026-11-04, after an independent review and a revision).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -612,29 +634,30 @@ criterion.
 | --- | --- | --- |
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1; done in #526 |
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
-| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532 |
+| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532, step 0c of the [phase 5 plan](phases/5-auth-hosted/spec.md#16-implementation-plan) |
 | The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); spec in #538; TypeScript #556, Python #555 and Rust #560 done; C++ waits on parity D2 and does not block Umbel |
 | A process-shared mode for the Rust `FileJournalSink`, so several host processes append to one journal under one lock ([D29](decisions.md)) | Phase 0 | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request); not started |
 | Interface selection on the Rust `DirectClient`, as TypeScript and Python have ([D34](decisions.md)) | Phase 0 | Step 0 of the phase 0 plan; not started |
 | MCP resources, the Skills extension and per-command tool `_meta` in AFD servers, reconciled with the Skill Knowledge Layer ([D47](decisions.md)) | Phase 1 | Step 0 of the [phase 1 plan](phases/1-plugin-contract/spec.md#step-0-afd-first): the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md), done 2026-11-01 (step 0a); the Rust implementation is step 0b. Shared with Loam, which also needs `ui://` resources for MCP Apps views. Prompts follow when a phase needs them |
 | Output budgets per tool | Phase 2 | Step 0 of the [phase 2 plan](phases/2-knowledge/spec.md#step-0-afd-first-d25-d64): the AFD proposal and `spec/output-budgets.md` (0a), then the Rust implementation (0b) ([D64](decisions.md)). 0a done 2026-11-01: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); 0b not started |
 | A public frontmatter reader in the `afd` crate | Phase 2 | Step 0b of the phase 2 plan; not started |
-| The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 5 (moved from phase 2 on 2026-11-01: phase 2 needs nothing the journal does not record; usage events and OpenTelemetry export wait for phase 5 and W12) | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
+| The Rust telemetry middleware; phase 0 has none, because its journal records command, timing, outcome and actor kind ([D33](decisions.md), dropped 2026-10-31) | Phase 5 (moved from phase 2 on 2026-11-01: phase 2 needs nothing the journal does not record; usage events and OpenTelemetry export wait for phase 5 and W12). Moved past phase 5 by the owner's decision of 2026-11-04 until W12 has a tagged release (D124) | [Language parity](../../../docs/language-parity.md), telemetry middleware; no issue yet |
 | Partitioned BM25 statistics per access set, or coarsened scores, and no hidden counts in revisions, event sequence numbers or index-building totals, and the same for the order of memory recall under FTS5's global statistics (memory returns no score, [D70](decisions.md)); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-01: accepted for phase 2, where every local caller is one principal) | [Phase 2 specification, section 6](phases/2-knowledge/spec.md#6-access-d53), [D53](decisions.md); STATUS.md follow-ups |
 | `memory-erase`, a listed person removing anyone's memory records, on the conditions in [D85](decisions.md); Umbel's own, not AFD's | Phase 5 (owner decision of 2026-11-02) | [Phase 3 specification, section 13](phases/3-memory-context/spec.md#13-out-of-scope-and-the-seams-reserved) |
-| The MCP approval relay in Rust | Phase 5 (moved from phase 4 by the owner's decision of 2026-11-03, with Umbel's use of it, [phase 4 specification](phases/4-curator/spec.md#16-for-the-owner) section 16, decision 2, [D99](decisions.md)): before phase 5 every MCP caller is an unverified agent, and only humans approve | [Language parity](../../../docs/language-parity.md); no issue yet |
-| The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
-| The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
+| The MCP approval relay in Rust | Phase 5 (moved from phase 4 by the owner's decision of 2026-11-03, with Umbel's use of it, [phase 4 specification](phases/4-curator/spec.md#16-for-the-owner) section 16, decision 2, [D99](decisions.md)): before phase 5 every MCP caller is an unverified agent, and only humans approve | [Language parity](../../../docs/language-parity.md); no issue yet. Step 0d of the [phase 5 plan](phases/5-auth-hosted/spec.md#16-implementation-plan), with a host-verified mode (D106) |
+| The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal; steps 0a and 0b of the phase 5 plan (D106) |
+| The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot. Step 0e of the phase 5 plan; the curator is never a task, because it is CLI only (D127) |
 
 Progress is recorded in [STATUS.md](STATUS.md), not inferred from the
 codebase. A session that changes Umbel updates the status before it ends.
 
 ## 10. Open decisions
 
-Open decisions are numbered O1 to O5 in the
+Open decisions were numbered O1 to O5 in the
 [decision log](decisions.md#open-decisions), and move into the log as dated
 decisions when they close. O2, the execution model, closed as D27 on
-2026-10-31.
+2026-10-31. O5, tenancy, closed as D123 on
+2026-11-04: a deployment is single-tenant.
 
 ## 11. Trajectory watch
 
@@ -698,6 +721,20 @@ document needs as an amendment.
 | Promotion | A person consenting, at a terminal, to have their own memory record drafted for wider readers ([D94](decisions.md)) |
 | Confirmation preview | Text a command's declared preview command returns, shown by the CLI before its confirmation prompt ([D97](decisions.md)) |
 | Auto-approval rule | A deterministic predicate over a proposal that an area opts into, under which the knowledge plugin applies it without a person ([D98](decisions.md)) |
+| Auth mode | *Phase 5, D107.* `auth.mode`: `none`, `oauth` (an OAuth 2.1 resource server) or `gateway` (a verified gateway assertion) |
+| Canonical resource URI | *Phase 5, D108.* `http.public_url`: the token audience (RFC 8707) and the protected-resource metadata's `resource` (RFC 9728) |
+| Issuer alias | *Phase 5, D110.* The deployer's name for one trusted authorization server, mapped into one identity namespace |
+| Verified principal | *Phase 5.* A principal whose actor comes from a verified token or gateway assertion (`authentication` `verified` or `gateway`) |
+| Space scope | *Phase 5, D112.* An OAuth scope narrowed to one space, `umbel:<verb>:<space>` |
+| Gateway assertion | *Phase 5, D114.* A short-lived JWS a configured gateway signs for one request, naming the caller it authenticated |
+| Person assurance | *Phase 5, D115.* How a person is proven for one decision: `terminal` (the CLI's check) or `verified` (a fresh login at the namespace's identity provider on the person page), set per surface |
+| Person page | *Phase 5, D115.* The host's HTTPS page a URL-mode elicitation or the CLI sends a person to, to log in and decide one gated call |
+| Operator | *Phase 5, D130.* A caller at the host's own CLI (transport `cli`, authentication `process`); library calls are treated by their actor |
+| Identity namespace | *Phase 5, D110.* One population of people whose subjects are comparable, the prefix of their principal ids, with at most one person login |
+| Host-verified confirmation | *Phase 5, D106.* AFD's per-command confirmation mode under which the server never sends a form and defers the decision to the host's relay |
+| Task | *Phase 5, D127.* An MCP task running one command, bound to the principal that started it |
+| Usage event | *Phase 5, D122.* One request's content-free metering record |
+| Hosted profile | *Phase 5, D107.* The requirements the doctor enforces when `auth.mode` is not `none`; not a `profile` value |
 | Pack | Content a plugin ships by default and an instance overrides |
 | Skill | A guidance document a plugin contributes, in the Agent Skills format |
 | AFD context | A named scope that changes which commands are visible, through `afd-context-*` |
