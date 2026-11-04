@@ -127,18 +127,56 @@ test('npm publication requires durable ownership before upload and completion af
 	assert.doesNotMatch(workflow, /publish: pnpm publish:npm/);
 	assert.match(workflow, /statuses: write/);
 	assert.match(workflow, /fetch-depth: 0/);
-	const inspect = workflow.indexOf('release-claim.mjs inspect');
-	const intent = workflow.indexOf('release-control.mjs intent-status');
-	const acquire = workflow.indexOf('release-claim.mjs acquire');
-	const publish = workflow.indexOf('run: pnpm publish:npm');
-	const finalize = workflow.indexOf('release-finalize.mjs');
-	const complete = workflow.indexOf('release-claim.mjs complete');
+	// The order within the publishing job; hosts-needed also reads the intent, to build hosts.
+	const job = workflow.slice(workflow.indexOf('\n  release:'));
+	const inspect = job.indexOf('release-claim.mjs inspect');
+	const intent = job.indexOf('release-control.mjs intent-status');
+	const acquire = job.indexOf('release-claim.mjs acquire');
+	const publish = job.indexOf('run: pnpm publish:npm');
+	const finalize = job.indexOf('release-finalize.mjs');
+	const complete = job.indexOf('release-claim.mjs complete');
 	assert.ok(inspect >= 0 && intent > inspect && acquire > intent);
 	assert.ok(publish > acquire && finalize > publish && complete > finalize);
 	for (const line of workflow.split('\n').filter((line) => /run:.*release-claim\.mjs/.test(line)))
 		assert.match(line, /--output/, 'every claim command needs a persistent output argument');
 	assert.match(workflow, /npm-plan\.json\.artifacts\//);
 	assert.match(workflow, /registry versions exist without verified finalization/);
+});
+
+test('an approved Specimen release builds and stages every prebuilt host before packing', () => {
+	const workflow = read('.github/workflows/release.yml');
+	const platforms = readdirSync(join(repoRoot, 'foundations/specimen/packages'))
+		.filter((name) => name.startsWith('host-'))
+		.map((name) => name.slice('host-'.length))
+		.sort();
+	assert.equal(platforms.length, 4);
+	const matrix = [...workflow.matchAll(/^ {10}- platform: (\S+)$/gm)].map((match) => match[1]);
+	assert.deepEqual([...matrix].sort(), platforms, 'build every platform package and no other');
+	const loop = workflow.match(/for platform in ([^;]+); do/);
+	assert.deepEqual(loop?.[1].trim().split(/\s+/).sort(), platforms, 'stage every platform');
+	const gate = workflow.indexOf('run: pnpm check:all');
+	const stage = workflow.indexOf('node foundations/specimen/host/stage.mjs "$platform" --binary');
+	const plan = workflow.indexOf('run: pnpm release:plan');
+	assert.ok(
+		gate >= 0 && stage > gate && plan > stage,
+		'stage the hosts after the gate, before packing'
+	);
+	// Without the hosts the release job still versions; after a failed host build it does not run.
+	assert.match(workflow, /needs: \[hosts-needed, specimen-hosts\]/);
+	assert.match(
+		workflow,
+		/contains\(fromJSON\('\["success", "skipped"\]'\), needs\.specimen-hosts\.result\)/
+	);
+	assert.match(workflow, /status\.selectedUnits\.includes\("specimen"\)/);
+	for (const id of ['hosts-needed', 'specimen-hosts']) {
+		const job = workflow.slice(workflow.indexOf(`\n  ${id}:`), workflow.indexOf('\n  release:'));
+		assert.match(job, /permissions:\n {6}contents: read\n/, `${id} reads only`);
+		assert.doesNotMatch(
+			job,
+			/rust-cache|id-token/,
+			`${id} uses no cache and no publishing identity`
+		);
+	}
 });
 
 test('workflow actions are pinned to full commit SHAs', () => {
