@@ -1,6 +1,6 @@
 # T08 consumer cutover and distribution
 
-**State, 2026-11-02:** done for AFD's FAST-AF stories, which now run only on Specimen, and open for Lushly. Specimen is marked as a preview. [Three qualifying pairs](#qualifying-pairs) agree exactly on main. Lushly's move is [its issue](https://github.com/lushly-dev/lushly/issues/2116), blocked until the packages can be installed. Nothing has been published.
+**State, 2026-11-02:** done for AFD's FAST-AF stories, which now run only on Specimen, and open for Lushly. Specimen is marked as a preview. [Three qualifying pairs](#qualifying-pairs) agree exactly on main. Lushly's move is [its issue](https://github.com/lushly-dev/lushly/issues/2116), blocked until the packages can be installed. **2026-11-04:** the owner approved the release as a preview, and the units are [admitted for it](#the-preview-release); nothing is on npm until its release PR merges.
 
 T08's acceptance comes from the [implementation plan](implementation.md#ordered-implementation-queue): three consecutive qualifying full runner pairs on accepted consumer main snapshots with no migration change between them, normal consumer gates passing, review, scaffold and flake behaviour preserved, legacy Fluent exceptions accounted for, and exact rollback checkpoints. Package admission and main delivery go through their normal workflows.
 
@@ -18,7 +18,7 @@ T08's acceptance comes from the [implementation plan](implementation.md#ordered-
 | Legacy Fluent exceptions | None here: those components were not imported. Lushly: not started | Lushly's |
 | Human review of the index | All 407 links verified on AFD's stories. The owner reviewed the page on 2026-11-04: "Index looks good, nice and simple" | Done |
 | Settled accessibility check | [Added](#the-settled-accessibility-check), and on for AFD's stories, which pass it | Done here. Lushly's one story is Lushly's |
-| Distribution | Marked as a preview in the docs. All Specimen units stay quarantined, and the FAST-AF plugin stays private | **Owner**: Lushly cannot install it until this changes |
+| Distribution | [Admitted for the npm `preview` prerelease](#the-preview-release): Specimen's four units, the FAST-AF plugin made public, and `fast-element`, which the plugin needs | **Owner**: the trusted publishers for the nine new names, then merging the release PR |
 
 ## The rehearsal
 
@@ -76,6 +76,10 @@ Made on 2026-11-02, in answer to this record's first version.
 | The FAST-AF plugin's distribution (2026-11-02) | Publish it with Specimen | It stops being private for the prerelease, so Lushly can install it |
 | A settled accessibility check (2026-11-02) | Add it and fix the 3 stories | [Done](#the-settled-accessibility-check), kept separate from the check that matches Storybook's timing, which T06's agreement evidence uses |
 | The index (2026-11-04) | "Index looks good, nice and simple" | Reviewed, after the page was styled at the owner's request on 2026-11-03 |
+| The release (2026-11-04) | "Approved release. Let's mark it as preview" | [The preview release](#the-preview-release): `2.2.0-preview.0` under the npm tag `preview`. The owner sets up the publisher with computer use |
+| `fast-element`, which the plugin needs and npm does not have (2026-11-04) | Publish it too | In the same prerelease, `3.0.1-preview.0`. `violet-elements` stays quarantined |
+| What a plain `npm install` gets once the preview is out (2026-11-04) | The preview | The owner points `latest` at it after the release; `release.yml` never moves `latest` |
+| Which release goes first, the preview or AFD 2.3.0 ([#559](https://github.com/lushly-dev/afd/pull/559)) (2026-11-04) | "Whatever you recommend" | The preview: the workflow tries the prerelease route first. #559 returns after the preview publishes |
 
 ## Native helpers and types
 
@@ -171,7 +175,23 @@ Specimen's release unit is fixed: the core and its four prebuilt hosts release t
 - with one host removed, packing fails at that package's `prepack`: `no host binary at …/host-darwin-x64/bin/specimen-host`;
 - staging a Linux build as `darwin-x64` is refused: `built for linux-x64, not darwin-x64`.
 
-The unit stays quarantined, and nothing here publishes. Two things remain before a prerelease: the owner's choice of its version and npm tag, which the workflow must then select through the planner's `npm-prerelease` route, and a named publisher.
+Nothing in that rehearsal published.
+
+### The preview release
+
+The owner approved the release on 2026-11-04 as a preview. Five units are admitted on the `npm-prerelease` route under the npm tag `preview`: `specimen` (the core and its four hosts), `specimen-afd`, `specimen-cli`, `specimen-fast-af`, no longer private, and `fast-element`. The FAST-AF plugin needs `fast-element`, which npm does not have. Each manifest starts at a seed (`2.2.0-preview`, `0.1.0-preview`, `3.0.1-preview`), one fragment covers all five, and the release PR's Changesets run turns each seed into `.0`. The peer ranges inside the family accept the preview and the stable releases after it (`^2.2.0-preview`), and `fast-element`'s manifest now names AFD as its repository, which npm's provenance check compares with the publishing workflow. [Platform release controls](../../../operations/platform-releases.md#npm-workflow) describes the route.
+
+**A second local rehearsal versioned and packed the preview and uploaded nothing.** It ran on a throwaway commit of this branch, never pushed, with the plain Changesets changelog, because the GitHub one looks up commits on GitHub:
+
+- `pnpm version-packages` selected the five units on `npm-prerelease`. It wrote `2.2.0-preview.0`, `0.1.0-preview.0` and `3.0.1-preview.0`, each package's changelog under that heading, and the intent, then removed the fragment. It left no `pre.json`, and no peer range changed;
+- `pnpm release:plan`, given no route or tag, planned `npm-prerelease` under `preview`. With CI's four hosts staged, it packed all nine packages. The core names its hosts at `2.2.0-preview.0`, and the CLI names the core and the bindings at `^2.2.0-preview.0`. Each host package still holds exactly its four files;
+- the nine tarballs, with this Mac's host only, and AFD core and server 2.2.1 from npm, installed into a clean npm project. The `specimen` command ran and replied in JSON, and the core imported in Node. The plugin imports only in a browser, where the bench loads it.
+
+**Before the release PR is merged:**
+
+1. The owner publishes a placeholder, `0.0.0-bootstrap.0`, for each of the nine new names. npm sets up a trusted publisher only for a package that exists. The owner then links each name to `release.yml` and deprecates the placeholder.
+2. The release PR's checks pass. Changesets edits imported Specimen and FAST-AF files in it, and the version step records them in each family's provenance before it writes the intent, so the PR needs no hand-made fix. A later edit to the PR would stale the intent and hold publication.
+3. The owner merges it. `release.yml` builds the four hosts, publishes the nine packages under `preview` with provenance, tags them and creates GitHub prereleases. The owner then points `latest` at the preview, and again after each later preview, since `release.yml` never moves `latest`.
 
 ### Qualifying pairs
 
@@ -196,8 +216,7 @@ Reverting [#717](https://github.com/lushly-dev/afd/pull/717) (`7b26afb4`) takes 
 ## What is left
 
 - **Lushly's move:** [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) has the steps, including what the codemod cannot reach, and Lushly's own qualifying pairs.
-- **For the owner, publishing.** That issue is blocked until the packages can be installed, which means lifting quarantine and giving the FAST-AF plugin a supported distribution if Lushly needs it.
-- **For the owner, a named publisher** for the prerelease, and approval of the release itself.
+- **For the owner, [the preview's publication](#the-preview-release):** the nine trusted publishers, then merging its release PR and pointing `latest` at it. Lushly's issue unblocks once the preview installs.
 - **A follow-up, since the extra CPU is accepted only for now:** measure full suites under T04's policy, and profile where the per-story time goes.
 
 T09 to T11 are optional additions and are not prerequisites for cutover.

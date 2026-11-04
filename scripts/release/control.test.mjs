@@ -10,6 +10,7 @@ import {
 	loadInventory,
 	parseFragments,
 	planRelease,
+	releaseChannel,
 	safePath,
 } from './control.mjs';
 import { simulateHandoff } from './handoff.mjs';
@@ -436,4 +437,35 @@ test('an npm alias to a quarantined import cannot hide its prerequisite identity
 		}).distributions.length,
 		1
 	);
+});
+
+test('a prerelease route requires its own npm tag, and no other route takes one', () => {
+	const f = fixture();
+	const writeInventory = (changes) =>
+		write(
+			f.root,
+			'scripts/release/inventory.json',
+			JSON.stringify({
+				schemaVersion: 1,
+				units: [{ ...f.inventory.units[0], ...changes }, ...f.inventory.units.slice(1)],
+			})
+		);
+	for (const changes of [
+		{ routes: ['npm-prerelease'] },
+		{ routes: ['npm-prerelease'], distTag: 'latest' },
+		{ routes: ['npm-prerelease'], distTag: 'Preview' },
+		{ routes: ['npm-prerelease'], distTag: '1.x' },
+		{ routes: ['npm-main'], distTag: 'preview' },
+	]) {
+		writeInventory(changes);
+		assert.throws(() => loadInventory(f.root), /requires its own npm tag/, JSON.stringify(changes));
+	}
+	writeInventory({ routes: ['npm-prerelease'], distTag: 'preview' });
+	const inventory = loadInventory(f.root);
+	assert.deepEqual(releaseChannel(inventory, ['a']), {
+		route: 'npm-prerelease',
+		distTag: 'preview',
+	});
+	assert.throws(() => releaseChannel(inventory, ['a', 'b']), /different routes or npm tags/);
+	assert.throws(() => releaseChannel(inventory, ['missing']), /not admitted: missing/);
 });

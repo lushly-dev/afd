@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen",
-	"version": "2.2.0",
+	"version": "2.2.0-preview",
 	"description": "Native component observations and comparison bench",
 	"type": "module",
 	"exports": {

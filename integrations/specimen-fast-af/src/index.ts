@@ -1,12 +1,13 @@
 import { getCommandMetadata } from '@lushly-dev/fast-element/command.js';
 import { enableDefinitionSchema, getSchema } from '@lushly-dev/fast-element/definition-schema.js';
 import type { SpecimenPlugin, ThemePreset, TokenMap } from '@lushly-dev/specimen';
+import own from '@lushly-dev/specimen-fast-af/package.json' with { type: 'json' };
 import { type FastComponentSchema, mergeFastSchema } from './schema.js';
 
 export { type FastComponentSchema, mergeFastSchema } from './schema.js';
 
-/** This package's version, which each capture's manifest records; a test holds it to the package's. */
-const PLUGIN_VERSION = '0.1.0';
+/** This package's version, which each capture's manifest records; read from the package, so a release changes it. */
+const PLUGIN_VERSION = own.version;
 
 /** A FAST-AF theme module's presets, as `@lushly-dev/violet-elements`' theme exports them. */
 export interface FastAfThemes {

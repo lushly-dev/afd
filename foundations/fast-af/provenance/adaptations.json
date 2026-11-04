@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "acc0dbdf0f829139f1ea73715115be7e11b95ce9e760f92ad8ea73a931bcd104",
+      "current_import_sha256": "a5a7b2b357d135731a7f33d04bcfbb1557e587ff0d61ea7f806c06a165b0b877",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -705,11 +705,11 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "b1053e4b0c770119c2e4fcd4c34d4acdb78a2335f2f1f875613b4152cab14ac7",
+      "current_import_sha256": "2d203d549bac508274b9c279d1c20e2c89a5057ad87ec6dc24da3b497dcf0d42",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -9669,11 +9669,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d24d0d9af062393136f356759eb21300621c0f5d5670c410f0e69ef355b692af",
+      "current_import_sha256": "bc00b82acb3503558d11128dc04c0299441b6e30ef9b6a08d6c40d21aabd77e5",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
     }
   ]
 }

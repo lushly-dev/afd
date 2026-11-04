@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { planRelease } from '../release/control.mjs';
+import { assertChannelVersions, planRelease, releaseChannel } from '../release/control.mjs';
 import { json, repositoryEntry, run, safePath, sourceDigest, tree } from './shared.mjs';
 
 /** Preserve Changesets' git-backed changelog behavior, restricting only its workspace inputs. */
@@ -94,7 +94,21 @@ export function versionSelected({
 				rmSync(join(candidate, entry[0]));
 		}
 		const baseline = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
+		const channel = releaseChannel(inventory, plan.selectedUnits);
+		const preState = join(candidate, '.changeset/pre.json');
+		// Changesets' prerelease mode, entered for this run only: each version's own prerelease
+		// number is the state, so the next preview counts on from the published one.
+		if (channel.route === 'npm-prerelease')
+			writeFileSync(
+				preState,
+				`${JSON.stringify({ mode: 'pre', tag: channel.distTag, initialVersions: {}, changesets: [] })}\n`
+			);
 		invoke(candidate);
+		if (channel.route === 'npm-prerelease') {
+			rmSync(preState);
+			// Prerelease mode keeps the fragments it applied; this release has consumed them.
+			for (const file of fragments) rmSync(join(candidate, file), { force: true });
+		}
 		const after = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
 		const changed = [...new Set([...baseline.keys(), ...after.keys()])].filter(
 			(file) => baseline.get(file) !== after.get(file)
@@ -103,12 +117,13 @@ export function versionSelected({
 			if (!allowed.has(file) && !(fragments.has(file) && !after.has(file)))
 				throw new Error(`Changesets wrote outside selected release: ${file}`);
 		}
-		planRelease({
+		const versioned = planRelease({
 			root: candidate,
 			inventory,
 			selectedUnits: plan.selectedUnits,
 			registryEvidence: plan.registryEvidence,
 		});
+		assertChannelVersions(versioned.distributions, channel);
 		if (sourceDigest(root) !== beforeDigest)
 			throw new Error('Release candidate changed while versioning');
 		const writes = changed.map((file) => [

@@ -166,13 +166,17 @@ function typecheck(cwd) {
 }
 
 // Packed manifests: portable ranges, no workspace protocol, native has no cross-family edges.
+const sourceManifest = async (path) =>
+	JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
+const specimenVersion = (await sourceManifest('foundations/specimen')).version;
+const integrationPeers = (await sourceManifest('integrations/specimen-afd')).peerDependencies;
 const native = packedManifest('@lushly-dev/specimen');
-assert.equal(native.version, '2.2.0');
+assert.equal(native.version, specimenVersion);
 assert.equal(native.bin, undefined);
 assert.equal(native.peerDependencies, undefined);
 assert.deepEqual(
 	native.optionalDependencies,
-	Object.fromEntries(hostPackages.map((name) => [name, '2.2.0']))
+	Object.fromEntries(hostPackages.map((name) => [name, specimenVersion]))
 );
 assert.deepEqual(Object.keys(native.exports), [
 	'.',
@@ -185,11 +189,12 @@ assert.deepEqual(Object.keys(native.exports), [
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
 const integration = packedManifest('@lushly-dev/specimen-afd');
-assert.deepEqual(integration.peerDependencies, {
-	'@lushly-dev/specimen': '^2.2.0',
-	'@lushly-dev/afd-core': '^2.2.0',
-	'@lushly-dev/afd-server': '^2.2.0',
-});
+assert.deepEqual(Object.keys(integrationPeers), [
+	'@lushly-dev/specimen',
+	'@lushly-dev/afd-core',
+	'@lushly-dev/afd-server',
+]);
+assert.deepEqual(integration.peerDependencies, integrationPeers);
 const cli = packedManifest('@lushly-dev/specimen-cli');
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
@@ -217,7 +222,7 @@ const nativeFiles = execFileSync('tar', ['-tzf', packs['@lushly-dev/specimen']],
 	.trim()
 	.split('\n');
 assert(!nativeFiles.some((path) => /(?:commands|cli|bin)\.(?:js|d\.ts)$/.test(path)));
-passed('packed manifests: native has no cross-family edge, peers declare ^2.2.0, no workspace:');
+passed('packed manifests: native has no cross-family edge, peers keep their ranges, no workspace:');
 passed(`packed ${hostPackage}: an executable host at Specimen's version, and nothing else`);
 
 // Native only: integration and every other family absent.
@@ -501,7 +506,10 @@ const missing = await install(
 );
 assert.match(missing.log, /ERR_PNPM_PEER_DEP_ISSUES/);
 for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev/afd-server'])
-	assert(missing.log.includes(`missing peer ${peer}@^2.2.0`), `expected missing ${peer}`);
+	assert(
+		missing.log.includes(`missing peer ${peer}@${integrationPeers[peer]}`),
+		`expected missing ${peer}`
+	);
 passed('integration without peers is rejected (missing peer)');
 
 async function fake(name, packageName) {
@@ -530,7 +538,10 @@ for (const [peer, version] of Object.entries(incompatible)) {
 		overrides: false,
 	});
 	assert.match(result.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-	assert(result.log.includes(`unmet peer ${peer}@^2.2.0: found 3.0.0`), result.log);
+	assert(
+		result.log.includes(`unmet peer ${peer}@${integrationPeers[peer]}: found 3.0.0`),
+		result.log
+	);
 	passed(`integration with ${peer}@3.0.0 is rejected (unmet peer)`);
 }
 

@@ -3,7 +3,15 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertAdmission, loadInventory, parseFragments, planRelease } from './release/control.mjs';
+import {
+	AUTOMATIC_ROUTES,
+	assertAdmission,
+	loadInventory,
+	parseFragments,
+	planRelease,
+	releaseChannel,
+} from './release/control.mjs';
+import { recordReleaseProvenance } from './release/provenance.mjs';
 import { createPublishPlan, publishPlan } from './release-operations/publish.mjs';
 import { pendingUnits, selectDefault } from './release-operations/selection.mjs';
 import { json, readRegistry, registryNames, run } from './release-operations/shared.mjs';
@@ -26,7 +34,7 @@ export {
 	saveIntent,
 } from './release-operations/intent.mjs';
 
-function evidence(root, file, selectedUnits, route = 'npm-main') {
+function evidence(root, file, selectedUnits, route) {
 	if (!selectedUnits) {
 		const inventory = loadInventory(root);
 		selectedUnits = pendingUnits(inventory, parseFragments(root, inventory), route);
@@ -35,15 +43,30 @@ function evidence(root, file, selectedUnits, route = 'npm-main') {
 		? json(resolve(file))
 		: registryNames(root, selectedUnits).map((name) => readRegistry(name));
 }
-export function selectRelease({ root, selectedUnits, registryEvidence = [], route = 'npm-main' }) {
+/**
+ * Without a route, each automatic route is tried in order and the first with a releasable batch
+ * wins: one release publishes under one route and npm tag, and the rest wait for the next run.
+ */
+export function selectRelease({ root, selectedUnits, registryEvidence = [], route }) {
 	const inventory = loadInventory(root);
 	const fragments = parseFragments(root, inventory);
-	const automatic = selectedUnits
-		? null
-		: selectDefault({ root, inventory, fragments, registryEvidence, route });
+	let automatic = null;
+	if (!selectedUnits) {
+		const blocked = [];
+		for (const candidate of route ? [route] : AUTOMATIC_ROUTES) {
+			automatic = selectDefault({ root, inventory, fragments, registryEvidence, route: candidate });
+			// A fragment spanning both routes blocks the same batch on each; report it once.
+			for (const entry of automatic.blocked)
+				if (!blocked.some((seen) => JSON.stringify(seen) === JSON.stringify(entry)))
+					blocked.push(entry);
+			if (automatic.selectedUnits.length) break;
+		}
+		automatic.blocked = blocked;
+	}
 	const units = selectedUnits ?? automatic.selectedUnits;
 	if (!units.length)
 		return { selectable: false, selectedUnits: [], blocked: automatic?.blocked ?? [] };
+	route ??= releaseChannel(inventory, units).route;
 	for (const unit of units) {
 		const admitted = assertAdmission({ root, inventory, unit, route });
 		if (admitted.some((distribution) => distribution.registry !== 'npm'))
@@ -51,6 +74,7 @@ export function selectRelease({ root, selectedUnits, registryEvidence = [], rout
 	}
 	return {
 		selectable: true,
+		route,
 		blocked: automatic?.blocked ?? [],
 		...planRelease({ root, inventory, selectedUnits: units, registryEvidence, fragments }),
 	};
@@ -83,7 +107,8 @@ export function main(args = process.argv.slice(2)) {
 	const opts = options(rest);
 	const root = resolve(opts.root ?? process.cwd());
 	const selectedUnits = opts.units?.split(',');
-	const route = opts.route ?? 'npm-main';
+	// Each unit releases on its own route unless one is named.
+	const route = opts.route;
 	let result;
 	if (command === 'intent-status') {
 		const supplied = opts['registry-evidence'] ? json(resolve(opts['registry-evidence'])) : null;
@@ -96,7 +121,17 @@ export function main(args = process.argv.slice(2)) {
 		});
 	} else if (command === 'admission') {
 		if (!selectedUnits?.length) throw new Error('admission requires --units');
-		result = { admitted: selectedUnits.flatMap((unit) => assertAdmission({ root, unit, route })) };
+		const inventory = loadInventory(root);
+		result = {
+			admitted: selectedUnits.flatMap((unit) =>
+				assertAdmission({
+					root,
+					inventory,
+					unit,
+					route: route ?? releaseChannel(inventory, [unit]).route,
+				})
+			),
+		};
 	} else if (command === 'select' || command === 'status' || command === 'version') {
 		const selected = selectRelease({
 			root,
@@ -109,6 +144,11 @@ export function main(args = process.argv.slice(2)) {
 			result = versionSelected({ root, plan: selected, inventory: loadInventory(root) });
 			if (existsSync(resolve(root, 'scripts/check-versions.mjs')))
 				run(process.execPath, ['scripts/check-versions.mjs', '--write'], root);
+			// Before the intent, which binds the records too, so the release PR can pass and publish.
+			result.provenance = recordReleaseProvenance(
+				root,
+				`Versioned for release by pnpm version-packages (${result.selectedUnits.join(', ')})`
+			);
 			if (result.changed.length) {
 				result.intent = saveIntent(root, result.selectedUnits, opts.intent);
 				formatIntent(root, opts.intent);
