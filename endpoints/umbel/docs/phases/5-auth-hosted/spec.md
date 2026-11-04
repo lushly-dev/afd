@@ -9,82 +9,151 @@
 
 ## Status
 
-- **State:** **written 2026-11-03, in review, not approved.** It proposes decisions [D106 to D128](../../decisions.md).
-  Fifteen of them are trust-model or scope choices. They are **pending** the owner's answers to the fifteen
-  questions of section [17](#17-for-the-owner), and no text here treats them as decided. Where a section depends
-  on a pending answer, it describes the recommended option and names the question. Nothing is implemented.
-- **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done). Read in `endpoints/umbel`:
-  - `src/principal.rs`. The projection is version 0 (line 18), under the host-owned key `dev.umbel/principal`
-    (line 21). `Authentication` is `none`, `process` or `embedder` (lines 40-47). The MCP hook maps any
-    request with HTTP parts to `agent:loopback` with `none`, and every other request to `agent:<local_id>`
-    acting for `on_behalf_of` with `process` (lines 107-139). Nothing of the request is read.
-  - `schemas/principal.v0.json` (line 5) reserves `credentials`, `delegationChain`, `tokenBinding`,
-    `humanPresent`, `policyDecision`, `policyVersion`, `scopes`, `spaces` and `tenant`.
-  - `src/authority.rs`. `person` "rests on a terminal check until phase 5" and is not an attestation
-    (lines 5-7). `cli_mark` needs the CLI interface, a human actor, transport `cli` and authentication
-    `process` (lines 63-75). An embedder's human is a person (lines 78-84, 97-109). `write_authority` fills
-    `person`, `tool`, `agent`, `transcript` or `import` (lines 133-157). The agent variables are on line 38.
-  - `src/middleware.rs`. The plugin gate builds the reader filter from the effective principal and refuses
-    an unreadable space before the handler (lines 254-261). A `require-human` command needs the CLI's
-    human-confirmed mark (lines 262-264, 278-285).
-  - `src/surfaces/http.rs`. One bearer layer compares SHA-256 digests of `state/keys/http.token`
-    (lines 101-152). It guards `/health` and the MCP path alike (lines 80-83) and answers
-    `WWW-Authenticate: Bearer realm="umbel"` (lines 144-151). Host and origin allow-lists come from
-    configuration (lines 30-44).
-  - `src/surfaces/mcp.rs`. The server is hybrid, with the context hook and the shared confirmation key
-    (lines 36-56).
-  - `src/host/mod.rs`. The approval middleware is installed `with_include_token(false)` (lines 410-428). A
-    library context is `library` and `embedder` (lines 580-585). The CLI context is `human:<local_id>`,
-    `cli` and `process` (lines 602-609).
-  - `src/workspace/config.rs`. Configuration version 4 (line 23). `profile` must be `team` (lines 691-697).
-    `http.bind` must be loopback, and the refusal says "non-loopback HTTP arrives with phase 5"
-    (lines 1240-1258). `[principal]` has `local_id`, `on_behalf_of` and `agent_env` (lines 93-95).
-  - `src/workspace/keys.rs`. The approval and confirmation keys are 32 bytes, created race-safe and shared by
-    every process of a workspace (lines 15-27).
-  - `src/access.rs` (lines 26-29, 77-110) and `src/provenance.rs` (lines 236-249). The effective principal is
-    `human:<onBehalfOf>` whenever an actor acts for someone, so an agent reads everything its person reads.
-  - `src/plugins/memory_services.rs`. A sharing writer is a `person`, or a person or agent holding a
-    `writers` token (lines 150-162). Invalidate and supersede are open to a sharing writer who can read the
-    record (lines 215-253).
-  - `plugins/knowledge/src/proposal/redact.rs:216-240` and `src/plugins/store_services.rs:368-385`. A
-    redaction sweep lists proposals with `record_list`, under the caller's filter.
-  - `src/plugins/mounted/mod.rs:134-149` and `src/plugins/mounted/client.rs:490-503`. An HTTP mount sends
-    the deployer's token from `bearer_env`, refuses redirects, and never forwards the caller's token.
-  - `src/events/cursor.rs:1-4`. The cursor is `v0:<space>:<seq>`, so a caller reads the stream's sequence
-    numbers.
-  - `src/commands/workspace_show.rs:85-86`. It reports `"principals": "unverified", "exact": ["library"]`.
-  - `src/commands/event_list.rs`. Version 1 and later events are filtered by `access` (lines 74-79, 110-121).
+- **State:** **written 2026-11-03; revised the same day after an independent review (36 findings and 7 nits, every
+  one holding, 3 in part; [Review response](#review-response)); in review, not approved.**
+  - It proposes decisions [D106 to D130](../../decisions.md).
+  - Seventeen of them are trust-model or scope choices. They are **pending** the owner's answers to the seventeen
+    questions of section [17](#17-for-the-owner), and no text here treats them as decided.
+  - Where a section depends on a pending answer, it describes the recommended option and names the question.
+  - Nothing is implemented.
+- **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done), and again for the review. Read in
+  `endpoints/umbel`:
+  - `src/principal.rs`:
+    - The projection is version 0 (line 18), under the host-owned key `dev.umbel/principal` (line 21).
+    - `Authentication` is `none`, `process` or `embedder` (lines 40-47).
+    - The MCP hook maps any request with HTTP parts to `agent:loopback` with `none`, and every other request to
+      `agent:<local_id>` acting for `on_behalf_of` with `process` (lines 107-139). Nothing of the request is read.
+  - `schemas/principal.v0.json` (line 5) reserves these fields, each at the top level: `credentials`,
+    `delegationChain`, `tokenBinding`, `humanPresent`, `policyDecision`, `policyVersion`, `scopes`, `spaces` and
+    `tenant`.
+  - `src/authority.rs`:
+    - `person` "rests on a terminal check until phase 5" and is not an attestation (lines 5-7).
+    - `cli_mark` needs the CLI interface, a human actor, transport `cli` and authentication `process`
+      (lines 63-75).
+    - An embedder's human is a person (lines 78-84, 97-109).
+  - `src/middleware.rs`:
+    - The space check refuses an undeclared space before the plugin gate (lines 147-198), with `SPACE_NOT_FOUND`
+      (`src/host/space.rs:21-36`).
+    - The plugin gate builds the reader filter and refuses an unreadable space with `SPACE_NOT_READABLE`
+      (lines 254-261).
+    - A `require-human` command needs the CLI's human-confirmed mark (lines 262-264, 278-285).
+  - `src/plugins/manifest.rs:1607-1612`: `require_human()` refuses a `require-human` command that is exposed to
+    MCP or to agents.
+  - `plugins/knowledge/umbel-plugin.toml:298-310`: `knowledge-approve` has `approval = "required"`,
+    `confirm = "require-human"`, a `confirm_prompt`, a `confirm_preview`, and CLI-only exposure.
+    `plugins/curator/umbel-plugin.toml:59-61` has the same for `curator-promote`.
+  - `src/surfaces/http.rs`:
+    - One bearer layer compares SHA-256 digests of `state/keys/http.token` (lines 101-152).
+    - It guards `/health` and the MCP path alike (lines 80-83).
+  - `src/surfaces/mcp.rs`: hybrid, with the context hook and the shared confirmation key (lines 36-56).
+  - `src/host/mod.rs`:
+    - The approval middleware is installed `with_include_token(false)` (lines 410-428).
+    - A library context is `library` and `embedder`, for any actor the embedder passes (lines 579-585).
+    - The CLI context is `human:<local_id>`, `cli` and `process` (lines 602-609).
+  - `src/workspace/config.rs`:
+    - Configuration version 4 (line 23); `profile` must be `team` (lines 691-697).
+    - `http.bind` must be loopback (lines 1240-1258).
+  - `src/workspace/keys.rs`: the keys are 32 bytes, created race-safe and shared by every process (lines 15-27).
+  - `src/access.rs` and `src/provenance.rs`:
+    - `reader_filter` takes only a principal (`access.rs:77-110`).
+    - The effective principal is `human:<onBehalfOf>` for any actor acting for someone (`provenance.rs:236-249`).
+  - `src/commands/event_list.rs:74-79` calls `reader_filter` directly, so a host built-in bypasses any narrowing
+    the plugin gate would apply.
+  - `src/commands/event_ack.rs:50-66`: the stored cursor is parsed and written as a version 0 cursor.
+  - `src/events/cursor.rs:1-4`: cursors are `v0:<space>:<seq>`.
+  - `src/plugins/memory_services.rs`:
+    - A sharing writer is a `person`, or a holder of a `writers` token who is a human or, with
+      `agents_may_share`, anyone (lines 150-162).
+    - Invalidate and supersede are open to a sharing writer who can read the record (lines 215-253).
+  - The knowledge redaction sweep lists proposals with `record_list` under the caller's filter
+    (`plugins/knowledge/src/proposal/redact.rs:216-240`, `src/plugins/store_services.rs:368-385`).
+  - `store/src/access.rs:118-171`: `ReaderFilter::Derivation`. The memory store refuses it (D101).
+  - The mounted loader sends the deployer's token from `bearer_env` and refuses redirects
+    (`src/plugins/mounted/mod.rs:134-149`, `client.rs:490-503`).
 - **Read in `packages/rust`:**
-  - `src/commands.rs:414-482`. `CommandContext` has `actor` and `approval`, but no `credentials`.
-  - `src/server/confirmations.rs:91-103`. The confirmation binding is the command and its input only, as issue
-    [#532](https://github.com/lushly-dev/afd/issues/532) (open, read 2026-11-03) says.
-  - `src/server/context_hook.rs`. The hook is "trust-bearing", reads HTTP parts and extensions, and runs
-    once per `tools/call`, but not on `tools/list` (lines 1-60, 128-130).
-  - `src/approval/middleware.rs`. `ApprovalNonceStore` must be atomic and is in memory by default
-    (lines 55-64). `with_nonce_store` is on line 163. The token binds the actor (lines 344, 373).
-  - `Cargo.toml:20-36`. The features are `native`, `approval`, `server` and `journal-file-shared`, with no
-    auth feature.
+  - `src/commands.rs:414-482`: `CommandContext` has `actor` and `approval`, and no `credentials`.
+  - `src/server/confirmations.rs`, the server-level gate, which runs before any registry middleware:
+    - `check` (lines 239-348) verifies the retry, then accepts `confirm: true` under `Enforce` (lines 282-294).
+    - It asks only with a **form** elicitation (lines 300-332).
+    - `allows_form_elicitation` is false for a client that declares URL mode without form (lines 185-190), and such
+      a client gets `CONFIRMATION_REQUIRED` (lines 334-348).
+    - Under `RequireHuman`, an accepted form answer proceeds (lines 268-279).
+    - The binding is the command and its input only (lines 91-103), which is
+      [#532](https://github.com/lushly-dev/afd/issues/532), open on 2026-11-03.
+  - `src/server/context_hook.rs`: the hook does not run on `tools/list`, `server/discover` or `initialize`
+    (lines 52-54).
+  - `src/approval/middleware.rs`:
+    - `ApprovalNonceStore` must be atomic and is in memory by default (lines 55-64).
+    - `with_nonce_store` is on line 163.
+    - The token binds the actor (lines 344, 373).
+  - `Cargo.toml:20-40`: features `native`, `wasm`, `journal-file`, `journal-file-shared`, `approval`, `server`
+    and `frontmatter`, with `native`, `journal-file` and `approval` the defaults. No auth feature.
 - **Read in the repository:**
-  - The [MCP Authorization proposal](../../../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md):
-    `credentials`, `scopes`, `INSUFFICIENT_SCOPE`, a Rust tower layer, decisions A1 to A7, and enterprise-managed
-    authorization out of scope.
-  - The [MCP Tasks proposal](../../../../../docs/features/proposed/mcp-tasks/mcp-tasks.proposal.md): `task`,
-    `TaskStore` and T1 to T5.
-  - [`spec/command-metadata.md`](../../../../../spec/command-metadata.md), "Asking the human over MCP"
-    (lines 234-294). The Rust relay is "Planned".
-  - [`docs/language-parity.md`](../../../../../docs/language-parity.md) line 136. The relay is TypeScript only.
-- **Read in `rmcp` 3.8.0, the version in Umbel's lock:**
-  - `src/task_manager.rs:300-315`. A `TaskManager` over `Arc<Mutex<…>>`, in memory only.
-  - `src/transport/auth.rs` and `auth/enterprise.rs`. These are client-side only: the OAuth client, and the
-    enterprise-managed (ID-JAG) token exchange.
-- **Read in `tantivy` 0.27.0:** `src/query/bm25.rs:15`. The public `Bm25StatisticsProvider`, which
-  `EnableScoring::enabled_from_statistics_provider` takes.
+  - The [MCP Authorization proposal](../../../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md),
+    A1 to A7. A4 says scopes are "not inferred from `mutation`", and A5 gives a 403 through `Mcp-Name`.
+  - The [MCP Tasks proposal](../../../../../docs/features/proposed/mcp-tasks/mcp-tasks.proposal.md).
+  - [`spec/command-metadata.md`](../../../../../spec/command-metadata.md) lines 234-294.
+  - [`docs/language-parity.md`](../../../../../docs/language-parity.md) line 136.
+- **Read in the registry sources of the crates in the lock, or planned:**
+  - `rmcp` 3.8.0: `task_manager.rs:300-315` (in memory); `transport/auth.rs` and `auth/enterprise.rs`
+    (client side only).
+  - `tantivy` 0.27.0: `src/query/bm25.rs:15`, `Bm25StatisticsProvider`.
+  - `jsonwebtoken` 11.1.0, `src/validation.rs`:
+    - `validate_nbf` defaults to `false`.
+    - `aud` passes when **any** member matches (lines 243-247).
+    - `typ` and `kid` are not checked.
+    - The required claims can name only `exp`, `nbf`, `aud`, `iss` and `sub`.
+  - `rustls-pki-types` 1.15.1 is in Umbel's lock.
 - **External sources:** checked on 2026-11-03 (see [Trajectory refresh](#trajectory-refresh)).
 - **No Rust was built** for this document. No cargo command was run except `cargo info`.
-- **Done:** this specification, in review.
-- **Not done:** everything in section [16](#16-implementation-plan); the owner's answers (section 17); an
-  independent review and revision (D24).
+- **Done:** this specification and its revision, in review.
+- **Not done:** everything in section [16](#16-implementation-plan); the owner's answers (section 17).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
+
+### Review response
+
+The independent review of 2026-11-03 raised 36 findings and 7 nits. Each was checked against the code and the
+standards. All hold; three hold in part.
+
+| # | Finding | Verdict | Change made |
+| --- | --- | --- | --- |
+| 1 | AFD's server gate runs first and sends only forms, so a URL-only client never reaches the relay; 6.1's reason was wrong | Holds (`confirmations.rs:185-190, 268-279, 300-348`) | A per-command **host-verified** confirmation mode in steps 0a and 0d: the gate never sends a form for such a command and defers to `HumanRelay`; relay evidence reaches the approval middleware through a crate-private context field, with tokens still off (3.1, 7.3). 6.1's check is restated |
+| 2 | `require_human()` refuses MCP exposure; `person` was one value; `verified` unusable in `none`; CLI `for.sub` undefined; "a hosted person promotes at the CLI" contradicted the operator | Holds (`manifest.rs:1607-1612`) | `person` is per surface, `{ cli, mcp }`. Manifest version 5 admits MCP exposure of a `require-human` command only with `mcp = "verified"`. Such commands are not served over MCP without a person login. The CLI's subject comes from the mandatory namespaced `local_id` (4.6). `curator-promote` stays `terminal` (2.3, 7.1, 8.1) |
+| 3 | URL mode must not authorize users for themselves; requests must bind client and user | Holds | 7.5 argues the difference; question 6 asks it; `for` holds actor, client, issuer, namespace and subject, all checked at resume (7.2) |
+| 4 | Pairwise subjects, enterprise-managed `sub` from another issuer, gateway users, several issuers | Holds | Identity namespaces with a subject claim per issuer, a person login per namespace, the doctor checking `subject_types_supported`; the gateway names its namespace; exit point 5 covers an enterprise-managed user (4.1, 7.2, 14) |
+| 5 | `human:ada` and `human:corp/U…` split ownership, self-approval, approvers, readers and cursors | Holds | `local_id` must be a namespaced id in hosted modes; a one-way equivalence table for legacy principals that every comparison consults; the doctor flags entries no namespace produces; migration is question 16 (4.6) |
+| 6 | `SPACE_NOT_FOUND` versus `SPACE_NOT_READABLE`, and the scope gate before readability, reveal spaces | Holds (`space.rs:21-36`, `middleware.rs:147-198, 254-261`) | One answer for undeclared and unreadable spaces to non-operators, and readability before the scope gate (5.4); tested in `hosted_leaks.rs` |
+| 7 | Sealed `head` and `applied` still move with hidden writes; random nonces defeat equality | Holds | Non-operators see readable positions only; sealing is deterministic (an SIV construction); exit point 2 is rewritten as a before-and-after comparison in one workspace (9.3, 14) |
+| 8 | The library as operator contradicts `exact: ["library", "http"]` and leaks to embedders serving users | Holds | Only the CLI is an operator; library calls are treated by their actor; question 17 (4.7) |
+| 9 | The preview stored in `person.sqlite3` holds memory text outside D82's keys | Holds | The preview is rendered at page time from the live store under the person's filter; only its hash and the declared ids are stored; exit point 9 extended (7.2) |
+| 10 | Derived, input-dependent scopes conflict with A4 and A5; the hook skips `tools/list`; 403 is the MCP answer | Holds (`context_hook.rs:52-54`) | A `ScopeResolver` host trait in steps 0a and 0b, used before dispatch for an HTTP 403 and for list filtering (3.3, 5.2) |
+| 11 | Layer order: the per-token limit sat before verification; the person page inside the bearer layer and outside host checks; "fail closed" too broad | Holds | A new order: an IP limit before verification, the token limit after it, the person page mounted beside MCP with its own host check; the test restated (6.3) |
+| 12 | Several introspection issuers leak opaque tokens; RFC 7662 and RFC 9068 claim requirements | Holds | At most one introspection issuer, used only for non-JWS tokens; `exp`, `iat`, `iss`, `aud`, `sub` and `client_id` required in a response; `iat` and `jti` required in a JWT (3.2) |
+| 13 | The relay protocol was under-specified | Holds | Pending retries, the relay `requestState`, the server-side PKCE verifier and the shared `person.key` are specified (7.2, 7.3) |
+| 14 | `prompt=login` with empty `acr_values` is passable by browser automation; clickjacking | Holds | Threat row; the doctor warns on empty `acr_values`; `frame-ancestors 'none'` and `X-Frame-Options: DENY` (7.2, 6.1, 13.2) |
+| 15 | `memory-erase` against D85's "blind" | Holds | Erase acts on the target principal's records without the eraser's filter and returns counts only (8.4) |
+| 16 | Host-run redaction adds a privileged filter against D101; no durable trigger; ownership undefined | Holds | Question 11 amends D101 explicitly; an erasure outbox row in the forget's transaction; ownership is the instance's record namespace, with a host-only command (8.5) |
+| 17 | Plan order | Holds | `umbel-testkit-idp` is step 1b; 0c needs 0b; step 2 split into 2a to 2c (16) |
+| 18 | No error-code table; codes missing; prefix | Holds | Section 10.5; `WORKSPACE_SHARED_TIMEOUT`; `TOKEN_SCOPES_TOO_MANY` is a 401, not `INSUFFICIENT_SCOPE` |
+| 19 | Stored version 0 cursors break stdio consumers | Holds (`event_ack.rs:50-66`) | Stored cursor files keep positions; only cursor strings handed to non-`process` callers are sealed; version 0 strings stay valid for `process` (9.3) |
+| 20 | `client_credentials` detection unimplementable | Holds | An explicit rule per issuer: `services.clients` and `services.claim`, plus `sub == client_id` (4.1) |
+| 21 | Claim-derived groups make the identity provider a visibility source | Holds | Said in 4.5 and question 4 |
+| 22 | Tasks outlive their token and keep content | Holds | A task stops at its token's `exp`, re-checks readability per batch, and is admitted only for results without content (12.2) |
+| 23 | Memory recall bounded by recency | Holds | BM25 per reader filter in Rust over every readable match, with a refusal past a ceiling instead of truncation (9.2) |
+| 24 | Field norms are quantized; the eval claim was wrong | Holds in part: tantivy's own `total_num_tokens` is exact, but summing per-document norms is not | Exact per-chunk token counts in a fast field; the eval gate must pass within its tolerance, with no claim of equality (9.1) |
+| 25 | Gateway and mTLS details | Holds | `htu` against `http.public_url`; the ceiling as a meet in the scope order; `client_auth = "ca"` with pins for gateways; bound tokens need in-process TLS; a 401 shape (4.4, 2.2) |
+| 26 | The `auth.principals` warning was inverted | Holds | Replaced by 4.6's mandatory join check |
+| 27 | The long-id hash collides with a literal subject | Holds | Ids starting with `~` are always hashed, and the hash form starts with `~` (4.1) |
+| 28 | Verifier details and `jsonwebtoken` defaults | Holds (`validation.rs`) | Metadata discovery order, JWK binding to the header, refusal of `crit`, and every check made explicitly rather than by the crate's defaults (3.2) |
+| 29 | Narrowing does not reach host built-ins | Holds (`event_list.rs:74-79`) | `reader_filter` takes the call's caller, scopes included (5.4) |
+| 30 | Do 5.2's rows add up? | Holds | Needs are the union of every row that applies (5.2) |
+| 31 | "Agents are already refused" | Holds in part: true only while `agents_may_share` is false | Restated; editors must be persons whatever `agents_may_share` says (8.3) |
+| 32 | `rustls-pemfile` is archived | Holds in part: the archival was not re-checked; `rustls-pki-types` 1.15.1 is in the lock | `rustls-pki-types`' `PemObject` (1) |
+| 33 | The architecture's trust model still names AFD's prompt | Holds | Architecture section 5 amended, marked proposed |
+| 34 | `policyVersion` moved under `policyDecision` | Holds (D36) | Kept top-level (2.1) |
+| 35 | Missing test files | Holds | `doctor_auth.rs`, `auth_show.rs`; `principal_v1.rs` and `person_page.rs` name the cases (14) |
+| 36 | Question 15 was framed by cost | Holds | Restated as correctness (17, question 15) |
+| N | Nits: the feature list; trajectory W5 "Drafts"; cipher suites; `SameSite=Lax` and `response_mode`; RFC 9068 has no `resource`; whether polls and lists count as usage; the doctor check for a remote proxy | Hold | Each fixed: Status; trajectory W5 row; 6.2; 7.2; 3.2; 12.1; 6.1 (`auth.tls`) |
 
 ## What this phase serves
 
@@ -100,7 +169,7 @@ The row asks this specification to settle five things:
 
 | Item | Where |
 | --- | --- |
-| Trait shapes | Section 3.3 (AFD), 10 (host) |
+| Trait shapes | 3.3 (AFD), 10 (host) |
 | The principal's extension fields | 2.1, 4 |
 | Scope mapping, including per-space scopes | 5 |
 | Audience rules | 3.2 |
@@ -111,56 +180,57 @@ It also takes up what earlier phases deferred to it:
 | Deferred item | From | Where here |
 | --- | --- | --- |
 | `memory-erase` | D85, phase 3 section 13 | 8.4 |
-| #532, confirmations bound to the actor | Phase 0 review | 3.1, step 0c |
+| #532 | Phase 0 review | 3.1, step 0c |
 | Partitioned BM25 statistics; no hidden counts in scores, revisions, `seq`, totals, memory order | D53, phase 2 section 6, phase 3 5.3 | 9 |
 | Token verification, `scopes`, `credentials` | Architecture prerequisites | 3 |
-| The dynamic confirmation prompt | Phase 2 G2; done at the CLI by D97 | 7.4 (over MCP) |
+| The dynamic confirmation prompt | Phase 2 G2; done at the CLI by D97 | 7.4 |
 | Real proof of a person | D71, D86, phase 3 3.3, W5 | 7 |
 | The Rust MCP approval relay | D99, parity line 136 | 3.1, 7.3 |
-| Per-agent read rate limits, limits on verified agents | D74, phase 2 section 13 | 11 |
+| Read rate limits, limits on verified agents | D74, phase 2 section 13 | 11 |
 | Delegation narrowing, `delegationChain` | Phase 2 section 6, phase 3 3.1 | 4.3 |
 | `space-list` and `workspace-show` listing every space | STATUS follow-up, phase 2 step 4 | 9.4 |
 | `memory-confirm` on another person's record | D88 | 8.2 |
 | A sharing writer closing another person's record | Phase 3 step 10, item 1 | 8.3 |
-| A draft whose proposer lost read access, not redacted | Phase 4 step 3b, amendment 12; step 7, amendment 11 | 8.5 |
+| A draft whose proposer lost read access | Phase 4 step 3b, amendment 12; step 7, amendment 11 | 8.5 |
 | `secrets`, and `bearer_env` under it | Phase 1 follow-up, D43 | 10.4 |
-| Tenancy beyond spaces (O5, "blocks phase 5") | Decision log | 6.4 |
+| Tenancy beyond spaces (O5) | Decision log | 6.4 |
 | The Rust telemetry middleware | Prerequisites table | 12.4 |
 
 | Principle | How phase 5 serves it |
 | --- | --- |
 | 1. Empty host | Auth, scopes, the person page, tasks, usage and limits are host services with no domain logic. Umbel is a resource server and owns no identity provider (A7) |
-| 3. Everything is a command | `usage-list` and `auth-show` are commands. The person page is the one HTTP route that is not a command: it is the out-of-band half of a command's elicitation (7.2) |
+| 3. Everything is a command | `usage-list` and `auth-show` are commands. The person page is the one HTTP route that is not one: it is the out-of-band half of a command's elicitation (7.2) |
 | 4. No model in the request path | Nothing here calls a model. The curator stays CLI only, and no task can run it (12.2) |
-| 9. Stored content is untrusted input | Token claims and gateway assertions are verified before any field reaches the context. Elicitation answers are never approval evidence on their own (7.3) |
-| 10. Permission-aware | Filtering becomes a boundary, and it is exact: statistics are per reader filter (9) |
-| 11. Stateless and horizontal | Instances behind one URL share the confirmation key, the approval nonce store, the task store and the limit counters (10.2) |
-| 14. Every mutation is an event | Unchanged. Usage events are metering, kept apart from the event streams (12.1) |
-| 15. AFD first | Token verification, `scopes`, `credentials`, #532, the relay and Tasks land in AFD first, as step 0 (D25, D106) |
-| 16. Spaces do not mix | Per-space scopes narrow a token to spaces (5.2); a task belongs to one space |
+| 9. Stored content is untrusted input | Token claims and gateway assertions are verified before any field reaches the context; elicitation answers are never evidence of a person (7) |
+| 10. Permission-aware | Filtering becomes a boundary, and it is exact: statistics and positions are per reader filter (9) |
+| 11. Stateless and horizontal | Instances behind one URL share the keys, the nonce store, person decisions, tasks and limit counters (10.2) |
+| 14. Every mutation is an event | Unchanged; usage is metering, kept apart from the event streams (12.1) |
+| 15. AFD first | Token verification, scopes and their resolver, `credentials`, #532, the host-verified confirmation mode, the relay and Tasks land in AFD first (D106) |
+| 16. Spaces do not mix | Per-space scopes narrow a token to spaces (5); a task belongs to one space |
 
 Decisions served: D14, D19, D24, D25, D26, D29, D32, D36, D42, D43, D53, D62, D68, D71, D73, D74, D82, D84, D85,
-D86, D88, D91, D97, D99, D101, D102 and D103, and the new D106 to D128. O5 is put to the owner (question 14). O1 and
-O4 are untouched.
+D86, D88, D91, D97, D99, D101, D102 and D103, and the new D106 to D130. O5 is question 14. O1 and O4 are untouched.
 
 ## Trajectory refresh
 
-Refreshed 2026-11-03 against primary sources. **One finding changes the design:** URL-mode elicitation in MCP
-2026-07-28 makes an out-of-band, server-verified person possible, which form mode cannot be. This is question 6.
-A second finding narrows scope: enterprise-managed authorization asks nothing new of a resource server (3.4).
+Refreshed 2026-11-03 against primary sources.
+
+**One finding changes the design.** URL-mode elicitation in MCP 2026-07-28 makes an out-of-band, server-verified
+person possible, which form mode cannot be (question 6). **A second finding narrows scope.** Enterprise-managed
+authorization asks nothing new of a resource server (3.4).
 
 | Row | Checked against | Finding on 2026-11-03 | Effect on phase 5 |
 | --- | --- | --- | --- |
-| W1 release cycle | [MCP roadmap](https://modelcontextprotocol.io/development/roadmap), last updated 2026-08-22 | 2026-07-28 is current. Priority 3 is "Agent Identity and Enterprise-Ready Security": DPoP, workload identity federation (SEP-1933), ID-JAG and RFC 8693. Human-presence attestation is still "under discussion" | Pins MCP 2026-07-28 and keeps 2025-11-25 |
-| MCP Authorization | [Authorization, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), [security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations) | OAuth 2.1 (it cites draft 13). Servers "MUST implement" RFC 9728, with `authorization_servers` holding at least one entry, discovery by `resource_metadata` in `WWW-Authenticate` or a well-known URI, and "MUST validate that access tokens were issued specifically for them as the intended audience". They "MUST NOT accept or transit any other tokens". Runtime insufficient scope is 403 with `error="insufficient_scope"`, all scopes in one challenge, and scope hierarchies respected. stdio "SHOULD NOT" follow it. Dynamic client registration is deprecated in favour of Client ID Metadata Documents | Section 3 |
-| Enterprise-managed authorization | [`ext-auth`](https://github.com/modelcontextprotocol/ext-auth), stable, revision 2026-07-28; last commit 2026-10-23 | The client exchanges an enterprise ID token for an ID-JAG at the IdP (RFC 8693), then for an access token at the resource authorization server (RFC 7523 JWT bearer). "The issued access token **MUST** be audience-restricted to the MCP Server". The extension describes no step for the resource server. OAuth Client Credentials is the other stable extension | 3.4: inbound needs no Umbel-specific path; outbound is question 12 |
-| W5 agent identity | [SEP-1932](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1932) (DPoP), [SEP-1933](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1933) (workload identity); GitHub API | Both open, not drafts, updated 2026-11-02 | DPoP and workload identity stay reserved (D19). `tokenBinding` reserves `dpop` (2.1) |
-| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | Form mode exposes the data to the client. URL mode is "out-of-band… not exposed to the client". The server "**MUST** verify the identity of the user who opens the URL", and "**MUST** ensure that the user who started the elicitation request… is the same user who completes" it. It "**MUST NOT** provide a URL which is pre-authenticated". It "**MUST NOT** rely on client-provided user identification without server verification". URL mode is marked a new feature that "may change" | Section 7, question 6 |
-| W7 Tasks | [Tasks overview](https://modelcontextprotocol.io/extensions/tasks/overview); [`ext-tasks`](https://github.com/modelcontextprotocol/ext-tasks) revision 2026-07-28, last commit 2026-10-20 | `io.modelcontextprotocol/tasks`; only `tools/call` becomes a task. Servers "MUST perform authentication and authorization checks on each task-related request" and must use unguessable ids. A task is durable before `CreateTaskResult`. `Mcp-Name` carries `taskId`. No progress notifications on tasks. The roadmap still has it "toward eventual inclusion… in the core" | Section 12.2 |
-| W2 MCP Events | [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) | Open, updated 2026-11-03 | Usage and events stay in Umbel's log (12.1) |
+| W1 release cycle | [MCP roadmap](https://modelcontextprotocol.io/development/roadmap), last updated 2026-08-22 | 2026-07-28 current. Priority 3, "Agent Identity and Enterprise-Ready Security": DPoP, SEP-1933, ID-JAG, RFC 8693. Human-presence attestation "under discussion" | Pins MCP 2026-07-28 and keeps 2025-11-25 |
+| MCP Authorization | [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), [security considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations), 2026-07-28 | <ul><li>OAuth 2.1 (cites draft 13); servers "MUST implement" RFC 9728, with at least one authorization server.</li><li>Discovery by `resource_metadata` or a well-known URI.</li><li>Audience validation "MUST"; "MUST NOT accept or transit any other tokens".</li><li>Insufficient scope "SHOULD" be a 403 with `error="insufficient_scope"`, all scopes in one challenge; required scopes "may be determined dynamically based on the specific request arguments"; scope hierarchies respected.</li><li>stdio "SHOULD NOT" follow it.</li></ul> | Section 3, 5.2 |
+| Enterprise-managed authorization | [`ext-auth`](https://github.com/modelcontextprotocol/ext-auth), stable, revision 2026-07-28, last commit 2026-10-23 | <ul><li>ID token, then an ID-JAG by RFC 8693 at the IdP, then an access token by RFC 7523 at the resource authorization server, "audience-restricted to the MCP Server".</li><li>No step for the resource server.</li><li>The access token's `sub` is the resource authorization server's, which login at the IdP need not match.</li></ul> | 3.4, 4.1 (namespaces), question 12 |
+| W5 agent identity | [SEP-1932](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1932), [SEP-1933](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1933); GitHub API | Open pull requests, not drafts, updated 2026-11-02 | DPoP and workload identity stay reserved (D19) |
+| Elicitation | [Elicitation, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) | <ul><li>URL mode is "out-of-band… not exposed to the client".</li><li>Servers "MUST verify the identity of the user who opens the URL" and "MUST ensure that the user who started the elicitation request… is the same user who completes" it.</li><li>"MUST NOT provide a URL which is pre-authenticated".</li><li>"MUST bind elicitation requests to the client and user identity".</li><li>"MUST NOT rely on URL mode elicitation to authorize users for themselves".</li><li>URL mode "may change".</li></ul> | Section 7, 7.5, question 6 |
+| W7 Tasks | [Tasks](https://modelcontextprotocol.io/extensions/tasks/overview); [`ext-tasks`](https://github.com/modelcontextprotocol/ext-tasks) revision 2026-07-28, last commit 2026-10-20 | <ul><li>Only `tools/call` becomes a task.</li><li>Servers "MUST perform authentication and authorization checks on each task-related request", with unguessable ids, durable before `CreateTaskResult`.</li><li>`Mcp-Name` carries `taskId`; no progress notifications.</li></ul> | 12.2 |
+| W2 MCP Events | [SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) | Open, updated 2026-11-03 | Usage and events stay in Umbel's log |
 | W12 OpenTelemetry GenAI | Not re-checked; phase 0's refresh (no tagged release) stands | | Question 15 |
-| IETF drafts | Datatracker API | `draft-ietf-oauth-v2-1` is at 17 (2026-10-31); MCP cites 13. `draft-ietf-oauth-identity-assertion-authz-grant` is at 06 (2026-10-31); EMA cites 04. `draft-ietf-oauth-client-id-metadata-document` is at 03 (2026-11-02); MCP cites 00 | The verifier follows the RFCs it uses (RFC 6750, 7519, 8707, 9068, 9728, 7662, 8705, 9470), not a draft's numbering |
-| Libraries | `cargo info`; the registry sources | `rmcp` 3.8.0 has no server-side auth, and its `TaskManager` is in memory. `jsonwebtoken` 11.1.0 (MSRV 1.88) has an `aws_lc_rs` backend; `aws-lc-rs` 1.19.0, `rustls` 0.23.46 and `tokio-rustls` 0.26.6 are already in Umbel's lock. `tantivy` 0.27.0 exposes `Bm25StatisticsProvider` | Sections 1, 3, 9 |
+| IETF drafts | Datatracker API | `draft-ietf-oauth-v2-1` 17 (2026-10-31; MCP cites 13); `draft-ietf-oauth-identity-assertion-authz-grant` 06 (2026-10-31; EMA cites 04); `draft-ietf-oauth-client-id-metadata-document` 03 (2026-11-02) | The verifier follows the RFCs it uses: RFC 6750, 7519, 7662, 8414, 8705, 8707, 9068, 9207, 9728, and OIDC Core and Discovery |
+| Libraries | `cargo info`; registry sources | <ul><li>`rmcp` 3.8.0: no server auth; `TaskManager` in memory.</li><li>`jsonwebtoken` 11.1.0 (MSRV 1.88, `aws_lc_rs` feature), with the defaults the Status lists.</li><li>`aws-lc-rs` 1.19.0, `rustls` 0.23.46, `tokio-rustls` 0.26.6 and `rustls-pki-types` 1.15.1 in the lock.</li><li>`tantivy` 0.27.0 `Bm25StatisticsProvider`.</li></ul> | 1, 3, 9 |
 
 Rows W3, W4, W6, W8 to W11 and W13 to W18 were not re-checked.
 
@@ -171,50 +241,53 @@ These enter the [glossary](../../architecture.md#12-glossary), marked proposed.
 | Term | Meaning |
 | --- | --- |
 | Auth mode | `auth.mode`: `none` (today's loopback token), `oauth` (an OAuth 2.1 resource server) or `gateway` (a verified gateway assertion) |
-| Canonical resource URI | `http.public_url`: the MCP endpoint's absolute HTTPS URL. It is the token audience (RFC 8707) and the `resource` of the protected-resource metadata (RFC 9728) |
-| Issuer alias | The deployer's short name for one trusted authorization server, `[auth.issuers.<alias>]`, which prefixes every principal id from that issuer |
-| Verified principal | A principal whose actor comes from a verified token or a verified gateway assertion (`authentication: "verified"` or `"gateway"`) |
-| Space scope | An OAuth scope narrowed to one space, `umbel:<verb>:<space>` |
+| Canonical resource URI | `http.public_url`: the MCP endpoint's absolute HTTPS URL, the token audience (RFC 8707) and the metadata's `resource` (RFC 9728) |
+| Identity namespace | `[auth.namespaces.<ns>]`: one population of people whose subject values are comparable, the prefix of their principal ids, with at most one person login |
+| Issuer alias | The deployer's name for one trusted authorization server, `[auth.issuers.<alias>]`, mapped into one namespace |
+| Verified principal | A principal whose actor comes from a verified token or gateway assertion (`authentication` `verified` or `gateway`) |
+| Space scope | An OAuth scope narrowed to one space, `<prefix>:<verb>:<space>` |
 | Gateway assertion | A short-lived JWS a configured gateway signs for one request, naming the caller it authenticated |
-| Person assurance | How a person is proven for one decision: `terminal` (the CLI's check) or `verified` (a fresh login at the deployer's identity provider on the person page) |
-| Person page | The host's HTTPS page that a URL-mode elicitation, or the CLI, sends a person to, where they log in at the identity provider and decide one gated call |
-| Operator | A caller at the host's own CLI or the library: transport `cli` or `library`. Nothing over MCP is an operator |
-| Task | An MCP task (`io.modelcontextprotocol/tasks`) running one command, bound to the principal that started it |
-| Usage event | One request's metering record: who, which command, bytes in and out, outcome. It holds no content |
-| Hosted profile | The requirements the doctor enforces when `auth.mode` is not `none` (section 6) |
+| Person assurance | How a person is proven for one decision: `terminal` (the CLI's check) or `verified` (a fresh login at the namespace's identity provider, on the person page) |
+| Person page | The host's HTTPS page that a URL-mode elicitation, or the CLI, sends a person to, where they log in and decide one gated call |
+| Host-verified confirmation | AFD's per-command confirmation mode under which the server never sends a form, and defers the decision to the host's `HumanRelay` |
+| Operator | A caller at the host's own CLI (transport `cli`, authentication `process`); nothing else (question 17) |
+| Task | An MCP task running one command, bound to the principal that started it |
+| Usage event | One request's content-free metering record |
+| Hosted profile | The requirements the doctor enforces when `auth.mode` is not `none` |
 
 ## 1. Crate layout
 
 ```text
 packages/rust/                    # step 0 (AFD first, D106)
-├── src/server/auth/              # TokenVerifier, JwtVerifier, ProtectedResource, challenges, BearerLayer
-├── src/server/confirmations.rs   # #532: the actor and credentials in the binding
-├── src/server/approval_relay.rs  # the MCP approval relay: form mode per spec, and a host-verified mode
-├── src/server/tasks/             # TaskStore, the tasks/* handlers over rmcp's model types
-└── src/commands.rs               # CommandContext.credentials, CommandDefinition.scopes and .task
+├── src/server/auth/              # TokenVerifier, JwtVerifier, KeySource, ScopeResolver, ProtectedResource, BearerLayer
+├── src/server/confirmations.rs   # #532; the per-command host-verified mode
+├── src/server/human_relay.rs     # HumanRelay: host-decided confirmations and approvals over MCP
+├── src/server/tasks/             # TaskStore, tasks/* handlers over rmcp's model types
+├── src/approval/middleware.rs    # relay evidence accepted beside tokens (crate-private)
+└── src/commands.rs               # CommandContext.credentials; CommandDefinition.scopes, .task, .confirmation_mode
 endpoints/umbel/
-├── src/auth/                     # modes, issuers, principal mapping, scope gate, gateway verifier
-├── src/person/                   # the person page: OIDC relying party, decision state
-├── src/shared/                   # the shared state stores: nonces, tasks, limits
+├── src/auth/                     # modes, namespaces, issuers, mapping, scope resolver and gate, gateway verifier
+├── src/person/                   # the person page: OIDC relying party, decisions, rendering
+├── src/shared/                   # shared state stores: nonces, person decisions, tasks, limits
 ├── src/usage/                    # usage events and usage-list
-├── src/surfaces/http.rs          # TLS listener, metadata routes, the layers in order
-├── store-embedded/src/           # per-filter BM25 statistics; memory order without global statistics
-├── plugins/knowledge/            # approve and reject over MCP; proposal version 3; host-run redaction
-├── plugins/memory/               # memory-erase; editors; memory-confirm preview
-├── testkit-idp/                  # umbel-testkit-idp: a credential-free identity provider and AS for tests
+├── src/surfaces/http.rs          # TLS listener, metadata and person routes, layers in order
+├── store-embedded/src/           # per-filter BM25 statistics and exact token counts; memory BM25 in Rust
+├── plugins/knowledge/            # approve and reject over MCP; proposal version 3; the host erasure sweep
+├── plugins/memory/               # memory-erase; editors; memory-preview
+├── testkit-idp/                  # umbel-testkit-idp: a credential-free identity provider, AS and gateway for tests
 └── schemas/                      # + the shapes of section 2
 ```
 
 | Crate | Depends on | New third-party dependencies | Notes |
 | --- | --- | --- | --- |
-| `afd` (`packages/rust`) | as before | `jsonwebtoken` 11.1 (feature `aws_lc_rs`), behind a new `server-auth` feature | Step 0. `reqwest` is not added: the JWKS fetcher is a trait, which hosts implement |
-| `umbel` (host) | + `afd/server-auth` | `jsonwebtoken` (through `afd`), `tokio-rustls` and `rustls-pemfile` for the listener; `reqwest` (in the lock for mounts) becomes a dependency of the `auth` feature too | Sections 3 to 12; a new default feature `auth` |
+| `afd` (`packages/rust`) | as before | `jsonwebtoken` 11.1 (feature `aws_lc_rs`), behind a new `server-auth` feature | Step 0. No HTTP client: key fetching is the `KeySource` trait |
+| `umbel` (host) | + `afd/server-auth` | `tokio-rustls` (in the lock) and `rustls-pki-types`' `PemObject` (1.15.1, in the lock); `reqwest` (in the lock for mounts) joins the new default `auth` feature | Sections 3 to 12 |
 | `umbel-store`, `umbel-store-embedded` | as before | none | Section 9 |
 | `umbel-plugin-knowledge`, `umbel-plugin-memory` | as before | none | Sections 7, 8 |
-| `umbel-testkit-idp` | `jsonwebtoken`, `axum`, `tokio-rustls`, `rcgen` (dev) | `rcgen` for test certificates | Test-only, `publish = false`, quarantined with no route. It is never linked into a shipped binary |
+| `umbel-testkit-idp` | `jsonwebtoken`, `axum`, `tokio-rustls` | `rcgen` (dev) for test certificates | Test-only, `publish = false`, quarantined with no route; never linked into a shipped binary |
 
-`tests/no_auth_server.rs` (host) fails if the `umbel` crate depends on `umbel-testkit-idp` outside
-`[dev-dependencies]`, or exposes a token endpoint. Umbel is never an authorization server (A7, D107).
+`tests/no_auth_server.rs` (host) fails if `umbel` depends on `umbel-testkit-idp` outside `[dev-dependencies]`, or if
+it serves a token or authorization endpoint. Umbel is never an authorization server (A7, D107).
 
 ## 2. Versioned shapes
 
@@ -231,19 +304,25 @@ their parent.
 | Cursor version 1, locator version 2 | `cursor.v1.json`, `locator.v2.json` | 0, 1 | 9.3 |
 | Task record version 1 | `task-record.v1.json` | new | 12.2 |
 | Usage event version 1 | `usage-event.v1.json` | new | 12.1 |
+| Person decision version 1 | `person-decision.v1.json` | new | 7.2 |
 | Protected-resource metadata | `protected-resource.v1.json` | new; RFC 9728's fields | 3.3 |
 
-`workspace-show`'s `versions` gains `principal: [0, 1]`, `config: [1, 2, 3, 4, 5]`, `manifest: [1, 2, 3, 4, 5]`,
-`envelope: [0, 1, 2, 3]`, `event: [0, 1, 2, 3]`, `proposal: [1, 2, 3]`, `cursor: [0, 1]`, `locator: [1, 2]`,
-`task: 1` and `usage: 1`. The plugin protocol stays **1** (D40 as annotated by D54). WIT world 1.0.0 is unchanged.
+`workspace-show`'s `versions` gains:
+- `principal: [0, 1]`, `config: [1, 2, 3, 4, 5]` and `manifest: [1, 2, 3, 4, 5]`;
+- `envelope: [0, 1, 2, 3]`, `event: [0, 1, 2, 3]` and `proposal: [1, 2, 3]`;
+- `cursor: [0, 1]` and `locator: [1, 2]`;
+- `task: 1`, `usage: 1` and `person: 1`.
+
+The plugin protocol stays **1** (D40 as annotated by D54), and WIT world 1.0.0 is unchanged.
 
 ### 2.1 Principal projection, version 1 (D110, D111)
 
-Version 0's four fields keep their meaning. `authentication` gains `verified` (an OAuth access token Umbel
-verified) and `gateway` (a gateway assertion Umbel verified), as phase 0 reserved. The reserved fields take their
-meanings; `tenant` stays reserved (question 14). **Umbel never copies the token or AFD's `credentials` here**
-(phase 0 section 7). `credentials` lives on AFD's `CommandContext.credentials` (3.1) and enters the journal only
-inside the context digest.
+Version 0's four fields keep their meaning:
+- `authentication` gains `verified` and `gateway`, as phase 0 reserved;
+- the reserved top-level fields take their meanings, **each at the top level where version 0 reserved it** (D36),
+  `policyVersion` included;
+- `tenant` stays reserved (question 14);
+- Umbel never copies the token or AFD's `credentials` here.
 
 ```json
 {
@@ -251,126 +330,159 @@ inside the context digest.
   "actor": { "kind": "agent", "id": "corp/f53f191f9311af35", "onBehalfOf": "corp/U019488227" },
   "transport": "http",
   "authentication": "verified",
-  "issuer": "corp",
+  "namespace": "corp",
+  "issuer": "corp-as",
   "delegationChain": [ { "kind": "agent", "id": "corp/f53f191f9311af35" } ],
   "tokenBinding": { "kind": "bearer" },
   "humanPresent": null,
   "scopes": ["umbel:read:main", "umbel:write:main"],
   "spaces": { "main": ["read", "write"] },
-  "policyDecision": { "decision": "allow", "policy": "auth", "policyVersion": "sha256:9f…", "reason": null }
+  "policyDecision": { "decision": "allow", "policy": "auth", "reason": null },
+  "policyVersion": "sha256:9f…"
 }
 ```
 
 | Field | Rule |
 | --- | --- |
-| `issuer` | The issuer alias (or the gateway's alias for `gateway`); `null` for `none`, `process` and `embedder` |
-| `actor` | Mapped from the verified token (4.1). For `process` and `embedder`, as version 0 |
-| `delegationChain` | Outermost first. For a verified token, `[client]`, or the RFC 8693 `act` chain when the issuer is configured `delegation = "act"` (4.3). `[]` otherwise. At most 8 entries |
-| `tokenBinding` | `{ "kind": "bearer" }` or `{ "kind": "mtls", "thumbprint": "<x5t#S256>" }` (RFC 8705). `"dpop"` is reserved (W5, D19) and refused by version 1. `null` without a token |
-| `humanPresent` | `null`, or `{ "level": "terminal" \| "verified", "method": "cli-terminal" \| "person-page", "at", "authTime"?, "acr"? }`. Only the host sets it: the CLI's terminal check, or a completed person-page decision (7.2). **No token claim and no gateway sets it** |
-| `scopes` | The granted Umbel scopes, after the prefix filter (5.1) |
-| `spaces` | Per space, the verbs the scopes grant there, intersected with the space's `readers` (5.3); the reader filter reads this |
-| `policyDecision` | The auth layer's decision, with `policyVersion` the SHA-256 of the `[auth]` table and `[access]` as read. `reason` is a code, never a claim value |
+| `namespace`, `issuer` | The identity namespace and the issuer alias (or the gateway's alias). `null` for `none`, `process` and `embedder` |
+| `actor` | Mapped from the verified token or assertion (4.1); for `process` and `embedder`, as version 0 |
+| `delegationChain` | Outermost first. `[client]`, or the RFC 8693 `act` chain when the issuer is configured `delegation = "act"` (4.3); `[]` otherwise; at most 8 |
+| `tokenBinding` | `{ "kind": "bearer" }` or `{ "kind": "mtls", "thumbprint" }` (RFC 8705); `"dpop"` reserved and refused (D19); `null` without a token |
+| `humanPresent` | `null`, or `{ "level": "terminal" \| "verified", "method": "cli-terminal" \| "person-page", "at", "authTime"?, "acr"? }`. Only the host sets it: the CLI's terminal check, or a completed person decision (7.2). **No token claim and no gateway sets it** |
+| `scopes` | The granted Umbel scopes after the prefix filter (5.1) |
+| `spaces` | Per readable space, the verbs the scopes grant there (5.4) |
+| `policyDecision` | `{ decision, policy, reason }`; `reason` is a rule code, never a claim value |
+| `policyVersion` | The SHA-256 of the `[auth]` and `[access]` tables as read |
 
 The hook sets version 1 in every mode. A version 0 principal is read only from journal entries already written.
 
 ### 2.2 Workspace configuration, version 5 (D107)
 
-Version 4 with these tables. Version 1 to 4 files read as version 5 with `auth.mode = "none"`; `umbel init`
-writes 5.
+Version 4 with these tables. Versions 1 to 4 read as version 5 with `auth.mode = "none"`; `umbel init` writes 5.
 
 ```toml
 config_version = 5
 
+[principal]
+local_id = "corp/U019488227"                   # in oauth and gateway modes: <namespace>/<subject> (4.6)
+
+[principal.equivalents]                        # legacy principal -> namespaced principal, one way (4.6, question 16)
+"human:ada" = "human:corp/U019488227"
+
 [http]
 bind = "0.0.0.0:8443"                          # non-loopback only with auth.mode != "none" and [http.tls]
-public_url = "https://umbel.example.com/mcp"    # required when auth.mode != "none"; path equals http.path
+public_url = "https://umbel.example.com/mcp"   # required when auth.mode != "none"; its path equals http.path
 path = "/mcp"
 allowed_hosts = ["umbel.example.com"]
 
 [http.tls]
-cert = "secrets/tls/cert.pem"                  # workspace-relative, mode 0600 checked by the doctor
+cert = "secrets/tls/cert.pem"
 key = "secrets/tls/key.pem"
-client_ca = "secrets/tls/gateway-ca.pem"       # optional; requests client certificates (mTLS)
+client_auth = "none"                           # "none" | "ca" (chain to client_ca) | "any" (self-signed, RFC 8705 binding only)
+client_ca = "secrets/tls/gateway-ca.pem"       # required for client_auth = "ca"
 
 [auth]
 mode = "oauth"                                 # "none" | "oauth" | "gateway"
 scope_prefix = "umbel"                         # ^[a-z][a-z0-9.-]{0,31}$
 filter_tools_by_scope = true
 clock_skew_s = 60                              # 0 to 300
-max_token_lifetime_s = 3600                    # exp - iat above this is refused
-require_bound_tokens = false                   # true: refuse a token without cnf x5t#S256 matching the client cert
+max_token_lifetime_s = 3600
+require_bound_tokens = false                   # true needs [http.tls] client_auth != "none"
 
-[auth.issuers.corp]                            # alias ^[a-z][a-z0-9-]{0,31}$
-issuer = "https://idp.example.com"             # exact issuer identifier
-verify = "jwt"                                 # "jwt" (RFC 9068) | "introspection" (RFC 7662)
+[auth.namespaces.corp]                         # ^[a-z][a-z0-9-]{0,31}$
+person = { issuer = "corp-idp", client_id = "umbel-person-page", client_secret_env = "UMBEL_PERSON_SECRET",
+           subject_claim = "sub", max_age_s = 300, acr_values = ["phr"] }
+
+[auth.issuers.corp-idp]                        # an OIDC provider; issues the person login, and may issue tokens
+issuer = "https://idp.example.com"
+namespace = "corp"
+subject_claim = "sub"                          # must be a public, non-pairwise subject (4.1)
+verify = "jwt"                                 # "jwt" (RFC 9068) | "introspection" (RFC 7662), at most one issuer
 algorithms = ["RS256", "PS256", "ES256", "EdDSA"]
 delegation = "none"                            # "none" | "act"
-introspection_client_id = "umbel"              # for verify = "introspection"
-introspection_secret_env = "UMBEL_INTROSPECTION_SECRET"
+services = { clients = ["build-bot"], claim = { name = "idtyp", value = "app" } }
 
-[auth.gateway]                                 # mode = "gateway" only (section 4.4, question 5)
+[auth.issuers.corp-as]                         # the resource authorization server (enterprise-managed authorization)
+issuer = "https://as.example.com"
+namespace = "corp"
+subject_claim = "sub"                          # the deployer asserts it equals corp-idp's subject (4.1, question 1)
+
+[auth.gateway]                                 # mode = "gateway" only (4.4, question 5)
 alias = "edge"
+namespace = "corp"
 issuer = "https://gateway.example.com"
-keys = "secrets/gateway/jwks.json"             # pinned keys, never fetched
-client_cert_sha256 = ["ab12…"]                 # pinned gateway certificates; required unless bind is loopback
+keys = "secrets/gateway/jwks.json"
+client_cert_sha256 = ["ab12…"]
 max_assertion_age_s = 60
-max_scopes = ["umbel:read", "umbel:write"]       # the ceiling an assertion's scope is cut to
-
-[auth.person]                                  # the person page (section 7, question 6)
-issuer = "corp"                                # an [auth.issuers] alias with OIDC discovery
-client_id = "umbel-person-page"
-client_secret_env = "UMBEL_PERSON_SECRET"
-max_age_s = 300
-acr_values = []                                # e.g. a phishing-resistant MFA class the IdP names
-path = "/person"
+max_scopes = ["umbel:read", "umbel:write"]
 
 [access.groups.eng]
 members = ["human:corp/U019488227"]
-claim = { issuer = "corp", name = "groups", value = "engineering" }   # question 4
+claim = { issuer = "corp-idp", name = "groups", value = "engineering" }   # question 4
 
-[limits]                                       # section 11
+[limits]
+ip_requests_per_minute = 1200
 calls_per_minute = 600
 read_bytes_per_minute = 67108864
 person_pages_per_hour = 30
 
-[usage]                                        # section 12.1, question 13
+[usage]
 enabled = true
 readers = []
 retention_days = 400
 ```
 
 Rules checked at open, each failing with `WORKSPACE_CONFIG_INVALID` naming the key:
-- A non-loopback `http.bind` needs `auth.mode` other than `none` **and** `[http.tls]`. `parse_bind`'s refusal
-  (`config.rs:1240-1258`) keeps its wording for mode `none`.
-- `http.public_url` must be `https`, have no query or fragment, have the host in `allowed_hosts`, and have the path
-  equal to `http.path`, with no trailing slash unless `http.path` has one.
-- `oauth` needs at least one issuer. `gateway` needs `[auth.gateway]`, and its `client_cert_sha256` unless the bind
+- **Binding.** A non-loopback `http.bind` needs `auth.mode` other than `none` **and** `[http.tls]`.
+- **Public URL.** `http.public_url` is `https`, with no query or fragment, a host in `allowed_hosts`, and a path
+  equal to `http.path`.
+- **Issuers.**
+  - `oauth` needs at least one issuer.
+  - At most one issuer may have `verify = "introspection"`.
+  - Every issuer names a declared namespace.
+- **Gateway.** `gateway` needs `[auth.gateway]` with `client_cert_sha256` and `client_auth = "ca"`, unless the bind
   is loopback.
-- `[auth.person]` must name an issuer. `client_secret_env` and `introspection_secret_env` must name environment
-  variables, never a value (as `bearer_env`).
-- `profile` stays `team` (6.1).
+- **Bound tokens.** `require_bound_tokens` needs `client_auth` other than `none`, so that the certificate reaches
+  Umbel (in-process TLS).
+- **Namespaces.** A namespace's `person.issuer` is an issuer of that namespace.
+- **Secrets.** Every `*_env` key names a variable, never a value.
+- **Operator id.** In modes `oauth` and `gateway`, `principal.local_id` is `<ns>/<subject>` for a declared
+  namespace (4.6).
+- **Equivalents.** Each `principal.equivalents` entry maps a principal string that no namespace can produce to one
+  that a namespace produces, with no chains.
+- **Profile.** `profile` stays `team` (6.1).
 
 ### 2.3 Plugin manifest, version 5 (D115, D127)
 
-Version 4 with two command keys, both also admitted on a pipeline (where every step must admit the value):
-- **`task = "never" | "optional" | "required"`**, default `never` (12.2). It is refused (`PLUGIN_MANIFEST_INVALID`)
-  on any of these: a command with `journal.mode = "digest"`, `confirm`, `approval`, an `authority_prompt`, or no
-  MCP exposure; a mounted tool; a component command.
-- **`person = "terminal" | "verified"`**, default `terminal`, on a `confirm = "require-human"` command. It is the
-  least person assurance (7.1) the command accepts.
+Version 4 with two keys, each also admitted on a pipeline when every step admits its value.
 
-`scopes` stays reserved (D37): scopes are derived, never declared (5.2). A host reads manifest versions 1 to 5.
+**`task = "never" | "optional" | "required"`**, default `never` (12.2). It is refused (`PLUGIN_MANIFEST_INVALID`)
+on any of these:
+- digest journaling, `confirm`, `approval` or `authority_prompt`;
+- no MCP exposure;
+- a mounted tool or a component command;
+- a command whose effects include `inspect` alone, since read results carry content.
+
+**`person = { cli = "terminal" | "verified", mcp = "verified" }`** on a `confirm = "require-human"` command. It
+names the least person assurance per surface (7.1).
+
+| Rule | Detail |
+| --- | --- |
+| Default | `{ cli = "terminal" }`: the phase 2 to 4 behaviour |
+| `mcp` | May only be `"verified"`. **Only with `mcp` set may a `require-human` command be exposed to MCP**: `require_human()` (`manifest.rs:1607-1612`) admits `expose.mcp = true` in manifest version 5 when `person.mcp` is set, and still refuses agent exposure |
+| A preview is required | A command with `person.mcp` or `person.cli = "verified"` must declare `confirm_preview`. Every property the preview declares must be in the command's `journal.keep`, so a person decision never stores text (7.2) |
+
+A host reads manifest versions 1 to 5. `scopes` stays reserved (D37): scopes are resolved, never declared (5.2).
 
 ### 2.4 Envelope version 3, and the shapes that nest it (D111, D115)
 
 Version 2 with two changes:
-- **`delegationChain`** takes its meaning: the principal's `delegationChain` at the write.
-- **`confirmation`** gains `assurance`: `{ "level", "method", "issuer"?, "authTime"?, "acr"? }`.
+- **`delegationChain`** takes its meaning: the principal's chain at the write.
+- **`confirmation`** gains `assurance`: `{ "level", "method", "namespace"?, "authTime"?, "acr"? }`.
 
-`tenant` stays reserved. The new nesting versions are:
-- event version 3, which carries envelope version 3;
-- memory record version 2, which carries envelope version 3 on new versions (old versions stay as written);
+`tenant` stays reserved. The shapes that nest it:
+- event version 3;
+- memory record version 2, on new versions only;
 - proposal record version 3 (7.3).
 
 Documents keep their envelope version: an applied document's decision trace is its proposal.
@@ -379,115 +491,145 @@ Documents keep their envelope version: an applied document's decision trace is i
 
 ### 3.1 AFD first: step 0 (D106)
 
-These land in AFD before Umbel uses them (D25), spec first where cross-language. They follow the MCP Authorization
-and Tasks proposals, which this phase moves from proposed to active.
+These land in AFD before Umbel uses them (D25), spec first where cross-language. They move the MCP Authorization
+and MCP Tasks proposals from proposed to active.
 
-| Item | AFD change | Languages |
+| Item | AFD change | Step |
 | --- | --- | --- |
-| `scopes` on a command, and `INSUFFICIENT_SCOPE` | `spec/command-metadata.md` and `spec/error-codes.md`, as proposal A4 and A5 | Spec; Rust in step 0b |
-| `CommandContext.credentials` | `{ issuer, subject?, clientId, scopes, resource, expiresAt, authTime?, acr?, cnf? }`, never the raw token (A2, A3) | Spec; Rust in step 0b |
-| The Rust bearer layer | `afd::server::auth` behind `server-auth` (3.3) | Rust |
-| #532 | The confirmation `requestState` binds the actor and, when present, `credentials.issuer`, `.subject` and `.clientId`. A state bound to other values is refused like a tampered one | Spec, then TypeScript, Python and Rust (step 0c) |
-| The approval relay | Rust's form-mode relay per `spec/command-metadata.md`, plus a **host-verified mode**: a host trait decides an approval out of band, and the server carries only a URL elicitation (3.3) | Spec (the host-verified mode); Rust (step 0d) |
-| Tasks | `task` on a command; a `TaskStore` trait; the `tasks/get`, `tasks/update` and `tasks/cancel` handlers, with a principal check on every call (T2, T3, T5) | Spec; Rust (step 0e) |
+| `scopes`, `INSUFFICIENT_SCOPE`, and a **`ScopeResolver`** host override (3.3) | `spec/command-metadata.md`, `spec/error-codes.md`. A4 keeps static `scopes` as the default; a resolver, when installed, decides per call (command and input), as MCP allows. A5 is amended: a missing scope on any non-streamed `tools/call` is HTTP 403, decided before dispatch, through the resolver | 0a spec; 0b Rust |
+| `CommandContext.credentials` | `{ issuer, subject, clientId, scopes, resource, expiresAt, issuedAt, authTime?, acr?, cnf? }`; never the raw token | 0a; 0b |
+| The Rust bearer layer | `afd::server::auth` behind `server-auth` (3.3) | 0b |
+| #532 | The confirmation `requestState` binds the actor and, when present, `credentials.issuer`, `.subject` and `.clientId`; a state bound to other values is refused as tampered | 0a spec; 0c in TypeScript, Python and Rust, **after 0b** (it needs `Credentials`) |
+| **Host-verified confirmation mode** | `CommandDefinition::confirmation_mode = HostVerified` (spec name `confirmationMode: "host-verified"`). For such a command the server-level gate (`confirmations.rs:239-348`) never sends a form, never accepts `confirm: true`, and never accepts a form answer. It calls the server's `HumanRelay::begin`, answers with the relay's `input_required`, and on a retry calls `HumanRelay::resume`. Without a relay installed, the command is refused with `CONFIRMATION_REQUIRED` | 0a spec; 0d Rust |
+| **Relay evidence for approvals** | When a `HumanRelay` decision covers a command with an approval policy, the server sets a crate-private `relay_evidence` on the context: `{ command, inputDigest, actor, credentialsBinding, decisionId }`. It is never read from the request, as the private in-process exchange is not (#460). The approval middleware accepts it as evidence when its binding equals the call's and the decision id is consumed once in its nonce store. **Approval tokens stay off** (`with_include_token(false)`, `host/mod.rs:410-413`) | 0a spec; 0d Rust |
+| The approval relay, form mode | Rust's form-mode relay per `spec/command-metadata.md`, for hosts that choose it; Umbel does not (7.3) | 0d |
+| Tasks | `task` on a command, `TaskStore`, and the `tasks/*` handlers with a principal check on every call (T2, T3, T5) | 0a spec; 0e Rust |
 
 ### 3.2 Token verification and audience rules (D108)
 
-On every HTTP request in mode `oauth`, before AFD's host and origin checks and before any MCP handling, the bearer
-layer applies these rules in order. A failure is HTTP 401 with
-`WWW-Authenticate: Bearer resource_metadata="<url>", scope="<prefix>:read"`, and `error="invalid_token"` when a
-token was sent. The body is `{"error":"UNAUTHORIZED","suggestion":"Obtain a token for <public_url> from an
-authorization server named in <metadata url>."}`. The reason is logged at `warn` with the issuer alias and a rule
-code, never the token or a claim value. The rules:
+On every MCP HTTP request in mode `oauth`, at the bearer layer (6.3), these rules apply in order.
 
-1. **One header.** Exactly one `Authorization: Bearer <token>` header. A token in the query string, in a form body,
-   or in a second header is refused (RFC 6750 2.3; MCP "MUST NOT be included in the URI query string").
-2. **Shape.** For `verify = "jwt"`: a compact JWS whose header `typ` is `at+jwt` or `application/at+jwt`
-   (RFC 9068 2.1), and whose `alg` is in the issuer's `algorithms`. `none` and every HMAC algorithm are always
-   refused, whatever the configuration, so a public key cannot be used as an HMAC secret. `kid` is required.
-3. **Issuer.** `iss` equals exactly one configured `issuer` (RFC 3986 simple string comparison, no
-   normalisation). The key is the one with that `kid` in that issuer's JWKS (3.3), never a key named in the token
-   (`jku`, `x5u` and an embedded `jwk` are refused).
-4. **Signature** under that key.
-5. **Audience** (RFC 8707 2, RFC 9068 4). `aud` is a string, or an array of exactly one string, equal to
-   `http.public_url`. The comparison is a simple string comparison, except that the scheme and host compare
-   case-insensitively, as the MCP specification allows. **A token with several audiences is refused**: any other
-   audience could replay it here. A `resource` claim, when present, must equal it too.
-6. **Time.** `exp` is required and must be in the future; `nbf` and `iat`, when present, must be in the past, all
-   within `clock_skew_s`. `exp - iat` must be at most `max_token_lifetime_s`, which bounds how long a revoked
-   group membership or scope survives.
-7. **Subject and client.** `sub` and `client_id` (RFC 9068) are required, as non-empty strings of at most 255
-   characters with no control character.
-8. **Binding.** With `cnf.x5t#S256` (RFC 8705), the TLS client certificate's SHA-256 must match. Without it,
-   `require_bound_tokens = true` refuses the token. A `cnf.jkt` (DPoP) is refused while DPoP is reserved (D19),
-   rather than silently treated as a bearer token.
-9. **Introspection.** For `verify = "introspection"`, rules 3 and 5 to 8 apply to the RFC 7662 response from the
-   issuer's `introspection_endpoint`, which must say `active: true`. The response is cached by the SHA-256 of the
-   token until the earlier of `exp` and 60 seconds. Umbel authenticates to the endpoint with its own client
-   credentials, never the caller's token.
+A failure is HTTP 401 with `WWW-Authenticate: Bearer resource_metadata="<url>", scope="<prefix>:read"`, plus
+`error="invalid_token"` when a token was sent. The body is `{"error":"UNAUTHORIZED","suggestion":"Obtain a token for
+<public_url> from an authorization server named in <metadata url>."}`. The reason is logged at `warn` as the issuer
+alias and a rule code, never the token or a claim value.
 
-**Never passed on.** The verified claims become `CommandContext.credentials`, and the raw token is dropped at the
-layer. No command, plugin, mount, journal entry, log line, task record, usage event or error message receives it
-(MCP: "MUST NOT accept or transit any other tokens"). `Debug` on every type holding it prints `[redacted]`.
+**`jsonwebtoken`'s defaults are not relied on.** AFD's `JwtVerifier` sets `validate_nbf = true`, `leeway =
+clock_skew_s` and an algorithm list per key, and checks `typ`, `kid`, `aud`, `iat`, `jti`, `client_id` and `crit`
+itself. `tests/auth_verifier.rs` holds each rule against a token built to break only that rule.
 
-**Scope at the edge.** A verified token with no scope under `scope_prefix` is 403 `insufficient_scope` with
-`scope="<prefix>:read"`. Finer checks are in 5.2.
+1. **One header.** Exactly one `Authorization: Bearer <token>`. A token in the query, in a form body or in a second
+   header is refused (RFC 6750 2.3).
+2. **Route by shape.**
+   - A compact JWS goes to the JWT rules. Its `iss` must name a `verify = "jwt"` issuer, else 401 (rule
+     `unknown-issuer`).
+   - Anything else goes to the one introspection issuer, if there is one, else 401.
+   - A token is never sent to any other issuer, so an opaque token never transits to an authorization server that
+     did not issue it.
+3. **Header.**
+   - `typ` must be `at+jwt` or `application/at+jwt` (RFC 9068 2.1).
+   - `alg` must be in the issuer's `algorithms`. `none` and every HMAC algorithm are always refused.
+   - `kid` is required.
+   - A `crit` header is refused (no extension is understood).
+   - `jku`, `x5u`, `x5c` and an embedded `jwk` are refused.
+4. **Key.** The key with that `kid` in that issuer's JWKS (3.3) must match the header:
+   - its `kty` fits the `alg`'s family;
+   - its `alg`, when present, equals the header's;
+   - its `use`, when present, is `sig`;
+   - its `key_ops`, when present, contain `verify`.
+5. **Signature** under that key.
+6. **Issuer.** `iss` equals exactly the configured `issuer` (simple string comparison).
+7. **Audience** (RFC 8707 2, RFC 9068 4). `aud` is a string, or an array of **exactly one** string, equal to
+   `http.public_url`. Scheme and host compare case-insensitively, as the MCP specification allows. A token with
+   several audiences is refused, since any of them could replay it here.
+8. **Required claims** (RFC 9068 2.2):
+   - `exp`, `iat`, `jti`, `sub` and `client_id` are required;
+   - each is a non-empty string of at most 255 characters, with no control character, or a number for the times.
+9. **Time.**
+   - `exp` must be in the future.
+   - `iat` and `nbf`, when present, must be in the past.
+   - Each is within `clock_skew_s`.
+   - `exp - iat` must be at most `max_token_lifetime_s`.
+10. **Scopes.** `scope` is split on spaces. More than 64 scopes under the prefix is 401 with rule
+    `scopes-too-many` (`TOKEN_SCOPES_TOO_MANY` in the log), never `INSUFFICIENT_SCOPE`, since asking for more
+    scopes cannot fix it.
+11. **Binding.**
+    - With `cnf.x5t#S256` (RFC 8705), the TLS client certificate's SHA-256 must match it.
+    - Without one, `require_bound_tokens` refuses the token.
+    - `cnf.jkt` (DPoP) is refused with rule `dpop-unsupported` while D19 reserves it, never treated as a bearer
+      token.
+12. **Introspection** (RFC 7662).
+    - The response must say `active: true` and carry `exp`, `iat`, `iss`, `aud`, `sub` and `client_id` (all
+      optional in RFC 7662, all required here).
+    - Rules 6 to 11 apply to it.
+    - Umbel authenticates to the endpoint with its own client credentials.
+    - The response is cached by the token's SHA-256 until the earlier of `exp` and 60 seconds.
 
-**stdio and the CLI** are unaffected, as the MCP specification says stdio "SHOULD NOT" follow it. They keep the
-process principal, with authentication `process`.
+**Never passed on.** The verified claims become `credentials`, and the raw token is dropped at the layer. No
+command, plugin, mount, journal entry, log line, task record, usage event or error message receives it. `Debug`
+prints `[redacted]`.
+
+**stdio and the CLI** are unaffected (MCP: stdio "SHOULD NOT" follow it).
 
 ### 3.3 Trait shapes (D106, D109)
 
-Interfaces in `afd::server::auth` (step 0b). These are the shapes the step implements, not code.
+Interfaces in `afd::server::auth` (step 0b) and `afd::server` (step 0d). They are the shapes the steps implement.
 
 ```text
 trait TokenVerifier: Send + Sync
     async fn verify(&self, token: &str, request: &http::request::Parts) -> Result<Credentials, AuthRefusal>
 
-struct Credentials { issuer, subject, client_id, scopes: Vec<String>, resource, expires_at, auth_time?, acr?,
-                     cnf_x5t?, act: Option<Value> }     // no token field
-enum AuthRefusal { Missing, Malformed, Invalid(RuleCode), Expired, InsufficientScope(Vec<String>) }
+trait KeySource: Send + Sync                           // the host fetches; AFD opens no socket
+    async fn key(&self, issuer: &str, kid: &str) -> Result<Jwk, KeyError>
 
-trait KeySource: Send + Sync                            // the host fetches; AFD never opens a socket
-    async fn keys(&self, issuer: &str, kid: &str) -> Result<Jwk, KeyError>
-
-struct JwtVerifier { issuers: Vec<IssuerPolicy>, resource: String, skew, max_lifetime, keys: Arc<dyn KeySource> }
-    impl TokenVerifier                                  // the rules of 3.2, one reference implementation
+trait ScopeResolver: Send + Sync                       // host override of static `scopes`
+    fn resolve(&self, command: &str, input: &Value, credentials: &Credentials) -> ScopeDecision
+    fn visible(&self, command: &str, credentials: &Credentials) -> bool        // tools/list and afd-discover
+enum ScopeDecision { Allowed, Missing(Vec<String>), Defer }                     // Defer: the registry answers
 
 struct ProtectedResource { resource, authorization_servers, scopes_supported, resource_name?,
-                           resource_documentation?, tls_client_certificate_bound_access_tokens: bool }
-    fn metadata_routes(&self, path: &str) -> [(String, Json)]   // both RFC 9728 URIs
+                           tls_client_certificate_bound_access_tokens }
+struct BearerLayer { verifier, metadata, resolver: Option<Arc<dyn ScopeResolver>>, filter_tools_by_scope }
 
-struct BearerLayer { verifier: Arc<dyn TokenVerifier>, metadata: ProtectedResource,
-                     required_scopes, filter_tools_by_scope }   // tower::Layer
-    // inserts Credentials into the request extensions; the context hook copies them to the context
+trait HumanRelay: Send + Sync                          // host-verified confirmations and approvals
+    async fn begin(&self, call: &RelayCall) -> Result<RelayPrompt, CommandError>     // { url, message, state }
+    async fn resume(&self, state: &str, call: &RelayCall) -> RelayOutcome
+enum RelayOutcome { Approved { decision_id }, Declined, Pending(RelayPrompt), Invalid }
+struct RelayCall { command, input_digest, actor, credentials: Option<Credentials>, client_capabilities }
 
-trait ApprovalRelay: Send + Sync                        // step 0d's host-verified mode
-    async fn begin(&self, call: &RelayCall) -> Result<RelayPrompt, CommandError>   // URL and state
-    async fn decided(&self, state: &str, call: &RelayCall) -> RelayOutcome         // Approved | Declined | Pending
-
-trait TaskStore: Send + Sync                            // step 0e
-    async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError>    // durable before returning
+trait TaskStore: Send + Sync
+    async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError>       // durable before returning
     async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError>
     async fn update(&self, id: &str, owner: &TaskOwner, change: TaskChange) -> Result<(), TaskStoreError>
     async fn expire(&self, now: i64) -> Result<u64, TaskStoreError>
 ```
 
-Umbel implements `KeySource` with `reqwest` (`src/auth/keys.rs`). It fetches only the configured issuer's metadata,
-taking `jwks_uri` from it, and the metadata's `issuer` must equal the configured one. It follows no redirects and
-requires HTTPS. It caps the body at 1 MiB and the timeout at 10 seconds, caches for the response's `max-age`
-between 5 minutes and 24 hours, and on an unknown `kid` refetches at most once per minute per issuer. A fetch
-failure keeps the last good keys until their cache ends, then fails closed.
+**How the bearer layer uses the resolver.** The layer parses a single `tools/call` body (it already caps the body),
+including the command an `afd-call`, `afd-batch` or `afd-pipe` names, and asks `resolve` for each command:
+- `Missing(scopes)` is HTTP 403 with `WWW-Authenticate: Bearer error="insufficient_scope", scope="<all missing>",
+  resource_metadata="<url>"`, before any MCP handling;
+- `Defer` lets the call through, so the registry answers. This is how an unreadable space stays indistinguishable
+  (5.4).
 
-Umbel also implements `ApprovalRelay` (7.3), `TaskStore` (12.2) and `ApprovalNonceStore` (10.2).
+A batch with any missing step is one 403 naming every missing scope. `tools/list` and `afd-discover` use `visible`,
+since the context hook does not run on `tools/list` (`context_hook.rs:52-54`), with `cacheScope: "private"`.
 
-**Protected-resource metadata (D109).** The metadata is served without authentication at
+**Umbel's implementations:**
+- `KeySource` (`src/auth/keys.rs`), with `reqwest`. It fetches the configured issuer's metadata from
+  `/.well-known/oauth-authorization-server` with path insertion first, then `/.well-known/openid-configuration` with
+  path insertion, then appended (RFC 8414 3.1 and 5, the order MCP gives clients). The document's `issuer` must
+  equal the configured one. It takes `jwks_uri` from the document and follows no redirects, over HTTPS only, with
+  1 MiB and 10-second caps. It caches between 5 minutes and 24 hours, refetches at most once a minute per issuer on
+  an unknown `kid`, and keeps the last good keys until their cache ends, then fails closed.
+- `ScopeResolver` (5.2), `HumanRelay` (7.3), `TaskStore` (12.2), `ApprovalNonceStore` (10.2).
+
+**Protected-resource metadata (D109)** is served without authentication at
 `/.well-known/oauth-protected-resource<http.path>` and at `/.well-known/oauth-protected-resource`:
 
 ```json
 {
   "resource": "https://umbel.example.com/mcp",
-  "authorization_servers": ["https://idp.example.com"],
+  "authorization_servers": ["https://idp.example.com", "https://as.example.com"],
   "scopes_supported": ["umbel:read"],
   "bearer_methods_supported": ["header"],
   "resource_name": "Umbel (example)",
@@ -495,47 +637,47 @@ Umbel also implements `ApprovalRelay` (7.3), `TaskStore` (12.2) and `ApprovalNon
 }
 ```
 
-- `resource` is `http.public_url`, the identifier the well-known URI is built from (RFC 9728 3.3).
-- `authorization_servers` lists every configured issuer, in configuration order.
-- `scopes_supported` is the minimal set for basic use, as the MCP specification asks; the rest is requested by
-  step-up challenges.
-- `resource_name` is the workspace `name`.
-- Nothing else is published: no space names and no plugin list.
-- Mode `gateway` publishes no metadata, because its callers are the gateway, not OAuth clients.
+- `resource` is `http.public_url` (RFC 9728 3.3).
+- `authorization_servers` lists every issuer that issues tokens (not a login-only issuer), in configuration order.
+- `scopes_supported` is minimal; the rest arrives by step-up.
+- Nothing else is published, and mode `gateway` publishes none.
 
 ### 3.4 Enterprise-managed authorization (D108, D121)
 
-The extension's resource-server obligation is to accept access tokens "audience-restricted to the MCP Server",
-issued by the resource authorization server that the metadata names. 3.2 does exactly that, so **inbound
-enterprise-managed authorization needs no Umbel-specific code**. The rest of the extension happens between the
-client, the enterprise identity provider and the authorization server.
+The extension's resource-server obligation is to accept tokens "audience-restricted to the MCP Server" issued by the
+resource authorization server that the metadata names. 3.2 does exactly that, so inbound needs no path of its own.
+The access token's `sub` is the resource authorization server's, while a person logs in at the enterprise identity
+provider. So the two meet only through a namespace in which the deployer declares both issuers' subject claims
+comparable (4.1, question 1).
 
-Phase 5 makes it checkable:
-- `umbel-testkit-idp` runs the whole exchange: an ID token, the RFC 8693 exchange for an ID-JAG, and the RFC 7523
-  grant for an access token;
-- the exit test uses it (14, point 2).
-
-**Outbound** (Umbel obtaining a token as the caller for a mounted server) is question 12.
+`umbel-testkit-idp` runs the whole exchange (ID token, RFC 8693 ID-JAG, RFC 7523 grant), and the exit test uses it
+for a user who also completes a person decision (14, point 5). Outbound is question 12.
 
 ## 4. Who the caller is
 
-### 4.1 Mapping a verified token to a principal (D110, question 1)
+### 4.1 Identity namespaces and mapping (D110, question 1)
 
 **Recommended (question 1):**
-- **A person** is `human:<alias>/<sub>`. OIDC subjects are unique per issuer and never reassigned.
-- **The client** is `agent:<alias>/<client_id>`, acting for `<alias>/<sub>`.
-- **A `client_credentials` token** (where `sub == client_id`, or the issuer marks it with `act` absent and no user)
-  is `service:<alias>/<client_id>` with no `onBehalfOf`.
-- An id over 128 characters (phase 2's limit) becomes `<alias>/h:<first 32 hex of SHA-256 of the value>`. The full
-  value stays in `credentials`.
-- `email`, `preferred_username` and other mutable claims never become an id.
+- **A person** is `human:<ns>/<subject>`, where `<subject>` is the issuer's `subject_claim` (default `sub`).
+- **The client** is `agent:<ns>/<client_id>`, acting for `<ns>/<subject>`.
+- **A service** is `service:<ns>/<client_id>` with no `onBehalfOf`. A token is a service token when any of these
+  holds:
+  - `sub == client_id` (RFC 9068's suggestion for client credentials);
+  - `client_id` is in the issuer's `services.clients`;
+  - the token has `services.claim` with its exact value (for example an `idtyp` of `app`).
 
-This gives the effective principal `human:corp/U019488227` for an agent acting for that person (D53's rule,
-unchanged), which `readers`, groups, memory ownership and approvers match.
-
-The **operator** keeps `human:<local_id>` at the CLI and `agent:<local_id>` on stdio. A deployer who wants one
-person's CLI and their hosted identity to be the same principal sets `principal.local_id = "corp/U019488227"`; the
-doctor's `auth.principals` check shows both.
+  A token matching none is a person token. The doctor warns (`auth.services`) when an issuer sets neither list nor
+  claim, since some identity providers mark app-only tokens only by a claim.
+- **Comparable subjects.** A namespace's issuers must produce comparable subjects. `subject_claim` must name a
+  claim that is **not pairwise** (OIDC Core 8). For an issuer with OIDC discovery, the doctor (`auth.subjects`)
+  fails unless `subject_types_supported` contains `public`, or `subject_claim` is not `sub`. Two issuers in one
+  namespace (an identity provider and an enterprise-managed resource authorization server) are the deployer's
+  assertion that their subject claims name the same people. Umbel cannot verify that assertion, and the doctor
+  prints it.
+- **Long or unusual ids.** A subject or client id over 120 characters, or starting with `~`, becomes
+  `~<52 lowercase base32 of its SHA-256>`. No literal id can produce that form. The full value stays in
+  `credentials`.
+- **No mutable claims.** `email`, `preferred_username` and other mutable claims never become an id.
 
 ### 4.2 The context hook, version 1
 
@@ -548,512 +690,604 @@ doctor's `auth.principals` check shows both.
 | CLI | any | `human:<local_id>` | `process` |
 | Library | any | the embedder's | `embedder` |
 
-The hook fails closed. An HTTP request in mode `oauth` or `gateway` that reaches it without verified credentials in
-the extensions (a layer misordered or missing) is refused with `UNAUTHORIZED`, and `tests/auth_layers.rs` holds
-that. As in phase 0, nothing is read from a header the caller controls.
+The hook fails closed: an HTTP request in `oauth` or `gateway` without verified extensions (a layer missing) is
+`UNAUTHORIZED`. Nothing is read from a header the caller controls.
 
-### 4.3 Delegation: what an agent reads for its person (D111, question 2)
+### 4.3 Delegation (D111, question 2)
 
-Today an agent acting for a person has the person's whole reader filter (`provenance.rs:236-249`).
-
-**Recommended (question 2):** an agent's reader filter is the person's, **narrowed by its token**. A space the
-token grants no verb in (5.2) is `SPACE_NOT_READABLE` for that call. The person's tokens (`principal:`, groups)
-apply within the granted spaces. Scopes narrow; they never grant what `readers` and groups refuse (5.3).
-
-`delegationChain` records the client, or the RFC 8693 `act` chain when the issuer is configured to emit it. It is
-written into envelope version 3, and audit shows "agent X, for person Y, through client Z". Each `act` entry is
-mapped as 4.1 maps a client. An `act` from an issuer not configured `delegation = "act"` is ignored and logged,
-never trusted.
+**Recommended (question 2):**
+- An agent's reader filter is its person's, **narrowed by its token**: a space the token grants no verb in is
+  answered as unreadable (5.4).
+- `delegationChain` records the client, or the RFC 8693 `act` chain when the issuer is configured
+  `delegation = "act"`. Each entry is mapped as a client is in 4.1.
+- An `act` from an issuer not so configured is ignored and logged.
 
 ### 4.4 Gateway-trusted mode (D114, question 5)
 
-**Recommended (question 5):** a gateway is trusted **only to say who authenticated**, never what they may do beyond
-a ceiling, and never that a person is present. Every request must carry both of these:
+**Recommended (question 5):** a gateway is trusted only to say who authenticated. Every request needs both of these:
 
-1. **An authenticated channel.** An mTLS client certificate whose SHA-256 is in `client_cert_sha256`, or a
-   loopback bind when the gateway is on the same host.
-2. **A per-request assertion** in `Umbel-Gateway-Assertion`: a compact JWS with these properties:
-   - `typ: umbel-gw+jwt`;
-   - signed by a key in the pinned `keys` file;
-   - `iss` equal to `[auth.gateway].issuer`, `aud` equal to `http.public_url`;
-   - `iat` within `max_assertion_age_s`;
-   - `jti` random, at least 128 bits, consumed once in the shared nonce store (10.2);
-   - `htm` and `htu` equal to the request's method and URL;
-   - `sub` (the person or service), `client` (the agent) and `scope` (space-delimited).
+1. **A pinned, authenticated channel.**
+   - `client_auth = "ca"`: the certificate chains to `client_ca`, and its SHA-256 is in `client_cert_sha256`.
+   - Or a loopback bind, with the gateway on the same host.
+2. **A per-request assertion** in `Umbel-Gateway-Assertion`, a compact JWS with these properties:
+   - `typ: umbel-gw+jwt`, signed by a key in the pinned `keys` file, with rules 3 to 5 of 3.2 applied;
+   - `iss` equal to `[auth.gateway].issuer`, and `aud` equal to `http.public_url`;
+   - `iat` within `max_assertion_age_s`, and `exp` at most 60 seconds after it;
+   - `jti` of at least 128 bits, consumed once in the shared nonce store;
+   - `htm` equal to the method, and `htu` equal to `http.public_url` exactly;
+   - `sub`, `client` and `scope`.
 
-   `scope` is intersected with the gateway's ceiling, which is the same grammar as 5.1, configured as
-   `[auth.gateway] max_scopes`.
+Mapping and scopes:
+- The assertion maps as 4.1 in `[auth.gateway].namespace`, with `authentication = "gateway"`.
+- **The scope ceiling is a meet in the scope order** (5.1). A granted scope is kept when some ceiling scope implies
+  it. A ceiling scope is kept when some granted scope implies it. So `umbel:write` asserted under a ceiling of
+  `umbel:write:alpha` yields `umbel:write:alpha`.
+- `humanPresent`, `acr` and `auth_time` in an assertion are ignored.
+- A gateway user is proven only on the namespace's person page, and only when the namespace has one (7.2).
 
-The assertion maps as 4.1, with the gateway's alias, and `authentication = "gateway"`. The rules:
-- `humanPresent`, `acr` and `auth_time` in an assertion are ignored: a person is proven only on the person page
-  (section 7).
-- A request with the header but no valid channel, or with the channel but no valid assertion, is 401.
-- A plain identity header (`X-User` and the like) is never read.
-- The assertion travels no further than the layer, as a token does.
+**Refusals.** A failure is 401 with `WWW-Authenticate: Umbel-Gateway realm="umbel"` and the body
+`{"error":"UNAUTHORIZED","suggestion":"The gateway must connect with its pinned certificate and send a valid
+Umbel-Gateway-Assertion."}`. No identity header (`X-User` and the like) is ever read.
 
 ### 4.5 Groups from token claims (D113, question 4)
 
 **Recommended (question 4):**
-- An `[access.groups.<g>]` may add `claim = { issuer, name, value }`. A verified caller holds `group:<g>` when the
-  token from that issuer has the claim `name` (a string or an array of strings) containing exactly `value`.
-- Static `members` still apply, and the two are unioned.
-- Claims are read only from the issuer named, and never from a gateway assertion.
-- A membership lasts no longer than the token (`max_token_lifetime_s`).
+- `[access.groups.<g>] claim = { issuer, name, value }` adds members: callers whose token from that issuer carries
+  claim `name` (a string or an array of strings) containing exactly `value`.
+- They are unioned with static `members`, never taken from a gateway, and last no longer than the token.
+- **This makes the identity provider a source of membership.** `umbel.toml` still names which groups read which
+  space, but who is in a group is then partly the identity provider's. It is a narrower version of question 3's
+  alternative (c), which this specification does not recommend, and question 4 says so.
+
+### 4.6 One person, one principal (D129, question 16)
+
+The identity split is real. Self-approval (D102) compares principal strings, so `human:ada` at the CLI and
+`human:corp/U019488227` over HTTP would be two people: one person could approve their own draft. The split would also
+orphan memory ownership, `readers`, approvers and cursors.
+
+**Recommended (question 16):**
+- **The join is mandatory in hosted modes.** `principal.local_id` must be `<ns>/<subject>` of a declared namespace,
+  so the operator at the CLI is the same principal as their hosted identity, and the CLI's person decisions
+  (7.2) take their namespace and subject from it.
+- **Legacy principals map one way.** Records written before the move (owned by `human:ada`, `agent:ada` or
+  `agent:loopback`) map through `[principal.equivalents]`, legacy to namespaced. Every principal comparison
+  consults it:
+  - memory ownership and `MEMORY_NOT_OWNED`, and forget and confirm;
+  - D102's self-approval, and approvers;
+  - `readers` and group members, and `principal:` access tokens in a reader filter (the filter gains the legacy
+    token);
+  - cursor files.
+
+  Nothing is rewritten. Sealed memory binds its owner as associated data (D82), so rewriting would mean re-sealing.
+- The doctor's `auth.principals` fails, in hosted modes, on a `readers`, approver or group entry that no namespace
+  or equivalent can produce, since such an entry grants no one.
+
+### 4.7 Who is an operator (D130, question 17)
+
+**Recommended (question 17):** only the CLI (transport `cli`, authentication `process`) is an operator. Library
+calls are treated by their actor, so an embedder that serves several people through `Host::context`
+(`host/mod.rs:579-585`) gets the same sealed positions, readable totals and own-only usage as HTTP callers.
+
+stdio is not an operator, but it keeps version 0 cursor strings, because it is `process` (9.3). `workspace-show`'s
+`exact` list is then truthful: `["library", "http"]` in hosted modes.
 
 ## 5. Scopes
 
 ### 5.1 The grammar
 
-A scope is `<prefix>:<verb>`, or `<prefix>:<verb>:<space>` for a declared space id. The verbs are `read`, `write`,
-`approve` and `erase`.
+A scope is `<prefix>:<verb>`, or `<prefix>:<verb>:<space>`. The verbs are `read`, `write`, `approve` and `erase`.
 
-Each verb on a space implies `read` on that space. An unqualified scope implies the same verb on every space
-(the hierarchy the MCP specification asks servers to respect). Scopes under other prefixes are ignored and are not
-copied into the principal. Parsing is exact: no wildcards, case-sensitive, at most 64 Umbel scopes per token
-(`INSUFFICIENT_SCOPE`'s suggestion says so when exceeded).
+**The order:**
+- `<verb>` implies `<verb>:<s>` for every `s`.
+- Every verb on `s` implies `read:<s>`.
+- `write` does not imply `approve` or `erase`.
 
-### 5.2 What a command needs (D112, question 3)
+Parsing is exact (no wildcards, case-sensitive). Scopes under other prefixes are ignored.
 
-**Recommended (question 3):** scopes are derived from what the host already knows, never declared by a plugin.
+### 5.2 What a call needs (D112, question 3)
 
-| Command | Needs |
+**Recommended (question 3):** Umbel's `ScopeResolver` derives needs from what the host knows. **A call needs the
+union of every row that applies.**
+
+| Applies when | Adds |
 | --- | --- |
-| Effects `inspect` only | `read` on each space of the call (the `space` or `spaces` input, else the default space) |
-| Any mutating effect (`plugin-state`, `store-write`, `workspace-write`, `external`) | `write` on each space |
-| `confirm = "require-human"` or an approval policy, reachable over MCP only by 7.3 | `approve` on the space, besides the person page |
-| `memory-erase` | `erase` on the space, besides `verified` assurance (8.4) |
-| A space-less command (a mount without `bind_space`, `workspace-show`, `space-list`) | For `external`: unqualified `write`. Otherwise any Umbel scope; results list only the spaces the token reads (9.4) |
-| `afd-discover`, `afd-detail`, `afd-help`, `afd-context-*` | Any Umbel scope; with `filter_tools_by_scope`, they show only commands the token could call somewhere |
-| `afd-call`, `afd-batch`, `afd-pipe` | Every step's needs, checked before the first step runs, all missing scopes in one refusal |
-| A pipeline | The union of its steps' needs |
+| Any command with a space (the `space` or `spaces` input, else the default) | `read:<s>` for each space |
+| Any mutating effect (`plugin-state`, `store-write`, `workspace-write`, `external`) | `write:<s>` |
+| `confirm = "require-human"` or an approval policy | `approve:<s>` |
+| `memory-erase` | `erase:<s>` |
+| A space-less `external` command (a mount without `bind_space`) | unqualified `write` |
+| A space-less host built-in (`workspace-show`, `space-list`, `auth-show`, `usage-list`), meta-tools, `afd-context-*` | any Umbel scope |
+| `afd-call`, `afd-batch`, `afd-pipe`, a pipeline | every step's needs |
 
-The **scope gate** is a host middleware between the space check and the plugin gate (`src/auth/scope_gate.rs`). A
-missing scope is the tool error `INSUFFICIENT_SCOPE`, with `details.scopes` naming every missing scope and the
-suggestion "Ask the authorization server for these scopes and retry". It is never retryable without a new token.
+So `knowledge-approve` in `alpha` needs `write:alpha` and `approve:alpha`.
 
-Per AFD's A5:
-- for an individual first-class tool, whose needs do not depend on input, AFD's layer answers HTTP 403
-  `insufficient_scope` from `Mcp-Name`;
-- everything else is the tool error.
-
-`tools/list` is filtered when `filter_tools_by_scope` is on, with `cacheScope: "private"`. Lists may vary by
-authorization (MCP Tools).
+Missing scopes are an HTTP 403 decided before dispatch (3.3). The host's **scope gate** middleware repeats the
+check inside the registry (`src/auth/scope_gate.rs`) for in-process and stdio-bridged calls, as defence in depth,
+answering `INSUFFICIENT_SCOPE`.
 
 ### 5.3 Scopes and access
 
-The reader filter for a call is built from three things:
-- the effective principal (as phase 2);
-- its static and claim-derived groups (4.5);
-- **only within the spaces its scopes grant** (4.3).
+The reader filter is built from three things:
+- the effective principal, its equivalents (4.6), and its static and claim groups;
+- only within the spaces the token's scopes grant a verb in;
+- for operators and the library, unnarrowed.
 
-So:
-- A scope never makes an unreadable space readable. `readers` and access sets stay the only grants of
-  visibility (D53).
-- A token without `read:<s>` gets `SPACE_NOT_READABLE` in `s`, before the handler, as an unreadable space does
-  today, with no difference between the two.
-- Operators (CLI, library) have no scopes and are not narrowed, as today.
+A scope never makes an unreadable space readable.
+
+### 5.4 One answer for an absent or unreadable space
+
+For non-operators:
+- **Undeclared and unreadable spaces answer alike.** `SPACE_NOT_READABLE`, with one message and one suggestion
+  ("The space does not exist or you may not read it"). The space check (`middleware.rs:147-198`) maps
+  `SPACE_NOT_FOUND` to it, so an unreadable space and a missing one are indistinguishable.
+- **Readability comes before scope.** A space the effective principal cannot read (by `readers`), or that the
+  token grants no verb in, answers `SPACE_NOT_READABLE`, and the resolver returns `Defer` for it.
+- `INSUFFICIENT_SCOPE` is answered **only for a space the person can read and the token grants some verb in**, so
+  its naming of the space tells the caller nothing it could not already learn.
+- **Narrowing reaches host built-ins.** `reader_filter(config, space, principal)` becomes
+  `reader_filter(config, space, &Caller)`, where `Caller` carries the principal, the equivalents and the granted
+  spaces. `event-list` (`event_list.rs:74-79`) and every other caller pass it, so the token narrows host
+  built-ins as it narrows plugins.
+
+Operators keep `SPACE_NOT_FOUND`. `first-party/tests/hosted_leaks.rs` holds both cases: an undeclared and an
+unreadable space give byte-identical answers, over the 403 path and over the registry path.
 
 ## 6. The hosted profile (D107)
 
-### 6.1 What it is
+### 6.1 Doctor checks
 
-The hosted profile is not a `profile` value: `profile` stays the scale switch (principle 13) and stays `team`, the
-only value phases 0 to 4 accept. It is the set of requirements the doctor enforces whenever `auth.mode` is not
-`none`.
+`profile` stays the scale switch (principle 13), and stays `team`. The hosted profile is the doctor's `auth.*`
+checks, which apply whenever `auth.mode` is not `none`.
 
-| Doctor check | Fails when |
+| Check | Fails (or warns) when |
 | --- | --- |
 | `auth.mode` | `oauth` with no issuer; `gateway` without `[auth.gateway]` |
 | `auth.public_url` | Not HTTPS; host not in `allowed_hosts`; path differs from `http.path` |
-| `auth.tls` | A non-loopback bind without `[http.tls]`; the key file readable by group or other; the certificate expired or expiring in 14 days (warning) |
-| `auth.issuers` | An issuer's metadata unreachable at open, or its `issuer` different from the configured value (warning at open, failure in the doctor) |
-| `auth.person` | Any `person = "verified"` command or `approve_over_mcp` area while `[auth.person]` is absent |
+| `auth.tls` | A non-loopback bind without `[http.tls]`, including a bind meant for a proxy on another host, which must therefore speak TLS to Umbel; a key readable by group or other; a certificate expired (fail) or within 14 days (warn) |
+| `auth.issuers` | Metadata unreachable or with a different `issuer` |
+| `auth.subjects` | A `sub` subject claim at an issuer whose `subject_types_supported` lacks `public` (4.1) |
+| `auth.services` | An issuer with neither `services.clients` nor `services.claim` (warn) |
+| `auth.principals` | `local_id` not namespaced; a `readers`, approver or member entry no namespace or equivalent can produce (4.6) |
+| `auth.person` | An area with `approve_over_mcp`, or a command with `person.mcp`, in a namespace with no person login (warn; the command is then not served over MCP, 7.1). Empty `acr_values` (warn: a browser automated with saved credentials passes `prompt=login`; set an `acr` class that needs user verification, 13.2) |
 | `auth.secrets` | A `*_env` variable unset |
-| `auth.principals` | Shows the operator's principal beside the issuers' prefix; warns when `local_id` contains no `/` and the workspace has `oauth` readers, so operator and hosted users cannot collide |
 | `auth.shared` | `state/shared/` not writable, or not on a local filesystem (D29) |
-| `auth.confirmations` | `mcp.confirmations = "enforce"`, which lets an agent confirm its own call; hosted needs `require-human` (a warning in `none`) |
+| `auth.confirmations` | `mcp.confirmations = "enforce"` (fail). **Why:** under `enforce` the caller's own `confirm: true` proceeds, and under `require-human` an accepted form answer proceeds (`confirmations.rs:268-294`). Neither proves a person, so person-gated commands use the host-verified mode (3.1), and `mcp.confirmations` governs only ordinary `confirm_prompt` commands |
 
 `workspace-show`'s `access` becomes:
-- `{ "principals": "verified", "exact": ["library", "http"], "statistics": "per-filter" }` in `oauth` and
-  `gateway`;
+- `{ "principals": "verified", "exact": ["library", "http"], "statistics": "per-filter" }` in hosted modes;
 - phase 2's value in `none`.
 
 ### 6.2 Topology
 
-Phase 5 hosts **one machine**: any number of host processes behind one URL (a load balancer in front, each
-process with the same workspace on a local filesystem, D29), sharing `state/`. Several machines need shared
-backends, which are phase 6. The shared-state traits (10.2) are designed so that phase 6 adds a backend without
-changing this phase's callers.
+Phase 5 hosts one machine: any number of processes behind one URL, on one workspace on a local filesystem (D29),
+sharing `state/`. Several machines are phase 6, and the shared-state traits (10.2) allow a networked backend.
 
-TLS is terminated in the process when the bind is not loopback (rustls through `tokio-rustls`, TLS 1.2 and 1.3,
-the platform's default cipher suites). A TLS-terminating proxy on the same host forwards to a loopback bind. A proxy
-on another host must open TLS to Umbel, and plain HTTP across a network is refused by 2.2's rule. The DNS-rebinding
-checks (`allowed_hosts`, `allowed_origins`) stay in front.
+**TLS.**
+- TLS is in process for a non-loopback bind: rustls through `tokio-rustls`, TLS 1.2 and 1.3, with the cipher suites
+  of rustls' default `aws-lc-rs` provider.
+- A TLS-terminating proxy forwards to a loopback bind on the same host.
+- A proxy on another host reaches a non-loopback bind, which requires TLS (`auth.tls`).
+- Bound tokens need in-process TLS (2.2).
 
-`/health` answers `{"status":"ok"}` without authentication in `oauth` and `gateway` modes, so load balancers can
-probe it. It names nothing else. It stays behind the token in `none` (D32).
+`/health` answers `{"status":"ok"}` without authentication in hosted modes, and stays behind the token in `none`
+(D32).
 
 ### 6.3 Layers on the HTTP surface, outermost first
 
-1. TLS, and the client certificate when `client_ca` is set.
-2. Size limit (`max_body_bytes`), then the per-token request limit (11).
-3. The metadata routes and `/health`, which are public.
-4. The bearer layer (mode `oauth`) or the gateway layer (mode `gateway`); in mode `none`, phase 0's token layer.
-5. The person page routes (7.2), which authenticate by their own OIDC login, never by the bearer token.
-6. AFD's host and origin checks, then the MCP service; inside it, the context hook (4.2), the event stamp, the space
-   check, **the scope gate**, the plugin gate, the approval middleware, the journal.
+1. TLS, with the client certificate per `client_auth`.
+2. The body size limit (`max_body_bytes`).
+3. **The per-IP limit** (`ip_requests_per_minute`), before any verification work.
+4. **Public routes:**
+   - the metadata routes and `/health`;
+   - the **person page routes**, mounted beside the MCP path, never behind the bearer layer. They have their own
+     host check against `http.public_url`'s host, their own origin check for posts, and their own limit; they
+     authenticate by their own login (7.2).
+5. **The bearer layer** (`oauth`, with the resolver's 403), the gateway layer (`gateway`), or phase 0's token layer
+   (`none`).
+6. **The per-token limit** (`calls_per_minute`), keyed on the verified issuer, subject and client.
+7. AFD's host and origin checks, then the MCP service. Inside it run the context hook (4.2), the event stamp, the
+   space check, the access check (5.4), the scope gate, the read limit (11), the plugin gate, the approval
+   middleware and the journal.
 
-`tests/auth_layers.rs` holds the order: each layer is removed in turn, and the request must then fail closed.
-
-### 6.4 Tenancy (D123, question 14)
-
-**Recommended (question 14):** a deployment is single-tenant, and **closes O5** that way:
-- spaces isolate knowledge bases within one deployment (D26);
-- organisations that must not share a process or keys run separate deployments (architecture section 7's
-  strongest level);
-- several issuers in one deployment are one tenant's federated identity sources, not tenants;
-- `tenant` stays reserved in the principal and the envelope.
+`tests/auth_layers.rs` holds two things:
+- removing any **authenticating** layer (5, or the hook's check) makes requests fail closed;
+- each limit layer is present in its place (3 before 5, 6 after it) and refuses past its limit.
 
 ## 7. Proving a person
 
 ### 7.1 Assurance levels (D115, question 6)
 
-Phase 3 says "`person` is not an attestation… phase 5 replaces it" (`authority.rs:5-7`).
-
 **Recommended (question 6):** two levels, recorded on everything a person decides.
 
-| Level | How | Where it counts |
+| Level | How | Where |
 | --- | --- | --- |
-| `terminal` | Today's CLI check (D71, D86): a human at the CLI with stdin and stderr terminals, no `--yes`, no agent variable, answering the prompt | The operator's CLI, for every `require-human` command whose `person` is `terminal`. Unchanged and still not an attestation, as the record says |
-| `verified` | The person page: the person opens Umbel's HTTPS page in their own browser, **logs in at the deployer's identity provider** with `prompt=login`, `max_age = max_age_s` and `acr_values`, sees the call's preview, and decides. Umbel checks the ID token's `sub` against the caller the decision is for | Over MCP for every gated call (7.3, 8.1, 8.2); at the CLI for a command declaring `person = "verified"` (8.4), where the CLI prints the URL and waits |
+| `terminal` | The CLI's check (D71, D86), unchanged and still not an attestation | `person.cli = "terminal"` commands at the operator's CLI |
+| `verified` | The person page (7.2): a fresh login at the namespace's identity provider, the subject matched to the caller, one decision bound to the call | `person.mcp = "verified"` commands over MCP, and `person.cli = "verified"` commands at the CLI, which print the URL and wait |
 
-**No other path gives a person:**
-- A token's `sub` is the user who authorised the client at some time, not a person present for this call.
-- A form-mode answer is the client's (D99, `spec/command-metadata.md`).
-- A gateway may not assert a person.
+**Rules:**
+- A command with `person.mcp` is served over MCP **only in a hosted mode, and only for callers whose namespace has
+  a person login**. Elsewhere it is not listed and is refused as an unexposed command, so mode `none` behaves as
+  phases 2 to 4.
+- A `person.cli = "verified"` command at the CLI needs a namespaced `local_id` and that namespace's login, else
+  `PERSON_VERIFICATION_UNAVAILABLE`.
+- No other path gives a person:
+  - a token's `sub` is who authorised the client once;
+  - a form answer is the client's;
+  - a gateway may not assert one.
 
 ### 7.2 The person page (D115)
 
-The page is under `[auth.person].path`. Umbel is an OIDC relying party here, a confidential client with
-authorization code, PKCE (`S256`), `state` and `nonce`. It is not an authorization server.
+Umbel is an OIDC relying party here: a confidential client using authorization code, PKCE `S256`, `state`, `nonce`
+and `response_mode=query` (so `SameSite=Lax` holds on the return). It is not an authorization server.
 
-1. **Begin.** A gated call over MCP (7.3) or at the CLI asks the host for a person decision. The host makes a
-   decision record in `state/shared/person.sqlite3`:
+1. **Begin.** `HumanRelay::begin` (over MCP) or the CLI writes a person decision (`person-decision.v1.json`) to
+   `state/shared/person.sqlite3`:
    - `id`: 128 random bits;
-   - `for`: the effective principal, the issuer alias and `sub`;
-   - `command` and the canonical input digest;
-   - `preview`: the command's `confirm_preview` text, or its prompt;
-   - `expires`: 10 minutes;
-   - `status = pending`.
+   - `for`: `{ actor, clientId, issuer, namespace, subject }`, from `credentials` over MCP, or from `local_id` at
+     the CLI;
+   - `command`, the canonical input digest, and **only the preview's declared properties** (ids, by 2.3's rule, so
+     never text);
+   - `expires`: 10 minutes; `status = pending`.
 
-   It answers with the URL `https://<public host><path>/d/<id>`. The URL holds no identity and no credential, and
-   it is not pre-authenticated (MCP URL mode, "Safe URL Handling").
-2. **Open.** The page answers `GET /d/<id>` with a redirect to the IdP's authorization endpoint (from its OIDC
-   discovery, `issuer` checked), with `prompt=login`, `max_age`, `acr_values`, `state` (sealed: decision id, PKCE
-   verifier digest, browser binding) and `nonce`. A `__Host-` cookie with `Secure`, `HttpOnly` and
-   `SameSite=Lax` binds `state` to the browser.
-3. **Return.** On the callback:
-   - the code is exchanged with the PKCE verifier;
-   - the ID token is verified (signature, `iss` (RFC 9207 `iss` checked when the IdP advertises it), `aud` equal to
-     `client_id`, `nonce`, `exp`);
-   - `auth_time` must be within `max_age_s` and `acr` among `acr_values` when any are set;
-   - **`sub` must equal the decision's `for.sub` from the same issuer**, or the page says "This request is for
-     another person" and records nothing (the URL-mode phishing rule).
-4. **Decide.** The page shows these, sanitised, with no script from content and a strict CSP:
-   - the preview;
-   - who asked (the agent, the client and the delegation chain);
+   The URL is `https://<public host><path>/d/<id>`. It holds no identity and is not pre-authenticated.
+2. **Open.** `GET /d/<id>` makes a login row:
+   - a random `login` id, with the **PKCE verifier and the `nonce` kept server-side in that row**;
+   - a redirect to the namespace's identity provider (its OIDC discovery, `issuer` checked) with `prompt=login`,
+     `max_age`, `acr_values`, `response_mode=query` and `state`.
+
+   `state` is `<login id>.<HMAC-SHA256 under state/keys/person.key>`. That key is 32 bytes, race-safe and shared
+   by every process, so any process can finish the login. A `__Host-` cookie (`Secure`, `HttpOnly`,
+   `SameSite=Lax`) holds a random browser value whose hash is in the row.
+3. **Return.**
+   - `state`'s MAC and the cookie must match the login row.
+   - RFC 9207 `iss` is checked when the provider advertises it.
+   - The code is exchanged with the stored verifier.
+   - The ID token is verified: signature, `iss`, `aud` = `client_id`, the stored `nonce`, `exp`, `auth_time`
+     within `max_age_s`, and `acr` in `acr_values` when any are set.
+   - **Its `subject_claim` must equal `for.subject`, in the same namespace**; otherwise "This request is for another
+     person", and nothing is recorded.
+4. **Decide.** The page renders **at page time**:
+   - the command's `confirm_preview`, called with the stored properties under the logged-in person's reader filter
+     (D97's sanitising and caps);
+   - who asked: the actor, the client and the delegation chain;
    - the space.
 
-   It shows two buttons, posting a form with a per-decision CSRF token. The decision is stored with `level =
-   "verified"`, `authTime`, `acr`, the `sub`, and the hash of the preview shown.
-5. **Resume.** The client retries the call with the elicitation's `requestState`. The host finds the decided
-   record, checks that the retrying caller's principal and the input digest are the decision's, spends the
-   decision once through the nonce store, and runs the call with `humanPresent` set from it (2.1).
-   - The plugin gate's `require-human` check (`middleware.rs:262-264`) accepts this decision in place of the CLI's
-     mark. A command whose `person` is `verified` no longer accepts the CLI's mark alone.
-   - One decision satisfies both the `require-human` gate and the command's approval policy, because both ask the
-     same person about the same call. AFD's relay asks the host's `ApprovalRelay` (3.3), and the gate reads the
-     same record.
+   Nothing of the preview is stored but its SHA-256. The page has two buttons in a form with a CSRF token
+   (HMAC of the decision and login ids under `person.key`). Its headers are
+   `Content-Security-Policy: default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'`,
+   `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`, and no content script. The decision stores the
+   level, `authTime`, `acr` and the preview hash.
+5. **Resume.** On the retry, `HumanRelay::resume` (or the CLI's poll) checks these, then spends the decision once in
+   the nonce store and runs the call with `humanPresent` set:
+   - the decision is decided and unexpired;
+   - **every field of `for` equals the retrying caller's** actor, client, issuer, namespace and subject;
+   - the input digest matches.
+   - The plugin gate's `require-human` check (`middleware.rs:262-264`) accepts it for a `verified` surface, and
+     accepts only the CLI mark for a `terminal` one.
+   - One decision covers the command's `require-human` gate and its approval policy (3.1's relay evidence).
 
-Rules:
-- A decision is single-use.
-- Declining fails the call with `CONFIRMATION_DECLINED` (or `APPROVAL_REQUIRED` with reason `declined`, for
-  approvals), not retryable.
-- An expired or spent decision asks again.
+**Outcomes and limits:**
+- Declining is `CONFIRMATION_DECLINED` (or `APPROVAL_REQUIRED`, `details.reason: "declined"`), not retryable.
+- An expired decision is `PERSON_DECISION_EXPIRED` at the CLI; over MCP the relay asks again.
 - `person_pages_per_hour` limits begins per principal.
-- The page renders no stored content beyond the preview, so the preview's own rules (D97: sanitised, capped,
-  reader-filtered) bound what it shows.
-- The person page journals each decision under its command's trace as the host's `person-decide` entry
-  (digest-journaled, keeping `id`, `level` and `decision`).
-
-At the CLI, a `person = "verified"` command prints the URL to stderr with "Open this in your browser and log in to
-decide", and polls the record every second until it is decided or expires. No agent variable blocks it: the login
-is the proof.
+- Each decision is journaled under its command's trace as a host `person-decide` entry, digest-journaled, keeping
+  `id`, `level` and `decision`.
 
 ### 7.3 The MCP approval relay (D116, question 7; amends D99)
 
 **Recommended (question 7):**
-- Approve and reject only. Each knowledge area opts in with `approve_over_mcp`, default false.
-- The relay is AFD's **host-verified mode** (3.1). The server answers `input_required` with a **URL-mode**
-  elicitation to the person page, never a form, and the call runs only after a `verified` decision for the same
-  person, command and input.
-- The knowledge manifest (version 5) exposes `knowledge-approve` and `-reject` to MCP with `person = "verified"`.
-  Exposure is per command, so the knowledge plugin refuses the call in every area without the opt-in
-  (`APPROVAL_RELAY_DISABLED`), before anything is shown or asked. The call needs `approve` on the space, and the CLI
-  path is unchanged.
-- Every phase 2 and 4 rule holds unchanged:
-  - approvers must be listed and read the target;
-  - self-approval as D62 and D102;
-  - approve's re-checks (D102, D103);
-  - auto-approval refuses a relay (D98).
-- Proposal record version 3 adds `decision.channel = "mcp-elicitation"` (the value D99 named) and
-  `decision.assurance = { level, method: "person-page", issuer, authTime, acr? }`. A terminal decision records
-  `{ level: "terminal", method: "cli-terminal" }`.
-- A client without URL-mode elicitation gets `APPROVAL_REQUIRED` with `details.reason = "url-elicitation-required"`
-  and the suggestion to approve at the CLI or from a client that supports URL elicitation.
+- **Approve and reject only.** An area opts in with `approve_over_mcp`, default false.
+  - The knowledge manifest (version 5) gives both `person = { cli = "terminal", mcp = "verified" }` and
+    `confirmationMode = "host-verified"`.
+  - The knowledge plugin refuses the call in an area without the opt-in (`APPROVAL_RELAY_DISABLED`), before
+    anything is asked.
+  - The CLI path is unchanged.
+- **The server never sends a form for them** (3.1).
+- **First call.** `HumanRelay::begin` writes the decision and returns `input_required` with one URL-mode
+  elicitation: message "Open the link to review proposal `<id>` in `<space>`", and the page URL. Its
+  `requestState` is sealed with XChaCha20-Poly1305 under `state/keys/relay.key` (shared) and holds:
+  - the decision id;
+  - the command and input digest;
+  - the actor;
+  - `credentials.issuer`, `.subject` and `.clientId` (#532), as associated data.
+- **Retry while pending.** URL-mode `accept` means only that the user consented to open the link. A retry while
+  the decision is pending answers `input_required` again with the same URL and a fresh `requestState` for the same
+  decision, until it is decided or expires.
+- **Retry when decided.** The call runs with relay evidence (3.1). A declined decision fails it.
+- **What holds unchanged:** approvers must be listed and read the target; self-approval as D62 and D102, through
+  4.6's equivalents; approve's re-checks (D102, D103); auto-approval refuses a relay (D98).
+- **Proposal record version 3** adds `decision.channel = "mcp-elicitation"` and `decision.assurance = { level,
+  method: "person-page", namespace, authTime, acr? }`. A terminal decision records `{ level: "terminal",
+  method: "cli-terminal" }`.
+- A client without URL elicitation gets `APPROVAL_REQUIRED`, `details.reason = "url-elicitation-required"`.
 
-Approval tokens still never travel over MCP (`with_include_token(false)`, `host/mod.rs:410-428`).
+Approval tokens never travel over MCP.
 
-### 7.4 The dynamic prompt over MCP
+### 7.4 The preview over MCP
 
-Phase 4's preview (D97) closed the "must do before real use" follow-up at the CLI. Over MCP the same preview is the
-person page's content (7.2, step 4). The elicitation `message` carries only "Open the link to review proposal
-`<id>` in `<space>`", never content: URL mode keeps content off the client, and the page is reader-filtered for the
-person who logs in.
+D97's preview is the person page's content, rendered at page time (7.2, step 4). The elicitation `message` carries
+only ids, never content.
+
+### 7.5 Why this is not URL mode authorising a user for itself
+
+MCP 2026-07-28 says servers "MUST NOT rely on URL mode elicitation to authorize users for themselves". The text
+around it is about access to the server: authorizing an MCP client is MCP Authorization's job.
+
+Here:
+- the caller is already authorized by a verified token, and the page grants no access, issues no token and
+  creates no session the client can use;
+- it confirms **one decision** by the person the token already names, and the login only proves that person is
+  present;
+- the request is bound to the client and user identity, as the same section requires (`for`, 7.2);
+- the identity comes from the deployer's identity provider, as the phishing rule suggests.
+
+This reading is the owner's to accept, and question 6 asks it.
 
 ## 8. Person-gated memory and the open owner questions
 
 ### 8.1 Gated commands over MCP (D117, question 8)
 
-**Recommended (question 8):** `memory-confirm` and `curator-promote` may be reached by a verified person through the
-person page.
+**Recommended (question 8):**
+- **`memory-confirm`** gains `confirm_preview = "memory-preview"` (an `inspect` command returning the record's
+  text under the caller's filter, declaring `id` and `space`, both in its `keep`), and `person = { cli =
+  "terminal", mcp = "verified" }`. Own records only (D88 kept).
+- **`curator-promote`** stays CLI only at `terminal`, since the curator is not in the request path. It is the
+  operator's.
+- **`memory-remember`'s `authority_prompt`** stays CLI only.
 
-`memory-confirm` gains `confirm_preview = "memory-preview"`, an `inspect` command returning the record's text,
-sanitised, under the caller's filter. The person page shows it, so the content hash no longer has to stand in for
-reading (D84 keeps it as a binding).
+### 8.2 Confirming another person's record
 
-`memory-confirm` becomes MCP-exposed with `person = "verified"`, and the CLI keeps `terminal`. `curator-promote`
-stays CLI only, because the curator is not in the request path (D90, 12.2), and declares `person = "verified"` so
-that a hosted person promotes at the CLI through the page.
-
-`memory-remember`'s `authority_prompt` (D86) stays CLI-only. Over MCP a remember is `agent`, and a person raises
-it with `memory-confirm`.
-
-### 8.2 Confirming another person's record (D117, question 8)
-
-D88 refused this "until phase 5". **Recommended:** keep the refusal. A `verified` person can be attributed, but one
-person vouching for another's text gives the record `person` authority, the default push path (D78), on someone
-else's word. No use needs it yet.
+**Recommended (question 8):** keep D88's refusal.
 
 ### 8.3 Changing another person's shared record (D119, question 10)
 
-Phase 3's step 10, item 1, asked whether a sharing writer may invalidate or supersede a readable record another
-principal wrote. `memory_services.rs:215-253` allows it today; agents are already refused.
+Today a sharing writer who can read a record may invalidate or supersede it (`memory_services.rs:215-253`). A
+sharing writer includes agents holding a `writers` token when `agents_may_share = true` (lines 150-162).
 
 **Recommended (question 10):**
-- Only the record's principal, or a person holding a token in a new `editors` list on the `memory_write` grant
-  table (default empty), may invalidate or supersede it.
-- Over MCP the editor must be `verified` for the call.
-- `MEMORY_NOT_OWNED` otherwise.
-- History keeps every version either way.
+- Only the record's principal (with equivalents), or **a person** holding a token in a new `editors` list on the
+  `memory_write` grant table (default empty), may change another principal's record.
+- An editor is a person whatever `agents_may_share` says, and must be `verified` over MCP.
+- `MEMORY_NOT_OWNED` otherwise. History keeps every version.
 
 ### 8.4 `memory-erase` (D118, question 9)
 
-D85's conditions, each made concrete:
-- `memory-erase { space, principal, ids?, dryRun }` in the memory plugin, digest-journaled (`keep = ["space",
-  "principal", "dryRun"]`), with `confirm = "require-human"`, `person = "verified"`, `erase` scope, and exposed to
-  MCP and the CLI.
-- The caller's effective principal must hold a token in the grant table's `erasers` list, default empty. Else
-  `MEMORY_ERASE_NOT_ALLOWED`, and the same for an unreadable target.
-- `dryRun = true`, required first, returns the count and a `plan` hash of the ids and versions. The erase must
-  present the same `plan`, and anything changed is `MEMORY_ERASE_PLAN_STALE`.
-- Erasure is phase 3's forget path (D73, D82): keys destroyed first, then the byte-level deletion.
-- **Disclosed residue**, as D85 lists: the journal's ids, the erased principal in `changes` and in the kept input,
-  and any `derivedFrom` hash of an applied proposal.
-- **Recommended addition:** the erased principal receives an event in their own stream (access
-  `principal:<erased>`): "N records erased by `<eraser>` at `<time>`". An eraser cannot erase quietly, even
-  records about themselves.
+D85: blind, irreversible, resting on a verified person, and able to reach records a person's CLI cannot forget
+(`agent:loopback`, `agent:<local_id>`).
 
-### 8.5 A draft its proposer can no longer read (D120, question 11)
+- **Command.** `memory-erase { space, principal, ids?, dryRun, plan? }` in the memory plugin, digest-journaled with
+  `keep = ["space", "principal", "dryRun"]`.
+  - `confirm = "require-human"`, `person = { cli = "verified", mcp = "verified" }`, `confirmationMode =
+    "host-verified"`.
+  - It needs the `erase` scope and a preview (`memory-erase-preview`, declaring `space` and `principal`).
+- **What is checked:**
+  - the caller is verified, and its effective principal (with equivalents) holds a token in the grant table's
+    `erasers` list, else `MEMORY_ERASE_NOT_ALLOWED`;
+  - `principal` is a valid principal string.
+  - **Nothing else.** The eraser's reader filter is not applied: the store's new `erase_targets(space, principal,
+    ids?)` selects the target's records by owner, through equivalents, whatever their access set. That is the
+    "blind" of D85, which no reader filter could give.
+- **Dry run and plan.** `dryRun = true`, required first, returns only a count and a `plan` (the SHA-256 of the
+  sorted ids and versions). The erase must present the same `plan`, else `MEMORY_ERASE_PLAN_STALE`.
+- **Erasure** is phase 3's forget path (keys first, D73, D82). It returns counts only.
+- **Disclosed residue**, as D85 lists. **Recommended addition:** the erased principal receives an event in their
+  own stream (access `principal:<erased>`) naming the eraser, the count and the time.
+- In mode `none` the command is unavailable (no verified person), so local erasure waits for a hosted setup.
+  Question 9 offers the terminal level as an alternative.
 
-**Recommended (question 11):** close the limit with a **host-run redaction**:
-- When a forget or erase destroys keys, the host sends knowledge instances holding `memory` an `erased` notice
-  under the host's own principal `service:umbel-host`.
-- It carries a new `ReaderFilter::OwnRecordsCiting(ids)`, which admits only the instance's own proposal records
-  that cite one of those ids.
-- Under it the knowledge plugin may only **redact** (phase 4's 9.1 redaction, unchanged in content). It reads
-  nothing out: the notice's result is counts only, and the store refuses any other use of the filter.
+### 8.5 A draft its proposer can no longer read (D120, question 11; amends D101)
 
-So the redaction reaches drafts no live caller can read, while nobody gains a read. `tests/host_redaction.rs` holds
-both halves.
+**Recommended (question 11):** a host-run, redaction-only sweep. **It amends D101**, which keeps every privileged
+read refused, by admitting one narrowly scoped one.
+
+- **Durable trigger.** A forget or an erase writes an `erasure` outbox row (space, erased memory ids, the instances
+  to notify) in the memory database, **in the same transaction that destroys the keys**. Each named instance's row
+  is marked done only after its sweep commits. A host process drains the outbox at open, after each forget or
+  erase, and before any `knowledge-proposal-*` read. The sweep is idempotent (phase 4's redaction is), so a crash
+  re-runs it.
+- **Ownership.** Records are already namespaced per plugin instance (`store_services.rs`). The sweep is a new
+  host-only knowledge command, `knowledge-erasure-sweep`, exposed on no surface. The host calls it with a new
+  `CallContext.host_task = Erasure { ids }`, which no caller can set, as the pipeline attestation table is
+  host-only (D91).
+- **The filter.** Under it the host's `ReaderFilter::OwnNamespace` admits the instance's own `proposal` records,
+  and nothing else. The knowledge plugin redacts each non-applied proposal citing an erased id (phase 4 9.1,
+  unchanged), and returns counts. The journal keeps the counts only.
+- **Trust.** Compiled plugins are trusted code (D42), so the guarantee rests on four things: no surface reaches the
+  command, the host alone sets `host_task`, the filter is namespace-bounded, and the result is counts.
+  `tests/host_redaction.rs` holds each.
 
 ## 9. Exact filtering: statistics and hidden counts (D125)
 
-Phase 2 accepted hidden counts "until phase 5 verifies callers". In modes `oauth` and `gateway` they are closed. In
-mode `none` the same code runs, so behaviour is identical in every mode, except where a rule below says operator.
+In hosted modes, hidden counts are closed for every non-operator (4.7). The code is the same in every mode.
 
 ### 9.1 Knowledge: statistics per reader filter
 
-`SearchIndex::query` scores through tantivy's `Bm25StatisticsProvider` (`bm25.rs:15`) with a provider computed under
-the call's reader filter:
+`SearchIndex::query` scores through tantivy's `Bm25StatisticsProvider` (`bm25.rs:15`) under the call's reader
+filter:
 - `doc_freq(term)` counts readable chunks containing the term;
 - `total_num_docs` counts readable chunks;
-- `total_num_tokens(field)` sums field norms over readable chunks.
+- `total_num_tokens(field)` sums **exact per-chunk token counts**, which the indexer writes in a new `u64` fast
+  field per text field (`len_title`, `len_body`, …), never the quantized field norms;
+- deleted documents are excluded.
 
-It is cached per (segment set, filter token digest) and dropped on any commit.
+The statistics are cached per (segment set, filter digest). The index schema version rises, so the next
+`knowledge-index` rebuilds.
 
-A caller's scores and order are then **a function of what it can read and nothing else**. Aggregation, graph
-expansion (already readable-only, D60) and rounding (D58) are unchanged. The eval baseline is re-run: in the
-seeded fixture an all-reading caller's statistics equal today's, so the gate must pass unchanged.
-`store-embedded/tests/partitioned_stats.rs` holds that adding unreadable documents changes no byte of a caller's
-results.
+The eval gate re-runs. Its statistics now exclude deleted documents and use exact counts, so it must pass within its
+committed tolerance, and **no equality with today is claimed**. `store-embedded/tests/partitioned_stats.rs` holds
+that adding unreadable documents changes no byte of a caller's results.
 
-### 9.2 Memory: order without global statistics
+### 9.2 Memory: BM25 per reader filter, in Rust
 
-FTS5's `bm25()` uses whole-table statistics (phase 3 5.3). The changes:
-- Recall selects matching readable records with the boolean query, with no rank, in `recordedAt` descending order,
-  up to `4 × limit`.
-- It opens their bodies (as today) and orders them by the number of distinct query terms each matches (tokenised by
-  `umbel-store`'s query tokenizer), then authority tier, then `recordedAt`, then id.
-- No statistic depends on another record.
-- Recall still returns no score (D70).
+FTS5's `bm25()` uses whole-table statistics. Recall changes as follows:
+- It selects **every** readable match with the boolean query and no rank.
+- It opens their bodies (as today), tokenises them with `umbel-store`'s memory tokenizer (the FTS5
+  `porter unicode61` rules, re-implemented and tested against FTS5's own tokens on a fixture), and computes BM25
+  over the readable matches only.
+- It orders by that score, then authority tier, then `recordedAt`, then id, and returns no score (D70).
+- More than 50 000 readable matches is `MEMORY_QUERY_TOO_BROAD`: a refusal asking for a narrower query, never a
+  silent truncation.
 
-### 9.3 Revisions, sequence numbers and totals
+### 9.3 Positions, sequence numbers and totals
 
-| Today | Leaks | Phase 5 |
-| --- | --- | --- |
-| Cursor `v0:<space>:<seq>` (`cursor.rs`), `event-list` `head` | Gaps count hidden events | **Cursor version 1** `v1.<base64url>`: XChaCha20-Poly1305 under `state/keys/cursor.key`, over `{space, principal, seq}`, with the principal as associated data. Opaque, ordered only by the server, refused for another principal. `head` is a cursor. Version 0 cursors are still accepted from operators |
-| `dev.umbel/index` `{ applied, head, schema }`; `knowledge-changes` revisions; `rev` in results | Gaps count hidden changes | Sealed the same way as `r1.<base64url>` tokens for non-operators, compared only for equality, and accepted back by `after` |
-| Locator `indexVersion` `<space>@<rev>/<schema>` (D61) | The applied revision | **Locator version 2**: `indexVersion` is `<space>@r1.<token>/<schema>` for non-operators. The locator string's content hash is unchanged |
-| `sources-sync`, `sources-status`, `knowledge-index` totals | Every file counted | Readable-only counts for non-operators; totals for operators |
-| `store-show` head | Every change | Readable head for non-operators; CLI-only stays |
+**Sealing is deterministic.** A sealed value is XChaCha20-Poly1305 under `state/keys/cursor.key`, with the nonce the
+first 24 bytes of HMAC-SHA256 (under a second key derived from it) over the plaintext and its associated data. This
+is an SIV construction: equal values seal equal, and other values cannot be told apart. No new dependency is needed.
+
+| Value | Phase 5, for non-operators |
+| --- | --- |
+| `event-list` cursor | **Cursor version 1** `v1.<base64url>`, sealing `{space, seq}` with the principal as associated data; refused for another principal with `INVALID_CURSOR`, as a malformed one is. `head` is **the position of the last event this caller can read**, sealed |
+| Stored cursor files | Unchanged on disk: they hold positions, not strings. No migration |
+| Version 0 cursor strings | Accepted from `process` callers (stdio, CLI), so harness consumers keep working. From any other caller, `INVALID_CURSOR` |
+| `dev.umbel/index` `{ applied, head }`, `knowledge-changes` revisions, `rev` | The last readable revision at or below each value, sealed as `r1.<base64url>`, compared only for equality, and accepted back by `after` |
+| Locator `indexVersion` | **Locator version 2**: `<space>@r1.<token>/<schema>`, the last readable revision at or below the applied one |
+| Index-building totals | Readable-only counts |
+| `store-show` head | CLI only, as today |
+
+So a caller's positions move only when something it can read changes.
 
 ### 9.4 Spaces
 
-`space-list` and `workspace-show` list only the spaces the caller's filter reads, and the scopes grant. In every
-mode, an operator reads every space it is a reader of, as today. Closes the phase 2 step 4 follow-up.
+`space-list` and `workspace-show` list only the spaces the caller reads and the token grants (5.4). The operator
+reads its spaces, as today.
 
 ## 10. Host services
 
 ### 10.1 Grants
 
-No new plugin grant. `secrets` is defined for the host's own use (10.4), and stays refused to plugins until a
-plugin needs it (phase 1 follow-up). Plugins never see `credentials` or the principal's extension fields beyond
-what `CallContext` already carries (actor, effective principal, space).
+No new plugin grant. `secrets` is the host's own (10.4), and stays refused to plugins. Plugins never see
+`credentials`.
 
 ### 10.2 Shared state for instances behind one URL (D126)
 
-Principle 11's "instances behind one URL share the confirmation key and the approval nonce store", made concrete:
-
 | State | Where | Rule |
 | --- | --- | --- |
-| Confirmation and approval keys | `state/keys/` (D29, unchanged) | Shared by every process, created race-safe |
-| Cursor and revision sealing key | `state/keys/cursor.key` | As above, 32 bytes |
-| Approval nonces, gateway `jti`s, person decisions spent | `state/shared/nonces.sqlite3`, WAL, mode 0600 | `ApprovalNonceStore::consume` is `INSERT … ON CONFLICT DO NOTHING` and `changes() == 1`: atomic across processes. Rows expire at their `expires_at`, and writes purge at most 64 |
-| Person decisions | `state/shared/person.sqlite3` | 7.2 |
+| Confirmation and approval keys | `state/keys/` (D29) | Unchanged |
+| Cursor, relay and person keys | `state/keys/cursor.key`, `relay.key`, `person.key` | 32 bytes, race-safe, shared |
+| Approval nonces, relay evidence, gateway `jti`s, spent decisions | `state/shared/nonces.sqlite3`, WAL, mode 0600 | `consume` is `INSERT … ON CONFLICT DO NOTHING` with `changes() == 1`, atomic across processes; rows expire, and writes purge at most 64 |
+| Person decisions and logins | `state/shared/person.sqlite3` | 7.2; `secure_delete=ON`; rows purged 1 hour after expiry |
 | Tasks | `state/shared/tasks.sqlite3` | 12.2 |
 | Limit counters | `state/shared/limits.sqlite3` | 11 |
+| The erasure outbox | Inside `memory.sqlite3` | 8.5 |
 
-Each store is behind a trait in `src/shared/`, so that phase 6 adds a networked backend. Each waits at most
-`store.lock_timeout_ms` (D51), and a timeout fails the request closed (`UMBEL_SHARED_BUSY`, retryable). The
-confirmation `requestState` itself stays stateless (MRTR). The nonce store makes approvals and person decisions
-single-use across processes.
+Each store is behind a trait in `src/shared/`. A wait past `store.lock_timeout_ms` is `WORKSPACE_SHARED_TIMEOUT`,
+retryable, and the request fails closed.
 
 ### 10.3 `auth-show`
 
-`auth-show` is a host built-in, `inspect`, exposed everywhere. It returns the caller's own projection: principal
-string, authentication, issuer alias, scopes, spaces with verbs, `delegationChain`, token expiry. It never returns
-claims beyond these, and never another principal's. It is how an agent learns why a call was narrowed.
+A host built-in, `inspect`, exposed everywhere. It returns only the caller's own projection: principal, namespace,
+issuer, authentication, scopes, spaces with verbs, `delegationChain` and token expiry.
 
 ### 10.4 Host secrets
 
-The person page's client secret, introspection credentials and TLS key are host secrets: read from the environment
-variable or file named in configuration, never stored in `umbel.toml`, never logged, `Debug`-redacted.
+The person-page client secret, introspection credentials and TLS key are read from the named environment variable
+or file, never stored in `umbel.toml`, never logged, and redacted from `Debug` output. An HTTP mount's `bearer_env`
+follows the same rule (phase 1 follow-up).
 
-Phase 1's follow-up moves an HTTP mount's `bearer_env` under the same rule. It is already an environment variable
-(`mounted/mod.rs:134-149`), so only the doctor's `auth.secrets` check and the redaction are new. A plugin `secrets`
-grant stays out of scope.
+### 10.5 Error and warning codes
+
+| Code | When | Retryable | Details |
+| --- | --- | --- | --- |
+| HTTP 401 `invalid_token` | 3.2's rules, with rule codes in the log only: `unknown-issuer`, `audience`, `expired`, `scopes-too-many`, `dpop-unsupported`, … | No (a new token) | None |
+| HTTP 403 `insufficient_scope` | 5.2, before dispatch | No (a new token) | `scope` in the challenge |
+| HTTP 429 | 11's IP and token limits | Yes | `Retry-After` |
+| `UNAUTHORIZED` | The hook finds no verified extensions (4.2); a gateway refusal (4.4) | No | None |
+| `INSUFFICIENT_SCOPE` | The scope gate inside the registry (5.2) | No | `scopes` |
+| `SPACE_NOT_READABLE` | 5.4, for undeclared and unreadable spaces alike | No | None |
+| `RATE_LIMITED` | 11's read-bytes limit | Yes | `retryAfterMs` |
+| `PERSON_VERIFICATION_UNAVAILABLE` | A `verified` command with no namespaced `local_id` or person login (7.1) | No | None |
+| `PERSON_DECISION_EXPIRED` | The CLI's decision expired before it was decided (7.2) | Yes | None |
+| `APPROVAL_RELAY_DISABLED` | Approve or reject over MCP in an area without `approve_over_mcp` (7.3) | No | `area` |
+| `APPROVAL_REQUIRED` | Reasons `declined` or `url-elicitation-required` (7.3) | No | `reason` |
+| `MEMORY_ERASE_NOT_ALLOWED` | The caller is not an eraser (8.4) | No | None |
+| `MEMORY_ERASE_PLAN_STALE` | The records changed since the dry run (8.4) | No (run the dry run again) | None |
+| `MEMORY_QUERY_TOO_BROAD` | More than 50 000 readable matches (9.2) | No | `limit` |
+| `INVALID_CURSOR` (existing) | A version 0 string from a non-`process` caller; another principal's version 1 cursor (9.3) | No | None |
+| `TASK_LOST` | The task's process died; its lease expired (12.2) | Yes | None |
+| `TASK_TOKEN_EXPIRED` | The starting token expired before the task finished (12.2) | Yes (start again) | None |
+| `TASK_SPACE_UNREADABLE` | A batch found the space no longer readable (12.2) | No | None |
+| `WORKSPACE_SHARED_TIMEOUT` | A shared store's lock wait passed `store.lock_timeout_ms` (10.2) | Yes | `store` |
+| `WORKSPACE_CONFIG_INVALID` (existing) | 2.2's rules | No | `key` |
 
 ## 11. Rate limits (D128)
 
-Phase 3 limited memory writes per principal (D74), and phase 2 deferred read limits to verified callers. In modes
-`oauth` and `gateway` there are three limits:
-- **Per token**, in the HTTP layer: `calls_per_minute` per (issuer, `sub`, `client_id`), a fixed one-minute window.
-  Over it is HTTP 429 with `Retry-After`.
-- **Per principal**, in a host middleware: `read_bytes_per_minute` of result bytes per effective principal. Over it
-  is the tool error `RATE_LIMITED` (retryable, `details.retryAfterMs`). A mutation's result is never withheld once
-  it has run: the limit is checked before the handler, on the bytes already used.
-- **Person pages:** `person_pages_per_hour` per principal.
+In hosted modes there are four limits. Counters are shared (10.2), and operators are not limited.
 
-Counters are in the shared store, so they hold across processes. Operators are not limited. Mode `none` keeps
-phase 0's behaviour.
+| Limit | Keyed on | Where | Over the limit |
+| --- | --- | --- | --- |
+| `ip_requests_per_minute` | The peer address | Before verification (6.3, layer 3) | HTTP 429 |
+| `calls_per_minute` | The verified issuer, subject and client | After verification (layer 6) | HTTP 429 |
+| `read_bytes_per_minute` | The effective principal's result bytes | A host middleware, checked before the handler on bytes already used, so a mutation's result is never withheld after it ran | `RATE_LIMITED` |
+| `person_pages_per_hour` | The principal | When a person decision begins | Refused at begin |
 
 ## 12. Usage, tasks, telemetry
 
 ### 12.1 Usage events (D122, question 13)
 
-**Recommended (question 13):** one content-free record per MCP request in its own stream,
-`state/usage/<yyyy-mm>.jsonl`, appended under its own lock (not the workspace lock), mode 0600:
+**Recommended (question 13):** one content-free record per MCP HTTP request, in `state/usage/<yyyy-mm>.jsonl`,
+under its own lock, mode 0600.
 
 ```json
 { "version": 1, "id": "u-…", "at": "2026-11-03T10:00:00.000Z", "trace": "…",
-  "principal": "human:corp/U019488227", "actor": "agent:corp/f53f191f9311af35", "issuer": "corp",
-  "transport": "http", "tool": "knowledge-search", "command": "knowledge-search", "space": "main",
-  "outcome": "ok", "bytesIn": 212, "bytesOut": 4810, "durationMs": 31, "task": false }
+  "principal": "human:corp/U019488227", "actor": "agent:corp/f53f191f9311af35", "namespace": "corp",
+  "transport": "http", "method": "tools/call", "tool": "knowledge-search", "command": "knowledge-search",
+  "space": "main", "outcome": "ok", "bytesIn": 212, "bytesOut": 4810, "durationMs": 31, "task": null }
 ```
 
-- `outcome` is `ok` or an error code.
-- No input, result, query, document id or memory text is recorded, so a forget leaves nothing here.
-- Tokens are not counted: the host has no tokenizer and does not guess. The architecture's "bytes and tokens" is
-  amended to bytes (proposed).
-- `usage-list { after?, principal?, limit }` is a host built-in, `inspect`. A caller sees their own records, and a
-  principal or group in `usage.readers` sees everyone's. Operators see everything.
-- Retention is `retention_days`; `event-rebuild` does not touch it.
-- Usage events are not telemetry: AFD telemetry keeps the actor kind only (architecture section 5).
+- **What counts.** Every request: `tools/call`, `tools/list`, `tasks/get`, `tasks/update` and `tasks/cancel`
+  (`method` says which, with `command` and `task` set for task methods), and refused requests (`outcome` is the
+  code or HTTP status).
+- **What is never recorded:** inputs, results, queries, document ids or memory text.
+- **Bytes, not tokens.** The host has no tokenizer and does not guess.
+- **Reading it.** `usage-list` shows a caller their own records, everyone's to `usage.readers` (default none), and
+  everything to the operator.
+- **Not telemetry.** AFD telemetry keeps the actor kind only.
 
 ### 12.2 Tasks for long jobs (D127)
 
-Commands declaring `task = "optional"` run as an MCP task when the request declares `io.modelcontextprotocol/tasks`,
-and inline otherwise; `required` gives `-32021` without it. The first are `sources-sync`, `knowledge-index` and
-`knowledge-refresh` (a pipeline; manifest version 5 admits `task` on a pipeline whose steps all admit it), each
-`optional`.
+`task = "optional"` commands run as a task when the request declares `io.modelcontextprotocol/tasks`; `required`
+gives `-32021` without it. The first are `sources-sync`, `knowledge-index` and `knowledge-refresh`, whose results
+are counts and ids, never content.
 
-A task record (`task-record.v1.json`) holds:
-- `id`: 128 random bits as base32;
+**The task record** (`task-record.v1.json`):
+- `id`: 128 random bits, base32;
 - `owner`: `{ effectivePrincipal, actor, issuer, clientId }`;
 - `command`, `space`, `status`, `createdAt`, `lastUpdatedAt`;
-- `ttlMs`: default 3 600 000, at most 86 400 000;
-- `pollIntervalMs`: 2000;
-- `statusMessage`: a host-written phase name, never content;
+- `ttlMs`, default 3 600 000 and never past the starting token's `exp`; `pollIntervalMs`;
+- `statusMessage`: a phase name only;
 - `lease`: `{ process, until }`;
 - `result` or `error`.
 
-The rules:
-- The record is durable before `CreateTaskResult` (ext-tasks "MUST").
-- **Every `tasks/*` call compares the caller with `owner`.** A mismatch answers exactly as an unknown id.
-- A task whose process died (lease past, renewed every 10 seconds) becomes `failed` with `TASK_LOST`, retryable.
-- Cancel is cooperative, between batches (`limit` and `remaining`, phase 2).
-- The result is kept until the TTL ends, then purged with `secure_delete`.
-- Tasks run under the starting call's context: its principal, scopes and reader filter, frozen at the start.
+**Rules:**
+- **Durable first.** The record exists before `CreateTaskResult`.
+- **Owner checked.** Every `tasks/*` call compares the caller with `owner`, and a mismatch answers as an unknown
+  id.
+- **No content.** A result carrying `dev.umbel/trust: "content"` fails the task. Manifest version 5 refuses `task`
+  on read commands (2.3), so no content is retained.
+- **Revocation reaches a task.** It stops with `TASK_TOKEN_EXPIRED` at its starting token's `exp`, so a task
+  never outlives the authorization that started it (3.2's lifetime cap). Before each batch it rebuilds the reader
+  filter from the current configuration and the stored scopes, and stops with `TASK_SPACE_UNREADABLE` when the
+  space is no longer readable.
+- **Lost tasks.** A dead process (lease not renewed for 10 seconds) means `TASK_LOST`.
+- **Cancel** is cooperative, between batches.
+- **Purge.** Results are purged at TTL with `secure_delete`.
 
 **Guarantees kept:**
-- Digest commands cannot be tasks (2.3), so a forget never leaves memory text in a task result.
-- No CLI-only command can be a task, so the curator is never reached (D90).
-- Confirmation and approval commands are never tasks.
+- Digest, confirm, approval and CLI-only commands are never tasks.
+- A forget never leaves memory text in a task.
+- The curator is never reached.
 
 ### 12.3 Not in the request path
 
-Nothing in this phase calls a model or runs the curator. `tests/hosted_not_request_path.rs` repeats phase 4's point
-7 over the hosted HTTP surface with a verified token holding every scope.
+`first-party/tests/hosted_not_request_path.rs` repeats phase 4's point 7 over the hosted surface, with a token
+holding every scope.
 
 ### 12.4 Telemetry and OpenTelemetry export (D124, question 15)
 
-The prerequisites row puts the Rust telemetry middleware in phase 5 "for usage events and OpenTelemetry export".
-Usage events need no telemetry (12.1).
-
-**Recommended (question 15):** leave OpenTelemetry export, and with it the Rust telemetry middleware, out of phase 5
-while W12's conventions have no tagged release. The journal and usage events keep the record. Export follows the
-first tagged release, in its own specification.
+**Recommended (question 15):** no OpenTelemetry export, and no Rust telemetry middleware, in phase 5. While W12's
+conventions have no tagged release, their attribute names may still change. Consumers who key dashboards, alerts or
+audit queries on them would then silently read wrong or missing data. The journal and usage events keep the record
+meanwhile.
 
 ## 13. Security
 
@@ -1061,42 +1295,48 @@ first tagged release, in its own specification.
 
 | Guarantee | How phase 5 keeps it |
 | --- | --- |
-| **Forget** (D73, D82, D103) | Digest commands cannot be tasks. Usage events hold no content. The person page stores only the preview's hash, never its text. Nonce, limit and task stores hold no memory text. Erase uses forget's path, and host-run redaction (8.5) reaches more drafts, never fewer |
-| **Access filtering** (D53, D68) | Becomes a boundary in `oauth` and `gateway`. Scopes only narrow (5.3). Statistics, cursors and revisions stop showing hidden counts (9). The library embedder stays trusted, as D14 says |
-| **Host-owned authority** (D71, D86) | `person` authority and `humanPresent` come only from the CLI's terminal check or a host-verified person-page decision. No token claim, gateway or plugin sets them (2.1, 4.4). `transcript` stays CLI or embedder only |
-| **Attestation and verification** (D91) | Unchanged: the pipeline table, random step traces and the knowledge plugin's verification. A verified principal changes who the caller is, not what a drafter may claim |
-| **Not in the request path** (principle 4, D90) | No model. The curator stays CLI-only, and tasks refuse CLI-only commands (12.2, 12.3) |
+| **Forget** (D73, D82, D103) | Digest and read commands cannot be tasks. Usage holds no content. Person decisions store ids and a preview hash, never text, and the preview renders from the live store at page time. Nonce, limit and task stores hold no text. Erase uses forget's path, and the erasure sweep reaches more drafts |
+| **Access filtering** (D53, D68) | A boundary in hosted modes. Scopes only narrow. Readability comes before scope. Statistics and positions are per filter. Library callers are treated by their actor (4.7). Equivalents never widen: they map a legacy string to the one person it was |
+| **Host-owned authority** (D71, D86) | `person` and `humanPresent` come only from the CLI's check or a host-verified decision. No token claim, gateway or form answer sets them |
+| **Attestation and verification** (D91) | Unchanged; `host_task` is a second host-only mark, like the pipeline table |
+| **Not in the request path** | No model; the curator is CLI only and never a task |
 
 ### 13.2 Threats
 
 | Threat | Control | Test |
 | --- | --- | --- |
-| A token for another resource replayed here | Exact single audience; multi-audience refused (3.2, rule 5) | `afd` `tests/auth_verifier.rs`; `tests/auth_tokens.rs` |
-| Algorithm confusion, or a key named by the token | Allow-list; `none` and HMAC always refused; `jku`, `x5u` and `jwk` refused | `auth_verifier.rs` |
-| A token in a URL or a log | Query-string tokens refused; the raw token dropped at the layer; `Debug` redacted; a canary token never in logs, journal, usage or tasks | `tests/auth_tokens.rs`, `tests/token_canary.rs` |
-| Token passthrough to mounts or upstreams | No token on the context; mounts keep the deployer's credential only (D43) | `tests/plugin_mounted.rs` (extended) |
-| Stolen bearer token | Short lifetime cap; optional mTLS binding (RFC 8705); limits per token | `auth_tokens.rs`, `tests/limits.rs` |
-| Forged identity header, or a misordered layer | No header read; the hook fails closed without verified extensions | `tests/auth_layers.rs` |
-| A compromised or misconfigured gateway | Pinned channel plus signed per-request assertion, `jti` once, `htm` and `htu`, scope ceiling, no presence (4.4) | `tests/gateway_mode.rs` |
-| Scope escalation through meta-tools, batch or pipe | Every step checked before the first runs (5.2) | `tests/scope_gate.rs` |
-| A scope widening access | Scopes only narrow the reader filter (5.3) | `scope_gate.rs`, `first-party/tests/hosted_leaks.rs` |
-| One actor replaying another's confirmation (#532) | Actor and credentials in the binding | AFD `tests/server_confirmations.rs`; `tests/confirm_binding.rs` |
-| Approval or decision replay across instances | Shared atomic nonce store (10.2) | `tests/shared_nonces.rs` (two processes) |
-| An agent answering an approval itself | Form answers never count; URL mode plus a fresh IdP login bound to `sub` (7) | `tests/person_page.rs`, `knowledge/tests/relay.rs` |
-| Person-page phishing (another person opens the link) | `sub` must match the decision's (7.2, step 3) | `person_page.rs` |
-| CSRF, open redirect or session fixation on the page | Sealed `state`, a `__Host-` cookie, PKCE, `nonce`, a CSRF token, a fixed redirect URI, no content script | `person_page.rs` |
-| SSRF through issuer metadata or JWKS | Only configured issuers; HTTPS; no redirects; size and time caps | `tests/auth_keys.rs` |
-| JWKS refresh used for denial of service | One refetch per minute per issuer on unknown `kid` | `auth_keys.rs` |
-| Hidden counts | Per-filter statistics, opaque cursors and revisions, readable totals (9) | `partitioned_stats.rs`, `tests/cursor_v1.rs`, `hosted_leaks.rs` |
-| Guessed task id, or another's task read | 128-bit ids; owner check answers as unknown | `tests/tasks.rs` |
-| Usage records as surveillance | Content-free; own records only unless `usage.readers` (12.1) | `tests/usage.rs` |
-| Abusive caller | Per-token and per-principal limits | `limits.rs` |
-| Self-serving erasure | Verified eraser, `erasers` list, dry-run plan, notice to the erased principal (8.4) | `memory/tests/erase.rs` |
-| DNS rebinding | Host and origin allow-lists stay in front (6.3) | `tests/protocol_http.rs` (existing) |
-| Plain HTTP across a network | Non-loopback needs TLS (2.2) | `tests/config_v5.rs` |
+| A token for another resource | Exactly one audience (3.2, rule 7) | AFD `auth_verifier.rs`; `auth_tokens.rs` |
+| Algorithm or key confusion | Allow-list; `none` and HMAC refused; JWK bound to the header; `crit`, `jku`, `x5u`, `x5c` and `jwk` refused | `auth_verifier.rs` |
+| Library defaults weaker than the rules | Every check explicit, one test per rule | `auth_verifier.rs` |
+| An opaque token sent to the wrong issuer | One introspection issuer; JWS routed by `iss` only | `auth_tokens.rs` |
+| A token in a URL or log | Refused in the query; dropped at the layer; canary never in logs, journal, usage or tasks | `auth_tokens.rs`, `token_canary.rs` |
+| Passthrough to mounts | No token on the context (D43) | `plugin_mounted.rs` (extended) |
+| A stolen bearer token | Lifetime cap; optional mTLS binding; limits | `auth_tokens.rs`, `limits.rs` |
+| A forged identity header, or a missing layer | No header read; the hook fails closed | `auth_layers.rs` |
+| A compromised gateway | Pinned `ca` channel plus a signed, single-use, URL-bound assertion; a scope ceiling; no person | `gateway_mode.rs` |
+| Identity split: self-approval or orphaned records | Mandatory join; equivalents everywhere (4.6) | `principal_v1.rs`, `knowledge/tests/relay.rs` |
+| Pairwise or mismatched subjects | Namespaces, a subject claim, `auth.subjects` | `principal_v1.rs`, `doctor_auth.rs` |
+| Space existence oracle | One answer; readability before scope (5.4) | `hosted_leaks.rs` |
+| Scope escalation through batch or pipe | Every step resolved before dispatch | `scope_gate.rs` |
+| Confirmation replay across actors (#532) | Actor and credentials bound | AFD `server_confirmations.rs`; `confirm_binding.rs` |
+| An agent answering for a person | Host-verified mode: no form, no `confirm: true`; a URL login bound to `for` | `person_page.rs`, `relay.rs` |
+| **Browser automation with saved credentials** passing `prompt=login` | `acr_values` naming a class that needs user verification (the doctor warns when empty); `max_age`; one decision per login. **Not defended without an `acr`:** an agent driving the person's own browser with stored credentials | `doctor_auth.rs`, `person_page.rs` |
+| Clickjacking the decision | `frame-ancestors 'none'`, `X-Frame-Options: DENY` | `person_page.rs` |
+| Phishing (another person opens the link) | `for.subject` and namespace matched | `person_page.rs` |
+| CSRF, login CSRF, fixation | Server-side PKCE and `nonce`; a MAC on `state`; a `__Host-` cookie; a CSRF token; `response_mode=query` | `person_page.rs` |
+| Decision or evidence replay across instances | Shared atomic nonce store | `shared_nonces.rs` |
+| SSRF through issuer metadata | Only configured issuers; HTTPS; no redirects; caps | `auth_keys.rs` |
+| JWKS refresh used to deny service | One refetch per minute per issuer; the IP limit first | `auth_keys.rs`, `limits.rs` |
+| Hidden counts | Per-filter statistics, readable positions, deterministic seals | `partitioned_stats.rs`, `cursor_v1.rs`, `hosted_leaks.rs` |
+| A task outliving its token, or keeping content | Stops at `exp`; readability re-checked; no content results | `tasks.rs` |
+| Guessed task id | 128 bits; owner check | `tasks.rs` |
+| Usage as surveillance | Content-free; own records unless `usage.readers` | `usage.rs` |
+| Self-serving erasure | Verified eraser, plan, a notice to the erased | `memory/tests/erase.rs` |
+| A privileged sweep misused | Host-only command and mark; namespace-bounded; counts only | `host_redaction.rs` |
+| DNS rebinding | Host and origin checks; the person page's own host check | `protocol_http.rs`, `person_page.rs` |
+| Plain HTTP across a network | Non-loopback needs TLS | `config_v5.rs` |
 
-Content trust stays phase 2's (D67): previews on the person page are `trust: "content"`, sanitised, and never put
-into an elicitation `message`.
+Content trust stays D67's: previews are sanitised, labelled content, never put into an elicitation `message`.
 
 ## 14. Exit criterion and tests
 
@@ -1104,236 +1344,268 @@ The exit criterion is met when `umbel.yml` is green on `main` with every test be
 `first-party/tests/exit_hosted.rs` passes in it.
 
 **Setup:**
-- `umbel-testkit-idp` on 127.0.0.1 with a test CA. It provides OIDC and RFC 8414 metadata, a JWKS, authorization
-  code with PKCE and a scripted login (synthetic users `ada`, `bo` and `cy`, with test-only passwords), RFC 8693
-  exchange to an ID-JAG, RFC 7523 grant, `client_credentials`, introspection, and `groups` claims.
-- **Two** `umbel-first-party serve --http` processes, each bound to 127.0.0.1 with `[http.tls]` from the test CA
-  and `auth.mode = "oauth"`, on one workspace, behind `first-party/tests/support/balancer.rs`, a TCP round-robin
-  forwarder.
-- `http.public_url = "https://umbel.test:<port>/mcp"`, with `umbel.test` resolved by the test client only.
-- Spaces `alpha` and `beta`. Documents readable by `principal:human:idp/ada`, `principal:human:idp/bo`,
-  `group:eng` (claim-derived for ada and cy), and `space`.
+- `umbel-testkit-idp` on 127.0.0.1 with a test CA, playing three roles:
+  - identity provider `idp`: OIDC with public subjects, a scripted login for synthetic users `ada`, `bo` and `cy`
+    with test-only passwords, an `acr` class, and `groups` claims;
+  - resource authorization server `as`: RFC 8414 metadata, a JWKS, authorization code with PKCE, RFC 7523
+    grants from ID-JAGs, introspection and client credentials;
+  - a gateway signer.
+- **Two** `umbel-first-party serve --http` processes, bound to 127.0.0.1 with `[http.tls]` and `auth.mode =
+  "oauth"`, on one workspace, behind `first-party/tests/support/balancer.rs` (TCP round-robin).
+- One namespace `idp` holding both issuers, with the person login at `idp`, `acr_values` set, and `local_id =
+  "idp/ada"`.
+- Spaces `alpha` and `beta`. Documents readable by `principal:human:idp/ada`, by `principal:human:idp/bo`, by
+  `group:eng` (claim-derived for ada and cy), and by `space`.
 
 It asserts:
 
-1. **Discovery.** No token: 401 with `resource_metadata`. Both RFC 9728 URIs serve the same document, whose
-   `resource` is the public URL and whose `authorization_servers` is the fixture's.
+1. **Discovery.** No token: 401 with `resource_metadata`. Both RFC 9728 URIs serve the same document.
 2. **Results filtered for their users** (the exit criterion).
-   - `ada` (authorization code), `bo` (authorization code) and `cy` (enterprise-managed: ID token, ID-JAG, access
-     token) each call `knowledge-search` and `knowledge-open` over MCP and see exactly their sets.
-   - `bo`'s answers are byte-identical, scores and opaque cursors included, to the same calls against a workspace
-     without ada's documents (9.1).
-   - Hidden ids, counts and titles are absent from every answer.
-3. **Audience and token rules.** A token for another resource, with two audiences, expired, signed `HS256` with
-   the public key, `alg: none`, with an unknown issuer, or sent in the query: each is 401, and nothing runs.
-4. **Scopes.**
-   - A token with `umbel:read:alpha` only: a search in `beta` is `SPACE_NOT_READABLE`; a mutation is
-     `INSUFFICIENT_SCOPE` naming `umbel:write:alpha`.
-   - An `afd-batch` mixing spaces names every missing scope in one refusal.
-   - `tools/list` is filtered and private.
-   - An agent token for ada narrowed to `alpha` cannot read ada's `beta` documents.
+   - ada and bo (authorization code at `as`) and cy (enterprise-managed: ID token at `idp`, ID-JAG, access token
+     at `as`) each call `knowledge-search` and `knowledge-open` and see exactly their sets.
+   - **bo's answers are byte-identical, scores and sealed positions included, before and after ada's hidden
+     documents are written and indexed in the same workspace.**
+   - No hidden id, count or title appears.
+3. **Token rules.** Another resource, two audiences, expired, no `iat`, no `jti`, `HS256` with the public key,
+   `alg: none`, unknown issuer, a `crit` header, a token in the query: each is 401, and nothing runs.
+4. **Scopes and spaces.**
+   - `umbel:read:alpha` alone: a mutation in `alpha` is a 403 naming `umbel:write:alpha`.
+   - A call in `beta`, which ada can read, is `SPACE_NOT_READABLE`, byte-identical to a call in an undeclared space.
+   - A mixed `afd-batch` is one 403 naming every missing scope.
+   - `tools/list` is filtered.
 5. **Approval over MCP.**
-   - `bo`'s agent proposes in an area with `approve_over_mcp`.
-   - `ada`'s client calls `knowledge-approve` and receives a URL-mode elicitation.
-   - The scripted browser opens it, logs in as ada with `prompt=login`, sees the preview with the diff, and
-     approves.
-   - The retry, routed to the *other* process, applies the proposal. Its record is version 3 with
-     `decision.channel = "mcp-elicitation"` and `decision.assurance.level = "verified"`.
-   - Each of these is refused: replaying the retry; a form-mode answer; `bo` opening ada's link; ada's token
-     without the page; a confirmation `requestState` issued to ada and presented by bo.
+   - bo's agent proposes in an `approve_over_mcp` area.
+   - ada's client calls `knowledge-approve`, receives a **URL-mode** elicitation and no form, and retries while
+     pending, getting `input_required` again.
+   - The scripted browser logs in as ada with the `acr`, sees the preview, and approves.
+   - The retry, through the other process, applies the proposal (version 3, `mcp-elicitation`, `verified`).
+   - **cy, the enterprise-managed user, completes a `memory-confirm` decision the same way**, matched across `as`
+     and `idp` in one namespace.
+   - Each of these is refused: replaying the retry; a form answer; `confirm: true`; bo opening ada's link; ada's
+     decision retried by another client of hers; ada's token without the page; ada's confirmation `requestState`
+     presented by bo.
+   - At the CLI, `idp/ada` approves at a terminal (`terminal` assurance), and self-approval is detected for a draft
+     of `human:ada`'s legacy memory, through `principal.equivalents`.
 6. **Tasks.**
    - `knowledge-refresh` as a task, polled through the balancer, completes.
-   - `bo`'s `tasks/get` of ada's task answers as unknown.
-   - Killing the running process makes the task `failed` with `TASK_LOST`.
-7. **Usage.** Every call above has one usage event with its principal and bytes. `bo`'s `usage-list` returns only
-   his own.
-8. **Gateway mode.** A second workspace in `gateway` mode behind `testkit-idp`'s gateway signer with a pinned client
-   certificate. These are accepted: a valid assertion, and the results filtered as in point 2. These are refused:
-   no certificate; no assertion; a replayed `jti`; an assertion for another URL; a plain `X-User` header. An
-   assertion claiming `humanPresent` gives no person.
-9. **Forget still holds.** Ada's memory record is written and forgotten over MCP. Its canaries are absent from the
-   task store, the usage stream, `nonces.sqlite3`, `person.sqlite3` and every file of the workspace.
-10. **Unchanged locally.** stdio and the CLI behave as phase 4's exit tests assert, which re-run unchanged.
+   - bo's `tasks/get` of ada's task answers as unknown.
+   - Killing the running process gives `TASK_LOST`.
+   - A task whose token expires gives `TASK_TOKEN_EXPIRED`.
+7. **Usage.** Each call and poll has one usage event, and bo's `usage-list` shows only his.
+8. **Gateway mode.** A second workspace in `gateway` mode, with a pinned certificate.
+   - Accepted: a valid assertion, with results filtered as in point 2.
+   - Refused: no certificate; no assertion; a replayed `jti`; a wrong `htu`; an `X-User` header.
+   - An assertion claiming presence gives no person.
+9. **Forget still holds.** Ada's memory record is confirmed through the person page, then forgotten over MCP. Its
+   canaries are absent from `person.sqlite3`, the task store, usage, `nonces.sqlite3` and every file of the
+   workspace.
+10. **Unchanged locally.** stdio and the CLI pass phase 4's exit tests unchanged. A stored version 0 cursor still
+    works for a stdio consumer.
 
 | Test file | Crate | Covers |
 | --- | --- | --- |
-| `tests/server_auth.rs`, `tests/auth_verifier.rs` | `afd` | 3.2's rules one by one; metadata routes; challenges; credentials on the context; no token on the context |
-| `tests/server_confirmations.rs` (extended) | `afd` | #532 in every era |
-| `tests/server_approval_relay.rs` | `afd` | Form mode per spec; host-verified mode; nonces; declined |
-| `tests/server_tasks.rs` | `afd` | Negotiation, `-32021`, store durability, owner checks |
-| `tests/schemas.rs` (extended) | host | Section 2's shapes and examples; version 0 principal and cursor still read |
-| `tests/config_v5.rs` | host | 2.2's rules; versions 1 to 4 read as 5 with `none` |
-| `tests/manifest_v5.rs` | host | `task` and `person` rules |
-| `tests/auth_layers.rs` | host | 6.3's order; fail closed |
-| `tests/auth_tokens.rs`, `tests/token_canary.rs`, `tests/auth_keys.rs` | host | 3.2, 3.3 through the host |
-| `tests/principal_v1.rs` | host | 4.1 mapping, hashing of long ids, `act` chains, groups from claims |
-| `tests/scope_gate.rs` | host | 5.2, 5.3 |
-| `tests/gateway_mode.rs` | host | 4.4 |
-| `tests/person_page.rs` | host | 7.2, every rule |
+| `tests/server_auth.rs`, `tests/auth_verifier.rs` | `afd` | 3.2 rule by rule; metadata; the resolver's 403 and list filtering; no token on the context |
+| `tests/server_confirmations.rs` (extended) | `afd` | #532; the host-verified mode never sends a form, never accepts `confirm: true` |
+| `tests/server_human_relay.rs` | `afd` | Begin, pending, approved, declined; relay evidence accepted once by the approval middleware, tokens still off |
+| `tests/server_tasks.rs` | `afd` | Negotiation, `-32021`, durability, owner checks |
+| `tests/schemas.rs` (extended) | host | Section 2; version 0 shapes still read |
+| `tests/config_v5.rs`, `tests/manifest_v5.rs` | host | 2.2, 2.3 (`person` per surface, MCP exposure only with `mcp`, the preview `keep` rule) |
+| `tests/auth_layers.rs`, `tests/auth_tokens.rs`, `tests/token_canary.rs`, `tests/auth_keys.rs` | host | 6.3; 3.2 and 3.3 through the host |
+| `tests/principal_v1.rs` | host | 4.1 (namespaces, subject claims, services, the `~` form), `act` from an `act` issuer kept and from a non-`act` issuer ignored, groups from claims, 4.6's equivalents |
+| `tests/doctor_auth.rs` | host | Every `auth.*` check of 6.1 |
+| `tests/auth_show.rs` | host | 10.3: own projection only |
+| `tests/scope_gate.rs`, `tests/space_visibility.rs` | host | 5.2 to 5.4, built-ins included |
+| `tests/gateway_mode.rs` | host | 4.4, the meet included |
+| `tests/person_page.rs` | host | 7.2: every rule, binding to every field of `for` (a different client of the same person refused), headers, the preview rendered at page time and not stored |
+| `tests/confirm_binding.rs` | host | #532 through Umbel |
 | `tests/shared_nonces.rs`, `tests/tasks.rs`, `tests/limits.rs`, `tests/usage.rs` | host | 10.2, 12.2, 11, 12.1, with two processes where shared |
-| `tests/cursor_v1.rs` | host | 9.3 |
-| `tests/space_visibility.rs` | host | 9.4 |
-| `tests/host_redaction.rs` | host | 8.5 |
+| `tests/cursor_v1.rs` | host | 9.3: readable heads, deterministic equality, version 0 for `process` |
+| `tests/host_redaction.rs` | host | 8.5: outbox durability across a crash, host-only reach, counts only |
 | `tests/no_auth_server.rs` | host | Section 1 |
-| `store-embedded/tests/partitioned_stats.rs` | embedded | 9.1 differential; 9.2 order independent of other records |
-| `plugins/knowledge/tests/relay.rs` | knowledge | 7.3; proposal version 3 |
-| `plugins/knowledge/tests/eval_gate.rs` (existing) | knowledge | The baseline holds under per-filter statistics |
+| `store-embedded/tests/partitioned_stats.rs` | embedded | 9.1 and 9.2 differentials; exact counts; `MEMORY_QUERY_TOO_BROAD` |
+| `store/tests/memory_tokenizer.rs` | store | 9.2's tokenizer against FTS5's tokens |
+| `plugins/knowledge/tests/relay.rs` | knowledge | 7.3; proposal version 3; self-approval through equivalents |
+| `plugins/knowledge/tests/eval_gate.rs` (existing) | knowledge | Passes within tolerance under 9.1 |
 | `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` | memory | 8.4, 8.3, 8.1 |
-| `first-party/tests/hosted_leaks.rs` | first-party | Differential probes over HTTP for every read command, as `curator_leaks.rs` |
+| `first-party/tests/hosted_leaks.rs` | first-party | Differential probes over HTTP for every read command, the space oracle both ways |
 | `first-party/tests/hosted_not_request_path.rs` | first-party | 12.3 |
 | `first-party/tests/exit_hosted.rs` | first-party | The exit criterion |
 
-**CI.** `umbel.yml` gains a `hosted` job: Linux, the `first-party` crate and the host's auth tests, which need no
-external service or credential. `scripts/affected/suites.mjs` gains its local entry (the AGENTS.md rule for a new
-job). AFD's step 0 tests run in `rust.yml` and the language workflows.
+**CI.** `umbel.yml` gains a `hosted` job (Linux; no external service or credential) and `scripts/affected/suites.mjs`
+its local entry. AFD's step 0 tests run in `rust.yml` and the language workflows.
 
 ## 15. Out of scope, and the seams reserved
 
 | Out of scope | When | Seam |
 | --- | --- | --- |
-| Several machines behind one URL | Phase 6 (shared backends) | The `src/shared/` traits (10.2) |
-| DPoP, workload identity enforcement | When SEP-1932 and SEP-1933 are final (D19, W5) | `tokenBinding.kind = "dpop"` reserved; `cnf.jkt` refused rather than ignored |
-| Umbel as an authorization server | Never (A7) | `tests/no_auth_server.rs` |
-| Outbound per-caller credentials for mounts | Question 12; recommended for the federation specification with O1 | `bearer_env` under host secrets; D43 unchanged |
-| OpenTelemetry export, the Rust telemetry middleware | Question 15; after W12's first tagged release | Usage events and the journal |
+| Several machines behind one URL | Phase 6 | `src/shared/` traits |
+| DPoP, workload identity | When SEP-1932 and SEP-1933 are final (D19) | `dpop` reserved; `cnf.jkt` refused |
+| Umbel as an authorization server | Never (A7) | `no_auth_server.rs` |
+| Outbound per-caller credentials | Question 12 | D43 unchanged |
+| OpenTelemetry export | Question 15 | Journal and usage |
 | Multi-tenant deployments | Question 14 | `tenant` reserved |
-| A plugin `secrets` grant, `http` grant | The first plugin that needs them | Named and refused (D42) |
-| CORS for browser clients | Loam's U1, a separate decision | `allowed_origins` |
-| Server cards, registry entry | Phase 7 | Protected-resource metadata is the only public document |
-| Push of usage or events over webhooks | W2 | Their streams |
-| Documents as MCP resources (`kb://`) | After this phase, now that listings can be filtered | URI scheme reserved |
+| Plugin `secrets` and `http` grants | The first plugin that needs them | Named and refused (D42) |
+| CORS for browser clients | Loam's U1 | `allowed_origins` |
+| Server cards, registry entry | Phase 7 | Metadata is the only public document |
+| Documents as MCP resources (`kb://`) | After this phase | URI scheme reserved |
 
 ## 16. Implementation plan
 
-Each step is one pull request, green on the repository's checks and `umbel.yml`, and updates
-[STATUS.md](../../STATUS.md) and this file. A step that finds a design decision stops and amends this document. Steps
-changing host code carry the `Plugin-isolation-exempt:` line. Steps 6, 10 and 11 depend on the owner's answers to
-questions 7 to 11.
+Each step is one pull request, green on the repository's checks and `umbel.yml`, and updates STATUS.md and this file.
+A step that finds a design decision stops and amends this document. Steps changing host code carry the
+`Plugin-isolation-exempt:` line. Steps 6, 10 and 11 depend on the answers to questions 7 to 11.
 
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
-| 0a | AFD spec | `spec/command-metadata.md` (`scopes`, `task`, the relay's host-verified mode), `spec/error-codes.md` (`INSUFFICIENT_SCOPE`), a new `spec/authorization.md` (`credentials`, the HTTP behaviour, test vectors), #532's binding; the MCP Authorization and Tasks proposals moved to active | Spec vectors | M |
-| 0b | AFD Rust auth | `server-auth`: `TokenVerifier`, `JwtVerifier`, `KeySource`, `ProtectedResource`, `BearerLayer`, `credentials`, `scopes`, the `Mcp-Name` 403, list filtering | `server_auth.rs`, `auth_verifier.rs` | L |
-| 0c | AFD #532 | Actor and credentials in confirmation state, TypeScript, Python and Rust | Each language's confirmation suite | M |
-| 0d | AFD Rust relay | Form-mode relay per spec; `ApprovalRelay` host-verified mode; nonce store use; parity row | `server_approval_relay.rs` | L |
-| 0e | AFD Rust tasks | `TaskStore`, `tasks/*` handlers on rmcp's model types, `task` field, owner checks | `server_tasks.rs` | L |
-| 1 | Umbel shapes | Section 2's schemas and examples; configuration version 5 parsing and its rules; manifest version 5 parsing; version constants | `schemas.rs`, `config_v5.rs`, `manifest_v5.rs` | M |
-| 2 | Host: auth and principal | TLS listener; the layers of 6.3; metadata; issuers and `KeySource`; principal version 1 and 4.1 to 4.3; groups from claims; `auth-show`; doctor checks; `workspace-show` | `auth_layers.rs`, `auth_tokens.rs`, `token_canary.rs`, `auth_keys.rs`, `principal_v1.rs`, `no_auth_server.rs` | L |
-| 3 | Host: scopes, shared state, limits | Scope gate; list filtering; `src/shared/` stores; nonce store wired into approvals; limits; space visibility | `scope_gate.rs`, `shared_nonces.rs`, `limits.rs`, `space_visibility.rs` | L |
+| 0a | AFD spec | `spec/command-metadata.md` (`scopes` with the resolver, `task`, `confirmationMode: "host-verified"`, relay evidence), `spec/error-codes.md`, a new `spec/authorization.md` (`credentials`, the HTTP behaviour, 403 through the resolver, test vectors), #532's binding; the MCP Authorization and Tasks proposals made active | Spec vectors | M |
+| 0b | AFD Rust auth | `server-auth`: `TokenVerifier`, `JwtVerifier`, `KeySource`, `ScopeResolver`, `ProtectedResource`, `BearerLayer`, `credentials`, `scopes` | `server_auth.rs`, `auth_verifier.rs` | L |
+| 0c | AFD #532 | Actor and credentials in confirmation state in TypeScript, Python and Rust; **needs 0b** | Each language's confirmation suite | M |
+| 0d | AFD Rust relay | The host-verified mode in the gate; `HumanRelay`; relay evidence in the approval middleware; the form-mode relay; parity row | `server_confirmations.rs`, `server_human_relay.rs` | L |
+| 0e | AFD Rust tasks | `TaskStore`, the `tasks/*` handlers, `task` | `server_tasks.rs` | L |
+| 1 | Umbel shapes | Section 2's schemas and examples; configuration and manifest version 5 parsing with their rules; constants | `schemas.rs`, `config_v5.rs`, `manifest_v5.rs` | M |
+| 1b | Test identity provider | `umbel-testkit-idp`: identity provider, authorization server, ID-JAG, introspection, gateway signer, test CA | Its own suite | M |
+| 2a | Host: listener and layers | TLS and `client_auth`; 6.3's order; metadata; the IP limit; the context hook version 1 skeleton | `auth_layers.rs`, `no_auth_server.rs` | M |
+| 2b | Host: verification and principal | `KeySource`; the verifier wiring; namespaces, mapping, services, `act`, claim groups; 4.6's join and equivalents | `auth_tokens.rs`, `token_canary.rs`, `auth_keys.rs`, `principal_v1.rs` | L |
+| 2c | Host: doctor and introspection | 6.1's checks; `auth-show`; `workspace-show` | `doctor_auth.rs`, `auth_show.rs` | M |
+| 3 | Host: scopes, access, shared state, limits | The resolver and scope gate; 5.4 (one answer, `Caller` in `reader_filter`); `src/shared/`; the nonce store in approvals; limits | `scope_gate.rs`, `space_visibility.rs`, `shared_nonces.rs`, `limits.rs`, `confirm_binding.rs` | L |
 | 4 | Host: gateway mode | 4.4 | `gateway_mode.rs` | M |
-| 5 | Host: person page | 7.1, 7.2; manifest `person`; the CLI's URL flow; `humanPresent`; envelope version 3's `assurance` | `person_page.rs` | L |
-| 6 | Knowledge: relay | `approve_over_mcp`; host-verified relay on approve and reject; proposal version 3 | `relay.rs` | M |
-| 7 | Stores: exact filtering | 9.1 to 9.3; cursor version 1, locator version 2; readable totals; eval re-run | `partitioned_stats.rs`, `cursor_v1.rs`, `eval_gate.rs` | L |
-| 8 | Tasks | Task store, manifest `task`, the three commands | `tasks.rs` | M |
-| 9 | Usage | 12.1; `usage-list` | `usage.rs` | M |
-| 10 | Memory | `memory-erase` (8.4), `editors` (8.3), `memory-preview` and `memory-confirm` over MCP (8.1) | `erase.rs`, `editors.rs`, `confirm_preview.rs` | M |
-| 11 | Host-run redaction | 8.5 | `host_redaction.rs` | M |
-| 12 | Exit | `umbel-testkit-idp`, the balancer, `hosted_leaks.rs`, `hosted_not_request_path.rs`, `exit_hosted.rs`; the `hosted` job and its `suites.mjs` entry; STATUS.md marks phase 5 done | The three | L |
+| 5 | Host: person page | 7.1, 7.2, 7.5; manifest `person`; `HumanRelay`; the CLI's URL flow; envelope version 3's `assurance` | `person_page.rs` | L |
+| 6 | Knowledge: relay | `approve_over_mcp`; proposal version 3 | `relay.rs` | M |
+| 7 | Stores: exact filtering | 9.1 to 9.3; the memory tokenizer; cursor version 1, locator version 2; eval re-run | `partitioned_stats.rs`, `memory_tokenizer.rs`, `cursor_v1.rs`, `eval_gate.rs` | L |
+| 8 | Tasks | 12.2 | `tasks.rs` | M |
+| 9 | Usage | 12.1 | `usage.rs` | M |
+| 10 | Memory | 8.1, 8.3, 8.4 | `erase.rs`, `editors.rs`, `confirm_preview.rs` | M |
+| 11 | Erasure sweep | 8.5 | `host_redaction.rs` | M |
+| 12 | Exit | The balancer, `hosted_leaks.rs`, `hosted_not_request_path.rs`, `exit_hosted.rs`; the `hosted` job and its `suites.mjs` entry; STATUS.md marks phase 5 done | The three | L |
 
-**Order.** 0a first. 0b, 0c, 0d and 0e need 0a and may run in parallel. Step 1 needs 0a. Step 2 needs 0b and 1.
-Step 3 needs 2. Step 4 needs 3. Step 5 needs 3 and 0d. Step 6 needs 5. Step 7 needs 1 and may run beside 2 to 6.
-Step 8 needs 0e and 3. Steps 9, 10 and 11 need 3, and step 10 also needs 5. Step 12 needs all.
+**Order:**
+- 0a first. 0b, 0d and 0e need 0a; 0c needs 0b.
+- 1 needs 0a. 1b needs nothing and may run beside 0a.
+- 2a needs 0b, 1 and 1b. 2b needs 2a. 2c needs 2b.
+- 3 needs 2b. 4 needs 3. 5 needs 3, 0c and 0d. 6 needs 5.
+- 7 needs 1 and may run beside 2a to 6.
+- 8 needs 0e and 3. 9 and 11 need 3. 10 needs 5.
+- 12 needs all.
 
-**Build cost.** Two dependency families: `jsonwebtoken` (with `aws-lc-rs`, already in the lock) and `rcgen` (dev
-only). `aws-lc-rs` is a C build; share `CARGO_TARGET_DIR`, use `-p <crate>` and `-j4`, and build only under load 20.
+**Build cost.** Two dependency families: `jsonwebtoken` with `aws-lc-rs` (already in the lock, a C build) and
+`rcgen` (dev). Share `CARGO_TARGET_DIR`, use `-p <crate>` and `-j4`, and build only under load 20.
 
 ## 17. For the owner
 
-These are the trust-model and scope decisions. Each has a recommendation, the alternatives, and what it changes.
-**None is decided.** The decision each becomes is pending in the log.
+These are the trust-model and scope decisions, with recommendations and alternatives. **None is decided.** The
+decision each becomes is pending in the log.
 
-1. **Who a verified caller is** (D110; 4.1). *Recommended:* the person is `human:<issuer alias>/<sub>`, the client
-   `agent:<alias>/<client_id>` acting for them, and a client-credentials token `service:<alias>/<client_id>`. Ids
-   come from immutable subject identifiers only, and long ids are hashed. *Alternatives:* (a) a configured claim
-   such as `email` or `preferred_username` as the id, which is readable but mutable and reassignable, so a new
-   holder of an address would inherit someone's records; (b) an explicit deployer table from `iss`/`sub` to
-   principal, refusing unmapped subjects, so no one reaches Umbel until listed.
-2. **What an agent reads for its person** (D111; 4.3). *Recommended:* the person's reader filter, narrowed to the
-   spaces the token's scopes grant. The `act` chain is recorded when the issuer is configured to emit it.
-   *Alternatives:* (a) the person's whole filter, as today, with scopes gating commands only; (b) an agent never
-   reads its person's private records (`principal:` token) unless the token holds a new `umbel:private` scope,
-   which is stricter but breaks private-by-default memory recall for every agent that lacks it.
-3. **Scope mapping, including per-space scopes** (D112; 5). *Recommended:* the verbs `read`, `write`, `approve` and
-   `erase`, each optionally narrowed to one space, derived from effects and gates, never declared by plugins.
-   Scopes only narrow access. *Alternatives:* (a) unqualified verbs only, leaving spaces to `readers`; (b)
-   per-command scopes declared in manifests (`umbel:cmd:<name>`), so a plugin author decides what a deployer's
-   authorization server must grant; (c) scopes that also grant space access, making the authorization server, not
-   `umbel.toml`, the source of who reads a space.
+1. **Who a verified caller is** (D110; 4.1). *Recommended:*
+   - People are `human:<namespace>/<subject>`, from a configured, non-pairwise subject claim.
+   - Clients are `agent:<namespace>/<client_id>`, acting for them.
+   - Services are `service:<namespace>/<client_id>`, recognised by `sub == client_id`, a listed client, or a
+     configured claim.
+   - Two issuers in one namespace are the deployer's assertion that their subjects name the same people (needed for
+     enterprise-managed users, whose token comes from another issuer than their login).
+
+   *Alternatives:* (a) a mutable claim such as `email` as the id, so a reassigned address inherits records; (b) an
+   explicit table from issuer and subject to principal, refusing unmapped subjects; (c) one issuer per namespace,
+   so enterprise-managed users can never be proven on the person page.
+2. **What an agent reads for its person** (D111; 4.3). *Recommended:* the person's filter narrowed to the token's
+   granted spaces; the `act` chain recorded from an issuer configured for it. *Alternatives:* (a) the person's whole
+   filter, with scopes gating commands only; (b) agents never read their person's private records without a new
+   `umbel:private` scope, which breaks private-by-default recall for agents without it.
+3. **Scope mapping, including per-space scopes** (D112; 5). *Recommended:* the verbs `read`, `write`, `approve`
+   and `erase`, optionally narrowed to a space, resolved per call from effects, gates and the input's space, with a
+   call needing the union of what applies. Scopes only narrow access, and readability is checked before scope.
+   *Alternatives:* (a) unqualified verbs only; (b) per-command scopes declared in manifests, so plugin authors
+   decide what an authorization server must grant; (c) scopes that also grant space access, making the
+   authorization server the source of who reads a space.
 4. **Groups from token claims** (D113; 4.5). *Recommended:* a group may take members from one issuer's claim with
-   an exact value, unioned with static members and lasting no longer than the token. *Alternatives:* (a) static
-   `members` only; (b) claims replace static members whenever configured.
-5. **What a gateway is trusted for** (D114; 4.4). *Recommended:* identity only. Every request needs a pinned
-   channel (mTLS or loopback) **and** a signed, single-use, request-bound assertion. Scopes are capped by a ceiling,
-   and the gateway can never assert a person. *Alternatives:* (a) trust identity headers from a network-restricted
-   peer, the classic trusted proxy; (b) a pinned channel with plain headers; (c) no gateway mode, so a gateway must
-   forward audience-bound OAuth tokens to `oauth` mode.
-6. **How a person is proven** (D115; 7). *Recommended:* two levels. `terminal` is the operator's CLI, unchanged.
-   `verified` is the person page: URL-mode elicitation (or the CLI printing the URL), a fresh login at the
-   deployer's identity provider with `prompt=login`, `max_age` and optional `acr`, the `sub` matched to the caller,
-   and one decision bound to the call. *Alternatives:* (a) the token's `sub` is the person, with form-mode answers,
-   as D99 first described; this proves a client answered; (b) RFC 9470 step-up: a fresh `auth_time` and `acr` on
-   the access token, with form-mode answers, which proves a recent login but leaves the answer to the client; (c)
-   WebAuthn user verification held by Umbel per decision, which makes Umbel hold passkeys, an identity role it does
-   not have.
+   an exact value, unioned with static members and lasting no longer than the token. **This makes the identity
+   provider a source of membership**, a narrow form of question 3's (c): `umbel.toml` still says which group reads
+   which space. *Alternatives:* (a) static `members` only, keeping visibility wholly in `umbel.toml`; (b) claims
+   replace static members.
+5. **What a gateway is trusted for** (D114; 4.4). *Recommended:* identity only, through a CA-validated, pinned
+   channel (or loopback) **and** a signed, single-use, URL-bound assertion; scopes cut to a ceiling by the scope
+   order; never a person. *Alternatives:* (a) identity headers from a network-restricted peer; (b) a pinned channel
+   with plain headers; (c) no gateway mode, so gateways forward audience-bound OAuth tokens.
+6. **How a person is proven** (D115; 7, 7.5). *Recommended:*
+   - Two levels. `terminal` is the operator's CLI, unchanged. `verified` is the person page: URL-mode elicitation or
+     a CLI-printed URL, a fresh login at the namespace's identity provider (`prompt=login`, `max_age`, an `acr`
+     class needing user verification), every field of `for` matched, and one decision bound to the call.
+   - It rests on reading the MCP rule against using URL mode "to authorize users for themselves" as being about
+     access to the server, not about confirming one decision (7.5).
+   - It does not stop an agent that drives the person's own browser with stored credentials unless the `acr` class
+     demands user verification.
+
+   *Alternatives:* (a) the token's `sub` as the person, with form answers (D99's first reading), which proves a
+   client answered; (b) RFC 9470 step-up claims on the access token with form answers, which proves a recent login
+   but leaves the answer to the client; (c) WebAuthn user verification held by Umbel per decision, which makes Umbel
+   hold passkeys.
 7. **The MCP approval relay** (D116, amends D99; 7.3). *Recommended:* approve and reject only, opted in per area,
-   through the person page only (URL mode), recorded as `mcp-elicitation` with the assurance level. Clients without
-   URL elicitation approve at the CLI. *Alternatives:* (a) AFD's form-mode relay, recording the token's subject;
-   (b) form mode accepted when the token carries fresh step-up claims (question 6 (b)).
-8. **Other person-gated commands over MCP** (D117; 8.1, 8.2). *Recommended:* `memory-confirm` over MCP with
-   `verified` and a text preview, own records only (D88 kept). `curator-promote` stays CLI only and takes the
-   person page there. *Alternatives:* (a) all stay CLI only, so hosted users can never confirm their notes and
-   their default push stays empty; (b) also allow a verified person to confirm another person's record, recorded
-   with both names.
-9. **`memory-erase`** (D118; 8.4). *Recommended:* D85's conditions, with a `verified` eraser in `erasers`, a dry-run
-   plan the erase must match, and a notice in the erased principal's stream. *Alternatives:* (a) a two-person rule,
-   where a second verified eraser approves; (b) the operator's `terminal` level also suffices.
-10. **Changing another person's shared record** (D119; 8.3). *Recommended:* only the record's principal or a person
-    in a new `editors` list, verified over MCP. *Alternatives:* (a) keep today's rule, any sharing writer who can
-    read it; (b) only the record's principal.
-11. **A draft its proposer can no longer read** (D120; 8.5). *Recommended:* close it with a host-run,
-    redaction-only pass under a filter that admits only the instance's own proposals citing the erased ids.
-    *Alternatives:* (a) accept the limit as stated in phase 4; (b) let the knowledge plugin read its own records
-    unfiltered whenever it holds `memory`, which is a general read, not only a redaction.
+   in AFD's host-verified mode so no form is ever sent, through the person page only, recorded as `mcp-elicitation`
+   with the assurance. Clients without URL elicitation approve at the CLI. *Alternatives:* (a) AFD's form-mode
+   relay, recording the token's subject; (b) form answers accepted with fresh step-up claims.
+8. **Other person-gated commands** (D117; 8.1, 8.2). *Recommended:* `memory-confirm` over MCP at `verified` with a
+   text preview, own records only (D88 kept). `curator-promote` and `memory-remember`'s prompt stay CLI only at
+   `terminal`. *Alternatives:* (a) all stay CLI only, so hosted users never confirm their notes and their push
+   stays empty; (b) a verified person may confirm another's record, recorded with both names.
+9. **`memory-erase`** (D118; 8.4). *Recommended:* blind as D85 says (the target's records by owner, never the
+   eraser's filter), a `verified` eraser in `erasers`, a dry-run plan the erase must match, counts only, and a
+   notice in the erased principal's stream; unavailable in mode `none`. *Alternatives:* (a) a two-person rule; (b)
+   the operator's `terminal` level suffices, so local workspaces can erase.
+10. **Changing another person's shared record** (D119; 8.3). *Recommended:* only the record's principal, or a
+    person in a new `editors` list, verified over MCP, whatever `agents_may_share` says. *Alternatives:* (a) today's
+    rule, any sharing writer who can read it, including agents when `agents_may_share` is true; (b) only the
+    record's principal.
+11. **A draft its proposer can no longer read** (D120; 8.5), **amending D101.** *Recommended:* a host-run,
+    redaction-only sweep with a durable trigger in the forget's transaction, a host-only command and mark, and a
+    filter bounded to the instance's own proposals, returning counts. *Alternatives:* (a) accept the limit as phase 4
+    stated it, keeping D101 whole; (b) let the knowledge plugin read its own records unfiltered whenever it holds
+    `memory`, which is a general read.
 12. **Credentials toward mounted servers, and enterprise-managed authorization on connections** (D121; 3.4).
-    *Recommended:* inbound enterprise-managed authorization is accepted with no special path. Outbound stays as D43
-    (the deployer's credential, never the caller's), and per-caller token exchange for mounts is decided in the
-    federation specification with O1, because it makes Umbel an OAuth client acting as each user and changes D43.
-    *Alternatives:* (a) per-caller RFC 8693 or ID-JAG exchange for HTTP mounts in phase 5, so mounted servers filter
-    by the user; (b) URL-mode third-party authorization per user, with Umbel storing each user's upstream tokens.
-13. **Usage events** (D122; 12.1). *Recommended:* a content-free stream of its own. Each caller sees their own;
-    `usage.readers` (default none) and operators see all. *Alternatives:* (a) usage in each space's event stream
-    under the caller's access; (b) operators only, with callers unable to see their own.
-14. **Tenancy, O5** (D123; 6.4). *Recommended:* single-tenant per deployment, closing O5; separate organisations
-    run separate deployments, and `tenant` stays reserved. *Alternatives:* (a) a tenant per issuer inside one
-    deployment, with spaces and keys per tenant; (b) leave O5 open.
-15. **Telemetry export** (D124; 12.4). *Recommended:* no OpenTelemetry export, and no Rust telemetry middleware, in
-    phase 5, until W12 has a tagged release. *Alternative:* build both now against the development conventions and
-    absorb attribute churn.
+    *Recommended:* inbound accepted with no special path; outbound stays D43; per-caller exchange for mounts is
+    decided with O1, because it makes Umbel act as each user downstream. *Alternatives:* (a) per-caller RFC 8693 or
+    ID-JAG exchange for HTTP mounts now, so mounted servers filter by user; (b) URL-mode third-party authorization
+    per user, with Umbel holding each user's upstream tokens.
+13. **Usage events** (D122; 12.1). *Recommended:* a content-free stream counting every request, polls and lists
+    included; callers see their own, `usage.readers` (default none) and the operator all. *Alternatives:* (a) usage
+    in each space's stream under the caller's access; (b) operator only.
+14. **Tenancy, O5** (D123; 6.4). *Recommended:* single-tenant per deployment, closing O5. *Alternatives:* (a) a
+    tenant per namespace, with spaces and keys per tenant; (b) leave O5 open.
+15. **Telemetry export** (D124; 12.4). *Recommended:* none in phase 5, because the GenAI attribute names are not
+    yet stable, and consumers keying dashboards, alerts or audit queries on them would silently read wrong or
+    missing data when they change. *Alternative:* export now against the development conventions, with consumers
+    warned that names will change.
+16. **Joining a person's local and hosted identity, and migration** (D129; 4.6). *Recommended:* in hosted modes
+    `local_id` must be a namespaced id, and legacy principals (`human:ada`, `agent:loopback`) map one way through
+    `principal.equivalents`, which ownership, self-approval, approvers, `readers` and cursors all consult; nothing
+    is rewritten. *Alternatives:* (a) rewrite ownership and access sets to the namespaced principal with a migration
+    command, re-sealing memory; (b) no join: legacy records stay with the legacy principal, and the doctor lists
+    them.
+17. **Who is an operator** (D130; 4.7). *Recommended:* only the CLI; library calls are treated by their actor.
+    *Alternatives:* (a) the CLI and the library, as phase 2 treats embedders, trusting every embedder to serve one
+    person; (b) the CLI and stdio, as both are local processes.
 
 ### Decisions made here that do not change the trust model
 
-These are proposed with the specification's approval, and the owner may overrule any:
-- D106: AFD step 0.
-- D107: auth modes, TLS on non-loopback binds, and the hosted profile as doctor-enforced requirements with
-  `profile` unchanged.
-- D108: token verification and audience rules, the strictest reading of the MCP text and RFC 9068.
-- D109: protected-resource metadata, minimal.
-- D125: exact filtering, statistics per reader filter, sealed cursors and revisions, which close the leaks phase 2
-  accepted.
-- D126: shared state on one machine.
-- D127: tasks for plain-journaled MCP commands only.
+These are proposed with the specification's approval:
+- D106: AFD step 0, with the resolver, the host-verified mode and relay evidence.
+- D107: auth modes, TLS, the hosted profile and the layer order.
+- D108: token rules.
+- D109: metadata.
+- D125: exact filtering, with deterministic sealing.
+- D126: shared state.
+- D127: tasks without content, bounded by the token.
 - D128: rate limits.
 
 ## Follow-ups
 
 | Date | Follow-up | Owner |
 | --- | --- | --- |
-| 2026-11-03 | An independent review of this specification, then a revision and the owner's answers (D24) | Owner's coordinator |
-| 2026-11-03 | URL-mode elicitation is marked "may change" in MCP 2026-07-28; re-check it at each trajectory refresh while the relay depends on it | Phase 5 owning agent |
-| 2026-11-03 | Client support for URL-mode elicitation is not yet in the extension client matrix; the relay's reach depends on it | Re-check at step 6 |
-| 2026-11-03 | DPoP (SEP-1932) and workload identity (SEP-1933), when final | W5 |
+| 2026-11-03 | A second review after this revision, then the owner's answers (D24) | Owner's coordinator |
+| 2026-11-03 | URL-mode elicitation "may change"; re-check at each refresh while the relay depends on it | Phase 5 owning agent |
+| 2026-11-03 | Client support for URL-mode elicitation is not in the extension client matrix | Re-check at step 6 |
+| 2026-11-03 | DPoP (SEP-1932), workload identity (SEP-1933) | W5 |
 | 2026-11-03 | MCP cites OAuth 2.1 draft 13, while draft 17 is current; re-read the resource-server sections at step 0b | Step 0b |
-| 2026-11-03 | Several machines behind one URL: networked backends for `src/shared/` | Phase 6 |
-| 2026-11-03 | Memory recall order changed (9.2) with no memory retrieval eval to measure it (phase 3 and 4 follow-ups) | After phase 5 |
-| 2026-11-03 | A plugin `secrets` grant and `http` grant | The first plugin that needs them |
-| 2026-11-03 | OpenTelemetry export and the Rust telemetry middleware | After W12's first tagged release (question 15) |
+| 2026-11-03 | Several machines behind one URL | Phase 6 |
+| 2026-11-03 | Memory recall's ranking changed (9.2) with no memory retrieval eval | After phase 5 |
+| 2026-11-03 | Plugin `secrets` and `http` grants | The first plugin that needs them |
+| 2026-11-03 | OpenTelemetry export | After W12's first tagged release |
+| 2026-11-03 | Whether `rustls-pemfile` is archived was not re-checked; `rustls-pki-types` replaces it either way | None |
