@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"selectedUnits": ["fast-element", "specimen", "specimen-afd", "specimen-cli", "specimen-fast-af"],
 	"inventoryHash": "1d3c41f2995cbbab535672efb0eb8f43bc9c58c1db278f3e6827005adce0c5e2",
-	"sourceDigest": "eb0a43ff0fbbc104ff8e84e30b0f38e45a9c4c1da1938270c737e0fb7e103a27",
+	"sourceDigest": "ea36de7df59775f75377709d974aeda7175789c48e459fe8492b0f7308b6e512",
 	"distributions": [
 		{
 			"name": "@lushly-dev/fast-element",
